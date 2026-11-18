@@ -381,15 +381,15 @@ func Text_TextFaceOf(props zir_5988125b9981443f_Props) TextFace {
 }
 
 func Text_DrawSession(session Session, props zir_5988125b9981443f_Props) {
-	var value_0 bool = StdMath_Finite32(props.Rotation)
+	var value_0 bool = StdFinite_Finite32(props.Rotation)
 	var value_1 bool = !value_0
 	if !value_1 {
-		var value_2 bool = StdMath_Finite32(props.Origin.X)
+		var value_2 bool = StdFinite_Finite32(props.Origin.X)
 		value_1 = !value_2
 	}
 	var value_3 bool = value_1
 	if !value_3 {
-		var value_4 bool = StdMath_Finite32(props.Origin.Y)
+		var value_4 bool = StdFinite_Finite32(props.Origin.Y)
 		value_3 = !value_4
 	}
 	if value_3 {

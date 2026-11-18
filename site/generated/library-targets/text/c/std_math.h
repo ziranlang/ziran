@@ -3,12 +3,11 @@
 #define ZIRAN_STD_MATH_H
 
 #include <stdint.h>
-#include <stdbool.h>
+#include "std_finite.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-bool Finite32(float value);
 int32_t CeilInteger(float value);
 float SineDegrees(float degrees);
 float CosineDegrees(float degrees);

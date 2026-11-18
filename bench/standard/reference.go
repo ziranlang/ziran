@@ -339,7 +339,45 @@ func Run(kind, n int64) int64 {
 		return Matrix(n)
 	case 9:
 		return Sort(n)
-	default:
+	case 10:
 		return Hash(n)
+	case 11:
+		return KNucleotide(n)
+	case 12:
+		return ReverseComplement(n)
+	case 13:
+		return PiDigits(n)
+	case 14:
+		return JsonRoundtrip(n)
+	case 15:
+		return Lz77(n)
+	case 16:
+		return Sha256(n)
+	case 17:
+		return Crc32(n)
+	case 18:
+		return RayTrace(n)
+	case 19:
+		return Sudoku(n)
+	case 20:
+		return Dijkstra(n)
+	case 21:
+		return WordCount(n)
+	case 22:
+		return RadixSort(n)
+	case 23:
+		return Lu(n)
+	case 24:
+		return Fft(n)
+	case 25:
+		return Bytecode(n)
+	case 26:
+		return HeatGrid(n)
+	case 27:
+		return Particles(n)
+	case 28:
+		return ImageFilter(n)
+	default:
+		return -1
 	}
 }

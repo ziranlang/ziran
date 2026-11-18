@@ -64,7 +64,7 @@ func Overlay_Draw(session Session, props zir_369927f740a3063a_Props) Dismissible
 				var value_11 bool = InputProtocol_PointInBounds(release.X, release.Y, props.KeepBounds)
 				value_10 = value_11
 			}
-			policy := OverlayBehavior_DismissibleOverlayPolicyFor(value_7, value_8, props.DismissDisabled, value_10)
+			policy := OverlayBehavior_DismissibleOverlayPolicyFor(value_7, value_8, props.DismissDisabled || props.OutsideDismissDisabled, value_10)
 			value_12 := &(result.Closed)
 			(*value_12) = policy.Closed
 			value_13 := &(result.OutsideReleased)

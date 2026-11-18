@@ -10,6 +10,7 @@
 #import "std/text_tools"
 #import "std/timer_linux"
 Stats :: #import "benchmark_statistics";
+Cases :: #import "standard_cases"
 using Vectors :: #import "std/vec"
 
 // Build-time samples for one column; Vec views need a named field.
@@ -33,7 +34,7 @@ PutReal :: (doc: *JsonDocument, node: s32, name: string, value: float64) {
 // Fixed commands; caller text is never interpolated into shell source.
 BuildCommand :: (column: s32) -> string {
     if column == 0 { return "cc -O2 -std=c11 -DSTANDARD_REFERENCE bench/standard/reference.c bench/standard/host.c -lm -o build/standard-compile/c" }
-    if column == 1 { return "go build -o build/standard-compile/go build/standard-compile/reference.go build/standard-compile/host.go" }
+    if column == 1 { return "go build -o build/standard-compile/go build/standard-compile/reference.go build/standard-compile/reference_extra.go build/standard-compile/host.go" }
     if column == 2 { return "build/bin/ziran build --target=c --exe --root bench --module-path std --module-path standard=bench/standard --entry standard_compile_entry:main -o build/standard-compile/generated bench/standard_compile_entry.zi" }
     if column == 3 { return "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/native.zx bench/standard/entry.zi && cc -O2 -std=c11 -Iinclude bench/standard_compile_host.c build/libziran.a -lm -pthread -ldl -o build/standard-compile/native && build/standard-compile/native build/standard-compile/native.zx" }
     return "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/wasm.zx bench/standard/entry.zi && build/bin/zx2wasm -o build/standard-compile/suite.wasm build/standard-compile/wasm.zx"
@@ -42,11 +43,9 @@ Number :: (value: s64) -> string {
     buffer: [64]u8
     return TextDetach(TextCopy(FormatInteger(value,buffer[:])))
 }
-Validate :: (column: s32, repetition: s32) -> bool {
-    // The 11 timed builds cover every workload; warmup checks Fibonacci.
-    kind := ifx repetition == 0 then cast(s32)0 else repetition-1
-    probes: [11]s64 = .[10,10,10,17,5,6,10,5,8,17,10]
-    oracle_args: [5]string = .["build/standard-compile/c - ",Number(kind)," ",Number(probes[kind])," 11 oracle"]
+Validate :: (column: s32, kind: s64) -> bool {
+    probe := Cases.WORKLOADS[kind].probe
+    oracle_args: [5]string = .["build/standard-compile/c - ",Number(kind)," ",Number(probe)," 0 oracle"]
     oracle_text, oracle_code := Capture(TextJoin(oracle_args[:],""))
     oracle: JsonDocument
     if oracle_code != 0 || !JsonRead(*oracle,oracle_text) { return false }
@@ -58,15 +57,14 @@ Validate :: (column: s32, repetition: s32) -> bool {
     if column == 2 { program = "build/standard-compile/generated/standard_compile_entry " }
     if column == 3 { program = "build/standard-compile/native build/standard-compile/native.zx " }
     if column == 4 { program = "node bench/standard/host.cjs build/standard-compile/suite.wasm " }
-    suffix := ifx column == 2 then "" else ifx column == 3 then " " else " 11 "
-    args: [7]string = .[program,Number(kind)," ",Number(probes[kind]),suffix,
+    suffix := ifx column == 2 then "" else ifx column == 3 then " " else " 0 "
+    args: [7]string = .[program,Number(kind)," ",Number(probe),suffix,
         ifx column == 2 then "" else Number(parsed),""]
     command := TextJoin(args[:],"")
     text, code := Capture(command)
     if code != 0 { print("validation failed: %\n%\n",command,text); return false }
     if column == 2 || column == 3 { return TextTrim(text) == expected }
-    doc: JsonDocument
-    return JsonRead(*doc,text) && JsonString(*doc,JsonMember(*doc,doc.root,"result")) == expected
+    return true
 }
 main :: (argc: s32, argv: **u8) -> s32 {
     output := "bench/results/standard/compile.json"
@@ -81,9 +79,10 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if host_code != 0 || TextTrim(host) != "alpha" || virt_code != 1 || TextTrim(virt) != "none" {
         print("compile benchmarks require the physical Alpha host\n"); return 2
     }
-    if IsFile(output) || !CreateDirectories("build/standard-compile") || !CreateDirectories(PathParent(output)) { return 2 }
+    if !validate_only && IsFile(output) { return 2 }
+    if !CreateDirectories("build/standard-compile") || !CreateDirectories(PathParent(output)) { return 2 }
     revision, revision_code := Capture("git rev-parse HEAD")
-    provenance_command := "sha256sum build/bin/ziran build/bin/zi2c build/bin/zi2zx build/bin/zx2wasm build/libziran.a bench/standard_compile.zi bench/standard_compile_entry.zi bench/standard_compile_host.c bench/standard/entry.zi bench/standard/kernels.zi bench/standard/reference.c bench/standard/host.c bench/standard/reference.go bench/standard/host.go"
+    provenance_command := "sha256sum build/bin/ziran build/bin/zi2c build/bin/zi2zx build/bin/zx2wasm build/libziran.a bench/standard_compile.zi bench/standard_compile_entry.zi bench/standard_compile_host.c bench/standard_cases.zi bench/standard/*"
     provenance, provenance_code := Capture(provenance_command)
     if revision_code != 0 || provenance_code != 0 { return 1 }
     doc: JsonDocument; root := JsonNewObject(*doc)
@@ -100,12 +99,15 @@ main :: (argc: s32, argv: **u8) -> s32 {
     PutText(*doc,root,"methodology","Whole standard suite; warm filesystem/toolchain caches. One warmup then 11 fresh application builds, rotating target order. Generated C includes cc -O2/link; native includes ZX frontend, host cc/link and native instantiation. Wasm includes ZX frontend and wasm emission, excludes V8 compilation. Validation outside timing. Go source nonce forces application cache miss; standard-library cache stays warm. No fast compiler mode exists. Symmetric inclusive 1.5xIQR; raw samples retained.")
     JsonSet(*doc,root,"checks",JsonNewBool(*doc,false))
     JsonSet(*doc,root,"samples",JsonNewInteger(*doc,11))
+    JsonSet(*doc,root,"workload_count",JsonNewInteger(*doc,Cases.WORKLOADS.count))
     columns: [5]string = .["c","go","generated-c","native","wasm"]
     samples: [5]ColumnSamples
     raw := JsonNewArray(*doc); JsonSet(*doc,root,"builds",raw)
     reference, reference_ok := ReadEntireFile("bench/standard/reference.go")
     go_host, host_ok := ReadEntireFile("bench/standard/host.go")
-    if !reference_ok || !host_ok || !WriteEntireFile("build/standard-compile/host.go",go_host) { return 1 }
+    extra, extra_ok := ReadEntireFile("bench/standard/reference_extra.go")
+    if !reference_ok || !host_ok || !extra_ok || !WriteEntireFile("build/standard-compile/host.go",go_host) ||
+        !WriteEntireFile("build/standard-compile/reference_extra.go",extra) { return 1 }
     last := ifx validate_only then cast(s32)0 else cast(s32)11
     for repetition: cast(s32)0..last {
         for offset: cast(s32)0..4 {
@@ -125,7 +127,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
             ok := RunProcess(options,*run)
             milliseconds := cast(float64)(MonotonicNanoseconds()-started)/1000000.0
             if !ok || run.code != 0 { print("build failed: % (see build/standard-compile/build.log)\n",command); return 1 }
-            if !Validate(column,repetition) { return 1 }
+            if !Validate(column, cast(s64)repetition % Cases.WORKLOADS.count) { return 1 }
             if repetition > 0 { unused VecPush(samples[column].values,milliseconds) }
             row := JsonNewObject(*doc); unused JsonAppend(*doc,raw,row)
             PutText(*doc,row,"target",columns[column]); PutText(*doc,row,"command",command)
@@ -136,6 +138,11 @@ main :: (argc: s32, argv: **u8) -> s32 {
             progress: [2]string = .[output,".partial"]
             if !validate_only && !WriteEntireFile(TextJoin(progress[:],""),JsonWrite(*doc,root,JsonPythonStyle(2))) { return 1 }
             print("% sample % verified\n",columns[column],repetition)
+        }
+    }
+    for kind: cast(s64)0..Cases.WORKLOADS.count - 1 {
+        for column: cast(s32)0..4 {
+            if !Validate(column,kind) { return 1 }
         }
     }
     after, after_code := Capture(provenance_command)

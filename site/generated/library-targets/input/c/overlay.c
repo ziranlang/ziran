@@ -66,7 +66,7 @@ overlay_Draw(Session session, zir_369927f740a3063a_Props props)
             bool value_7 = true;
             bool value_8 = false;
             bool value_9 = PointInBounds(release.x, release.y, props.bounds);
-            DismissibleOverlayPolicy policy = DismissibleOverlayPolicyFor(value_7, value_8, props.dismiss_disabled, value_9 || PointInBounds(release.x, release.y, props.keep_bounds));
+            DismissibleOverlayPolicy policy = DismissibleOverlayPolicyFor(value_7, value_8, props.dismiss_disabled || props.outside_dismiss_disabled, value_9 || PointInBounds(release.x, release.y, props.keep_bounds));
             bool* value_10 = &(result.closed);
             (*value_10) = policy.closed;
             bool* value_11 = &(result.outside_released);

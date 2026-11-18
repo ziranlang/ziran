@@ -6,21 +6,19 @@ generated files, source fixtures and raw samples, without adding compiler cases.
 """
 import argparse
 from datetime import datetime, timezone
-import html
 import json
 from pathlib import Path
 import platform
-import re
+import random
 import shutil
-import statistics
 import zipfile
 
 import site_targets as base
 import site_target_platforms as platforms
+from benchmark_samples import GATE_METHOD, HostGate
 
 OUTPUT = base.SITE / 'generated/library-targets'
 WORK = base.REPO / 'build/site-library-targets'
-MARKER = 'library_matrix'
 
 
 def public(path):
@@ -97,7 +95,7 @@ def build(project, manifest_path, samples, revision=None):
             'measured_at': datetime.now(timezone.utc).isoformat(), 'host': base.cpu_name(),
             'hostname': platform.node(), 'loadavg_before': loadavg(),
             'versions': {'cc': run(['cc', '--version']).splitlines()[0], 'go': run(['go', 'version'])},
-            'methodology': manifest['methodology'] + ' Symmetric 1.5×IQR filtering excludes outliers from the median; raw samples and excluded indices are retained. The Wasm module is unbounded, like the C and Go builds: it charges no step budget.', 'samples': samples,
+            'methodology': manifest['methodology'] + ' Symmetric 1.5×IQR filtering excludes outliers from the median; raw samples and excluded indices are retained. The Wasm module is unbounded, like the C and Go builds: it charges no step budget.' + GATE_METHOD, 'samples': samples,
             'sources': archive(source_dir, OUTPUT / 'sources.zip'),
             'checked_ir': archive(ir, OUTPUT / 'checked-ir.zip'),
             'compiler': {'library_sha256': base.sha(base.REPO / 'build/libziran.a'),
@@ -125,6 +123,7 @@ def build(project, manifest_path, samples, revision=None):
     data['virtualization'] = 'none'
     data['checks'] = False
     data['learning'] = env.get('ZIRAN_LEARN', 'unknown')
+    jobs = []
     for case in manifest['cases']:
         row = {**case, 'module': module, 'stdout': '', 'targets': {}}
         entry = f'{module}:{case["entry"]}'
@@ -169,42 +168,20 @@ def build(project, manifest_path, samples, revision=None):
                               base.SITE / emitted[0]['path'], case['expected'], samples]
             else:
                 invocation = [runner, base.SITE / emitted[0]['path'], case['expected'], samples]
-            measured = platforms.summarize(platforms.read_measurement(platforms.run(invocation, env=env), row), case['expected'])
-            cell['measurement'] = {**measured, 'command': base.command_text(invocation)}
+            jobs.append((row, cell, invocation))
             add_licenses(public_dir)
             cell['download'] = archive(public_dir, OUTPUT / case['id'] / (target + '.zip')) if target in ('c', 'go') else emitted[0]
         data['examples'].append(row)
+    random.Random(42).shuffle(jobs)
+    gate = HostGate()
+    timed_env = gate.environment(env)
+    for row, cell, invocation in jobs:
+        measured = platforms.measure(invocation, row, timed_env, gate)
+        cell['measurement'] = {**measured, 'command': base.command_text(invocation)}
     assert data['compiler']['library_sha256'] == base.sha(base.REPO / 'build/libziran.a'), 'Runtime changed during measurement'
     data['loadavg_after'] = loadavg()
     (OUTPUT / 'matrix.json').write_text(json.dumps(data, indent=2) + '\n')
-    render(data, write=True)
     print(f'{len(data["examples"])} library entries: C, Go, native ZX and Wasm executed; every batch verified')
-
-
-def render(data, write=False):
-    rows = []
-    for row in data['examples']:
-        cells = ''.join(f'<td><a class="library-cell" href="{html.escape(cell["download"]["path"])}" download>'
-                        f'<span class="matrix-state is-ok">Verified</span><strong class="matrix-value">'
-                        f'{base.format_microseconds(cell["measurement"]["execution_ms"])}</strong></a></td>' for cell in (row['targets'][target] for target in TARGETS))
-        rows.append(f'<tr><th scope="row">{html.escape(row["title"])}</th>{cells}</tr>')
-    content = '<div class="matrix-scroll" tabindex="0" role="region" aria-label="Desktop widget comparison"><table class="target-matrix library-matrix"><caption class="sr-only">Widget scenarios, median µs per two-frame scenario</caption><thead><tr><th scope="col">Two-frame scenario<small>µs per scenario</small></th><th scope="col">C<small>cc -O2</small></th><th scope="col">Go<small>native</small></th><th scope="col">ZX<small>native</small></th><th scope="col">Wasm<small>Node / V8</small></th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div>'
-    content += ('<p class="matrix-footnote">Median warm time. '
-                f'{data["samples"]} batches with symmetric 1.5×IQR outliers excluded. '
-                'Loading, compilation and initialization are excluded; sessions are retained between calls. '
-                f'Checks {"off" if data.get("checks") is False else "not recorded"}; '
-                f'learning {html.escape(data.get("learning", "not recorded"))}. '
-                'Open a cell to download its actual compiler output. '
-                '<a href="generated/library-targets/matrix.json">Raw measurements and exclusions</a> · '
-                '<a href="generated/library-targets/sources.zip">Source fixtures</a> · '
-                '<a href="generated/library-targets/checked-ir.zip">Complete ZIR</a></p>')
-    page = base.SITE / 'targets.html'
-    original = page.read_text()
-    result = re.sub(r'(?s)(<!-- generated:' + MARKER + r' -->).*?(<!-- /generated:' + MARKER + r' -->)', lambda m: m[1] + '\n' + content + '\n' + m[2], original)
-    assert result != original or content in original, 'Missing library matrix template'
-    if write:
-        page.write_text(result)
-    return result
 
 
 def check():
@@ -224,8 +201,7 @@ def check():
     for file in files:
         path = base.SITE / file['path']
         assert path.stat().st_size == file['bytes'] and base.sha(path) == file['sha256'], f'Stale library output: {path}'
-    assert render(data) == (base.SITE / 'targets.html').read_text()
-    print('Library output hashes, raw samples, checksums and generated table verified')
+    print('Library output hashes, raw samples, checksums verified')
 
 
 if __name__ == '__main__':
@@ -235,11 +211,8 @@ if __name__ == '__main__':
     parser.add_argument('--samples', type=int, default=9)
     parser.add_argument('--revision', help='the commit a --project tree exported with git archive holds')
     parser.add_argument('--check', action='store_true')
-    parser.add_argument('--render', action='store_true', help='rewrite the page section from the saved matrix without measuring')
     args = parser.parse_args()
-    if args.render:
-        render(json.loads((OUTPUT / 'matrix.json').read_text()), write=True)
-    elif args.check:
+    if args.check:
         check()
     else:
         if not args.project or not args.manifest or not 3 <= args.samples <= 31:

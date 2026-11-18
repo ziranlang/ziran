@@ -21,11 +21,11 @@ shape_paint_LineCornersFor(Vector2 start, Vector2 end, float thickness)
     float dy = end.y - start.y;
     double value_0 = Sqrt((double)(((dx * dx) + (dy * dy))));
     float length = (float)(value_0);
-    bool value_1 = Finite32(length);
+    bool value_1 = std_finite_Finite32(length);
     if (!value_1 || length <= ((float)0.0)) {
         return corners;
     }
-    bool value_2 = Finite32(thickness);
+    bool value_2 = std_finite_Finite32(thickness);
     if (!value_2 || thickness <= ((float)0.0)) {
         return corners;
     }
@@ -159,7 +159,7 @@ shape_paint_ShapeFadeBands(Color center, Color edge, float radius)
     }
     int32_t change = (int32_t)((uint32_t)value_14 + (uint32_t)((((int32_t)((uint32_t)color_change * (uint32_t)alpha)) / 255)));
     int32_t bands = ((int32_t)((uint32_t)change + 1u)) / 2;
-    if (Finite32(radius)) {
+    if (std_finite_Finite32(radius)) {
         int32_t by_radius = CeilInteger(radius * ((float)0.5));
         if (bands > by_radius) {
             bands = by_radius;
@@ -230,7 +230,7 @@ shape_paint_ShapeBatchAdd(Vector2 a, Vector2 b, Vector2 c)
         value_3 = ((b.x - a.x) * (c.y - a.y)) - ((b.y - a.y) * (c.x - a.x));
     }
     float turn = value_3;
-    bool value_5 = Finite32(turn);
+    bool value_5 = std_finite_Finite32(turn);
     if (!value_5 || turn == ((float)0.0)) {
         return;
     }
@@ -404,30 +404,30 @@ shape_paint_ShapeBatchTriangle(Vector2 a, Vector2 b, Vector2 c)
         shape_paint_ShapeBatchAdd(a, b, c);
         return;
     }
-    bool value_0 = Finite32(a.x);
+    bool value_0 = std_finite_Finite32(a.x);
     bool value_1 = !value_0;
     if (!value_1) {
-        bool value_2 = Finite32(a.y);
+        bool value_2 = std_finite_Finite32(a.y);
         value_1 = !value_2;
     }
     bool value_3 = value_1;
     if (!value_3) {
-        bool value_4 = Finite32(b.x);
+        bool value_4 = std_finite_Finite32(b.x);
         value_3 = !value_4;
     }
     bool value_5 = value_3;
     if (!value_5) {
-        bool value_6 = Finite32(b.y);
+        bool value_6 = std_finite_Finite32(b.y);
         value_5 = !value_6;
     }
     bool value_7 = value_5;
     if (!value_7) {
-        bool value_8 = Finite32(c.x);
+        bool value_8 = std_finite_Finite32(c.x);
         value_7 = !value_8;
     }
     bool value_9 = value_7;
     if (!value_9) {
-        bool value_10 = Finite32(c.y);
+        bool value_10 = std_finite_Finite32(c.y);
         value_9 = !value_10;
     }
     if (value_9) {
@@ -549,7 +549,7 @@ shape_paint_EmitCircleShape(PaintCommand command)
 {
     float radius = command.radius;
     int32_t segments = command.segments;
-    bool value_0 = Finite32(radius);
+    bool value_0 = std_finite_Finite32(radius);
     if (!value_0 || radius <= ((float)0.0)) {
         return;
     }
@@ -592,16 +592,16 @@ shape_paint_EmitRingShape(PaintCommand command)
     float inner = outer - command.line_width;
     float sweep = command.source.x;
     int32_t segments = command.segments;
-    bool value_0 = Finite32(outer);
+    bool value_0 = std_finite_Finite32(outer);
     bool value_1 = !value_0 || outer <= ((float)0.0);
     if (!value_1) {
-        bool value_2 = Finite32(inner);
+        bool value_2 = std_finite_Finite32(inner);
         value_1 = !value_2;
     }
     if (value_1) {
         return;
     }
-    bool value_3 = Finite32(sweep);
+    bool value_3 = std_finite_Finite32(sweep);
     if (!value_3 || sweep <= ((float)0.0) || sweep > ((float)360.0)) {
         return;
     }

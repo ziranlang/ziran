@@ -43,7 +43,7 @@ int main(int argc,char **argv) {
     if(argc!=6)return 2;
     int64_t kind=atoll(argv[2]),size=atoll(argv[3]);
     int samples=atoi(argv[4]);
-    if(kind<0||kind>10||size<1||samples!=11)return 2;
+    if(kind<0||kind>28||size<1||(samples!=0&&samples!=11))return 2;
     #ifndef STANDARD_REFERENCE
     Bundle *bundle=BundleOpen(argv[1]);
     if(!bundle)return 3;
@@ -67,6 +67,14 @@ int main(int argc,char **argv) {
             fprintf(stderr,"%lld != %lld\n",(long long)first,(long long)expected);
             return 6;
         }
+    }
+    if(!samples) {
+        printf("{\"result\":\"%lld\"}\n",(long long)first);
+        #ifndef STANDARD_REFERENCE
+        BundleInstanceClose(instance);
+        BundleClose(bundle);
+        #endif
+        return 0;
     }
     double times[11],start=now();
     do {

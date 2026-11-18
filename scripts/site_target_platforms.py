@@ -22,7 +22,7 @@ import sys
 import time
 
 import site_targets as base
-from benchmark_samples import summarize_samples
+from benchmark_samples import GATE_METHOD, HostGate, summarize_samples
 
 ROOT = base.REPO
 SITE = base.SITE
@@ -76,6 +76,12 @@ def read_measurement(text, example):
     assert observed == example['stdout'], (example['id'], observed, example['stdout'])
     result['stdout_verified'] = True
     return result
+
+
+def measure(command, example, env, gate):
+    def job():
+        return summarize(read_measurement(run(command, env=env), example), example['expected'])
+    return gate.measure(job) if gate else job()
 
 
 def paths(example, target):
@@ -146,14 +152,15 @@ def metadata(label, host, runtimes, samples):
                            'Shared machines and uncontrolled clocks; no universal target ranking.'}
 
 
-def desktop(data, samples):
+def desktop(data, samples, *, host_gate=False):
     out = WORK / 'desktop'
     out.mkdir(parents=True, exist_ok=True)
     library = ROOT / 'build/libziran.a'
     zx = out / 'zx-runner'
-    runtime_build(os.environ.get('CC', 'cc'), library, zx)
+    runtime_build(os.environ.get('CC', 'cc'), library, zx,
+                  ['-include', ROOT / 'bench/site_target_backend.h', '-DMATRIX_ZX_BACKEND=BUNDLE_BACKEND_NATIVE'])
     result = metadata('Desktop', platform.system() + ' ' + platform.machine() + ' · ' + base.cpu_name(),
-                      {'c': 'C · cc -O2', 'go': 'Go · native', 'zx': 'ZX · instruction engine', 'wasm': 'WebAssembly · Node / V8'}, samples)
+                      {'c': 'C · cc -O2', 'go': 'Go · native', 'zx': 'ZX · native', 'wasm': 'WebAssembly · Node / V8'}, samples)
     jobs = []
     for example in data['examples']:
         directory = out / example['id']
@@ -170,8 +177,13 @@ def desktop(data, samples):
         ]:
             jobs.append((example, target, command))
     random.Random(42).shuffle(jobs)
+    env = environment()
+    gate = HostGate() if host_gate else None
+    if gate:
+        env = gate.environment(env)
+        result['methodology'] = result['methodology'].removesuffix(' Shared machines and uncontrolled clocks; no universal target ranking.') + GATE_METHOD
     for example, target, command in jobs:
-        measured = summarize(read_measurement(run(command, env=environment()), example), example['expected'])
+        measured = measure(command, example, env, gate)
         measured['command'] = base.command_text(command)
         measured['artifact_sha256'] = sha(command[0] if target in ('c', 'go', 'zx') else paths(example, 'wasm')[0])
         result['examples'].setdefault(example['id'], {})[target] = measured
@@ -191,7 +203,7 @@ def mobile(data, samples, serial, ndk):
     model = shell('getprop', 'ro.product.model')
     release = shell('getprop', 'ro.build.version.release')
     result = metadata('Mobile', model + ' · Android ' + release + ' · ARMv7',
-                      {'c': 'C · Android Clang -O2', 'go': 'Go · Android / ARMv7', 'zx': 'ZX · instruction engine', 'wasm': 'WebAssembly · WAMR AOT'}, samples)
+                      {'c': 'C · Android Clang -O2', 'go': 'Go · Android / ARMv7', 'zx': 'ZX · native', 'wasm': 'WebAssembly · WAMR AOT'}, samples)
     result['serial_sha256'] = hashlib.sha256(serial.encode()).hexdigest()
     def battery():
         text = shell('dumpsys', 'battery')
@@ -306,7 +318,7 @@ def main():
     WORK.mkdir(parents=True, exist_ok=True)
     def checkpoint():
         (base.OUTPUT / 'matrix.json').write_text(json.dumps(data, indent=2) + '\n')
-    if args.platform in ('desktop', 'all'):
+    if args.platform in ('desktop', 'all') and not args.rebuild_outputs:
         data['platforms']['desktop'] = desktop(data, args.samples)
         checkpoint()
         print('Desktop: 20 verified target measurements', flush=True)

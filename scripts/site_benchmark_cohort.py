@@ -1,5 +1,4 @@
 """Require one physical-host/compiler cohort for all published timing tables."""
-import html
 import json
 
 import site_targets as base
@@ -17,6 +16,10 @@ def validate(kernel):
     assert set(examples['platforms']) == {'desktop'}
     assert examples['cpu'] == widgets['host']
     assert all(data['samples'] == 11 for data in (kernel, widgets, workloads, examples))
-    return (f'<p class="matrix-footnote">Measured on {html.escape(widgets["host"])} · '
-            f'<a href="https://github.com/ziranlang/ziran/commit/{revision}">Compiler revision</a>. '
-            'All published tables use this physical host and compiler revision. Each table names its unit in its first column.</p>')
+    for row in examples['platforms']['desktop']['examples'].values():
+        assert all(value['host_gate']['accepted'] for value in row.values())
+    for data in (widgets, workloads):
+        for row in data['examples']:
+            for cell in row['targets'].values():
+                if cell['status'] == 'ok':
+                    assert cell['measurement']['host_gate']['accepted']

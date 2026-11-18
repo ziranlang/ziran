@@ -4,7 +4,7 @@ Run on Alpha's physical host, from the canonical checkout, through its queue:
 
 ```
 env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- \
-  python3 bench/wasm_tier.py --standard --samples 11 \
+  python3 bench/wasm_tier.py --standard --host-gate --samples 11 \
   --output bench/results/standard/diagnostic.json
 ```
 
@@ -14,7 +14,7 @@ Add `--standard-full` for the Benchmarks Game performance sizes. The default
 is a smaller diagnostic set, explicitly identified in its receipt; results at
 different sizes must never be compared as if they performed the same work.
 
-| Workload | Diagnostic input | Game performance input |
+| Original workload | Diagnostic input | Game performance input |
 | --- | ---: | ---: |
 | Recursive Fibonacci | 35 | 35 |
 | n-body | 500,000 steps | 50,000,000 steps |
@@ -28,6 +28,9 @@ different sizes must never be compared as if they performed the same work.
 | quicksort | 200,000 integers | 200,000 integers |
 | string seeded FNV-1a hash | 100,000 passes | 100,000 passes |
 
+The [workload catalog](../standard_cases.zi) lists all 29 cases, their probe
+and diagnostic sizes, and the larger preset sizes where available.
+
 For cooperative queue use, `--standard-case-limit 1` saves a partial receipt
 and exits successfully after each completed workload. Continue with
 `--standard-resume --standard-case-limit 1` and the same output path and size
@@ -38,11 +41,11 @@ libc), and the Wasm module is precompiled, so subsequent checkout/compiler
 updates cannot affect the retained executables. Never reset the checkout while
 a row is actively measuring. Each invocation runs
 through build-queue independently, allowing other queued work between rows.
-Only a receipt containing all eleven workloads is published; partial receipts
+Only a receipt containing all workloads is published. Partial receipts
 are never accepted by the renderer.
 
 The separate `standard-compile` driver measures one complete build of the whole
-suite per column, rather than assigning the same suite build to eleven rows:
+suite per column:
 
 ```
 env -u DISPLAY -u WAYLAND_DISPLAY build-queue -- \
@@ -54,8 +57,8 @@ Run `standard-compile --validate` on Alpha first. The five columns are C
 and Wasm. Native timing includes the frontend, native host compilation/linking,
 and instantiation that actually compiles the native program. Wasm timing includes
 the frontend and module emission; V8 compilation is excluded. Every artifact
-runs a C-verified probe after its build, outside build timing; the eleven timed
-builds cover all eleven workloads in order. One warmup precedes
+runs a C-verified probe after its build, outside build timing. All 29 probes
+run on the final artifact in each column. One warmup precedes
 11 samples with rotating column order and the shared IQR policy. Generated C
 outputs are removed before each sample; a source comment changes before each Go
 build to prevent application-cache hits, and Go runs with `GOMAXPROCS=2`.
@@ -72,10 +75,11 @@ The Game kernels follow its published [task descriptions](https://benchmarksgame
 These are scalar compute comparisons, not submissions to the Game's leaderboard:
 formatting and writing large output files are replaced with digest accumulation.
 No hand-tuned parallel or SIMD implementation is selected in any column.
-The supplemental workloads use explicit deterministic inputs rather than claiming
-an external canonical size. Optional reverse-complement/k-nucleotide are absent.
+The supplemental workloads, including reverse-complement and k-nucleotide,
+use explicit deterministic inputs at the sizes recorded in the catalog.
 
-`kernels.zi` owns all Ziran computation. `entry.zi` obtains both workload and
+`kernels.zi` dispatches to the Ziran implementations in this directory.
+`entry.zi` obtains both workload and
 size through a host capability. C and Go references independently implement the
 same algorithms and read both arguments at runtime. The native and Wasm hosts
 supply the same values through the capability; nothing embeds a fixed answer.
@@ -93,16 +97,15 @@ excluded indices are retained. Tiny probe inputs are checked before the measured
 size. Every invocation's result, including warmup and every timed sample, is
 compared with the C oracle; a mismatch stops the suite.
 
-The receipt retains the execution host for provenance; the rendered
-page shows only the CPU and measured commit. The measured commit names the
+The receipt retains the execution host for provenance. The measured commit names the
 compiler (`compiler_dirty` records whether its sources were clean); source,
 tool, runtime and artifact hashes identify the suite and implementation that
 ran. The site renders only receipts whose commit matches the other published
 tables (`site/generated/targets/matrix.json`), so every table on /targets
 shares one compiler.
 
-Retained results in `bench/results/standard/`: `diagnostic.json`,
-`game-performance.json` and `compile.json` at the published commit;
+Retained results in `bench/results/standard/`: `diagnostic.json` and
+`compile.json` at the published commit;
 `diagnostic-96c23c7d.json` and the five-row `game-performance-96c23c7d.partial.json`
 from the earlier compiler, with `sources-96c23c7d.zip` holding the suite sources
 they measured (the C and Go references were later reformatted only), and

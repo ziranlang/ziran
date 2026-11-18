@@ -1,0 +1,47 @@
+// The index is the workload ID passed through the native and Wasm host ABI.
+Workload :: struct {
+    name: string
+    size: s64
+    probe: s64
+    game_size: s64
+    note: string
+}
+
+WORKLOADS :: Workload.[
+    .{name = "fib", size = 35, probe = 10, note = "Recursive integer calls"},
+    .{name = "n-body", size = 500000, probe = 10, game_size = 50000000, note = "Five-body simulation and energy calculation"},
+    .{name = "spectral-norm", size = 500, probe = 10, game_size = 5500, note = "Repeated implicit matrix-vector products"},
+    .{name = "mandelbrot", size = 1000, probe = 17, game_size = 16000, note = "Escape-time pixel calculation and bitmap packing"},
+    .{name = "fannkuch-redux", size = 9, probe = 5, game_size = 12, note = "Permutation generation and prefix reversal"},
+    .{name = "binary-trees", size = 14, probe = 6, game_size = 21, note = "Recursive allocation, traversal and reclamation"},
+    .{name = "fasta", size = 1000000, probe = 10, game_size = 25000000, note = "Seeded nucleotide generation and output digest"},
+    .{name = "nqueens", size = 12, probe = 5, note = "Bit-set search and recursive backtracking"},
+    .{name = "matmul", size = 192, probe = 8, note = "Dense integer matrix multiplication"},
+    .{name = "quicksort", size = 200000, probe = 17, note = "In-place partitioning on generated integers"},
+    .{name = "string-hash", size = 100000, probe = 10, note = "Byte traversal with a dependent FNV-1a hash"},
+    .{name = "k-nucleotide", size = 1000000, probe = 29, note = "Rolling 7-mer counts in a dense histogram"},
+    .{name = "reverse-complement", size = 1000000, probe = 31, note = "Reverse DNA base mapping into an output buffer"},
+    .{name = "pidigits", size = 1000, probe = 19, note = "Decimal spigot using a mixed-radix bignum"},
+    .{name = "json-roundtrip", size = 16000, probe = 3, note = "Parse and compact JSON objects with integer values"},
+    .{name = "lz77", size = 262144, probe = 513, note = "Sliding-window match search and literal/token digest"},
+    .{name = "sha256", size = 262144, probe = 65, note = "Scalar SHA-256 compression and final padding"},
+    .{name = "crc32", size = 1048576, probe = 63, note = "Table-driven IEEE CRC-32"},
+    .{name = "ray-trace", size = 192, probe = 17, note = "Primary rays, nearest sphere intersections and diffuse shading"},
+    .{name = "sudoku", size = 9, probe = 1, note = "Constraint propagation and recursive board search"},
+    .{name = "dijkstra", size = 48, probe = 7, note = "Shortest paths on a weighted grid with a dense frontier scan"},
+    .{name = "word-count", size = 200000, probe = 73, note = "Token scanning and open-addressed frequency counts"},
+    .{name = "radix-sort", size = 262144, probe = 31, note = "Four stable counting passes over 32-bit keys"},
+    .{name = "lu", size = 192, probe = 9, note = "In-place dense LU factorization without pivot exchanges"},
+    .{name = "fft", size = 14, probe = 7, note = "Radix-2 complex FFT with bit reversal and twiddles; input is log₂ length"},
+    .{name = "bytecode", size = 12000, probe = 9, note = "Eight-opcode register interpreter over generated instructions"},
+    .{name = "heat-grid", size = 192, probe = 11, note = "32 floating-point diffusion passes over two grids"},
+    .{name = "particle-update", size = 16384, probe = 31, note = "64 steps of record updates, forces and boundary handling"},
+    .{name = "image-filter", size = 512, probe = 13, note = "Separable image blur, sharpening and byte conversion"},
+];
+
+// The retained cohort collector reads the same catalog as A/B and profiling.
+main :: () {
+    for workload: WORKLOADS {
+        print("%\t%\t%\t%\n", workload.name, workload.size, workload.probe, workload.game_size)
+    }
+}

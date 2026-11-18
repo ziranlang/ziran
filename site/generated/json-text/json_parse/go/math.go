@@ -14,11 +14,6 @@ type MathReduced struct {
 	Tail float64
 }
 
-func Math_Finite32(value float32) bool {
-	var limit float32 = 3.402823e38
-	return value == value && value <= limit && value >= -limit
-}
-
 func Math_FloorInteger(value float32) int32 {
 	whole := int32(floatToInt(float64(value), 32, true))
 	if float32(whole) > value {
@@ -77,10 +72,6 @@ func Math_Infinity() float64 {
 	return huge * 10.0
 }
 
-func Math_Finite64(value float64) bool {
-	return value == value && value <= 1.7976931348623157e308 && value >= -1.7976931348623157e308
-}
-
 func Math_SmallPowerOfTwo(exponent int32) float64 {
 	var result float64 = 1.0
 	count := exponent
@@ -107,7 +98,7 @@ func Math_ScaleByPowerOfTwo(value float64, exponent int32) float64 {
 	for {
 		var value_0 bool = exponent > 64 && value != 0.0
 		if value_0 {
-			var value_1 bool = Math_Finite64(value)
+			var value_1 bool = Finite_Finite64(value)
 			value_0 = value_1
 		}
 		if !value_0 { break }
@@ -225,7 +216,7 @@ func Math_Log(value float64) float64 {
 	if value == 0.0 {
 		return 0.0 - Math_Infinity()
 	}
-	var value_0 bool = Math_Finite64(value)
+	var value_0 bool = Finite_Finite64(value)
 	if !value_0 {
 		return value
 	}
@@ -330,7 +321,7 @@ func Math_CosineKernel(x float64, y float64) float64 {
 }
 
 func Math_Sin(value float64) float64 {
-	var value_0 bool = Math_Finite64(value)
+	var value_0 bool = Finite_Finite64(value)
 	if !value_0 {
 		return Math_NotANumber()
 	}
@@ -351,7 +342,7 @@ func Math_Sin(value float64) float64 {
 }
 
 func Math_Cos(value float64) float64 {
-	var value_0 bool = Math_Finite64(value)
+	var value_0 bool = Finite_Finite64(value)
 	if !value_0 {
 		return Math_NotANumber()
 	}
@@ -372,7 +363,7 @@ func Math_Cos(value float64) float64 {
 }
 
 func Math_Tan(value float64) float64 {
-	var value_0 bool = Math_Finite64(value)
+	var value_0 bool = Finite_Finite64(value)
 	if !value_0 {
 		return Math_NotANumber()
 	}
@@ -711,7 +702,7 @@ func Math_Pow(base float64, exponent float64) float64 {
 func Math_Cbrt(value float64) float64 {
 	var value_0 bool = value == 0.0
 	if !value_0 {
-		var value_1 bool = Math_Finite64(value)
+		var value_1 bool = Finite_Finite64(value)
 		value_0 = !value_1
 	}
 	if value_0 {

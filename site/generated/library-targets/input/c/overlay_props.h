@@ -23,6 +23,7 @@ struct zir_369927f740a3063a_Props {
     int32_t view_height;
     Color scrim;
     bool dismiss_disabled;
+    bool outside_dismiss_disabled;
     bool non_modal;
 };
 

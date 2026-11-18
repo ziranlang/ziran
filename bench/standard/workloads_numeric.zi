@@ -1,0 +1,173 @@
+#import "std/math"
+#import "std/vec"
+Text :: #import "workloads_text"
+
+// Treat values within 1e-8 scaled units of a half as a tie across libm implementations.
+Quantize :: (value: float64) -> s64 {
+    return cast(s64)(value * 1000.0 + ifx value >= 0.0 then 0.50000001 else -0.50000001)
+}
+
+Lu :: (n: s64) -> s64 {
+    matrix: Vec(float64)
+    if !VecResize(matrix, n * n) { return -1 }
+    for i: 0..n - 1 {
+        for j: 0..n - 1 {
+            matrix[i * n + j] = cast(float64)((i * 19 + j * 17) % 31 - 15) / 16.0
+        }
+        matrix[i * n + i] += cast(float64)n
+    }
+    // A strictly diagonally dominant matrix needs no pivot exchanges.
+    for k: 0..n - 1 {
+        for i: k + 1..n - 1 {
+            scale := matrix[i * n + k] / matrix[k * n + k]
+            matrix[i * n + k] = scale
+            for j: k + 1..n - 1 { matrix[i * n + j] -= scale * matrix[k * n + j] }
+        }
+    }
+    hash: s64
+    for value: matrix { hash = Text.Digest(hash, Quantize(value)) }
+    return hash
+}
+
+Complex :: struct { real: float64; imag: float64 }
+
+Fft :: (bits: s64) -> s64 {
+    n := cast(s64)1 << bits
+    data: Vec(Complex)
+    if !VecResize(data, n) { return -1 }
+    reverse: s64
+    for i: 0..n - 1 {
+        data[reverse] = .{real = cast(float64)(i % 71 - 35) / 32.0, imag = cast(float64)(i % 19 - 9) / 16.0}
+        bit := n >> 1
+        while bit != 0 && (reverse & bit) != 0 { reverse ^= bit; bit >>= 1 }
+        reverse ^= bit
+    }
+    size: s64 = 2
+    while size <= n {
+        half := size / 2
+        for k: 0..half - 1 {
+            angle := -6.283185307179586 * cast(float64)k / cast(float64)size
+            re := Cos(angle); im := Sin(angle)
+            a := k
+            while a < n {
+                b := a + half
+                real := data[b].real * re - data[b].imag * im
+                imag := data[b].real * im + data[b].imag * re
+                data[b].real = data[a].real - real; data[b].imag = data[a].imag - imag
+                data[a].real += real; data[a].imag += imag
+                a += size
+            }
+        }
+        size *= 2
+    }
+    hash: s64
+    for i: 0..n - 1 {
+        hash = Text.Digest(Text.Digest(hash, Quantize(data[i].real)), Quantize(data[i].imag))
+    }
+    return hash
+}
+
+Sphere :: struct { x: float64; y: float64; z: float64; radius: float64 }
+
+RayTrace :: (n: s64) -> s64 {
+    scene: [49]Sphere
+    for i: 0..48 {
+        scene[i] = .{x = cast(float64)(i % 7 - 3) * 0.52,
+            y = cast(float64)(i / 7 - 3) * 0.5, z = 3.1 + cast(float64)(i % 5) * 0.2,
+            radius = 0.24 + cast(float64)(i % 3) * 0.012}
+    }
+    hash: s64
+    for row: 0..n - 1 {
+        for col: 0..n - 1 {
+            x := (2.0 * cast(float64)col + 1.0) / cast(float64)n - 1.0
+            y := (2.0 * cast(float64)row + 1.0) / cast(float64)n - 1.0
+            inv := 1.0 / Sqrt(x * x + y * y + 1.0)
+            x *= inv; y *= inv
+            nearest := 1000.0
+            shade: float64
+            for i: 0..48 {
+                sphere := *scene[i]
+                projection := x * sphere.x + y * sphere.y + inv * sphere.z
+                disc := projection * projection - sphere.x * sphere.x - sphere.y * sphere.y - sphere.z * sphere.z + sphere.radius * sphere.radius
+                if disc < 0.0 { continue }
+                distance := projection - Sqrt(disc)
+                if distance >= nearest { continue }
+                nearest = distance
+                shade = ((distance * x - sphere.x) * 0.3 + (distance * y - sphere.y) * 0.4 - (distance * inv - sphere.z) * 0.85) / sphere.radius
+            }
+            hash = Text.Digest(hash, Quantize(shade))
+        }
+    }
+    return hash
+}
+
+Diffuse :: (source: []float64, dest: []float64, width: s64) {
+    for row: 1..width - 2 {
+        for col: 1..width - 2 {
+            i := row * width + col
+            dest[i] = source[i] * 0.5 + (source[i - 1] + source[i + 1] + source[i - width] + source[i + width]) * 0.125
+        }
+    }
+}
+
+HeatGrid :: (n: s64) -> s64 {
+    a: Vec(float64); b: Vec(float64)
+    if !VecResize(a, n * n) || !VecResize(b, n * n) { return -1 }
+    for row: 1..n - 2 {
+        for col: 1..n - 2 { a[row * n + col] = cast(float64)((row * 13 + col * 17) % 271) / 128.0 }
+    }
+    for pass: 0..15 { Diffuse(a[:], b[:], n); Diffuse(b[:], a[:], n) }
+    hash: s64
+    for value: a { hash = Text.Digest(hash, Quantize(value)) }
+    return hash
+}
+
+Particle :: struct { x: float64; y: float64; dx: float64; dy: float64 }
+
+Particles :: (n: s64) -> s64 {
+    particles: Vec(Particle)
+    if !VecResize(particles, n) { return -1 }
+    for i: 0..n - 1 {
+        particles[i] = .{x = cast(float64)(i % 421) / 64.0 - 3.0,
+            y = cast(float64)((i * 13) % 307) / 64.0 - 2.0,
+            dx = cast(float64)(i % 7 - 3) * 0.003, dy = cast(float64)(i % 11 - 5) * 0.002}
+    }
+    for step: 0..63 {
+        for i: 0..n - 1 {
+            p := *particles[i]
+            force := 0.004 / (1.0 + p.x * p.x + p.y * p.y)
+            p.dx = p.dx * 0.999 - p.x * force; p.dy = p.dy * 0.999 - p.y * force
+            p.x += p.dx; p.y += p.dy
+            if p.x > 3.0 || p.x < -3.0 { p.dx = -p.dx; p.x += p.dx }
+            if p.y > 3.0 || p.y < -3.0 { p.dy = -p.dy; p.y += p.dy }
+        }
+    }
+    hash: s64
+    for i: 0..n - 1 { hash = Text.Digest(Text.Digest(hash, Quantize(particles[i].x)), Quantize(particles[i].y)) }
+    return hash
+}
+
+ImageFilter :: (n: s64) -> s64 {
+    image: Vec(u8); horizontal: Vec(float64); output: Vec(u8)
+    if !VecResize(image, n * n) || !VecResize(horizontal, n * n) || !VecResize(output, n * n) { return -1 }
+    Text.Bytes(image[:])
+    for row: 0..n - 1 {
+        for col: 1..n - 2 {
+            i := row * n + col
+            horizontal[i] = cast(float64)image[i - 1] * 0.25 + cast(float64)image[i] * 0.5 + cast(float64)image[i + 1] * 0.25
+        }
+    }
+    for row: 1..n - 2 {
+        for col: 1..n - 2 {
+            i := row * n + col
+            smooth := horizontal[i - n] * 0.25 + horizontal[i] * 0.5 + horizontal[i + n] * 0.25
+            pixel := cast(float64)image[i] + (cast(float64)image[i] - smooth) * 0.5
+            if pixel < 0.0 { pixel = 0.0 }
+            if pixel > 255.0 { pixel = 255.0 }
+            output[i] = cast(u8)(pixel + 0.5)
+        }
+    }
+    hash: s64
+    for pixel: output { hash = Text.Digest(hash, cast(s64)pixel) }
+    return hash
+}

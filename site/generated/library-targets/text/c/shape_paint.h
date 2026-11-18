@@ -172,7 +172,7 @@ shape_paint_ShapeFadeBands_ziran_inline(Color center, Color edge, float radius)
     }
     int32_t change = (int32_t)((uint32_t)value_14 + (uint32_t)((((int32_t)((uint32_t)color_change * (uint32_t)alpha)) / 255)));
     int32_t bands = ((int32_t)((uint32_t)change + 1u)) / 2;
-    if (Finite32(radius)) {
+    if (std_finite_Finite32(radius)) {
         int32_t by_radius = CeilInteger(radius * ((float)0.5));
         if (bands > by_radius) {
             bands = by_radius;

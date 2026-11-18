@@ -2,21 +2,21 @@
   "schema_version": 1,
   "name": "Kryon widgets",
   "repository": "https://github.com/kryonlabs/kryon",
-  "revision": "08f70214c368fe10a5c2f462db902eef64d11c7d",
+  "revision": "3627ea8a90e7f507510dde3cafacd5c74e441932",
   "dirty_inputs": false,
-  "measured_at": "2026-11-17T20:35:13.875926+00:00",
+  "measured_at": "2026-11-18T01:03:55.787418+00:00",
   "host": "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
   "hostname": "alpha",
   "loadavg_before": [
-    "3.12",
-    "2.82",
-    "3.03"
+    "3.19",
+    "3.26",
+    "3.15"
   ],
   "versions": {
     "cc": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
     "go": "go version go1.27.4 linux/amd64"
   },
-  "methodology": "Two frames per entry: public widget layout, interaction and paint-command generation. Deterministic monospace metrics and a recording paint host consume payloads. Pixel rasterization, system fonts and OS I/O are excluded. Sessions are retained between calls; each scenario verifies its behavior and returns zero on success. Symmetric 1.5\u00d7IQR filtering excludes outliers from the median; raw samples and excluded indices are retained. The Wasm module is unbounded, like the C and Go builds: it charges no step budget.",
+  "methodology": "Two frames per entry: public widget layout, interaction and paint-command generation. Deterministic monospace metrics and a recording paint host consume payloads. Pixel rasterization, system fonts and OS I/O are excluded. Sessions are retained between calls; each scenario verifies its behavior and returns zero on success. Symmetric 1.5\u00d7IQR filtering excludes outliers from the median; raw samples and excluded indices are retained. The Wasm module is unbounded, like the C and Go builds: it charges no step budget. Host gate: every measured job runs pinned (inherited affinity, no wrapper) to one logical CPU of the quietest core, chosen again before each attempt once its other hyperthread has settled, and is repeated unless that CPU kept its clock within 3% of the job median (10th to 90th percentile), the median reached 95% of the clock calibrated at start, and the hyperthread sibling was busy at most 15% of the job; Go runs with GOMAXPROCS=1 on that CPU. Rejected attempts are retained with their observations.",
   "samples": 11,
   "sources": {
     "path": "generated/library-targets/sources.zip",
@@ -25,19 +25,19 @@
   },
   "checked_ir": {
     "path": "generated/library-targets/checked-ir.zip",
-    "bytes": 595973,
-    "sha256": "a02a152d71a2d4c7ba4199c26ed00441bef3182fd168c2d6dfed390b0e4ba370"
+    "bytes": 596475,
+    "sha256": "e5986601dc57d1130fe7b93d8b9ec6e42da829101e56f8f0bdd8ae780d4c3d39"
   },
   "compiler": {
-    "library_sha256": "4e7157de837776fb4eb016ca684cb3ee11e6b34479b942864e80eba36b7fd730",
+    "library_sha256": "96df9a8c6414b10fbb6004a0407b655703cd3ec492b1c470c9f786239fe6499a",
     "package_path": "/home/wao/Projects/ziranlang/ziran",
-    "revision": "fa65a3fbd9cb2a6ba0dbbc33c7d79d49dc98a2d1",
+    "revision": "45b74b4e31479b74dc025ba9f12a771670386872",
     "dirty": false,
     "tools": {
-      "zi2c": "b88441afa46c12b1d29ed9a90f9c03b43438b038bf83024e63b4880748a752ab",
-      "zi2go": "3d8f16800e6cf826a77c22164d7aea52845b55874ab89fd21c0d7c835772a031",
-      "zi2zx": "3ad8b4b0d6444db0916bbeff96b5c49e536876b10ad18c5d48c9db00e209d371",
-      "zx2wasm": "f47e3633790f4f022edb8b36d58ffc3b149454ab2cd5b3f9db3fc647ed53209f"
+      "zi2c": "9eac048ec1e295250394e85a306bd1805308fc998c00e48dba281222189a2853",
+      "zi2go": "87ae414b573bf5aaaf30ed917bee6d3b31f80c6d58213671b6f2ca63a67cea49",
+      "zi2zx": "26373848bf6437a76c24a14b2143c0e569a747568997ba17c0c4021782b8995e",
+      "zx2wasm": "b2fd446fd24f4078407dcbf7c0ec289c42fac1d30aa7d16de2a7342620528d0e"
     },
     "source_hashes": {
       "cmd/compiler_zx_wasm.zi": "39a798c42b3b4bd9da0abb1b39ee608e578f528f88977940101a564b53ae8d37",
@@ -69,7 +69,7 @@
       "cmd/zir/zir_check_value.c": "682cae22476ac461343f192546a0f565613132eb573ecf16338341d1b4db23de",
       "cmd/zir/zir_cleanup.c": "8b417edfb3ee859fdf2abaf9cd70096e54548c78859745ff687c6d8eb9149cc0",
       "cmd/zir/zir_cleanup.h": "86436975f1d1de85ea9c0a26eed320f8efbc0f64503dbc3f439578aaa4bb8943",
-      "cmd/zir/zir_command.h": "cbec35ca5ae055dbc47e84cb5a6757838c302c2e7c324d52ef8e5ec7ec109bcf",
+      "cmd/zir/zir_command.h": "381dc299bf27b276e1598348c16f8b085c6493ae81cc22356e5bec02ab9b873d",
       "cmd/zir/zir_context.c": "3212696b7171b0a5a48800bc8445f9c24bead26b3edd2a1a42876d9077201fb1",
       "cmd/zir/zir_context.h": "f5aad183125b7af92f53349d066dd409662bfd69eb4d24e6a9a4763bc085e799",
       "cmd/zir/zir_diagnostic.c": "a97f45caba73dfe21c15a92fc06f0a5f9ef6dcf0b907ea26f8c37aebaf77869a",
@@ -78,13 +78,13 @@
       "cmd/zir/zir_document.h": "8d4d25375fad0cc11adb251ece697c20a0bdee05d680baf36e54ff3813c89c8d",
       "cmd/zir/zir_edit.c": "4cdb47c3034ab65ee58399ef3571007a5b4a5160178dfa3ecf94017d5d49e6eb",
       "cmd/zir/zir_edit.h": "d2937f6a9b9c43fb2d16cb6af03ba2e32b454f4de7ee01b456083f4165ed131f",
-      "cmd/zir/zir_emit.c": "9294cddf123b1836c25270aafab5c661fbdbf1dc75da8ab6022467ed222aeb37",
-      "cmd/zir/zir_emit.h": "1727a13684081e1360b27e710570c24f8386e0e8344fe184b0f2c30e4d8b7820",
+      "cmd/zir/zir_emit.c": "0fac92b1e3c8ac4a0ea04ccf6d75cad7f36282475f134a339df001a32d9c95ec",
+      "cmd/zir/zir_emit.h": "49085fbb825fd5c78f67a460052f00eb68fe59c7a24a9b23d3b7d8be083e4ddc",
       "cmd/zir/zir_emit_call.c": "05bec4994baf1740cb7994ae87d59802aeda6ec40c7e20994f7aecb68b74be93",
       "cmd/zir/zir_emit_expr.c": "159df637dd65bb3afde58deedc78d6dd1ee1302a61d2fdb05f79f0a5fb6c8ef4",
       "cmd/zir/zir_emit_internal.h": "97559bd5362992c8386e7bea380ea67665085f9b503b1a2bddd6d2da0b767826",
       "cmd/zir/zir_emit_simd.c": "d359ee6bec9bb73ed93c95cf75bcbf2ba792db2aaa271d0f47d5858a58d09e5c",
-      "cmd/zir/zir_emit_simd_go.c": "f96d6d115f810f46cbd2cde7e8742e81d988f11f6c729fccf086557eaab0ca23",
+      "cmd/zir/zir_emit_simd_go.c": "4ab2c2d4d07179a59af7f5efe771989ceca2f42df8a6a5034dbfa3684ecb1c15",
       "cmd/zir/zir_emit_statement.c": "ea2305c37e368922e629191205553f43657a2302e5cf7c345ce5e76198ab3abd",
       "cmd/zir/zir_emit_value.c": "7f87c31c6c90495aa14da2a4491e055397a2cae7fd70f1d78cdc205751b530ed",
       "cmd/zir/zir_enum.c": "31908c652dc0c99d2dbfc7f1d1f0f591edb638f5fec17a0bfcea7638b26fc092",
@@ -96,7 +96,7 @@
       "cmd/zir/zir_host.c": "3f07e6f01652211f102277e7ff91cfc1097d87f49d951f00b411dd0b9cc1bd8b",
       "cmd/zir/zir_host_exec.c": "32fdb0b846e52128297ecd2bd59792ae75d438ef25a552fe71729a81aa8ec176",
       "cmd/zir/zir_host_exec.h": "e3f9bbbbd886e896b3848158e22ea0fbd224813b444c717551ce4e9e7655dc8a",
-      "cmd/zir/zir_host_native.c": "6b5751cd27c44c8ddbd4b3840ed790a38a9fb0d730d408945c3016434d45836d",
+      "cmd/zir/zir_host_native.c": "6b729ed2129075cb0ae4972ffdc8670a5380507825ca69918fe4ec054ee7dd86",
       "cmd/zir/zir_host_native.h": "3e74ebc394f01374279e32a4068dfdf7a02f38402801b8b01d143d3ccd43a854",
       "cmd/zir/zir_host_native_aarch64.c": "8f030b5f13e805915e37b80b8cad82d15bec2600123e5db9c1a40c5779bf7682",
       "cmd/zir/zir_host_native_arch.h": "0e3b70380f9e75bcce4f24a5c9a14f4656642ad2d532ec7033ec74342f27f6e0",
@@ -132,8 +132,8 @@
       "cmd/zir/zir_scratch.h": "756aab6eecdea6c7684b26848d2b5da8693a971f73d0974c3eac6b947f0e1027",
       "cmd/zir/zir_semantic.c": "d7bb89ecd821966c41eee16462cd15ddc2b60de9c74b89e001d29e9f13038833",
       "cmd/zir/zir_semantic.h": "a079b5cb94d76eff76e2e4c758d42e07abc0e6585662355420cac6c9ee31d58e",
-      "cmd/zir/zir_serial.c": "d929294da1d73faeee374169e9093b264e83ac9178f08bd942b99e2ec5c3ac9f",
-      "cmd/zir/zir_serial.h": "9843fa9720bd7a4c0b6681288382006d90d1cf138e2935757a7e3fe0b2667233",
+      "cmd/zir/zir_serial.c": "796f511d27da256362b3514b7c0fd00055baeba8025ff1f20cb10e6ce81de9e0",
+      "cmd/zir/zir_serial.h": "efb2075d2e84a36cb79f4026d172926ae7e704e052dde4369619b80365d8c357",
       "cmd/zir/zir_services.c": "a6bd4a14863e8bfd1fe36e02547078f7a5ec12f3eb7f0653e78ada1a6f402ac1",
       "cmd/zir/zir_sha256.c": "23c93a4d7a4d1bc18e01514279701e305df07870856f5ee3b353954193e75905",
       "cmd/zir/zir_sha256.h": "be773e0bac5d4d0f26d0666dd7871d57c6c9e24066cdf9ece575695b5ed8deda",
@@ -144,20 +144,19 @@
       "cmd/zir/zir_text.c": "5c742723ad2cbe65584293665a5821d117d1c619d6e7d38304b7811ae1bc6f65",
       "cmd/zir/zir_text.h": "40fc376a85dd545afff48db2bfbfd7ab4aba6b2c6b6cc52e061b287fcb001531",
       "cmd/zir/zir_thread.h": "4303466defdd356b976fbf0654762f9f04a56404977f5482951bac84fb5ff9e8",
-      "cmd/zir/zir_token.c": "77970622de7f429257e41e1608e656197861f3ff4b5e163039e959fc71a36e15",
-      "cmd/zir/zir_token.h": "8b209993038d03393b6cc1c7c79f3428a99d56180fff85a9c663767c371531bd",
+      "cmd/zir/zir_token.h": "4879cff90d690ffd1b578f963cd2ab4745c955bcf33ef92f35adbd87280a8630",
       "cmd/zir/zir_type.c": "a170f0ad972a739fb0f9e064c70bc04cee16cad0fe3f22f6e2a15e6d8ce5d36e",
       "cmd/zir/zir_zx_wasm.c": "0a3fa384382cd5b26cf931a7108d30f1c1f16e7a7c48ae511ec7bd720d58b47f",
       "cmd/zir/zir_zx_wasm.h": "2825c86fbe02b2fc623e16a8f1180dea502bc11021372bf0c46d784546598cdc",
       "cmd/zir/zir_zx_wasm_platform.h": "3ed48d1065ac2af431bb0f8979c58c29b52eb4b0dc51b1f9ab3f5903ab0214cc",
       "cmd/zir/zir_zx_wasm_web.c": "15de5f177144808578c3621ccf1fd9a28ea3e6ce756917b9ce8db81a6ee1bbc1",
-      "cmd/zx2wasm/main.c": "47f5f385a7e68e99c98b6cd822ddcf966e0c0dfa1f8993994ed71a4fa7c53721"
+      "cmd/zx2wasm/main.c": "2a3006b075b678d0f1cc69686f7f09ff80a83b2c12e17a8b70d4c24ee501ae58"
     }
   },
   "harnesses": {
-    "scripts/site_library_targets.py": "ca0a687a95d94a3feb5e6eb68855879da47d68234dde68446e2fad334268c480",
-    "scripts/site_target_platforms.py": "87df13aa3ee01068e8bcbc8b334a2e2d4c7863314b7245b2a77416839c405eb5",
-    "scripts/benchmark_samples.py": "28f53003eb06fae7180a3ecc65c35ea56e9e76a48aa316bf957fa5f99897cc66",
+    "scripts/site_library_targets.py": "919076b2cb6c03264f3f150e151b3604f1152a5a9d5245ca00fbf08b3af27946",
+    "scripts/site_target_platforms.py": "4d70573d7731e0fc7cbf882285625e16f455010f948dd0aedcee671ead4a25c3",
+    "scripts/benchmark_samples.py": "7e30d0da03bf6056a460705ccfb9c425a2ff2901e38d8b3fe6a0503ed9b6ab6e",
     "bench/site_target_host.c": "eced150880fd7ea7eda5225f9c88408efbb2f13303395934b5245447cebab8e4",
     "bench/site_target_host.go": "ed69c22b3ed61c70a1ff134c7aadf2578083ccc363b4604cefb0aa5334063c8c",
     "bench/site_target_backend.h": "95533f9193a0756044d4ccee581e007c1b119f5c2b3bf71a090792b1a047a5db",
@@ -176,7 +175,7 @@
       "targets": {
         "c": {
           "status": "ok",
-          "command": "build/bin/ziran build --target=c --no-main --root build/site-library-targets/kryon-export/tests --project --module-path build/site-library-targets/kryon-export/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:ButtonCase -o build/site-library-targets/button/c build/site-library-targets/kryon-export/tests/widget_benchmarks.zi",
+          "command": "build/bin/ziran build --target=c --no-main --root build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --project --module-path build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:ButtonCase -o build/site-library-targets/button/c build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests/widget_benchmarks.zi",
           "files": [
             {
               "path": "generated/library-targets/button/c/button.c",
@@ -610,73 +609,96 @@
             }
           ],
           "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/library-targets/button/c '-DMATRIX_HEADER=\"widget_benchmarks.h\"' -DMATRIX_ENTRY=ButtonCase bench/site_target_host.c site/generated/library-targets/button/c/button.c site/generated/library-targets/button/c/button_behavior.c site/generated/library-targets/button/c/card_behavior.c site/generated/library-targets/button/c/cursor.c site/generated/library-targets/button/c/drawing_props.c site/generated/library-targets/button/c/focus.c site/generated/library-targets/button/c/font_metrics.c site/generated/library-targets/button/c/geometry.c site/generated/library-targets/button/c/image_behavior.c site/generated/library-targets/button/c/image_lookup.c site/generated/library-targets/button/c/input_protocol.c site/generated/library-targets/button/c/paint_queue.c site/generated/library-targets/button/c/paint_texture.c site/generated/library-targets/button/c/raster.c site/generated/library-targets/button/c/raster_shape.c site/generated/library-targets/button/c/raster_text.c site/generated/library-targets/button/c/session.c site/generated/library-targets/button/c/std_grapheme.c site/generated/library-targets/button/c/std_grapheme_data.c site/generated/library-targets/button/c/std_utf8.c site/generated/library-targets/button/c/style.c site/generated/library-targets/button/c/style_sheet.c site/generated/library-targets/button/c/surface.c site/generated/library-targets/button/c/svg_icon_behavior.c site/generated/library-targets/button/c/svg_shape.c site/generated/library-targets/button/c/text_boundary.c site/generated/library-targets/button/c/text_editing.c site/generated/library-targets/button/c/text_emphasis.c site/generated/library-targets/button/c/text_request.c site/generated/library-targets/button/c/text_typeface.c site/generated/library-targets/button/c/textfield.c site/generated/library-targets/button/c/theme.c site/generated/library-targets/button/c/tree.c site/generated/library-targets/button/c/tree_draw.c site/generated/library-targets/button/c/tree_input.c site/generated/library-targets/button/c/widget_benchmark_host.c site/generated/library-targets/button/c/widget_benchmarks.c site/generated/library-targets/button/c/widget_key.c -lm -o build/site-library-targets/button/c-runner",
-          "measurement": {
-            "result": "0",
-            "batches": 4096,
-            "load_ms": 0.001827002,
-            "warmup_ms": 150.001209974,
-            "warmup_count": 51647,
-            "batch_samples_ms": [
-              11.620705009,
-              11.82298696,
-              11.428762019,
-              11.320603013,
-              11.404101968,
-              12.57357198,
-              11.39676398,
-              11.587148964,
-              11.315783978,
-              11.916726947,
-              11.513534963
-            ],
-            "stdout_verified": true,
-            "execution_samples_ms": [
-              0.0028370861838378906,
-              0.00288647142578125,
-              0.002790225102294922,
-              0.002763819094970703,
-              0.00278420458203125,
-              0.0030697197216796876,
-              0.0027824130810546873,
-              0.0028288937900390627,
-              0.0027626425727539064,
-              0.002909357164794922,
-              0.002810921621826172
-            ],
-            "sample_statistics": {
-              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.002665603871643067,
-              "upper_ms": 0.002979483764709472,
-              "excluded_indices": [
-                5
-              ],
-              "included_samples_ms": [
-                0.0028370861838378906,
-                0.00288647142578125,
-                0.002790225102294922,
-                0.002763819094970703,
-                0.00278420458203125,
-                0.0027824130810546873,
-                0.0028288937900390627,
-                0.0027626425727539064,
-                0.002909357164794922,
-                0.002810921621826172
-              ],
-              "median_ms": 0.002800573362060547
-            },
-            "execution_ms": 0.002800573362060547,
-            "checksum": "0",
-            "command": "build/site-library-targets/button/c-runner - 0 11"
-          },
           "download": {
             "path": "generated/library-targets/button/c.zip",
             "bytes": 111083,
             "sha256": "76f623de5d52e5a1beb9870637dd9e637984fdeb1b49820db2a2343deeb731b7"
+          },
+          "measurement": {
+            "result": "0",
+            "batches": 4096,
+            "load_ms": 0.002292991,
+            "warmup_ms": 150.002250969,
+            "warmup_count": 53320,
+            "batch_samples_ms": [
+              10.853938043,
+              11.029265046,
+              10.896625996,
+              10.940300047,
+              10.970251024,
+              11.975961983,
+              11.241452992,
+              11.301178992,
+              10.928632021,
+              11.416119039,
+              11.628468037
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.0026498872175292967,
+              0.002692691661621094,
+              0.0026603090810546873,
+              0.002670971691162109,
+              0.00267828394140625,
+              0.0029238188435058592,
+              0.002744495359375,
+              0.00275907690234375,
+              0.002668123052001953,
+              0.0027871384372558593,
+              0.002838981454345703
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.002514206924255371,
+              "upper_ms": 0.0029284481171264645,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                0.0026498872175292967,
+                0.002692691661621094,
+                0.0026603090810546873,
+                0.002670971691162109,
+                0.00267828394140625,
+                0.0029238188435058592,
+                0.002744495359375,
+                0.00275907690234375,
+                0.002668123052001953,
+                0.0027871384372558593,
+                0.002838981454345703
+              ],
+              "median_ms": 0.002692691661621094
+            },
+            "execution_ms": 0.002692691661621094,
+            "checksum": "0",
+            "host_gate": {
+              "cpu": 0,
+              "sibling": 6,
+              "reference_khz": 4500018,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 0,
+                  "sibling": 6,
+                  "readings": 10,
+                  "median_khz": 4589272,
+                  "p10_khz": 4477648,
+                  "p90_khz": 4600004,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "build/site-library-targets/button/c-runner - 0 11"
           }
         },
         "go": {
           "status": "ok",
-          "command": "build/bin/ziran build --target=go --no-main --pkg main --root build/site-library-targets/kryon-export/tests --project --module-path build/site-library-targets/kryon-export/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:ButtonCase -o build/site-library-targets/button/go build/site-library-targets/kryon-export/tests/widget_benchmarks.zi",
+          "command": "build/bin/ziran build --target=go --no-main --pkg main --root build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --project --module-path build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:ButtonCase -o build/site-library-targets/button/go build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests/widget_benchmarks.zi",
           "files": [
             {
               "path": "generated/library-targets/button/go/bitmap_store.go",
@@ -780,8 +802,8 @@
             },
             {
               "path": "generated/library-targets/button/go/overlay.go",
-              "bytes": 4946,
-              "sha256": "4ecb2e65664ce5813e938e0f47ceec0cde25783689b09b11dba6e97095089e30"
+              "bytes": 4978,
+              "sha256": "ded5387c67854ec7e04f5b9bc18890c18567cd0cdf2a71a5cf66ddcee5154257"
             },
             {
               "path": "generated/library-targets/button/go/overlay_behavior.go",
@@ -790,8 +812,8 @@
             },
             {
               "path": "generated/library-targets/button/go/overlay_props.go",
-              "bytes": 648,
-              "sha256": "56d9c9a853f60ad9b00b5faef23842e112b7c8fc865e879b233aded6fc4496e6"
+              "bytes": 677,
+              "sha256": "c492bd50b78a1fe533838f74ff791794f12eefa8c68f86135ada12b7591167e3"
             },
             {
               "path": "generated/library-targets/button/go/paint_queue.go",
@@ -840,8 +862,13 @@
             },
             {
               "path": "generated/library-targets/button/go/shape_paint.go",
-              "bytes": 15573,
-              "sha256": "7b96460e74dde1deb1889eefa1d1a72f399072917ec8d50df1bf30dcdf6f0e14"
+              "bytes": 15601,
+              "sha256": "11b44999f16ad54785430963890b9494073131ad7e94943276a627b915827d2f"
+            },
+            {
+              "path": "generated/library-targets/button/go/std_finite.go",
+              "bytes": 358,
+              "sha256": "441f1371035de2ca6605dda7464b8741d8bafcb474970a91d0ed032c6f0b922e"
             },
             {
               "path": "generated/library-targets/button/go/std_grapheme.go",
@@ -855,8 +882,8 @@
             },
             {
               "path": "generated/library-targets/button/go/std_math.go",
-              "bytes": 17811,
-              "sha256": "b2c9492eedfa230ca27a779abaccdd48813efa6fe0e66740fa9e44389186f93f"
+              "bytes": 17542,
+              "sha256": "2f47f9cbbffb5c3e6ed176f299b09de11c28acfc52c4c68d7b63fbc70fc42ace"
             },
             {
               "path": "generated/library-targets/button/go/std_utf8.go",
@@ -905,8 +932,8 @@
             },
             {
               "path": "generated/library-targets/button/go/text.go",
-              "bytes": 19034,
-              "sha256": "50de0514cc09525ac79d8e6d59ed8555ef00e1dca457be5bcc9f55658c09751d"
+              "bytes": 19040,
+              "sha256": "cad0b30f1a542faa14a20b3dba1a295afec15ce3d5ac6db018a0514e839c6a83"
             },
             {
               "path": "generated/library-targets/button/go/text_align.go",
@@ -1034,74 +1061,98 @@
               "sha256": "9f0bcea122416bc5d9b305ad8e56c30e16c5e0a6c3721bde675f7a03049a46e2"
             }
           ],
-          "build_command": "go build -p=2 -o build/site-library-targets/button/go-runner build/site-library-targets/button/go-host/bitmap_store.go build/site-library-targets/button/go-host/button.go build/site-library-targets/button/go-host/button_behavior.go build/site-library-targets/button/go-host/button_props.go build/site-library-targets/button/go-host/card_behavior.go build/site-library-targets/button/go-host/card_props.go build/site-library-targets/button/go-host/contextmenu.go build/site-library-targets/button/go-host/control_props.go build/site-library-targets/button/go-host/cursor.go build/site-library-targets/button/go-host/dpi.go build/site-library-targets/button/go-host/drawing_props.go build/site-library-targets/button/go-host/elevation.go build/site-library-targets/button/go-host/focus.go build/site-library-targets/button/go-host/font_metrics.go build/site-library-targets/button/go-host/geometry.go build/site-library-targets/button/go-host/image_behavior.go build/site-library-targets/button/go-host/image_lookup.go build/site-library-targets/button/go-host/image_props.go build/site-library-targets/button/go-host/input_props.go build/site-library-targets/button/go-host/input_protocol.go build/site-library-targets/button/go-host/overlay.go build/site-library-targets/button/go-host/overlay_behavior.go build/site-library-targets/button/go-host/overlay_props.go build/site-library-targets/button/go-host/paint_queue.go build/site-library-targets/button/go-host/paint_texture.go build/site-library-targets/button/go-host/raster.go build/site-library-targets/button/go-host/raster_shape.go build/site-library-targets/button/go-host/raster_text.go build/site-library-targets/button/go-host/raster_triangles.go build/site-library-targets/button/go-host/scroll_sampling.go build/site-library-targets/button/go-host/semantic.go build/site-library-targets/button/go-host/session.go build/site-library-targets/button/go-host/shape_paint.go build/site-library-targets/button/go-host/std_grapheme.go build/site-library-targets/button/go-host/std_grapheme_data.go build/site-library-targets/button/go-host/std_math.go build/site-library-targets/button/go-host/std_utf8.go build/site-library-targets/button/go-host/std_vec.go build/site-library-targets/button/go-host/style.go build/site-library-targets/button/go-host/style_sheet.go build/site-library-targets/button/go-host/surface.go build/site-library-targets/button/go-host/svg_icon_behavior.go build/site-library-targets/button/go-host/svg_shape.go build/site-library-targets/button/go-host/system_clipboard.go build/site-library-targets/button/go-host/system_clipboard_host.go build/site-library-targets/button/go-host/text.go build/site-library-targets/button/go-host/text_align.go build/site-library-targets/button/go-host/text_behavior.go build/site-library-targets/button/go-host/text_boundary.go build/site-library-targets/button/go-host/text_context_menu.go build/site-library-targets/button/go-host/text_editing.go build/site-library-targets/button/go-host/text_emphasis.go build/site-library-targets/button/go-host/text_field_props.go build/site-library-targets/button/go-host/text_host.go build/site-library-targets/button/go-host/text_input.go build/site-library-targets/button/go-host/text_input_platform.go build/site-library-targets/button/go-host/text_layout.go build/site-library-targets/button/go-host/text_props.go build/site-library-targets/button/go-host/text_request.go build/site-library-targets/button/go-host/text_selection_host.go build/site-library-targets/button/go-host/text_style.go build/site-library-targets/button/go-host/text_typeface.go build/site-library-targets/button/go-host/textfield.go build/site-library-targets/button/go-host/theme.go build/site-library-targets/button/go-host/tree.go build/site-library-targets/button/go-host/tree_draw.go build/site-library-targets/button/go-host/tree_input.go build/site-library-targets/button/go-host/widget_benchmark_host.go build/site-library-targets/button/go-host/widget_benchmarks.go build/site-library-targets/button/go-host/widget_key.go build/site-library-targets/button/go-host/widget_kind.go build/site-library-targets/button/go-host/matrix_host.go build/site-library-targets/button/go-host/matrix_bridge.go",
+          "build_command": "go build -p=2 -o build/site-library-targets/button/go-runner build/site-library-targets/button/go-host/bitmap_store.go build/site-library-targets/button/go-host/button.go build/site-library-targets/button/go-host/button_behavior.go build/site-library-targets/button/go-host/button_props.go build/site-library-targets/button/go-host/card_behavior.go build/site-library-targets/button/go-host/card_props.go build/site-library-targets/button/go-host/contextmenu.go build/site-library-targets/button/go-host/control_props.go build/site-library-targets/button/go-host/cursor.go build/site-library-targets/button/go-host/dpi.go build/site-library-targets/button/go-host/drawing_props.go build/site-library-targets/button/go-host/elevation.go build/site-library-targets/button/go-host/focus.go build/site-library-targets/button/go-host/font_metrics.go build/site-library-targets/button/go-host/geometry.go build/site-library-targets/button/go-host/image_behavior.go build/site-library-targets/button/go-host/image_lookup.go build/site-library-targets/button/go-host/image_props.go build/site-library-targets/button/go-host/input_props.go build/site-library-targets/button/go-host/input_protocol.go build/site-library-targets/button/go-host/overlay.go build/site-library-targets/button/go-host/overlay_behavior.go build/site-library-targets/button/go-host/overlay_props.go build/site-library-targets/button/go-host/paint_queue.go build/site-library-targets/button/go-host/paint_texture.go build/site-library-targets/button/go-host/raster.go build/site-library-targets/button/go-host/raster_shape.go build/site-library-targets/button/go-host/raster_text.go build/site-library-targets/button/go-host/raster_triangles.go build/site-library-targets/button/go-host/scroll_sampling.go build/site-library-targets/button/go-host/semantic.go build/site-library-targets/button/go-host/session.go build/site-library-targets/button/go-host/shape_paint.go build/site-library-targets/button/go-host/std_finite.go build/site-library-targets/button/go-host/std_grapheme.go build/site-library-targets/button/go-host/std_grapheme_data.go build/site-library-targets/button/go-host/std_math.go build/site-library-targets/button/go-host/std_utf8.go build/site-library-targets/button/go-host/std_vec.go build/site-library-targets/button/go-host/style.go build/site-library-targets/button/go-host/style_sheet.go build/site-library-targets/button/go-host/surface.go build/site-library-targets/button/go-host/svg_icon_behavior.go build/site-library-targets/button/go-host/svg_shape.go build/site-library-targets/button/go-host/system_clipboard.go build/site-library-targets/button/go-host/system_clipboard_host.go build/site-library-targets/button/go-host/text.go build/site-library-targets/button/go-host/text_align.go build/site-library-targets/button/go-host/text_behavior.go build/site-library-targets/button/go-host/text_boundary.go build/site-library-targets/button/go-host/text_context_menu.go build/site-library-targets/button/go-host/text_editing.go build/site-library-targets/button/go-host/text_emphasis.go build/site-library-targets/button/go-host/text_field_props.go build/site-library-targets/button/go-host/text_host.go build/site-library-targets/button/go-host/text_input.go build/site-library-targets/button/go-host/text_input_platform.go build/site-library-targets/button/go-host/text_layout.go build/site-library-targets/button/go-host/text_props.go build/site-library-targets/button/go-host/text_request.go build/site-library-targets/button/go-host/text_selection_host.go build/site-library-targets/button/go-host/text_style.go build/site-library-targets/button/go-host/text_typeface.go build/site-library-targets/button/go-host/textfield.go build/site-library-targets/button/go-host/theme.go build/site-library-targets/button/go-host/tree.go build/site-library-targets/button/go-host/tree_draw.go build/site-library-targets/button/go-host/tree_input.go build/site-library-targets/button/go-host/widget_benchmark_host.go build/site-library-targets/button/go-host/widget_benchmarks.go build/site-library-targets/button/go-host/widget_key.go build/site-library-targets/button/go-host/widget_kind.go build/site-library-targets/button/go-host/matrix_host.go build/site-library-targets/button/go-host/matrix_bridge.go",
+          "download": {
+            "path": "generated/library-targets/button/go.zip",
+            "bytes": 153191,
+            "sha256": "54b579eff8808d96cf3346adf19a2bc25db500ad548d3ade9ccfc9e81ea5f326"
+          },
           "measurement": {
             "batch_samples_ms": [
-              17.697809,
-              18.421655,
-              18.256556,
-              17.926445,
-              17.935017,
-              17.905687,
-              17.635264,
-              17.7758,
-              17.657356,
-              17.645036,
-              17.77635
+              17.72427,
+              18.890011,
+              17.852736,
+              17.819173,
+              17.807227,
+              17.73597,
+              17.716761,
+              17.536916,
+              17.362113,
+              17.305183,
+              17.483517
             ],
             "batches": 4096,
             "load_ms": 0,
             "result": "0",
-            "warmup_count": 34012,
-            "warmup_ms": 150.002181,
+            "warmup_count": 33214,
+            "warmup_ms": 150.001792,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.004320754150390625,
-              0.004497474365234375,
-              0.0044571669921875,
-              0.004376573486328125,
-              0.004378666259765625,
-              0.004371505615234375,
-              0.004305484375,
-              0.004339794921875,
-              0.0043108779296875,
-              0.0043078701171875,
-              0.00433992919921875
+              0.00432721435546875,
+              0.004611819091796875,
+              0.004358578125,
+              0.004350384033203125,
+              0.004347467529296875,
+              0.00433007080078125,
+              0.004325381103515625,
+              0.0042814736328125,
+              0.004238797119140625,
+              0.004224898193359375,
+              0.004268436767578125
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.004223110290527343,
-              "upper_ms": 0.004470325622558595,
+              "lower_ms": 0.00416399932861328,
+              "upper_ms": 0.004459881652832033,
               "excluded_indices": [
                 1
               ],
               "included_samples_ms": [
-                0.004320754150390625,
-                0.0044571669921875,
-                0.004376573486328125,
-                0.004378666259765625,
-                0.004371505615234375,
-                0.004305484375,
-                0.004339794921875,
-                0.0043108779296875,
-                0.0043078701171875,
-                0.00433992919921875
+                0.00432721435546875,
+                0.004358578125,
+                0.004350384033203125,
+                0.004347467529296875,
+                0.00433007080078125,
+                0.004325381103515625,
+                0.0042814736328125,
+                0.004238797119140625,
+                0.004224898193359375,
+                0.004268436767578125
               ],
-              "median_ms": 0.004339862060546875
+              "median_ms": 0.004326297729492188
             },
-            "execution_ms": 0.004339862060546875,
+            "execution_ms": 0.004326297729492188,
             "checksum": "0",
+            "host_gate": {
+              "cpu": 0,
+              "sibling": 6,
+              "reference_khz": 4500018,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 0,
+                  "sibling": 6,
+                  "readings": 18,
+                  "median_khz": 4300036,
+                  "p10_khz": 4299980,
+                  "p90_khz": 4400009,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/site-library-targets/button/go-runner - 0 11"
-          },
-          "download": {
-            "path": "generated/library-targets/button/go.zip",
-            "bytes": 152943,
-            "sha256": "d650bdf852fe4c0dbd0723b2f69d4494fb05427fc1b21e63db15288271418223"
           }
         },
         "zx": {
           "status": "ok",
-          "command": "build/bin/ziran bundle --root build/site-library-targets/kryon-export/tests --project --module-path build/site-library-targets/kryon-export/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:ButtonCase -o build/site-library-targets/button/zx/widget_benchmarks.zx build/site-library-targets/kryon-export/tests/widget_benchmarks.zi",
+          "command": "build/bin/ziran bundle --root build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --project --module-path build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:ButtonCase -o build/site-library-targets/button/zx/widget_benchmarks.zx build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests/widget_benchmarks.zi",
           "files": [
             {
               "path": "generated/library-targets/button/zx/widget_benchmarks.zx",
@@ -1109,68 +1160,92 @@
               "sha256": "ea36a97b2e28d0380cf6b09442f07845755ae503d8fcc39551ba66504aaf4a67"
             }
           ],
-          "measurement": {
-            "result": "0",
-            "batches": 2048,
-            "load_ms": 219.460431039,
-            "warmup_ms": 150.000181019,
-            "warmup_count": 29617,
-            "batch_samples_ms": [
-              10.125572026,
-              10.185784996,
-              10.465044975,
-              10.092404008,
-              10.087421,
-              10.092455983,
-              10.088717997,
-              10.627619982,
-              10.106557012,
-              10.103239,
-              10.120387018
-            ],
-            "stdout_verified": true,
-            "execution_samples_ms": [
-              0.004944126965820313,
-              0.004973527830078125,
-              0.005109885241699219,
-              0.00492793164453125,
-              0.00492549853515625,
-              0.004927957022949219,
-              0.004926131834472656,
-              0.005189267569335938,
-              0.004934842291015625,
-              0.00493322216796875,
-              0.004941595223632813
-            ],
-            "sample_statistics": {
-              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.004881619737426759,
-              "upper_ms": 0.005005151994262696,
-              "excluded_indices": [
-                2,
-                7
-              ],
-              "included_samples_ms": [
-                0.004944126965820313,
-                0.004973527830078125,
-                0.00492793164453125,
-                0.00492549853515625,
-                0.004927957022949219,
-                0.004926131834472656,
-                0.004934842291015625,
-                0.00493322216796875,
-                0.004941595223632813
-              ],
-              "median_ms": 0.00493322216796875
-            },
-            "execution_ms": 0.00493322216796875,
-            "checksum": "0",
-            "command": "build/site-library-targets/zx-runner site/generated/library-targets/button/zx/widget_benchmarks.zx 0 11"
-          },
           "download": {
             "path": "generated/library-targets/button/zx/widget_benchmarks.zx",
             "bytes": 1375773,
             "sha256": "ea36a97b2e28d0380cf6b09442f07845755ae503d8fcc39551ba66504aaf4a67"
+          },
+          "measurement": {
+            "result": "0",
+            "batches": 4096,
+            "load_ms": 226.466803968,
+            "warmup_ms": 150.001228988,
+            "warmup_count": 32177,
+            "batch_samples_ms": [
+              18.74041301,
+              18.67395401,
+              18.796561003,
+              19.537397981,
+              18.878508985,
+              18.707875013,
+              18.678856015,
+              18.791862011,
+              18.770731986,
+              18.59088403,
+              18.713121057
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.0045752961450195315,
+              0.004559070803222656,
+              0.004589004151123047,
+              0.0047698725539550785,
+              0.004609010982666016,
+              0.004567352298095703,
+              0.00456026758178711,
+              0.004587856936279297,
+              0.0045826982387695316,
+              0.004538790046386719,
+              0.00456863307055664
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.004526879034301758,
+              "upper_ms": 0.00462536144934082,
+              "excluded_indices": [
+                3
+              ],
+              "included_samples_ms": [
+                0.0045752961450195315,
+                0.004559070803222656,
+                0.004589004151123047,
+                0.004609010982666016,
+                0.004567352298095703,
+                0.00456026758178711,
+                0.004587856936279297,
+                0.0045826982387695316,
+                0.004538790046386719,
+                0.00456863307055664
+              ],
+              "median_ms": 0.004571964607788086
+            },
+            "execution_ms": 0.004571964607788086,
+            "checksum": "0",
+            "host_gate": {
+              "cpu": 3,
+              "sibling": 9,
+              "reference_khz": 4500018,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 3,
+                  "sibling": 9,
+                  "readings": 42,
+                  "median_khz": 4499985,
+                  "p10_khz": 4493689,
+                  "p90_khz": 4500026,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "build/site-library-targets/zx-runner site/generated/library-targets/button/zx/widget_benchmarks.zx 0 11"
           }
         },
         "wasm": {
@@ -1183,67 +1258,158 @@
               "sha256": "9cdee1e45d7e20e202a5462a6ce9f6a27575b5501b3b5f3ce87d5848f95f5daf"
             }
           ],
-          "measurement": {
-            "result": "0",
-            "batches": 4096,
-            "warmup_ms": 150.01879200000002,
-            "warmup_count": 43353,
-            "batch_samples_ms": [
-              11.467996,
-              11.952447000000006,
-              11.447934000000004,
-              11.496137000000004,
-              11.60426000000001,
-              11.881552999999997,
-              11.496768999999972,
-              11.475023999999962,
-              11.474132999999995,
-              11.827734999999961,
-              11.580745999999976
-            ],
-            "load_ms": 3.8896949999999997,
-            "stdout_verified": true,
-            "execution_samples_ms": [
-              0.0027998037109375,
-              0.0029180778808593766,
-              0.002794905761718751,
-              0.002806674072265626,
-              0.0028330712890625026,
-              0.002900769775390624,
-              0.002806828369140618,
-              0.0028015195312499908,
-              0.0028013020019531237,
-              0.0028876306152343656,
-              0.0028273305664062442
-            ],
-            "sample_statistics": {
-              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.002713000488281242,
-              "upper_ms": 0.0029487612304687494,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.0027998037109375,
-                0.0029180778808593766,
-                0.002794905761718751,
-                0.002806674072265626,
-                0.0028330712890625026,
-                0.002900769775390624,
-                0.002806828369140618,
-                0.0028015195312499908,
-                0.0028013020019531237,
-                0.0028876306152343656,
-                0.0028273305664062442
-              ],
-              "median_ms": 0.002806828369140618
-            },
-            "execution_ms": 0.002806828369140618,
-            "checksum": "0",
-            "command": "node scripts/site_target_node.cjs site/generated/library-targets/button/wasm/widget_benchmarks.wasm 0 11"
-          },
           "download": {
             "path": "generated/library-targets/button/wasm/widget_benchmarks.wasm",
             "bytes": 2258808,
             "sha256": "9cdee1e45d7e20e202a5462a6ce9f6a27575b5501b3b5f3ce87d5848f95f5daf"
+          },
+          "measurement": {
+            "result": "0",
+            "batches": 4096,
+            "warmup_ms": 150.013903,
+            "warmup_count": 28656,
+            "batch_samples_ms": [
+              10.964574999999996,
+              10.951949999999982,
+              10.95735400000001,
+              11.638974000000019,
+              11.704052000000019,
+              11.736855000000048,
+              12.145280000000014,
+              11.695298999999977,
+              11.55696400000005,
+              11.587396000000012,
+              11.421330000000012
+            ],
+            "load_ms": 4.928549,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.002676898193359374,
+              0.0026738159179687457,
+              0.0026751352539062523,
+              0.0028415463867187546,
+              0.0028574345703125045,
+              0.0028654431152343868,
+              0.0029651562500000034,
+              0.0028552976074218694,
+              0.0028215244140625123,
+              0.002828954101562503,
+              0.002788410644531253
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.0025470869140625033,
+              "upper_ms": 0.0030419335937499972,
+              "excluded_indices": [],
+              "included_samples_ms": [
+                0.002676898193359374,
+                0.0026738159179687457,
+                0.0026751352539062523,
+                0.0028415463867187546,
+                0.0028574345703125045,
+                0.0028654431152343868,
+                0.0029651562500000034,
+                0.0028552976074218694,
+                0.0028215244140625123,
+                0.002828954101562503,
+                0.002788410644531253
+              ],
+              "median_ms": 0.002828954101562503
+            },
+            "execution_ms": 0.002828954101562503,
+            "checksum": "0",
+            "host_gate": {
+              "cpu": 0,
+              "sibling": 6,
+              "reference_khz": 4500018,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 15,
+                  "median_khz": 4598590,
+                  "p10_khz": 4399994,
+                  "p90_khz": 4600004,
+                  "sibling_busy": 0.0,
+                  "accepted": false,
+                  "rejected_because": "clock not steady",
+                  "measurement": {
+                    "result": "0",
+                    "batches": 4096,
+                    "warmup_ms": 150.011816,
+                    "warmup_count": 26412,
+                    "batch_samples_ms": [
+                      11.421161000000012,
+                      11.447466999999989,
+                      11.366222000000022,
+                      10.969700000000017,
+                      11.422717999999975,
+                      11.137247000000002,
+                      11.199636999999996,
+                      11.550207,
+                      11.25857099999996,
+                      11.550616999999988,
+                      11.490467000000024
+                    ],
+                    "load_ms": 4.4639120000000005,
+                    "stdout_verified": true,
+                    "execution_samples_ms": [
+                      0.002788369384765628,
+                      0.0027947917480468723,
+                      0.0027749565429687553,
+                      0.0026781494140625042,
+                      0.002788749511718744,
+                      0.0027190544433593755,
+                      0.002734286376953124,
+                      0.002819874755859375,
+                      0.0027486745605468654,
+                      0.002819974853515622,
+                      0.002805289794921881
+                    ],
+                    "sample_statistics": {
+                      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                      "lower_ms": 0.002653640014648422,
+                      "upper_ms": 0.0028878812255859494,
+                      "excluded_indices": [],
+                      "included_samples_ms": [
+                        0.002788369384765628,
+                        0.0027947917480468723,
+                        0.0027749565429687553,
+                        0.0026781494140625042,
+                        0.002788749511718744,
+                        0.0027190544433593755,
+                        0.002734286376953124,
+                        0.002819874755859375,
+                        0.0027486745605468654,
+                        0.002819974853515622,
+                        0.002805289794921881
+                      ],
+                      "median_ms": 0.002788369384765628
+                    },
+                    "execution_ms": 0.002788369384765628,
+                    "checksum": "0"
+                  }
+                },
+                {
+                  "cpu": 0,
+                  "sibling": 6,
+                  "readings": 15,
+                  "median_khz": 4496509,
+                  "p10_khz": 4397249,
+                  "p90_khz": 4500030,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "node scripts/site_target_node.cjs site/generated/library-targets/button/wasm/widget_benchmarks.wasm 0 11"
           }
         }
       }
@@ -1258,7 +1424,7 @@
       "targets": {
         "c": {
           "status": "ok",
-          "command": "build/bin/ziran build --target=c --no-main --root build/site-library-targets/kryon-export/tests --project --module-path build/site-library-targets/kryon-export/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:TextCase -o build/site-library-targets/text/c build/site-library-targets/kryon-export/tests/widget_benchmarks.zi",
+          "command": "build/bin/ziran build --target=c --no-main --root build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --project --module-path build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:TextCase -o build/site-library-targets/text/c build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests/widget_benchmarks.zi",
           "files": [
             {
               "path": "generated/library-targets/text/c/control_props.h",
@@ -1382,13 +1548,23 @@
             },
             {
               "path": "generated/library-targets/text/c/shape_paint.c",
-              "bytes": 23632,
-              "sha256": "39a201f83807752aa2ac867f678ba1d4f8df2381bdd4bdf91220d63dd344bdc6"
+              "bytes": 23786,
+              "sha256": "5459719573169844c862ffb9cdb93ef99192dfecae2d9b2b47dddfbb8c35f8a0"
             },
             {
               "path": "generated/library-targets/text/c/shape_paint.h",
-              "bytes": 11774,
-              "sha256": "ddf69f0dac428c94a35978d515f965ba847825c1d314a865871243f42fba45ba"
+              "bytes": 11785,
+              "sha256": "50bd2a437220369e09012ee84cb687a2237de168fe3b8d475a5a8076415b71f7"
+            },
+            {
+              "path": "generated/library-targets/text/c/std_finite.c",
+              "bytes": 546,
+              "sha256": "1df48c0b16a1cad9c9a5740c3ce297395db45c113cd3c2bbbf55e9a390265d59"
+            },
+            {
+              "path": "generated/library-targets/text/c/std_finite.h",
+              "bytes": 1069,
+              "sha256": "ae49fe5cb77d3f6ef4a81df454f119fed5eba9ea0f37e59f2f11560a6c7b6cc8"
             },
             {
               "path": "generated/library-targets/text/c/std_grapheme.c",
@@ -1412,13 +1588,13 @@
             },
             {
               "path": "generated/library-targets/text/c/std_math.c",
-              "bytes": 2458,
-              "sha256": "ad2aa99df462f4558316fa1bcba13c89e73d243c96d1f422aba0c2047326b36e"
+              "bytes": 2303,
+              "sha256": "94c662f1b3345f69b214cd920d19829be5a1311210d4f91551cb28c5a0f529eb"
             },
             {
               "path": "generated/library-targets/text/c/std_math.h",
-              "bytes": 393,
-              "sha256": "2dbbc3c065ce801e1c08022e5dd52666b6dbb0df48b64b4d8f7a65a9b71c54f1"
+              "bytes": 368,
+              "sha256": "7805859a18ed7ccca825ab50d3ae8058c320dd4317b34dff5eb1fece1ab7e9fa"
             },
             {
               "path": "generated/library-targets/text/c/std_utf8.c",
@@ -1462,8 +1638,8 @@
             },
             {
               "path": "generated/library-targets/text/c/text.c",
-              "bytes": 22472,
-              "sha256": "6ecdc45d99bfbc588ceb4b2bc5c344fa2c3a4d9e41dedfd3194b5a60715c51c4"
+              "bytes": 22505,
+              "sha256": "e3f3330ff22e5778f061aaba80e8b4d25e9b53ce71e75e4670e6f6138b6fc681"
             },
             {
               "path": "generated/library-targets/text/c/text.h",
@@ -1676,74 +1852,98 @@
               "sha256": "5d02fc05c3da740ee3bc8440df282d629cfc1e433367db39aaf415475c5142dc"
             }
           ],
-          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/library-targets/text/c '-DMATRIX_HEADER=\"widget_benchmarks.h\"' -DMATRIX_ENTRY=TextCase bench/site_target_host.c site/generated/library-targets/text/c/cursor.c site/generated/library-targets/text/c/drawing_props.c site/generated/library-targets/text/c/font_metrics.c site/generated/library-targets/text/c/geometry.c site/generated/library-targets/text/c/paint_queue.c site/generated/library-targets/text/c/paint_texture.c site/generated/library-targets/text/c/raster_shape.c site/generated/library-targets/text/c/raster_text.c site/generated/library-targets/text/c/raster_triangles.c site/generated/library-targets/text/c/session.c site/generated/library-targets/text/c/shape_paint.c site/generated/library-targets/text/c/std_grapheme.c site/generated/library-targets/text/c/std_grapheme_data.c site/generated/library-targets/text/c/std_math.c site/generated/library-targets/text/c/std_utf8.c site/generated/library-targets/text/c/style.c site/generated/library-targets/text/c/surface.c site/generated/library-targets/text/c/text.c site/generated/library-targets/text/c/text_behavior.c site/generated/library-targets/text/c/text_boundary.c site/generated/library-targets/text/c/text_editing.c site/generated/library-targets/text/c/text_emphasis.c site/generated/library-targets/text/c/text_layout.c site/generated/library-targets/text/c/text_request.c site/generated/library-targets/text/c/text_selection_host.c site/generated/library-targets/text/c/text_style.c site/generated/library-targets/text/c/text_typeface.c site/generated/library-targets/text/c/textfield.c site/generated/library-targets/text/c/theme.c site/generated/library-targets/text/c/tree.c site/generated/library-targets/text/c/tree_draw.c site/generated/library-targets/text/c/tree_input.c site/generated/library-targets/text/c/widget_benchmark_host.c site/generated/library-targets/text/c/widget_benchmarks.c site/generated/library-targets/text/c/widget_key.c -lm -o build/site-library-targets/text/c-runner",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/library-targets/text/c '-DMATRIX_HEADER=\"widget_benchmarks.h\"' -DMATRIX_ENTRY=TextCase bench/site_target_host.c site/generated/library-targets/text/c/cursor.c site/generated/library-targets/text/c/drawing_props.c site/generated/library-targets/text/c/font_metrics.c site/generated/library-targets/text/c/geometry.c site/generated/library-targets/text/c/paint_queue.c site/generated/library-targets/text/c/paint_texture.c site/generated/library-targets/text/c/raster_shape.c site/generated/library-targets/text/c/raster_text.c site/generated/library-targets/text/c/raster_triangles.c site/generated/library-targets/text/c/session.c site/generated/library-targets/text/c/shape_paint.c site/generated/library-targets/text/c/std_finite.c site/generated/library-targets/text/c/std_grapheme.c site/generated/library-targets/text/c/std_grapheme_data.c site/generated/library-targets/text/c/std_math.c site/generated/library-targets/text/c/std_utf8.c site/generated/library-targets/text/c/style.c site/generated/library-targets/text/c/surface.c site/generated/library-targets/text/c/text.c site/generated/library-targets/text/c/text_behavior.c site/generated/library-targets/text/c/text_boundary.c site/generated/library-targets/text/c/text_editing.c site/generated/library-targets/text/c/text_emphasis.c site/generated/library-targets/text/c/text_layout.c site/generated/library-targets/text/c/text_request.c site/generated/library-targets/text/c/text_selection_host.c site/generated/library-targets/text/c/text_style.c site/generated/library-targets/text/c/text_typeface.c site/generated/library-targets/text/c/textfield.c site/generated/library-targets/text/c/theme.c site/generated/library-targets/text/c/tree.c site/generated/library-targets/text/c/tree_draw.c site/generated/library-targets/text/c/tree_input.c site/generated/library-targets/text/c/widget_benchmark_host.c site/generated/library-targets/text/c/widget_benchmarks.c site/generated/library-targets/text/c/widget_key.c -lm -o build/site-library-targets/text/c-runner",
+          "download": {
+            "path": "generated/library-targets/text/c.zip",
+            "bytes": 101164,
+            "sha256": "8ed939fa0f47208a854365fe32ffe5ff6a2c81184c680a834e1032ff568d4352"
+          },
           "measurement": {
             "result": "0",
             "batches": 4096,
-            "load_ms": 0.001276016,
-            "warmup_ms": 150.002864003,
-            "warmup_count": 45626,
+            "load_ms": 0.001976013,
+            "warmup_ms": 150.001783013,
+            "warmup_count": 46365,
             "batch_samples_ms": [
-              13.173673987,
-              13.136988997,
-              13.094561994,
-              13.187052011,
-              13.145621955,
-              13.11205405,
-              13.160646975,
-              13.402507961,
-              13.698444009,
-              13.133040965,
-              13.263808012
+              12.937063992,
+              12.572158039,
+              12.465251029,
+              12.798448026,
+              12.958635986,
+              12.735674977,
+              13.238415003,
+              13.32715404,
+              13.60056895,
+              13.661973,
+              14.536399007
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.003216229000732422,
-              0.003207272704345703,
-              0.003196914549316406,
-              0.003219495119873047,
-              0.0032093803601074217,
-              0.003201185070800781,
-              0.0032130485778808595,
-              0.0032720966701660155,
-              0.0033443466818847654,
-              0.003206308829345703,
-              0.0032382343779296875
+              0.003158462888671875,
+              0.0030693745212402343,
+              0.003043274177001953,
+              0.0031246211000976565,
+              0.0031637294887695315,
+              0.0031092956486816407,
+              0.003232034912841797,
+              0.003253699716796875,
+              0.0033204514038085936,
+              0.003335442626953125,
+              0.0035489255388183594
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0031736797937622066,
-              "upper_ms": 0.0032619757219848637,
+              "lower_ms": 0.00286178259552002,
+              "upper_ms": 0.0035422513391723627,
               "excluded_indices": [
-                7,
-                8
+                10
               ],
               "included_samples_ms": [
-                0.003216229000732422,
-                0.003207272704345703,
-                0.003196914549316406,
-                0.003219495119873047,
-                0.0032093803601074217,
-                0.003201185070800781,
-                0.0032130485778808595,
-                0.003206308829345703,
-                0.0032382343779296875
+                0.003158462888671875,
+                0.0030693745212402343,
+                0.003043274177001953,
+                0.0031246211000976565,
+                0.0031637294887695315,
+                0.0031092956486816407,
+                0.003232034912841797,
+                0.003253699716796875,
+                0.0033204514038085936,
+                0.003335442626953125
               ],
-              "median_ms": 0.0032093803601074217
+              "median_ms": 0.0031610961887207035
             },
-            "execution_ms": 0.0032093803601074217,
+            "execution_ms": 0.0031610961887207035,
             "checksum": "0",
+            "host_gate": {
+              "cpu": 0,
+              "sibling": 6,
+              "reference_khz": 4500018,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 0,
+                  "sibling": 6,
+                  "readings": 12,
+                  "median_khz": 4499976,
+                  "p10_khz": 4399902,
+                  "p90_khz": 4600007,
+                  "sibling_busy": 0.0303,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/site-library-targets/text/c-runner - 0 11"
-          },
-          "download": {
-            "path": "generated/library-targets/text/c.zip",
-            "bytes": 100266,
-            "sha256": "3482e24f7fc678a241b137a29e4cbef4bebfe4cc532803b56d3ac3b58ae5be45"
           }
         },
         "go": {
           "status": "ok",
-          "command": "build/bin/ziran build --target=go --no-main --pkg main --root build/site-library-targets/kryon-export/tests --project --module-path build/site-library-targets/kryon-export/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:TextCase -o build/site-library-targets/text/go build/site-library-targets/kryon-export/tests/widget_benchmarks.zi",
+          "command": "build/bin/ziran build --target=go --no-main --pkg main --root build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --project --module-path build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:TextCase -o build/site-library-targets/text/go build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests/widget_benchmarks.zi",
           "files": [
             {
               "path": "generated/library-targets/text/go/bitmap_store.go",
@@ -1847,8 +2047,8 @@
             },
             {
               "path": "generated/library-targets/text/go/overlay.go",
-              "bytes": 4946,
-              "sha256": "4ecb2e65664ce5813e938e0f47ceec0cde25783689b09b11dba6e97095089e30"
+              "bytes": 4978,
+              "sha256": "ded5387c67854ec7e04f5b9bc18890c18567cd0cdf2a71a5cf66ddcee5154257"
             },
             {
               "path": "generated/library-targets/text/go/overlay_behavior.go",
@@ -1857,8 +2057,8 @@
             },
             {
               "path": "generated/library-targets/text/go/overlay_props.go",
-              "bytes": 648,
-              "sha256": "56d9c9a853f60ad9b00b5faef23842e112b7c8fc865e879b233aded6fc4496e6"
+              "bytes": 677,
+              "sha256": "c492bd50b78a1fe533838f74ff791794f12eefa8c68f86135ada12b7591167e3"
             },
             {
               "path": "generated/library-targets/text/go/paint_queue.go",
@@ -1907,8 +2107,13 @@
             },
             {
               "path": "generated/library-targets/text/go/shape_paint.go",
-              "bytes": 15573,
-              "sha256": "7b96460e74dde1deb1889eefa1d1a72f399072917ec8d50df1bf30dcdf6f0e14"
+              "bytes": 15601,
+              "sha256": "11b44999f16ad54785430963890b9494073131ad7e94943276a627b915827d2f"
+            },
+            {
+              "path": "generated/library-targets/text/go/std_finite.go",
+              "bytes": 358,
+              "sha256": "441f1371035de2ca6605dda7464b8741d8bafcb474970a91d0ed032c6f0b922e"
             },
             {
               "path": "generated/library-targets/text/go/std_grapheme.go",
@@ -1922,8 +2127,8 @@
             },
             {
               "path": "generated/library-targets/text/go/std_math.go",
-              "bytes": 17811,
-              "sha256": "b2c9492eedfa230ca27a779abaccdd48813efa6fe0e66740fa9e44389186f93f"
+              "bytes": 17542,
+              "sha256": "2f47f9cbbffb5c3e6ed176f299b09de11c28acfc52c4c68d7b63fbc70fc42ace"
             },
             {
               "path": "generated/library-targets/text/go/std_utf8.go",
@@ -1972,8 +2177,8 @@
             },
             {
               "path": "generated/library-targets/text/go/text.go",
-              "bytes": 19034,
-              "sha256": "50de0514cc09525ac79d8e6d59ed8555ef00e1dca457be5bcc9f55658c09751d"
+              "bytes": 19040,
+              "sha256": "cad0b30f1a542faa14a20b3dba1a295afec15ce3d5ac6db018a0514e839c6a83"
             },
             {
               "path": "generated/library-targets/text/go/text_align.go",
@@ -2101,142 +2306,189 @@
               "sha256": "9f0bcea122416bc5d9b305ad8e56c30e16c5e0a6c3721bde675f7a03049a46e2"
             }
           ],
-          "build_command": "go build -p=2 -o build/site-library-targets/text/go-runner build/site-library-targets/text/go-host/bitmap_store.go build/site-library-targets/text/go-host/button.go build/site-library-targets/text/go-host/button_behavior.go build/site-library-targets/text/go-host/button_props.go build/site-library-targets/text/go-host/card_behavior.go build/site-library-targets/text/go-host/card_props.go build/site-library-targets/text/go-host/contextmenu.go build/site-library-targets/text/go-host/control_props.go build/site-library-targets/text/go-host/cursor.go build/site-library-targets/text/go-host/dpi.go build/site-library-targets/text/go-host/drawing_props.go build/site-library-targets/text/go-host/elevation.go build/site-library-targets/text/go-host/focus.go build/site-library-targets/text/go-host/font_metrics.go build/site-library-targets/text/go-host/geometry.go build/site-library-targets/text/go-host/image_behavior.go build/site-library-targets/text/go-host/image_lookup.go build/site-library-targets/text/go-host/image_props.go build/site-library-targets/text/go-host/input_props.go build/site-library-targets/text/go-host/input_protocol.go build/site-library-targets/text/go-host/overlay.go build/site-library-targets/text/go-host/overlay_behavior.go build/site-library-targets/text/go-host/overlay_props.go build/site-library-targets/text/go-host/paint_queue.go build/site-library-targets/text/go-host/paint_texture.go build/site-library-targets/text/go-host/raster.go build/site-library-targets/text/go-host/raster_shape.go build/site-library-targets/text/go-host/raster_text.go build/site-library-targets/text/go-host/raster_triangles.go build/site-library-targets/text/go-host/scroll_sampling.go build/site-library-targets/text/go-host/semantic.go build/site-library-targets/text/go-host/session.go build/site-library-targets/text/go-host/shape_paint.go build/site-library-targets/text/go-host/std_grapheme.go build/site-library-targets/text/go-host/std_grapheme_data.go build/site-library-targets/text/go-host/std_math.go build/site-library-targets/text/go-host/std_utf8.go build/site-library-targets/text/go-host/std_vec.go build/site-library-targets/text/go-host/style.go build/site-library-targets/text/go-host/style_sheet.go build/site-library-targets/text/go-host/surface.go build/site-library-targets/text/go-host/svg_icon_behavior.go build/site-library-targets/text/go-host/svg_shape.go build/site-library-targets/text/go-host/system_clipboard.go build/site-library-targets/text/go-host/system_clipboard_host.go build/site-library-targets/text/go-host/text.go build/site-library-targets/text/go-host/text_align.go build/site-library-targets/text/go-host/text_behavior.go build/site-library-targets/text/go-host/text_boundary.go build/site-library-targets/text/go-host/text_context_menu.go build/site-library-targets/text/go-host/text_editing.go build/site-library-targets/text/go-host/text_emphasis.go build/site-library-targets/text/go-host/text_field_props.go build/site-library-targets/text/go-host/text_host.go build/site-library-targets/text/go-host/text_input.go build/site-library-targets/text/go-host/text_input_platform.go build/site-library-targets/text/go-host/text_layout.go build/site-library-targets/text/go-host/text_props.go build/site-library-targets/text/go-host/text_request.go build/site-library-targets/text/go-host/text_selection_host.go build/site-library-targets/text/go-host/text_style.go build/site-library-targets/text/go-host/text_typeface.go build/site-library-targets/text/go-host/textfield.go build/site-library-targets/text/go-host/theme.go build/site-library-targets/text/go-host/tree.go build/site-library-targets/text/go-host/tree_draw.go build/site-library-targets/text/go-host/tree_input.go build/site-library-targets/text/go-host/widget_benchmark_host.go build/site-library-targets/text/go-host/widget_benchmarks.go build/site-library-targets/text/go-host/widget_key.go build/site-library-targets/text/go-host/widget_kind.go build/site-library-targets/text/go-host/matrix_host.go build/site-library-targets/text/go-host/matrix_bridge.go",
+          "build_command": "go build -p=2 -o build/site-library-targets/text/go-runner build/site-library-targets/text/go-host/bitmap_store.go build/site-library-targets/text/go-host/button.go build/site-library-targets/text/go-host/button_behavior.go build/site-library-targets/text/go-host/button_props.go build/site-library-targets/text/go-host/card_behavior.go build/site-library-targets/text/go-host/card_props.go build/site-library-targets/text/go-host/contextmenu.go build/site-library-targets/text/go-host/control_props.go build/site-library-targets/text/go-host/cursor.go build/site-library-targets/text/go-host/dpi.go build/site-library-targets/text/go-host/drawing_props.go build/site-library-targets/text/go-host/elevation.go build/site-library-targets/text/go-host/focus.go build/site-library-targets/text/go-host/font_metrics.go build/site-library-targets/text/go-host/geometry.go build/site-library-targets/text/go-host/image_behavior.go build/site-library-targets/text/go-host/image_lookup.go build/site-library-targets/text/go-host/image_props.go build/site-library-targets/text/go-host/input_props.go build/site-library-targets/text/go-host/input_protocol.go build/site-library-targets/text/go-host/overlay.go build/site-library-targets/text/go-host/overlay_behavior.go build/site-library-targets/text/go-host/overlay_props.go build/site-library-targets/text/go-host/paint_queue.go build/site-library-targets/text/go-host/paint_texture.go build/site-library-targets/text/go-host/raster.go build/site-library-targets/text/go-host/raster_shape.go build/site-library-targets/text/go-host/raster_text.go build/site-library-targets/text/go-host/raster_triangles.go build/site-library-targets/text/go-host/scroll_sampling.go build/site-library-targets/text/go-host/semantic.go build/site-library-targets/text/go-host/session.go build/site-library-targets/text/go-host/shape_paint.go build/site-library-targets/text/go-host/std_finite.go build/site-library-targets/text/go-host/std_grapheme.go build/site-library-targets/text/go-host/std_grapheme_data.go build/site-library-targets/text/go-host/std_math.go build/site-library-targets/text/go-host/std_utf8.go build/site-library-targets/text/go-host/std_vec.go build/site-library-targets/text/go-host/style.go build/site-library-targets/text/go-host/style_sheet.go build/site-library-targets/text/go-host/surface.go build/site-library-targets/text/go-host/svg_icon_behavior.go build/site-library-targets/text/go-host/svg_shape.go build/site-library-targets/text/go-host/system_clipboard.go build/site-library-targets/text/go-host/system_clipboard_host.go build/site-library-targets/text/go-host/text.go build/site-library-targets/text/go-host/text_align.go build/site-library-targets/text/go-host/text_behavior.go build/site-library-targets/text/go-host/text_boundary.go build/site-library-targets/text/go-host/text_context_menu.go build/site-library-targets/text/go-host/text_editing.go build/site-library-targets/text/go-host/text_emphasis.go build/site-library-targets/text/go-host/text_field_props.go build/site-library-targets/text/go-host/text_host.go build/site-library-targets/text/go-host/text_input.go build/site-library-targets/text/go-host/text_input_platform.go build/site-library-targets/text/go-host/text_layout.go build/site-library-targets/text/go-host/text_props.go build/site-library-targets/text/go-host/text_request.go build/site-library-targets/text/go-host/text_selection_host.go build/site-library-targets/text/go-host/text_style.go build/site-library-targets/text/go-host/text_typeface.go build/site-library-targets/text/go-host/textfield.go build/site-library-targets/text/go-host/theme.go build/site-library-targets/text/go-host/tree.go build/site-library-targets/text/go-host/tree_draw.go build/site-library-targets/text/go-host/tree_input.go build/site-library-targets/text/go-host/widget_benchmark_host.go build/site-library-targets/text/go-host/widget_benchmarks.go build/site-library-targets/text/go-host/widget_key.go build/site-library-targets/text/go-host/widget_kind.go build/site-library-targets/text/go-host/matrix_host.go build/site-library-targets/text/go-host/matrix_bridge.go",
+          "download": {
+            "path": "generated/library-targets/text/go.zip",
+            "bytes": 153191,
+            "sha256": "54b579eff8808d96cf3346adf19a2bc25db500ad548d3ade9ccfc9e81ea5f326"
+          },
           "measurement": {
             "batch_samples_ms": [
-              15.680249,
-              15.649971,
-              15.7801,
-              15.758163,
-              15.927695,
-              15.869816,
-              15.807579,
-              15.811253,
-              15.852927,
-              16.114419,
-              15.720562
+              15.715073,
+              16.062965,
+              15.978304,
+              15.41962,
+              15.675075,
+              15.380125,
+              15.482026,
+              15.323401,
+              15.940493,
+              16.020726,
+              16.79264
             ],
             "batches": 4096,
             "load_ms": 0,
             "result": "0",
-            "warmup_count": 37444,
-            "warmup_ms": 150.000091,
+            "warmup_count": 37569,
+            "warmup_ms": 150.003573,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.003828185791015625,
-              0.003820793701171875,
-              0.0038525634765625,
-              0.003847207763671875,
-              0.003888597412109375,
-              0.003874466796875,
-              0.003859272216796875,
-              0.003860169189453125,
-              0.003870343505859375,
-              0.003934184326171875,
-              0.00383802783203125
+              0.003836687744140625,
+              0.003921622314453125,
+              0.003900953125,
+              0.0037645556640625,
+              0.003826922607421875,
+              0.003754913330078125,
+              0.00377979150390625,
+              0.003741064697265625,
+              0.003891721923828125,
+              0.00391131005859375,
+              0.004099765625
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.003797936767578124,
-              "upper_ms": 0.003917086181640626,
-              "excluded_indices": [
-                9
-              ],
+              "lower_ms": 0.0035712365722656253,
+              "upper_ms": 0.004107068603515625,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.003828185791015625,
-                0.003820793701171875,
-                0.0038525634765625,
-                0.003847207763671875,
-                0.003888597412109375,
-                0.003874466796875,
-                0.003859272216796875,
-                0.003860169189453125,
-                0.003870343505859375,
-                0.00383802783203125
+                0.003836687744140625,
+                0.003921622314453125,
+                0.003900953125,
+                0.0037645556640625,
+                0.003826922607421875,
+                0.003754913330078125,
+                0.00377979150390625,
+                0.003741064697265625,
+                0.003891721923828125,
+                0.00391131005859375,
+                0.004099765625
               ],
-              "median_ms": 0.0038559178466796877
+              "median_ms": 0.003836687744140625
             },
-            "execution_ms": 0.0038559178466796877,
+            "execution_ms": 0.003836687744140625,
             "checksum": "0",
+            "host_gate": {
+              "cpu": 3,
+              "sibling": 9,
+              "reference_khz": 4500018,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 3,
+                  "sibling": 9,
+                  "readings": 16,
+                  "median_khz": 4400002,
+                  "p10_khz": 4397413,
+                  "p90_khz": 4498372,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/site-library-targets/text/go-runner - 0 11"
-          },
-          "download": {
-            "path": "generated/library-targets/text/go.zip",
-            "bytes": 152943,
-            "sha256": "d650bdf852fe4c0dbd0723b2f69d4494fb05427fc1b21e63db15288271418223"
           }
         },
         "zx": {
           "status": "ok",
-          "command": "build/bin/ziran bundle --root build/site-library-targets/kryon-export/tests --project --module-path build/site-library-targets/kryon-export/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:TextCase -o build/site-library-targets/text/zx/widget_benchmarks.zx build/site-library-targets/kryon-export/tests/widget_benchmarks.zi",
+          "command": "build/bin/ziran bundle --root build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --project --module-path build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:TextCase -o build/site-library-targets/text/zx/widget_benchmarks.zx build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests/widget_benchmarks.zi",
           "files": [
             {
               "path": "generated/library-targets/text/zx/widget_benchmarks.zx",
-              "bytes": 1148057,
-              "sha256": "50700b49c97bdf31486e4fa7802be728c3337163acb54569825d3ebb009178ec"
+              "bytes": 1148073,
+              "sha256": "6600b3880dfea5e3d2012b2d72bfb997dfd200b85733ad82e91f26f94750ff90"
             }
           ],
+          "download": {
+            "path": "generated/library-targets/text/zx/widget_benchmarks.zx",
+            "bytes": 1148073,
+            "sha256": "6600b3880dfea5e3d2012b2d72bfb997dfd200b85733ad82e91f26f94750ff90"
+          },
           "measurement": {
             "result": "0",
             "batches": 2048,
-            "load_ms": 213.445279956,
-            "warmup_ms": 150.003401041,
-            "warmup_count": 22467,
+            "load_ms": 166.846606016,
+            "warmup_ms": 150.01078403,
+            "warmup_count": 21174,
             "batch_samples_ms": [
-              13.410387993,
-              13.465623021,
-              13.395052969,
-              13.463209987,
-              13.49208802,
-              13.369534969,
-              13.492918968,
-              13.43809998,
-              13.510855019,
-              13.445774019,
-              13.465053976
+              12.889554024,
+              12.80171299,
+              12.854140997,
+              12.825106025,
+              12.676280022,
+              12.736229002,
+              12.841788054,
+              12.790032983,
+              12.708691001,
+              12.887091994,
+              12.817451954
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0065480410122070315,
-              0.006575011240722657,
-              0.006540553207519531,
-              0.006573833001464844,
-              0.006587933603515625,
-              0.006528093246582031,
-              0.00658833933984375,
-              0.006561572255859375,
-              0.006597097177246093,
-              0.006565319345214844,
-              0.00657473338671875
+              0.00629372755078125,
+              0.006250836420898438,
+              0.006276436033691406,
+              0.006262258801269531,
+              0.006189589854492188,
+              0.0062188618173828125,
+              0.006270404323242188,
+              0.006245133292480469,
+              0.006205415527832031,
+              0.006292525387695313,
+              0.006258521461914062
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.006514807951904296,
-              "upper_ms": 0.006621471104248048,
+              "lower_ms": 0.006169863619628905,
+              "upper_ms": 0.006335554113769532,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.0065480410122070315,
-                0.006575011240722657,
-                0.006540553207519531,
-                0.006573833001464844,
-                0.006587933603515625,
-                0.006528093246582031,
-                0.00658833933984375,
-                0.006561572255859375,
-                0.006597097177246093,
-                0.006565319345214844,
-                0.00657473338671875
+                0.00629372755078125,
+                0.006250836420898438,
+                0.006276436033691406,
+                0.006262258801269531,
+                0.006189589854492188,
+                0.0062188618173828125,
+                0.006270404323242188,
+                0.006245133292480469,
+                0.006205415527832031,
+                0.006292525387695313,
+                0.006258521461914062
               ],
-              "median_ms": 0.006573833001464844
+              "median_ms": 0.006258521461914062
             },
-            "execution_ms": 0.006573833001464844,
+            "execution_ms": 0.006258521461914062,
             "checksum": "0",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4500018,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 29,
+                  "median_khz": 4399997,
+                  "p10_khz": 4299978,
+                  "p90_khz": 4500010,
+                  "sibling_busy": 0.0612,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/site-library-targets/zx-runner site/generated/library-targets/text/zx/widget_benchmarks.zx 0 11"
-          },
-          "download": {
-            "path": "generated/library-targets/text/zx/widget_benchmarks.zx",
-            "bytes": 1148057,
-            "sha256": "50700b49c97bdf31486e4fa7802be728c3337163acb54569825d3ebb009178ec"
           }
         },
         "wasm": {
@@ -2249,67 +2501,160 @@
               "sha256": "1c39c6e16561aaf039aa839e61c59e0a4a0f7f4dc3f376bb43ce2b437da3d7e6"
             }
           ],
-          "measurement": {
-            "result": "0",
-            "batches": 4096,
-            "warmup_ms": 150.02729699999998,
-            "warmup_count": 30820,
-            "batch_samples_ms": [
-              17.298366000000016,
-              17.207516000000027,
-              17.182785000000024,
-              17.22878700000001,
-              17.225694999999973,
-              17.315405,
-              17.239022999999975,
-              17.18159099999997,
-              17.315620999999965,
-              17.26865600000002,
-              17.167329999999993
-            ],
-            "load_ms": 3.3798150000000007,
-            "stdout_verified": true,
-            "execution_samples_ms": [
-              0.004223233886718754,
-              0.0042010537109375065,
-              0.004195015869140631,
-              0.004206246826171878,
-              0.0042054919433593685,
-              0.004227393798828125,
-              0.004208745849609369,
-              0.004194724365234367,
-              0.004227446533203116,
-              0.004215980468750005,
-              0.004191242675781248
-            ],
-            "sample_statistics": {
-              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.004165676208496102,
-              "upper_ms": 0.004251965759277346,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.004223233886718754,
-                0.0042010537109375065,
-                0.004195015869140631,
-                0.004206246826171878,
-                0.0042054919433593685,
-                0.004227393798828125,
-                0.004208745849609369,
-                0.004194724365234367,
-                0.004227446533203116,
-                0.004215980468750005,
-                0.004191242675781248
-              ],
-              "median_ms": 0.004206246826171878
-            },
-            "execution_ms": 0.004206246826171878,
-            "checksum": "0",
-            "command": "node scripts/site_target_node.cjs site/generated/library-targets/text/wasm/widget_benchmarks.wasm 0 11"
-          },
           "download": {
             "path": "generated/library-targets/text/wasm/widget_benchmarks.wasm",
             "bytes": 2106133,
             "sha256": "1c39c6e16561aaf039aa839e61c59e0a4a0f7f4dc3f376bb43ce2b437da3d7e6"
+          },
+          "measurement": {
+            "result": "0",
+            "batches": 4096,
+            "warmup_ms": 150.01804900000002,
+            "warmup_count": 22022,
+            "batch_samples_ms": [
+              17.255450999999994,
+              17.171756999999985,
+              16.987273999999985,
+              17.039170999999953,
+              17.084893000000022,
+              17.03689300000002,
+              16.98624699999999,
+              16.952416000000028,
+              16.731128000000012,
+              16.751161000000025,
+              16.978657
+            ],
+            "load_ms": 4.597027999999998,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.0042127565917968735,
+              0.004192323486328121,
+              0.004147283691406246,
+              0.004159953857421864,
+              0.0041711164550781304,
+              0.00415939770507813,
+              0.004147032958984373,
+              0.004138773437500007,
+              0.004084748046875003,
+              0.004089638916015631,
+              0.004145179931640625
+            ],
+            "sample_statistics": {
+              "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+              "lower_ms": 0.004106638977050794,
+              "upper_ms": 0.004200872863769519,
+              "excluded_indices": [
+                0,
+                8,
+                9
+              ],
+              "included_samples_ms": [
+                0.004192323486328121,
+                0.004147283691406246,
+                0.004159953857421864,
+                0.0041711164550781304,
+                0.00415939770507813,
+                0.004147032958984373,
+                0.004138773437500007,
+                0.004145179931640625
+              ],
+              "median_ms": 0.004153340698242188
+            },
+            "execution_ms": 0.004153340698242188,
+            "checksum": "0",
+            "host_gate": {
+              "cpu": 3,
+              "sibling": 9,
+              "reference_khz": 4500018,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 22,
+                  "median_khz": 4300026,
+                  "p10_khz": 4299960,
+                  "p90_khz": 4492349,
+                  "sibling_busy": 0.0,
+                  "accepted": false,
+                  "rejected_because": "clock not steady",
+                  "measurement": {
+                    "result": "0",
+                    "batches": 4096,
+                    "warmup_ms": 150.011165,
+                    "warmup_count": 22242,
+                    "batch_samples_ms": [
+                      18.262186000000014,
+                      18.068386999999973,
+                      18.969058000000018,
+                      17.504306999999983,
+                      17.212249000000043,
+                      17.026229,
+                      17.002812000000006,
+                      17.030501000000015,
+                      17.089969999999994,
+                      17.044966999999986,
+                      17.084101000000032
+                    ],
+                    "load_ms": 4.627671999999997,
+                    "stdout_verified": true,
+                    "execution_samples_ms": [
+                      0.004458541503906253,
+                      0.004411227294921868,
+                      0.0046311176757812544,
+                      0.004273512451171871,
+                      0.004202209228515635,
+                      0.004156794189453125,
+                      0.004151077148437501,
+                      0.004157837158203129,
+                      0.0041723559570312485,
+                      0.0041613688964843715,
+                      0.004170923095703133
+                    ],
+                    "sample_statistics": {
+                      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                      "lower_ms": 0.003885452758789071,
+                      "upper_ms": 0.004616520141601549,
+                      "excluded_indices": [
+                        2
+                      ],
+                      "included_samples_ms": [
+                        0.004458541503906253,
+                        0.004411227294921868,
+                        0.004273512451171871,
+                        0.004202209228515635,
+                        0.004156794189453125,
+                        0.004151077148437501,
+                        0.004157837158203129,
+                        0.0041723559570312485,
+                        0.0041613688964843715,
+                        0.004170923095703133
+                      ],
+                      "median_ms": 0.004171639526367191
+                    },
+                    "execution_ms": 0.004171639526367191,
+                    "checksum": "0"
+                  }
+                },
+                {
+                  "cpu": 3,
+                  "sibling": 9,
+                  "readings": 22,
+                  "median_khz": 4397345,
+                  "p10_khz": 4299985,
+                  "p90_khz": 4493685,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "node scripts/site_target_node.cjs site/generated/library-targets/text/wasm/widget_benchmarks.wasm 0 11"
           }
         }
       }
@@ -2324,7 +2669,7 @@
       "targets": {
         "c": {
           "status": "ok",
-          "command": "build/bin/ziran build --target=c --no-main --root build/site-library-targets/kryon-export/tests --project --module-path build/site-library-targets/kryon-export/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:InputCase -o build/site-library-targets/input/c build/site-library-targets/kryon-export/tests/widget_benchmarks.zi",
+          "command": "build/bin/ziran build --target=c --no-main --root build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --project --module-path build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:InputCase -o build/site-library-targets/input/c build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests/widget_benchmarks.zi",
           "files": [
             {
               "path": "generated/library-targets/input/c/button.c",
@@ -2473,8 +2818,8 @@
             },
             {
               "path": "generated/library-targets/input/c/overlay.c",
-              "bytes": 3730,
-              "sha256": "c98215d345bf778a6de6df3a87f01916fb5a5022ff859779a02e7483c7d30d84"
+              "bytes": 3764,
+              "sha256": "8e00a23a57bccb4ffb8c4bd3d2e10e6b982a10688fb747ad2a51c0a5b6d92716"
             },
             {
               "path": "generated/library-targets/input/c/overlay.h",
@@ -2493,8 +2838,8 @@
             },
             {
               "path": "generated/library-targets/input/c/overlay_props.h",
-              "bytes": 867,
-              "sha256": "94d98d8dfb31d8dc7238eb381a3e3fe351407c230392e565b31781d186b14a87"
+              "bytes": 902,
+              "sha256": "9504d6abb4c6d6b8d5db66eb2479f67c92f5e2587ae9323cc9026d20c8324000"
             },
             {
               "path": "generated/library-targets/input/c/paint_queue.c",
@@ -2878,73 +3223,165 @@
             }
           ],
           "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/library-targets/input/c '-DMATRIX_HEADER=\"widget_benchmarks.h\"' -DMATRIX_ENTRY=InputCase bench/site_target_host.c site/generated/library-targets/input/c/button.c site/generated/library-targets/input/c/button_behavior.c site/generated/library-targets/input/c/card_behavior.c site/generated/library-targets/input/c/contextmenu.c site/generated/library-targets/input/c/cursor.c site/generated/library-targets/input/c/dpi.c site/generated/library-targets/input/c/drawing_props.c site/generated/library-targets/input/c/focus.c site/generated/library-targets/input/c/font_metrics.c site/generated/library-targets/input/c/geometry.c site/generated/library-targets/input/c/image_behavior.c site/generated/library-targets/input/c/image_lookup.c site/generated/library-targets/input/c/input_protocol.c site/generated/library-targets/input/c/overlay.c site/generated/library-targets/input/c/overlay_behavior.c site/generated/library-targets/input/c/paint_queue.c site/generated/library-targets/input/c/paint_texture.c site/generated/library-targets/input/c/raster.c site/generated/library-targets/input/c/raster_shape.c site/generated/library-targets/input/c/raster_text.c site/generated/library-targets/input/c/session.c site/generated/library-targets/input/c/std_grapheme.c site/generated/library-targets/input/c/std_grapheme_data.c site/generated/library-targets/input/c/std_utf8.c site/generated/library-targets/input/c/style.c site/generated/library-targets/input/c/style_sheet.c site/generated/library-targets/input/c/surface.c site/generated/library-targets/input/c/svg_icon_behavior.c site/generated/library-targets/input/c/svg_shape.c site/generated/library-targets/input/c/system_clipboard.c site/generated/library-targets/input/c/system_clipboard_host.c site/generated/library-targets/input/c/text.c site/generated/library-targets/input/c/text_boundary.c site/generated/library-targets/input/c/text_context_menu.c site/generated/library-targets/input/c/text_editing.c site/generated/library-targets/input/c/text_emphasis.c site/generated/library-targets/input/c/text_host.c site/generated/library-targets/input/c/text_input.c site/generated/library-targets/input/c/text_input_platform.c site/generated/library-targets/input/c/text_request.c site/generated/library-targets/input/c/text_typeface.c site/generated/library-targets/input/c/textfield.c site/generated/library-targets/input/c/theme.c site/generated/library-targets/input/c/tree.c site/generated/library-targets/input/c/tree_draw.c site/generated/library-targets/input/c/tree_input.c site/generated/library-targets/input/c/widget_benchmark_host.c site/generated/library-targets/input/c/widget_benchmarks.c site/generated/library-targets/input/c/widget_key.c -lm -o build/site-library-targets/input/c-runner",
+          "download": {
+            "path": "generated/library-targets/input/c.zip",
+            "bytes": 148866,
+            "sha256": "7df3f595bbfdbe903acc3a860cae7b2ec65d3e7ef761fe73c27f516c6e528017"
+          },
           "measurement": {
             "result": "0",
             "batches": 4096,
-            "load_ms": 0.001914978,
-            "warmup_ms": 150.000723004,
-            "warmup_count": 36228,
+            "load_ms": 0.008804977,
+            "warmup_ms": 150.004127026,
+            "warmup_count": 36037,
             "batch_samples_ms": [
-              17.166278005,
-              16.218778968,
-              16.535359025,
-              17.175161004,
-              16.853276014,
-              20.426324964,
-              16.689933002,
-              16.635119021,
-              17.263958991,
-              16.753709972,
-              16.663772047
+              16.511218965,
+              16.509137034,
+              16.548066974,
+              16.515859008,
+              16.522861004,
+              17.258632004,
+              16.382467985,
+              16.404323995,
+              16.559686005,
+              16.707862973,
+              16.432268023
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.004190985841064453,
-              0.003959662833984375,
-              0.004036952886962891,
-              0.004193154541992187,
-              0.004114569339355468,
-              0.004986895743164062,
-              0.004074690674316406,
-              0.0040613083547363284,
-              0.004214833738037109,
-              0.004090261223632812,
-              0.004068303722412109
+              0.004031059317626953,
+              0.004030551033691406,
+              0.004040055413574219,
+              0.004032192140625,
+              0.004033901612304687,
+              0.004213533204101562,
+              0.003999625972900391,
+              0.0040049619128417965,
+              0.004042892091064453,
+              0.004079068108642578,
+              0.004011784185302734
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0038739098091430677,
-              "upper_ms": 0.004382966420959472,
+              "lower_ms": 0.0039907083952636715,
+              "upper_ms": 0.004071932966552734,
               "excluded_indices": [
-                5
+                5,
+                9
               ],
               "included_samples_ms": [
-                0.004190985841064453,
-                0.003959662833984375,
-                0.004036952886962891,
-                0.004193154541992187,
-                0.004114569339355468,
-                0.004074690674316406,
-                0.0040613083547363284,
-                0.004214833738037109,
-                0.004090261223632812,
-                0.004068303722412109
+                0.004031059317626953,
+                0.004030551033691406,
+                0.004040055413574219,
+                0.004032192140625,
+                0.004033901612304687,
+                0.003999625972900391,
+                0.0040049619128417965,
+                0.004042892091064453,
+                0.004011784185302734
               ],
-              "median_ms": 0.004082475948974609
+              "median_ms": 0.004031059317626953
             },
-            "execution_ms": 0.004082475948974609,
+            "execution_ms": 0.004031059317626953,
             "checksum": "0",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4500018,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 3,
+                  "sibling": 9,
+                  "readings": 17,
+                  "median_khz": 4499995,
+                  "p10_khz": 4300024,
+                  "p90_khz": 4599980,
+                  "sibling_busy": 0.0,
+                  "accepted": false,
+                  "rejected_because": "clock not steady",
+                  "measurement": {
+                    "result": "0",
+                    "batches": 4096,
+                    "load_ms": 0.001913011,
+                    "warmup_ms": 150.003032982,
+                    "warmup_count": 37978,
+                    "batch_samples_ms": [
+                      16.021135986,
+                      15.660667956,
+                      16.599117994,
+                      16.31825,
+                      16.427890003,
+                      17.025278986,
+                      15.732281983,
+                      15.87470597,
+                      17.15771997,
+                      18.954377055,
+                      16.963177979
+                    ],
+                    "stdout_verified": true,
+                    "execution_samples_ms": [
+                      0.0039114101528320315,
+                      0.0038234052626953123,
+                      0.004052519041503906,
+                      0.00398394775390625,
+                      0.004010715332763672,
+                      0.004156562252441406,
+                      0.0038408891560058594,
+                      0.0038756606372070315,
+                      0.004188896477050781,
+                      0.004627533460693359,
+                      0.004141400873779297
+                    ],
+                    "sample_statistics": {
+                      "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                      "lower_ms": 0.0035103661428833016,
+                      "upper_ms": 0.004532150815246581,
+                      "excluded_indices": [
+                        9
+                      ],
+                      "included_samples_ms": [
+                        0.0039114101528320315,
+                        0.0038234052626953123,
+                        0.004052519041503906,
+                        0.00398394775390625,
+                        0.004010715332763672,
+                        0.004156562252441406,
+                        0.0038408891560058594,
+                        0.0038756606372070315,
+                        0.004188896477050781,
+                        0.004141400873779297
+                      ],
+                      "median_ms": 0.003997331543334961
+                    },
+                    "execution_ms": 0.003997331543334961,
+                    "checksum": "0"
+                  }
+                },
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 17,
+                  "median_khz": 4500040,
+                  "p10_khz": 4499977,
+                  "p90_khz": 4600001,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/site-library-targets/input/c-runner - 0 11"
-          },
-          "download": {
-            "path": "generated/library-targets/input/c.zip",
-            "bytes": 148857,
-            "sha256": "969a533a882c81eb04f146f55b147cad33c71db7fcbf42847c125ea64e5390ec"
           }
         },
         "go": {
           "status": "ok",
-          "command": "build/bin/ziran build --target=go --no-main --pkg main --root build/site-library-targets/kryon-export/tests --project --module-path build/site-library-targets/kryon-export/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:InputCase -o build/site-library-targets/input/go build/site-library-targets/kryon-export/tests/widget_benchmarks.zi",
+          "command": "build/bin/ziran build --target=go --no-main --pkg main --root build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --project --module-path build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:InputCase -o build/site-library-targets/input/go build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests/widget_benchmarks.zi",
           "files": [
             {
               "path": "generated/library-targets/input/go/bitmap_store.go",
@@ -3048,8 +3485,8 @@
             },
             {
               "path": "generated/library-targets/input/go/overlay.go",
-              "bytes": 4946,
-              "sha256": "4ecb2e65664ce5813e938e0f47ceec0cde25783689b09b11dba6e97095089e30"
+              "bytes": 4978,
+              "sha256": "ded5387c67854ec7e04f5b9bc18890c18567cd0cdf2a71a5cf66ddcee5154257"
             },
             {
               "path": "generated/library-targets/input/go/overlay_behavior.go",
@@ -3058,8 +3495,8 @@
             },
             {
               "path": "generated/library-targets/input/go/overlay_props.go",
-              "bytes": 648,
-              "sha256": "56d9c9a853f60ad9b00b5faef23842e112b7c8fc865e879b233aded6fc4496e6"
+              "bytes": 677,
+              "sha256": "c492bd50b78a1fe533838f74ff791794f12eefa8c68f86135ada12b7591167e3"
             },
             {
               "path": "generated/library-targets/input/go/paint_queue.go",
@@ -3108,8 +3545,13 @@
             },
             {
               "path": "generated/library-targets/input/go/shape_paint.go",
-              "bytes": 15573,
-              "sha256": "7b96460e74dde1deb1889eefa1d1a72f399072917ec8d50df1bf30dcdf6f0e14"
+              "bytes": 15601,
+              "sha256": "11b44999f16ad54785430963890b9494073131ad7e94943276a627b915827d2f"
+            },
+            {
+              "path": "generated/library-targets/input/go/std_finite.go",
+              "bytes": 358,
+              "sha256": "441f1371035de2ca6605dda7464b8741d8bafcb474970a91d0ed032c6f0b922e"
             },
             {
               "path": "generated/library-targets/input/go/std_grapheme.go",
@@ -3123,8 +3565,8 @@
             },
             {
               "path": "generated/library-targets/input/go/std_math.go",
-              "bytes": 17811,
-              "sha256": "b2c9492eedfa230ca27a779abaccdd48813efa6fe0e66740fa9e44389186f93f"
+              "bytes": 17542,
+              "sha256": "2f47f9cbbffb5c3e6ed176f299b09de11c28acfc52c4c68d7b63fbc70fc42ace"
             },
             {
               "path": "generated/library-targets/input/go/std_utf8.go",
@@ -3173,8 +3615,8 @@
             },
             {
               "path": "generated/library-targets/input/go/text.go",
-              "bytes": 19034,
-              "sha256": "50de0514cc09525ac79d8e6d59ed8555ef00e1dca457be5bcc9f55658c09751d"
+              "bytes": 19040,
+              "sha256": "cad0b30f1a542faa14a20b3dba1a295afec15ce3d5ac6db018a0514e839c6a83"
             },
             {
               "path": "generated/library-targets/input/go/text_align.go",
@@ -3302,141 +3744,189 @@
               "sha256": "9f0bcea122416bc5d9b305ad8e56c30e16c5e0a6c3721bde675f7a03049a46e2"
             }
           ],
-          "build_command": "go build -p=2 -o build/site-library-targets/input/go-runner build/site-library-targets/input/go-host/bitmap_store.go build/site-library-targets/input/go-host/button.go build/site-library-targets/input/go-host/button_behavior.go build/site-library-targets/input/go-host/button_props.go build/site-library-targets/input/go-host/card_behavior.go build/site-library-targets/input/go-host/card_props.go build/site-library-targets/input/go-host/contextmenu.go build/site-library-targets/input/go-host/control_props.go build/site-library-targets/input/go-host/cursor.go build/site-library-targets/input/go-host/dpi.go build/site-library-targets/input/go-host/drawing_props.go build/site-library-targets/input/go-host/elevation.go build/site-library-targets/input/go-host/focus.go build/site-library-targets/input/go-host/font_metrics.go build/site-library-targets/input/go-host/geometry.go build/site-library-targets/input/go-host/image_behavior.go build/site-library-targets/input/go-host/image_lookup.go build/site-library-targets/input/go-host/image_props.go build/site-library-targets/input/go-host/input_props.go build/site-library-targets/input/go-host/input_protocol.go build/site-library-targets/input/go-host/overlay.go build/site-library-targets/input/go-host/overlay_behavior.go build/site-library-targets/input/go-host/overlay_props.go build/site-library-targets/input/go-host/paint_queue.go build/site-library-targets/input/go-host/paint_texture.go build/site-library-targets/input/go-host/raster.go build/site-library-targets/input/go-host/raster_shape.go build/site-library-targets/input/go-host/raster_text.go build/site-library-targets/input/go-host/raster_triangles.go build/site-library-targets/input/go-host/scroll_sampling.go build/site-library-targets/input/go-host/semantic.go build/site-library-targets/input/go-host/session.go build/site-library-targets/input/go-host/shape_paint.go build/site-library-targets/input/go-host/std_grapheme.go build/site-library-targets/input/go-host/std_grapheme_data.go build/site-library-targets/input/go-host/std_math.go build/site-library-targets/input/go-host/std_utf8.go build/site-library-targets/input/go-host/std_vec.go build/site-library-targets/input/go-host/style.go build/site-library-targets/input/go-host/style_sheet.go build/site-library-targets/input/go-host/surface.go build/site-library-targets/input/go-host/svg_icon_behavior.go build/site-library-targets/input/go-host/svg_shape.go build/site-library-targets/input/go-host/system_clipboard.go build/site-library-targets/input/go-host/system_clipboard_host.go build/site-library-targets/input/go-host/text.go build/site-library-targets/input/go-host/text_align.go build/site-library-targets/input/go-host/text_behavior.go build/site-library-targets/input/go-host/text_boundary.go build/site-library-targets/input/go-host/text_context_menu.go build/site-library-targets/input/go-host/text_editing.go build/site-library-targets/input/go-host/text_emphasis.go build/site-library-targets/input/go-host/text_field_props.go build/site-library-targets/input/go-host/text_host.go build/site-library-targets/input/go-host/text_input.go build/site-library-targets/input/go-host/text_input_platform.go build/site-library-targets/input/go-host/text_layout.go build/site-library-targets/input/go-host/text_props.go build/site-library-targets/input/go-host/text_request.go build/site-library-targets/input/go-host/text_selection_host.go build/site-library-targets/input/go-host/text_style.go build/site-library-targets/input/go-host/text_typeface.go build/site-library-targets/input/go-host/textfield.go build/site-library-targets/input/go-host/theme.go build/site-library-targets/input/go-host/tree.go build/site-library-targets/input/go-host/tree_draw.go build/site-library-targets/input/go-host/tree_input.go build/site-library-targets/input/go-host/widget_benchmark_host.go build/site-library-targets/input/go-host/widget_benchmarks.go build/site-library-targets/input/go-host/widget_key.go build/site-library-targets/input/go-host/widget_kind.go build/site-library-targets/input/go-host/matrix_host.go build/site-library-targets/input/go-host/matrix_bridge.go",
+          "build_command": "go build -p=2 -o build/site-library-targets/input/go-runner build/site-library-targets/input/go-host/bitmap_store.go build/site-library-targets/input/go-host/button.go build/site-library-targets/input/go-host/button_behavior.go build/site-library-targets/input/go-host/button_props.go build/site-library-targets/input/go-host/card_behavior.go build/site-library-targets/input/go-host/card_props.go build/site-library-targets/input/go-host/contextmenu.go build/site-library-targets/input/go-host/control_props.go build/site-library-targets/input/go-host/cursor.go build/site-library-targets/input/go-host/dpi.go build/site-library-targets/input/go-host/drawing_props.go build/site-library-targets/input/go-host/elevation.go build/site-library-targets/input/go-host/focus.go build/site-library-targets/input/go-host/font_metrics.go build/site-library-targets/input/go-host/geometry.go build/site-library-targets/input/go-host/image_behavior.go build/site-library-targets/input/go-host/image_lookup.go build/site-library-targets/input/go-host/image_props.go build/site-library-targets/input/go-host/input_props.go build/site-library-targets/input/go-host/input_protocol.go build/site-library-targets/input/go-host/overlay.go build/site-library-targets/input/go-host/overlay_behavior.go build/site-library-targets/input/go-host/overlay_props.go build/site-library-targets/input/go-host/paint_queue.go build/site-library-targets/input/go-host/paint_texture.go build/site-library-targets/input/go-host/raster.go build/site-library-targets/input/go-host/raster_shape.go build/site-library-targets/input/go-host/raster_text.go build/site-library-targets/input/go-host/raster_triangles.go build/site-library-targets/input/go-host/scroll_sampling.go build/site-library-targets/input/go-host/semantic.go build/site-library-targets/input/go-host/session.go build/site-library-targets/input/go-host/shape_paint.go build/site-library-targets/input/go-host/std_finite.go build/site-library-targets/input/go-host/std_grapheme.go build/site-library-targets/input/go-host/std_grapheme_data.go build/site-library-targets/input/go-host/std_math.go build/site-library-targets/input/go-host/std_utf8.go build/site-library-targets/input/go-host/std_vec.go build/site-library-targets/input/go-host/style.go build/site-library-targets/input/go-host/style_sheet.go build/site-library-targets/input/go-host/surface.go build/site-library-targets/input/go-host/svg_icon_behavior.go build/site-library-targets/input/go-host/svg_shape.go build/site-library-targets/input/go-host/system_clipboard.go build/site-library-targets/input/go-host/system_clipboard_host.go build/site-library-targets/input/go-host/text.go build/site-library-targets/input/go-host/text_align.go build/site-library-targets/input/go-host/text_behavior.go build/site-library-targets/input/go-host/text_boundary.go build/site-library-targets/input/go-host/text_context_menu.go build/site-library-targets/input/go-host/text_editing.go build/site-library-targets/input/go-host/text_emphasis.go build/site-library-targets/input/go-host/text_field_props.go build/site-library-targets/input/go-host/text_host.go build/site-library-targets/input/go-host/text_input.go build/site-library-targets/input/go-host/text_input_platform.go build/site-library-targets/input/go-host/text_layout.go build/site-library-targets/input/go-host/text_props.go build/site-library-targets/input/go-host/text_request.go build/site-library-targets/input/go-host/text_selection_host.go build/site-library-targets/input/go-host/text_style.go build/site-library-targets/input/go-host/text_typeface.go build/site-library-targets/input/go-host/textfield.go build/site-library-targets/input/go-host/theme.go build/site-library-targets/input/go-host/tree.go build/site-library-targets/input/go-host/tree_draw.go build/site-library-targets/input/go-host/tree_input.go build/site-library-targets/input/go-host/widget_benchmark_host.go build/site-library-targets/input/go-host/widget_benchmarks.go build/site-library-targets/input/go-host/widget_key.go build/site-library-targets/input/go-host/widget_kind.go build/site-library-targets/input/go-host/matrix_host.go build/site-library-targets/input/go-host/matrix_bridge.go",
+          "download": {
+            "path": "generated/library-targets/input/go.zip",
+            "bytes": 153191,
+            "sha256": "54b579eff8808d96cf3346adf19a2bc25db500ad548d3ade9ccfc9e81ea5f326"
+          },
           "measurement": {
             "batch_samples_ms": [
-              13.982008,
-              14.015174,
-              14.208398,
-              13.90458,
-              13.857624,
-              13.977821,
-              14.235645,
-              13.917409,
-              14.015646,
-              14.086236,
-              14.272957
+              13.534904,
+              13.546004,
+              13.522977,
+              13.313148,
+              13.291611,
+              13.408925,
+              13.384002,
+              13.254612,
+              13.420739,
+              13.233804,
+              13.058136
             ],
             "batches": 2048,
             "load_ms": 0,
             "result": "0",
-            "warmup_count": 21622,
-            "warmup_ms": 150.000279,
+            "warmup_count": 22238,
+            "warmup_ms": 150.002803,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.00682715234375,
-              0.0068433466796875,
-              0.0069376943359375,
-              0.006789345703125,
-              0.00676641796875,
-              0.00682510791015625,
-              0.00695099853515625,
-              0.00679560986328125,
-              0.0068435771484375,
-              0.006878044921875,
-              0.00696921728515625
+              0.00660883984375,
+              0.006614259765625,
+              0.00660301611328125,
+              0.006500560546875,
+              0.00649004443359375,
+              0.00654732666015625,
+              0.0065351572265625,
+              0.006471978515625,
+              0.00655309521484375,
+              0.006461818359375,
+              0.00637604296875
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.006664092773437498,
-              "upper_ms": 0.007054135742187502,
+              "lower_ms": 0.006335445190429686,
+              "upper_ms": 0.006723621948242187,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.00682715234375,
-                0.0068433466796875,
-                0.0069376943359375,
-                0.006789345703125,
-                0.00676641796875,
-                0.00682510791015625,
-                0.00695099853515625,
-                0.00679560986328125,
-                0.0068435771484375,
-                0.006878044921875,
-                0.00696921728515625
+                0.00660883984375,
+                0.006614259765625,
+                0.00660301611328125,
+                0.006500560546875,
+                0.00649004443359375,
+                0.00654732666015625,
+                0.0065351572265625,
+                0.006471978515625,
+                0.00655309521484375,
+                0.006461818359375,
+                0.00637604296875
               ],
-              "median_ms": 0.0068433466796875
+              "median_ms": 0.0065351572265625
             },
-            "execution_ms": 0.0068433466796875,
+            "execution_ms": 0.0065351572265625,
             "checksum": "0",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4500018,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 13,
+                  "median_khz": 4499998,
+                  "p10_khz": 4499969,
+                  "p90_khz": 4598591,
+                  "sibling_busy": 0.0571,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/site-library-targets/input/go-runner - 0 11"
-          },
-          "download": {
-            "path": "generated/library-targets/input/go.zip",
-            "bytes": 152943,
-            "sha256": "d650bdf852fe4c0dbd0723b2f69d4494fb05427fc1b21e63db15288271418223"
           }
         },
         "zx": {
           "status": "ok",
-          "command": "build/bin/ziran bundle --root build/site-library-targets/kryon-export/tests --project --module-path build/site-library-targets/kryon-export/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:InputCase -o build/site-library-targets/input/zx/widget_benchmarks.zx build/site-library-targets/kryon-export/tests/widget_benchmarks.zi",
+          "command": "build/bin/ziran bundle --root build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --project --module-path build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests --bind system_clipboard:SystemClipboardOpenHost=system_clipboard_host:SystemClipboardOpenHost --bind system_clipboard:SystemClipboardByteHost=system_clipboard_host:SystemClipboardByteHost --bind system_clipboard:SystemClipboardWriteHost=system_clipboard_host:SystemClipboardWriteHost --bind kryon/font_metrics:MeasureGlyphWidth=widget_benchmark_host:MeasureGlyphWidth --bind kryon/font_metrics:MeasureGlyphLineHeight=widget_benchmark_host:MeasureGlyphLineHeight --bind kryon/raster_text:RasterText=widget_benchmark_host:RasterText --bind kryon/raster_text:RasterTextClipped=widget_benchmark_host:RasterTextClipped --bind kryon/raster_text:RasterTextRotated=widget_benchmark_host:RasterTextRotated --bind kryon/raster_shape:RasterRoundedRectangle=widget_benchmark_host:RasterRoundedRectangle --bind kryon/raster_shape:RasterRoundedRectangleOutline=widget_benchmark_host:RasterRoundedRectangleOutline --bind kryon/raster:RasterLine=widget_benchmark_host:RasterLine --bind kryon/paint_queue:RasterImage=widget_benchmark_host:RasterImage --bind kryon/paint_queue:RasterImageMesh=widget_benchmark_host:RasterImageMesh --bind kryon/raster_triangles:RasterTriangles=widget_benchmark_host:RasterTriangles --entry widget_benchmarks:InputCase -o build/site-library-targets/input/zx/widget_benchmarks.zx build/site-library-targets/kryon-3627ea8a90e7f507510dde3cafacd5c74e441932/tests/widget_benchmarks.zi",
           "files": [
             {
               "path": "generated/library-targets/input/zx/widget_benchmarks.zx",
-              "bytes": 1983114,
-              "sha256": "c9ccc3266fe1cdd7193a70ac02972883124f3c04543013c72a51d9924ca11f51"
+              "bytes": 1983474,
+              "sha256": "212ac7a671d09a62c9e466084db0fc2c9a3727bbe336db9348baf439c87f0fa5"
             }
           ],
+          "download": {
+            "path": "generated/library-targets/input/zx/widget_benchmarks.zx",
+            "bytes": 1983474,
+            "sha256": "212ac7a671d09a62c9e466084db0fc2c9a3727bbe336db9348baf439c87f0fa5"
+          },
           "measurement": {
             "result": "0",
             "batches": 2048,
-            "load_ms": 510.194986999,
-            "warmup_ms": 150.002900958,
-            "warmup_count": 21076,
+            "load_ms": 495.763882995,
+            "warmup_ms": 150.001302004,
+            "warmup_count": 21634,
             "batch_samples_ms": [
-              14.33554697,
-              14.352854013,
-              14.263526976,
-              14.211227,
-              14.329398036,
-              14.361598015,
-              14.176860988,
-              14.178701997,
-              14.223637998,
-              14.216068029,
-              14.248792052
+              14.028517008,
+              14.020260036,
+              13.648047984,
+              13.837065995,
+              13.550588012,
+              13.547206998,
+              13.803345978,
+              13.607701004,
+              13.635874033,
+              14.065569997,
+              14.288016021
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.006999778793945312,
-              0.007008229498535156,
-              0.00696461278125,
-              0.00693907568359375,
-              0.006996776384765625,
-              0.007012499030761719,
-              0.006922295404296875,
-              0.006923194334472656,
-              0.006945135741210937,
-              0.0069414394672851565,
-              0.006957417994140625
+              0.0068498618203125,
+              0.006845830095703125,
+              0.0066640859296875,
+              0.006756379880371094,
+              0.006616498052734375,
+              0.0066148471669921875,
+              0.006739915028320312,
+              0.006644385255859375,
+              0.006658141617675781,
+              0.006867954100097657,
+              0.006976570322753907
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.00685322755456543,
-              "upper_ms": 0.007085307610229493,
+              "lower_ms": 0.006356389654907227,
+              "upper_ms": 0.007142719739868163,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.006999778793945312,
-                0.007008229498535156,
-                0.00696461278125,
-                0.00693907568359375,
-                0.006996776384765625,
-                0.007012499030761719,
-                0.006922295404296875,
-                0.006923194334472656,
-                0.006945135741210937,
-                0.0069414394672851565,
-                0.006957417994140625
+                0.0068498618203125,
+                0.006845830095703125,
+                0.0066640859296875,
+                0.006756379880371094,
+                0.006616498052734375,
+                0.0066148471669921875,
+                0.006739915028320312,
+                0.006644385255859375,
+                0.006658141617675781,
+                0.006867954100097657,
+                0.006976570322753907
               ],
-              "median_ms": 0.006957417994140625
+              "median_ms": 0.006739915028320312
             },
-            "execution_ms": 0.006957417994140625,
+            "execution_ms": 0.006739915028320312,
             "checksum": "0",
+            "host_gate": {
+              "cpu": 0,
+              "sibling": 6,
+              "reference_khz": 4500018,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 0,
+                  "sibling": 6,
+                  "readings": 62,
+                  "median_khz": 4500009,
+                  "p10_khz": 4497076,
+                  "p90_khz": 4599999,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/site-library-targets/zx-runner site/generated/library-targets/input/zx/widget_benchmarks.zx 0 11"
-          },
-          "download": {
-            "path": "generated/library-targets/input/zx/widget_benchmarks.zx",
-            "bytes": 1983114,
-            "sha256": "c9ccc3266fe1cdd7193a70ac02972883124f3c04543013c72a51d9924ca11f51"
           }
         },
         "wasm": {
@@ -3445,71 +3935,95 @@
           "files": [
             {
               "path": "generated/library-targets/input/wasm/widget_benchmarks.wasm",
-              "bytes": 2354786,
-              "sha256": "44aba12d1330f8af68475475d9ad4ec68d7c50c77f17c9e2d730cbc45d60d56e"
+              "bytes": 2354845,
+              "sha256": "0d49f06c6ddb4be2d4c036d942da5a7562f25af40f6e2f407a71e9fa43e80d69"
             }
           ],
+          "download": {
+            "path": "generated/library-targets/input/wasm/widget_benchmarks.wasm",
+            "bytes": 2354845,
+            "sha256": "0d49f06c6ddb4be2d4c036d942da5a7562f25af40f6e2f407a71e9fa43e80d69"
+          },
           "measurement": {
             "result": "0",
             "batches": 4096,
-            "warmup_ms": 150.027734,
-            "warmup_count": 26490,
+            "warmup_ms": 150.016905,
+            "warmup_count": 8256,
             "batch_samples_ms": [
-              16.928022999999996,
-              16.906045000000006,
-              17.08875900000004,
-              16.911982000000023,
-              16.989888000000008,
-              17.132415999999978,
-              16.876060999999993,
-              16.924961999999994,
-              17.112130999999977,
-              17.191854000000035,
-              17.269105999999965
+              17.245420999999993,
+              16.709924,
+              16.369219999999984,
+              16.645860999999968,
+              16.712122999999963,
+              16.59071399999999,
+              16.841791,
+              17.252140999999995,
+              17.289192000000014,
+              17.093429000000015,
+              16.904600999999957
             ],
-            "load_ms": 3.913202000000002,
+            "load_ms": 5.6072109999999995,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.004132818115234374,
-              0.0041274523925781265,
-              0.0041720603027343844,
-              0.004128901855468756,
-              0.004147921875000002,
-              0.004182718749999995,
-              0.004120132080078123,
-              0.0041320708007812484,
-              0.004177766357421869,
-              0.0041972299804687585,
-              0.0042160903320312415
+              0.004210307861328123,
+              0.0040795712890625,
+              0.003996391601562496,
+              0.004063930908203117,
+              0.004080108154296866,
+              0.004050467285156248,
+              0.004111765380859375,
+              0.004211948486328124,
+              0.0042209941406250034,
+              0.004173200439453129,
+              0.0041270998535156145
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.004055851989746107,
-              "upper_ms": 0.004254876892089827,
+              "lower_ms": 0.003891746520996083,
+              "upper_ms": 0.004371758728027352,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.004132818115234374,
-                0.0041274523925781265,
-                0.0041720603027343844,
-                0.004128901855468756,
-                0.004147921875000002,
-                0.004182718749999995,
-                0.004120132080078123,
-                0.0041320708007812484,
-                0.004177766357421869,
-                0.0041972299804687585,
-                0.0042160903320312415
+                0.004210307861328123,
+                0.0040795712890625,
+                0.003996391601562496,
+                0.004063930908203117,
+                0.004080108154296866,
+                0.004050467285156248,
+                0.004111765380859375,
+                0.004211948486328124,
+                0.0042209941406250034,
+                0.004173200439453129,
+                0.0041270998535156145
               ],
-              "median_ms": 0.004147921875000002
+              "median_ms": 0.004111765380859375
             },
-            "execution_ms": 0.004147921875000002,
+            "execution_ms": 0.004111765380859375,
             "checksum": "0",
+            "host_gate": {
+              "cpu": 2,
+              "sibling": 8,
+              "reference_khz": 4500018,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 2,
+                  "sibling": 8,
+                  "readings": 24,
+                  "median_khz": 4400004,
+                  "p10_khz": 4396431,
+                  "p90_khz": 4499994,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "node scripts/site_target_node.cjs site/generated/library-targets/input/wasm/widget_benchmarks.wasm 0 11"
-          },
-          "download": {
-            "path": "generated/library-targets/input/wasm/widget_benchmarks.wasm",
-            "bytes": 2354786,
-            "sha256": "44aba12d1330f8af68475475d9ad4ec68d7c50c77f17c9e2d730cbc45d60d56e"
           }
         }
       }
@@ -3520,8 +4034,8 @@
   "checks": false,
   "learning": "off",
   "loadavg_after": [
-    "3.84",
-    "3.05",
-    "3.10"
+    "3.08",
+    "3.22",
+    "3.15"
   ]
 }

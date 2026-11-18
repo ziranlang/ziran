@@ -1,6 +1,10 @@
 // Scalar reference algorithms. Runtime sizes enter through Run; no fixed answer.
 #import "std/math"
 #import "std/vec"
+Text :: #import "workloads_text"
+Digest :: #import "workloads_hash"
+Graph :: #import "workloads_graph"
+Numeric :: #import "workloads_numeric"
 Fib :: (n: s64) -> s64 {
     if n < 2 { return n }
     return Fib(n - 1) + Fib(n - 2)
@@ -202,5 +206,24 @@ Run :: (kind: s64, n: s64) -> s64 {
     if kind == 7 { return Queens((cast(s64)1<<n)-1,0,0,0) }
     if kind == 8 { return Matrix(n) }
     if kind == 9 { return Sort(n) }
-    return Hash(n)
+    if kind == 10 { return Hash(n) }
+    if kind == 11 { return Text.KNucleotide(n) }
+    if kind == 12 { return Text.ReverseComplement(n) }
+    if kind == 13 { return Text.PiDigits(n) }
+    if kind == 14 { return Text.JsonRoundtrip(n) }
+    if kind == 15 { return Text.Lz77(n) }
+    if kind == 16 { return Digest.Sha256(n) }
+    if kind == 17 { return Digest.Crc32(n) }
+    if kind == 18 { return Numeric.RayTrace(n) }
+    if kind == 19 { return Graph.Sudoku(n) }
+    if kind == 20 { return Graph.Dijkstra(n) }
+    if kind == 21 { return Graph.WordCount(n) }
+    if kind == 22 { return Graph.RadixSort(n) }
+    if kind == 23 { return Numeric.Lu(n) }
+    if kind == 24 { return Numeric.Fft(n) }
+    if kind == 25 { return Graph.Bytecode(n) }
+    if kind == 26 { return Numeric.HeatGrid(n) }
+    if kind == 27 { return Numeric.Particles(n) }
+    if kind == 28 { return Numeric.ImageFilter(n) }
+    return -1
 }

@@ -13,6 +13,7 @@ type zir_369927f740a3063a_Props struct {
 	ViewHeight int32
 	Scrim Color
 	DismissDisabled bool
+	OutsideDismissDisabled bool
 	NonModal bool
 }
 

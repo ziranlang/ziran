@@ -463,15 +463,15 @@ text_TextFaceOf(zir_5988125b9981443f_Props props)
 void
 text_DrawSession(Session session, zir_5988125b9981443f_Props props)
 {
-    bool value_0 = Finite32(props.rotation);
+    bool value_0 = std_finite_Finite32(props.rotation);
     bool value_1 = !value_0;
     if (!value_1) {
-        bool value_2 = Finite32(props.origin.x);
+        bool value_2 = std_finite_Finite32(props.origin.x);
         value_1 = !value_2;
     }
     bool value_3 = value_1;
     if (!value_3) {
-        bool value_4 = Finite32(props.origin.y);
+        bool value_4 = std_finite_Finite32(props.origin.y);
         value_3 = !value_4;
     }
     if (value_3) {

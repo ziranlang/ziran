@@ -1,0 +1,172 @@
+#import "std/vec"
+Text :: #import "workloads_text"
+
+// Use the most constrained empty cell and a bit set of available digits.
+SudokuFill :: (grid: []s64, masks: []s64) -> bool {
+    cell: s64 = -1
+    fewest: s64 = 10
+    choices: s64
+    for i: 0..80 {
+        if grid[i] != 0 { continue }
+        row := i / 9; column := i % 9; box := row / 3 * 3 + column / 3
+        free := 511 & ~(masks[row] | masks[9 + column] | masks[18 + box])
+        bits := free
+        count: s64
+        while bits != 0 { bits &= bits - 1; count += 1 }
+        if count == 0 { return false }
+        if count < fewest { cell = i; fewest = count; choices = free }
+    }
+    if cell < 0 { return true }
+    row := cell / 9; column := cell % 9; box := row / 3 * 3 + column / 3
+    for digit: 0..8 {
+        bit := cast(s64)1 << digit
+        if (choices & bit) == 0 { continue }
+        grid[cell] = digit + 1
+        masks[row] ^= bit; masks[9 + column] ^= bit; masks[18 + box] ^= bit
+        if SudokuFill(grid, masks) { return true }
+        grid[cell] = 0
+        masks[row] ^= bit; masks[9 + column] ^= bit; masks[18 + box] ^= bit
+    }
+    return false
+}
+
+Sudoku :: (n: s64) -> s64 {
+    puzzle := "800000000003600000070090200050007000000045700000100030001000068008500010090000400"
+    hash: s64
+    for pass: 0..n - 1 {
+        grid: [81]s64
+        masks: [27]s64
+        for i: 0..80 {
+            digit := cast(s64)puzzle[i] - 48
+            if digit == 0 { continue }
+            digit = (digit - 1 + pass % 9) % 9
+            bit := cast(s64)1 << digit
+            row := i / 9; column := i % 9; box := row / 3 * 3 + column / 3
+            grid[i] = digit + 1
+            masks[row] |= bit; masks[9 + column] |= bit; masks[18 + box] |= bit
+        }
+        if !SudokuFill(grid[:], masks[:]) { return -1 }
+        for digit: grid { hash = Text.Digest(hash, digit) }
+    }
+    return hash
+}
+
+GraphEdge :: (dist: []s64, current: s64, next: s64) {
+    cost := dist[current] + ((current * 31 + next * 17) % 23) + 1
+    if cost < dist[next] { dist[next] = cost }
+}
+
+Dijkstra :: (width: s64) -> s64 {
+    n := width * width
+    dist: Vec(s64)
+    visited: Vec(u8)
+    if !VecResize(dist, n) || !VecResize(visited, n) { return -1 }
+    for i: 1..n - 1 { dist[i] = 1000000007 }
+    // Dense distance scan, sparse grid edges. Fixed ties keep runs repeatable.
+    for step: 0..n - 1 {
+        current: s64 = -1
+        closest: s64 = 1000000007
+        for i: 0..n - 1 {
+            if visited[i] == 0 && dist[i] < closest { current = i; closest = dist[i] }
+        }
+        if current < 0 { break }
+        visited[current] = 1
+        if current % width > 0 { GraphEdge(dist[:], current, current - 1) }
+        if current % width + 1 < width { GraphEdge(dist[:], current, current + 1) }
+        if current >= width { GraphEdge(dist[:], current, current - width) }
+        if current + width < n { GraphEdge(dist[:], current, current + width) }
+    }
+    hash: s64
+    for distance: dist { hash = Text.Digest(hash, distance) }
+    return hash
+}
+
+Token :: struct { key: u32; count: s64 }
+
+WordCount :: (n: s64) -> s64 {
+    table: [4096]Token
+    lexicon := "ant bee crow doe eel fox gnat hare ibis jay kite lion mole newt orca pike quail rook seal tern vole wasp yak zebra "
+    state: u32 = 42
+    for i: 0..n - 1 {
+        state = state * 1664525 + 1013904223
+        at := cast(s64)(state >> 16) % lexicon.count
+        while at > 0 && lexicon[at - 1] != 32 { at -= 1 }
+        key: u32
+        while lexicon[at] != 32 { key = key * 31 + cast(u32)lexicon[at]; at += 1 }
+        dialect := (state >> 25) & 63
+        key = key * 64 + dialect
+        slot := (key ^ (key >> 13)) & 4095
+        while table[slot].count != 0 && table[slot].key != key { slot = (slot + 1) & 4095 }
+        table[slot].key = key
+        table[slot].count += 1
+    }
+    hash: s64
+    for i: 0..4095 {
+        hash = Text.Digest(Text.Digest(hash, cast(s64)table[i].key), table[i].count)
+    }
+    return hash
+}
+
+RadixPass :: (source: []u32, dest: []u32, shift: s64) {
+    offsets: [256]s64
+    for value: source { offsets[(value >> cast(u32)shift) & 255] += 1 }
+    position: s64
+    for i: 0..255 {
+        count := offsets[i]
+        offsets[i] = position
+        position += count
+    }
+    for value: source {
+        bucket := (value >> cast(u32)shift) & 255
+        dest[offsets[bucket]] = value
+        offsets[bucket] += 1
+    }
+}
+
+RadixSort :: (n: s64) -> s64 {
+    keys: Vec(u32)
+    scratch: Vec(u32)
+    if !VecResize(keys, n) || !VecResize(scratch, n) { return -1 }
+    state: u32 = 42
+    for i: 0..n - 1 { state = state * 1664525 + 1013904223; keys[i] = state }
+    RadixPass(keys[:], scratch[:], 0)
+    RadixPass(scratch[:], keys[:], 8)
+    RadixPass(keys[:], scratch[:], 16)
+    RadixPass(scratch[:], keys[:], 24)
+    hash: s64
+    for key: keys { hash = Text.Digest(hash, cast(s64)key) }
+    return hash
+}
+
+Instruction :: struct { op: u8; reg: u8; value: u32 }
+
+Bytecode :: (n: s64) -> s64 {
+    code: [257]Instruction
+    registers: [16]u32
+    state: u32 = 42
+    for i: 0..256 {
+        state = state * 1664525 + 1013904223
+        code[i] = .{op = cast(u8)(state >> 29), reg = cast(u8)((state >> 16) & 15), value = state | 1}
+    }
+    for pass: 0..n - 1 {
+        for i: 0..256 {
+            reg := code[i].reg
+            operand := code[i].value
+            a := registers[reg]
+            b := registers[(reg + 1) & 15] ^ operand
+            op := code[i].op
+            if op == 0 { a += b }
+            else if op == 1 { a ^= b }
+            else if op == 2 { a *= b | 1 }
+            else if op == 3 { a = (a << 3) | (a >> 29) }
+            else if op == 4 { a -= b }
+            else if op == 5 { a = (a & b) | operand }
+            else if op == 6 { a = (a >> (b & 15)) ^ b }
+            else { a = b + cast(u32)pass }
+            registers[reg] = a
+        }
+    }
+    hash: s64
+    for value: registers { hash = Text.Digest(hash, cast(s64)value) }
+    return hash
+}

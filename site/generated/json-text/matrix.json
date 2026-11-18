@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "revision": "fa65a3fbd9cb2a6ba0dbbc33c7d79d49dc98a2d1",
+  "revision": "45b74b4e31479b74dc025ba9f12a771670386872",
   "checks": false,
   "learning": "off",
   "host": "alpha \u00b7 Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
-  "measured_at": "2026-11-17T20:34:57.946124+00:00",
+  "measured_at": "2026-11-18T01:16:33.780321+00:00",
   "samples": 11,
   "compiler": {
-    "zi2c": "b88441afa46c12b1d29ed9a90f9c03b43438b038bf83024e63b4880748a752ab",
-    "zi2go": "3d8f16800e6cf826a77c22164d7aea52845b55874ab89fd21c0d7c835772a031",
-    "zi2zx": "3ad8b4b0d6444db0916bbeff96b5c49e536876b10ad18c5d48c9db00e209d371",
-    "zx2wasm": "f47e3633790f4f022edb8b36d58ffc3b149454ab2cd5b3f9db3fc647ed53209f"
+    "zi2c": "9eac048ec1e295250394e85a306bd1805308fc998c00e48dba281222189a2853",
+    "zi2go": "87ae414b573bf5aaaf30ed917bee6d3b31f80c6d58213671b6f2ca63a67cea49",
+    "zi2zx": "26373848bf6437a76c24a14b2143c0e569a747568997ba17c0c4021782b8995e",
+    "zx2wasm": "b2fd446fd24f4078407dcbf7c0ec289c42fac1d30aa7d16de2a7342620528d0e"
   },
   "stdlib": {
     "std/atomic_go.zi": "8e65dcd9289cff694d257488e9368b564958fade6a1b5fb57746efeb3410b916",
@@ -54,6 +54,7 @@
     "std/file_linux.zi": "60e29d0d0bf1c2c642c32dafaadcadb78273065589c10b1258de792c15bd4549",
     "std/file_tree.zi": "91adc55fb733e031ee547f0d4b9308ef043a82566613c4e46d0ac56bdca6024f",
     "std/file_tree_linux.zi": "e32f983c04c127f09eea3351cde9cc30e7db64ba0e192299bdfffec8dac9d8a5",
+    "std/finite.zi": "904ce18792c06f067ec99c5a562082073cb6d2a1822636536137ff925d506248",
     "std/float_text.zi": "55e50699a512230639f875166293f8d701069fb324bd4fc2ed962854db21930b",
     "std/format.zi": "24303900d395cc52a57024488564d450cb5deca14a850f38f43f29be386b8f2b",
     "std/go_types.zi": "7f754dfa8372053368e85aa93cec759aff4af2e7028e1e3e91eee991dbdda7cb",
@@ -75,7 +76,7 @@
     "std/map_go.zi": "d054410db898f272aa9d40e1f8bf2ea2fc3f49b80f1ba8aa38fdaec390d113c3",
     "std/mapped_file.zi": "85e1159ae596f776318e99bf4682c0cd30c9e19e5fceb5b1dfcf6144fb84b64f",
     "std/mapped_file_linux.zi": "8d848fef2c291f198047815bbd72bac63b80fba61d1d8fea750c19919cb2b671",
-    "std/math.zi": "508b5a9a2604a99c102d2bc7f466e3694479580af0ba02ef43e271b6cb0fa5b6",
+    "std/math.zi": "cad16a74ee27c68747da418bc3563de32f628a35b7533a25b09e13d46a4c5769",
     "std/mutex_linux.zi": "0addc4b9836d8748f4f82819ba9bccfee6e99afb39b337c8d67e4191da8ff4f9",
     "std/net_go.zi": "c9565c5659c6a7e9ca725e9221229292bcf072e3073b010190ad46d4bac17550",
     "std/net_http.zi": "d8f8c389bc4a6d8ed93e93c87193e69ddf3ddacdb92195a8407182f5bd13bcf7",
@@ -87,7 +88,7 @@
     "std/option.zi": "00be98050954cbc2e62061e28c5db00d7541ab03753d9a98d3fe79dbc2820a0a",
     "std/pair.zi": "75a9d1a6311cbfa69a977cf00f1f40a969733b98d80e39f5ce515e828c36c726",
     "std/parallel.zi": "b24201962fdc01a780fc784f4ca6d1f17b06508647eb7d93e52681568840053e",
-    "std/parallel_linux.zi": "d348619f72ba1e94a8c6a456cbdd884bc92884d010c7dfdaa5ff20a13bb37b4d",
+    "std/parallel_linux.zi": "a848cd4b0fb656f626a3fa4d427044b305b92e1076e38605f7abe3a5f665409a",
     "std/path.zi": "b462ae6baeb698580d1f502ffa46e3b922a7753b2752871fa66dfc0b54165825",
     "std/png_linux.zi": "d61038cd2a47f4f3da5675af6aae39cddde18dc66c3cc03a24c417c0716ccb88",
     "std/process.zi": "45b7ef79a6da6e6cab39fc21f630288600b529305685b4635165a5b2d52cdd86",
@@ -140,10 +141,10 @@
     "std/zstd_go.zi": "b777bd6d3261f0a2f0c6ff6d08b3c1ba6483549272b1a70783652f279318454a"
   },
   "harnesses": {
-    "bench/json_text.py": "b5d2580ecce5b43576e435238b352e7c2a1b1f1acb33c0eb66cf7eeb688154d1",
-    "scripts/site_target_platforms.py": "87df13aa3ee01068e8bcbc8b334a2e2d4c7863314b7245b2a77416839c405eb5",
-    "scripts/site_targets.py": "c3750a0e05525f482b108f2aa780f1a2305e7dec3edf8efa5b6f25d8ee364ca7",
-    "scripts/benchmark_samples.py": "28f53003eb06fae7180a3ecc65c35ea56e9e76a48aa316bf957fa5f99897cc66",
+    "bench/json_text.py": "1a79d128949544acdc404f0eec22ade74477429665b9d7a96ad629208aa3ccd2",
+    "scripts/site_target_platforms.py": "4d70573d7731e0fc7cbf882285625e16f455010f948dd0aedcee671ead4a25c3",
+    "scripts/site_targets.py": "3cf815f6854f2d6e4dbacf0af768b83efce006e3cb5310cbdcbc03b7dd7f6fa6",
+    "scripts/benchmark_samples.py": "7e30d0da03bf6056a460705ccfb9c425a2ff2901e38d8b3fe6a0503ed9b6ab6e",
     "scripts/site_target_node.cjs": "b500e2b406e6a05bde8056f8c657fb0e34c2c5997ba20fdbfbc8e1a020294202",
     "bench/site_target_host.c": "eced150880fd7ea7eda5225f9c88408efbb2f13303395934b5245447cebab8e4",
     "bench/site_target_host.go": "ed69c22b3ed61c70a1ff134c7aadf2578083ccc363b4604cefb0aa5334063c8c",
@@ -155,7 +156,7 @@
     "go": "go version go1.27.4 linux/amd64",
     "node": "v26.13.1"
   },
-  "methodology": "Median warm time per entry after symmetric 1.5\u00d7IQR outlier filtering; raw samples and exclusions are retained. Each runtime warms for at least 150 ms, calibrates a batch, then measures the recorded number of batches. Every timed return-value checksum is verified. Printed output is verified before timing; timed output uses a null sink (native) or byte callback (web). Formatting and runtime-specific I/O remain included. Includes the host call boundary and budget reset where required; excludes loading, process startup, downloads and offline compilation. Tiny examples emphasize call overhead. Shared machines and uncontrolled clocks; no universal target ranking.",
+  "methodology": "Median warm time per entry after symmetric 1.5\u00d7IQR outlier filtering; raw samples and exclusions are retained. Each runtime warms for at least 150 ms, calibrates a batch, then measures the recorded number of batches. Every timed return-value checksum is verified. Printed output is verified before timing; timed output uses a null sink (native) or byte callback (web). Formatting and runtime-specific I/O remain included. Includes the host call boundary and budget reset where required; excludes loading, process startup, downloads and offline compilation. Tiny examples emphasize call overhead. Host gate: every measured job runs pinned (inherited affinity, no wrapper) to one logical CPU of the quietest core, chosen again before each attempt once its other hyperthread has settled, and is repeated unless that CPU kept its clock within 3% of the job median (10th to 90th percentile), the median reached 95% of the clock calibrated at start, and the hyperthread sibling was busy at most 15% of the job; Go runs with GOMAXPROCS=1 on that CPU. Rejected attempts are retained with their observations.",
   "examples": [
     {
       "id": "json_string_scan",
@@ -232,63 +233,87 @@
             }
           ],
           "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_string_scan:Answer -o build/benchmarks/json-text/json_string_scan/c bench/json_text/json_string_scan.zi",
-          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_string_scan/c '-DMATRIX_HEADER=\"json_string_scan.h\"' -DMATRIX_ENTRY=json_string_scan_Answer bench/site_target_host.c site/generated/json-text/json_string_scan/c/json_bytes.c site/generated/json-text/json_string_scan/c/json_string_scan.c -lm -o build/benchmarks/json-text/json_string_scan/c-program",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_string_scan/c '-DMATRIX_HEADER=\"json_string_scan.h\"' -DMATRIX_ENTRY=json_string_scan_Answer bench/site_target_host.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_string_scan/c/json_bytes.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_string_scan/c/json_string_scan.c -lm -o build/benchmarks/json-text/json_string_scan/c-program",
           "measurement": {
             "result": "16418",
             "batches": 16384,
-            "load_ms": 6.3956e-05,
-            "warmup_ms": 150.000657022,
-            "warmup_count": 154362,
+            "load_ms": 6.0022e-05,
+            "warmup_ms": 150.000986993,
+            "warmup_count": 152422,
             "batch_samples_ms": [
-              14.865525961,
-              15.120154977,
-              14.862809002,
-              14.932958007,
-              14.875974,
-              14.849774957,
-              14.858411014,
-              15.018177986,
-              14.900789022,
-              14.874679983,
-              14.816009998
+              14.891089022,
+              14.908559024,
+              14.931193054,
+              14.890432954,
+              14.992909014,
+              14.873718023,
+              14.881187022,
+              14.876221001,
+              14.803025007,
+              14.851405025,
+              14.61887598
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0009073196997680664,
-              0.0009228610215454102,
-              0.0009071538697509766,
-              0.0009114354252319336,
-              0.0009079573974609375,
-              0.000906358334777832,
-              0.0009068854378662109,
-              0.0009166368399658203,
-              0.0009094719862060547,
-              0.0009078784169311523,
-              0.0009042974852294922
+              0.0009088799451904296,
+              0.0009099462294921875,
+              0.0009113277010498047,
+              0.000908839901977539,
+              0.0009150945443115235,
+              0.0009078197035522461,
+              0.0009082755750732422,
+              0.0009079724732055664,
+              0.0009035049442749024,
+              0.0009064578262329102,
+              0.0008922653796386719
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0009018685759429931,
-              "upper_ms": 0.0009156047835845948,
+              "lower_ms": 0.0009037272812194824,
+              "upper_ms": 0.0009128245710144044,
               "excluded_indices": [
-                1,
-                7
+                4,
+                8,
+                10
               ],
               "included_samples_ms": [
-                0.0009073196997680664,
-                0.0009071538697509766,
-                0.0009114354252319336,
-                0.0009079573974609375,
-                0.000906358334777832,
-                0.0009068854378662109,
-                0.0009094719862060547,
-                0.0009078784169311523,
-                0.0009042974852294922
+                0.0009088799451904296,
+                0.0009099462294921875,
+                0.0009113277010498047,
+                0.000908839901977539,
+                0.0009078197035522461,
+                0.0009082755750732422,
+                0.0009079724732055664,
+                0.0009064578262329102
               ],
-              "median_ms": 0.0009073196997680664
+              "median_ms": 0.0009085577385253906
             },
-            "execution_ms": 0.0009073196997680664,
+            "execution_ms": 0.0009085577385253906,
             "checksum": "268992512",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 15,
+                  "median_khz": 4300013,
+                  "p10_khz": 4299966,
+                  "p90_khz": 4400005,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/benchmarks/json-text/json_string_scan/c-program - 16418 11"
           }
         },
@@ -320,60 +345,84 @@
           "build_command": "go build -p=1 -o build/benchmarks/json-text/json_string_scan/go-program build/benchmarks/json-text/json_string_scan/go-host/json_bytes.go build/benchmarks/json-text/json_string_scan/go-host/json_string_scan.go build/benchmarks/json-text/json_string_scan/go-host/vec.go build/benchmarks/json-text/json_string_scan/go-host/ziran_simd.go build/benchmarks/json-text/json_string_scan/go-host/matrix_host.go build/benchmarks/json-text/json_string_scan/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              18.388198,
-              18.547938,
-              18.128553,
-              18.150065,
-              18.071106,
-              17.923087,
-              18.456195,
-              17.990079,
-              18.201732,
-              19.574163,
-              18.652989
+              18.400147,
+              18.369794,
+              18.376846,
+              18.394125,
+              18.523755,
+              18.148554,
+              18.304696,
+              18.284409,
+              18.411775,
+              18.285995,
+              19.626041
             ],
             "batches": 256,
             "load_ms": 0,
             "result": "16418",
-            "warmup_count": 2047,
-            "warmup_ms": 150.039546,
+            "warmup_count": 2033,
+            "warmup_ms": 150.060093,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0718288984375,
-              0.0724528828125,
-              0.07081466015625,
-              0.07089869140625,
-              0.0705902578125,
-              0.07001205859375,
-              0.07209451171875,
-              0.07027374609375,
-              0.071100515625,
-              0.07646157421875,
-              0.07286323828125
+              0.07187557421875,
+              0.0717570078125,
+              0.0717845546875,
+              0.07185205078125,
+              0.07235841796875,
+              0.0708927890625,
+              0.07150271875,
+              0.07142347265625,
+              0.07192099609375,
+              0.07142966796875,
+              0.07666422265625
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0683456015625,
-              "upper_ms": 0.07463055468749999,
+              "lower_ms": 0.07081805566406252,
+              "upper_ms": 0.07254642285156249,
               "excluded_indices": [
-                9
+                10
               ],
               "included_samples_ms": [
-                0.0718288984375,
-                0.0724528828125,
-                0.07081466015625,
-                0.07089869140625,
-                0.0705902578125,
-                0.07001205859375,
-                0.07209451171875,
-                0.07027374609375,
-                0.071100515625,
-                0.07286323828125
+                0.07187557421875,
+                0.0717570078125,
+                0.0717845546875,
+                0.07185205078125,
+                0.07235841796875,
+                0.0708927890625,
+                0.07150271875,
+                0.07142347265625,
+                0.07192099609375,
+                0.07142966796875
               ],
-              "median_ms": 0.07099960351562501
+              "median_ms": 0.07177078125
             },
-            "execution_ms": 0.07099960351562501,
+            "execution_ms": 0.07177078125,
             "checksum": "4203008",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 21,
+                  "median_khz": 4399998,
+                  "p10_khz": 4394697,
+                  "p90_khz": 4400008,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/benchmarks/json-text/json_string_scan/go-program - 16418 11"
           }
         },
@@ -389,61 +438,84 @@
           "command": "build/bin/zi2zx --root bench/json_text --module-path std --entry json_string_scan:Answer -o build/benchmarks/json-text/json_string_scan/zx/json_string_scan.zx bench/json_text/json_string_scan.zi",
           "measurement": {
             "result": "16418",
-            "batches": 16,
-            "load_ms": 0.810365021,
-            "warmup_ms": 150.831048965,
-            "warmup_count": 160,
+            "batches": 256,
+            "load_ms": 1.227497995,
+            "warmup_ms": 150.044293046,
+            "warmup_count": 3258,
             "batch_samples_ms": [
-              15.146555007,
-              15.046452999,
-              15.182506979,
-              15.821461022,
-              14.494812012,
-              14.666914999,
-              14.840775013,
-              14.815739036,
-              14.810428023,
-              14.856222034,
-              14.954460979
+              11.74021101,
+              11.556414962,
+              11.744288027,
+              11.785617054,
+              11.655223966,
+              11.692461014,
+              11.759023011,
+              11.701300025,
+              11.658484995,
+              11.662230015,
+              11.691650987
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.9466596879375,
-              0.9404033124375,
-              0.9489066861875,
-              0.988841313875,
-              0.90592575075,
-              0.9166821874375,
-              0.9275484383125,
-              0.92598368975,
-              0.9256517514375,
-              0.928513877125,
-              0.9346538111875
+              0.0458601992578125,
+              0.0451422459453125,
+              0.04587612510546875,
+              0.0460375666171875,
+              0.0455282186171875,
+              0.0456736758359375,
+              0.04593368363671875,
+              0.04570820322265625,
+              0.04554095701171875,
+              0.04555558599609375,
+              0.04567051166796875
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.899247051203125,
-              "upper_ms": 0.9701021695781249,
-              "excluded_indices": [
-                3
-              ],
+              "lower_ms": 0.045068435487304694,
+              "upper_ms": 0.04634799819824218,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.9466596879375,
-                0.9404033124375,
-                0.9489066861875,
-                0.90592575075,
-                0.9166821874375,
-                0.9275484383125,
-                0.92598368975,
-                0.9256517514375,
-                0.928513877125,
-                0.9346538111875
+                0.0458601992578125,
+                0.0451422459453125,
+                0.04587612510546875,
+                0.0460375666171875,
+                0.0455282186171875,
+                0.0456736758359375,
+                0.04593368363671875,
+                0.04570820322265625,
+                0.04554095701171875,
+                0.04555558599609375,
+                0.04567051166796875
               ],
-              "median_ms": 0.92803115771875
+              "median_ms": 0.0456736758359375
             },
-            "execution_ms": 0.92803115771875,
-            "checksum": "262688",
-            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_string_scan/zx/json_string_scan.zx 16418 11"
+            "execution_ms": 0.0456736758359375,
+            "checksum": "4203008",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 11,
+                  "median_khz": 4299997,
+                  "p10_khz": 4299966,
+                  "p90_khz": 4395762,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "build/benchmarks/json-text/zx-runner build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_string_scan/zx/json_string_scan.zx 16418 11"
           }
         },
         "wasm": {
@@ -459,60 +531,84 @@
           "measurement": {
             "result": "16418",
             "batches": 512,
-            "warmup_ms": 150.02409,
-            "warmup_count": 4263,
+            "warmup_ms": 150.033183,
+            "warmup_count": 4189,
             "batch_samples_ms": [
-              17.229601000000002,
-              17.233929999999987,
-              17.975693999999976,
-              17.377542999999946,
-              17.21629900000005,
-              18.19043400000004,
-              17.390211999999963,
-              17.19771400000002,
-              17.506289000000038,
-              17.18488500000001,
-              17.43590599999999
+              17.694101000000018,
+              17.695588000000015,
+              17.690699000000023,
+              18.13364999999999,
+              17.63383399999998,
+              17.614471999999978,
+              17.645781999999997,
+              17.64407,
+              17.62954499999995,
+              17.884937999999977,
+              17.85123900000002
             ],
-            "load_ms": 0.6805810000000001,
+            "load_ms": 1.161572999999997,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.033651564453125005,
-              0.033660019531249974,
-              0.03510877734374995,
-              0.033940513671874895,
-              0.033625583984375096,
-              0.035528191406250076,
-              0.03396525781249993,
-              0.03358928515625004,
-              0.034191970703125074,
-              0.033564228515625016,
-              0.03405450390624998
+              0.034558791015625034,
+              0.03456169531250003,
+              0.034552146484375046,
+              0.03541728515624998,
+              0.03444108203124996,
+              0.03440326562499996,
+              0.034464417968749994,
+              0.03446107421875,
+              0.0344327050781249,
+              0.034931519531249955,
+              0.03486570117187504
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.03291157958984384,
-              "upper_ms": 0.03485023193359374,
+              "lower_ms": 0.034057147949218644,
+              "upper_ms": 0.03510762841796887,
               "excluded_indices": [
-                2,
-                5
+                3
               ],
               "included_samples_ms": [
-                0.033651564453125005,
-                0.033660019531249974,
-                0.033940513671874895,
-                0.033625583984375096,
-                0.03396525781249993,
-                0.03358928515625004,
-                0.034191970703125074,
-                0.033564228515625016,
-                0.03405450390624998
+                0.034558791015625034,
+                0.03456169531250003,
+                0.034552146484375046,
+                0.03444108203124996,
+                0.03440326562499996,
+                0.034464417968749994,
+                0.03446107421875,
+                0.0344327050781249,
+                0.034931519531249955,
+                0.03486570117187504
               ],
-              "median_ms": 0.033660019531249974
+              "median_ms": 0.03450828222656252
             },
-            "execution_ms": 0.033660019531249974,
+            "execution_ms": 0.03450828222656252,
             "checksum": "8406016",
-            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_string_scan/wasm/json_string_scan.wasm 16418 11"
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 22,
+                  "median_khz": 4300006,
+                  "p10_khz": 4299953,
+                  "p90_khz": 4300019,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "node scripts/site_target_node.cjs build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_string_scan/wasm/json_string_scan.wasm 16418 11"
           }
         }
       }
@@ -617,69 +713,97 @@
             }
           ],
           "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_parse:Answer -o build/benchmarks/json-text/json_parse/c bench/json_text/json_parse.zi",
-          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_parse/c '-DMATRIX_HEADER=\"json_parse.h\"' -DMATRIX_ENTRY=json_parse_Answer bench/site_target_host.c site/generated/json-text/json_parse/c/json_bytes.c site/generated/json-text/json_parse/c/json_document.c site/generated/json-text/json_parse/c/json_parse.c site/generated/json-text/json_parse/c/vec.c -lm -o build/benchmarks/json-text/json_parse/c-program",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_parse/c '-DMATRIX_HEADER=\"json_parse.h\"' -DMATRIX_ENTRY=json_parse_Answer bench/site_target_host.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_parse/c/json_bytes.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_parse/c/json_document.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_parse/c/json_parse.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_parse/c/vec.c -lm -o build/benchmarks/json-text/json_parse/c-program",
           "measurement": {
             "result": "16624",
             "batches": 8192,
-            "load_ms": 6.0976e-05,
-            "warmup_ms": 150.000898004,
-            "warmup_count": 115056,
+            "load_ms": 0.000129044,
+            "warmup_ms": 150.000333011,
+            "warmup_count": 112631,
             "batch_samples_ms": [
-              11.356239974,
-              10.010150969,
-              10.203270018,
-              10.045545995,
-              9.978742957,
-              10.267368019,
-              10.022495031,
-              10.195363998,
-              10.012139976,
-              9.982433975,
-              10.022916973
+              9.96757102,
+              9.923927009,
+              9.80261302,
+              9.861187994,
+              9.976975977,
+              10.152647018,
+              10.097084045,
+              9.963647008,
+              10.138360977,
+              9.902649999,
+              9.725786984
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0013862597624511718,
-              0.0012219422569580078,
-              0.0012455163596191406,
-              0.0012262629388427734,
-              0.001218108271118164,
-              0.0012533408226318358,
-              0.0012234491004638672,
-              0.0012445512692871093,
-              0.0012221850556640625,
-              0.001218558834838867,
-              0.001223500607055664
+              0.0012167445092773437,
+              0.0012114168712158203,
+              0.0011966080346679688,
+              0.001203758300048828,
+              0.0012178925753173829,
+              0.001239336794189453,
+              0.0012325542047119142,
+              0.00121626550390625,
+              0.0012375928927001953,
+              0.0012088195799560546,
+              0.0011872298564453126
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0011876084190979006,
-              "upper_ms": 0.0012794890516662594,
-              "excluded_indices": [
-                0
-              ],
+              "lower_ms": 0.0011778872649841306,
+              "upper_ms": 0.0012536250650329592,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.0012219422569580078,
-                0.0012455163596191406,
-                0.0012262629388427734,
-                0.001218108271118164,
-                0.0012533408226318358,
-                0.0012234491004638672,
-                0.0012445512692871093,
-                0.0012221850556640625,
-                0.001218558834838867,
-                0.001223500607055664
+                0.0012167445092773437,
+                0.0012114168712158203,
+                0.0011966080346679688,
+                0.001203758300048828,
+                0.0012178925753173829,
+                0.001239336794189453,
+                0.0012325542047119142,
+                0.00121626550390625,
+                0.0012375928927001953,
+                0.0012088195799560546,
+                0.0011872298564453126
               ],
-              "median_ms": 0.0012234748537597656
+              "median_ms": 0.00121626550390625
             },
-            "execution_ms": 0.0012234748537597656,
+            "execution_ms": 0.00121626550390625,
             "checksum": "136183808",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 8,
+                  "median_khz": 4397403,
+                  "p10_khz": 4394326,
+                  "p90_khz": 4399995,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/benchmarks/json-text/json_parse/c-program - 16624 11"
           }
         },
         "go": {
           "status": "ok",
           "files": [
+            {
+              "path": "generated/json-text/json_parse/go/finite.go",
+              "bytes": 209,
+              "sha256": "76fd4796ac1f2e7b6e7685a3cf4235974aabafdf866d5bba495108e2b4ba48e7"
+            },
             {
               "path": "generated/json-text/json_parse/go/float_text.go",
               "bytes": 90,
@@ -707,8 +831,8 @@
             },
             {
               "path": "generated/json-text/json_parse/go/math.go",
-              "bytes": 17861,
-              "sha256": "dee2f4055dd084e892b7b8816775feddcc00535ac84b9314096e57ddea9c8b44"
+              "bytes": 17598,
+              "sha256": "4a01d985d57756d7b41b355ecb172d8931e97620e26afe0df0e45c90a6daad25"
             },
             {
               "path": "generated/json-text/json_parse/go/vec.go",
@@ -722,62 +846,87 @@
             }
           ],
           "command": "build/bin/zi2go --no-main --pkg main --root bench/json_text --module-path std --entry json_parse:Answer -o build/benchmarks/json-text/json_parse/go bench/json_text/json_parse.zi",
-          "build_command": "go build -p=1 -o build/benchmarks/json-text/json_parse/go-program build/benchmarks/json-text/json_parse/go-host/float_text.go build/benchmarks/json-text/json_parse/go-host/json_bytes.go build/benchmarks/json-text/json_parse/go-host/json_document.go build/benchmarks/json-text/json_parse/go-host/json_parse.go build/benchmarks/json-text/json_parse/go-host/json_quote.go build/benchmarks/json-text/json_parse/go-host/math.go build/benchmarks/json-text/json_parse/go-host/vec.go build/benchmarks/json-text/json_parse/go-host/ziran_simd.go build/benchmarks/json-text/json_parse/go-host/matrix_host.go build/benchmarks/json-text/json_parse/go-host/matrix_bridge.go",
+          "build_command": "go build -p=1 -o build/benchmarks/json-text/json_parse/go-program build/benchmarks/json-text/json_parse/go-host/finite.go build/benchmarks/json-text/json_parse/go-host/float_text.go build/benchmarks/json-text/json_parse/go-host/json_bytes.go build/benchmarks/json-text/json_parse/go-host/json_document.go build/benchmarks/json-text/json_parse/go-host/json_parse.go build/benchmarks/json-text/json_parse/go-host/json_quote.go build/benchmarks/json-text/json_parse/go-host/math.go build/benchmarks/json-text/json_parse/go-host/vec.go build/benchmarks/json-text/json_parse/go-host/ziran_simd.go build/benchmarks/json-text/json_parse/go-host/matrix_host.go build/benchmarks/json-text/json_parse/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              9.999661,
-              10.244043,
-              10.311685,
-              10.152969,
-              9.969662,
-              10.042411,
-              9.832982,
-              9.760611,
-              9.927127,
-              9.851848,
-              9.796951
+              21.483356,
+              20.413302,
+              20.060494,
+              19.678029,
+              20.001625,
+              19.726193,
+              19.694236,
+              20.006295,
+              19.789559,
+              20.194412,
+              20.762881
             ],
-            "batches": 128,
+            "batches": 256,
             "load_ms": 0,
             "result": "16624",
-            "warmup_count": 1841,
-            "warmup_ms": 150.057969,
+            "warmup_count": 1929,
+            "warmup_ms": 150.059812,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0781223515625,
-              0.0800315859375,
-              0.0805600390625,
-              0.0793200703125,
-              0.077887984375,
-              0.0784563359375,
-              0.076820171875,
-              0.0762547734375,
-              0.0775556796875,
-              0.0769675625,
-              0.0765386796875
+              0.083919359375,
+              0.0797394609375,
+              0.0783613046875,
+              0.07686730078125,
+              0.07813134765625,
+              0.07705544140625,
+              0.076930609375,
+              0.07814958984375,
+              0.07730296484375,
+              0.078884421875,
+              0.08110500390625
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.07390236328124998,
-              "upper_ms": 0.08187970703125001,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.0781223515625,
-                0.0800315859375,
-                0.0805600390625,
-                0.0793200703125,
-                0.077887984375,
-                0.0784563359375,
-                0.076820171875,
-                0.0762547734375,
-                0.0775556796875,
-                0.0769675625,
-                0.0765386796875
+              "lower_ms": 0.073980095703125,
+              "upper_ms": 0.08251104882812502,
+              "excluded_indices": [
+                0
               ],
-              "median_ms": 0.077887984375
+              "included_samples_ms": [
+                0.0797394609375,
+                0.0783613046875,
+                0.07686730078125,
+                0.07813134765625,
+                0.07705544140625,
+                0.076930609375,
+                0.07814958984375,
+                0.07730296484375,
+                0.078884421875,
+                0.08110500390625
+              ],
+              "median_ms": 0.07814046875
             },
-            "execution_ms": 0.077887984375,
-            "checksum": "2127872",
+            "execution_ms": 0.07814046875,
+            "checksum": "4255744",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 23,
+                  "median_khz": 4300012,
+                  "p10_khz": 4299967,
+                  "p90_khz": 4388033,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/benchmarks/json-text/json_parse/go-program - 16624 11"
           }
         },
@@ -793,61 +942,85 @@
           "command": "build/bin/zi2zx --root bench/json_text --module-path std --entry json_parse:Answer -o build/benchmarks/json-text/json_parse/zx/json_parse.zx bench/json_text/json_parse.zi",
           "measurement": {
             "result": "16624",
-            "batches": 8,
-            "load_ms": 6.137488008,
-            "warmup_ms": 150.137838006,
-            "warmup_count": 100,
+            "batches": 256,
+            "load_ms": 7.048465014,
+            "warmup_ms": 150.023841023,
+            "warmup_count": 2707,
             "batch_samples_ms": [
-              12.306181014,
-              12.984881043,
-              11.89942497,
-              11.889126003,
-              11.881368995,
-              11.895003021,
-              11.945408046,
-              11.85957104,
-              11.840306997,
-              11.854197025,
-              11.912611008
+              14.115261972,
+              13.985769033,
+              14.051090002,
+              13.922353983,
+              13.911566019,
+              13.878920019,
+              13.911629975,
+              13.92037499,
+              13.770847023,
+              13.928074002,
+              13.586143017
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              1.53827262675,
-              1.623110130375,
-              1.48742812125,
-              1.486140750375,
-              1.485171124375,
-              1.486875377625,
-              1.49317600575,
-              1.48244638,
-              1.480038374625,
-              1.481774628125,
-              1.489076376
+              0.055137742078125,
+              0.05463191028515625,
+              0.0548870703203125,
+              0.05438419524609375,
+              0.05434205476171875,
+              0.05421453132421875,
+              0.05434230458984375,
+              0.0543764648046875,
+              0.05379237118359375,
+              0.0544065390703125,
+              0.05307087116015625
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 1.47283259415625,
-              "upper_ms": 1.5021023489062504,
+              "lower_ms": 0.053916895590820316,
+              "upper_ms": 0.0548806221298828,
               "excluded_indices": [
                 0,
-                1
+                2,
+                8,
+                10
               ],
               "included_samples_ms": [
-                1.48742812125,
-                1.486140750375,
-                1.485171124375,
-                1.486875377625,
-                1.49317600575,
-                1.48244638,
-                1.480038374625,
-                1.481774628125,
-                1.489076376
+                0.05463191028515625,
+                0.05438419524609375,
+                0.05434205476171875,
+                0.05421453132421875,
+                0.05434230458984375,
+                0.0543764648046875,
+                0.0544065390703125
               ],
-              "median_ms": 1.486140750375
+              "median_ms": 0.0543764648046875
             },
-            "execution_ms": 1.486140750375,
-            "checksum": "132992",
-            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_parse/zx/json_parse.zx 16624 11"
+            "execution_ms": 0.0543764648046875,
+            "checksum": "4255744",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 14,
+                  "median_khz": 4300012,
+                  "p10_khz": 4299988,
+                  "p90_khz": 4399992,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "build/benchmarks/json-text/zx-runner build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_parse/zx/json_parse.zx 16624 11"
           }
         },
         "wasm": {
@@ -863,59 +1036,83 @@
           "measurement": {
             "result": "16624",
             "batches": 256,
-            "warmup_ms": 150.03481100000002,
-            "warmup_count": 3090,
+            "warmup_ms": 150.003898,
+            "warmup_count": 2776,
             "batch_samples_ms": [
-              12.18961999999999,
-              12.362652999999995,
-              11.868221000000005,
-              11.789924999999982,
-              11.908280999999988,
-              11.840784000000042,
-              12.117399999999975,
-              11.804218000000049,
-              11.73934300000002,
-              11.789972999999975,
-              12.201730999999995
+              12.251761000000016,
+              12.176362000000012,
+              12.194716999999997,
+              12.69520399999999,
+              12.338678999999956,
+              11.814678999999956,
+              11.770753999999954,
+              11.761987999999974,
+              12.032178999999985,
+              12.010330999999951,
+              11.836049000000003
             ],
-            "load_ms": 0.7881,
+            "load_ms": 1.4396440000000013,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.047615703124999964,
-              0.04829161328124998,
-              0.04636023828125002,
-              0.04605439453124993,
-              0.046516722656249954,
-              0.046253062500000164,
-              0.0473335937499999,
-              0.04611022656250019,
-              0.045856808593750076,
-              0.0460545820312499,
-              0.04766301171874998
+              0.04785844140625006,
+              0.047563914062500046,
+              0.04763561328124999,
+              0.04959064062499996,
+              0.04819796484374983,
+              0.046151089843749826,
+              0.04597950781249982,
+              0.0459452656249999,
+              0.04700069921874994,
+              0.04691535546874981,
+              0.04623456640625001
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.043994038085937714,
-              "upper_ms": 0.049563014648437265,
+              "lower_ms": 0.04386152929687476,
+              "upper_ms": 0.05007832617187519,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.047615703124999964,
-                0.04829161328124998,
-                0.04636023828125002,
-                0.04605439453124993,
-                0.046516722656249954,
-                0.046253062500000164,
-                0.0473335937499999,
-                0.04611022656250019,
-                0.045856808593750076,
-                0.0460545820312499,
-                0.04766301171874998
+                0.04785844140625006,
+                0.047563914062500046,
+                0.04763561328124999,
+                0.04959064062499996,
+                0.04819796484374983,
+                0.046151089843749826,
+                0.04597950781249982,
+                0.0459452656249999,
+                0.04700069921874994,
+                0.04691535546874981,
+                0.04623456640625001
               ],
-              "median_ms": 0.04636023828125002
+              "median_ms": 0.04700069921874994
             },
-            "execution_ms": 0.04636023828125002,
+            "execution_ms": 0.04700069921874994,
             "checksum": "4255744",
-            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_parse/wasm/json_parse.wasm 16624 11"
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 16,
+                  "median_khz": 4399043,
+                  "p10_khz": 4386302,
+                  "p90_khz": 4400010,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "node scripts/site_target_node.cjs build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_parse/wasm/json_parse.wasm 16624 11"
           }
         }
       }
@@ -1020,69 +1217,98 @@
             }
           ],
           "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_escaped:Answer -o build/benchmarks/json-text/json_escaped/c bench/json_text/json_escaped.zi",
-          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_escaped/c '-DMATRIX_HEADER=\"json_escaped.h\"' -DMATRIX_ENTRY=json_escaped_Answer bench/site_target_host.c site/generated/json-text/json_escaped/c/json_bytes.c site/generated/json-text/json_escaped/c/json_document.c site/generated/json-text/json_escaped/c/json_escaped.c site/generated/json-text/json_escaped/c/vec.c -lm -o build/benchmarks/json-text/json_escaped/c-program",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_escaped/c '-DMATRIX_HEADER=\"json_escaped.h\"' -DMATRIX_ENTRY=json_escaped_Answer bench/site_target_host.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_escaped/c/json_bytes.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_escaped/c/json_document.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_escaped/c/json_escaped.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_escaped/c/vec.c -lm -o build/benchmarks/json-text/json_escaped/c-program",
           "measurement": {
             "result": "43904",
             "batches": 512,
-            "load_ms": 6.6996e-05,
-            "warmup_ms": 150.008917987,
-            "warmup_count": 5249,
+            "load_ms": 6.9022e-05,
+            "warmup_ms": 150.021830976,
+            "warmup_count": 5190,
             "batch_samples_ms": [
-              14.589753985,
-              14.240538001,
-              14.238973975,
-              14.488359988,
-              14.281393051,
-              14.248194993,
-              14.462554038,
-              14.724555016,
-              14.243227959,
-              14.241021037,
-              14.990786016
+              14.616703987,
+              14.621798992,
+              14.623329997,
+              14.857652009,
+              15.045226991,
+              14.686846018,
+              14.599943995,
+              14.483676016,
+              14.511454999,
+              14.372280002,
+              14.735536993
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.028495613251953125,
-              0.027813550783203123,
-              0.027810496044921876,
-              0.0282975781015625,
-              0.027893345802734375,
-              0.027828505845703125,
-              0.02824717585546875,
-              0.028758896515625,
-              0.027818804607421876,
-              0.027814494212890624,
-              0.0292788789375
+              0.028548249974609374,
+              0.02855820115625,
+              0.028561191400390627,
+              0.029018851580078126,
+              0.029385208966796875,
+              0.02868524612890625,
+              0.028515515615234376,
+              0.02828842971875,
+              0.028342685544921874,
+              0.02807085937890625,
+              0.028780345689453125
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0269467300102539,
-              "upper_ms": 0.02926651507666016,
+              "lower_ms": 0.027973557586425776,
+              "upper_ms": 0.029188338902832036,
               "excluded_indices": [
-                10
+                4
               ],
               "included_samples_ms": [
-                0.028495613251953125,
-                0.027813550783203123,
-                0.027810496044921876,
-                0.0282975781015625,
-                0.027893345802734375,
-                0.027828505845703125,
-                0.02824717585546875,
-                0.028758896515625,
-                0.027818804607421876,
-                0.027814494212890624
+                0.028548249974609374,
+                0.02855820115625,
+                0.028561191400390627,
+                0.029018851580078126,
+                0.02868524612890625,
+                0.028515515615234376,
+                0.02828842971875,
+                0.028342685544921874,
+                0.02807085937890625,
+                0.028780345689453125
               ],
-              "median_ms": 0.02786092582421875
+              "median_ms": 0.028553225565429687
             },
-            "execution_ms": 0.02786092582421875,
+            "execution_ms": 0.028553225565429687,
             "checksum": "22478848",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 14,
+                  "median_khz": 4397911,
+                  "p10_khz": 4299979,
+                  "p90_khz": 4400000,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/benchmarks/json-text/json_escaped/c-program - 43904 11"
           }
         },
         "go": {
           "status": "ok",
           "files": [
+            {
+              "path": "generated/json-text/json_escaped/go/finite.go",
+              "bytes": 209,
+              "sha256": "76fd4796ac1f2e7b6e7685a3cf4235974aabafdf866d5bba495108e2b4ba48e7"
+            },
             {
               "path": "generated/json-text/json_escaped/go/float_text.go",
               "bytes": 90,
@@ -1110,8 +1336,8 @@
             },
             {
               "path": "generated/json-text/json_escaped/go/math.go",
-              "bytes": 17861,
-              "sha256": "dee2f4055dd084e892b7b8816775feddcc00535ac84b9314096e57ddea9c8b44"
+              "bytes": 17598,
+              "sha256": "4a01d985d57756d7b41b355ecb172d8931e97620e26afe0df0e45c90a6daad25"
             },
             {
               "path": "generated/json-text/json_escaped/go/vec.go",
@@ -1125,63 +1351,87 @@
             }
           ],
           "command": "build/bin/zi2go --no-main --pkg main --root bench/json_text --module-path std --entry json_escaped:Answer -o build/benchmarks/json-text/json_escaped/go bench/json_text/json_escaped.zi",
-          "build_command": "go build -p=1 -o build/benchmarks/json-text/json_escaped/go-program build/benchmarks/json-text/json_escaped/go-host/float_text.go build/benchmarks/json-text/json_escaped/go-host/json_bytes.go build/benchmarks/json-text/json_escaped/go-host/json_document.go build/benchmarks/json-text/json_escaped/go-host/json_escaped.go build/benchmarks/json-text/json_escaped/go-host/json_quote.go build/benchmarks/json-text/json_escaped/go-host/math.go build/benchmarks/json-text/json_escaped/go-host/vec.go build/benchmarks/json-text/json_escaped/go-host/ziran_simd.go build/benchmarks/json-text/json_escaped/go-host/matrix_host.go build/benchmarks/json-text/json_escaped/go-host/matrix_bridge.go",
+          "build_command": "go build -p=1 -o build/benchmarks/json-text/json_escaped/go-program build/benchmarks/json-text/json_escaped/go-host/finite.go build/benchmarks/json-text/json_escaped/go-host/float_text.go build/benchmarks/json-text/json_escaped/go-host/json_bytes.go build/benchmarks/json-text/json_escaped/go-host/json_document.go build/benchmarks/json-text/json_escaped/go-host/json_escaped.go build/benchmarks/json-text/json_escaped/go-host/json_quote.go build/benchmarks/json-text/json_escaped/go-host/math.go build/benchmarks/json-text/json_escaped/go-host/vec.go build/benchmarks/json-text/json_escaped/go-host/ziran_simd.go build/benchmarks/json-text/json_escaped/go-host/matrix_host.go build/benchmarks/json-text/json_escaped/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              11.344999,
-              11.356267,
-              11.157801,
-              11.568161,
-              11.505587,
-              10.767171,
-              11.461717,
-              11.516699,
-              11.337706,
-              11.818313,
-              12.404809
+              12.991565,
+              13.021204,
+              13.124239,
+              12.894608,
+              13.265316,
+              13.311079,
+              12.487646,
+              12.91531,
+              13.053959,
+              12.437607,
+              13.14669
             ],
             "batches": 16,
             "load_ms": 0,
             "result": "43904",
-            "warmup_count": 207,
-            "warmup_ms": 150.278903,
+            "warmup_count": 188,
+            "warmup_ms": 150.238297,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.7090624375,
-              0.7097666875,
-              0.6973625625,
-              0.7230100625,
-              0.7190991875,
-              0.6729481875,
-              0.7163573125,
-              0.7197936875,
-              0.708606625,
-              0.7386445625,
-              0.7753005625
+              0.8119728125,
+              0.81382525,
+              0.8202649375,
+              0.805913,
+              0.82908225,
+              0.8319424375,
+              0.780477875,
+              0.807206875,
+              0.8158724375,
+              0.7773504375,
+              0.821668125
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.6899835156249999,
-              "upper_ms": 0.740252890625,
+              "lower_ms": 0.784950046875,
+              "upper_ms": 0.8425764218749999,
               "excluded_indices": [
-                5,
-                10
+                6,
+                9
               ],
               "included_samples_ms": [
-                0.7090624375,
-                0.7097666875,
-                0.6973625625,
-                0.7230100625,
-                0.7190991875,
-                0.7163573125,
-                0.7197936875,
-                0.708606625,
-                0.7386445625
+                0.8119728125,
+                0.81382525,
+                0.8202649375,
+                0.805913,
+                0.82908225,
+                0.8319424375,
+                0.807206875,
+                0.8158724375,
+                0.821668125
               ],
-              "median_ms": 0.7163573125
+              "median_ms": 0.8158724375
             },
-            "execution_ms": 0.7163573125,
+            "execution_ms": 0.8158724375,
             "checksum": "702464",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 14,
+                  "median_khz": 4300043,
+                  "p10_khz": 4299965,
+                  "p90_khz": 4396479,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/benchmarks/json-text/json_escaped/go-program - 43904 11"
           }
         },
@@ -1197,61 +1447,85 @@
           "command": "build/bin/zi2zx --root bench/json_text --module-path std --entry json_escaped:Answer -o build/benchmarks/json-text/json_escaped/zx/json_escaped.zx bench/json_text/json_escaped.zi",
           "measurement": {
             "result": "43904",
-            "batches": 2,
-            "load_ms": 6.352209985,
-            "warmup_ms": 150.921745002,
-            "warmup_count": 28,
+            "batches": 64,
+            "load_ms": 7.416319013,
+            "warmup_ms": 150.180880964,
+            "warmup_count": 715,
             "batch_samples_ms": [
-              10.906093001,
-              10.796123028,
-              10.788590014,
-              10.75721997,
-              10.959729016,
-              10.83474499,
-              10.771996975,
-              10.769212961,
-              11.224312007,
-              10.760832965,
-              10.512383997
+              13.676931977,
+              13.973936021,
+              14.171352029,
+              13.557289004,
+              13.305716991,
+              13.288778007,
+              13.286698997,
+              13.266386986,
+              13.274851978,
+              13.419375002,
+              13.272193015
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              5.4530465005,
-              5.398061514,
-              5.394295007,
-              5.378609985,
-              5.479864508,
-              5.417372495,
-              5.3859984875,
-              5.3846064805,
-              5.6121560035,
-              5.3804164825,
-              5.2561919985
+              0.213702062140625,
+              0.218342750328125,
+              0.221427375453125,
+              0.2118326406875,
+              0.207901827984375,
+              0.207637156359375,
+              0.207604671828125,
+              0.20728729665625,
+              0.20741956215625,
+              0.20967773440625,
+              0.207378015859375
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 5.303464457125,
-              "upper_ms": 5.514256522125,
+              "lower_ms": 0.19962926535937497,
+              "upper_ms": 0.220650203046875,
               "excluded_indices": [
-                8,
-                10
+                2
               ],
               "included_samples_ms": [
-                5.4530465005,
-                5.398061514,
-                5.394295007,
-                5.378609985,
-                5.479864508,
-                5.417372495,
-                5.3859984875,
-                5.3846064805,
-                5.3804164825
+                0.213702062140625,
+                0.218342750328125,
+                0.2118326406875,
+                0.207901827984375,
+                0.207637156359375,
+                0.207604671828125,
+                0.20728729665625,
+                0.20741956215625,
+                0.20967773440625,
+                0.207378015859375
               ],
-              "median_ms": 5.394295007
+              "median_ms": 0.20776949217187501
             },
-            "execution_ms": 5.394295007,
-            "checksum": "87808",
-            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_escaped/zx/json_escaped.zx 43904 11"
+            "execution_ms": 0.20776949217187501,
+            "checksum": "2809856",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 14,
+                  "median_khz": 4300024,
+                  "p10_khz": 4299997,
+                  "p90_khz": 4391921,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "build/benchmarks/json-text/zx-runner build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_escaped/zx/json_escaped.zx 43904 11"
           }
         },
         "wasm": {
@@ -1267,59 +1541,84 @@
           "measurement": {
             "result": "43904",
             "batches": 128,
-            "warmup_ms": 150.03251,
-            "warmup_count": 1494,
+            "warmup_ms": 150.084798,
+            "warmup_count": 1272,
             "batch_samples_ms": [
-              12.461873999999995,
-              12.13544299999998,
-              12.38279,
-              12.384015999999974,
-              12.604568999999998,
-              12.130913999999962,
-              12.122889999999984,
-              12.12551400000001,
-              12.516055999999992,
-              12.125797999999975,
-              12.119596999999999
+              12.464870999999988,
+              12.054019000000011,
+              12.014317000000005,
+              12.275277000000017,
+              13.330894999999998,
+              12.088351999999986,
+              12.177440000000047,
+              12.42703499999999,
+              12.059048000000018,
+              12.11281200000002,
+              12.322362999999996
             ],
-            "load_ms": 0.8530169999999977,
+            "load_ms": 1.558647999999998,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.09735839062499996,
-              0.09480814843749985,
-              0.096740546875,
-              0.0967501249999998,
-              0.09847319531249998,
-              0.0947727656249997,
-              0.09471007812499987,
-              0.09473057812500008,
-              0.09778168749999994,
-              0.0947327968749998,
-              0.09468435156249999
+              0.0973818046874999,
+              0.09417202343750009,
+              0.09386185156250004,
+              0.09590060156250013,
+              0.10414761718749999,
+              0.09444024999999989,
+              0.09513625000000037,
+              0.09708621093749992,
+              0.09421131250000014,
+              0.09463134375000015,
+              0.09626846093749997
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.09124783203125003,
-              "upper_ms": 0.10053811328124979,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.09735839062499996,
-                0.09480814843749985,
-                0.096740546875,
-                0.0967501249999998,
-                0.09847319531249998,
-                0.0947727656249997,
-                0.09471007812499987,
-                0.09473057812500008,
-                0.09778168749999994,
-                0.0947327968749998,
-                0.09468435156249999
+              "lower_ms": 0.09079844921875013,
+              "upper_ms": 0.10020466796874983,
+              "excluded_indices": [
+                4
               ],
-              "median_ms": 0.09480814843749985
+              "included_samples_ms": [
+                0.0973818046874999,
+                0.09417202343750009,
+                0.09386185156250004,
+                0.09590060156250013,
+                0.09444024999999989,
+                0.09513625000000037,
+                0.09708621093749992,
+                0.09421131250000014,
+                0.09463134375000015,
+                0.09626846093749997
+              ],
+              "median_ms": 0.09488379687500026
             },
-            "execution_ms": 0.09480814843749985,
+            "execution_ms": 0.09488379687500026,
             "checksum": "5619712",
-            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_escaped/wasm/json_escaped.wasm 43904 11"
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 16,
+                  "median_khz": 4399988,
+                  "p10_khz": 4300024,
+                  "p90_khz": 4400004,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "node scripts/site_target_node.cjs build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_escaped/wasm/json_escaped.wasm 43904 11"
           }
         }
       }
@@ -1409,63 +1708,86 @@
             }
           ],
           "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_write:Answer -o build/benchmarks/json-text/json_write/c bench/json_text/json_write.zi",
-          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_write/c '-DMATRIX_HEADER=\"json_write.h\"' -DMATRIX_ENTRY=json_write_Answer bench/site_target_host.c site/generated/json-text/json_write/c/json_bytes.c site/generated/json-text/json_write/c/json_quote.c site/generated/json-text/json_write/c/json_write.c -lm -o build/benchmarks/json-text/json_write/c-program",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_write/c '-DMATRIX_HEADER=\"json_write.h\"' -DMATRIX_ENTRY=json_write_Answer bench/site_target_host.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_write/c/json_bytes.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_write/c/json_quote.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_write/c/json_write.c -lm -o build/benchmarks/json-text/json_write/c-program",
           "measurement": {
             "result": "5446",
             "batches": 1024,
-            "load_ms": 0.000334978,
-            "warmup_ms": 150.003143966,
-            "warmup_count": 10957,
+            "load_ms": 6.1035e-05,
+            "warmup_ms": 150.009561956,
+            "warmup_count": 10869,
             "batch_samples_ms": [
-              13.846094966,
-              13.796081007,
-              14.211367965,
-              13.848176003,
-              13.865758002,
-              14.210397959,
-              13.896578968,
-              13.840191007,
-              13.889504015,
-              13.879261017,
-              13.843209028
+              13.844606996,
+              13.814426005,
+              13.827996016,
+              13.860349,
+              13.820982993,
+              13.862866998,
+              13.875169992,
+              13.701990962,
+              13.592015982,
+              13.738101006,
+              13.600731015
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.013521577115234376,
-              0.013472735358398437,
-              0.013878289028320313,
-              0.013523609377929688,
-              0.013540779298828125,
-              0.013877341756835937,
-              0.0135708778984375,
-              0.013515811530273437,
-              0.013563968764648437,
-              0.013553965836914062,
-              0.01351875881640625
+              0.01352012401953125,
+              0.013490650395507812,
+              0.013503902359375,
+              0.0135354970703125,
+              0.013497053704101562,
+              0.013537956052734374,
+              0.0135499706953125,
+              0.013380850548828125,
+              0.013273453107421875,
+              0.013416114263671876,
+              0.013281963881835937
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.013449284917236327,
-              "upper_ms": 0.013638306380126954,
-              "excluded_indices": [
-                2,
-                5
-              ],
+              "lower_ms": 0.01320449019824219,
+              "upper_ms": 0.013721802752929686,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.013521577115234376,
-                0.013472735358398437,
-                0.013523609377929688,
-                0.013540779298828125,
-                0.0135708778984375,
-                0.013515811530273437,
-                0.013563968764648437,
-                0.013553965836914062,
-                0.01351875881640625
+                0.01352012401953125,
+                0.013490650395507812,
+                0.013503902359375,
+                0.0135354970703125,
+                0.013497053704101562,
+                0.013537956052734374,
+                0.0135499706953125,
+                0.013380850548828125,
+                0.013273453107421875,
+                0.013416114263671876,
+                0.013281963881835937
               ],
-              "median_ms": 0.013523609377929688
+              "median_ms": 0.013497053704101562
             },
-            "execution_ms": 0.013523609377929688,
+            "execution_ms": 0.013497053704101562,
             "checksum": "5576704",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 13,
+                  "median_khz": 4300022,
+                  "p10_khz": 4299978,
+                  "p90_khz": 4400009,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/benchmarks/json-text/json_write/c-program - 5446 11"
           }
         },
@@ -1502,60 +1824,83 @@
           "build_command": "go build -p=1 -o build/benchmarks/json-text/json_write/go-program build/benchmarks/json-text/json_write/go-host/json_bytes.go build/benchmarks/json-text/json_write/go-host/json_quote.go build/benchmarks/json-text/json_write/go-host/json_write.go build/benchmarks/json-text/json_write/go-host/vec.go build/benchmarks/json-text/json_write/go-host/ziran_simd.go build/benchmarks/json-text/json_write/go-host/matrix_host.go build/benchmarks/json-text/json_write/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              11.608094,
-              11.365882,
-              11.377084,
-              11.105675,
-              11.411817,
-              11.854666,
-              11.275827,
-              11.155941,
-              11.250951,
-              11.924599,
-              11.40941
+              15.487499,
+              13.458465,
+              15.715238,
+              13.423618,
+              13.58997,
+              13.303138,
+              14.928172,
+              13.079844,
+              15.704077,
+              13.49176,
+              13.852082
             ],
             "batches": 256,
             "load_ms": 0,
             "result": "5446",
-            "warmup_count": 3224,
-            "warmup_ms": 150.023781,
+            "warmup_count": 2503,
+            "warmup_ms": 150.013703,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.0453441171875,
-              0.0443979765625,
-              0.044441734375,
-              0.04338154296875,
-              0.04457741015625,
-              0.0463072890625,
-              0.04404619921875,
-              0.04357789453125,
-              0.04394902734375,
-              0.04658046484375,
-              0.0445680078125
+              0.06049804296875,
+              0.05257212890625,
+              0.0613876484375,
+              0.0524360078125,
+              0.0530858203125,
+              0.0519653828125,
+              0.058313171875,
+              0.051093140625,
+              0.06134405078125,
+              0.0527021875,
+              0.0541096953125
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.0425528876953125,
-              "upper_ms": 0.0464054892578125,
-              "excluded_indices": [
-                9
-              ],
+              "lower_ms": 0.042151759765625005,
+              "upper_ms": 0.06975791601562499,
+              "excluded_indices": [],
               "included_samples_ms": [
-                0.0453441171875,
-                0.0443979765625,
-                0.044441734375,
-                0.04338154296875,
-                0.04457741015625,
-                0.0463072890625,
-                0.04404619921875,
-                0.04357789453125,
-                0.04394902734375,
-                0.0445680078125
+                0.06049804296875,
+                0.05257212890625,
+                0.0613876484375,
+                0.0524360078125,
+                0.0530858203125,
+                0.0519653828125,
+                0.058313171875,
+                0.051093140625,
+                0.06134405078125,
+                0.0527021875,
+                0.0541096953125
               ],
-              "median_ms": 0.04441985546875
+              "median_ms": 0.0530858203125
             },
-            "execution_ms": 0.04441985546875,
+            "execution_ms": 0.0530858203125,
             "checksum": "1394176",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 15,
+                  "median_khz": 4399065,
+                  "p10_khz": 4389758,
+                  "p90_khz": 4400001,
+                  "sibling_busy": 0.0278,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/benchmarks/json-text/json_write/go-program - 5446 11"
           }
         },
@@ -1571,60 +1916,84 @@
           "command": "build/bin/zi2zx --root bench/json_text --module-path std --entry json_write:Answer -o build/benchmarks/json-text/json_write/zx/json_write.zx bench/json_text/json_write.zi",
           "measurement": {
             "result": "5446",
-            "batches": 8,
-            "load_ms": 2.715967,
-            "warmup_ms": 150.439375997,
-            "warmup_count": 107,
+            "batches": 256,
+            "load_ms": 4.036607027,
+            "warmup_ms": 150.006552994,
+            "warmup_count": 3708,
             "batch_samples_ms": [
-              10.810415983,
-              10.825293958,
-              11.055024028,
-              11.026566029,
-              10.816371977,
-              10.88736999,
-              11.253260016,
-              11.205955029,
-              10.810930014,
-              10.807256043,
-              10.807793021
+              10.363931954,
+              10.391748011,
+              10.35156697,
+              10.36908704,
+              10.369583964,
+              10.329457998,
+              10.30081296,
+              10.363065958,
+              10.322369039,
+              10.409123003,
+              10.358614028
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              1.351301997875,
-              1.35316174475,
-              1.3818780035,
-              1.378320753625,
-              1.352046497125,
-              1.36092124875,
-              1.406657502,
-              1.400744378625,
-              1.35136625175,
-              1.350907005375,
-              1.350974127625
+              0.0404841091953125,
+              0.04059276566796875,
+              0.0404358084765625,
+              0.04050424625,
+              0.040506187359375,
+              0.0403494453046875,
+              0.040237550625,
+              0.0404807263984375,
+              0.04032175405859375,
+              0.04066063673046875,
+              0.040463336046875
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 1.3081862441874998,
-              "upper_ms": 1.4232472591875,
+              "lower_ms": 0.04022374201953126,
+              "upper_ms": 0.04067410167578124,
               "excluded_indices": [],
               "included_samples_ms": [
-                1.351301997875,
-                1.35316174475,
-                1.3818780035,
-                1.378320753625,
-                1.352046497125,
-                1.36092124875,
-                1.406657502,
-                1.400744378625,
-                1.35136625175,
-                1.350907005375,
-                1.350974127625
+                0.0404841091953125,
+                0.04059276566796875,
+                0.0404358084765625,
+                0.04050424625,
+                0.040506187359375,
+                0.0403494453046875,
+                0.040237550625,
+                0.0404807263984375,
+                0.04032175405859375,
+                0.04066063673046875,
+                0.040463336046875
               ],
-              "median_ms": 1.35316174475
+              "median_ms": 0.0404807263984375
             },
-            "execution_ms": 1.35316174475,
-            "checksum": "43568",
-            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_write/zx/json_write.zx 5446 11"
+            "execution_ms": 0.0404807263984375,
+            "checksum": "1394176",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 9,
+                  "median_khz": 4299994,
+                  "p10_khz": 4299974,
+                  "p90_khz": 4300041,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "build/benchmarks/json-text/zx-runner build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_write/zx/json_write.zx 5446 11"
           }
         },
         "wasm": {
@@ -1640,59 +2009,84 @@
           "measurement": {
             "result": "5446",
             "batches": 256,
-            "warmup_ms": 150.04495699999998,
-            "warmup_count": 3613,
+            "warmup_ms": 150.002972,
+            "warmup_count": 3345,
             "batch_samples_ms": [
-              10.263841000000014,
-              10.136689999999987,
-              10.010850000000005,
-              9.999393999999995,
-              10.042207000000019,
-              10.357499999999987,
-              10.002677000000006,
-              9.989465999999993,
-              9.993683000000033,
-              10.159057000000018,
-              10.398713999999984
+              10.235590000000002,
+              10.201986000000005,
+              10.193067000000013,
+              10.230868000000015,
+              10.227064000000013,
+              10.183830999999998,
+              10.191251000000022,
+              10.688791999999978,
+              10.183965,
+              10.195897000000002,
+              10.18387100000001
             ],
-            "load_ms": 0.7218109999999989,
+            "load_ms": 1.6185459999999985,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.04009312890625005,
-              0.03959644531249995,
-              0.03910488281250002,
-              0.03906013281249998,
-              0.039227371093750074,
-              0.04045898437499995,
-              0.03907295703125002,
-              0.03902135156249997,
-              0.03903782421875013,
-              0.03968381640625007,
-              0.04061997656249994
+              0.03998277343750001,
+              0.03985150781250002,
+              0.03981666796875005,
+              0.03996432812500006,
+              0.03994946875000005,
+              0.03978058984374999,
+              0.03980957421875009,
+              0.041753093749999914,
+              0.03978111328125,
+              0.03982772265625001,
+              0.03978074609375004
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.03783365332031241,
-              "upper_ms": 0.041121364257812654,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.04009312890625005,
-                0.03959644531249995,
-                0.03910488281250002,
-                0.03906013281249998,
-                0.039227371093750074,
-                0.04045898437499995,
-                0.03907295703125002,
-                0.03902135156249997,
-                0.03903782421875013,
-                0.03968381640625007,
-                0.04061997656249994
+              "lower_ms": 0.03955301171875003,
+              "upper_ms": 0.04019923046875007,
+              "excluded_indices": [
+                7
               ],
-              "median_ms": 0.039227371093750074
+              "included_samples_ms": [
+                0.03998277343750001,
+                0.03985150781250002,
+                0.03981666796875005,
+                0.03996432812500006,
+                0.03994946875000005,
+                0.03978058984374999,
+                0.03980957421875009,
+                0.03978111328125,
+                0.03982772265625001,
+                0.03978074609375004
+              ],
+              "median_ms": 0.03982219531250003
             },
-            "execution_ms": 0.039227371093750074,
+            "execution_ms": 0.03982219531250003,
             "checksum": "1394176",
-            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_write/wasm/json_write.wasm 5446 11"
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 13,
+                  "median_khz": 4300003,
+                  "p10_khz": 4299963,
+                  "p90_khz": 4300026,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "node scripts/site_target_node.cjs build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_write/wasm/json_write.wasm 5446 11"
           }
         }
       }
@@ -1782,62 +2176,87 @@
             }
           ],
           "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry json_quote_plain:Answer -o build/benchmarks/json-text/json_quote_plain/c bench/json_text/json_quote_plain.zi",
-          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/json_quote_plain/c '-DMATRIX_HEADER=\"json_quote_plain.h\"' -DMATRIX_ENTRY=json_quote_plain_Answer bench/site_target_host.c site/generated/json-text/json_quote_plain/c/json_bytes.c site/generated/json-text/json_quote_plain/c/json_quote.c site/generated/json-text/json_quote_plain/c/json_quote_plain.c -lm -o build/benchmarks/json-text/json_quote_plain/c-program",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_quote_plain/c '-DMATRIX_HEADER=\"json_quote_plain.h\"' -DMATRIX_ENTRY=json_quote_plain_Answer bench/site_target_host.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_quote_plain/c/json_bytes.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_quote_plain/c/json_quote.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_quote_plain/c/json_quote_plain.c -lm -o build/benchmarks/json-text/json_quote_plain/c-program",
           "measurement": {
             "result": "65606",
             "batches": 1024,
-            "load_ms": 5.5015e-05,
-            "warmup_ms": 150.009873033,
-            "warmup_count": 14993,
+            "load_ms": 6.6996e-05,
+            "warmup_ms": 150.001449049,
+            "warmup_count": 14670,
             "batch_samples_ms": [
-              10.185263991,
-              10.537411034,
-              10.381483972,
-              10.551284015,
-              10.174292982,
-              10.100807965,
-              10.086106002,
-              10.038626015,
-              10.673204005,
-              10.26008898,
-              10.286206007
+              10.366439998,
+              10.575480044,
+              10.366549969,
+              10.331924021,
+              10.323594034,
+              10.338545978,
+              10.478078008,
+              10.322637975,
+              10.347093999,
+              10.329834998,
+              10.314384997
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.009946546866210937,
-              0.010290440462890625,
-              0.01013816794140625,
-              0.010303988295898438,
-              0.009935832990234376,
-              0.009864070278320312,
-              0.009849712892578124,
-              0.009803345717773438,
-              0.010423050786132813,
-              0.01001961814453125,
-              0.010045123053710938
+              0.010123476560546876,
+              0.01032761723046875,
+              0.010123583954101562,
+              0.010089769551757813,
+              0.010081634798828124,
+              0.010096236306640626,
+              0.0102324980546875,
+              0.010080701147460937,
+              0.010104583983398438,
+              0.010087729490234376,
+              0.010072641598632812
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.009428422782470702,
-              "upper_ms": 0.010685833053955079,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.009946546866210937,
-                0.010290440462890625,
-                0.01013816794140625,
-                0.010303988295898438,
-                0.009935832990234376,
-                0.009864070278320312,
-                0.009849712892578124,
-                0.009803345717773438,
-                0.010423050786132813,
-                0.01001961814453125,
-                0.010045123053710938
+              "lower_ms": 0.010026409975341793,
+              "upper_ms": 0.010181802426513675,
+              "excluded_indices": [
+                1,
+                6
               ],
-              "median_ms": 0.01001961814453125
+              "included_samples_ms": [
+                0.010123476560546876,
+                0.010123583954101562,
+                0.010089769551757813,
+                0.010081634798828124,
+                0.010096236306640626,
+                0.010080701147460937,
+                0.010104583983398438,
+                0.010087729490234376,
+                0.010072641598632812
+              ],
+              "median_ms": 0.010089769551757813
             },
-            "execution_ms": 0.01001961814453125,
+            "execution_ms": 0.010089769551757813,
             "checksum": "67180544",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 9,
+                  "median_khz": 4299990,
+                  "p10_khz": 4299963,
+                  "p90_khz": 4300029,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/benchmarks/json-text/json_quote_plain/c-program - 65606 11"
           }
         },
@@ -1874,60 +2293,84 @@
           "build_command": "go build -p=1 -o build/benchmarks/json-text/json_quote_plain/go-program build/benchmarks/json-text/json_quote_plain/go-host/json_bytes.go build/benchmarks/json-text/json_quote_plain/go-host/json_quote.go build/benchmarks/json-text/json_quote_plain/go-host/json_quote_plain.go build/benchmarks/json-text/json_quote_plain/go-host/vec.go build/benchmarks/json-text/json_quote_plain/go-host/ziran_simd.go build/benchmarks/json-text/json_quote_plain/go-host/matrix_host.go build/benchmarks/json-text/json_quote_plain/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              14.869341,
-              14.991202,
-              14.871101,
-              14.796889,
-              14.786609,
-              15.511073,
-              14.887931,
-              14.819576,
-              14.878601,
-              14.817114,
-              14.871052
+              15.040285,
+              15.192227,
+              14.973451,
+              14.868559,
+              14.645283,
+              14.687844,
+              14.813774,
+              14.593923,
+              14.608173,
+              15.617161,
+              14.980576
             ],
             "batches": 32,
             "load_ms": 0,
             "result": "65606",
-            "warmup_count": 315,
-            "warmup_ms": 150.100058,
+            "warmup_count": 317,
+            "warmup_ms": 150.170227,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.46466690625,
-              0.4684750625,
-              0.46472190625,
-              0.46240278125,
-              0.46208153125,
-              0.48472103125,
-              0.46524784375,
-              0.46311175,
-              0.46495628125,
-              0.4630348125,
-              0.464720375
+              0.47000890625,
+              0.47475709375,
+              0.46792034375,
+              0.46464246875,
+              0.45766509375,
+              0.458995125,
+              0.4629304375,
+              0.45606009375,
+              0.45650540625,
+              0.48803628125,
+              0.468143
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.4600301093750001,
-              "upper_ms": 0.4681452343749999,
+              "lower_ms": 0.44221134374999993,
+              "upper_ms": 0.4851947187500001,
               "excluded_indices": [
-                1,
-                5
+                9
               ],
               "included_samples_ms": [
-                0.46466690625,
-                0.46472190625,
-                0.46240278125,
-                0.46208153125,
-                0.46524784375,
-                0.46311175,
-                0.46495628125,
-                0.4630348125,
-                0.464720375
+                0.47000890625,
+                0.47475709375,
+                0.46792034375,
+                0.46464246875,
+                0.45766509375,
+                0.458995125,
+                0.4629304375,
+                0.45606009375,
+                0.45650540625,
+                0.468143
               ],
-              "median_ms": 0.46466690625
+              "median_ms": 0.463786453125
             },
-            "execution_ms": 0.46466690625,
+            "execution_ms": 0.463786453125,
             "checksum": "2099392",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 16,
+                  "median_khz": 4399997,
+                  "p10_khz": 4396883,
+                  "p90_khz": 4400010,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/benchmarks/json-text/json_quote_plain/go-program - 65606 11"
           }
         },
@@ -1943,61 +2386,85 @@
           "command": "build/bin/zi2zx --root bench/json_text --module-path std --entry json_quote_plain:Answer -o build/benchmarks/json-text/json_quote_plain/zx/json_quote_plain.zx bench/json_text/json_quote_plain.zi",
           "measurement": {
             "result": "65606",
-            "batches": 2,
-            "load_ms": 2.609214962,
-            "warmup_ms": 151.756518006,
-            "warmup_count": 21,
+            "batches": 64,
+            "load_ms": 3.245682001,
+            "warmup_ms": 150.294475019,
+            "warmup_count": 510,
             "batch_samples_ms": [
-              14.071133971,
-              13.90654099,
-              13.844101012,
-              14.057611942,
-              13.863132,
-              13.867137015,
-              14.081638992,
-              14.469422042,
-              13.853597999,
-              13.805823982,
-              14.16497004
+              18.665425003,
+              18.954914987,
+              18.688416004,
+              18.638158977,
+              18.695214987,
+              18.77342099,
+              18.721228004,
+              18.674422026,
+              18.679796994,
+              18.210304022,
+              18.239367008
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              7.0355669855,
-              6.953270495,
-              6.922050506,
-              7.028805971,
-              6.931566,
-              6.9335685075,
-              7.040819496,
-              7.234711021,
-              6.9267989995,
-              6.902911991,
-              7.08248502
+              0.291647265671875,
+              0.296170546671875,
+              0.2920065000625,
+              0.291221234015625,
+              0.292112734171875,
+              0.29333470296875,
+              0.2925191875625,
+              0.29178784415625,
+              0.29187182803125,
+              0.28453600034375,
+              0.2849901095
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 6.7656663882500006,
-              "upper_ms": 7.201709352249999,
+              "lower_ms": 0.29011168330859377,
+              "upper_ms": 0.2936385274023437,
               "excluded_indices": [
-                7
+                1,
+                9,
+                10
               ],
               "included_samples_ms": [
-                7.0355669855,
-                6.953270495,
-                6.922050506,
-                7.028805971,
-                6.931566,
-                6.9335685075,
-                7.040819496,
-                6.9267989995,
-                6.902911991,
-                7.08248502
+                0.291647265671875,
+                0.2920065000625,
+                0.291221234015625,
+                0.292112734171875,
+                0.29333470296875,
+                0.2925191875625,
+                0.29178784415625,
+                0.29187182803125
               ],
-              "median_ms": 6.94341950125
+              "median_ms": 0.29193916404687503
             },
-            "execution_ms": 6.94341950125,
-            "checksum": "131212",
-            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/json_quote_plain/zx/json_quote_plain.zx 65606 11"
+            "execution_ms": 0.29193916404687503,
+            "checksum": "4198784",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 20,
+                  "median_khz": 4300020,
+                  "p10_khz": 4299970,
+                  "p90_khz": 4400004,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "build/benchmarks/json-text/zx-runner build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_quote_plain/zx/json_quote_plain.zx 65606 11"
           }
         },
         "wasm": {
@@ -2013,59 +2480,83 @@
           "measurement": {
             "result": "65606",
             "batches": 64,
-            "warmup_ms": 150.053231,
-            "warmup_count": 600,
+            "warmup_ms": 150.066005,
+            "warmup_count": 556,
             "batch_samples_ms": [
-              15.729625999999996,
-              15.407062999999994,
-              15.23289299999999,
-              15.74434599999995,
-              15.586861999999996,
-              15.487210000000005,
-              15.784862999999973,
-              15.602711,
-              15.568394000000012,
-              15.826918999999975,
-              15.521581000000026
+              15.612844999999993,
+              15.627299000000022,
+              15.608025999999995,
+              15.616655999999978,
+              15.739936,
+              15.471623000000022,
+              15.367995000000008,
+              15.580392999999958,
+              15.265259000000015,
+              15.310526000000038,
+              15.83211
             ],
-            "load_ms": 4.091432000000001,
+            "load_ms": 0.8268550000000019,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.24577540624999994,
-              0.2407353593749999,
-              0.23801395312499984,
-              0.24600540624999923,
-              0.24354471874999994,
-              0.24198765625000007,
-              0.24663848437499958,
-              0.243792359375,
-              0.2432561562500002,
-              0.24729560937499961,
-              0.2425247031250004
+              0.2439507031249999,
+              0.24417654687500034,
+              0.24387540624999993,
+              0.24401024999999965,
+              0.2459365,
+              0.24174410937500035,
+              0.24012492187500012,
+              0.24344364062499935,
+              0.23851967187500023,
+              0.2392269687500006,
+              0.24737671875
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.23680483984375122,
-              "upper_ms": 0.2513417460937486,
+              "lower_ms": 0.2361961914062506,
+              "upper_ms": 0.24883172265624964,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.24577540624999994,
-                0.2407353593749999,
-                0.23801395312499984,
-                0.24600540624999923,
-                0.24354471874999994,
-                0.24198765625000007,
-                0.24663848437499958,
-                0.243792359375,
-                0.2432561562500002,
-                0.24729560937499961,
-                0.2425247031250004
+                0.2439507031249999,
+                0.24417654687500034,
+                0.24387540624999993,
+                0.24401024999999965,
+                0.2459365,
+                0.24174410937500035,
+                0.24012492187500012,
+                0.24344364062499935,
+                0.23851967187500023,
+                0.2392269687500006,
+                0.24737671875
               ],
-              "median_ms": 0.24354471874999994
+              "median_ms": 0.24387540624999993
             },
-            "execution_ms": 0.24354471874999994,
+            "execution_ms": 0.24387540624999993,
             "checksum": "4198784",
-            "command": "node scripts/site_target_node.cjs site/generated/json-text/json_quote_plain/wasm/json_quote_plain.wasm 65606 11"
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 20,
+                  "median_khz": 4300026,
+                  "p10_khz": 4299984,
+                  "p90_khz": 4400000,
+                  "sibling_busy": 0.025,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "node scripts/site_target_node.cjs build/benchmarks/json-text/site-45b74b4e/generated/json-text/json_quote_plain/wasm/json_quote_plain.wasm 65606 11"
           }
         }
       }
@@ -2145,63 +2636,87 @@
             }
           ],
           "command": "build/bin/zi2c --no-main --root bench/json_text --module-path std --entry text_processing:Answer -o build/benchmarks/json-text/text_processing/c bench/json_text/text_processing.zi",
-          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/site/generated/json-text/text_processing/c '-DMATRIX_HEADER=\"text_processing.h\"' -DMATRIX_ENTRY=text_processing_Answer bench/site_target_host.c site/generated/json-text/text_processing/c/text_processing.c site/generated/json-text/text_processing/c/text_tools.c site/generated/json-text/text_processing/c/utf8.c site/generated/json-text/text_processing/c/vec.c -lm -o build/benchmarks/json-text/text_processing/c-program",
+          "build_command": "cc -O2 -std=c11 -DMATRIX_NATIVE -I/home/wao/Projects/ziranlang/ziran/build/benchmarks/json-text/site-45b74b4e/generated/json-text/text_processing/c '-DMATRIX_HEADER=\"text_processing.h\"' -DMATRIX_ENTRY=text_processing_Answer bench/site_target_host.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/text_processing/c/text_processing.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/text_processing/c/text_tools.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/text_processing/c/utf8.c build/benchmarks/json-text/site-45b74b4e/generated/json-text/text_processing/c/vec.c -lm -o build/benchmarks/json-text/text_processing/c-program",
           "measurement": {
             "result": "33788",
             "batches": 64,
-            "load_ms": 5.9009e-05,
-            "warmup_ms": 150.08443898,
-            "warmup_count": 854,
+            "load_ms": 5.6982e-05,
+            "warmup_ms": 150.01997,
+            "warmup_count": 845,
             "batch_samples_ms": [
-              11.204587996,
-              11.196622014,
-              11.344645023,
-              11.211380005,
-              11.221566021,
-              11.182705998,
-              11.183943033,
-              11.178966045,
-              11.196473002,
-              11.180288017,
-              11.265091002
+              11.404945016,
+              11.264577031,
+              11.196794987,
+              11.194580019,
+              11.24002701,
+              11.205202997,
+              11.315097034,
+              11.360136986,
+              11.755846024,
+              11.238150001,
+              11.192897975
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.1750716874375,
-              0.17494721896875,
-              0.177260078484375,
-              0.175177812578125,
-              0.175336969078125,
-              0.17472978121875,
-              0.174749109890625,
-              0.174671344453125,
-              0.17494489065625,
-              0.174692000265625,
-              0.17601704690625
+              0.178202265875,
+              0.176009016109375,
+              0.174949921671875,
+              0.174915312796875,
+              0.17562542203125,
+              0.175081296828125,
+              0.17679839115625,
+              0.17750214040625,
+              0.183685094125,
+              0.175596093765625,
+              0.174889030859375
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.1739625276445313,
-              "upper_ms": 0.17603430873828124,
+              "lower_ms": 0.171813624453125,
+              "upper_ms": 0.180352250578125,
               "excluded_indices": [
-                2
+                8
               ],
               "included_samples_ms": [
-                0.1750716874375,
-                0.17494721896875,
-                0.175177812578125,
-                0.175336969078125,
-                0.17472978121875,
-                0.174749109890625,
-                0.174671344453125,
-                0.17494489065625,
-                0.174692000265625,
-                0.17601704690625
+                0.178202265875,
+                0.176009016109375,
+                0.174949921671875,
+                0.174915312796875,
+                0.17562542203125,
+                0.175081296828125,
+                0.17679839115625,
+                0.17750214040625,
+                0.175596093765625,
+                0.174889030859375
               ],
-              "median_ms": 0.1749460548125
+              "median_ms": 0.1756107578984375
             },
-            "execution_ms": 0.1749460548125,
+            "execution_ms": 0.1756107578984375,
             "checksum": "2162432",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 10,
+                  "median_khz": 4299995,
+                  "p10_khz": 4299979,
+                  "p90_khz": 4300022,
+                  "sibling_busy": 0.0333,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/benchmarks/json-text/text_processing/c-program - 33788 11"
           }
         },
@@ -2233,59 +2748,83 @@
           "build_command": "go build -p=1 -o build/benchmarks/json-text/text_processing/go-program build/benchmarks/json-text/text_processing/go-host/text_processing.go build/benchmarks/json-text/text_processing/go-host/text_tools.go build/benchmarks/json-text/text_processing/go-host/utf8.go build/benchmarks/json-text/text_processing/go-host/vec.go build/benchmarks/json-text/text_processing/go-host/matrix_host.go build/benchmarks/json-text/text_processing/go-host/matrix_bridge.go",
           "measurement": {
             "batch_samples_ms": [
-              12.50207,
-              12.444206,
-              12.213349,
-              12.841602,
-              12.246178,
-              12.638541,
-              12.646471,
-              12.492715,
-              12.102023,
-              12.643161,
-              12.822131
+              13.220156,
+              13.246629,
+              13.285058,
+              13.143975,
+              13.230129,
+              13.241621,
+              13.585257,
+              13.510288,
+              13.659039,
+              13.292954,
+              13.207057
             ],
             "batches": 128,
             "load_ms": 0,
             "result": "33788",
-            "warmup_count": 1482,
-            "warmup_ms": 150.018837,
+            "warmup_count": 1413,
+            "warmup_ms": 150.055087,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.097672421875,
-              0.097220359375,
-              0.0954167890625,
-              0.100325015625,
-              0.095673265625,
-              0.0987386015625,
-              0.0988005546875,
-              0.0975993359375,
-              0.0945470546875,
-              0.0987746953125,
-              0.1001728984375
+              0.10328246875,
+              0.1034892890625,
+              0.103789515625,
+              0.1026873046875,
+              0.1033603828125,
+              0.1034501640625,
+              0.1061348203125,
+              0.105549125,
+              0.1067112421875,
+              0.103851203125,
+              0.1031801328125
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.09293559375000003,
-              "upper_ms": 0.10229884374999997,
+              "lower_ms": 0.10125331835937502,
+              "upper_ms": 0.10676827148437497,
               "excluded_indices": [],
               "included_samples_ms": [
-                0.097672421875,
-                0.097220359375,
-                0.0954167890625,
-                0.100325015625,
-                0.095673265625,
-                0.0987386015625,
-                0.0988005546875,
-                0.0975993359375,
-                0.0945470546875,
-                0.0987746953125,
-                0.1001728984375
+                0.10328246875,
+                0.1034892890625,
+                0.103789515625,
+                0.1026873046875,
+                0.1033603828125,
+                0.1034501640625,
+                0.1061348203125,
+                0.105549125,
+                0.1067112421875,
+                0.103851203125,
+                0.1031801328125
               ],
-              "median_ms": 0.097672421875
+              "median_ms": 0.1034892890625
             },
-            "execution_ms": 0.097672421875,
+            "execution_ms": 0.1034892890625,
             "checksum": "4324864",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 14,
+                  "median_khz": 4299998,
+                  "p10_khz": 4299974,
+                  "p90_khz": 4300016,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
             "command": "build/benchmarks/json-text/text_processing/go-program - 33788 11"
           }
         },
@@ -2301,61 +2840,85 @@
           "command": "build/bin/zi2zx --root bench/json_text --module-path std --entry text_processing:Answer -o build/benchmarks/json-text/text_processing/zx/text_processing.zx bench/json_text/text_processing.zi",
           "measurement": {
             "result": "33788",
-            "batches": 2,
-            "load_ms": 1.635972023,
-            "warmup_ms": 150.310104012,
-            "warmup_count": 23,
+            "batches": 64,
+            "load_ms": 2.264702022,
+            "warmup_ms": 150.17859298,
+            "warmup_count": 738,
             "batch_samples_ms": [
-              12.926952004,
-              13.312039971,
-              12.623082995,
-              12.788232028,
-              12.608501971,
-              12.636303008,
-              12.64378202,
-              12.718194962,
-              12.649107993,
-              14.238285005,
-              12.893404007
+              12.800733984,
+              12.87301904,
+              12.805445015,
+              12.826363981,
+              12.81379199,
+              12.823616982,
+              12.828145027,
+              12.785353005,
+              12.785039961,
+              12.784577966,
+              13.072663963
             ],
             "stdout_verified": true,
             "execution_samples_ms": [
-              6.463476002,
-              6.6560199855,
-              6.3115414975,
-              6.394116014,
-              6.3042509855,
-              6.318151504,
-              6.32189101,
-              6.359097481,
-              6.3245539965,
-              7.1191425025,
-              6.4467020035
+              0.2000114685,
+              0.2011409225,
+              0.200085078359375,
+              0.200411937203125,
+              0.20021549984375,
+              0.20036901534375,
+              0.200439766046875,
+              0.199771140703125,
+              0.199766249390625,
+              0.19975903071875,
+              0.204260374421875
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 6.117419638375001,
-              "upper_ms": 6.657690621375,
+              "lower_ms": 0.1990894840664063,
+              "upper_ms": 0.2012276721601562,
               "excluded_indices": [
-                9
+                10
               ],
               "included_samples_ms": [
-                6.463476002,
-                6.6560199855,
-                6.3115414975,
-                6.394116014,
-                6.3042509855,
-                6.318151504,
-                6.32189101,
-                6.359097481,
-                6.3245539965,
-                6.4467020035
+                0.2000114685,
+                0.2011409225,
+                0.200085078359375,
+                0.200411937203125,
+                0.20021549984375,
+                0.20036901534375,
+                0.200439766046875,
+                0.199771140703125,
+                0.199766249390625,
+                0.19975903071875
               ],
-              "median_ms": 6.34182573875
+              "median_ms": 0.20015028910156252
             },
-            "execution_ms": 6.34182573875,
-            "checksum": "67576",
-            "command": "build/benchmarks/json-text/zx-runner site/generated/json-text/text_processing/zx/text_processing.zx 33788 11"
+            "execution_ms": 0.20015028910156252,
+            "checksum": "2162432",
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 13,
+                  "median_khz": 4299994,
+                  "p10_khz": 4299971,
+                  "p90_khz": 4300038,
+                  "sibling_busy": 0.0,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "build/benchmarks/json-text/zx-runner build/benchmarks/json-text/site-45b74b4e/generated/json-text/text_processing/zx/text_processing.zx 33788 11"
           }
         },
         "wasm": {
@@ -2371,62 +2934,88 @@
           "measurement": {
             "result": "33788",
             "batches": 64,
-            "warmup_ms": 150.096847,
-            "warmup_count": 728,
+            "warmup_ms": 150.076951,
+            "warmup_count": 688,
             "batch_samples_ms": [
-              12.897537999999997,
-              12.899865999999975,
-              13.268729000000008,
-              13.206879000000015,
-              12.752173999999968,
-              12.711940000000027,
-              12.768594000000007,
-              13.11053099999998,
-              12.724370000000022,
-              12.844650000000001,
-              12.837664999999959
+              13.25211999999999,
+              13.599772000000002,
+              13.420085,
+              13.445172000000014,
+              14.632528999999977,
+              13.530596000000003,
+              13.275161000000026,
+              13.280660999999952,
+              13.543597000000034,
+              13.903062999999975,
+              14.141914999999983
             ],
-            "load_ms": 0.6972210000000025,
+            "load_ms": 0.804862,
             "stdout_verified": true,
             "execution_samples_ms": [
-              0.20152403124999996,
-              0.2015604062499996,
-              0.20732389062500012,
-              0.20635748437500023,
-              0.1992527187499995,
-              0.19862406250000042,
-              0.19950928125000011,
-              0.2048520468749997,
-              0.19881828125000034,
-              0.20069765625000002,
-              0.20058851562499935
+              0.20706437499999986,
+              0.21249643750000002,
+              0.209688828125,
+              0.2100808125000002,
+              0.22863326562499964,
+              0.21141556250000004,
+              0.2074243906250004,
+              0.20751032812499925,
+              0.21161870312500053,
+              0.2172353593749996,
+              0.22096742187499974
             ],
             "sample_statistics": {
               "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
-              "lower_ms": 0.19364316015625005,
-              "upper_ms": 0.2089440664062494,
-              "excluded_indices": [],
-              "included_samples_ms": [
-                0.20152403124999996,
-                0.2015604062499996,
-                0.20732389062500012,
-                0.20635748437500023,
-                0.1992527187499995,
-                0.19862406250000042,
-                0.19950928125000011,
-                0.2048520468749997,
-                0.19881828125000034,
-                0.20069765625000002,
-                0.20058851562499935
+              "lower_ms": 0.19920009765624935,
+              "upper_ms": 0.2242653789062501,
+              "excluded_indices": [
+                4
               ],
-              "median_ms": 0.20069765625000002
+              "included_samples_ms": [
+                0.20706437499999986,
+                0.21249643750000002,
+                0.209688828125,
+                0.2100808125000002,
+                0.21141556250000004,
+                0.2074243906250004,
+                0.20751032812499925,
+                0.21161870312500053,
+                0.2172353593749996,
+                0.22096742187499974
+              ],
+              "median_ms": 0.21074818750000013
             },
-            "execution_ms": 0.20069765625000002,
+            "execution_ms": 0.21074818750000013,
             "checksum": "2162432",
-            "command": "node scripts/site_target_node.cjs site/generated/json-text/text_processing/wasm/text_processing.wasm 33788 11"
+            "host_gate": {
+              "cpu": 5,
+              "sibling": 11,
+              "reference_khz": 4300007,
+              "rules": {
+                "steady": 0.03,
+                "floor": 0.95,
+                "sibling_busy_max": 0.15,
+                "attempts": 8
+              },
+              "accepted": true,
+              "attempts": [
+                {
+                  "cpu": 5,
+                  "sibling": 11,
+                  "readings": 17,
+                  "median_khz": 4300003,
+                  "p10_khz": 4299982,
+                  "p90_khz": 4300038,
+                  "sibling_busy": 0.0263,
+                  "accepted": true
+                }
+              ]
+            },
+            "command": "node scripts/site_target_node.cjs build/benchmarks/json-text/site-45b74b4e/generated/json-text/text_processing/wasm/text_processing.wasm 33788 11"
           }
         }
       }
     }
-  ]
+  ],
+  "zx_backend": "native"
 }

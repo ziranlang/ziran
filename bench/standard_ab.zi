@@ -19,16 +19,8 @@
 #import "std/text_tools"
 using Vectors :: #import "std/vec"
 
+Cases :: #import "standard_cases"
 Workload :: struct { name: string; kind: s64; size: s64 }
-
-// bench/wasm_tier.py STANDARD_CASES: the diagnostic sizes in suite order.
-WORKLOADS :: Workload.[
-    .{name = "fib", kind = 0, size = 35}, .{name = "n-body", kind = 1, size = 500000},
-    .{name = "spectral-norm", kind = 2, size = 500}, .{name = "mandelbrot", kind = 3, size = 1000},
-    .{name = "fannkuch-redux", kind = 4, size = 9}, .{name = "binary-trees", kind = 5, size = 14},
-    .{name = "fasta", kind = 6, size = 1000000}, .{name = "nqueens", kind = 7, size = 12},
-    .{name = "matmul", kind = 8, size = 192}, .{name = "quicksort", kind = 9, size = 200000},
-    .{name = "string-hash", kind = 10, size = 100000}]
 
 Program :: struct { label: string; path: string }
 
@@ -82,7 +74,9 @@ Parse :: (argc: s32, argv: **u8, options: *Options) -> bool {
     // The reference is program 0; its values are the expected results.
     unused VecPush(options.programs, Program.{label = "c", path = c})
     for runner: runners { unused VecPush(options.programs, runner) }
-    for workload: WORKLOADS {
+    for kind: cast(s64)0..Cases.WORKLOADS.count - 1 {
+        entry := Cases.WORKLOADS[kind]
+        workload := Workload.{name = entry.name, kind = kind, size = entry.size}
         if names == "" || TextContains(Join(",", names, ","), Join(",", workload.name, ",")) {
             unused VecPush(options.workloads, workload)
         }
@@ -129,6 +123,8 @@ Shuffle :: (order: *Vec(s64), seed: *u64) {
 }
 
 Median :: (values: []float64) -> float64 {
+    if values.count == 1 { return values[0] }
+    if values.count == 2 { return (values[0] + values[1]) / 2.0 }
     statistics := BenchmarkAnalyze(values)
     return ifx statistics.valid then statistics.median else 0.0
 }

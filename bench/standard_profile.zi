@@ -14,16 +14,8 @@
 #import "std/text_tools"
 using Vectors :: #import "std/vec"
 
+Cases :: #import "standard_cases"
 Workload :: struct { name: string; kind: s64; size: s64 }
-
-// bench/wasm_tier.py STANDARD_CASES: the diagnostic sizes in suite order.
-WORKLOADS :: Workload.[
-    .{name = "fib", kind = 0, size = 35}, .{name = "n-body", kind = 1, size = 500000},
-    .{name = "spectral-norm", kind = 2, size = 500}, .{name = "mandelbrot", kind = 3, size = 1000},
-    .{name = "fannkuch-redux", kind = 4, size = 9}, .{name = "binary-trees", kind = 5, size = 14},
-    .{name = "fasta", kind = 6, size = 1000000}, .{name = "nqueens", kind = 7, size = 12},
-    .{name = "matmul", kind = 8, size = 192}, .{name = "quicksort", kind = 9, size = 200000},
-    .{name = "string-hash", kind = 10, size = 100000}]
 
 // One executable mapping of the child.
 Mapping :: struct { begin: u64; end: u64; offset: u64; path: string }
@@ -238,7 +230,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
         return 2
     }
     if EnvironmentText("ZIRAN_LEARN") != "off" { print("standard-profile needs ZIRAN_LEARN=off\n"); return 2 }
-    for workload: WORKLOADS {
+    for kind: cast(s64)0..Cases.WORKLOADS.count - 1 {
+        entry := Cases.WORKLOADS[kind]
+        workload := Workload.{name = entry.name, kind = kind, size = entry.size}
         if names != "" && !TextContains(Join(",", names, ","), Join(",", workload.name, ",")) { continue }
         arguments := string.[runner, bundle, Number(workload.kind), Number(workload.size), "11", "oracle"]
         profile: TeacherProfile

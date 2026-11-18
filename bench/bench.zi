@@ -42,7 +42,7 @@ BENCH_ENVIRONMENT: [9]string = .["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DB
     "SESSION_MANAGER", "XDG_SESSION_ID", "XDG_SESSION_TYPE", "ZIRAN_PROFILE", "ZIRAN_LEARN=off"];
 
 // Files in bench/ that a registered benchmark builds or imports.
-SUPPORT_FILES: [11]string = .["bench.zi", "benchmark_statistics.zi", "standard_compile_entry.zi", "codec_kernels.py", "json_document.zi",
+SUPPORT_FILES: [12]string = .["bench.zi", "benchmark_statistics.zi", "standard_compile_entry.zi", "standard_cases.zi", "codec_kernels.py", "json_document.zi",
     "math_sqrt.zi", "native_cache_fixture.zi", "wasm_tier.zi", "c_teacher_assembly.zi", "c_teacher_profile.zi", "c_teacher_rules.zi"];
 
 Add :: (list: *Vec(Benchmark), name: string, file: string, runner: Runner, place: Place, summary: string) {

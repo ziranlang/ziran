@@ -1,0 +1,90 @@
+#import "std/byte_text_linux"
+#import "std/float_text"
+#import "std/json_document"
+#import "std/text_tools"
+Numbers :: #import "site_numbers"
+using Vectors :: #import "std/vec"
+
+Field :: (doc: *JsonDocument, node: s32, name: string) -> string {
+    return TextDetach(JsonString(doc, JsonMember(doc, node, name)))
+}
+
+Real :: (doc: *JsonDocument, node: s32) -> float64 {
+    value, valid := ParseFloat64(JsonNumberText(doc, node))
+    return ifx valid then value else -1.0
+}
+
+Append :: (out: *Vec(u8), text: string) {
+    unused BuilderAppend(out.*, text)
+}
+
+Escape :: (out: *Vec(u8), text: string) {
+    for byte: text {
+        if byte == 38 { Append(out, "&amp;") }
+        else if byte == 60 { Append(out, "&lt;") }
+        else if byte == 62 { Append(out, "&gt;") }
+        else if byte == 34 { Append(out, "&quot;") }
+        else { unused VecPush(out.*, byte) }
+    }
+}
+
+Clock :: (out: *Vec(u8), ms: float64) {
+    Append(out, ifx ms > 0.0 then Numbers.FormatTime(ms, 1) else "—")
+}
+
+RatioValue :: (out: *Vec(u8), value: float64, baseline: float64) {
+    if baseline <= 0.0 || value <= 0.0 { Append(out, "—"); return }
+    Append(out, Numbers.FormatNumber(value / baseline))
+    Append(out, "×")
+}
+
+Ratios :: (out: *Vec(u8), baseline: float64, zx: float64, wasm: float64) {
+    Append(out, "<td class=\"bench-ratios\"><span>ZX ")
+    RatioValue(out, zx, baseline)
+    Append(out, "</span><span>Wasm ")
+    RatioValue(out, wasm, baseline)
+    Append(out, "</span></td>")
+}
+
+TableStart :: (out: *Vec(u8), title: string, unit: string, zx_title: string, engine: bool = false) {
+    Append(out, "<div class=\"matrix-scroll\" role=\"region\" tabindex=\"0\" aria-label=\"")
+    Escape(out, title)
+    Append(out, "\"><table class=\"target-matrix bench-table\"><caption class=\"sr-only\">")
+    Escape(out, title)
+    Append(out, "</caption><thead><tr><th scope=\"col\">Workload<small>")
+    Escape(out, unit)
+    Append(out, "</small></th><th scope=\"col\">C</th><th scope=\"col\">Go</th>")
+    if engine { Append(out, "<th scope=\"col\">ZX engine</th>") }
+    Append(out, "<th scope=\"col\">")
+    Escape(out, zx_title)
+    Append(out, "</th><th scope=\"col\">Wasm</th><th scope=\"col\">Ratio to C</th></tr></thead><tbody>")
+}
+
+TableEnd :: (out: *Vec(u8)) {
+    Append(out, "</tbody></table></div>")
+}
+
+RowStart :: (out: *Vec(u8), name: string, note: string, link: string = "") {
+    Append(out, "<tr><th scope=\"row\">")
+    if link != "" { Append(out, "<a href=\""); Escape(out, link); Append(out, "\">") }
+    Escape(out, name)
+    if link != "" { Append(out, "</a>") }
+    if note != "" { Append(out, "<small>"); Escape(out, note); Append(out, "</small>") }
+    Append(out, "</th>")
+}
+
+ReplaceSection :: (page: string, marker: string, content: string) -> string {
+    opening := string.["<!-- generated:", marker, " -->"]
+    closing := string.["<!-- /generated:", marker, " -->"]
+    first := TextDetach(TextJoin(opening[:], ""))
+    last := TextDetach(TextJoin(closing[:], ""))
+    begin := TextFind(page, first)
+    if begin < 0 { return "" }
+    begin += first.count
+    end := TextFind(page, last, begin)
+    if end < begin { return "" }
+    out: Vec(u8)
+    Append(*out, page[:begin]); Append(*out, "\n"); Append(*out, content)
+    Append(*out, "\n"); Append(*out, page[end:])
+    return TextDetach(TextFromBuilder(out))
+}

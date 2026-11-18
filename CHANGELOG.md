@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- The Targets page uses microseconds and C-relative ratios across the runtime comparisons. The standard suite adds 18 deterministic workloads, including JSON round trips, SHA-256, shortest paths, FFT, image filtering and particle updates. Independent C and Go implementations check both runtime sizes against ZX native and Wasm. The example, widget and JSON/UTF-8 runtime snapshots share the standard suite's host gate.
 - Register allocation puts a value a loop passes back to its block parameter into that parameter's register, so the back edge needs no copy. The rewritten Fib's accumulator is added in place and its loop jumps straight back.
 - A float multiply by 2.0 becomes an add of the value to itself, exact for every value, NaN, infinities and signed zeros included, so it needs no constant.
 - The optimizer turns a self call whose integer result is added to another value and returned, as in `Fib(n-1) + Fib(n-2)`, into an accumulator loop, as GCC does at `-O2`: the remaining call runs once per iteration and the other becomes a jump back. Fib makes half as many calls. Effects keep their order, a run charges the same steps, and a function with no base case is left alone so runaway recursion still takes the stack trap.

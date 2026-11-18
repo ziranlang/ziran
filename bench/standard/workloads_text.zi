@@ -1,0 +1,202 @@
+#import "std/vec"
+
+Digest :: (hash: s64, value: s64) -> s64 {
+    return (hash * 31 + value) % 1000000007
+}
+
+// Use high LCG bits so adjacent base pairs vary independently of the low bits.
+Bytes :: (bytes: []u8) {
+    state: u32 = 42
+    for i: 0..bytes.count - 1 {
+        state = state * 1664525 + 1013904223
+        bytes[i] = cast(u8)(state >> 24)
+    }
+}
+
+KNucleotide :: (n: s64) -> s64 {
+    input: Vec(u8)
+    if !VecResize(input, n) { return -1 }
+    Bytes(input[:])
+    counts: [16384]s64
+    word: u32
+    for i: 0..n - 1 {
+        word = ((word << 2) | (cast(u32)input[i] >> 6)) & 16383
+        if i >= 6 { counts[word] += 1 }
+    }
+    hash: s64
+    for count: counts { hash = Digest(hash, count) }
+    return hash
+}
+
+ReverseComplement :: (n: s64) -> s64 {
+    sequence: Vec(u8)
+    reversed: Vec(u8)
+    if !VecResize(sequence, n) || !VecResize(reversed, n) { return -1 }
+    Bytes(sequence[:])
+    bases := "TGCA"
+    for i: 0..n - 1 { reversed[i] = bases[sequence[n - 1 - i] >> 6] }
+    hash: s64
+    for byte: reversed { hash = Digest(hash, cast(s64)byte) }
+    return hash
+}
+
+// Decimal pi spigot. The vector is one mixed-radix bignum with a limb
+// for each denominator (2*i+1). Deferred nines handle carry propagation.
+PiDigits :: (n: s64) -> s64 {
+    limbs: Vec(s64)
+    length := n * 10 / 3 + 2
+    if !VecResize(limbs, length) { return -1 }
+    for i: 0..length - 1 { limbs[i] = 2 }
+    pending: s64
+    nines: s64
+    hash: s64
+    for digit: 0..n - 1 {
+        carry: s64
+        i := length
+        while i > 0 {
+            x := limbs[i - 1] * 10 + carry * i
+            limbs[i - 1] = x % (2 * i - 1)
+            carry = x / (2 * i - 1)
+            i -= 1
+        }
+        limbs[0] = carry % 10
+        carry /= 10
+        if carry == 9 { nines += 1 }
+        else {
+            increment: s64 = ifx carry == 10 then 1 else 0
+            hash = Digest(hash, pending + increment)
+            while nines > 0 {
+                hash = Digest(hash, ifx increment == 0 then 9 else 0)
+                nines -= 1
+            }
+            pending = ifx increment == 0 then carry else 0
+        }
+    }
+    hash = Digest(hash, pending)
+    while nines > 0 { hash = Digest(hash, 9); nines -= 1 }
+    return hash
+}
+
+JsonSkip :: (text: string, at: s64) -> s64 {
+    while at < text.count {
+        c := text[at]
+        if c != 32 && c != 9 && c != 10 && c != 13 { break }
+        at += 1
+    }
+    return at
+}
+
+JsonTake :: (text: string, at: *s64, expected: u8) -> bool {
+    pos := JsonSkip(text, <<at)
+    if pos == text.count || text[pos] != expected { return false }
+    <<at = pos + 1
+    return true
+}
+
+JsonName :: (text: string, at: *s64) -> string {
+    if !JsonTake(text, at, 34) { return "" }
+    begin := <<at
+    pos := begin
+    while pos < text.count && text[pos] >= 97 && text[pos] <= 122 { pos += 1 }
+    if pos == text.count || text[pos] != 34 { return "" }
+    <<at = pos + 1
+    return text[begin:pos]
+}
+
+JsonInteger :: (text: string, at: *s64) -> s64 {
+    pos := JsonSkip(text, <<at)
+    negative := pos < text.count && text[pos] == 45
+    if negative { pos += 1 }
+    begin := pos
+    value: s64
+    while pos < text.count && text[pos] >= 48 && text[pos] <= 57 {
+        value = value * 10 + cast(s64)text[pos] - 48
+        pos += 1
+    }
+    if pos != begin { <<at = pos }
+    return ifx negative then -value else value
+}
+
+JsonPair :: (output: []u8, at: s64, name: string, value: s64) -> s64 {
+    output[at] = 34
+    at += 1
+    for c: name { output[at] = c; at += 1 }
+    output[at] = 34
+    output[at + 1] = 58
+    at += 2
+    if value < 0 { output[at] = 45; at += 1; value = -value }
+    power: s64 = 1
+    while power <= value / 10 { power *= 10 }
+    while power > 0 {
+        output[at] = cast(u8)(48 + value / power)
+        at += 1
+        value %= power
+        power /= 10
+    }
+    return at
+}
+
+JsonObject :: (input: string, output: []u8) -> s64 {
+    at: s64
+    if !JsonTake(input, *at, 123) { return -1 }
+    output[0] = 123
+    written: s64 = 1
+    while true {
+        name := JsonName(input, *at)
+        if name.count == 0 || !JsonTake(input, *at, 58) { return -1 }
+        before := at
+        value := JsonInteger(input, *at)
+        if before == at { return -1 }
+        written = JsonPair(output, written, name, value)
+        if !JsonTake(input, *at, 44) { break }
+        output[written] = 44
+        written += 1
+    }
+    if !JsonTake(input, *at, 125) || JsonSkip(input, at) != input.count { return -1 }
+    output[written] = 125
+    return written + 1
+}
+
+JsonRoundtrip :: (n: s64) -> s64 {
+    inputs := string.[" { \"width\" : 640, \"height\" : 480, \"offset\": -56 } ",
+        "{\"left\":-7,\"top\":0,\"right\":1920,\"bottom\":1080}",
+        "{ \"rows\": 12, \"columns\": 75, \"capacity\": 1024, \"delta\": -10 } "]
+    output: [96]u8
+    hash: s64
+    for i: 0..n - 1 {
+        written := JsonObject(inputs[i % inputs.count], output[:])
+        if written < 0 { return -1 }
+        for j: 0..written - 1 { hash = Digest(hash, cast(s64)output[j]) }
+    }
+    return hash
+}
+
+Lz77 :: (n: s64) -> s64 {
+    input: Vec(u8)
+    if !VecResize(input, n) { return -1 }
+    Bytes(input[:])
+    // Interleave repeating blocks and noise. The dictionary holds one
+    // previous match position per 3-byte key in a 32 KiB window.
+    for i: 0..n - 1 { if i % 256 >= 48 { input[i] = cast(u8)(i % 31) } }
+    last: [4096]s64
+    at: s64
+    hash: s64
+    while at < n {
+        length: s64
+        distance: s64
+        if at + 2 < n {
+            key := (cast(s64)input[at] * 251 + cast(s64)input[at + 1] * 31 + cast(s64)input[at + 2]) & 4095
+            previous := last[key] - 1
+            last[key] = at + 1
+            distance = at - previous
+            if previous >= 0 && distance <= 32768 {
+                while length < 258 && at + length < n && input[previous + length] == input[at + length] { length += 1 }
+            }
+        }
+        if length >= 3 {
+            hash = Digest(Digest(Digest(hash, 256), length), distance)
+            at += length
+        } else { hash = Digest(hash, cast(s64)input[at]); at += 1 }
+    }
+    return hash
+}

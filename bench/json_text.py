@@ -6,7 +6,6 @@ is build/measurement orchestration; workload logic and oracles live in Ziran.
 """
 import argparse
 from datetime import datetime, timezone
-import html
 import json
 import os
 from pathlib import Path
@@ -22,6 +21,7 @@ HARNESS_ROOT = Path(os.environ.get('ZIRAN_BENCH_HARNESS_ROOT', ROOT)).resolve()
 sys.path.insert(0, str(HARNESS_ROOT / 'scripts'))
 import site_targets as base
 import site_target_platforms as hosts
+from benchmark_samples import GATE_METHOD, HostGate
 base.REPO = ROOT
 base.SITE = SITE
 hosts.ROOT = HARNESS_ROOT
@@ -40,42 +40,6 @@ WORK = ROOT / 'build/benchmarks/json-text'
 HARNESSES = ['bench/json_text.py', 'scripts/site_target_platforms.py', 'scripts/site_targets.py',
              'scripts/benchmark_samples.py', 'scripts/site_target_node.cjs',
              'bench/site_target_host.c', 'bench/site_target_host.go', 'site/target-abi.js', 'site/target-measure.js']
-
-
-def render(data):
-    rows = []
-    for case in data['examples']:
-        cells = ''.join('<td>' + (base.format_microseconds(case['targets'][target]['measurement']['execution_ms'])
-                        if case['targets'][target]['status']=='ok' else '<abbr title="' + html.escape(case['targets'][target]['diagnostic'],quote=True) + '">Unavailable</abbr>') + '</td>'
-                        for target in ('c', 'go', 'zx', 'wasm'))
-        rows.append('<tr><th scope="row"><a href="' + html.escape(case['source']) + '">' +
-                    html.escape(case['title']) + '</a></th>' + cells + '</tr>')
-    return ('<section class="section" id="json-text"><div class="section-head"><span class="eyebrow">Real workloads</span>'
-            '<h2>JSON and UTF-8</h2><p>Compare the same Ziran source across four targets. '
-            'Inputs are prepared once during warmup; parsing, decoding, output allocation and result validation remain in each call.</p></div>'
-            '<div class="matrix-scroll" tabindex="0" role="region" aria-label="JSON and UTF-8 benchmark results">'
-            '<table class="target-matrix"><caption class="sr-only">Median µs per operation</caption>'
-            '<thead><tr><th scope="col">Workload and source<small>µs per operation</small></th><th scope="col">C</th><th scope="col">Go</th>'
-            '<th scope="col">ZX</th><th scope="col">Wasm · V8</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div>'
-            '<p>' + str(data['samples']) +
-            ' batches per target. Symmetric 1.5×IQR filtering; every batch checks its result. '
-            'Process startup, offline compilation and loading are excluded. Wasm uses Node/V8; these are target comparisons, '
-            'not JavaScript-source comparisons. Unavailable cells retain the compiler diagnostic and have no timing. '
-            '<a href="generated/json-text/matrix.json">Raw samples, excluded indices, compiler hashes and outputs ↓</a></p></section>')
-
-
-def write_section(data):
-    page = SITE / 'targets.html'
-    if not page.exists():
-        page.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(SOURCE_SITE / 'targets.html', page)
-    start, end = '<!-- generated:json_text -->', '<!-- /generated:json_text -->'
-    text = page.read_text()
-    if start not in text:
-        text = text.replace('</main>', start + '\n' + end + '\n</main>')
-    left = text.index(start) + len(start)
-    right = text.index(end, left)
-    page.write_text(text[:left] + '\n' + render(data) + '\n' + text[right:])
 
 
 def build(compiler, samples):
@@ -98,9 +62,12 @@ def build(compiler, samples):
             'harnesses': {p: base.sha((ROOT if p == 'bench/json_text.py' else HARNESS_ROOT) / p) for p in HARNESSES},
             'versions': {name: hosts.run(command, env=env).splitlines()[0] for name, command in
                          {'cc': ['cc', '--version'], 'go': ['go', 'version'], 'node': ['node', '--version']}.items()},
-            'methodology': hosts.metadata('', '', {}, samples)['methodology'], 'examples': []}
+            'methodology': hosts.metadata('', '', {}, samples)['methodology'].removesuffix(' Shared machines and uncontrolled clocks; no universal target ranking.') + GATE_METHOD, 'examples': []}
     zx = WORK / 'zx-runner'
-    hosts.runtime_build('cc', compiler / 'build/libziran.a', zx)
+    hosts.runtime_build('cc', compiler / 'build/libziran.a', zx,
+                        ['-include', HARNESS_ROOT / 'bench/site_target_backend.h',
+                         '-DMATRIX_ZX_BACKEND=BUNDLE_BACKEND_NATIVE'])
+    data['zx_backend'] = 'native'
     jobs = []
     for name, title, expected in CASES:
         source = ROOT / 'bench/json_text' / (name + '.zi')
@@ -170,12 +137,13 @@ def build(compiler, samples):
             jobs.append((row, cell, invoke))
         data['examples'].append(row)
     random.Random(42).shuffle(jobs)
+    gate = HostGate()
+    timed_env = gate.environment(env)
     for row, cell, command in jobs:
         print('Measuring', row['id'], command[0], flush=True)
-        measured = hosts.summarize(hosts.read_measurement(hosts.run(command, env=env), row), row['expected'])
+        measured = hosts.measure(command, row, timed_env, gate)
         cell['measurement'] = {**measured, 'command': base.command_text(command)}
     (OUTPUT / 'matrix.json').write_text(json.dumps(data, indent=2) + '\n')
-    write_section(data)
 
 
 def check():
@@ -198,7 +166,6 @@ def check():
             for file in cell['files']:
                 path = SITE / file['path']
                 assert path.stat().st_size == file['bytes'] and base.sha(path) == file['sha256']
-    assert '\n' + render(data) + '\n<!-- /generated:json_text -->' in (SITE / 'targets.html').read_text()
     print('Alpha JSON/text source, artifact, oracle and raw-sample local validation passed')
 
 
@@ -209,14 +176,10 @@ if __name__ == '__main__':
                         help='write generated artifacts and the results page under this directory')
     parser.add_argument('--samples', type=int, default=11)
     parser.add_argument('--check', action='store_true')
-    parser.add_argument('--render', action='store_true', help='rewrite the page section from the saved matrix without measuring')
     args = parser.parse_args()
     SITE = args.site_dir.resolve()
     base.SITE = hosts.SITE = SITE
     OUTPUT = SITE / 'generated/json-text'
     if not 3 <= args.samples <= 31:
         parser.error('--samples must be between 3 and 31')
-    if args.render:
-        write_section(json.loads((OUTPUT / 'matrix.json').read_text()))
-    else:
-        check() if args.check else build(args.compiler_root.resolve(), args.samples)
+    check() if args.check else build(args.compiler_root.resolve(), args.samples)

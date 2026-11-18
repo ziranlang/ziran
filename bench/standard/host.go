@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -23,15 +24,19 @@ func main() {
 	if e != nil {
 		panic(e)
 	}
-	if kind < 0 || kind > 10 || n < 1 || os.Args[4] != "11" {
+	if kind < 0 || kind > 28 || n < 1 || (os.Args[4] != "11" && os.Args[4] != "0") {
 		panic("invalid input")
 	}
 	invoke := func() {
-		if Run(kind, n) != expected {
-			panic("C oracle mismatch")
+		if value := Run(kind, n); value != expected {
+			fmt.Fprintf(os.Stderr, "C oracle mismatch: got %d, expected %d\n", value, expected)
+			os.Exit(6)
 		}
 	}
 	invoke()
+	if os.Args[4] == "0" {
+		return
+	}
 	start := time.Now()
 	for time.Since(start) < 150*time.Millisecond {
 		invoke()

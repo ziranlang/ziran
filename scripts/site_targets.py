@@ -230,7 +230,7 @@ def build(bin_dir, samples, render_page=True):
     import site_target_platforms as hosts
     assert platform.node() == 'alpha', 'Publish measurements from the selected physical host'
     assert execute(['systemd-detect-virt'], allow_failure=True)[0].stdout.strip() == 'none'
-    platforms = {'desktop': hosts.desktop({'examples': rows}, samples)}
+    platforms = {'desktop': hosts.desktop({'examples': rows}, samples, host_gate=True)}
     platform_harnesses = {name: sha(REPO / name) for name in [
         'scripts/site_target_platforms.py', 'scripts/site_target_node.cjs',
         'bench/site_target_host.c', 'bench/site_target_host.go', 'site/target-measure.js']}
@@ -266,7 +266,7 @@ def cell_texts(data):
     runs = data['platforms'].get('desktop', {}).get('examples', {})
     measured = {(example['id'], target): runs.get(example['id'], {}).get(target, {})
                 for example in data['examples'] for target in example['targets']}
-    units = {'run': time_unit([cell.get('execution_ms') for cell in measured.values()]),
+    units = {'run': 'µs',
              'emission': time_unit([cell.get('emission_ms') for example in data['examples']
                                     for cell in example['targets'].values()], ('ns', 'µs', 'ms'))}
     cells = {}
@@ -300,6 +300,11 @@ def render(data):
                          f'aria-label="{escape(example["title"])}: {TARGETS[target]}, {label}">'
                          f'<span class="matrix-state {"is-ok" if supported else "is-limited"}">{label}</span>'
                          f'<strong class="matrix-value">{value}</strong></a></td>')
+        measured = data['platforms']['desktop']['examples'][example['id']]
+        baseline = measured['c']['execution_ms']
+        ratios = ''.join(f'<span>{label} {format_number(measured[target]["execution_ms"] / baseline)}×</span>'
+                         for target, label in (('zx', 'ZX'), ('wasm', 'Wasm')))
+        cells.append(f'<td class="bench-ratios" data-execution-ratio>{ratios}</td>')
         rows.append(f'<tr><th scope="row"><strong>{escape(example["title"])}</strong><small>{escape(example["id"])}.zi</small></th>{"".join(cells)}</tr>')
     first = data['examples'][0]
     content = (SITE / first['source']).read_text()

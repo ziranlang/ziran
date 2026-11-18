@@ -37,11 +37,11 @@ func ShapePaint_LineCornersFor(start Vector2, end Vector2, thickness float32) Li
 	dy := end.Y - start.Y
 	var value_0 float64 = StdMath_Sqrt(float64(((dx * dx) + (dy * dy))))
 	length := float32(value_0)
-	var value_1 bool = StdMath_Finite32(length)
+	var value_1 bool = StdFinite_Finite32(length)
 	if !value_1 || length <= 0.0 {
 		return corners
 	}
-	var value_2 bool = StdMath_Finite32(thickness)
+	var value_2 bool = StdFinite_Finite32(thickness)
 	if !value_2 || thickness <= 0.0 {
 		return corners
 	}
@@ -113,7 +113,7 @@ func ShapePaint_ShapeFadeBands(center Color, edge Color, radius float32) int32 {
 	}
 	change := ShapePaint_ShapeChannelChange(center.A, edge.A) + ((color_change * alpha) / 255)
 	bands := (change + 1) / 2
-	if StdMath_Finite32(radius) {
+	if StdFinite_Finite32(radius) {
 		by_radius := StdMath_CeilInteger(radius * 0.5)
 		if bands > by_radius {
 			bands = by_radius
@@ -162,7 +162,7 @@ func ShapePaint_ShapeBatchFlush() {
 
 func ShapePaint_ShapeBatchAdd(a Vector2, b Vector2, c Vector2) {
 	turn := ShapePaint_ShapeTurn(a, b, c)
-	var value_0 bool = StdMath_Finite32(turn)
+	var value_0 bool = StdFinite_Finite32(turn)
 	if !value_0 || turn == 0.0 {
 		return
 	}
@@ -261,30 +261,30 @@ func ShapePaint_ShapeBatchTriangle(a Vector2, b Vector2, c Vector2) {
 		ShapePaint_ShapeBatchAdd(a, b, c)
 		return
 	}
-	var value_0 bool = StdMath_Finite32(a.X)
+	var value_0 bool = StdFinite_Finite32(a.X)
 	var value_1 bool = !value_0
 	if !value_1 {
-		var value_2 bool = StdMath_Finite32(a.Y)
+		var value_2 bool = StdFinite_Finite32(a.Y)
 		value_1 = !value_2
 	}
 	var value_3 bool = value_1
 	if !value_3 {
-		var value_4 bool = StdMath_Finite32(b.X)
+		var value_4 bool = StdFinite_Finite32(b.X)
 		value_3 = !value_4
 	}
 	var value_5 bool = value_3
 	if !value_5 {
-		var value_6 bool = StdMath_Finite32(b.Y)
+		var value_6 bool = StdFinite_Finite32(b.Y)
 		value_5 = !value_6
 	}
 	var value_7 bool = value_5
 	if !value_7 {
-		var value_8 bool = StdMath_Finite32(c.X)
+		var value_8 bool = StdFinite_Finite32(c.X)
 		value_7 = !value_8
 	}
 	var value_9 bool = value_7
 	if !value_9 {
-		var value_10 bool = StdMath_Finite32(c.Y)
+		var value_10 bool = StdFinite_Finite32(c.Y)
 		value_9 = !value_10
 	}
 	if value_9 {
@@ -391,7 +391,7 @@ func ShapePaint_EmitLineShape(command PaintCommand) {
 func ShapePaint_EmitCircleShape(command PaintCommand) {
 	radius := command.Radius
 	segments := command.Segments
-	var value_0 bool = StdMath_Finite32(radius)
+	var value_0 bool = StdFinite_Finite32(radius)
 	if !value_0 || radius <= 0.0 {
 		return
 	}
@@ -432,16 +432,16 @@ func ShapePaint_EmitRingShape(command PaintCommand) {
 	inner := outer - command.LineWidth
 	sweep := command.Source.X
 	segments := command.Segments
-	var value_0 bool = StdMath_Finite32(outer)
+	var value_0 bool = StdFinite_Finite32(outer)
 	var value_1 bool = !value_0 || outer <= 0.0
 	if !value_1 {
-		var value_2 bool = StdMath_Finite32(inner)
+		var value_2 bool = StdFinite_Finite32(inner)
 		value_1 = !value_2
 	}
 	if value_1 {
 		return
 	}
-	var value_3 bool = StdMath_Finite32(sweep)
+	var value_3 bool = StdFinite_Finite32(sweep)
 	if !value_3 || sweep <= 0.0 || sweep > 360.0 {
 		return
 	}

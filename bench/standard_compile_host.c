@@ -18,7 +18,7 @@ int main(int argc, char **argv) {
     if (argc == 5) {
         inputs[0] = atoll(argv[2]);
         inputs[1] = atoll(argv[3]);
-        if (inputs[0] < 0 || inputs[0] > 10 || inputs[1] < 1) return 2;
+        if (inputs[0] < 0 || inputs[0] > 28 || inputs[1] < 1) return 2;
     }
     Bundle *bundle = BundleOpen(argv[1]);
     if (!bundle) return 3;

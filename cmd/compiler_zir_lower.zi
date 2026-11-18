@@ -2737,6 +2737,68 @@ BoundsDisjunction :: (program: *AssemblyProgram, function: *AssemblyFunction,
     return Emit(program, function, LirOp.Greater, 1, *operands[0], 2, -1, expression.span)
 }
 
+// For an integer x and literals L <= U that fit its type, x >= L && x <= U
+// is exactly unsigned(x - L) <= U - L, the subtraction wrapping at x's
+// width. Both comparisons must read the same stable local value.
+BoundsConjunction :: (program: *AssemblyProgram, function: *AssemblyFunction,
+                      expression: *IR.ZirExpr, depth: s32) -> s32 {
+    if IR.CText(*expression.op[0]) != "&&" || expression.left < 0 || expression.right < 0 ||
+       expression.left >= function.source.expr_count || expression.right >= function.source.expr_count { return -1 }
+    low := *function.source.exprs[expression.left]
+    high := *function.source.exprs[expression.right]
+    if IR.CText(*low.op[0]) == "<=" {
+        low = *function.source.exprs[expression.right]
+        high = *function.source.exprs[expression.left]
+    }
+    if high.kind != ZirExprKind.BINARY || low.kind != ZirExprKind.BINARY || high.checked != low.checked ||
+       IR.CText(*low.op[0]) != ">=" || IR.CText(*high.op[0]) != "<=" ||
+       high.right < 0 || low.right < 0 || high.right >= function.source.expr_count ||
+       low.right >= function.source.expr_count { return -1 }
+    upper := *function.source.exprs[high.right]
+    lower := *function.source.exprs[low.right]
+    if upper.kind != ZirExprKind.INT || lower.kind != ZirExprKind.INT { return -1 }
+    top: u64
+    bottom: u64
+    if CZirIntegerLiteral(upper.text, *top) == 0 || CZirIntegerLiteral(lower.text, *bottom) == 0 ||
+       bottom > top { return -1 }
+    if !SameBoundsValue(program, function, low.left, high.left, 0) { return -1 }
+    value_type := Type(program, function, function.source.exprs[low.left].type, expression.span)
+    upper_type := Type(program, function, upper.type, upper.span)
+    lower_type := Type(program, function, lower.type, lower.span)
+    if value_type < 0 || upper_type < 0 || lower_type < 0 { return -1 }
+    shape := TypeAt(program, value_type)
+    if shape.kind != LirTypeKind.Integer || shape.bits < 1 || shape.bits > 64 ||
+       TypeAt(program, upper_type).kind != LirTypeKind.Integer ||
+       TypeAt(program, lower_type).kind != LirTypeKind.Integer { return -1 }
+    largest: u64 = 0xffffffffffffffff
+    if shape.is_signed { largest = (cast(u64)1 << cast(u64)(shape.bits - 1)) - 1 }
+    else if shape.bits < 64 { largest = (cast(u64)1 << cast(u64)shape.bits) - 1 }
+    if top > largest { return -1 }
+    unsigned_type: s32 = -1
+    for at: cast(s32)0..program.types.count - 1 {
+        if Spend(program, expression.span) == 0 { return -1 }
+        candidate := TypeAt(program, at)
+        if candidate.kind == LirTypeKind.Integer && !candidate.is_signed && candidate.bits == shape.bits {
+            unsigned_type = at
+            break
+        }
+    }
+    if unsigned_type < 0 { return -1 }
+    first := *function.source.exprs[expression.left]
+    saved_checking := function.checking
+    if first.checked != 0 { function.checking = true }
+    value := Expression(program, function, low.left, depth + 1)
+    function.checking = saved_checking
+    if value < 0 { return -1 }
+    if shape.is_signed { value = Emit(program, function, LirOp.Bitcast, unsigned_type, *value, 1, -1, expression.span) }
+    if bottom != 0 {
+        moved: [2]s32 = .[value, Constant(program, function, unsigned_type, bottom, expression.span)]
+        value = Emit(program, function, LirOp.Subtract, unsigned_type, *moved[0], 2, -1, expression.span)
+    }
+    operands: [2]s32 = .[value, Constant(program, function, unsigned_type, top - bottom, expression.span)]
+    return Emit(program, function, LirOp.LessEqual, 1, *operands[0], 2, -1, expression.span)
+}
+
 // Both arms of a conditional or short-circuiting expression, joined on one
 // block that receives the selected value as a parameter.
 Select :: (program: *AssemblyProgram, function: *AssemblyFunction, expression: *IR.ZirExpr,
@@ -5948,6 +6010,10 @@ ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
         }
         if IR.CText(*expression.op[0]) == "||" {
             folded := BoundsDisjunction(program, function, expression, depth)
+            if folded >= 0 || program.failed != 0 { return folded }
+        }
+        if IR.CText(*expression.op[0]) == "&&" {
+            folded := BoundsConjunction(program, function, expression, depth)
             if folded >= 0 || program.failed != 0 { return folded }
         }
         operands := cast(*s32)Allocate(program, 2, size_of(s32))

@@ -72,6 +72,47 @@ BoundsCases :: () -> bool {
     return true
 }
 
+// Literal range checks may use one unsigned comparison, in either order and
+// for signed, unsigned and narrow values; an empty range stays false.
+Inside8 :: (value: s8) -> bool { return value >= 10 && value <= 100 }
+InsideWide :: (value: s32) -> bool { return value >= 12288 && value <= 12543 }
+InsideFlipped :: (value: s64) -> bool { return value <= 1000 && value >= 0 }
+InsideMax :: (value: s64) -> bool { return value >= 1 && value <= 9223372036854775807 }
+InsideUnsigned :: (value: u8) -> bool { return value >= 200 && value <= 255 }
+InsideEmpty :: (value: s32) -> bool { return value >= 10 && value <= 5 }
+Within :: (value: s64, low: s64, high: s64) -> bool {
+    if value < low { return false }
+    if value > high { return false }
+    return true
+}
+
+InsideCases :: () -> bool {
+    for number: -128..127 {
+        if Inside8(cast(s8)number) != Within(number, 10, 100) { return false }
+    }
+    for number: 0..255 {
+        if InsideUnsigned(cast(u8)number) != Within(number, 200, 255) { return false }
+    }
+    numbers := s64.[-9223372036854775808, -2147483648, -1, 0, 1, 1000, 1001, 12287, 12288, 12543, 12544,
+        2147483647, 9223372036854775807]
+    records: [13]Point
+    for number, index: numbers {
+        records[index] = Point.{x = number, y = number}
+        if InsideFlipped(number) != Within(number, 0, 1000) { return false }
+        if InsideMax(number) != Within(number, 1, 9223372036854775807) { return false }
+        member := records[index].x >= 12288 && records[index].x <= 12543
+        if member != Within(number, 12288, 12543) { return false }
+        if Within(number, -2147483648, 2147483647) {
+            if InsideWide(cast(s32)number) != Within(number, 12288, 12543) { return false }
+            if InsideEmpty(cast(s32)number) { return false }
+        }
+    }
+    BoundsCalls = 0
+    // Distinct calls are not folded: both run when the first is true.
+    if !(BoundsNext(5) >= 1 && BoundsNext(5) <= 9) || BoundsCalls != 2 { return false }
+    return true
+}
+
 // Repeated conditional float arguments need copies into several registers.
 // A copy into XMM11 must leave its source available for later copies, even
 // though XMM11 shares the general scratch register R11's number.
@@ -97,6 +138,7 @@ ConditionalCoordinates :: (x0: s32, y0: s32, x1: s32, y1: s32, side: s32,
 
 main :: () -> s32 {
     if !BoundsCases() { return 1 }
+    if !InsideCases() { return 1 }
     if ConditionalCoordinates(10, 20, 80, 90, 4, 1.0, 2.0, 3.0, 4.0) != 976 { return 1 }
     points: [4]Point
     for i: 0..3 { points[i] = Point.{x = i, y = 10 * i} }

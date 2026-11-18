@@ -1,12 +1,15 @@
 // Module-level checks for the generated native build/cache modules: pipe
 // requests inside linker arguments, probe fingerprints across recognized
 // version interleaving, compiler-environment boundaries, and the worker
-// limit's CPU-affinity contract.
+// limit's CPU-affinity contract, and ARM images through the disk cache.
 
 using Vectors :: #import "std/vec"
 using TextTools :: #import "std/text_tools"
 using Cache :: #import "compiler_backend_cache"
 using Backend :: #import "compiler_backend_process"
+using DiskCache :: #import "compiler_native_cache"
+using Image :: #import "compiler_machine_image"
+using Target :: #import "compiler_target"
 libc :: #system_library "libc";
 
 AffinityBytes :: 128
@@ -268,12 +271,43 @@ Environment :: () -> bool {
     return true
 }
 
+// Android apps store ARMv7 and AArch64 images, and an ARMv7 image carries
+// runtime helper relocations: both must decode to their own target.
+ArmImages :: () -> bool {
+    code: [8]u8
+    data: [8]u8
+    functions := s64.[0]
+    helpers := Image.MachineRelocation.[.{section = .Code, width = 4, kind = .RuntimeHelper}]
+    no_relocations: [0]Image.MachineRelocation
+    for arch: Target.TargetArch.[.ArmV7, .AArch64] {
+        target := Target.TargetDescribe(arch, .Android).target
+        relocations := ifx arch == .ArmV7 then helpers[:] else no_relocations[:]
+        image := Image.MachineImage.{version = Image.MachineImageVersion, target = target, runtime_abi = .Revision1,
+            code = .{bytes = code[:], alignment = 8}, constants = .{alignment = 8}, data = .{bytes = data[:], alignment = 8},
+            function_offsets = functions[:], relocations = relocations, stack_alignment = 16, stack_bytes = 16,
+            stack_limit_offset = -1, trap_symbols = 1}
+        globals: [0]DiskCache.NativeCacheGlobal
+        key: DiskCache.NativeCacheDigest
+        bytes: Vec(u8)
+        defer VecFree(bytes)
+        restored: DiskCache.NativeCacheOwner
+        defer DiskCache.NativeCacheFree(*restored)
+        if !Check(DiskCache.NativeCacheEncode(key, image, globals[:], true, *bytes), "encode an Android machine image") ||
+            !Check(DiskCache.NativeCacheDecodeChecked(bytes[:], key, *restored) == .None, "decode an Android machine image") ||
+            !Check(restored.image.image.target.arch == arch && restored.image.image.target.os == .Android &&
+                restored.image.image.target.abi == target.abi && restored.image.image.relocations.count == relocations.count,
+                "restore the Android target and its runtime relocations") { return false }
+    }
+    return true
+}
+
 main :: () -> s32 {
     if !Options() { return 1 }
     if !Probe() { return 1 }
     if !Parse() { return 1 }
     if !Environment() { return 1 }
     if !Workers() { return 1 }
-    print("Native cache modules: pipe requests, probe parsing, fingerprints, environment boundaries and the affinity worker limit passed\n")
+    if !ArmImages() { return 1 }
+    print("Native cache modules: pipe requests, probe parsing, fingerprints, environment boundaries, the affinity worker limit and ARM disk images passed\n")
     return 0
 }

@@ -684,7 +684,9 @@ native_disk_load(const ExecBundle *bundle, const NativeCacheDigest *key)
         code->has_result = code->cached.has_result;
         code->global_count = compiler_native_cache_NativeCacheGlobalCount(&code->cached);
         code->globals = calloc((size_t)(code->global_count > 0 ? code->global_count : 1), sizeof(*code->globals));
-        ok = code->globals != NULL && code->global_count + 1 < MachinePointerCapacity &&
+        TargetDescription expected = native_target();
+        ok = code->image.target.arch == expected.arch && code->image.target.os == expected.os &&
+            code->globals != NULL && code->global_count + 1 < MachinePointerCapacity &&
             native_check_image(bundle, ExecBundleProgram(bundle), code->image, problem, sizeof(problem));
         for(int64_t at = 0; ok && at < code->global_count; at++)
             code->globals[at] = compiler_native_cache_NativeCacheGlobalAt(&code->cached, at);

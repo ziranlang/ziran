@@ -236,7 +236,9 @@ DecodePayload :: (payload: []u8, owner: *NativeCacheOwner) -> bool {
     os := TakeWord(*reader)
     runtime := TakeS32(*reader)
     if reader.failed || version != MachineImageVersion || runtime != cast(s32)MachineRuntimeABI.Revision1 ||
-        arch != cast(u64)TargetArch.X86_64 || os != cast(u64)TargetOS.Linux { return false }
+        arch > cast(u64)TargetArch.Wasm32 || os > cast(u64)TargetOS.Wasi { return false }
+    described := TargetDescribe(cast(TargetArch)arch, cast(TargetOS)os)
+    if described.problem != .None || !TargetMachineLoweringSupported(described.target) { return false }
     code_alignment := TakeS32(*reader)
     if !TakeBytes(*reader, *image.code) { return false }
     constants_alignment := TakeS32(*reader)
@@ -258,14 +260,14 @@ DecodePayload :: (payload: []u8, owner: *NativeCacheOwner) -> bool {
         relocation.symbol = TakeS32(*reader)
         relocation.addend = cast(s64)TakeWord(*reader)
         if reader.failed || section < 0 || section > cast(s32)MachineSectionKind.Data ||
-            kind < 0 || kind > cast(s32)MachineRelocationKind.PointerRuntime { return false }
+            kind < 0 || kind > cast(s32)MachineRelocationKind.RuntimeHelper { return false }
         relocation.section = cast(MachineSectionKind)section
         relocation.kind = cast(MachineRelocationKind)kind
         image.relocations[index] = relocation
     }
     view: MachineImage
     view.version = version
-    view.target = TargetLinuxX64()
+    view.target = described.target
     view.runtime_abi = .Revision1
     view.entry = TakeS32(*reader)
     view.required_features = TakeWord(*reader)

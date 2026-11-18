@@ -30,7 +30,11 @@ one_string_literal(const char *value)
     return *p == '"' && p[1] == 0;
 }
 
-/* Whether the header keeps declarations behind its _PRIVATE guard. */
+static int signature_public(const ZirModule *m, const ZirFunction *fn);
+
+/* Whether the header keeps declarations behind its _PRIVATE guard: a
+ * private define or type, or a generic's copy whose signature names a type
+ * the header cannot spell, such as one through a module-scoped import. */
 static int
 header_has_private(const ZirModule *m)
 {
@@ -40,6 +44,11 @@ header_has_private(const ZirModule *m)
     for(int i = 0; i < m->type_count; i++)
         if(!m->types[i].is_public)
             return 1;
+    for(int i = 0; i < m->function_count; i++) {
+        const ZirFunction *fn = &m->functions[i];
+        if(fn->is_specialization && fn->is_public && !fn->is_template && !signature_public(m, fn))
+            return 1;
+    }
     return 0;
 }
 #include <sys/stat.h>

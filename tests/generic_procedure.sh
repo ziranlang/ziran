@@ -93,6 +93,61 @@ C
     "$work/mixed"/*.c -o "$work/mixed/app"
 "$work/mixed/app"
 
+# A generic's copy whose signature spells a type through the template's own
+# `using` import is declared behind its caller's _PRIVATE guard when the
+# caller's module-scoped import takes that name (Kryon's text Draw called
+# from Terminal). The caller's source must still see the declaration.
+mkdir -p "$work/scoped"
+cat > "$work/scoped/paint_props.zi" <<'ZI'
+Props :: struct { size: s32; }
+ZI
+cat > "$work/scoped/frame.zi" <<'ZI'
+Frame :: struct { width: s32; }
+ZI
+cat > "$work/scoped/paint.zi" <<'ZI'
+using Text :: #import "paint_props";
+painted: s32;
+#if #defined(PAINT_HOSTED) {
+    Paint :: (frame: $T, props: Text.Props) { painted = -1 }
+} else {
+    Measure :: (width: s32, props: Text.Props) { painted += width * props.size }
+    Paint :: (frame: $T, props: Text.Props) {
+        total: s32
+        for step: 0..frame.width - 1 {
+            if step % 3 == 0 { total += step } else if step % 3 == 1 { total -= step } else { total ^= step }
+        }
+        Measure(frame.width + (total & 0), props)
+    }
+}
+ZI
+cat > "$work/scoped/caller.zi" <<'ZI'
+#scope_module
+Painter :: #import "paint"
+Frames :: #import "frame"
+Text :: #import "std/text_buffer"
+#scope_export
+Draw :: (frame: Frames.Frame, scale: s32) {
+    if scale > 0 {
+        props: Painter.Props
+        props.size = 6 * scale
+        Painter.Paint(frame, props)
+    }
+}
+#program_export
+Answer :: () -> s32 {
+    Draw(Frames.Frame.{width = 7}, 1)
+    return Painter.painted
+}
+ZI
+"$ziran" build --target=c --no-main --root "$work/scoped" -o "$work/scoped/c" "$work/scoped/caller.zi"
+cat > "$work/scoped/c/main.c" <<'C'
+#include "caller.h"
+int main(void) { return Answer() == 42 ? 0 : 1; }
+C
+"${CC:-cc}" -std=c11 -Werror=implicit-function-declaration -I"$repo/include" -I"$work/scoped/c" \
+    "$work/scoped/c"/*.c -o "$work/scoped/app"
+"$work/scoped/app"
+
 cat > "$work/ambiguous.zi" <<'ZI'
 Identity :: (value: $T) -> T { return value }
 Answer :: () -> s32 {

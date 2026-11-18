@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "revision": "4f49aa9affcc360217797888b3c3e37208e174dd",
+  "revision": "ac64565e5098c52f010b0039006f1de027b84660",
   "host": "alpha",
   "cpu": "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
   "versions": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0\ngo version go1.27.4 linux/amd64\nv26.13.1",
-  "measured_at": "2026-11-18T07:00:05Z",
+  "measured_at": "2026-11-18T16:01:05Z",
   "virtualization": "none",
   "learning": "off",
-  "source_and_tool_sha256": "f9db6f04e34cbb52fdb7a4f7e7693855068e2035f0011dbae313b692369bf384  build/bin/ziran\nb307d56d117a7906b87e950bc2537089e657e6b82efae4029abe245e9348a47b  build/bin/zi2c\n8b309493f9d7474fbd7f0cf8f51fb2635a48260f67ad90152fcf1f09c9056840  build/bin/zi2zx\nc9dead18c84ce8027f6031efd6d76d73caf16d44ee514c886d6e9f3b7967268b  build/bin/zx2wasm\naf03760db00e9508260dfd701a69f015cf7e34dada7197289e589bf50612529d  build/libziran.a\naeaffc88d473996586da934da6fe523d0c75c11007efac1af1d365459b27508a  bench/standard_compile.zi\nfd693b997532f22addd11650903b0b0aab0aa5afde48957d13914fe7a8b64f74  bench/standard_compile_entry.zi\n6cb768e5835bb581fd08ee0101e0d12f3ebe4e9773e29f29b73bf4159a71bd5b  bench/standard_compile_host.c\nfcbf775ba419a36101fe0e47185545e17cbf16c052a3209061529fb747a0fac6  bench/standard_cases.zi\n876e53c2c6b3bedbd1632b99d75349c4256fdb2a3ad35b9b662bb3a31ad357f3  bench/standard/README.md\n5fe661a680ebdf2a1663956f3e63ec5d6d1357aa31ed4174f07df257d390e6a1  bench/standard/entry.zi\n5b01741e8b476c5ff3a50a9834e9cda7f0eec9b4abf2cae62eaaad68684d690e  bench/standard/host.c\n87091243d8279f7b3f3e9b557ed406cecca72078b6a4d1dae7cff06525b23336  bench/standard/host.cjs\n0e62dcb3f3ba4531f234a5aab9019b7c06cdf3d0845ec3f8c79888d9f111a4f0  bench/standard/host.go\nd60a6e4b09ec2492d0999219dbd02f735cb9f1991ee04dbb621d955f2b0c0957  bench/standard/kernels.zi\n34f3f7ffe0b40eef73a367b6a34e51b3b1e390c4390838421efeef3a2d45792b  bench/standard/reference.c\n71093340415cee20b9e18a84388c85be6576b285a59dabb2139fa0d5999c4fd1  bench/standard/reference.go\ndbbb02d8db1e31a119cabc0fc7e5ed642b538c369f5548d7ab24d814ad8143d7  bench/standard/reference_extra.go\n824afe24f9a5f48a03a637cc4eeb7ad192580dff7a44f30d4e1045ab4fb7f533  bench/standard/reference_extra.h\n1a663a5be9aaab8fa4df053992d5c9e4f352bb1da6350a05ebedbb99383b9996  bench/standard/workloads_graph.zi\n10057b542ca3ca6d15e2d2bf082e89a986d62bb22978add22fdc212439827679  bench/standard/workloads_hash.zi\n66e93d6a8c1c597fa48a9c9b2d2c3368e210990cd57cf948861a710daffbe7a0  bench/standard/workloads_numeric.zi\n67be2ec7c44e709f4374d7c4f446ba1e2b71582e60ef2b24f4fa40b45b546259  bench/standard/workloads_text.zi\n",
+  "source_and_tool_sha256": "afb07de310efeb0dbdb1b49ba87300e562662c23ad29a31870a8175e076bcf31  build/bin/ziran\n3e6c1cd416d4c9952e0440f16f11e3d1f13249774c323940e7d405e96d0d48df  build/bin/zi2c\nc46d8971af6e80fc4f5504d6db2adc00d0e067d986aecd07a5cb5577a917cd4f  build/bin/zi2zx\nc1f1e1d447559a24e6459dbcfa1477754794e31203d60191a9ea8d4e59d54b0f  build/bin/zx2wasm\n0875c735d5c175a3683eafe0eac75a2c0fbb6aca12b660945dae9a8d4a977f4d  build/libziran.a\naeaffc88d473996586da934da6fe523d0c75c11007efac1af1d365459b27508a  bench/standard_compile.zi\nfd693b997532f22addd11650903b0b0aab0aa5afde48957d13914fe7a8b64f74  bench/standard_compile_entry.zi\n6cb768e5835bb581fd08ee0101e0d12f3ebe4e9773e29f29b73bf4159a71bd5b  bench/standard_compile_host.c\nfcbf775ba419a36101fe0e47185545e17cbf16c052a3209061529fb747a0fac6  bench/standard_cases.zi\n876e53c2c6b3bedbd1632b99d75349c4256fdb2a3ad35b9b662bb3a31ad357f3  bench/standard/README.md\n5fe661a680ebdf2a1663956f3e63ec5d6d1357aa31ed4174f07df257d390e6a1  bench/standard/entry.zi\n5b01741e8b476c5ff3a50a9834e9cda7f0eec9b4abf2cae62eaaad68684d690e  bench/standard/host.c\n87091243d8279f7b3f3e9b557ed406cecca72078b6a4d1dae7cff06525b23336  bench/standard/host.cjs\n0e62dcb3f3ba4531f234a5aab9019b7c06cdf3d0845ec3f8c79888d9f111a4f0  bench/standard/host.go\nd60a6e4b09ec2492d0999219dbd02f735cb9f1991ee04dbb621d955f2b0c0957  bench/standard/kernels.zi\n34f3f7ffe0b40eef73a367b6a34e51b3b1e390c4390838421efeef3a2d45792b  bench/standard/reference.c\n71093340415cee20b9e18a84388c85be6576b285a59dabb2139fa0d5999c4fd1  bench/standard/reference.go\ndbbb02d8db1e31a119cabc0fc7e5ed642b538c369f5548d7ab24d814ad8143d7  bench/standard/reference_extra.go\n824afe24f9a5f48a03a637cc4eeb7ad192580dff7a44f30d4e1045ab4fb7f533  bench/standard/reference_extra.h\n1a663a5be9aaab8fa4df053992d5c9e4f352bb1da6350a05ebedbb99383b9996  bench/standard/workloads_graph.zi\n10057b542ca3ca6d15e2d2bf082e89a986d62bb22978add22fdc212439827679  bench/standard/workloads_hash.zi\n66e93d6a8c1c597fa48a9c9b2d2c3368e210990cd57cf948861a710daffbe7a0  bench/standard/workloads_numeric.zi\n67be2ec7c44e709f4374d7c4f446ba1e2b71582e60ef2b24f4fa40b45b546259  bench/standard/workloads_text.zi\n",
   "methodology": "Whole standard suite; warm filesystem/toolchain caches. One warmup then 11 fresh application builds, rotating target order. Generated C includes cc -O2/link; native includes ZX frontend, host cc/link and native instantiation. Wasm includes ZX frontend and wasm emission, excludes V8 compilation. Validation outside timing. Go source nonce forces application cache miss; standard-library cache stays warm. No fast compiler mode exists. Symmetric inclusive 1.5xIQR; raw samples retained.",
   "checks": false,
   "samples": 11,
@@ -18,7 +18,7 @@
       "command": "cc -O2 -std=c11 -DSTANDARD_REFERENCE bench/standard/reference.c bench/standard/host.c -lm -o build/standard-compile/c",
       "warmup": true,
       "repetition": 0,
-      "wall_ms": 749.474759,
+      "wall_ms": 745.809661,
       "output_verified": true
     },
     {
@@ -26,7 +26,7 @@
       "command": "go build -o build/standard-compile/go build/standard-compile/reference.go build/standard-compile/reference_extra.go build/standard-compile/host.go",
       "warmup": true,
       "repetition": 0,
-      "wall_ms": 564.865349,
+      "wall_ms": 581.608186,
       "output_verified": true
     },
     {
@@ -34,7 +34,7 @@
       "command": "build/bin/ziran build --target=c --exe --root bench --module-path std --module-path standard=bench/standard --entry standard_compile_entry:main -o build/standard-compile/generated bench/standard_compile_entry.zi",
       "warmup": true,
       "repetition": 0,
-      "wall_ms": 519.276967,
+      "wall_ms": 513.880589,
       "output_verified": true
     },
     {
@@ -42,7 +42,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/native.zx bench/standard/entry.zi && cc -O2 -std=c11 -Iinclude bench/standard_compile_host.c build/libziran.a -lm -pthread -ldl -o build/standard-compile/native && build/standard-compile/native build/standard-compile/native.zx",
       "warmup": true,
       "repetition": 0,
-      "wall_ms": 784.076606,
+      "wall_ms": 845.613801,
       "output_verified": true
     },
     {
@@ -50,7 +50,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/wasm.zx bench/standard/entry.zi && build/bin/zx2wasm -o build/standard-compile/suite.wasm build/standard-compile/wasm.zx",
       "warmup": true,
       "repetition": 0,
-      "wall_ms": 655.790139,
+      "wall_ms": 745.542344,
       "output_verified": true
     },
     {
@@ -58,7 +58,7 @@
       "command": "go build -o build/standard-compile/go build/standard-compile/reference.go build/standard-compile/reference_extra.go build/standard-compile/host.go",
       "warmup": false,
       "repetition": 1,
-      "wall_ms": 243.47824,
+      "wall_ms": 240.480942,
       "output_verified": true
     },
     {
@@ -66,7 +66,7 @@
       "command": "build/bin/ziran build --target=c --exe --root bench --module-path std --module-path standard=bench/standard --entry standard_compile_entry:main -o build/standard-compile/generated bench/standard_compile_entry.zi",
       "warmup": false,
       "repetition": 1,
-      "wall_ms": 521.95544,
+      "wall_ms": 509.665748,
       "output_verified": true
     },
     {
@@ -74,7 +74,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/native.zx bench/standard/entry.zi && cc -O2 -std=c11 -Iinclude bench/standard_compile_host.c build/libziran.a -lm -pthread -ldl -o build/standard-compile/native && build/standard-compile/native build/standard-compile/native.zx",
       "warmup": false,
       "repetition": 1,
-      "wall_ms": 716.40469,
+      "wall_ms": 802.041846,
       "output_verified": true
     },
     {
@@ -82,7 +82,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/wasm.zx bench/standard/entry.zi && build/bin/zx2wasm -o build/standard-compile/suite.wasm build/standard-compile/wasm.zx",
       "warmup": false,
       "repetition": 1,
-      "wall_ms": 646.347578,
+      "wall_ms": 733.042824,
       "output_verified": true
     },
     {
@@ -90,7 +90,7 @@
       "command": "cc -O2 -std=c11 -DSTANDARD_REFERENCE bench/standard/reference.c bench/standard/host.c -lm -o build/standard-compile/c",
       "warmup": false,
       "repetition": 1,
-      "wall_ms": 749.233776,
+      "wall_ms": 747.05424,
       "output_verified": true
     },
     {
@@ -98,7 +98,7 @@
       "command": "build/bin/ziran build --target=c --exe --root bench --module-path std --module-path standard=bench/standard --entry standard_compile_entry:main -o build/standard-compile/generated bench/standard_compile_entry.zi",
       "warmup": false,
       "repetition": 2,
-      "wall_ms": 507.008919,
+      "wall_ms": 520.708033,
       "output_verified": true
     },
     {
@@ -106,7 +106,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/native.zx bench/standard/entry.zi && cc -O2 -std=c11 -Iinclude bench/standard_compile_host.c build/libziran.a -lm -pthread -ldl -o build/standard-compile/native && build/standard-compile/native build/standard-compile/native.zx",
       "warmup": false,
       "repetition": 2,
-      "wall_ms": 715.981142,
+      "wall_ms": 785.761534,
       "output_verified": true
     },
     {
@@ -114,7 +114,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/wasm.zx bench/standard/entry.zi && build/bin/zx2wasm -o build/standard-compile/suite.wasm build/standard-compile/wasm.zx",
       "warmup": false,
       "repetition": 2,
-      "wall_ms": 640.51006,
+      "wall_ms": 737.901184,
       "output_verified": true
     },
     {
@@ -122,7 +122,7 @@
       "command": "cc -O2 -std=c11 -DSTANDARD_REFERENCE bench/standard/reference.c bench/standard/host.c -lm -o build/standard-compile/c",
       "warmup": false,
       "repetition": 2,
-      "wall_ms": 744.641184,
+      "wall_ms": 746.471197,
       "output_verified": true
     },
     {
@@ -130,7 +130,7 @@
       "command": "go build -o build/standard-compile/go build/standard-compile/reference.go build/standard-compile/reference_extra.go build/standard-compile/host.go",
       "warmup": false,
       "repetition": 2,
-      "wall_ms": 241.509379,
+      "wall_ms": 239.774813,
       "output_verified": true
     },
     {
@@ -138,7 +138,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/native.zx bench/standard/entry.zi && cc -O2 -std=c11 -Iinclude bench/standard_compile_host.c build/libziran.a -lm -pthread -ldl -o build/standard-compile/native && build/standard-compile/native build/standard-compile/native.zx",
       "warmup": false,
       "repetition": 3,
-      "wall_ms": 706.410151,
+      "wall_ms": 790.588742,
       "output_verified": true
     },
     {
@@ -146,7 +146,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/wasm.zx bench/standard/entry.zi && build/bin/zx2wasm -o build/standard-compile/suite.wasm build/standard-compile/wasm.zx",
       "warmup": false,
       "repetition": 3,
-      "wall_ms": 637.504636,
+      "wall_ms": 728.233861,
       "output_verified": true
     },
     {
@@ -154,7 +154,7 @@
       "command": "cc -O2 -std=c11 -DSTANDARD_REFERENCE bench/standard/reference.c bench/standard/host.c -lm -o build/standard-compile/c",
       "warmup": false,
       "repetition": 3,
-      "wall_ms": 748.330367,
+      "wall_ms": 737.770757,
       "output_verified": true
     },
     {
@@ -162,7 +162,7 @@
       "command": "go build -o build/standard-compile/go build/standard-compile/reference.go build/standard-compile/reference_extra.go build/standard-compile/host.go",
       "warmup": false,
       "repetition": 3,
-      "wall_ms": 264.246516,
+      "wall_ms": 258.94316,
       "output_verified": true
     },
     {
@@ -170,7 +170,7 @@
       "command": "build/bin/ziran build --target=c --exe --root bench --module-path std --module-path standard=bench/standard --entry standard_compile_entry:main -o build/standard-compile/generated bench/standard_compile_entry.zi",
       "warmup": false,
       "repetition": 3,
-      "wall_ms": 517.986775,
+      "wall_ms": 519.741069,
       "output_verified": true
     },
     {
@@ -178,7 +178,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/wasm.zx bench/standard/entry.zi && build/bin/zx2wasm -o build/standard-compile/suite.wasm build/standard-compile/wasm.zx",
       "warmup": false,
       "repetition": 4,
-      "wall_ms": 643.036788,
+      "wall_ms": 740.160413,
       "output_verified": true
     },
     {
@@ -186,7 +186,7 @@
       "command": "cc -O2 -std=c11 -DSTANDARD_REFERENCE bench/standard/reference.c bench/standard/host.c -lm -o build/standard-compile/c",
       "warmup": false,
       "repetition": 4,
-      "wall_ms": 744.555798,
+      "wall_ms": 731.177158,
       "output_verified": true
     },
     {
@@ -194,7 +194,7 @@
       "command": "go build -o build/standard-compile/go build/standard-compile/reference.go build/standard-compile/reference_extra.go build/standard-compile/host.go",
       "warmup": false,
       "repetition": 4,
-      "wall_ms": 246.028726,
+      "wall_ms": 242.677131,
       "output_verified": true
     },
     {
@@ -202,7 +202,7 @@
       "command": "build/bin/ziran build --target=c --exe --root bench --module-path std --module-path standard=bench/standard --entry standard_compile_entry:main -o build/standard-compile/generated bench/standard_compile_entry.zi",
       "warmup": false,
       "repetition": 4,
-      "wall_ms": 522.553189,
+      "wall_ms": 518.319814,
       "output_verified": true
     },
     {
@@ -210,7 +210,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/native.zx bench/standard/entry.zi && cc -O2 -std=c11 -Iinclude bench/standard_compile_host.c build/libziran.a -lm -pthread -ldl -o build/standard-compile/native && build/standard-compile/native build/standard-compile/native.zx",
       "warmup": false,
       "repetition": 4,
-      "wall_ms": 722.01196,
+      "wall_ms": 786.474911,
       "output_verified": true
     },
     {
@@ -218,7 +218,7 @@
       "command": "cc -O2 -std=c11 -DSTANDARD_REFERENCE bench/standard/reference.c bench/standard/host.c -lm -o build/standard-compile/c",
       "warmup": false,
       "repetition": 5,
-      "wall_ms": 737.110204,
+      "wall_ms": 728.267658,
       "output_verified": true
     },
     {
@@ -226,7 +226,7 @@
       "command": "go build -o build/standard-compile/go build/standard-compile/reference.go build/standard-compile/reference_extra.go build/standard-compile/host.go",
       "warmup": false,
       "repetition": 5,
-      "wall_ms": 244.860456,
+      "wall_ms": 241.309389,
       "output_verified": true
     },
     {
@@ -234,7 +234,7 @@
       "command": "build/bin/ziran build --target=c --exe --root bench --module-path std --module-path standard=bench/standard --entry standard_compile_entry:main -o build/standard-compile/generated bench/standard_compile_entry.zi",
       "warmup": false,
       "repetition": 5,
-      "wall_ms": 507.302865,
+      "wall_ms": 511.495093,
       "output_verified": true
     },
     {
@@ -242,7 +242,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/native.zx bench/standard/entry.zi && cc -O2 -std=c11 -Iinclude bench/standard_compile_host.c build/libziran.a -lm -pthread -ldl -o build/standard-compile/native && build/standard-compile/native build/standard-compile/native.zx",
       "warmup": false,
       "repetition": 5,
-      "wall_ms": 721.273323,
+      "wall_ms": 802.105702,
       "output_verified": true
     },
     {
@@ -250,7 +250,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/wasm.zx bench/standard/entry.zi && build/bin/zx2wasm -o build/standard-compile/suite.wasm build/standard-compile/wasm.zx",
       "warmup": false,
       "repetition": 5,
-      "wall_ms": 644.670853,
+      "wall_ms": 725.651245,
       "output_verified": true
     },
     {
@@ -258,7 +258,7 @@
       "command": "go build -o build/standard-compile/go build/standard-compile/reference.go build/standard-compile/reference_extra.go build/standard-compile/host.go",
       "warmup": false,
       "repetition": 6,
-      "wall_ms": 245.299596,
+      "wall_ms": 240.718705,
       "output_verified": true
     },
     {
@@ -266,7 +266,7 @@
       "command": "build/bin/ziran build --target=c --exe --root bench --module-path std --module-path standard=bench/standard --entry standard_compile_entry:main -o build/standard-compile/generated bench/standard_compile_entry.zi",
       "warmup": false,
       "repetition": 6,
-      "wall_ms": 506.464648,
+      "wall_ms": 505.249352,
       "output_verified": true
     },
     {
@@ -274,7 +274,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/native.zx bench/standard/entry.zi && cc -O2 -std=c11 -Iinclude bench/standard_compile_host.c build/libziran.a -lm -pthread -ldl -o build/standard-compile/native && build/standard-compile/native build/standard-compile/native.zx",
       "warmup": false,
       "repetition": 6,
-      "wall_ms": 728.347111,
+      "wall_ms": 786.150414,
       "output_verified": true
     },
     {
@@ -282,7 +282,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/wasm.zx bench/standard/entry.zi && build/bin/zx2wasm -o build/standard-compile/suite.wasm build/standard-compile/wasm.zx",
       "warmup": false,
       "repetition": 6,
-      "wall_ms": 650.810149,
+      "wall_ms": 723.153403,
       "output_verified": true
     },
     {
@@ -290,7 +290,7 @@
       "command": "cc -O2 -std=c11 -DSTANDARD_REFERENCE bench/standard/reference.c bench/standard/host.c -lm -o build/standard-compile/c",
       "warmup": false,
       "repetition": 6,
-      "wall_ms": 741.424761,
+      "wall_ms": 741.537946,
       "output_verified": true
     },
     {
@@ -298,7 +298,7 @@
       "command": "build/bin/ziran build --target=c --exe --root bench --module-path std --module-path standard=bench/standard --entry standard_compile_entry:main -o build/standard-compile/generated bench/standard_compile_entry.zi",
       "warmup": false,
       "repetition": 7,
-      "wall_ms": 509.583765,
+      "wall_ms": 507.768054,
       "output_verified": true
     },
     {
@@ -306,7 +306,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/native.zx bench/standard/entry.zi && cc -O2 -std=c11 -Iinclude bench/standard_compile_host.c build/libziran.a -lm -pthread -ldl -o build/standard-compile/native && build/standard-compile/native build/standard-compile/native.zx",
       "warmup": false,
       "repetition": 7,
-      "wall_ms": 721.938091,
+      "wall_ms": 806.341512,
       "output_verified": true
     },
     {
@@ -314,7 +314,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/wasm.zx bench/standard/entry.zi && build/bin/zx2wasm -o build/standard-compile/suite.wasm build/standard-compile/wasm.zx",
       "warmup": false,
       "repetition": 7,
-      "wall_ms": 648.048452,
+      "wall_ms": 723.16493,
       "output_verified": true
     },
     {
@@ -322,7 +322,7 @@
       "command": "cc -O2 -std=c11 -DSTANDARD_REFERENCE bench/standard/reference.c bench/standard/host.c -lm -o build/standard-compile/c",
       "warmup": false,
       "repetition": 7,
-      "wall_ms": 734.889598,
+      "wall_ms": 735.231389,
       "output_verified": true
     },
     {
@@ -330,7 +330,7 @@
       "command": "go build -o build/standard-compile/go build/standard-compile/reference.go build/standard-compile/reference_extra.go build/standard-compile/host.go",
       "warmup": false,
       "repetition": 7,
-      "wall_ms": 241.347161,
+      "wall_ms": 245.547438,
       "output_verified": true
     },
     {
@@ -338,7 +338,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/native.zx bench/standard/entry.zi && cc -O2 -std=c11 -Iinclude bench/standard_compile_host.c build/libziran.a -lm -pthread -ldl -o build/standard-compile/native && build/standard-compile/native build/standard-compile/native.zx",
       "warmup": false,
       "repetition": 8,
-      "wall_ms": 730.547657,
+      "wall_ms": 784.391997,
       "output_verified": true
     },
     {
@@ -346,7 +346,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/wasm.zx bench/standard/entry.zi && build/bin/zx2wasm -o build/standard-compile/suite.wasm build/standard-compile/wasm.zx",
       "warmup": false,
       "repetition": 8,
-      "wall_ms": 677.461054,
+      "wall_ms": 715.360236,
       "output_verified": true
     },
     {
@@ -354,7 +354,7 @@
       "command": "cc -O2 -std=c11 -DSTANDARD_REFERENCE bench/standard/reference.c bench/standard/host.c -lm -o build/standard-compile/c",
       "warmup": false,
       "repetition": 8,
-      "wall_ms": 774.277113,
+      "wall_ms": 745.874412,
       "output_verified": true
     },
     {
@@ -362,7 +362,7 @@
       "command": "go build -o build/standard-compile/go build/standard-compile/reference.go build/standard-compile/reference_extra.go build/standard-compile/host.go",
       "warmup": false,
       "repetition": 8,
-      "wall_ms": 241.873292,
+      "wall_ms": 244.273664,
       "output_verified": true
     },
     {
@@ -370,7 +370,7 @@
       "command": "build/bin/ziran build --target=c --exe --root bench --module-path std --module-path standard=bench/standard --entry standard_compile_entry:main -o build/standard-compile/generated bench/standard_compile_entry.zi",
       "warmup": false,
       "repetition": 8,
-      "wall_ms": 564.911707,
+      "wall_ms": 521.019217,
       "output_verified": true
     },
     {
@@ -378,7 +378,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/wasm.zx bench/standard/entry.zi && build/bin/zx2wasm -o build/standard-compile/suite.wasm build/standard-compile/wasm.zx",
       "warmup": false,
       "repetition": 9,
-      "wall_ms": 658.315295,
+      "wall_ms": 726.88013,
       "output_verified": true
     },
     {
@@ -386,7 +386,7 @@
       "command": "cc -O2 -std=c11 -DSTANDARD_REFERENCE bench/standard/reference.c bench/standard/host.c -lm -o build/standard-compile/c",
       "warmup": false,
       "repetition": 9,
-      "wall_ms": 734.059284,
+      "wall_ms": 746.24268,
       "output_verified": true
     },
     {
@@ -394,7 +394,7 @@
       "command": "go build -o build/standard-compile/go build/standard-compile/reference.go build/standard-compile/reference_extra.go build/standard-compile/host.go",
       "warmup": false,
       "repetition": 9,
-      "wall_ms": 248.995641,
+      "wall_ms": 241.587123,
       "output_verified": true
     },
     {
@@ -402,7 +402,7 @@
       "command": "build/bin/ziran build --target=c --exe --root bench --module-path std --module-path standard=bench/standard --entry standard_compile_entry:main -o build/standard-compile/generated bench/standard_compile_entry.zi",
       "warmup": false,
       "repetition": 9,
-      "wall_ms": 517.165573,
+      "wall_ms": 514.428141,
       "output_verified": true
     },
     {
@@ -410,7 +410,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/native.zx bench/standard/entry.zi && cc -O2 -std=c11 -Iinclude bench/standard_compile_host.c build/libziran.a -lm -pthread -ldl -o build/standard-compile/native && build/standard-compile/native build/standard-compile/native.zx",
       "warmup": false,
       "repetition": 9,
-      "wall_ms": 715.155163,
+      "wall_ms": 791.113876,
       "output_verified": true
     },
     {
@@ -418,7 +418,7 @@
       "command": "cc -O2 -std=c11 -DSTANDARD_REFERENCE bench/standard/reference.c bench/standard/host.c -lm -o build/standard-compile/c",
       "warmup": false,
       "repetition": 10,
-      "wall_ms": 738.652505,
+      "wall_ms": 731.694402,
       "output_verified": true
     },
     {
@@ -426,7 +426,7 @@
       "command": "go build -o build/standard-compile/go build/standard-compile/reference.go build/standard-compile/reference_extra.go build/standard-compile/host.go",
       "warmup": false,
       "repetition": 10,
-      "wall_ms": 244.334107,
+      "wall_ms": 238.358793,
       "output_verified": true
     },
     {
@@ -434,7 +434,7 @@
       "command": "build/bin/ziran build --target=c --exe --root bench --module-path std --module-path standard=bench/standard --entry standard_compile_entry:main -o build/standard-compile/generated bench/standard_compile_entry.zi",
       "warmup": false,
       "repetition": 10,
-      "wall_ms": 517.118948,
+      "wall_ms": 511.27942,
       "output_verified": true
     },
     {
@@ -442,7 +442,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/native.zx bench/standard/entry.zi && cc -O2 -std=c11 -Iinclude bench/standard_compile_host.c build/libziran.a -lm -pthread -ldl -o build/standard-compile/native && build/standard-compile/native build/standard-compile/native.zx",
       "warmup": false,
       "repetition": 10,
-      "wall_ms": 716.19504,
+      "wall_ms": 821.521011,
       "output_verified": true
     },
     {
@@ -450,7 +450,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/wasm.zx bench/standard/entry.zi && build/bin/zx2wasm -o build/standard-compile/suite.wasm build/standard-compile/wasm.zx",
       "warmup": false,
       "repetition": 10,
-      "wall_ms": 643.745004,
+      "wall_ms": 713.606433,
       "output_verified": true
     },
     {
@@ -458,7 +458,7 @@
       "command": "go build -o build/standard-compile/go build/standard-compile/reference.go build/standard-compile/reference_extra.go build/standard-compile/host.go",
       "warmup": false,
       "repetition": 11,
-      "wall_ms": 244.505204,
+      "wall_ms": 240.946477,
       "output_verified": true
     },
     {
@@ -466,7 +466,7 @@
       "command": "build/bin/ziran build --target=c --exe --root bench --module-path std --module-path standard=bench/standard --entry standard_compile_entry:main -o build/standard-compile/generated bench/standard_compile_entry.zi",
       "warmup": false,
       "repetition": 11,
-      "wall_ms": 508.575551,
+      "wall_ms": 511.119776,
       "output_verified": true
     },
     {
@@ -474,7 +474,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/native.zx bench/standard/entry.zi && cc -O2 -std=c11 -Iinclude bench/standard_compile_host.c build/libziran.a -lm -pthread -ldl -o build/standard-compile/native && build/standard-compile/native build/standard-compile/native.zx",
       "warmup": false,
       "repetition": 11,
-      "wall_ms": 725.859284,
+      "wall_ms": 789.802299,
       "output_verified": true
     },
     {
@@ -482,7 +482,7 @@
       "command": "build/bin/zi2zx --root bench/standard --module-path std --entry entry:main -o build/standard-compile/wasm.zx bench/standard/entry.zi && build/bin/zx2wasm -o build/standard-compile/suite.wasm build/standard-compile/wasm.zx",
       "warmup": false,
       "repetition": 11,
-      "wall_ms": 643.664066,
+      "wall_ms": 714.439658,
       "output_verified": true
     },
     {
@@ -490,103 +490,97 @@
       "command": "cc -O2 -std=c11 -DSTANDARD_REFERENCE bench/standard/reference.c bench/standard/host.c -lm -o build/standard-compile/c",
       "warmup": false,
       "repetition": 11,
-      "wall_ms": 760.372938,
+      "wall_ms": 755.960957,
       "output_verified": true
     }
   ],
   "targets": {
     "c": {
-      "median_ms": 742.9902795,
+      "median_ms": 741.537946,
       "raw_ms": [
-        749.233776,
-        744.641184,
-        748.330367,
-        744.555798,
-        737.110204,
-        741.424761,
-        734.889598,
-        774.277113,
-        734.059284,
-        738.652505,
-        760.372938
+        747.05424,
+        746.471197,
+        737.770757,
+        731.177158,
+        728.267658,
+        741.537946,
+        735.231389,
+        745.874412,
+        746.24268,
+        731.694402,
+        755.960957
       ],
-      "excluded_indices": [
-        7
-      ]
+      "excluded_indices": []
     },
     "go": {
-      "median_ms": 244.41965549999998,
+      "median_ms": 241.12793299999998,
       "raw_ms": [
-        243.47824,
-        241.509379,
-        264.246516,
-        246.028726,
-        244.860456,
-        245.299596,
-        241.347161,
-        241.873292,
-        248.995641,
-        244.334107,
-        244.505204
+        240.480942,
+        239.774813,
+        258.94316,
+        242.677131,
+        241.309389,
+        240.718705,
+        245.547438,
+        244.273664,
+        241.587123,
+        238.358793,
+        240.946477
       ],
       "excluded_indices": [
         2
       ]
     },
     "generated-c": {
-      "median_ms": 513.3513565000001,
+      "median_ms": 511.495093,
       "raw_ms": [
-        521.95544,
-        507.008919,
-        517.986775,
-        522.553189,
-        507.302865,
-        506.464648,
-        509.583765,
-        564.911707,
-        517.165573,
-        517.118948,
-        508.575551
+        509.665748,
+        520.708033,
+        519.741069,
+        518.319814,
+        511.495093,
+        505.249352,
+        507.768054,
+        521.019217,
+        514.428141,
+        511.27942,
+        511.119776
       ],
-      "excluded_indices": [
-        7
-      ]
+      "excluded_indices": []
     },
     "native": {
-      "median_ms": 721.273323,
+      "median_ms": 790.588742,
       "raw_ms": [
-        716.40469,
-        715.981142,
-        706.410151,
-        722.01196,
-        721.273323,
-        728.347111,
-        721.938091,
-        730.547657,
-        715.155163,
-        716.19504,
-        725.859284
+        802.041846,
+        785.761534,
+        790.588742,
+        786.474911,
+        802.105702,
+        786.150414,
+        806.341512,
+        784.391997,
+        791.113876,
+        821.521011,
+        789.802299
       ],
       "excluded_indices": []
     },
     "wasm": {
-      "median_ms": 644.2079285,
+      "median_ms": 725.651245,
       "raw_ms": [
-        646.347578,
-        640.51006,
-        637.504636,
-        643.036788,
-        644.670853,
-        650.810149,
-        648.048452,
-        677.461054,
-        658.315295,
-        643.745004,
-        643.664066
+        733.042824,
+        737.901184,
+        728.233861,
+        740.160413,
+        725.651245,
+        723.153403,
+        723.16493,
+        715.360236,
+        726.88013,
+        713.606433,
+        714.439658
       ],
-      "excluded_indices": [
-        7
-      ]
+      "excluded_indices": []
     }
   },
   "complete": true

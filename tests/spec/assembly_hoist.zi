@@ -1,0 +1,19 @@
+// A loop over a slice reads the slice's data and count once, before it.
+using Vectors :: #import "std/vec"
+Weigh :: (values: []s64, scale: s64) -> s64 {
+    sum: s64
+    for i: 0..values.count-1 {
+        step := values[i] * (i + scale)
+        if step % 3 == 0 { step = step / 3 + values.count } else { step += i * i }
+        sum += step
+    }
+    return sum
+}
+Answer :: () -> s32 {
+    data: Vec(s64)
+    for i: 0..7 { VecPush(data, (i * 5 + 3) % 7) }
+    a := Weigh(data[:], 1)
+    b := Weigh(data[:], 2)
+    if a != 172 || b != 177 { return 1 }
+    return 42
+}

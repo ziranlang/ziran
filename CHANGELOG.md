@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- The ZX optimizer hoists fixed member reads, such as a slice's data and count, out of loops, and rotates loops whose test loads from memory. Across the 29 standard workloads on Alpha both took 0.67% less time by geometric mean; JSON round trips ran 9.7% and radix sort 6.8% faster.
 - Wasm writes zeroed records with wide stores, or `memory.fill` past 320 bytes, instead of one byte store per member, and a zero record that is only stored or nested is never built. The Kryon Text widget scenario measured 3.604 µs against 3.890 µs in five alternating Alpha rounds, with the paint result checked on every call.
 - Wasm lowering copies fewer record bytes when a snapshot only supplies fixed member reads or a later replacement. It can also initialize a fresh allocation directly from a member and write a single field back to the original address. Snapshot values survive intervening writes.
 - ZX reads the length of a local fixed array without loading its elements. Iterating an address-backed array no longer copies it at every loop condition.

@@ -16,11 +16,13 @@ Integer :: (program: LirProgram, type: s32) -> bool {
 // These operations are total: executing one on a zero-trip path cannot
 // introduce a trap, memory access, allocation or observable effect. In
 // particular, division, shifts, float conversions and addresses derived
-// from pointers are deliberately absent.
+// from pointers are deliberately absent. Reading a fixed member of a value,
+// such as a slice's data or count, is total too.
 Movable :: (program: LirProgram, function: LirFunction, instruction: LirInstruction) -> bool {
     if instruction.result < 0 || instruction.effect != 0 || instruction.edges.count != 0 { return false }
     op := instruction.op
     if op == .Constant || op == .Null || op == .GlobalAddress || op == .FunctionAddress { return true }
+    if op == .Extract { return instruction.operands.count == 1 && !instruction.checked }
     if !Integer(program, function.values[instruction.result]) { return false }
     for value: instruction.operands { if !Integer(program, function.values[value]) { return false } }
     return op == .Add || op == .Subtract || op == .Multiply || op == .Negate ||

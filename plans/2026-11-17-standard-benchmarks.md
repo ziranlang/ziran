@@ -149,6 +149,39 @@ chains and the float divide, not by the branches, and its native
 modulo-by-constant sequences already match GCC's. The pass was not kept.
 [Raw samples](../bench/results/standard/unswitch-trial-alpha.json).
 
+## Loads in rotated tests and fixed member hoisting on Alpha
+
+Rotation now copies a loop test that loads from memory, such as
+quicksort's `while a[i] < pivot`. The latch's copy runs where the header's
+test ran, so fuel, loads and traps keep their order. LICM now also hoists
+a fixed member read such as a slice's data or count, which spectral-norm
+reloaded from its argument slot every iteration. Over 7 matched rounds
+of all 29 workloads, both changes together took 0.67% less time by
+geometric mean (µs; [raw samples](../bench/results/standard/rotate-licm-alpha.json)):
+
+| Workload | C | Before | After |
+| --- | ---: | ---: | ---: |
+| json-roundtrip | 3,783 | 7,035 | 6,353 |
+| radix-sort | 8,196 | 9,360 | 8,725 |
+| heat-grid | 1,421 | 2,273 | 2,123 |
+| dijkstra | 4,081 | 9,673 | 9,138 |
+| fasta | 107,100 | 128,996 | 123,688 |
+| binary-trees | 91,725 | 41,300 | 39,852 |
+| spectral-norm | 10,104 | 12,943 | 12,744 |
+| fannkuch-redux | 15,865 | 17,975 | 18,610 |
+
+Bytecode compiles to the same LIR in all four trial bundles yet took
+6,807, 8,227, 8,248 and 6,957 µs. Each runner given the other bundle
+follows the bundle, and its unchanged native code moved by 0x60 bytes:
+32-byte boundaries stay put, so this is branch-prediction aliasing in its
+compare-chain dispatch. Treat single-workload changes within ±20% on
+branchy code as placement until a cross run says otherwise.
+
+Spectral-norm's inner loop is still about 23 instructions in-process
+against C's 16. The rest is native: 1.0 is rebuilt with `movabs` and
+`movq` every iteration, the back edge is `je exit; add; jmp` rather than
+one bottom `jne`, and the inlined `A` and the latch each check fuel.
+
 ## Fixed-array count on Alpha
 
 ZX lowering now folds the count of a plain local fixed array before

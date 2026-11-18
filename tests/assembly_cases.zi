@@ -685,6 +685,54 @@ ArrayCountExercise :: (test: *NativeTest, compiler: string) -> bool {
     return true
 }
 
+// True when a path from BLOCK's successors returns to BLOCK.
+InCycle :: (function: LirFunction, block: s64) -> bool {
+    seen: Vec(u8)
+    queue: Vec(s64)
+    defer VecFree(seen)
+    defer VecFree(queue)
+    unused VecResize(seen, function.blocks.count)
+    VecPush(queue, block)
+    first: s64
+    while first < queue.count {
+        current := queue[first]
+        first += 1
+        terminal := function.blocks[current].instructions[function.blocks[current].instructions.count - 1]
+        for edge: terminal.edges {
+            if edge.block == block { return true }
+            if seen[edge.block] != 0 { continue }
+            seen[edge.block] = 1
+            VecPush(queue, cast(s64)edge.block)
+        }
+    }
+    return false
+}
+
+HoistExercise :: (test: *NativeTest, compiler: string) -> bool {
+    name := "assembly_hoist"
+    source := NativeRead(test, CheckPath(test.repo, "tests/spec/assembly_hoist.zi"))
+    if !Exercise(test, compiler, name, source, 42) { return false }
+    owner: ZxExecOwner
+    defer ZxExecReadFree(*owner)
+    read := ZxExecRead(*owner, NativeRead(test, CheckPath(test.work, "assembly_hoist.zi.zx")), LirDefaultLimits())
+    if !NativeAssert(test, read.problem == .None, "decode hoist fixture") { return false }
+    program := ZxExecReadProgram(*owner)
+    for function: program.functions {
+        if function.name != "Weigh" { continue }
+        values := function.blocks[function.entry].parameters[0]
+        reads: s64
+        for block, b: function.blocks {
+            for instruction: block.instructions {
+                if instruction.op != .Extract || instruction.operands[0] != values { continue }
+                reads += 1
+                if !NativeAssert(test, !InCycle(function, b), "a loop must read its slice's data and count before it") { return false }
+            }
+        }
+        return NativeAssert(test, reads > 0, "the fixture reads its slice")
+    }
+    return NativeAssert(test, false, "the fixture keeps Weigh out of line")
+}
+
 GlobalExercise :: (test: *NativeTest, compiler: string, name: string, source: string, operation: string) -> bool {
     if !LowerExercise(test, compiler, name, source, 42, operation, true) { return false }
     input := CheckPath(test.work, CheckConcat(name, ".zi"))
@@ -1019,6 +1067,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !GlobalExercise(*test, compiler, "global_pointer_imports", global_pointer_imports, "store") { return 1 }
     if !OptimizeExercise(*test, compiler) { return 1 }
     if !SpecializeExercise(*test, compiler) { return 1 }
+    if !HoistExercise(*test, compiler) { return 1 }
     runtime_initializer := "counter: s32; Advance :: () -> s32 { counter += 1; return counter }; unused_value: s32 = Advance(); Answer :: () -> s32 { if unused_value != 1 || counter != 1 { return 1 }; return 42 }\n"
     if !GlobalExercise(*test, compiler, "runtime_initializer", runtime_initializer, "global.address") { return 1 }
     if !HostExercise(*test, compiler) || !StringExercise(*test, compiler) { return 1 }

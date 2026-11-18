@@ -208,3 +208,24 @@ invocation matched the C digest.
   leaves.
 - Recursive calls carry a stack check and a frame; fib's recursive path
   also takes a `jge` and a `jmp` back per call (native lane).
+
+## Example programs: native entry
+
+Every in-process native entry checked its cached stack range with
+`getrlimit`, a system call: strace counted one `prlimit64` per call, about
+0.48 µs of score.zi's 0.51 µs. Each thread now keeps its range, and a fork
+handler clears the inherited one. Same bundles and runner source on Alpha,
+µs per call ([raw samples](../bench/results/standard/native-entry-alpha.json)):
+
+| Example | Before | After |
+| --- | ---: | ---: |
+| score.zi | 0.511 | 0.032 |
+| text_demo.zi | 0.512 | 0.033 |
+| arrays.zi | 3.202 | 2.639 |
+| enums.zi | 1.764 | 1.242 |
+| loops.zi | 4.274 | 3.727 |
+
+Still open: arrays, enums and loops run 6–10× slower than C, while Wasm
+is about even with C. Next, run the in-process column unbounded like C and
+Wasm, then compare the loop code with V8's.
+

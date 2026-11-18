@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- In-process native ZX no longer makes a system call on every entry: each thread keeps its stack range, and a forked child looks it up again under its own limit. Records & calls (score.zi) went from 0.511 to 0.032 µs per call on Alpha and text_demo.zi from 0.512 to 0.033 µs; arrays, enums and loops took 13–30% less time.
 ## [0.7.0] - 2026-11-18
 
 - Wasm now runs all three Kryon widget scenarios faster than Go, and two of them faster than C: Button takes 2.46 µs, Text 3.59 µs and Input 3.24 µs per two frames on Alpha, against 4.33, 3.89 and 6.59 µs in Go. Wasm code reads a record's fields where the record lies instead of copying it, builds records where their caller or parent keeps them, writes a single changed field in place, and writes zeroed records with wide stores or `memory.fill`. `zx2wasm --unbounded` makes a module with no step budget for runs that need none.

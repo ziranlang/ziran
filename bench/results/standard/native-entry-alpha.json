@@ -1,0 +1,120 @@
+{
+ "schema_version": 1,
+ "host": "alpha",
+ "virtualization": "none",
+ "processor": "Intel Core i7-8700",
+ "base_revision": "6205d2f20a4e7a8b37fdbea9fa3de713bc36d4e9",
+ "candidate_revision": "e6756bf62c74d42054b883e1d6d2250e49c0c477",
+ "baseline": "Every native entry validates its thread stack range with getrlimit, a system call",
+ "candidate": "Each thread keeps its stack range; a forked child forgets the inherited range",
+ "methodology": "Physical Alpha. The site's in-process ZX example runner (bench/site_target_host.c, native backend) built against each revision's libziran.a; both run the same example bundles. 7 alternating rounds, 11 batches per run, every result checked against the example oracle. strace counted one prlimit64 call per entry before the change.",
+ "artifacts_sha256": {
+  "build/standard-ab/entry-stack/runner-base": "1dce6cf2e30675d17109551d5109ddd450edd30cfa4478b27e74a0ecdec78a4f",
+  "build/standard-ab/entry-stack/runner-new": "2ddea3bbc33c15ee3135daf1bd97b4a517cdabf6a8a8e9d5367ae75ff3cef691"
+ },
+ "results": {
+  "unit": "\u00b5s per call, median of each run's 11 batch medians",
+  "results": {
+   "score": {
+    "base": [
+     0.5106895751037598,
+     0.5089964597473144,
+     0.5140097037048339,
+     0.5105039381408691,
+     0.5112412400207519,
+     0.502059263458252,
+     0.513807221069336
+    ],
+    "new": [
+     0.03160807772827148,
+     0.03202522203063965,
+     0.03232356266784668,
+     0.0322893829498291,
+     0.03292901602172851,
+     0.032265808837890625,
+     0.03234815994262696
+    ]
+   },
+   "text_demo": {
+    "base": [
+     0.5116795964660645,
+     0.5123304745178222,
+     0.5123902283325195,
+     0.5114252635498048,
+     0.5081395556640625,
+     0.5010893546447753,
+     0.5143386533813477
+    ],
+    "new": [
+     0.03277123960876465,
+     0.03283097885131836,
+     0.03269845637512207,
+     0.03284397917175293,
+     0.03295199621582031,
+     0.03264894076538086,
+     0.032971680404663084
+    ]
+   },
+   "arrays": {
+    "base": [
+     3.213251955566406,
+     3.192574222412109,
+     3.2018723142089844,
+     3.182952379638672,
+     3.214308599121094,
+     3.2321179313964845,
+     3.196927500488281
+    ],
+    "new": [
+     2.6321118203125002,
+     2.6386875107421877,
+     2.636773438964844,
+     2.6717936999511718,
+     2.671241207275391,
+     2.6164548325195316,
+     2.6523281267089844
+    ]
+   },
+   "enums": {
+    "base": [
+     1.7725103825683592,
+     1.797301025390625,
+     1.7643009050292968,
+     1.7507519514160157,
+     1.7538234897460938,
+     1.7777304674072265,
+     1.7519919420166015
+    ],
+    "new": [
+     1.2426726098632812,
+     1.2627570831298827,
+     1.2422338841552734,
+     1.2349490935058596,
+     1.2568846431884766,
+     1.2144278588867188,
+     1.2379082036132811
+    ]
+   },
+   "loops": {
+    "base": [
+     4.295146485595703,
+     4.273789789306641,
+     4.226642588134766,
+     4.263681403320312,
+     4.325072019042969,
+     4.250410638671875,
+     4.309526135253907
+    ],
+    "new": [
+     3.7268811137695312,
+     3.705994138671875,
+     3.7550324777832027,
+     3.7113249418945315,
+     3.7855954577636717,
+     3.722784429443359,
+     3.74658129296875
+    ]
+   }
+  }
+ }
+}

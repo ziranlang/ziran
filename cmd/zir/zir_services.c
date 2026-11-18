@@ -1,6 +1,9 @@
 /* The C services cmd/compiler_services.zi declares for the Ziran compiler
  * modules. A Ziran string arrives as a String view with no closing NUL. */
 #include "zir.h"
+#include "zir_body.h"
+#include "zir_scratch.h"
+#include "compiler_portable_body.h"
 #include "zir_diagnostic.h"
 #include "zir_memory.h"
 
@@ -53,3 +56,64 @@ ZiranAddImport(ZirModule *module, ZirImportKind kind, String name,
     return import;
 }
 
+/* The typed-body checker uses one thread-local memo per invocation and
+ * reuses the context's cleared expression marks between calls. */
+#define BODY_MEMO_SLOTS 512
+
+typedef struct BodyMemoSlot {
+    const ZirModule *module;
+    const char *type;
+    unsigned pass;
+    int answer;
+} BodyMemoSlot;
+
+typedef struct BodyMemo {
+    unsigned pass;
+    BodyMemoSlot slots[BODY_MEMO_SLOTS];
+} BodyMemo;
+
+static _Thread_local BodyMemo body_memo;
+
+int
+MemoPortableBodyType(const ZirModule *module, const char *type)
+{
+    BodyMemo *memo = &body_memo;
+    uintptr_t key = ((uintptr_t)type >> 3) ^ ((uintptr_t)module >> 6);
+    BodyMemoSlot *slot = &memo->slots[(key ^ (key >> 9)) % BODY_MEMO_SLOTS];
+    if(slot->pass == memo->pass && slot->type == type && slot->module == module)
+        return slot->answer;
+    int answer = CanEmitTypeZiran((ZirModule *)module, (uint8_t *)type);
+    *slot = (BodyMemoSlot){module, type, memo->pass, answer};
+    return answer;
+}
+
+typedef struct BodySupport {
+    size_t capacity;
+    uint8_t marks[];
+} BodySupport;
+
+int
+CanEmitBody(const ZirModule *module, const ZirFunction *fn)
+{
+    if(!fn->checked || fn->is_extern || fn->expr_count < 0) return 0;
+    static const char key;
+    static _Thread_local CompilerScratchCache cache;
+    CompilerScratch *scratch = CompilerScratchCached(&cache, &key, free);
+    BodySupport *support = CompilerMemoryRecovering() ? NULL : CompilerScratchTake(scratch);
+    size_t count = (size_t)fn->expr_count;
+    if(support == NULL || count > support->capacity) {
+        free(support);
+        support = AllocateOrExit(sizeof(*support) + count);
+        support->capacity = count;
+    }
+    if(count != 0) memset(support->marks, 0, count);
+    BodyMemo *memo = &body_memo;
+    if(++memo->pass == 0) {
+        memset(memo->slots, 0, sizeof(memo->slots));
+        memo->pass = 1;
+    }
+    int answer = CanEmitBodyZiran((ZirModule *)module, (ZirFunction *)fn, support->marks);
+    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch, support))
+        free(support);
+    return answer;
+}

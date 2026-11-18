@@ -199,6 +199,16 @@ $(NATIVE_NAMES_C)/%.c: $(NATIVE_NAMES_C)/.generated
 endif
 override CFLAGS += -I$(BACKEND_CACHE_C) -I$(BACKEND_PROCESS_C)
 override CFLAGS += -I$(NATIVE_NAMES_C)
+# Eligibility rules shared by the C and Go typed-body emitters.
+ifeq ($(BOOTSTRAP),1)
+BODY_C := bootstrap/compiler_portable_body
+BODY_READY := $(BODY_C)/compiler_portable_body.c $(BODY_C)/compiler_portable_body.h
+else
+BODY_C := $(BUILD_DIR)/compiler-portable-body
+BODY_READY := $(BODY_C)/.generated
+endif
+BODY_OBJECT := $(BUILD_DIR)/obj/compiler-portable-body.o
+override CFLAGS += -I$(BODY_C)
 # zi2c's pruning of a closed program's C (cmd/compiler_c_prune.zi). Its std
 # text_tools and vec code is already linked through the backend modules.
 ifeq ($(BOOTSTRAP),1)
@@ -226,7 +236,7 @@ RANGE_MODULES := compiler_c_range compiler_c_range_facts compiler_c_range_values
 RANGE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/c-range/%.o,$(RANGE_MODULES))
 override CFLAGS += -I$(RANGE_C)
 FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c cmd/zir/zir_sha256.c cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
-    cmd/zir/zir_simd.c cmd/zir/zir_body.c cmd/zir/zir_cleanup.c \
+    cmd/zir/zir_simd.c cmd/zir/zir_cleanup.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c \
     cmd/zir/zir_serial.c cmd/zir/zir_load.c \
     cmd/zir/zir_packages.c \
@@ -253,7 +263,7 @@ obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
 # bootstrap compiler opens no bundle and has none.
 ENGINE_C := $(BUILD_DIR)/compiler-runtime
 ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_verify \
-    compiler_lowered_proven compiler_exec_serial compiler_exec_debug compiler_exec_link compiler_exec compiler_opt compiler_opt_ssa compiler_opt_rotate compiler_opt_loop compiler_opt_licm compiler_opt_induction compiler_opt_layout compiler_opt_inline compiler_opt_specialize compiler_opt_thread compiler_opt_accumulate compiler_opt_dom compiler_learning compiler_learning_policy \
+    compiler_lowered_proven compiler_exec_serial compiler_exec_debug compiler_exec_link compiler_exec compiler_opt compiler_opt_ssa compiler_opt_rotate compiler_opt_loop compiler_opt_licm compiler_opt_induction compiler_opt_layout compiler_opt_inline compiler_opt_specialize compiler_opt_unswitch compiler_opt_thread compiler_opt_accumulate compiler_opt_dom compiler_learning compiler_learning_policy \
     text_buffer number_text compiler_zx_wasm_types compiler_zx_wasm_fn compiler_zx_wasm_plan compiler_zx_wasm_code \
     compiler_zx_wasm_body compiler_zx_wasm_helpers compiler_zx_wasm
 # The Wasm lowering of revision-28 ZX (cmd/compiler_zx_wasm*.zi) is part of
@@ -291,8 +301,8 @@ FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(S
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(RANGE_OBJECTS) $(NATIVE_NAMES_OBJECT)
 # The expression parser, cmd/compiler_parse.zi.
 override CFLAGS += -I$(PARSE_C)
-LIB_OBJECTS += $(PARSE_OBJECT)
-FRONTEND_OBJECTS += $(PARSE_OBJECT)
+LIB_OBJECTS += $(PARSE_OBJECT) $(BODY_OBJECT)
+FRONTEND_OBJECTS += $(PARSE_OBJECT) $(BODY_OBJECT)
 BUNDLE_OBJECT := $(call obj,$(PORTABLE)) $(BUNDLE_MODULE_OBJECT)
 RUNTIME_EMIT_OBJECTS := $(addprefix $(BUILD_DIR)/obj/runtime-emit/,compiler_runtime_emit.o file.o file_linux.o c_string.o vec.o)
 BACKEND_PROCESS_SOURCES := compiler_backend_process.c byte_text_linux.c environment_linux.c \
@@ -418,6 +428,10 @@ $(IR_OBJECT): $(IR_READY) $(BUILD_DIR)/.compiler-flags
 $(LAW_OBJECT): $(LAW_READY) $(IR_READY) $(SERVICES_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(LAW_C)/compiler_law.c
+$(call obj,cmd/zir/zir_services.c): $(BODY_READY)
+$(BODY_OBJECT): $(BODY_READY) $(IR_READY) $(NATIVE_NAMES_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(BODY_C)/compiler_portable_body.c
 $(SERVICES_OBJECT): $(SERVICES_READY) $(IR_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SERVICES_C)/compiler_services.c
@@ -694,7 +708,9 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     $(PORTABLE) cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi std/c_string.zi std/result.zi std/vec.zi \
     cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
     $(BACKEND_BOOTSTRAP_FILES) cmd/compiler_backend_cache.zi cmd/compiler_backend_process.zi \
-    cmd/compiler_native_names.zi \
+    cmd/compiler_native_names.zi cmd/compiler_portable_body.zi \
+    bootstrap/compiler_portable_body/compiler_portable_body.c \
+    bootstrap/compiler_portable_body/compiler_portable_body.h \
     bootstrap/compiler_scan/compiler_scan.c bootstrap/compiler_scan/compiler_scan.h \
     bootstrap/compiler_text/compiler_text.c bootstrap/compiler_text/compiler_text.h \
     bootstrap/compiler_source/compiler_source.c bootstrap/compiler_source/compiler_source.h \
@@ -728,6 +744,11 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
 	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap SIMD_DIR=$(SIMD_DIR) \
 	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=$(call quote,$(HOST_OBJCOPY)) CFLAGS=$(call quote,$(BOOTSTRAP_CFLAGS)) \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
+
+$(BODY_C)/.generated: cmd/compiler_portable_body.zi cmd/compiler_ir.zi cmd/compiler_native_names.zi cmd/compiler_services.zi cmd/compiler_type.zi $(BOOTSTRAP_BIN)
+	$(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(BODY_C) cmd/compiler_portable_body.zi
+	touch $@
 
 $(SCANNER_C)/.generated: cmd/compiler_scan.zi $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
@@ -784,7 +805,7 @@ $(PROOF_C)/.generated: cmd/compiler_proof.zi cmd/compiler_ir.zi cmd/compiler_ser
 	    -o $(PROOF_C) cmd/compiler_proof.zi
 	touch $@
 
-$(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/compiler_exec_debug.zi cmd/compiler_exec.zi cmd/compiler_opt.zi cmd/compiler_opt_ssa.zi cmd/compiler_opt_rotate.zi cmd/compiler_opt_loop.zi cmd/compiler_opt_licm.zi cmd/compiler_opt_induction.zi cmd/compiler_opt_layout.zi cmd/compiler_opt_inline.zi cmd/compiler_opt_specialize.zi cmd/compiler_opt_thread.zi cmd/compiler_opt_accumulate.zi cmd/compiler_opt_dom.zi cmd/compiler_learning.zi cmd/compiler_learning_policy.zi cmd/compiler_learning_table.zi \
+$(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/compiler_exec_debug.zi cmd/compiler_exec.zi cmd/compiler_opt.zi cmd/compiler_opt_ssa.zi cmd/compiler_opt_rotate.zi cmd/compiler_opt_loop.zi cmd/compiler_opt_licm.zi cmd/compiler_opt_induction.zi cmd/compiler_opt_layout.zi cmd/compiler_opt_inline.zi cmd/compiler_opt_specialize.zi cmd/compiler_opt_unswitch.zi cmd/compiler_opt_thread.zi cmd/compiler_opt_accumulate.zi cmd/compiler_opt_dom.zi cmd/compiler_learning.zi cmd/compiler_learning_policy.zi cmd/compiler_learning_table.zi \
     cmd/compiler_exec_serial.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_proven.zi cmd/compiler_lowered_ir.zi \
     cmd/compiler_bundle.zi std/math.zi std/text_buffer.zi std/number_text.zi $(wildcard cmd/compiler_zx_wasm*.zi) $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
@@ -832,7 +853,7 @@ $(LINK_C)/.generated: cmd/compiler_link.zi cmd/compiler_services.zi cmd/compiler
 BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel proof bundle ir law services link runtime_emit backend_cache backend_process native_names lowered_ir zir_lower c_prune c_range
 GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
     -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
-BOOTSTRAP_MODULES += parse
+BOOTSTRAP_MODULES += parse portable_body
 # Darwin's seed copies of the platform modules, generated with the defines a
 # Darwin host passes; one copy serves Apple Silicon and Intel.
 DARWIN_BOOTSTRAP_MODULES := runtime_emit backend_cache backend_process

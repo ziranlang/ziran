@@ -169,7 +169,7 @@ C ABI/storage boundary:
 | `zir.c` / `zir.h` | target/host queries `CompilerHostOS:31`, target parsing `:87`, capability check `:151`; program/module construction `ProgramNew:1632`, `ModuleAddImport:1752` | `compiler_frontend_ir` + `compiler_target` | S15 |
 | `zir_asm.c` / `zir_asm.h` | inline assembly parse/check and C/Go assembly emission; `CheckAssemblyBlock:998`, `CheckAssembly:1180`, `EmitAssembly:1826`, block helpers `:2094` | `compiler_inline_asm` | S17 |
 | `zir_assets.c` / `zir_link.h` | asset collection `ZxAssetsCollect:113`; bundle rule call `:84` | `compiler_zx_assets` | S16 |
-| `zir_body.c` / `.h` | portable-body eligibility `CanEmitBody:213`, public `:258` | `compiler_portable_body` | S16 |
+| `zir_body.h` | `CanEmitBody` ABI for the shared C and Go emitters | `compiler_portable_body` is bootstrapped. `zir_services.c` keeps the thread-local memo and expression scratch | `zir_body.c` removed |
 | `zir_borrow.c` / `.h` | ownership/lifetime analysis; public `CheckSliceLifetimes:2001` | `compiler_borrow` | S12 |
 | `zir_check.c` / `.h` | checker entry/lookup; first routines `:10`, file-private `:85` | `compiler_check` | S11/S12 |
 | `zir_check_expr.c` | expression checking from `:26` | `compiler_check_expr` | S11 |
@@ -491,7 +491,7 @@ No step commits before its implementation and proof are complete.
 - Change Kryon-facing headers only if the C ABI names remain identical; update
   `Makefile:144-182`, `Makefile:633-645`, and tests that link `libziran.a` to
   generated objects. Add modules to bootstrap.
-- Delete `zir_link.c`, `zir_assets.c`, `zir_serial.c`, `zir_body.c`,
+- Delete `zir_link.c`, `zir_assets.c`, `zir_serial.c`,
   `zir_host.c`, `zir_host_exec.c`, `zir_load.c`, `zir_packages.c`,
   `zir_zx_wasm.c`, `zir_zx_wasm_web.c`, their headers/platform headers,
   `zir_exec_console.h`, and `cmd/zir-asm/zx_exec_run.c/.h`.

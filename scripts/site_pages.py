@@ -348,6 +348,12 @@ def std_page(module, release):
 
 # ------------------------------------------------------------------ packages
 
+def published_remote(directory):
+    """The remote a package checkout publishes to GitHub through: its github
+    remote once origin moved to Gitea, otherwise origin."""
+    return git(directory, 'remote', 'get-url', 'github') or git(directory, 'remote', 'get-url', 'origin')
+
+
 def github_url(remote):
     match = re.match(r'(?:https://github\.com/|git@github\.com:)([^/]+/[^/]+?)(?:\.git)?/?$', remote)
     return f'https://github.com/{match.group(1)}' if match else ''
@@ -421,7 +427,7 @@ def package_modules(ziran, directory, manifest, packages):
         # A referenced missing dependency is still rejected later by ziran api.
         if not os.path.isfile(other):
             continue
-        origin = git(package_directory, 'remote', 'get-url', 'origin')
+        origin = published_remote(package_directory)
         requested_identity = github_url(requested) or requested.rstrip('/').removesuffix('.git')
         origin_identity = github_url(origin) or origin.rstrip('/').removesuffix('.git')
         if not origin_identity:
@@ -460,7 +466,7 @@ def read_packages(ziran, packages):
         if not os.path.isfile(manifest_path):
             continue
         manifest = tomllib.load(open(manifest_path, 'rb'))
-        origin = git(directory, 'remote', 'get-url', 'origin')
+        origin = published_remote(directory)
         url = github_url(origin)
         expected = entries[name]
         if (not isinstance(expected, dict) or

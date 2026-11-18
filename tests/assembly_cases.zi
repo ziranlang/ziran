@@ -621,6 +621,20 @@ OptimizeExercise :: (test: *NativeTest, compiler: string) -> bool {
     return true
 }
 
+SpecializeExercise :: (test: *NativeTest, compiler: string) -> bool {
+    name := "assembly_specialize"
+    source := NativeRead(test, CheckPath(test.repo, "tests/spec/assembly_specialize.zi"))
+    if !Exercise(test, compiler, name, source, 42) { return false }
+    bundle := CheckPath(test.work, "assembly_specialize.zi.zx")
+    code := NativeRead(test, CheckConcat(bundle, ".lir"))
+    if !NativeAssert(test, TextContains(code, "name=\"Sum\"") &&
+        TextContains(code, "name=\"Sum$0\"") && TextContains(code, "name=\"Sum$1\"") &&
+        TextContains(code, "call.indirect"), "literal Bool calls must specialize while indirect calls keep the original") { return false }
+    execute := string.[compiler, "run", "--backend", "engine", "--fuel", "9223372036854775807", bundle]
+    unused NativeRun(test, execute[:], "", 42)
+    return !test.failed
+}
+
 GlobalExercise :: (test: *NativeTest, compiler: string, name: string, source: string, operation: string) -> bool {
     if !LowerExercise(test, compiler, name, source, 42, operation, true) { return false }
     input := CheckPath(test.work, CheckConcat(name, ".zi"))
@@ -953,6 +967,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     global_pointer_imports := "Library :: #import \"global_library\"; Bump :: (pointer: *s32) { <<pointer += 1 }; Answer :: () -> s32 { initial := Library.counter; pointer := Library.ReadPointer(); if initial != 39 { return 1 }; Bump(pointer); <<pointer += 1; return Library.counter + 1 }\n"
     if !GlobalExercise(*test, compiler, "global_pointer_imports", global_pointer_imports, "store") { return 1 }
     if !OptimizeExercise(*test, compiler) { return 1 }
+    if !SpecializeExercise(*test, compiler) { return 1 }
     runtime_initializer := "counter: s32; Advance :: () -> s32 { counter += 1; return counter }; unused_value: s32 = Advance(); Answer :: () -> s32 { if unused_value != 1 || counter != 1 { return 1 }; return 42 }\n"
     if !GlobalExercise(*test, compiler, "runtime_initializer", runtime_initializer, "global.address") { return 1 }
     if !HostExercise(*test, compiler) || !StringExercise(*test, compiler) { return 1 }

@@ -1,0 +1,29 @@
+Sum :: (n: s64, increase: bool) -> s64 {
+    result: s64 = 5
+    for i: 0..n-1 {
+        if increase {
+            result += (i*i + 3*i + 1) % 17
+            result += (i*i*i + 7*i + 9) % 23
+        } else {
+            result -= (i*i + 7*i + 2) % 19
+            result -= (i*i*i + 5*i + 6) % 29
+        }
+    }
+    return result
+}
+
+Operation :: #type (n: s64, increase: bool) -> s64;
+Keep :: (n: s64, increase: bool) -> s64 { return n + ifx increase then 1 else 2 }
+
+Answer :: () -> s32 {
+    a := Sum(7, true)
+    b := Sum(7, false)
+    c := Sum(0, true)
+    d := Sum(0, false)
+    e := Sum(3, a > b)
+    operation: Operation = Keep
+    if a > b { operation = Sum }
+    f := operation(3, a < b)
+    if a != 123 || b != -133 || c != 5 || d != 5 || e != 56 || f != -50 { return 1 }
+    return 42
+}

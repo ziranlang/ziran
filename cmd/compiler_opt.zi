@@ -8,6 +8,7 @@ using Licm :: #import "compiler_opt_licm"
 using Induction :: #import "compiler_opt_induction"
 using Layout :: #import "compiler_opt_layout"
 using Inline :: #import "compiler_opt_inline"
+using Specialize :: #import "compiler_opt_specialize"
 using Thread :: #import "compiler_opt_thread"
 using Accumulate :: #import "compiler_opt_accumulate"
 using Dominators :: #import "compiler_opt_dom"
@@ -2183,6 +2184,21 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         if options.simplify_cfg && !CfgRound(*state, owner, limits) {
             LirOptFree(owner)
             return Result(state)
+        }
+    }
+    if options.inline_calls > 0 && options.fold_constants && options.simplify_cfg {
+        replacement: LirReadOwner
+        specialized := LirSpecializeBranches(LirReadProgram(*owner.storage), *replacement,
+            limits, state.remaining, cast(s64)options.inline_calls * 2)
+        if !SharedPassResult(*state, specialized.problem, specialized.codec, specialized.work, specialized.scratch_bytes) {
+            LirOptFree(owner); return Result(state)
+        }
+        if specialized.copies > 0 {
+            LirReadReplace(*owner.storage, *replacement)
+            ScratchReset(*state)
+            if !CfgPass(*state, LirReadProgram(*owner.storage), limits) { LirOptFree(owner); return Result(state) }
+            ScratchReset(*state)
+            if !CfgRound(*state, owner, limits) { LirOptFree(owner); return Result(state) }
         }
     }
     optimized = LirReadProgram(*owner.storage)

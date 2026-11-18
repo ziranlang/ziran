@@ -95,6 +95,27 @@ The full run measured 107.192 ms in C, 124.622 ms before and 123.544 ms after.
 All samples matched the C digest. The quicksort changes varied across runs.
 [Raw samples](../bench/results/standard/native-multiply-31-alpha.json).
 
+## Boolean argument specialization on Alpha
+
+The general inlining threshold trial removed the four `Multiply` calls
+and increased their caller's native size from 2,741 to 4,271 bytes.
+Spectral-norm's paired median changed by +0.19% and the trial was removed.
+
+The optimizer now emits separate callees for literal Boolean arguments
+that control loop branches. The unchanged spectral-norm workload calls
+two smaller copies of `Multiply`. Calls with a runtime Boolean and
+indirect calls retain the original body. Each runner invocation matched
+the C digest. [Raw samples](../bench/results/standard/native-bool-specialization-alpha.json).
+
+| Cohort | C (ms) | Native before (ms) | Native after (ms) | Median paired change |
+| --- | ---: | ---: | ---: | ---: |
+| Four workloads, 11 rounds | 10.116 | 15.845 | 12.744 | −19.89% |
+| Original 11 workloads, 7 rounds | 9.995 | 15.891 | 12.762 | −19.31% |
+
+Spectral-norm improved in all 18 rounds. In the seven-round cohort the
+other paired medians ranged from −1.15% to +1.84%. Fib and binary-trees
+had the largest increases at +1.84% and +1.46%, respectively.
+
 ## Every in-process native function
 
 - Step metering (`fuel`) is always on for in-process code: one check per

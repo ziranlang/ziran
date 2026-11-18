@@ -1,0 +1,240 @@
+using IR :: #import "compiler_lowered_ir"
+using Codec :: #import "compiler_exec_serial"
+using SSA :: #import "compiler_opt_ssa"
+using Vectors :: #import "std/vec"
+
+LirSpecializeResult :: struct { problem: LirSsaProblem; codec: LirCodecResult; work: s64; scratch_bytes: s64; copies: s64 }
+
+#scope_file
+MaximumBody :: 96
+MaximumCopies :: 24
+
+Candidate :: struct { parameter: s64; size: s64; copies: [2]s32 }
+Specialization :: struct {
+    original: s32
+    name: Vec(u8)
+    values: Vec(s32)
+    branch_operand: [1]s32
+    blocks: Vec(LirBlock)
+    instructions: Vec(LirInstruction)
+    function: LirFunction
+}
+
+// A branch is hot enough to duplicate when control can come back to it.
+// Capped bodies let the search use a fixed queue, including for loops with
+// multiple latches or conditional entry edges.
+InCycle :: (function: LirFunction, start: s64, budget: *LirSsaBudget) -> bool {
+    queue: [MaximumBody]s32
+    seen: [MaximumBody]bool
+    queue[0] = cast(s32)start
+    seen[start] = true
+    first: s64
+    end: s64 = 1
+    while first < end {
+        block := function.blocks[queue[first]]
+        first += 1
+        for edge: block.instructions[block.instructions.count - 1].edges {
+            if !LirSsaSpend(budget, 1) { return false }
+            if edge.block == start { return true }
+            if seen[edge.block] { continue }
+            queue[end] = edge.block
+            seen[edge.block] = true
+            end += 1
+        }
+    }
+    return false
+}
+
+Choose :: (program: LirProgram, index: s32, maximum: s64, budget: *LirSsaBudget) -> Candidate {
+    choice := Candidate.{parameter = -1, copies = .{-1, -1}}
+    function := program.functions[index]
+    if function.external || function.calling != .Portable || function.variadic ||
+        function.blocks.count > maximum || function.blocks.count < 2 { return choice }
+    for block: function.blocks {
+        choice.size += block.instructions.count
+        if !LirSsaSpend(budget, 1) || choice.size > maximum { return choice }
+    }
+    entry := function.blocks[function.entry]
+    for block, index: function.blocks {
+        terminal := block.instructions[block.instructions.count - 1]
+        if terminal.op != .Branch { continue }
+        condition := terminal.operands[0]
+        for value, parameter: entry.parameters {
+            if !LirSsaSpend(budget, 1) { return choice }
+            if value != condition { continue }
+            if InCycle(function, index, budget) { choice.parameter = parameter; return choice }
+            break
+        }
+    }
+    return choice
+}
+
+MakeCopy :: (program: LirProgram, callee: s32, choice: Candidate, symbol: s32,
+    budget: *LirSsaBudget, copy: *Specialization) -> bool {
+    function := program.functions[callee]
+    name_count := function.name.count + 2
+    value_count := function.values.count + 1
+    instruction_count := choice.size + 1
+    if !LirSsaReserve(budget, name_count, 1) || !LirSsaReserve(budget, value_count, 4) ||
+        !LirSsaReserve(budget, function.blocks.count, 40) || !LirSsaReserve(budget, instruction_count, 112) ||
+        !LirSsaSpend(budget, name_count + value_count + instruction_count) { return false }
+    if !VecResizeBounded(copy.name, name_count, name_count) ||
+        !VecResizeBounded(copy.values, value_count, value_count) ||
+        !VecResizeBounded(copy.blocks, function.blocks.count, function.blocks.count) ||
+        !VecResizeBounded(copy.instructions, instruction_count, instruction_count) {
+        budget.problem = .Allocation
+        return false
+    }
+    for byte, at: function.name { copy.name[at] = byte }
+    copy.name[name_count - 2] = #char "$"
+    copy.name[name_count - 1] = #char "0" + cast(u8)program.constants[symbol].bits
+    name := TextView(copy.name[:])
+    for other: program.functions {
+        if !LirSsaSpend(budget, 1) { return false }
+        if other.module != function.module || other.name.count != name_count { continue }
+        if !LirSsaSpend(budget, name_count) { return false }
+        if other.name == name { return false }
+    }
+    copy.original = callee
+    for type, at: function.values { copy.values[at] = type }
+    value := cast(s32)function.values.count
+    copy.values[value] = program.constants[symbol].type
+    copy.branch_operand[0] = value
+    condition := function.blocks[function.entry].parameters[choice.parameter]
+    next: s64
+    for block, at: function.blocks {
+        first := next
+        if at == function.entry {
+            copy.instructions[next] = .{op = .Constant, result = value, symbol = symbol, origin = function.origin}
+            next += 1
+        }
+        for instruction: block.instructions {
+            if instruction.op == .Branch && instruction.operands[0] == condition {
+                instruction.operands = copy.branch_operand[:]
+            }
+            copy.instructions[next] = instruction
+            next += 1
+        }
+        block.instructions = copy.instructions[first:next]
+        copy.blocks[at] = block
+    }
+    function.name = name
+    function.values = copy.values[:]
+    function.blocks = copy.blocks[:]
+    copy.function = function
+    return true
+}
+
+Constants :: (function: LirFunction, symbols: []s32) {
+    for at: 0..function.values.count - 1 { symbols[at] = -1 }
+    for block: function.blocks {
+        for instruction: block.instructions {
+            if instruction.op == .Constant { symbols[instruction.result] = instruction.symbol }
+        }
+    }
+}
+
+#scope_export
+// Keep one copy for each literal value of one loop-controlling Bool argument.
+// The original remains the target for other calls and all function addresses.
+// CFG cleanup later removes the untaken edges and any resulting dead blocks.
+LirSpecializeBranches :: (program: LirProgram, replacement: *LirReadOwner,
+    limits: LirLimits, work: s64, maximum: s64) -> LirSpecializeResult {
+    count := program.functions.count
+    budget := LirSsaBudget.{work = work / 8, bytes = limits.bytes}
+    total: s64
+    values: s64
+    largest: s64
+    for function: program.functions {
+        for block: function.blocks { total += block.instructions.count }
+        values += function.values.count
+        if function.values.count > largest { largest = function.values.count }
+    }
+    growth := total / 4
+    if growth < 192 { growth = 192 }
+    if growth > limits.instructions - total { growth = limits.instructions - total }
+    if growth > work / 4096 - total { growth = work / 4096 - total }
+    capacity := limits.functions - count
+    if capacity > MaximumCopies { capacity = MaximumCopies }
+    if capacity <= 0 || growth <= 0 || maximum <= 0 { return .{} }
+    if !LirSsaSpend(*budget, total * 6 + values * 2 + count) || !LirSsaReserve(*budget, count + capacity, 160) ||
+        !LirSsaReserve(*budget, count, 24) || !LirSsaReserve(*budget, largest, 4) { return .{} }
+    choices: Vec(Candidate)
+    functions: Vec(LirFunction)
+    symbols: Vec(s32)
+    versions: [MaximumCopies]Specialization
+    defer VecFree(choices)
+    defer VecFree(functions)
+    defer VecFree(symbols)
+    if !VecResizeBounded(choices, count, count) || !VecResizeBounded(functions, count + capacity, count + capacity) ||
+        !VecResizeBounded(symbols, largest, largest) { return .{problem = .Allocation} }
+    if maximum > MaximumBody { maximum = MaximumBody }
+    for function, at: program.functions {
+        functions[at] = function
+        choices[at] = Choose(program, cast(s32)at, maximum, *budget)
+        if budget.problem != .None { return .{work = budget.used, scratch_bytes = budget.reserved} }
+    }
+    copied: s64
+    for function, caller: program.functions {
+        Constants(function, symbols[:])
+        for block: function.blocks {
+            for instruction: block.instructions {
+                if instruction.op != .Call || instruction.symbol == caller { continue }
+                callee := instruction.symbol
+                choice := choices[callee]
+                if choice.parameter < 0 || choice.size + 1 > growth || copied >= capacity { continue }
+                symbol := symbols[instruction.operands[choice.parameter]]
+                if symbol == -1 { continue }
+                bit := cast(s64)program.constants[symbol].bits
+                if choice.copies[bit] != -1 { continue }
+                if MakeCopy(program, callee, choice, symbol, *budget, *versions[copied]) {
+                    functions[count + copied] = versions[copied].function
+                    choices[callee].copies[bit] = cast(s32)(count + copied)
+                    copied += 1
+                    growth -= choice.size + 1
+                } else {
+                    choices[callee].copies[bit] = -2
+                }
+                if budget.problem != .None {
+                    problem := ifx budget.problem == .Limit then LirSsaProblem.None else budget.problem
+                    return .{problem = problem, work = budget.used, scratch_bytes = budget.reserved}
+                }
+            }
+        }
+    }
+    outcome := LirSpecializeResult.{work = budget.used, scratch_bytes = budget.reserved}
+    if copied == 0 { return outcome }
+    for function, caller: program.functions {
+        Constants(function, symbols[:])
+        for block: function.blocks {
+            for instruction, at: block.instructions {
+                if instruction.op != .Call || instruction.symbol == caller { continue }
+                choice := choices[instruction.symbol]
+                if choice.parameter < 0 { continue }
+                symbol := symbols[instruction.operands[choice.parameter]]
+                if symbol == -1 { continue }
+                target := choice.copies[cast(s64)program.constants[symbol].bits]
+                if target >= 0 { block.instructions[at].symbol = target }
+            }
+        }
+    }
+    specialized := program
+    specialized.functions = functions[:count + copied]
+    outcome.codec = LirSsaSerialize(replacement, specialized, limits, *budget)
+    outcome.scratch_bytes = budget.reserved
+    // Restore the borrowed call sites, including when the grown program
+    // exceeds a caller's custom limits and the optimizer keeps this owner.
+    for function: program.functions {
+        for block: function.blocks {
+            for instruction, at: block.instructions {
+                if instruction.op == .Call && instruction.symbol >= count {
+                    block.instructions[at].symbol = versions[instruction.symbol - count].original
+                }
+            }
+        }
+    }
+    if budget.problem == .None && outcome.codec.problem == .None { outcome.copies = copied; return outcome }
+    if outcome.codec.problem == .Limit || outcome.codec.diagnostic.problem == .Limit { outcome.codec = .{} }
+    if budget.problem != .Limit { outcome.problem = budget.problem }
+    return outcome
+}

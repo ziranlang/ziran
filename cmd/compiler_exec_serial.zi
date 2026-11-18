@@ -880,6 +880,38 @@ LirReadFree :: (owner: *LirReadOwner) {
     owner.entry = LirNoId
 }
 
+// Adopt a separately verified program. Its views point into heap buffers
+// whose addresses stay the same when ownership of the vectors moves.
+LirReadReplace :: (owner: *LirReadOwner, replacement: *LirReadOwner) {
+    if owner == replacement { return }
+    LirReadFree(owner)
+    VecSwap(owner.text_bytes, replacement.text_bytes)
+    VecSwap(owner.blob_bytes, replacement.blob_bytes)
+    VecSwap(owner.modules, replacement.modules)
+    VecSwap(owner.sources, replacement.sources)
+    VecSwap(owner.types, replacement.types)
+    VecSwap(owner.type_fields, replacement.type_fields)
+    VecSwap(owner.type_parameters, replacement.type_parameters)
+    VecSwap(owner.constants, replacement.constants)
+    VecSwap(owner.globals, replacement.globals)
+    VecSwap(owner.functions, replacement.functions)
+    VecSwap(owner.initializers, replacement.initializers)
+    VecSwap(owner.function_parameters, replacement.function_parameters)
+    VecSwap(owner.function_values, replacement.function_values)
+    VecSwap(owner.blocks, replacement.blocks)
+    VecSwap(owner.block_parameters, replacement.block_parameters)
+    VecSwap(owner.instructions, replacement.instructions)
+    VecSwap(owner.operands, replacement.operands)
+    VecSwap(owner.edges, replacement.edges)
+    VecSwap(owner.edge_arguments, replacement.edge_arguments)
+    VecSwap(owner.origins, replacement.origins)
+    owner.version = replacement.version
+    owner.entry = replacement.entry
+    owner.program = replacement.program
+    owner.valid = replacement.valid
+    LirReadFree(replacement)
+}
+
 // Decodes into OWNER with bounded work, tables and bytes, copies all strings
 // and blobs, rejects noncanonical framing/trailing bytes, then calls LirVerify.
 // OWNER is empty after any failure. INPUT must not alias OWNER's old storage.

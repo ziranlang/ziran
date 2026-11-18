@@ -210,11 +210,22 @@ Two :: () -> s32 {
     return Same() + SameValue + same_global + cast(s32) size_of(SameType)
 }
 ZI
+cat > "$work/peer.zi" <<'ZI'
+#scope_file
+Same :: (result: *s32, input: s32) { <<result = input }
+#scope_export
+Read :: () -> s32 {
+    value: s32
+    Same(*value, 7)
+    return value
+}
+ZI
 cat > "$work/main.zi" <<'ZI'
 #load "part.zi";
 #load "part2.zi";
+using Peer :: #import "peer";
 #program_export
-Answer :: () -> s32 { return One() + Two() + Shadow() }
+Answer :: () -> s32 { return One() + Two() + Shadow() + Peer.Read() }
 ZI
 "$ziran" check --root "$work" "$work/main.zi"
 "$ziran" ir --root "$work" -o "$work/duplicate-ir" "$work/main.zi"
@@ -223,13 +234,13 @@ ZI
 "$ziran" bundle --root "$work/duplicate-ir" --entry main:Answer \
     -o "$work/duplicate-saved.zx" "$work/duplicate-ir/main.zir"
 cmp "$work/duplicate-source.zx" "$work/duplicate-saved.zx"
-test "$("$ziran" run "$work/duplicate-saved.zx")" = 22
+test "$("$ziran" run "$work/duplicate-saved.zx")" = 29
 
 "$ziran" build --target=c --root "$work" -o "$work/duplicate-c" \
     "$work/main.zi"
 cat > "$work/duplicate-c/entry.c" <<'C'
 #include "main.h"
-int main(void) { return Answer() == 22 ? 0 : 1; }
+int main(void) { return Answer() == 29 ? 0 : 1; }
 C
 if rg -q '^#define SameValue[[:space:]]' "$work/duplicate-c/main.c"; then
     echo 'file-private constants share a C macro name' >&2
@@ -242,7 +253,7 @@ fi
     -o "$work/duplicate-go" "$work/main.zi"
 cat > "$work/duplicate-go/entry.go" <<'GO'
 package main
-func main() { if Main_Answer() != 22 { panic("file-private declarations collided") } }
+func main() { if Main_Answer() != 29 { panic("file-private declarations collided") } }
 GO
 GO111MODULE=off go run "$work/duplicate-go"/*.go
 

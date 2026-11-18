@@ -8,7 +8,7 @@ and float side; this plan covers binary-trees, fasta and the rest.
 
 ## Where native still loses, ranked
 
-Numbers are µs from the latest matched A/B (C / native). Binary-trees now
+Numbers are µs from the baseline matched A/B (C / native). Binary-trees now
 runs at 46,346 against C's 98,101: the in-process heap fast path replaced
 the host call, `calloc` and block list on every `New` and `free`.
 
@@ -37,9 +37,18 @@ the host call, `calloc` and block list on every `New` and `free`.
      memory effect follows the store to `c`, and nothing proves the
      vectors' storage is disjoint. gcc hoists it to the `k` loop.
    - One step check per iteration.
-3. **spectral-norm** (10,539 / 24,374): `A(i, j)` and the transpose select
-   are duplicated into two copies of the loop body that jump back into each
-   other; no vectorization under step metering.
+3. **spectral-norm** (10,483 / 21,745). gcc's inner loop is about 16
+   instructions with `1.0` kept in a register and `/ 2` as a bare `sar`.
+   Native still:
+   - Rebuilds `1.0` every iteration with `movabs` + `movq`; LICM leaves
+     constants at their uses, and float constants have no register-free form
+     (a RIP-relative `movsd` from the constant pool would be one load).
+   - The machine selector now recognizes `(i+j)*(i+j+1)` as even, including
+     after integer wrap. Signed division by two emits one arithmetic shift
+     because truncation and the shift agree for every even value.
+   - Shuffles four registers and jumps on the back edge (register
+     allocation, native lane).
+   - Checks the step limit every iteration.
 4. **nqueens** (5,324 / 7,568). gcc's recursion keeps `cols`, `left`,
    `right` and the running total in callee-saved registers and computes
    `(left | bit) << 1` as `add %rdx,%rdx`. Native still spills two values
@@ -48,6 +57,34 @@ the host call, `calloc` and block list on every `New` and `free`.
 5. **n-body** (32,288 / 64,742),
    **fannkuch-redux** (16,329 / 20,689), **quicksort** (12,780 / 14,372):
    not yet profiled. String-hash is at C (5,607 / 5,618).
+
+The expanded Alpha cohort measured **k-nucleotide** at 1,971 µs in C,
+71,099 µs in native and 46,958 µs in Wasm. The native profile puts 999 of
+1,062 samples in a 128 KiB copy loop. Check whether iteration over
+`KNucleotide`'s `counts: [16384]s64` materializes a fresh copy on each pass.
+
+## Exact division by two on Alpha
+
+The candidate and baseline used the same frozen ZX bundle and the C digest
+for every invocation, with 11 matched rounds pinned to CPU 3.
+[Raw samples and exclusions](../bench/results/standard/native-exact-half-alpha.json).
+
+| Workload | C (ms) | Native before (ms) | Native after (ms) |
+| --- | ---: | ---: | ---: |
+| spectral-norm | 10.457 | 21.730 | 16.475 |
+| fasta | 110.901 | 128.681 | 128.706 |
+| nqueens | 5.274 | 7.464 | 7.464 |
+| quicksort | 12.688 | 14.151 | 14.361 |
+
+## Tail calls through a shared return block
+
+The x86-64 trial converted a call followed by a jump to a shared return
+into one tail jump. Disassembly confirmed it kept the other recursive call
+in the same function. In 17 matched rounds on Alpha with exact-half in both
+runners, quicksort took 13.916 ms before and 13.812 ms after, against 12.224 ms
+in C. The median paired change was −0.29%. N-queens took 7.273 ms before and
+7.456 ms after, against 5.150 ms in C. The median paired change was +0.09%.
+Both matched the C digest in every round. The emitter trial was removed.
 
 ## Every in-process native function
 

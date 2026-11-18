@@ -696,7 +696,7 @@ LowerBinary :: (state: *LowerState, function: *MachineFunction, source: LirInstr
     result := GlobalVirtual(state, function, source.result)
     left := GlobalVirtual(state, function, left_value)
     class := state.owner.virtuals[result].class
-    opcode := BinaryOpcode(source.op, class)
+    opcode := ifx fold == .ExactHalf then MachineOpcode.ShiftRight else BinaryOpcode(source.op, class)
     if opcode == .Invalid { return Fail(state, .Unsupported) }
     instruction := BeginInstruction(state, opcode, source.origin)
     // Fixed registers come from the target description; -1 is no constraint.
@@ -718,8 +718,11 @@ LowerBinary :: (state: *LowerState, function: *MachineFunction, source: LirInstr
     result_tie: s32 = ifx independent_add then MachineNoId else 1
     left_tie: s32 = ifx independent_add then MachineNoId else 0
     if VirtualOperand(state, result, .Define, result_fixed, result_tie) == MachineNoId ||
-        VirtualOperand(state, left, .Use, left_fixed, left_tie) == MachineNoId ||
-        SelectedOperand(state, function, right_value, fold != .None, right_fixed) == MachineNoId { return false }
+        VirtualOperand(state, left, .Use, left_fixed, left_tie) == MachineNoId { return false }
+    right: s32
+    if fold == .ExactHalf { right = ImmediateOperand(state, 1) }
+    else { right = SelectedOperand(state, function, right_value, fold != .None, right_fixed) }
+    if right == MachineNoId { return false }
     if clobber >= 0 && PhysicalOperand(state, clobber, .UseDefine) == MachineNoId { return false }
     return FinishInstruction(state, instruction) != MachineNoId
 }

@@ -17,7 +17,7 @@ using Vectors :: #import "std/vec"
 //   one parameter branches there itself: straight to the chosen target for a
 //   constant, on the flags of a compare just before the jump, or on the value.
 
-MachineSelectFold :: enum u8 { None; Right; Left }
+MachineSelectFold :: enum u8 { None; Right; Left; ExactHalf }
 
 MachineSelectPlan :: struct {
     // Per value: defined by a constant, its 64-bit register value, whether
@@ -58,7 +58,9 @@ MachineSelectPlan :: struct {
     // Scratch: edges into each block, and how many of them thread.
     incoming: Vec(s32)
     threaded: Vec(s32)
-    // Scratch: uses of each value, and how many of them fold.
+    // Scratch: the instruction defining each value (null for a block
+    // parameter), uses of each value, and how many of them fold.
+    definitions: Vec(*LirInstruction)
     uses: Vec(s32)
     folded: Vec(s32)
     work: s64
@@ -121,6 +123,27 @@ Commutative :: (op: LirOp) -> bool {
     return op == .Add || op == .Multiply || op == .BitAnd || op == .BitOr || op == .BitXor
 }
 
+// Whether VALUE differs in parity from BASE by addition or subtraction of
+// an odd constant. Wrapping arithmetic preserves the low bit.
+OddOffset :: (context: *Context, value: s32, base: s32) -> bool {
+    instruction := context.plan.definitions[value]
+    if instruction == null || instruction.op != .Add && instruction.op != .Subtract { return false }
+    left := instruction.operands[0]
+    right := instruction.operands[1]
+    return left == base && context.plan.constant[right] && (context.plan.bits[right] & 1) == 1 ||
+        right == base && context.plan.constant[left] && (context.plan.bits[left] & 1) == 1
+}
+
+EvenProduct :: (context: *Context, value: s32) -> bool {
+    product := context.plan.definitions[value]
+    if product == null || product.op != .Multiply { return false }
+    left := product.operands[0]
+    right := product.operands[1]
+    return context.plan.constant[left] && (context.plan.bits[left] & 1) == 0 ||
+        context.plan.constant[right] && (context.plan.bits[right] & 1) == 0 ||
+        OddOffset(context, left, right) || OddOffset(context, right, left)
+}
+
 // Which operand of INSTRUCTION folds as an immediate: a constant operand of
 // a binary operation or compare, or the scalar value a store writes.
 Fold :: (context: *Context, instruction: LirInstruction) -> MachineSelectFold {
@@ -135,9 +158,15 @@ Fold :: (context: *Context, instruction: LirInstruction) -> MachineSelectFold {
         // (compiler_x86_64.zi Divide) without a register to hold it.
         type := TypeOf(context, instruction.operands[0])
         divisor := instruction.operands[1]
-        if type.kind == .Integer && Immediate(context, divisor) && context.plan.bits[divisor] != 0 &&
-            context.plan.bits[divisor] <= 9223372036854775807 { return .Right }
-        return .None
+        bits := context.plan.bits[divisor]
+        if type.kind != .Integer || !Immediate(context, divisor) || bits == 0 ||
+            bits > 9223372036854775807 { return .None }
+        // Signed division by two truncates toward zero. An even dividend
+        // needs no sign correction before an arithmetic right shift.
+        if op == .Divide && type.is_signed && bits == 2 && EvenProduct(context, instruction.operands[0]) {
+            return .ExactHalf
+        }
+        return .Right
     }
     if (op == .ShiftLeft || op == .ShiftRight) && instruction.operands.count == 2 {
         // A constant count inside the width shifts by an immediate: no cl,
@@ -163,13 +192,14 @@ Count :: (context: *Context) -> bool {
     plan := context.plan
     for block: context.function.blocks {
         if !Spend(context, block.instructions.count) { return false }
-        for instruction: block.instructions {
+        for instruction, item: block.instructions {
             for value: instruction.operands { plan.uses[value] += 1 }
             for edge: instruction.edges {
                 plan.incoming[edge.block] += 1
                 for value: edge.arguments { plan.uses[value] += 1 }
             }
             result := instruction.result
+            if result >= 0 && plan.definitions.count != 0 { plan.definitions[result] = *block.instructions[item] }
             if instruction.op == .Constant && result >= 0 && Scalar(TypeOf(context, result)) {
                 plan.constant[result] = true
                 plan.bits[result] = Normalized(TypeOf(context, result),
@@ -251,15 +281,6 @@ Fusable :: (context: *Context, instructions: []LirInstruction, item: s64, value:
     return Scalar(type)
 }
 
-// The instruction of the function defining VALUE, or a zero one.
-Definition :: (context: *Context, value: s32) -> LirInstruction {
-    for block: context.function.blocks {
-        if !Spend(context, block.instructions.count) { return .{} }
-        for instruction: block.instructions { if instruction.result == value { return instruction } }
-    }
-    return .{}
-}
-
 // Whether TEST, a fused `less.equal` (`greater.equal` counting down) in a
 // latch, always holds. The latch must test cursor + 1 (cursor - 1) against
 // LAST, run only after a branch has left the loop on cursor == LAST, and
@@ -271,10 +292,11 @@ Definition :: (context: *Context, value: s32) -> LirInstruction {
 KnownTest :: (context: *Context, latch: s32, test: LirInstruction) -> bool {
     function := context.function
     if test.op != .LessEqual && test.op != .GreaterEqual || test.operands.count != 2 { return false }
-    step := Definition(context, test.operands[0])
+    definitions := context.plan.definitions[:]
+    step := definitions[test.operands[0]]
     last := test.operands[1]
     advance := ifx test.op == .LessEqual then LirOp.Add else LirOp.Subtract
-    if step.op != advance || step.operands.count != 2 || !context.plan.constant[step.operands[1]] ||
+    if step == null || step.op != advance || step.operands.count != 2 || !context.plan.constant[step.operands[1]] ||
         context.plan.bits[step.operands[1]] != 1 { return false }
     cursor := step.operands[0]
     entries: s64
@@ -288,8 +310,8 @@ KnownTest :: (context: *Context, latch: s32, test: LirInstruction) -> bool {
             if edge.block != latch { continue }
             entries += 1
             if terminal.op != .Branch || at != 1 || terminal.operands.count != 1 { return false }
-            exit := Definition(context, terminal.operands[0])
-            if exit.op != .Equal || exit.operands.count != 2 ||
+            exit := definitions[terminal.operands[0]]
+            if exit == null || exit.op != .Equal || exit.operands.count != 2 ||
                 !(exit.operands[0] == cursor && exit.operands[1] == last ||
                   exit.operands[0] == last && exit.operands[1] == cursor) { return false }
         }
@@ -301,8 +323,8 @@ KnownTest :: (context: *Context, latch: s32, test: LirInstruction) -> bool {
             if edge.block != home { continue }
             if terminal.op != .Branch || at != 0 || terminal.operands.count != 1 ||
                 slot >= edge.arguments.count { return false }
-            entry := Definition(context, terminal.operands[0])
-            if entry.op != test.op || entry.operands.count != 2 || entry.operands[1] != last ||
+            entry := definitions[terminal.operands[0]]
+            if entry == null || entry.op != test.op || entry.operands.count != 2 || entry.operands[1] != last ||
                 entry.operands[0] != edge.arguments[slot] { return false }
         }
     }
@@ -333,7 +355,7 @@ Plan :: (context: *Context) -> bool {
             FoldAddress(context, instructions, item)
             fold := Fold(context, instruction)
             plan.fold[at] = fold
-            if fold == .Right { plan.folded[instruction.operands[1]] += 1 }
+            if fold == .Right || fold == .ExactHalf { plan.folded[instruction.operands[1]] += 1 }
             if fold == .Left { plan.folded[instruction.operands[0]] += 1 }
             at += 1
             if instruction.op == .Branch && instruction.operands.count == 1 &&
@@ -432,6 +454,8 @@ MachineSelectPlanBuild :: (plan: *MachineSelectPlan, program: LirProgram, functi
     context := Context.{plan = plan, program = program, function = function, unchecked = unchecked,
         budget = budget, problem = .None}
     count := function.values.count
+    definition_count := ifx enabled then count else 0
+    if !VecResizeBounded(plan.definitions, definition_count, bytes) { return .Allocation }
     instructions: s64
     for block: function.blocks { instructions += block.instructions.count }
     if !VecResizeBounded(plan.constant, count, bytes) || !VecResizeBounded(plan.bits, count, bytes) ||
@@ -451,6 +475,7 @@ MachineSelectPlanBuild :: (plan: *MachineSelectPlan, program: LirProgram, functi
         !VecResizeBounded(plan.pass, function.blocks.count, bytes) { return .Allocation }
     if !Spend(*context, count) { return context.problem }
     for value: cast(s64)0..count - 1 {
+        if enabled { plan.definitions[value] = null }
         plan.constant[value] = false
         plan.bits[value] = 0
         plan.fused[value] = false
@@ -478,6 +503,7 @@ MachineSelectPlanBuild :: (plan: *MachineSelectPlan, program: LirProgram, functi
 }
 
 MachineSelectPlanFree :: (plan: *MachineSelectPlan) {
+    VecFree(plan.definitions)
     VecFree(plan.pass)
     VecFree(plan.layout)
     VecFree(plan.position)

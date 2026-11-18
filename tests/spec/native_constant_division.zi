@@ -5,6 +5,10 @@ Mix :: (hash: u64, value: u64) -> u64 { return (hash ^ value) * 1099511628211 }
 
 Signed64 :: (n: s64, hash: u64) -> u64 {
     h := hash
+    h = Mix(h, cast(u64)((n * (n + 1)) / 2))
+    h = Mix(h, cast(u64)((n * (3 - n)) / 2))
+    h = Mix(h, cast(u64)((n * 6) / 2))
+    h = Mix(h, cast(u64)((n * (n + 2)) / 2))
     h = Mix(h, cast(u64)(n / 3)); h = Mix(h, cast(u64)(n % 3))
     h = Mix(h, cast(u64)(n / 7)); h = Mix(h, cast(u64)(n % 7))
     h = Mix(h, cast(u64)(n / 10)); h = Mix(h, cast(u64)(n % 10))
@@ -39,6 +43,8 @@ Narrow :: (n: s64, hash: u64) -> u64 {
     h = Mix(h, cast(u64)(b / 641)); h = Mix(h, cast(u64)(b % 1000000007))
     c := cast(s16)n
     h = Mix(h, cast(u64)(c / 3)); h = Mix(h, cast(u64)(c % 5))
+    e := cast(s8)n
+    h = Mix(h, cast(u64)((e * (e + 1)) / 2))
     d := cast(u8)n
     h = Mix(h, cast(u64)(d / 3)); h = Mix(h, cast(u64)(d % 10))
     return h
@@ -49,7 +55,7 @@ All :: (n: s64, hash: u64) -> u64 {
 }
 
 main :: () -> s32 {
-    edges: [12]s64 = .[0, 1, -1, 2, -2, 6, -6, 9223372036854775807, -9223372036854775807 - 1,
+    edges: [13]s64 = .[0, 1, -1, 2, -2, 6, -6, 127, 9223372036854775807, -9223372036854775807 - 1,
         4294967296, -4294967296, 1000000006]
     hash: u64 = 14695981039346656037
     for edge: edges { hash = All(edge, hash) }

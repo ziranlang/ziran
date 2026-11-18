@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native x86-64 divides a signed product known to be even by two with one arithmetic shift. Spectral-norm takes 24.2% less time on Alpha at the diagnostic size, with identical output.
 - The Targets page uses microseconds and C-relative ratios across the runtime comparisons. The standard suite adds 18 deterministic workloads, including JSON round trips, SHA-256, shortest paths, FFT, image filtering and particle updates. Independent C and Go implementations check both runtime sizes against ZX native and Wasm. The example, widget and JSON/UTF-8 runtime snapshots share the standard suite's host gate.
 - Register allocation puts a value a loop passes back to its block parameter into that parameter's register, so the back edge needs no copy. The rewritten Fib's accumulator is added in place and its loop jumps straight back.
 - A float multiply by 2.0 becomes an add of the value to itself, exact for every value, NaN, infinities and signed zeros included, so it needs no constant.

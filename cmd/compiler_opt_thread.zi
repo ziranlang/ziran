@@ -452,20 +452,6 @@ Emit :: (function: LirFunction, work: *Work, threaded: s64, out: *Rebuilt, budge
     return merged
 }
 
-Serialize :: (storage: *LirReadOwner, program: LirProgram, limits: LirLimits,
-    budget: *LirSsaBudget) -> LirCodecResult {
-    empty: []u8
-    measured := LirWrite(program, empty)
-    if measured.problem != .None { return measured }
-    if !LirSsaReserve(budget, measured.size, 1) { return .{} }
-    encoded: Vec(u8)
-    defer VecFree(encoded)
-    if !VecResizeBounded(encoded, measured.size, measured.size) { budget.problem = .Allocation; return .{} }
-    written := LirWrite(program, encoded[:])
-    if written.problem != .None { return written }
-    return LirRead(storage, TextView(encoded[:]), limits)
-}
-
 #scope_export
 // Jump threading and straight-line merging. An edge into a block that only
 // jumps goes to where it jumps; an edge into a block that only branches,
@@ -522,7 +508,7 @@ LirThread :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirThread
         budget.reserved = 0
         threaded := program
         threaded.functions = functions[:]
-        result.codec = Serialize(storage, threaded, limits, *budget)
+        result.codec = LirSsaSerialize(storage, threaded, limits, *budget)
     }
     result.problem = budget.problem
     result.work = budget.used

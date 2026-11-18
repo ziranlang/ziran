@@ -429,20 +429,6 @@ CalleesFirst :: (program: LirProgram, order: []s32, budget: *LirSsaBudget) -> bo
     return true
 }
 
-Serialize :: (storage: *LirReadOwner, program: LirProgram, limits: LirLimits,
-    budget: *LirSsaBudget) -> LirCodecResult {
-    empty: []u8
-    measured := LirWrite(program, empty)
-    if measured.problem != .None { return measured }
-    if !LirSsaReserve(budget, measured.size, 1) { return .{} }
-    encoded: Vec(u8)
-    defer VecFree(encoded)
-    if !VecResizeBounded(encoded, measured.size, measured.size) { budget.problem = .Allocation; return .{} }
-    written := LirWrite(program, encoded[:])
-    if written.problem != .None { return written }
-    return LirRead(storage, TextView(encoded[:]), limits)
-}
-
 // Whether FUNCTION's blocks form no cycle: every block leaves the
 // topological order Kahn's method builds from the entry.
 Acyclic :: (function: LirFunction, budget: *LirSsaBudget) -> bool {
@@ -658,7 +644,7 @@ LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum
         budget.reserved = 0
         inlined := program
         inlined.functions = functions[:]
-        result.codec = Serialize(storage, inlined, limits, *budget)
+        result.codec = LirSsaSerialize(storage, inlined, limits, *budget)
         if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
     }
     result.problem = budget.problem
@@ -921,7 +907,7 @@ LirSinkFieldReads :: (storage: *LirReadOwner, limits: LirLimits, work: s64, roun
         budget.reserved = 0
         sunk_program := program
         sunk_program.functions = functions[:]
-        result.codec = Serialize(storage, sunk_program, limits, *budget)
+        result.codec = LirSsaSerialize(storage, sunk_program, limits, *budget)
         if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
     }
     result.problem = budget.problem

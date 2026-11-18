@@ -1039,3 +1039,98 @@ above is unchanged by this register-pressure fix.
 AArch64 NEON is a follow-up: reuse the counted-loop plan and scalar epilogue,
 add a NEON form/encoder, and run the same differential fixtures on AArch64.
 It is outside this SSE2 change.
+
+## Fib and mandelbrot against gcc -O2, instruction by instruction (2026-11-17)
+
+Alpha, standard diagnostic at fa65a3fb, C / in-process ZX native: fib(35)
+18.5 / 55.5 ms, mandelbrot(1000) 71.2 / 116.2 ms. Code read from a
+`zx2native` ELF of `bench/standard/kernels.zi` (inputs from a global so
+nothing folds) at e6f45f0d, against `gcc -O2` of `reference.c` (GCC 14 on
+Omega; Alpha has GCC 15, same shape). The in-process runner compiles with
+fuel on (`MachineBuild`: `options.fuel = !emit_executable || ...`), so its
+code also carries the step checks listed below.
+
+### Fib
+
+GCC: no recursion on the second call at all. `Fib(n-1) + Fib(n-2)` becomes
+an accumulator loop (`acc += Fib(n-1); n -= 2` until `n < 2`, then
+`acc + n`), and the remaining call is unrolled about five levels deep, so
+C makes a small fraction of Ziran's ~30 million calls. That is most of
+the 3× gap.
+
+Ziran, per call (unfueled ELF; in-process adds the fuel line):
+
+```
+cmp $2,%rdi ; jge L1 ; mov %rdi,%rax ; ret        early base case, good
+L1: push %rbp ; mov %rsp,%rbp ; sub $0x10,%rsp    frame pointer + frame
+    mov %rbx,-8(%rbp) ; mov %r12,-0x10(%rbp)      callee-saved by mov
+    [in-process: subq $1,fuel(%rip) ; jb trap]    memory RMW step check
+    cmp $2,%rdi ; jge L3                           base test again
+    ...base return path...
+L3: mov %rdi,%rbx ; jmp L2                         second taken branch
+L2: lea -1(%rbx),%rax ; mov %rax,%rdi              lea straight to rdi
+    call Fib ; mov %rax,%r12
+    sub $2,%rbx ; mov %rbx,%rdi ; call Fib         lea -2(%rbx),%rdi
+    add %r12,%rax
+    mov -8(%rbp),%rbx ; mov -0x10(%rbp),%r12 ; leave ; ret
+```
+
+Redundancies C skips, ranked:
+1. The second recursive call (no accumulator/tail transformation): about
+   half of all calls.
+2. In-process: a fuel decrement of a memory word per call, and fuel
+   disables the early base-case return, so every base case builds a frame.
+3. The `n < 2` test runs twice on the recursive path after the early return
+   was cloned; the recursive block sits after the return block, so the path
+   takes `jge` and then `jmp` back.
+4. Frame pointer setup and `leave` in a function with no stack objects;
+   callee-saved registers stored with `mov` into the frame.
+5. Argument copies: `lea` into a temporary then `mov` to `%rdi`.
+
+### Mandelbrot inner loop
+
+GCC (14 instructions, one taken branch, all values in registers, 4.0 kept
+in `%xmm7`, the 50-iteration bound counted down):
+
+```
+addsd %xmm0,%xmm0 ; subsd %xmm3,%xmm2 ; mulsd %xmm0,%xmm1 ; addsd %xmm5,%xmm2
+movapd %xmm2,%xmm0 ; mulsd %xmm2,%xmm2 ; addsd %xmm6,%xmm1 ; movapd %xmm1,%xmm3
+mulsd %xmm1,%xmm3 ; movapd %xmm2,%xmm4 ; addsd %xmm3,%xmm4
+sub $1,%rax ; je out ; comisd %xmm4,%xmm7 ; jae top
+```
+
+Ziran (unfueled; 27 instructions, three taken branches per iteration):
+
+```
+H:  movsd %xmm1,%xmm6 ; addsd %xmm0,%xmm6          tr+ti
+    movabs $4.0,%r11 ; movq %r11,%xmm7             constant rebuilt each time
+    ucomisd %xmm6,%xmm7 ; jae B                    taken into the body
+B:  movabs $2.0,%r11 ; movq %r11,%xmm6             constant rebuilt each time
+    mulsd %xmm2,%xmm6 ; mulsd %xmm3,%xmm6          2.0*zr*zi (GCC: zr+zr)
+    addsd %xmm5,%xmm6 ; subsd %xmm0,%xmm1 ; addsd %xmm4,%xmm1
+    movsd %xmm1,%xmm0 ; mulsd %xmm1,%xmm0 ; movsd %xmm6,%xmm2 ; mulsd %xmm6,%xmm2
+    add $1,%rbx ; cmp $0x32,%rbx ; jl E            taken to the edge block
+E:  movsd %xmm6,%xmm3 ; movsd %xmm2,%xmm15 ; movsd %xmm1,%xmm2
+    movsd %xmm0,%xmm1 ; movsd %xmm15,%xmm0 ; jmp H  five copies, one swap
+```
+
+Redundancies C skips, ranked:
+1. Loop-carried values are not coalesced: five `movsd` at the back edge,
+   including a swap through `%xmm15`, in a separate block reached by a
+   taken branch.
+2. Float constants 4.0 and 2.0 are rebuilt from a GPR inside the loop
+   (`movabs` + `movq`, four instructions per iteration) while eight XMM
+   registers are free.
+3. Layout: the header test jumps forward into the body and the latch jumps
+   to the edge block, then back: three taken branches against one.
+4. `x*2.0` is a multiply by a loaded constant; `x+x` is exact and needs
+   no constant.
+5. In-process: the step check per iteration (`sub $1,%r15 ; jb`) and, with
+   fuel on, no loop vectorization anywhere.
+
+### Order of work
+
+Fib 1 (accumulator transformation in the optimizer), then mandelbrot 2 and 4
+(constants), 1 and 3 (back-edge copies and layout), then the in-process step
+checks for unbounded runs, then the fib frame items. Each lands with a
+retained test and a matched Alpha A/B.

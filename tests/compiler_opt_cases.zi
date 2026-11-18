@@ -15,6 +15,7 @@ using FloatFolds :: #import "compiler_opt_float_cases"
 using LoopLayout :: #import "compiler_opt_layout_cases"
 using LicmCases :: #import "compiler_opt_licm_cases"
 using InductionCases :: #import "compiler_opt_induction_cases"
+using Accumulation :: #import "compiler_opt_accumulate_cases"
 
 OptInstruction :: (op: LirOp, result: s32, operands: []s32,
     symbol: s32 = -1, origin: s32 = 0) -> LirInstruction {
@@ -255,6 +256,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if themes != 0 { print("theme read case % failed\n", themes); return 1 }
     threads := ThreadCases()
     if threads != 0 { print("thread case % failed\n", threads); return 1 }
+    accumulated := AccumulateCases()
+    if accumulated != 0 { print("accumulate case % failed\n", accumulated); return 1 }
     common := CseCases()
     if common != 0 { print("cse case % failed\n", common); return 1 }
     budget_work: s64

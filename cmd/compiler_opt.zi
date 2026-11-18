@@ -9,6 +9,7 @@ using Induction :: #import "compiler_opt_induction"
 using Layout :: #import "compiler_opt_layout"
 using Inline :: #import "compiler_opt_inline"
 using Thread :: #import "compiler_opt_thread"
+using Accumulate :: #import "compiler_opt_accumulate"
 using Dominators :: #import "compiler_opt_dom"
 #import "compiler_learning"
 
@@ -1963,6 +1964,13 @@ CfgRound :: (state: *OptState, owner: *LirOptOwner, limits: LirLimits) -> bool {
     return CfgPass(state, LirReadProgram(*owner.storage), limits)
 }
 
+// Turns self calls added to a value into accumulator loops.
+AccumulateRound :: (state: *OptState, owner: *LirOptOwner, limits: LirLimits) -> bool {
+    accumulated := LirAccumulate(*owner.storage, limits, state.remaining)
+    state.counters.cfg.instructions += accumulated.calls
+    return SharedPassResult(state, accumulated.problem, accumulated.codec, accumulated.work, accumulated.scratch_bytes)
+}
+
 Result :: (state: OptState) -> LirOptResult {
     return .{problem = state.problem, diagnostic = state.diagnostic,
         counters = state.counters, work = state.used,
@@ -2074,6 +2082,8 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
     }
     owner.valid = false
     owner.program = .{version = LirVersion, entry = LirNoId}
+    // Before inlining, so a self call that becomes a loop is not expanded.
+    if options.simplify_cfg && !AccumulateRound(*state, owner, limits) { LirOptFree(owner); return Result(state) }
     if options.inline_leaf_operations > 0 {
         inlined := LirInlineLeaves(LirReadProgram(*owner.storage), options.inline_leaf_operations, state.remaining)
         if !Spend(*state, inlined.work) || inlined.limited {

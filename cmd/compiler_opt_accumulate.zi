@@ -1,0 +1,331 @@
+using IR :: #import "compiler_lowered_ir"
+using Codec :: #import "compiler_exec_serial"
+using SSA :: #import "compiler_opt_ssa"
+using Vectors :: #import "std/vec"
+
+// Recursion modulo an integer accumulator. A function F whose block ends
+// `r = F(args); s = x + r; return s` (either operand order) adds x to an
+// accumulator and jumps back to its old entry with args instead of calling
+// itself; every other `return v` returns `acc + v`. A new entry block
+// starts the accumulator at zero. Integer addition wraps, so the sums
+// regroup exactly. The recursive call ran last in its block, so effects
+// keep their order. The old entry's leading fuel moves to the new entry and
+// each jump back charges one step, so a run counts the same steps as
+// before. Fib(n-1) + Fib(n-2) makes half as many calls. A function with no
+// other return cannot return normally, so it is left alone and runaway
+// recursion such as `1 + Forever(depth + 1)` still takes the stack trap.
+LirAccumulateResult :: struct {
+    problem: LirSsaProblem
+    codec: LirCodecResult
+    calls: s64
+    work: s64
+    scratch_bytes: s64
+}
+
+#scope_file
+// One rewritten function and the storage its slices borrow.
+AddendRebuilt :: struct {
+    values: Vec(s32)
+    instructions: Vec(LirInstruction)
+    edges: Vec(LirEdge)
+    data: Vec(s32)
+    blocks: Vec(LirBlock)
+    function: LirFunction
+}
+
+AddendRebuiltFree :: (rebuilt: *AddendRebuilt) {
+    VecFree(rebuilt.values)
+    VecFree(rebuilt.instructions)
+    VecFree(rebuilt.edges)
+    VecFree(rebuilt.data)
+    VecFree(rebuilt.blocks)
+}
+
+// Whether BLOCK ends in a self call whose result is added to another value
+// and returned; ADDEND receives the other value.
+AddendCall :: (function: LirFunction, self: s32, block: LirBlock, addend: *s32) -> bool {
+    n := block.instructions.count
+    if n < 3 { return false }
+    ret := block.instructions[n - 1]
+    add := block.instructions[n - 2]
+    call := block.instructions[n - 3]
+    if ret.op != .Return || ret.operands.count != 1 || add.op != .Add || add.operands.count != 2 ||
+        add.result == LirNoId || add.result != ret.operands[0] || call.op != .Call || call.symbol != self ||
+        call.result == LirNoId || call.operands.count != function.parameters.count { return false }
+    left := add.operands[0] == call.result
+    right := add.operands[1] == call.result
+    if left == right { return false }
+    <<addend = ifx left then add.operands[1] else add.operands[0]
+    return function.values[add.result] == function.result && function.values[call.result] == function.result
+}
+
+// The candidate count, or 0 when FUNCTION does not qualify: an integer
+// result, its own entry parameters, and a value on every return.
+AddendCalls :: (program: LirProgram, function: LirFunction, self: s32, budget: *LirSsaBudget) -> s64 {
+    if function.external || function.variadic || function.calling != .Portable { return 0 }
+    if function.result < 0 || function.result >= program.types.count ||
+        program.types[function.result].kind != .Integer { return 0 }
+    if function.entry < 0 || function.entry >= function.blocks.count ||
+        function.blocks[function.entry].parameters.count != function.parameters.count { return 0 }
+    entry := function.blocks[function.entry]
+    if entry.instructions.count < 2 || entry.instructions[0].op != .Fuel { return 0 }
+    found: s64
+    plain: s64
+    for block: function.blocks {
+        if !LirSsaSpend(budget, 1) { return 0 }
+        if block.instructions.count == 0 { return 0 }
+        last := block.instructions[block.instructions.count - 1]
+        for edge: last.edges { if edge.block == function.entry { return 0 } }
+        addend: s32
+        if AddendCall(function, self, block, *addend) { found += 1 }
+        else if last.op == .Return {
+            if last.operands.count != 1 { return 0 }
+            plain += 1
+        }
+    }
+    return ifx plain > 0 then found else 0
+}
+
+// The zero constant of TYPE, or -1.
+AddendZero :: (constants: []LirConstant, type: s32) -> s32 {
+    for at: 0..constants.count - 1 {
+        constant := constants[at]
+        if constant.type == type && constant.bits == 0 && constant.bytes.count == 0 { return cast(s32)at }
+    }
+    return -1
+}
+
+AddendVersionsFree :: (versions: []AddendRebuilt) {
+    for at: 0..versions.count - 1 { AddendRebuiltFree(*versions[at]) }
+}
+
+AddendRewrite :: (function: LirFunction, self: s32, zero: s32, out: *AddendRebuilt, budget: *LirSsaBudget) -> bool {
+    blocks := function.blocks.count
+    values := function.values.count
+    parameters := function.parameters.count
+    old_entry := function.entry
+    // Every existing word, plus the new entry's parameters and jump, the
+    // accumulator parameter and argument, and two operands per return.
+    word_total: s64 = 3 * parameters + 4
+    instruction_total: s64 = 3 + blocks
+    edge_total: s64 = 1
+    returns: s64
+    for block: function.blocks {
+        word_total += block.parameters.count + 1
+        for instruction: block.instructions {
+            word_total += instruction.operands.count + 2
+            instruction_total += 1
+            for edge: instruction.edges { word_total += edge.arguments.count + 1; edge_total += 1 }
+            if instruction.op == .Return { returns += 1 }
+        }
+        // A candidate's jump carries the call's arguments and the sum.
+        word_total += parameters + 1
+        edge_total += 1
+    }
+    value_total := values + 2 + parameters + returns
+    if !LirSsaSpend(budget, word_total) ||
+        !LirSsaReserve(budget, values + value_total + word_total, size_of(s32)) ||
+        !LirSsaReserve(budget, instruction_total + returns, size_of(LirInstruction)) ||
+        !LirSsaReserve(budget, edge_total, size_of(LirEdge)) ||
+        !LirSsaReserve(budget, blocks + 1, size_of(LirBlock)) { return false }
+    numbers: Vec(s32)
+    defer VecFree(numbers)
+    if !VecResizeBounded(numbers, values, values) ||
+        !VecResizeBounded(out.values, value_total, value_total) ||
+        !VecResizeBounded(out.instructions, instruction_total + returns, instruction_total + returns) ||
+        !VecResizeBounded(out.edges, edge_total, edge_total) ||
+        !VecResizeBounded(out.data, word_total, word_total) ||
+        !VecResizeBounded(out.blocks, blocks + 1, blocks + 1) {
+        budget.problem = .Allocation
+        return false
+    }
+    // The new entry's parameters are values 0.. as lowering expects; a
+    // replaced call's result is no longer defined, so it leaves the table.
+    for block: function.blocks {
+        addend: s32
+        if AddendCall(function, self, block, *addend) {
+            numbers[block.instructions[block.instructions.count - 3].result] = LirNoId - 1
+        }
+    }
+    types := out.values[:]
+    for p: 0..parameters - 1 { types[p] = function.parameters[p] }
+    kept := cast(s32)parameters
+    for v: 0..values - 1 {
+        if numbers[v] == LirNoId - 1 { continue }
+        numbers[v] = kept
+        types[kept] = function.values[v]
+        kept += 1
+    }
+    instructions := out.instructions[:]
+    edges := out.edges[:]
+    data := out.data[:]
+    built := out.blocks[:]
+    acc := kept
+    initial := kept + 1
+    types[acc] = function.result
+    types[initial] = function.result
+    next_value := cast(s64)kept + 2
+    ip: s64
+    ep: s64
+    wp: s64
+
+    // Block 0: the new entry starts the accumulator at zero.
+    entry_parameters := wp
+    for p: 0..parameters - 1 { data[wp] = cast(s32)p; wp += 1 }
+    entry_start := ip
+    instructions[ip] = function.blocks[old_entry].instructions[0]
+    ip += 1
+    instructions[ip] = .{op = .Constant, result = initial, symbol = zero, origin = function.origin}
+    ip += 1
+    arguments := wp
+    for p: 0..parameters - 1 { data[wp] = cast(s32)p; wp += 1 }
+    data[wp] = initial; wp += 1
+    edges[ep] = .{block = old_entry + 1, arguments = data[arguments:wp]}
+    ep += 1
+    instructions[ip] = .{op = .Jump, result = LirNoId, edges = edges[ep - 1:ep], symbol = LirNoId, origin = function.origin}
+    ip += 1
+    built[0] = .{parameters = data[entry_parameters:entry_parameters + parameters], instructions = instructions[entry_start:ip]}
+
+    for b: 0..blocks - 1 {
+        block := function.blocks[b]
+        parameter_start := wp
+        for value: block.parameters { data[wp] = numbers[value]; wp += 1 }
+        if b == old_entry { data[wp] = acc; wp += 1 }
+        parameter_count := wp - parameter_start
+        start := ip
+        addend: s32
+        candidate := AddendCall(function, self, block, *addend)
+        n := block.instructions.count
+        keep := ifx candidate then n - 3 else n - 1
+        // The old entry's fuel now runs in the new entry and on each jump back.
+        skip := ifx b == old_entry then 1 else 0
+        effect: s32
+        for i: skip..keep - 1 {
+            instruction := block.instructions[i]
+            first := wp
+            for value: instruction.operands { data[wp] = numbers[value]; wp += 1 }
+            instruction.operands = data[first:wp]
+            if instruction.result != LirNoId { instruction.result = numbers[instruction.result] }
+            if LirEffectful(instruction.op) { effect += 1; instruction.effect = effect }
+            instructions[ip] = instruction
+            ip += 1
+        }
+        last := block.instructions[n - 1]
+        if candidate {
+            // acc + x replaces x + F(args); the jump passes args and the sum.
+            add := block.instructions[n - 2]
+            call := block.instructions[n - 3]
+            first := wp
+            data[wp] = acc; data[wp + 1] = numbers[addend]; wp += 2
+            add.operands = data[first:wp]
+            add.result = numbers[add.result]
+            instructions[ip] = add
+            ip += 1
+            // The step the replaced call charged on entry.
+            fuel := function.blocks[old_entry].instructions[0]
+            effect += 1
+            fuel.effect = effect
+            fuel.origin = call.origin
+            instructions[ip] = fuel
+            ip += 1
+            arguments = wp
+            for value: call.operands { data[wp] = numbers[value]; wp += 1 }
+            data[wp] = add.result; wp += 1
+            edges[ep] = .{block = old_entry + 1, arguments = data[arguments:wp]}
+            ep += 1
+            instructions[ip] = .{op = .Jump, result = LirNoId, edges = edges[ep - 1:ep], symbol = LirNoId, origin = last.origin}
+            ip += 1
+        } else if last.op == .Return {
+            sum := cast(s32)next_value
+            types[sum] = function.result
+            next_value += 1
+            first := wp
+            data[wp] = acc; data[wp + 1] = numbers[last.operands[0]]; wp += 2
+            instructions[ip] = .{op = .Add, result = sum, operands = data[first:wp], symbol = LirNoId, origin = last.origin}
+            ip += 1
+            first = wp
+            data[wp] = sum; wp += 1
+            last.operands = data[first:wp]
+            instructions[ip] = last
+            ip += 1
+        } else {
+            first := wp
+            for value: last.operands { data[wp] = numbers[value]; wp += 1 }
+            last.operands = data[first:wp]
+            edge_start := ep
+            for edge: last.edges {
+                argument_start := wp
+                for value: edge.arguments { data[wp] = numbers[value]; wp += 1 }
+                // An edge back to the old entry keeps the current sum.
+                if edge.block == old_entry { data[wp] = acc; wp += 1 }
+                edges[ep] = .{block = edge.block + 1, arguments = data[argument_start:wp]}
+                ep += 1
+            }
+            last.edges = edges[edge_start:ep]
+            instructions[ip] = last
+            ip += 1
+        }
+        built[b + 1] = .{parameters = data[parameter_start:parameter_start + parameter_count],
+            instructions = instructions[start:ip]}
+    }
+    rewritten := function
+    rewritten.entry = 0
+    rewritten.values = types[0:next_value]
+    rewritten.blocks = built
+    out.function = rewritten
+    return true
+}
+
+#scope_export
+LirAccumulate :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirAccumulateResult {
+    result: LirAccumulateResult
+    budget := LirSsaBudget.{work = work, bytes = limits.bytes}
+    held: s64
+    program := LirReadProgram(storage)
+    functions: Vec(LirFunction)
+    constants: Vec(LirConstant)
+    versions: Vec(AddendRebuilt)
+    defer VecFree(functions)
+    defer VecFree(constants)
+    defer VecFree(versions)
+    defer AddendVersionsFree(versions[:])
+    for fi: 0..program.functions.count - 1 {
+        function := program.functions[fi]
+        found := AddendCalls(program, function, cast(s32)fi, *budget)
+        if budget.problem != .None { break }
+        if found == 0 { continue }
+        if functions.count == 0 {
+            if !LirSsaReserve(*budget, program.functions.count + program.constants.count + 1, 112) ||
+                !VecResizeBounded(functions, program.functions.count, program.functions.count) {
+                if budget.problem == .None { budget.problem = .Allocation }
+                break
+            }
+            for at: 0..program.functions.count - 1 { functions[at] = program.functions[at] }
+            for constant: program.constants { VecPush(constants, constant) }
+            held = budget.reserved
+        }
+        budget.reserved = held
+        zero := AddendZero(constants[:], function.result)
+        if zero < 0 {
+            VecPush(constants, LirConstant.{type = function.result})
+            zero = cast(s32)(constants.count - 1)
+        }
+        rebuilt: AddendRebuilt
+        if !AddendRewrite(function, cast(s32)fi, zero, *rebuilt, *budget) { AddendRebuiltFree(*rebuilt); break }
+        if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
+        functions[fi] = rebuilt.function
+        VecPush(versions, rebuilt)
+        result.calls += found
+    }
+    if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
+    if budget.problem == .None && result.calls > 0 {
+        budget.reserved = 0
+        accumulated := program
+        accumulated.functions = functions[:]
+        accumulated.constants = constants[:]
+        result.codec = LirSsaSerialize(storage, accumulated, limits, *budget)
+    }
+    result.problem = budget.problem
+    result.work = budget.used
+    return result
+}

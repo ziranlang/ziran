@@ -243,20 +243,6 @@ RebuildFunction :: (function: LirFunction, functions: s64, header: s32, latch: s
 
 // Serialize once, while every rotated table and the borrowed input still
 // exist; only LirRead may replace the owner's storage.
-Serialize :: (storage: *LirReadOwner, program: LirProgram, limits: LirLimits,
-    budget: *LirSsaBudget) -> LirCodecResult {
-    empty: []u8
-    measured := LirWrite(program, empty)
-    if measured.problem != .None { return measured }
-    if !LirSsaReserve(budget, measured.size, 1) { return .{} }
-    encoded: Vec(u8)
-    defer VecFree(encoded)
-    if !VecResizeBounded(encoded, measured.size, measured.size) { budget.problem = .Allocation; return .{} }
-    written := LirWrite(program, encoded[:])
-    if written.problem != .None { return written }
-    return LirRead(storage, TextView(encoded[:]), limits)
-}
-
 #scope_export
 // The shared optimizer owns storage and supplies its remaining work budget.
 // Each successful rebuild is verified by the codec before replacing it.
@@ -328,7 +314,7 @@ LirRotate :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirRotate
         budget.reserved = 0
         rotated := program
         rotated.functions = functions[:]
-        result.codec = Serialize(storage, rotated, limits, *budget)
+        result.codec = LirSsaSerialize(storage, rotated, limits, *budget)
         if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
     }
     result.problem = budget.problem

@@ -1,0 +1,181 @@
+using IR :: #import "compiler_lowered_ir"
+using Verify :: #import "compiler_lowered_verify"
+using Opt :: #import "compiler_opt"
+using Exec :: #import "compiler_exec"
+
+#scope_file
+// Calls FUNCTION with the one argument VALUE of its parameter type.
+Call :: (program: LirProgram, function: s32, value: u64) -> LirExecResult {
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
+    if built.problem != .None { return built }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    opened := LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 812, *instance)
+    if opened.problem != .None { return opened }
+    arguments := LirExecArgument.[.{type = program.functions[function].parameters[0], bits = value}]
+    return LirExecCall(*instance, function, arguments[:])
+}
+
+FibReference :: (n: s64) -> s64 {
+    if n < 2 { return n }
+    a: s64 = 0
+    b: s64 = 1
+    for at: 2..n { c := a + b; a = b; b = c }
+    return b
+}
+
+// Self calls left in FUNCTION.
+SelfCalls :: (program: LirProgram, function: s32) -> s64 {
+    count: s64
+    for block: program.functions[function].blocks {
+        for instruction: block.instructions {
+            if instruction.op == .Call && instruction.symbol == function { count += 1 }
+        }
+    }
+    return count
+}
+
+Optimize :: (owner: *LirOptOwner, program: LirProgram, inline: bool) -> bool {
+    options := LirOptDefaultOptions()
+    if !inline { options.inline_calls = 0; options.inline_leaf_operations = 0 }
+    optimized := LirOptBuild(owner, program, LirDefaultLimits(), options)
+    if optimized.problem != .None || !owner.valid {
+        print("accumulate: optimization problem % pass % function % block % instruction % value %\n",
+            cast(s32)optimized.problem, cast(s32)optimized.diagnostic.problem, optimized.diagnostic.function,
+            optimized.diagnostic.block, optimized.diagnostic.instruction, optimized.diagnostic.value)
+        return false
+    }
+    return LirVerify(LirOptProgram(owner), LirDefaultLimits()).problem == .None
+}
+
+#scope_export
+// fib(n) = n < 2 ? n : fib(n-1) + fib(n-2) keeps one self call and returns
+// the same values; double(n) adds its call's result to itself, fsum(x)
+// adds floats and forever(d) has no base case, so none of them changes.
+AccumulateCases :: () -> s32 {
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Bool, bits = 1},
+        .{kind = .Float, bits = 64}]
+    modules := string.["accumulate"]
+    constants := LirConstant.[.{type = 1, bits = 2}, .{type = 1, bits = 1}, .{type = 3, bits = 0x3ff0000000000000},
+        .{type = 3, bits = 0}]
+    integer := s32.[1]
+    float := s32.[3]
+    // fib: b0(v0) tests v0 < 2; b1 returns v0; b2 returns fib(v0-1) + fib(v0-2).
+    fib_values := s32.[1, 1, 2, 1, 1, 1, 1, 1, 1]
+    v0 := s32.[0]
+    less := s32.[0, 1]
+    flag := s32.[2]
+    minus_one := s32.[0, 3]
+    minus_two := s32.[0, 1]
+    first := s32.[4]
+    second := s32.[6]
+    sum := s32.[5, 7]
+    result := s32.[8]
+    split := LirEdge.[.{block = 1}, .{block = 2}]
+    f0 := LirInstruction.[
+        .{op = .Fuel, result = -1, immediate = 1, symbol = -1, effect = 1, origin = -1},
+        .{op = .Constant, result = 1, symbol = 0, origin = -1},
+        .{op = .Less, result = 2, operands = less[:], symbol = -1, origin = -1},
+        .{op = .Branch, result = -1, operands = flag[:], edges = split[:], symbol = -1, origin = -1}]
+    f1 := LirInstruction.[.{op = .Return, result = -1, operands = v0[:], symbol = -1, origin = -1}]
+    f2 := LirInstruction.[
+        .{op = .Constant, result = 3, symbol = 1, origin = -1},
+        .{op = .Subtract, result = 4, operands = minus_one[:], symbol = -1, origin = -1},
+        .{op = .Call, result = 5, operands = first[:], symbol = 0, effect = 1, origin = -1},
+        .{op = .Subtract, result = 6, operands = minus_two[:], symbol = -1, origin = -1},
+        .{op = .Call, result = 7, operands = second[:], symbol = 0, effect = 2, origin = -1},
+        .{op = .Add, result = 8, operands = sum[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = result[:], symbol = -1, origin = -1}]
+    fib_blocks := LirBlock.[.{parameters = v0[:], instructions = f0[:]}, .{instructions = f1[:]},
+        .{instructions = f2[:]}]
+    // double: b0(v0) returns 0 when v0 < 1, else double(v0-1) + double(v0-1) via one call.
+    double_values := s32.[1, 1, 2, 1, 1, 1, 1]
+    below := s32.[0, 1]
+    to_double := LirEdge.[.{block = 1}, .{block = 2}]
+    decrement := s32.[0, 1]
+    argument := s32.[3]
+    twice := s32.[4, 4]
+    doubled := s32.[5]
+    zero := s32.[6]
+    d0 := LirInstruction.[
+        .{op = .Fuel, result = -1, immediate = 1, symbol = -1, effect = 1, origin = -1},
+        .{op = .Constant, result = 1, symbol = 1, origin = -1},
+        .{op = .Less, result = 2, operands = below[:], symbol = -1, origin = -1},
+        .{op = .Branch, result = -1, operands = flag[:], edges = to_double[:], symbol = -1, origin = -1}]
+    itself := s32.[0, 0]
+    d1 := LirInstruction.[.{op = .Subtract, result = 6, operands = itself[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = zero[:], symbol = -1, origin = -1}]
+    d2 := LirInstruction.[
+        .{op = .Subtract, result = 3, operands = decrement[:], symbol = -1, origin = -1},
+        .{op = .Call, result = 4, operands = argument[:], symbol = 1, effect = 1, origin = -1},
+        .{op = .Add, result = 5, operands = twice[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = doubled[:], symbol = -1, origin = -1}]
+    double_blocks := LirBlock.[.{parameters = v0[:], instructions = d0[:]}, .{instructions = d1[:]},
+        .{instructions = d2[:]}]
+    // fsum: b0(v0) returns 0.0 when v0 < 1.0, else fsum(v0 - 1.0) + 1.0.
+    fsum_values := s32.[3, 3, 2, 3, 3, 3, 3]
+    s0 := LirInstruction.[
+        .{op = .Fuel, result = -1, immediate = 1, symbol = -1, effect = 1, origin = -1},
+        .{op = .Constant, result = 1, symbol = 2, origin = -1},
+        .{op = .Less, result = 2, operands = below[:], symbol = -1, origin = -1},
+        .{op = .Branch, result = -1, operands = flag[:], edges = to_double[:], symbol = -1, origin = -1}]
+    s1 := LirInstruction.[.{op = .Constant, result = 6, symbol = 3, origin = -1},
+        .{op = .Return, result = -1, operands = zero[:], symbol = -1, origin = -1}]
+    plus_one := s32.[4, 1]
+    s2 := LirInstruction.[
+        .{op = .Subtract, result = 3, operands = decrement[:], symbol = -1, origin = -1},
+        .{op = .Call, result = 4, operands = argument[:], symbol = 2, effect = 1, origin = -1},
+        .{op = .Add, result = 5, operands = plus_one[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = doubled[:], symbol = -1, origin = -1}]
+    fsum_blocks := LirBlock.[.{parameters = v0[:], instructions = s0[:]}, .{instructions = s1[:]},
+        .{instructions = s2[:]}]
+    // forever: b0(v0) returns 1 + forever(v0 + 1) and has no other return.
+    forever_values := s32.[1, 1, 1, 1, 1]
+    step := s32.[0, 1]
+    deeper := s32.[2]
+    plus := s32.[1, 3]
+    total := s32.[4]
+    r0 := LirInstruction.[
+        .{op = .Fuel, result = -1, immediate = 1, symbol = -1, effect = 1, origin = -1},
+        .{op = .Constant, result = 1, symbol = 1, origin = -1},
+        .{op = .Add, result = 2, operands = step[:], symbol = -1, origin = -1},
+        .{op = .Call, result = 3, operands = deeper[:], symbol = 3, effect = 2, origin = -1},
+        .{op = .Add, result = 4, operands = plus[:], symbol = -1, origin = -1},
+        .{op = .Return, result = -1, operands = total[:], symbol = -1, origin = -1}]
+    forever_blocks := LirBlock.[.{parameters = v0[:], instructions = r0[:]}]
+    functions := LirFunction.[
+        .{module = 0, name = "fib", parameters = integer[:], result = 1, values = fib_values[:],
+            blocks = fib_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "double", parameters = integer[:], result = 1, values = double_values[:],
+            blocks = double_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "fsum", parameters = float[:], result = 3, values = fsum_values[:],
+            blocks = fsum_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "forever", parameters = integer[:], result = 1, values = forever_values[:],
+            blocks = forever_blocks[:], entry = 0, origin = -1}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = LirNoId}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 81 }
+    for inline: 0..1 {
+        owner: LirOptOwner
+        defer LirOptFree(*owner)
+        if !Optimize(*owner, program, inline == 1) { return cast(s32)(82 + inline) }
+        output := LirOptProgram(*owner)
+        if SelfCalls(output, 0) != 1 { return 84 }
+        if SelfCalls(output, 1) != 1 || SelfCalls(output, 2) != 1 { return 85 }
+        // With no base case it would only loop; runaway recursion keeps its stack trap.
+        if SelfCalls(output, 3) != 1 || output.functions[3].blocks.count != 1 { return 89 }
+        for n: cast(s64)0..20 {
+            called := Call(output, 0, cast(u64)n)
+            if called.problem != .None || called.value.bits != cast(u64)FibReference(n) { return 86 }
+        }
+        for n: cast(s64)0..5 {
+            called := Call(output, 1, cast(u64)n)
+            if called.problem != .None || called.value.bits != 0 { return 87 }
+        }
+        called := Call(output, 2, 0x4014000000000000)
+        if called.problem != .None || called.value.bits != 0x4014000000000000 { return 88 }
+    }
+    return 0
+}

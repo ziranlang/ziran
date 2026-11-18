@@ -46,6 +46,10 @@ LirExecProblem ZxBindConsole(LirExecInstance *instance, const LirProgram *progra
 
 /* Hands what the console holds to standard output: 0 when that failed. */
 int ZxConsoleFlush(ZxConsole *console);
+/* An empty console; a terminal gets every write at once. */
+void ZxConsoleOpen(ZxConsole *console);
+/* Standard output through CONSOLE: 0 when that failed. */
+int ZxConsoleWrite(ZxConsole *console, const void *bytes, size_t size);
 
 /* What a failed run's problem means to the program's reader, or NULL. */
 const char *ZxExecProblemText(LirExecProblem problem);

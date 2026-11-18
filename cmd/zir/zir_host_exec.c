@@ -92,6 +92,19 @@ exec_console_out(ZxConsole *console, const void *bytes, size_t size)
     return true;
 }
 
+void
+ZxConsoleOpen(ZxConsole *console)
+{
+    memset(console, 0, sizeof(*console));
+    console->direct = exec_terminal(stdout);
+}
+
+int
+ZxConsoleWrite(ZxConsole *console, const void *bytes, size_t size)
+{
+    return exec_console_out(console, bytes, size);
+}
+
 /* Output uses the same spelling as the checked language's print on every
  * other route. */
 static bool
@@ -170,8 +183,7 @@ LirExecProblem
 ZxBindConsole(LirExecInstance *instance, const LirProgram *program, ZxConsole *console)
 {
     if(console != NULL) {
-        memset(console, 0, sizeof(*console));
-        console->direct = exec_terminal(stdout);
+        ZxConsoleOpen(console);
     }
     for(int64_t index = 0; index < program->functions.length; index++) {
         int service = ZxPlatformService(program, index);

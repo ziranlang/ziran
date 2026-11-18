@@ -239,6 +239,9 @@ struct NativeInstance {
     /* The pointer table and frame arena; the header is in data. */
     ZirNativeMapping pointers;
     unsigned char *pointer_header;
+    /* Standard output the program writes, handed to stdio once per run.
+     * Last, so its buffer keeps the fields every call reads together. */
+    ZxConsole console;
 };
 
 static pthread_mutex_t native_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -1131,18 +1134,19 @@ native_platform_call(NativeInstance *instance, int service,
                      ExecHostNativeValue *arguments, size_t count,
                      ExecHostNativeValue *result)
 {
-    (void)instance;
     result->bits = 0;
     if(service == ZX_SERVICE_PRINT_BYTES) {
         if(count != 3 ||
            (arguments[1].bits == 0 && arguments[2].bits != 0))
             return 0;
-        FILE *stream = arguments[0].bits == 2 ? stderr :
-            arguments[0].bits == 1 ? stdout : NULL;
-        if(stream == NULL) return 0;
         const unsigned char *bytes =
             (const unsigned char *)(uintptr_t)arguments[1].bits;
         size_t left = (size_t)arguments[2].bits;
+        if(arguments[0].bits == 1) return ZxConsoleWrite(&instance->console, bytes, left);
+        if(arguments[0].bits != 2) return 0;
+        /* What came before on standard output reaches stdio first. */
+        if(!ZxConsoleFlush(&instance->console)) return 0;
+        FILE *stream = stderr;
         while(left != 0) {
             size_t written = fwrite(bytes, 1, left, stream);
             if(written == 0) return 0;
@@ -1160,7 +1164,7 @@ native_platform_call(NativeInstance *instance, int service,
         char *start = native_digits(text + sizeof(text), magnitude);
         if(negative) *--start = '-';
         size_t length = (size_t)(text + sizeof(text) - start);
-        return fwrite(start, 1, length, stdout) == length;
+        return ZxConsoleWrite(&instance->console, start, length);
     } else if(service == ZX_SERVICE_PRINT_BOOL)
         snprintf(text, sizeof(text), "%s",
                  arguments[0].bits ? "true" : "false");
@@ -1174,7 +1178,7 @@ native_platform_call(NativeInstance *instance, int service,
         memcpy(&value, &arguments[0].bits, sizeof(value));
         FormatPrintFloat(value, 0, text, sizeof(text));
     } else return 0;
-    return fputs(text, stdout) >= 0;
+    return ZxConsoleWrite(&instance->console, text, strlen(text));
 }
 
 static uint64_t
@@ -1190,8 +1194,10 @@ NativeHostInvoke(NativeInstance *instance, int32_t function,
                          &aggregate_result))
         NativeTrap(instance, NATIVE_TRAP_HOST, 0);
     int ok;
+    /* A host capability may print too: the program's output comes first. */
     if(instance->capabilities[function] >= 0)
-        ok = ExecHostsCallNative(instance->hosts, (size_t)instance->capabilities[function],
+        ok = (instance->console.used == 0 || ZxConsoleFlush(&instance->console)) &&
+             ExecHostsCallNative(instance->hosts, (size_t)instance->capabilities[function],
                                  arguments, count, &returned);
     else
         ok = native_platform_call(instance, instance->services[function], arguments, count,
@@ -1579,6 +1585,8 @@ native_call(NativeInstance *instance, void *address, long long *result)
     if(instance->active == NULL)
         memcpy(instance->data + instance->fuel_offset, &budget, sizeof(budget));
     int called = native_call_entry(instance, address, result);
+    /* A run hands its output to stdio's buffering, before any report. */
+    if(instance->console.used != 0) ZxConsoleFlush(&instance->console);
     if(instance->cumulative && instance->active == NULL) {
         int64_t left = native_fuel(instance);
         instance->used += budget - (left > 0 ? left : 0);
@@ -1625,6 +1633,7 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
     instance->heap.cookie = native_cookie(instance);
     instance->heap.limit = NATIVE_HEAP_LIMIT;
     instance->bundle = bundle;
+    ZxConsoleOpen(&instance->console);
     instance->hosts = ExecHostsOpen(bundle, (ExecFindBinding)find, context);
     if(instance->hosts == NULL) goto failed;
     const LirProgram *lir = ExecBundleProgram(bundle);
@@ -1920,6 +1929,7 @@ NativeInstanceClose(NativeInstance *instance)
 {
     if(instance == NULL) return;
     /* What the instance wrote is out by the time it closes. */
+    ZxConsoleFlush(&instance->console);
     fflush(stdout);
     for(NativeBlock *block = instance->blocks; block != NULL;) {
         NativeBlock *next = block->next;

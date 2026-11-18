@@ -253,8 +253,13 @@ formatting digits directly, µs per call
 | enums.zi | 0.686 | 0.378 | 0.143 | 0.224 |
 | loops.zi | 3.155 | 1.718 | 0.690 | 0.506 |
 
+Native output now goes through the engine's console buffer, one stdio
+write per run: arrays.zi 1.150 → 1.023 µs, enums.zi 0.392 → 0.360 and
+loops.zi 1.780 → 1.600 ([raw samples](../bench/results/standard/native-console-alpha.json));
+score.zi and text_demo.zi stay near 0.023 µs.
+
 Still open: each print piece is one host call through the generic native
-host veneer (frame spill, typed argument decoding) and a locked stdio
-write; C formats a whole line in one `printf`. Next, batch the pieces of
-one print in the console buffer and call the host once per line.
+host veneer, which spills the argument registers and decodes each value by
+its type; C formats a whole line in one `printf`. Next, a direct console
+service veneer that appends bytes without that decoding.
 

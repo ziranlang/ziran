@@ -8,6 +8,11 @@
 #import "std/option"
 using Vectors :: #import "std/vec"
 
+// The build directory of the ziran under test (BUILD_DIR/bin/ziran), and
+// where its native codec archives are built.
+BuildDirectory :: (test: *NativeTest) -> string { return PathParent(PathParent(test.ziran)) }
+AudioNative :: (test: *NativeTest) -> string { return CheckPath(BuildDirectory(test), "audio/native") }
+
 Compile :: (test: *NativeTest, source: string, name: string, fake: bool, sdl: bool, codecs: bool = false, saved: bool = false) -> string {
     generated := CheckPath(test.work, CheckConcat(name, "-c"))
     root := CheckPath(test.repo, "tests")
@@ -36,9 +41,8 @@ Compile :: (test: *NativeTest, source: string, name: string, fake: bool, sdl: bo
     if fake { VecPush(compile, "-Wl,--export-dynamic"); VecPush(compile, "-Wl,--wrap=dlopen") }
     if sdl { VecPush(compile, "-lSDL2"); VecPush(compile, "-Wl,--wrap=SDL_InitSubSystem") }
     if codecs {
-        VecPush(compile, CheckPath(test.repo, "build/audio/native/libziran_mp3.a"))
-        libraries := string.["libvorbisfile.a", "libvorbis.a", "libogg.a"]
-        for library: libraries { VecPush(compile, CheckPath(CheckPath(test.repo, "build/audio/native"), library)) }
+        libraries := string.["libziran_mp3.a", "libvorbisfile.a", "libvorbis.a", "libogg.a"]
+        for library: libraries { VecPush(compile, CheckPath(AudioNative(test), library)) }
     }
     options := string.["-pthread", "-ldl", "-lm", "-o", client]
     for option: options { VecPush(compile, option) }
@@ -47,7 +51,10 @@ Compile :: (test: *NativeTest, source: string, name: string, fake: bool, sdl: bo
 }
 
 CodecTest :: (test: *NativeTest) {
-    archive := string.["make", "audio-codecs"]; unused NativeRun(test, archive[:])
+    // The archives go to the build directory of the toolchain under test,
+    // which `make sanitize` names through MAKEFLAGS, and are linked from there.
+    archive := string.["make", CheckConcat("BUILD_DIR=", BuildDirectory(test)), "audio-codecs"]
+    unused NativeRun(test, archive[:])
     client := Compile(test, "tests/audio_decode_cases.zi", "decode", false, false, true)
     mp3 := CheckPath(test.work, "tone.mp3"); vorbis := CheckPath(test.work, "tone.ogg")
     names := string.[mp3, vorbis]; codecs := string.["libmp3lame", "libvorbis"]

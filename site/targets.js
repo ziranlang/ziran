@@ -155,9 +155,6 @@
     });
     document.getElementById('matrix-unit').textContent = metric === 'size' ? 'bytes emitted' :
       metric === 'emission' ? texts.units.emission + ' to emit' : texts.units.run + ' per call';
-    document.querySelectorAll('[data-execution-ratio]').forEach(cell => {
-      cell.hidden = metric !== 'run' || platform !== 'desktop';
-    });
     document.querySelectorAll('[data-runtime]').forEach(label => {
       label.textContent = snapshot.runtimes[label.dataset.runtime].split(' · ').slice(1).join(' · ');
     });

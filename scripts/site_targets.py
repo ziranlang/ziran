@@ -337,11 +337,6 @@ def render(data):
                          f'aria-label="{escape(example["title"])}: {TARGETS[target]}, {label}">'
                          f'<span class="matrix-state {"is-ok" if supported else "is-limited"}">{label}</span>'
                          f'<strong class="matrix-value">{value}</strong></a></td>')
-        measured = data['platforms']['desktop']['examples'][example['id']]
-        baseline = measured['c']['execution_ms']
-        ratios = ''.join(f'<span>{label} {format_number(measured[target]["execution_ms"] / baseline)}×</span>'
-                         for target, label in (('zx', 'ZX'), ('wasm', 'Wasm')))
-        cells.append(f'<td class="bench-ratios" data-execution-ratio>{ratios}</td>')
         rows.append(f'<tr><th scope="row"><strong>{escape(example["title"])}</strong><small>{escape(example["id"])}.zi</small></th>{"".join(cells)}</tr>')
     first = data['examples'][0]
     content = (SITE / first['source']).read_text()

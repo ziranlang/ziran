@@ -85,13 +85,17 @@ LowerFunction :: (lower: *Lower, index: s64, output: *Buf) -> bool {
     if !PlanViews(*fn, aggregate[:]) { return false }
     if !lower.program.checks && (!PlanLoadViews(*fn, aggregate[:]) || !PlanInPlaceStores(*fn, aggregate[:])) { return false }
     PlanCallPlaces(*fn, aggregate[:])
-    if !PlanMemberPlaces(*fn, aggregate[:], rep[:]) || !PlanInitialStores(*fn) || !PlanZeroValues(*fn) { return false }
-    // Borrowed loads, parameters and results need no stack reservation.
-    // Offsets stay stable, but unused trailing slots go; a procedure whose
-    // aggregates all live elsewhere then needs no frame at all.
+    if !PlanMemberPlaces(*fn, aggregate[:], rep[:]) || !PlanInitialStores(*fn) || !PlanZeroValues(*fn) ||
+        !CompactFrame(*fn, aggregate[:], rep[:]) {
+        return false
+    }
+    // Borrowed loads, parameters and results need no stack reservation, and
+    // CompactFrame packed the slots still used; a procedure whose aggregates
+    // all live elsewhere then needs no frame at all. Elided values emit
+    // nothing, so a stale view of theirs reserves nothing either.
     fn.frame = 0
     for value: 0..value_count - 1 {
-        if !aggregate[value] { continue }
+        if !aggregate[value] || fn.elided[value] { continue }
         place := AddrOfSlot(*fn, cast(s32)value)
         end := place.offset + TypeSize(lower, function.values[value])
         if place.kind == ADDR_FRAME && end > fn.frame { fn.frame = end }

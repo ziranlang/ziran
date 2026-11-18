@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Wasm frames hold only the record slots a procedure still uses. A large record read in place, or a zeroed record that is never built, reserves no frame space, so Shovey, whose level replay reads single fields of a 306 KB global, compiles to Wasm instead of exceeding the 8 MB frame limit.
 - On x86-64 and aarch64, native console prints read their arguments straight from the saved registers instead of decoding each by type. On Alpha, arrays.zi went from 1.018 to 0.490 µs per call, enums.zi from 0.353 to 0.177, below Wasm, and loops.zi from 1.560 to 0.720.
 - Native ZX gathers standard output in the same console buffer as the engine and hands it to stdio once per run, and before standard error, a host capability call or a trap report. On Alpha, arrays.zi went from 1.150 to 1.023 µs per call, enums.zi from 0.392 to 0.360 and loops.zi from 1.780 to 1.600.
 - Native host calls resolve each function's capability or platform service once per instance, keep up to eight arguments on the stack instead of allocating them, and format printed integers directly. On Alpha, arrays.zi went from 2.075 to 1.122 µs per call, enums.zi from 0.686 to 0.378 and loops.zi from 3.155 to 1.718.

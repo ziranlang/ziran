@@ -232,9 +232,48 @@ ZeroRecords :: () -> bool {
         kept.bytes[1] == 0
 }
 
+// Ten snapshots of a 1 MB global, each read in place for one field, reserve
+// no frame: only slots a lowered value still uses are packed into it.
+FrameRecord :: struct { level: s32; data: [1000000]u8; tail: s32 }
+FramePair :: struct { a: s64; b: s64 }
+frame_record: FrameRecord;
+frame_bumps: s64;
+FrameBump :: () { frame_bumps += 1 }
+FrameSum :: (pair: FramePair, depth: s32) -> s64 {
+    if depth > 0 { return FrameSum(pair, depth - 1) }
+    return pair.a + pair.b
+}
+FrameReads :: () -> bool {
+    frame_record.level = 3
+    frame_bumps = 0
+    total: s64 = 0
+    if frame_record.level == 3 { total += 1 }
+    FrameBump()
+    if frame_record.level == 3 { total += 1 }
+    FrameBump()
+    if frame_record.level == 3 { total += 1 }
+    FrameBump()
+    if frame_record.level == 3 { total += 1 }
+    FrameBump()
+    if frame_record.level == 3 { total += 1 }
+    FrameBump()
+    if frame_record.level == 3 { total += 1 }
+    FrameBump()
+    if frame_record.level == 3 { total += 1 }
+    FrameBump()
+    if frame_record.level == 3 { total += 1 }
+    FrameBump()
+    if frame_record.level == 3 { total += 1 }
+    FrameBump()
+    if frame_record.level == 3 { total += 1 }
+    FrameBump()
+    pair := FramePair.{a = total, b = frame_bumps}
+    return FrameSum(pair, 2) == 20 && frame_record.tail == 0
+}
+
 #program_export
 Answer :: () -> s64 {
-    if !FieldViews() || !ConstructorViews() || !MemberPlaces() || !VectorMemberStores() || !ZeroRecords() { return -1 }
+    if !FieldViews() || !ConstructorViews() || !MemberPlaces() || !VectorMemberStores() || !ZeroRecords() || !FrameReads() { return -1 }
     total: s64 = 0
 
     u: u16 = 65535

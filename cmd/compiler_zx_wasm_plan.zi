@@ -650,6 +650,78 @@ PlanZeroValues :: (fn: *Fn) -> bool {
     return true
 }
 
+// Slots are laid out for every aggregate class before planning decides which
+// values are read in place or built elsewhere. Pack the frame with only the
+// slots a lowered value still uses, so a large record read in place reserves
+// nothing. A view into a slot moves with it. An unused slot gets a distinct
+// negative tag, so slot comparisons between values stay exact.
+CompactFrame :: (fn: *Fn, aggregate: []bool, rep: []s32) -> bool {
+    count := fn.function.values.count
+    owners: Vec(s32)
+    starts: Vec(s64)
+    extent: Vec(s64)
+    moved: Vec(s64)
+    defer VecFree(owners)
+    defer VecFree(starts)
+    defer VecFree(extent)
+    defer VecFree(moved)
+    for value: 0..count - 1 {
+        if aggregate[value] && rep[value] == value && fn.value_slot[value] >= 0 &&
+            (!VecPush(owners, cast(s32)value) || !VecPush(starts, fn.value_slot[value])) {
+            return OutOfMemory(fn.lower)
+        }
+    }
+    if owners.count == 0 { return true }
+    if !VecResize(extent, owners.count) || !VecResize(moved, owners.count) { return OutOfMemory(fn.lower) }
+    for value: 0..count - 1 {
+        if !aggregate[value] || fn.elided[value] { continue }
+        place := AddrOfSlot(fn, cast(s32)value)
+        if place.kind != ADDR_FRAME { continue }
+        root := ifx fn.view[value].kind >= 0 then fn.view_root[value] else fn.value_slot[value]
+        owner := SlotOwner(starts[:], root)
+        if owner < 0 { continue }
+        end := place.offset - root + TypeSize(fn.lower, ValueType(fn, cast(s32)value))
+        if end > extent[owner] { extent[owner] = end }
+    }
+    cursor: s64 = 0
+    for at: 0..owners.count - 1 {
+        moved[at] = -1
+        if extent[at] <= 0 { continue }
+        cursor = (cursor + 7) & ~(cast(s64)7)
+        moved[at] = cursor
+        cursor += extent[at]
+    }
+    for value: 0..count - 1 {
+        if !aggregate[value] { continue }
+        if fn.view[value].kind == ADDR_FRAME {
+            owner := SlotOwner(starts[:], fn.view_root[value])
+            if owner >= 0 && moved[owner] >= 0 {
+                fn.view[value].offset += moved[owner] - starts[owner]
+                fn.view_root[value] = moved[owner]
+            }
+        }
+        slot := fn.value_slot[value]
+        if slot < 0 { continue }
+        owner := SlotOwner(starts[:], slot)
+        if owner < 0 { continue }
+        fn.value_slot[value] = ifx moved[owner] >= 0 then moved[owner] else -2 - slot
+    }
+    return true
+}
+
+// The index of the slot that starts at or before OFFSET, or -1.
+SlotOwner :: (starts: []s64, offset: s64) -> s64 {
+    low: s64 = 0
+    high: s64 = starts.count - 1
+    found: s64 = -1
+    while low <= high {
+        middle := low + (high - low) / 2
+        if starts[middle] <= offset { found = middle; low = middle + 1 }
+        else { high = middle - 1 }
+    }
+    return found
+}
+
 // The storage a value occupies: its frame slot, or the root of the place it views.
 StorageRoot :: (fn: *Fn, value: s32) -> s64 {
     return ifx fn.view[value].kind >= 0 then fn.view_root[value] else fn.value_slot[value]

@@ -22,6 +22,7 @@ Addr :: struct {
 // (the label's block ends just before it), one to a loop label reaches the
 // loop's header.
 Label :: struct { loop: bool; block: s64 }
+LoadWindow :: struct { start: s64; end: s64; omit: bool }
 
 Fn :: struct {
     lower: *Lower
@@ -40,6 +41,7 @@ Fn :: struct {
     // Initial members overwritten along a single-use insert chain: by value,
     // where its member flags start in omitted_bits, or -1.
     omitted: Vec(s64)
+    load_window: Vec(LoadWindow)
     omitted_bits: Vec(bool)
     alloca_slot: Vec(s64)
     frame: s64

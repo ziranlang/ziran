@@ -501,7 +501,20 @@ LowerMemory :: (fn: *Fn, instruction: *LirInstruction) {
         if !OperandCount(fn, instruction, 1, 1) { return }
         if !ValueScalar(fn, instruction.operands[0]) { unused Gap(fn.lower, "wasm.gap.load", "address is not a pointer value"); return }
         if fn.view[instruction.result].kind >= 0 { return }
-        LoadValue(fn, .{.kind = ADDR_LOCAL, .local = cast(u32)fn.value_local[instruction.operands[0]]}, instruction.result)
+        source := Addr.{.kind = ADDR_LOCAL, .local = cast(u32)fn.value_local[instruction.operands[0]]}
+        window := fn.load_window[instruction.result]
+        if window.end <= window.start { LoadValue(fn, source, instruction.result); return }
+        place := AddrOfSlot(fn, instruction.result)
+        start := window.start
+        end := window.end
+        if window.omit {
+            CopyFixed(fn, place, source, start)
+            start = end
+            end = TypeSize(fn.lower, ValueType(fn, instruction.result))
+        }
+        place.offset += start
+        source.offset += start
+        CopyFixed(fn, place, source, end - start)
         return
     }
     if !OperandCount(fn, instruction, 2, 2) { return }

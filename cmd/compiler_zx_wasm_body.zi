@@ -37,6 +37,7 @@ Align :: (value: s64, to: s64) -> s64 { return (value + to - 1) & ~(to - 1) }
 LowerFunction :: (lower: *Lower, index: s64, output: *Buf) -> bool {
     function := *lower.program.functions[index]
     fn: Fn
+    defer VecFree(fn.load_window)
     fn.lower = lower
     fn.function = function
     fn.block_count = function.blocks.count
@@ -81,7 +82,7 @@ LowerFunction :: (lower: *Lower, index: s64, output: *Buf) -> bool {
         if aggregate[value] && rep[value] != value { fn.value_slot[value] = fn.value_slot[rep[value]] }
     }
     if !PlanViews(*fn, aggregate[:]) { return false }
-    if !lower.program.checks && !PlanLoadViews(*fn, aggregate[:]) { return false }
+    if !lower.program.checks && (!PlanLoadViews(*fn, aggregate[:]) || !PlanInPlaceStores(*fn, aggregate[:])) { return false }
     PlanCallPlaces(*fn, aggregate[:])
     if !PlanMemberPlaces(*fn, aggregate[:], rep[:]) || !PlanInitialStores(*fn) { return false }
     // Borrowed loads, parameters and results need no stack reservation.

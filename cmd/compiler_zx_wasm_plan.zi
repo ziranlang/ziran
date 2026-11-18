@@ -140,9 +140,9 @@ SameMember :: (left: *LirInstruction, left_fixed: s64, right: *LirInstruction, r
 }
 
 // A load used only for member reads can borrow its pointer instead of
-// materializing the whole record. Nested extracts are tracked too: a read
-// after any possible memory effect needs the original snapshot. This stays
-// within one block and keeps checked loads and escaping values.
+// materializing the whole record. Follow nested extracts up to their member
+// reads or the copy that initializes a fresh allocation. A read after any
+// possible memory effect needs the original snapshot.
 PlanLoadViews :: (fn: *Fn, aggregate: []bool) -> bool {
     count := fn.function.values.count
     root: Vec(s32)
@@ -179,7 +179,8 @@ PlanLoadViews :: (fn: *Fn, aggregate: []bool) -> bool {
                 value := instruction.operands[at]
                 if !ValueValid(fn, value) || root[value] < 0 { continue }
                 base := root[value]
-                if instruction.op != .Extract || at != 0 || home[base] != block || stamp[base] != version {
+                reads := instruction.op == .Extract || instruction.op == .Allocate
+                if !reads || at != 0 || home[base] != block || stamp[base] != version {
                     valid[base] = false
                     continue
                 }
@@ -222,11 +223,56 @@ PlanLoadViews :: (fn: *Fn, aggregate: []bool) -> bool {
     return true
 }
 
-// Views: an aggregate extract read only by extracts in its own block, while
-// nothing writes the slot it reads from, is read in place there instead of
-// copied out. One that a single insert then changes, put back where it came
-// from, is changed in place: the insert writes into the source and putting
-// it back does nothing.
+// An unchecked load, fixed-member insert and store to the same pointer
+// can write just that member when neither aggregate snapshot escapes.
+PlanInPlaceStores :: (fn: *Fn, aggregate: []bool) -> bool {
+    uses: Vec(u8)
+    defer VecFree(uses)
+    if !VecResize(uses, fn.function.values.count) { return OutOfMemory(fn.lower) }
+    for block: fn.function.blocks {
+        for instruction: block.instructions {
+            for value: instruction.operands {
+                if ValueValid(fn, value) && uses[value] < 2 { uses[value] += 1 }
+            }
+            for edge: instruction.edges {
+                for value: edge.arguments {
+                    if ValueValid(fn, value) && uses[value] < 2 { uses[value] += 1 }
+                }
+            }
+        }
+    }
+    for block: fn.function.blocks {
+        for at: 0..block.instructions.count - 3 {
+            load := *block.instructions[at]
+            insert := *block.instructions[at + 1]
+            store := *block.instructions[at + 2]
+            if load.op != .Load || insert.op != .Insert || store.op != .Store ||
+                load.checked || insert.checked || store.checked || load.operands.count != 1 ||
+                insert.operands.count != 2 || store.operands.count != 2 {
+                continue
+            }
+            original := load.result
+            updated := insert.result
+            pointer := load.operands[0]
+            if !ValueValid(fn, original) || !ValueValid(fn, updated) || !aggregate[original] ||
+                !aggregate[updated] || uses[original] != 1 || uses[updated] != 1 ||
+                insert.operands[0] != original || store.operands[0] != pointer || store.operands[1] != updated ||
+                !ValueScalar(fn, pointer) || !ValueScalar(fn, insert.operands[1]) {
+                continue
+            }
+            address := Addr.{.kind = ADDR_LOCAL, .local = cast(u32)fn.value_local[pointer]}
+            fn.view[original] = address
+            fn.view[updated] = address
+            fn.view_root[original] = -1 - cast(s64)original
+            fn.view_root[updated] = fn.view_root[original]
+        }
+    }
+    return true
+}
+
+// Read an aggregate extract in place when its uses only extract members or
+// initialize fresh allocations in its block while its source is unchanged.
+// A single insert put back into the original member can also write in place.
 PlanViews :: (fn: *Fn, aggregate: []bool) -> bool {
     count := fn.function.values.count
     // home: the block of all of a value's uses, -1 when unused, -2 for several
@@ -256,7 +302,7 @@ PlanViews :: (fn: *Fn, aggregate: []bool) -> bool {
                 if !ValueValid(fn, value) { continue }
                 uses[value] += 1
                 home[value] = ifx home[value] == -1 || home[value] == block then block else -2
-                if instruction.op == .Extract && at == 0 { read[value] = item }
+                if (instruction.op == .Extract || instruction.op == .Allocate) && at == 0 { read[value] = item }
                 else if instruction.op == .Insert && at == 0 { update[value] = ifx update[value] == -1 then item else -2 }
                 else { other[value] = item }
             }
@@ -423,18 +469,31 @@ PlanCallPlaces :: (fn: *Fn, aggregate: []bool) {
     PlaceSlot(fn, aggregate, slot, .{.kind = ADDR_LOCAL, .local = fn.result_address})
 }
 
-// Constructor fields overwritten before any other use need no initial store.
-// Only single-use, fixed-member inserts are followed: a snapshot, extract or
-// block argument ends the chain. Nested constructors whose only uses were
-// those omitted stores are pruned, keeping calls and checked operations.
+FieldReads :: struct { first: u64; last: u64; count: s64 }
+
+SetLoadWindow :: (fn: *Fn, value: s32, first: u64, last: u64, omit: bool) {
+    type := ValueType(fn, value)
+    start: s64
+    end: s64
+    member: s32
+    if MemberOffset(fn, type, first, *start, *member) && MemberOffset(fn, type, last, *end, *member) {
+        fn.load_window[value] = .{.start = start, .end = end + TypeSize(fn.lower, member), .omit = omit}
+    }
+}
+
+// Snapshots need only the span of fields their uses extract. A single
+// in-place insert also lets an unchecked load skip its overwritten field.
+// Constructors omit overwritten stores and prune unused constructors.
 PlanInitialStores :: (fn: *Fn) -> bool {
     count := fn.function.values.count
     definitions: Vec(*LirInstruction)
     only: Vec(*LirInstruction)
     uses: Vec(s64)
     queue: Vec(s32)
+    reads: Vec(FieldReads)
+    defer VecFree(reads)
     if !VecResize(definitions, count) || !VecResize(only, count) || !VecResize(uses, count) ||
-        !VecResize(fn.omitted, count) {
+        !VecResize(fn.omitted, count) || !VecResize(fn.load_window, count) || !VecResize(reads, count) {
         return OutOfMemory(fn.lower)
     }
     for value: 0..count - 1 { fn.omitted[value] = -1 }
@@ -443,6 +502,14 @@ PlanInitialStores :: (fn: *Fn) -> bool {
         for item: 0..code.instructions.count - 1 {
             instruction := *code.instructions[item]
             if ValueValid(fn, instruction.result) { definitions[instruction.result] = instruction }
+            if instruction.op == .Extract && instruction.operands.count == 1 && !instruction.checked &&
+                ValueValid(fn, instruction.operands[0]) {
+                read := *reads[instruction.operands[0]]
+                field := instruction.immediate
+                if read.count == 0 || field < read.first { read.first = field }
+                if field > read.last { read.last = field }
+                read.count += 1
+            }
             for value: instruction.operands {
                 if ValueValid(fn, value) {
                     uses[value] += 1
@@ -458,7 +525,21 @@ PlanInitialStores :: (fn: *Fn) -> bool {
     }
     for value: 0..count - 1 {
         definition := definitions[value]
-        if definition == null || definition.op != .Aggregate { continue }
+        if definition == null { continue }
+        if definition.op == .Load && !fn.lower.program.checks && !definition.checked &&
+            !ValueScalar(fn, cast(s32)value) && fn.view[value].kind < 0 {
+            read := *reads[value]
+            if read.count > 0 && uses[value] == read.count {
+                SetLoadWindow(fn, cast(s32)value, read.first, read.last, false)
+            } else {
+                use := only[value]
+                if uses[value] == 1 && use != null && use.op == .Insert && use.operands.count == 2 && use.operands[0] == value &&
+                    !use.checked && ValueValid(fn, use.result) && SamePlace(AddrOfSlot(fn, cast(s32)value), AddrOfSlot(fn, use.result)) {
+                    SetLoadWindow(fn, cast(s32)value, use.immediate, use.immediate, true)
+                }
+            }
+        }
+        if definition.op != .Aggregate { continue }
         current := cast(s32)value
         walk: s64 = 0
         while walk < count && uses[current] == 1 && only[current] != null {

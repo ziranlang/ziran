@@ -90,6 +90,11 @@ test "$result" = "$expected" || {
     exit 1
 }
 
+# Optimization drops the unused read of the field that gets replaced.
+# Check snapshot reads and replacements across intervening calls.
+build_wasm "$work/zx_wasm_optimized.wasm" --opt --root "$repo/tests/spec" --entry "$entry" "$source"
+test "$(run_engine scalar "$work/zx_wasm_optimized.wasm" 10000000)" = "$expected"
+
 # Builtin output preserves percent escapes, NUL bytes and void procedure calls.
 cat >"$work/print.zi" <<'ZI'
 Touch :: () {}

@@ -5,6 +5,8 @@
 // arrays with value copies, literals, member and index places.
 // The instruction engine and the wasm module must agree on the result.
 
+using Vectors :: #import "vec"
+
 Fib :: (n: s32) -> s64 {
     if n < 2 { return cast(s64)n }
     return Fib(n - 1) + Fib(n - 2)
@@ -130,6 +132,33 @@ FieldSnapshot :: (record: *FieldRecord, choose: bool) -> s32 {
     if choose { return snapshot.value }
     return snapshot.padding[42]
 }
+FieldContainer :: struct { before: s32; inner: FieldRecord; after: s32 }
+field_container: FieldContainer;
+PaddingWrite :: (record: *FieldRecord, value: s32) { record.padding[42] = value }
+FieldLocalCopy :: (record: *FieldContainer) -> bool {
+    local := record.inner
+    PaddingWrite(*local, 13)
+    return local.padding[42] == 13 && record.inner.padding[42] == 17
+}
+ReplaceRecord :: struct { before: s32; inner: Pair; after: s32 }
+ReplaceEdges :: (record: *ReplaceRecord) {
+    record.before = 37
+    record.after = 43
+}
+ReplaceInner :: (record: *ReplaceRecord) -> Pair {
+    ReplaceEdges(record)
+    return Pair.{a = Point.{x = 13, y = 17}, tag = 5}
+}
+FieldReplace :: (record: *ReplaceRecord) -> s32 {
+    snapshot := record.*
+    snapshot.inner = ReplaceInner(record)
+    return snapshot.before * 10000 + snapshot.after * 100 + snapshot.inner.a.x
+}
+ReadSavedTail :: (record: *ReplaceRecord) -> s32 {
+    snapshot := record.*
+    ReplaceEdges(record)
+    return snapshot.after
+}
 FieldViews :: () -> bool {
     field_left.value = 7
     field_right.value = 5
@@ -151,14 +180,31 @@ FieldViews :: () -> bool {
     if call_snapshot.value != 7 || field_left.value != 23 { return false }
     if FieldSnapshot(*field_left, true) != 23 { return false }
     if FieldSnapshot(*field_left, false) != 17 { return false }
+    field_container.inner.padding[42] = 17
+    if !FieldLocalCopy(*field_container) { return false }
+    record := ReplaceRecord.{before = 31, inner = Pair.{a = Point.{x = 7}}, after = 41}
+    if FieldReplace(*record) != 314113 || record.before != 37 || record.after != 43 || record.inner.a.x != 7 { return false }
+    record.after = 41
+    if ReadSavedTail(*record) != 41 || record.after != 43 { return false }
     changed := field_left
     changed.padding[42] = 31
     return changed.padding[42] == 31 && field_left.padding[42] == 17
 }
 
+clear_vectors: [2]Vec(s32);
+VectorMemberStores :: () -> bool {
+    VecClear(clear_vectors[0])
+    VecClear(clear_vectors[1])
+    if !VecPush(clear_vectors[0], cast(s32)31) || !VecPush(clear_vectors[1], cast(s32)17) { return false }
+    capacity := clear_vectors[0].capacity
+    VecClear(clear_vectors[0])
+    return clear_vectors[0].count == 0 && clear_vectors[0].capacity == capacity &&
+        clear_vectors[1].count == 1 && clear_vectors[1][0] == 17
+}
+
 #program_export
 Answer :: () -> s64 {
-    if !FieldViews() || !ConstructorViews() || !MemberPlaces() { return -1 }
+    if !FieldViews() || !ConstructorViews() || !MemberPlaces() || !VectorMemberStores() { return -1 }
     total: s64 = 0
 
     u: u16 = 65535

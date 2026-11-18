@@ -10,17 +10,41 @@ copied from the measurement host.
 
 ## Wasm widget Text
 
-On the measured compiler revision, Text takes 4.153 µs per two-frame scenario
-in Wasm and 3.837 µs in Go. Button and Input already beat Go. The Wasm runner
-warms its existing instance and runs without a step budget. Each measured batch
-checks the paint result. The next comparison should preserve that checksum,
-the same input, and the C and Go timings from the same cohort.
+Wasm lowering now copies only the snapshot fields that are read, writes a
+single replaced field back in place, and fills fresh allocations straight from
+their source. In five matched Alpha rounds, Text measured 3.851 µs in Wasm and
+3.848 µs in Go, with the paint result checked on every call. One more Text
+change should put Wasm ahead. The hottest warm procedures are TextTokenNext,
+NextTextLineUncached, QueuePaint and UTF-8 Decode. Multi-value record
+returns, flat record arguments, leaf stack-pointer elision and SIMD copies
+were tried and set aside; none gained more than 1.3% in paired runs.
 
-Profile the warm Text call and inspect lowering of the small paint, rectangle,
-string and decoding records that pass between its hot procedures. Keep eligible
-values in Wasm locals or return multiple scalar values if the profile identifies
-linear-memory traffic as significant. Retest the portable calling convention,
-including any exported calls and imported bindings.
+## Button and Input regression
+
+At `343de87f`, Boolean specialization made Button and Input 2.6 to 3.6
+times slower in both ZX native and Wasm. The `TreeLayerAt$1` clone takes 6,567
+of 10,020 samples in the Button profile: it still copies a large record whose
+only use the folded branch removed, then reloads the address to read member 21.
+The standard benchmark lane owns the fix. Regenerate the full Alpha cohort at
+one clean pushed revision after it lands, then publish Targets.
+
+## Kryon visual workloads
+
+The initial CPU run verified all 30 frame hashes against a second Alpha run
+at 960×600 and 420×900. It covered clear and resolve, unlit geometry,
+textured geometry, a 12-instruction shader, and lit geometry. At 960×600 the
+textured scene measured 24,875 µs mean and 25,217 µs p95. The lit scene
+measured 53,646 µs mean and 53,750 µs p95. These runs used three timed frames
+per scene and viewport and establish a diagnostic baseline.
+
+Use the upstream visual suite for the site. Keep completed-frame mean and
+nearest-rank p95 in microseconds, with warmup, shader compilation and output
+hashing outside the measured duration. Publish per-frame hashes and the exact
+Kryon source and tool revisions alongside the table. The browser workload
+uses the CPU renderer. The native GPU workload requires the physical EGL/GLES
+renderer identity and its own verified output; software rendering belongs in
+correctness runs. The pinned cohort needs the richer UI and 2D effects as well
+as the animated 3D scenes before publication.
 
 ## Fixed-array value copies
 

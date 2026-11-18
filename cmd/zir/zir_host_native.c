@@ -218,6 +218,7 @@ struct NativeInstance {
      * platform service it names, resolved once instead of per call. */
     int32_t *capabilities;
     unsigned char *services;
+    size_t function_count;
     /* Built with --checks: pointers are tokens of the slot table. */
     int checked;
     /* The read-only constants beside the code. */
@@ -1129,26 +1130,23 @@ native_digits(char *end, uint64_t value)
     return end;
 }
 
+/* One console service on its raw argument values: the descriptor, data and
+ * length for bytes, or one scalar whose bool is its low bit and whose float
+ * occupies its low bytes. */
 static int
-native_platform_call(NativeInstance *instance, int service,
-                     ExecHostNativeValue *arguments, size_t count,
-                     ExecHostNativeValue *result)
+native_service(NativeInstance *instance, int service, const uint64_t *values, size_t count)
 {
-    result->bits = 0;
     if(service == ZX_SERVICE_PRINT_BYTES) {
-        if(count != 3 ||
-           (arguments[1].bits == 0 && arguments[2].bits != 0))
+        if(count != 3 || (values[1] == 0 && values[2] != 0))
             return 0;
-        const unsigned char *bytes =
-            (const unsigned char *)(uintptr_t)arguments[1].bits;
-        size_t left = (size_t)arguments[2].bits;
-        if(arguments[0].bits == 1) return ZxConsoleWrite(&instance->console, bytes, left);
-        if(arguments[0].bits != 2) return 0;
+        const unsigned char *bytes = (const unsigned char *)(uintptr_t)values[1];
+        size_t left = (size_t)values[2];
+        if(values[0] == 1) return ZxConsoleWrite(&instance->console, bytes, left);
+        if(values[0] != 2) return 0;
         /* What came before on standard output reaches stdio first. */
         if(!ZxConsoleFlush(&instance->console)) return 0;
-        FILE *stream = stderr;
         while(left != 0) {
-            size_t written = fwrite(bytes, 1, left, stream);
+            size_t written = fwrite(bytes, 1, left, stderr);
             if(written == 0) return 0;
             bytes += written;
             left -= written;
@@ -1158,27 +1156,77 @@ native_platform_call(NativeInstance *instance, int service,
     if(count != 1) return 0;
     char text[64];
     if(service == ZX_SERVICE_PRINT_SIGNED || service == ZX_SERVICE_PRINT_UNSIGNED) {
-        uint64_t magnitude = arguments[0].bits;
+        uint64_t magnitude = values[0];
         int negative = service == ZX_SERVICE_PRINT_SIGNED && (int64_t)magnitude < 0;
         if(negative) magnitude = ~magnitude + 1;
         char *start = native_digits(text + sizeof(text), magnitude);
         if(negative) *--start = '-';
-        size_t length = (size_t)(text + sizeof(text) - start);
-        return ZxConsoleWrite(&instance->console, start, length);
-    } else if(service == ZX_SERVICE_PRINT_BOOL)
-        snprintf(text, sizeof(text), "%s",
-                 arguments[0].bits ? "true" : "false");
-    else if(service == ZX_SERVICE_PRINT_FLOAT32) {
-        uint32_t bits = (uint32_t)arguments[0].bits;
+        return ZxConsoleWrite(&instance->console, start, (size_t)(text + sizeof(text) - start));
+    }
+    if(service == ZX_SERVICE_PRINT_BOOL)
+        return values[0] & 1 ? ZxConsoleWrite(&instance->console, "true", 4) :
+                               ZxConsoleWrite(&instance->console, "false", 5);
+    if(service == ZX_SERVICE_PRINT_FLOAT32) {
+        uint32_t bits = (uint32_t)values[0];
         float value;
         memcpy(&value, &bits, sizeof(value));
         FormatPrintFloat(value, 1, text, sizeof(text));
     } else if(service == ZX_SERVICE_PRINT_FLOAT64) {
         double value;
-        memcpy(&value, &arguments[0].bits, sizeof(value));
+        memcpy(&value, &values[0], sizeof(value));
         FormatPrintFloat(value, 0, text, sizeof(text));
     } else return 0;
     return ZxConsoleWrite(&instance->console, text, strlen(text));
+}
+
+static int
+native_platform_call(NativeInstance *instance, int service,
+                     ExecHostNativeValue *arguments, size_t count,
+                     ExecHostNativeValue *result)
+{
+    result->bits = 0;
+    uint64_t values[3];
+    if(count > 3) return 0;
+    for(size_t at = 0; at < count; at++) values[at] = arguments[at].bits;
+    return native_service(instance, service, values, count);
+}
+
+/* A console service whose declared parameters are 64-bit words, a pointer,
+ * a bool or a float, with no result, can take its arguments straight from
+ * the saved registers: x86-64 and aarch64 pass each in one register. */
+#define NATIVE_SERVICE_DIRECT 0x80
+
+static int
+native_service_direct(const LirProgram *lir, size_t function, int service)
+{
+#if defined(__x86_64__) || defined(__aarch64__)
+    const LirFunction *declared = &((const LirFunction *)lir->functions.data)[function];
+    const LirType *types = lir->types.data;
+    const int32_t *parameters = declared->parameters.data;
+    if(types[declared->result].kind != LirTypeKind_Void) return 0;
+    if(service == ZX_SERVICE_PRINT_BYTES) {
+        if(declared->parameters.length != 3) return 0;
+        for(int at = 0; at < 3; at++) {
+            const LirType *type = &types[parameters[at]];
+            int word = type->kind == LirTypeKind_Integer && type->bits == 64;
+            if(at == 1 ? type->kind != LirTypeKind_Pointer : !word) return 0;
+        }
+        return 1;
+    }
+    if(declared->parameters.length != 1) return 0;
+    const LirType *type = &types[parameters[0]];
+    switch(service) {
+    case ZX_SERVICE_PRINT_SIGNED:
+    case ZX_SERVICE_PRINT_UNSIGNED: return type->kind == LirTypeKind_Integer && type->bits == 64;
+    case ZX_SERVICE_PRINT_BOOL: return type->kind == LirTypeKind_Bool;
+    case ZX_SERVICE_PRINT_FLOAT32: return type->kind == LirTypeKind_Float && type->bits == 32;
+    case ZX_SERVICE_PRINT_FLOAT64: return type->kind == LirTypeKind_Float && type->bits == 64;
+    default: return 0;
+    }
+#else
+    (void)lir; (void)function; (void)service;
+    return 0;
+#endif
 }
 
 static uint64_t
@@ -1187,6 +1235,22 @@ NativeHostInvoke(NativeInstance *instance, int32_t function,
 {
     if(instance == NULL || frame == NULL || instance->active == NULL)
         abort();
+    if(function >= 0 && (size_t)function < instance->function_count &&
+       (instance->services[function] & NATIVE_SERVICE_DIRECT) != 0) {
+        uint64_t values[3] = {frame->general[0], 0, 0};
+        int service = instance->services[function] & ~NATIVE_SERVICE_DIRECT;
+        size_t count = 1;
+        if(service == ZX_SERVICE_PRINT_BYTES) {
+            values[1] = frame->general[1];
+            values[2] = frame->general[2];
+            count = 3;
+        } else if(service == ZX_SERVICE_PRINT_FLOAT32 || service == ZX_SERVICE_PRINT_FLOAT64) {
+            memcpy(&values[0], frame->floating[0], sizeof(values[0]));
+        }
+        if(!native_service(instance, service, values, count))
+            NativeTrap(instance, NATIVE_TRAP_HOST, 0);
+        return 0;
+    }
     ExecHostNativeValue local[8], *arguments = NULL, returned = {0};
     size_t count = 0;
     unsigned char *aggregate_result = NULL;
@@ -1200,8 +1264,8 @@ NativeHostInvoke(NativeInstance *instance, int32_t function,
              ExecHostsCallNative(instance->hosts, (size_t)instance->capabilities[function],
                                  arguments, count, &returned);
     else
-        ok = native_platform_call(instance, instance->services[function], arguments, count,
-                                  &returned);
+        ok = native_platform_call(instance, instance->services[function] & ~NATIVE_SERVICE_DIRECT,
+                                  arguments, count, &returned);
     if(arguments != local) free(arguments);
     if(!ok)
         NativeTrap(instance, NATIVE_TRAP_HOST, 0);
@@ -1644,8 +1708,13 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
     for(size_t at = 0; at < function_count; at++) {
         size_t host = 0;
         instance->capabilities[at] = capability_index(bundle, (int32_t)at, &host) ? (int32_t)host : -1;
-        instance->services[at] = (unsigned char)ZxPlatformService(lir, (int64_t)at);
+        int service = ZxPlatformService(lir, (int64_t)at);
+        instance->services[at] = (unsigned char)service;
+        if(service != ZX_SERVICE_NONE && instance->capabilities[at] < 0 &&
+           native_service_direct(lir, at, service))
+            instance->services[at] |= NATIVE_SERVICE_DIRECT;
     }
+    instance->function_count = function_count;
     size_t page = ZirNativePageSize();
     size_t code_size = (size_t)image.code.bytes.length;
     size_t stubs = (size_t)image.relocations.length;

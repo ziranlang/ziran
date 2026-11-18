@@ -137,6 +137,18 @@ fix ran faster than master in all 7 rounds of each widget and target
 Spectral-norm still uses both `Multiply` copies: 12.944 ms before and
 12.954 ms after, against 10.076 ms in C, over 7 matched rounds.
 
+## Loop unswitching trial on Alpha
+
+A trial pass ran the smallest loop with a branch on a Boolean computed
+before it as two copies, tested once in the preheader. FASTA's `phase == 1`
+overrides moved out of its middle loop and all 29 probes matched C, but
+FASTA took 138.594 ms against 132.032 ms before (C 110.704 ms) and native
+Input took 6.630 µs against 6.415 µs in 7/7 rounds; the other workloads
+stayed within noise. FASTA is bound by the `seed` and `hash` modulo
+chains and the float divide, not by the branches, and its native
+modulo-by-constant sequences already match GCC's. The pass was not kept.
+[Raw samples](../bench/results/standard/unswitch-trial-alpha.json).
+
 ## Fixed-array count on Alpha
 
 ZX lowering now folds the count of a plain local fixed array before

@@ -1149,3 +1149,18 @@ Redundancies C skips, ranked:
    its block parameter's register when the old value dies there.
 4. Then layout (one taken branch per iteration), the in-process step checks
    for unbounded runs, and the fib frame items.
+
+Step-check cost (diagnostic, Alpha, `zx2native` ELF with and without
+`--fuel`, same compiler, whole process, alternating runs on one core with a
+training worker running elsewhere): fib +12%, spectral-norm +16%,
+quicksort +10%, mandelbrot, n-body and matmul within noise. In-process code
+is always compiled with fuel (`MachineBuild`: `!emit_executable`), and fuel
+also turns the loop vectorizer off. An instance opened with no step limit
+that never calls `BundleInstanceLimitSteps` could use code without step
+checks, like `zx2wasm --unbounded`; that needs an explicit option in
+`BundleInstanceOptions`, a fuel bit in the native code cache keys, and the
+standard host asking for it, so the methodology changes with it.
+
+Also seen: n-body's per-body loop copies whole 56-byte body records through
+`%r11` and the frame, seven 8-byte move pairs per copy, several copies per
+iteration (records/aggregate lowering, not register allocation).

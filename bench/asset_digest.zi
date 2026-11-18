@@ -1,0 +1,88 @@
+// Read a valid executable with a synthetic binary asset, at the small and
+// 75 MB package sizes. Compile and run only on Alpha's physical host:
+// LDLIBS="$PWD/build/libziran.a" build-queue -- ziran build --target=c --exe --entry asset_digest:main --root bench --module-path cmd \
+//   -o build/asset-digest bench/asset_digest.zi
+// build-queue -- build/asset-digest/asset_digest
+// Each JSON line retains all 11 read samples, with one untimed warmup.
+#import "std/timer_linux"
+using Bundle :: #import "compiler_bundle"
+using Link :: #import "compiler_exec_link"
+using Lir :: #import "compiler_lowered_ir"
+using Vectors :: #import "std/vec"
+
+Measure :: (program: Lir.LirProgram, count: s64) -> bool {
+    payload: Vec(u8)
+    if !VecResize(payload, count) { return false }
+    defer VecFree(payload)
+    for index: 0..count - 1 { payload[index] = cast(u8)(index * 37 + 11) }
+    assets: [1]Bundle.Asset = .{.{name = "data/payload.bin", data = TextView(payload[:])}}
+    empty: []u8
+    measured := Link.ZxExecWrite(program, assets[:], empty)
+    encoded: Vec(u8)
+    if measured.problem != .None || !VecResize(encoded, measured.size) ||
+        Link.ZxExecWrite(program, assets[:], encoded[:]).problem != .None { return false }
+    defer VecFree(encoded)
+    decoded_assets: [1]Bundle.Asset
+    layout := Bundle.ExecutableDecode(TextView(encoded[:]), decoded_assets[:])
+    if layout.problem != .None { return false }
+    identity: [32]u8
+    samples: [11]s64
+    for round: 0..11 {
+        owner: Link.ZxExecOwner
+        began := MonotonicNanoseconds()
+        read := Link.ZxExecRead(*owner, TextView(encoded[:]), Lir.LirDefaultLimits())
+        elapsed := MonotonicNanoseconds() - began
+        if read.problem != .None || !owner.valid || owner.assets != 1 {
+            Link.ZxExecReadFree(*owner)
+            return false
+        }
+        if round == 0 { identity = owner.identity }
+        else {
+            for index: 0..31 {
+                if identity[index] != owner.identity[index] { Link.ZxExecReadFree(*owner); return false }
+            }
+            samples[round - 1] = elapsed
+        }
+        Link.ZxExecReadFree(*owner)
+    }
+    print("{\"asset_bytes\":%,\"bundle_bytes\":%,\"identity\":[", count, measured.size)
+    for index: 0..31 {
+        if index > 0 { print(",") }
+        print("%", identity[index])
+    }
+    print("],\"assets_identity\":[")
+    for index: 0..31 {
+        if index > 0 { print(",") }
+        print("%", layout.assets_identity[index])
+    }
+    print("],\"content_identity\":[")
+    for index: 0..31 {
+        if index > 0 { print(",") }
+        print("%", layout.content_identity[index])
+    }
+    print("],\"samples_ns\":[")
+    for index: 0..10 {
+        if index > 0 { print(",") }
+        print("%", samples[index])
+    }
+    print("]}\n")
+    return true
+}
+
+main :: () -> s32 {
+    types: [2]Lir.LirType = .{.{kind = .Void}, .{kind = .Integer, bits = 32, is_signed = true}}
+    modules: [1]string = .{"asset-digest"}
+    constants: [1]Lir.LirConstant = .{.{type = 1, bits = 42}}
+    values: [1]s32 = .{1}
+    returned: [1]s32 = .{0}
+    instructions: [2]Lir.LirInstruction
+    instructions[0] = .{op = .Constant, result = 0, symbol = 0, origin = -1}
+    instructions[1] = .{op = .Return, result = -1, operands = returned[:], symbol = -1, origin = -1}
+    blocks: [1]Lir.LirBlock = .{.{instructions = instructions[:]}}
+    functions: [1]Lir.LirFunction = .{.{module = 0, name = "main", result = 1,
+        values = values[:], blocks = blocks[:], entry = 0, origin = -1}}
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:],
+        types = types[:], constants = constants[:], functions = functions[:], entry = 0}
+    if !Measure(program, 1000000) || !Measure(program, 75000000) { return 1 }
+    return 0
+}

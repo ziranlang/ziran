@@ -35,6 +35,8 @@ Benchmark :: struct {
     runner: Runner
     place: Place
     summary: string
+    module_path: string
+    compiler_library: bool
 }
 
 // A bare name removes the variable from the driver's environment.
@@ -45,13 +47,16 @@ BENCH_ENVIRONMENT: [9]string = .["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DB
 SUPPORT_FILES: [12]string = .["bench.zi", "benchmark_statistics.zi", "standard_compile_entry.zi", "standard_cases.zi", "codec_kernels.py", "json_document.zi",
     "math_sqrt.zi", "native_cache_fixture.zi", "wasm_tier.zi", "c_teacher_assembly.zi", "c_teacher_profile.zi", "c_teacher_rules.zi"];
 
-Add :: (list: *Vec(Benchmark), name: string, file: string, runner: Runner, place: Place, summary: string) {
-    unused VecPush(list.*, Benchmark.{.name = name, .file = file, .runner = runner, .place = place, .summary = summary})
+Add :: (list: *Vec(Benchmark), name: string, file: string, runner: Runner, place: Place, summary: string,
+    module_path: string = "", compiler_library: bool = false) {
+    unused VecPush(list.*, Benchmark.{.name = name, .file = file, .runner = runner, .place = place, .summary = summary,
+        .module_path = module_path, .compiler_library = compiler_library})
 }
 
 Registry :: () -> Vec(Benchmark) {
     list: Vec(Benchmark)
     Add(*list, "android-execution", "bench/android_execution.py", .Python, .Device, "cross-built kernels on one Android device")
+    Add(*list, "asset-digest", "bench/asset_digest.zi", .Ziran, .Host, "checked executable asset digest throughput", "cmd", true)
     Add(*list, "assembly", "bench/assembly.py", .Python, .Host, "assembly, portable fallback, C, Go and the ZX engine")
     Add(*list, "assembly-collect", "bench/assembly_collect.zi", .Ziran, .Host, "strict assembly comparison receipts")
     Add(*list, "assembly-compare", "bench/assembly_compare.zi", .Ziran, .Report, "compare collected assembly receipts")
@@ -198,7 +203,8 @@ Run :: (repo: string, item: Benchmark, extra: []string, local: bool) -> s32 {
     if item.runner == .Ziran {
         ziran := TextDetach(JoinPath(repo, "build/bin/ziran"))
         if !IsFile(ziran) { print("build the toolchain first: make\n"); return 2 }
-        prefix := string.[ziran, "run", "--target=c", "--root", TextDetach(JoinPath(repo, "bench")), "--module-path", repo,
+        modules := ifx item.module_path == "" then repo else TextDetach(JoinPath(repo, item.module_path))
+        prefix := string.[ziran, "run", "--target=c", "--root", TextDetach(JoinPath(repo, "bench")), "--module-path", modules,
             TextDetach(JoinPath(repo, item.file)), "--"]
         for part: prefix { unused VecPush(command, part) }
     } else {
@@ -209,8 +215,14 @@ Run :: (repo: string, item: Benchmark, extra: []string, local: bool) -> s32 {
     for part: extra { unused VecPush(command, part) }
     mode := ifx local then "local, not a measurement" else PlaceName(item.place)
     print("benchmark % on % (virtualization %, %)\n", item.name, host, virtualization, mode)
+    environment: Vec(string)
+    for variable: BENCH_ENVIRONMENT { unused VecPush(environment, variable) }
+    if item.compiler_library {
+        libraries := Concat(Concat(EnvironmentText("LDLIBS"), " "), TextDetach(JoinPath(repo, "build/libziran.a")))
+        unused VecPush(environment, Concat("LDLIBS=", libraries))
+    }
     options: ProcessOptions = .{arguments = VecSlice(command, 0, command.count), directory = repo,
-        environment = BENCH_ENVIRONMENT[:]}
+        environment = environment[:]}
     // The header reaches the terminal before anything the driver prints.
     unused FlushAll(null)
     run: ProcessRun

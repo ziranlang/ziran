@@ -2,6 +2,7 @@
 // complete retained suite, with expensive checks first.
 #import "check_support"
 #import "std/file"
+#import "std/environment_linux"
 #import "std/file_tree_linux"
 #import "std/text_tools"
 #import "std/byte_text_linux"
@@ -71,6 +72,7 @@ CheckProgram :: struct {
     cost: s64
     module_path: string
     no_compiler_argument: bool
+    compiler_library: bool
 }
 
 check_programs: [49]CheckProgram = .[
@@ -89,8 +91,8 @@ check_programs: [49]CheckProgram = .[
     .{name = "artifact_consumer_cases.zi"},
     .{name = "native_disk_cache_cases.zi"},
     .{name = "trust_boundary_cases.zi"},
-    .{name = "verified_loading_cases.zi", module_path = "cmd"},
-    .{name = "proven_pointer_cases.zi", cost = 2, module_path = "cmd"},
+    .{name = "verified_loading_cases.zi", compiler_library = true, module_path = "cmd"},
+    .{name = "proven_pointer_cases.zi", compiler_library = true, cost = 2, module_path = "cmd"},
     .{name = "checks_granularity_cases.zi", cost = 2},
     .{name = "temp_arena_cases.zi", cost = 2},
     .{name = "context_scope_cases.zi", cost = 2},
@@ -106,9 +108,9 @@ check_programs: [49]CheckProgram = .[
     .{name = "bundle_runtime_provider", source = "bundle_provider_cases.zi"},
     .{name = "c_foreign_records", source = "c_foreign_records_cases.zi"},
     .{name = "compiler_lowered_verify", source = "lowered_verify_cases.zi", module_path = "cmd"},
-    .{name = "compiler_vectorize", source = "compiler_vectorize_cases.zi", module_path = "cmd", cost = 5},
+    .{name = "compiler_vectorize", compiler_library = true, source = "compiler_vectorize_cases.zi", module_path = "cmd", cost = 5},
     .{name = "compound_order", source = "compound_order_cases.zi"},
-    .{name = "direct_assembly", source = "assembly_cases.zi", module_path = "cmd"},
+    .{name = "direct_assembly", compiler_library = true, source = "assembly_cases.zi", module_path = "cmd"},
     .{name = "generic_assembly", source = "generic_assembly_cases.zi"},
     .{name = "install_user", source = "install_user_cases.zi"},
     .{name = "lowered_exec", source = "lowered_exec_cases.zi", cost = 80, module_path = "cmd"},
@@ -138,6 +140,13 @@ CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
     ziran := CheckPath(bin, "ziran")
     check := FindCheckProgram(name)
     if check.name != "" {
+        if check.compiler_library {
+            // Link the runtime whose shared SHA implementation the test calls.
+            VecPush(result, "env")
+            libraries := CheckConcat(EnvironmentText("LDLIBS"), " ")
+            libraries = CheckConcat(libraries, CheckPath(PathParent(bin), "libziran.a"))
+            VecPush(result, CheckConcat("LDLIBS=", libraries))
+        }
         prefix := string.[ziran, "run", "--target=c", "--root", tests]
         for argument: prefix { VecPush(result, argument) }
         if check.module_path != "" {

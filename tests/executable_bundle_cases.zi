@@ -389,6 +389,65 @@ DebugAttachment :: (program: Lir.LirProgram) -> s32 {
     return 0
 }
 
+// Independent hashlib SHA-256 vectors for the on-disk asset identity.
+// The 40-byte prefix puts payload lengths 15/16/17 at SHA padding's 55/56/57
+// boundary and 23/24/25 at the compression boundary. The larger inputs
+// exercise direct blocks, remainders, and binary bytes through the reader.
+DigestBoundaries :: (program: Lir.LirProgram) -> s32 {
+    sizes: [17]s64 = .{0, 1, 15, 16, 17, 23, 24, 25, 55, 56, 63, 64, 65, 127, 128, 129, 1048577}
+    expected: [17]string = .{
+        "6aff20131165b38c5d6fa435d77c6718794cc0e0aebb7130c0c6fc6422fe2093",
+        "3dbe104423e87dabdc8a093c5d9dc94dc5d931a8db7a0cf6c2abd0ba24b65cbb",
+        "9220f71ee4398abf1f41eea73168eebb1bfa1dca18ac08d10305c4034a3d5f4b",
+        "5a39bd30627cd0e198c7af27e161f34ea703145601f15382def91e73b376a0dc",
+        "968678ca2de935cd0a0dc55c2550a3ff4142d3d7f722b40e34f9f35c59a52636",
+        "8107b676d0068f7db143057a221b37b7da88d1fb1c2a58d83ac1775d76b4379b",
+        "eaf2033420b2bda12634de5b1d24d88eacfe2d1c288aba250a8816832d5e7b98",
+        "f9efbe65b18759715591d42a26791ec88f4307b2adea9c91fe64ca643d869f04",
+        "d68a9f4bda9b28926fdf9ce065283817a95a603cb4b746c53adf6a6df409a70c",
+        "ba1f303d8edd36c9be1ce93296701e8069d2dc67bcc0e720d380c408106ec564",
+        "5d43818c44f87852132b086027952507cc7fc0a234e536382538b02367b8598b",
+        "9e79413d20b4b9c5b65fe4b2a80ce833cb6cb98adb6ec5b9e2a3ed8dbfee5cbf",
+        "79fab954c45f9870c8c3791433e21082ac592118007e7fd4ff48d3f199097819",
+        "46a600a628f0e5e3f172d55496c5ae1efa95006f15b73d9d1ddbe1eb26daf04d",
+        "18ca8f87bdd2ee883914360fa14448d264193381056cf11498b841222b00a4ea",
+        "df8d59b9da1f1bb8e507beb95b25006423156afcefb4f6387a9459b37ac46bdc",
+        "7489cb52ff08e4732b830aa3fb82a9c1f09d985c0e76dc95cc9230cd64e5c202"}
+    payload: Vec(u8)
+    if !VecResize(payload, sizes[sizes.count - 1]) { return Fail(85) }
+    defer VecFree(payload)
+    for index: 0..payload.count - 1 { payload[index] = cast(u8)(index * 37 + 11) }
+    digits := "0123456789abcdef"
+    for index: 0..sizes.count - 1 {
+        assets: [1]Bundle.Asset = .{.{name = "data/payload.bin", data = TextView(VecSlice(payload, 0, sizes[index]))}}
+        empty: []u8
+        measured := Link.ZxExecWrite(program, assets[:], empty)
+        bytes: Vec(u8)
+        if measured.problem != .None || !VecResize(bytes, measured.size) ||
+            Link.ZxExecWrite(program, assets[:], bytes[:]).problem != .None { return Fail(86) }
+        defer VecFree(bytes)
+        decoded_assets: [1]Bundle.Asset
+        layout := Bundle.ExecutableDecode(TextView(bytes[:]), decoded_assets[:])
+        if layout.problem != .None || layout.assets_identity.count != 32 { return Fail(87) }
+        for byte: 0..31 {
+            value := layout.assets_identity[byte]
+            if digits[value >> 4] != expected[index][byte * 2] ||
+                digits[value & 15] != expected[index][byte * 2 + 1] { return Fail(88, cast(s32)index) }
+        }
+        owner: Link.ZxExecOwner
+        read := Link.ZxExecRead(*owner, TextView(bytes[:]), Lir.LirDefaultLimits())
+        Link.ZxExecReadFree(*owner)
+        if read.problem != .None { return Fail(89, cast(s32)read.problem) }
+        if sizes[index] > 0 {
+            bytes[bytes.count - 1] ^= 1
+            read = Link.ZxExecRead(*owner, TextView(bytes[:]), Lir.LirDefaultLimits())
+            Link.ZxExecReadFree(*owner)
+            if read.problem != .Identity { return Fail(90, cast(s32)read.problem) }
+        }
+    }
+    return 0
+}
+
 main :: () -> s32 {
     types: [2]Lir.LirType = .{.{kind = .Void}, .{kind = .Integer, bits = 32, is_signed = true}}
     modules: [1]string = .{"executable"}
@@ -406,6 +465,9 @@ main :: () -> s32 {
         values = values[:], blocks = blocks[:], entry = 0, origin = 0}}
     program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], sources = sources[:],
         types = types[:], constants = constants[:], functions = functions[:], origins = origins[:], entry = 0}
+
+    digest_result := DigestBoundaries(program)
+    if digest_result != 0 { return digest_result }
 
     asset_bytes: [5]u8 = .{1, 0, 2, 0, 255}
     assets: [1]Bundle.Asset = .{.{name = "data/binary.bin", data = TextView(asset_bytes[:])}}

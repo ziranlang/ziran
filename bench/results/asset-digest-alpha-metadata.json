@@ -1,0 +1,65 @@
+{
+  "host": "alpha",
+  "physical_host_verified": "systemd-detect-virt: none",
+  "cpu": "Intel Core i7-8700 @ 3.20GHz",
+  "affinity_cpu": 3,
+  "cflags": "-O2",
+  "learning": "off",
+  "samples": 11,
+  "warmups": 1,
+  "comparison": "sequential before/after, not interleaved",
+  "source_baseline_revision": "31f41848",
+  "source_before_sha256": "81643c45850d1651b54589f38746254828e41884c9dc703036af9e84b955dc6d",
+  "source_after_sha256": "6a0f297a22859a6cbbc51c34cd7fdef383ae4686efc7638827fc9cc018b28a57",
+  "probe_sha256": "f622aea386518d3da48288321c956709426689637ee60c5006a849de784fd6b6",
+  "generated_reader_before_sha256": "9c24004eea4ed3ece86a577c6b935a37ee52ba5b0fa18e9f391ebbc80200d7b0",
+  "generated_reader_after_sha256": "1543fa2b1d5a0febc05f1c121440e5b449f651a7995a77df8fda398bea43d46a",
+  "executable_before_sha256": "c4eded0e74d65498dc639b38f090aebcb5108dd88ec733b4c2ed194779e8d030",
+  "executable_after_sha256": "918e9d027125774ab8add1c4e0a27e216662c446aef7e5ba1cc37f6648cb1eb7",
+  "linked_runtime_sha256": "fe2641e24f151d0d00b8d0316e1b6820bb6eab09f4772ef8458ba93215272d02",
+  "identities_match": true,
+  "statistics": "symmetric 1.5xIQR fences, inclusive interpolated quartiles",
+  "results": [
+    {
+      "asset_bytes": 1000000,
+      "before": {
+        "median_ms": 5.087958,
+        "MB_s": 196.5425029058809,
+        "excluded_indices": []
+      },
+      "after": {
+        "median_ms": 3.890097,
+        "MB_s": 257.06299868615105,
+        "excluded_indices": [
+          3,
+          4
+        ]
+      }
+    },
+    {
+      "asset_bytes": 75000000,
+      "before": {
+        "median_ms": 372.170738,
+        "MB_s": 201.52041077447632,
+        "excluded_indices": [
+          10
+        ]
+      },
+      "after": {
+        "median_ms": 292.0349665,
+        "MB_s": 256.8185614855131,
+        "excluded_indices": [
+          1
+        ]
+      }
+    }
+  ],
+  "build_command": "env -u DISPLAY -u WAYLAND_DISPLAY CFLAGS=-O2 ZIRAN_LEARN=off LDLIBS=\"$PWD/build/libziran.a\" build-queue -- ziran build --target=c --exe --entry asset_digest:main --root bench --module-path cmd -o build/asset-digest bench/asset_digest.zi",
+  "run_command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off build-queue -- taskset -c 3 build/asset-digest/asset_digest",
+  "limitations": [
+    "Synthetic package; not a Breeze first-frame measurement.",
+    "Alpha-only x86 result; Android SHA2 throughput is unmeasured.",
+    "Baseline was taken before candidate; this is not an interleaved comparison.",
+    "Content verification and byte/work limits are unchanged."
+  ]
+}

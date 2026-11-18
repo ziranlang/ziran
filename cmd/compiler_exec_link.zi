@@ -72,126 +72,44 @@ BudgetFitsBytes :: (budget: *ZxExecBudget, count: s64) -> bool {
     return count >= 0 && count <= budget.maximum_bytes
 }
 
+// Same field layout as cmd/zir/zir_sha256.h, including native size_t and
+// alignment. Reuse its block streaming, shared constants and CPU dispatch.
+compiler :: #system_library "ziran";
+ShaBeginRaw :: (state: *void) #foreign compiler "Sha256Begin";
+ShaAddRaw :: (state: *void, bytes: *u8, count: usize) #foreign compiler "Sha256Add";
+ShaEndRaw :: (state: *void, output: *u8) #foreign compiler "Sha256End";
+
 Sha256State :: struct {
     state: [8]u32
-    block: [64]u8
-    used: s64
     total: u64
+    block: [64]u8
+    used: usize
 }
 
-ShaRotate :: (value: u32, count: u32) -> u32 {
-    return (value >> count) | (value << (32 - count))
-}
+ShaBegin :: (state: *Sha256State) { ShaBeginRaw(cast(*void)state) }
 
-ShaBegin :: (state: *Sha256State) {
-    state.state[0] = 0x6a09e667
-    state.state[1] = 0xbb67ae85
-    state.state[2] = 0x3c6ef372
-    state.state[3] = 0xa54ff53a
-    state.state[4] = 0x510e527f
-    state.state[5] = 0x9b05688c
-    state.state[6] = 0x1f83d9ab
-    state.state[7] = 0x5be0cd19
-    state.used = 0
-    state.total = 0
-}
-
-ShaBlock :: (state: *Sha256State) {
-    constants: [64]u32 = .{
-        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
-        0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-        0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
-        0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
-        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-        0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
-        0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
-        0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-        0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2}
-    words: [64]u32
-    for index: 0..15 {
-        at := index * 4
-        words[index] = (cast(u32)state.block[at] << 24) |
-            (cast(u32)state.block[at + 1] << 16) |
-            (cast(u32)state.block[at + 2] << 8) | cast(u32)state.block[at + 3]
-    }
-    for index: 16..63 {
-        left := words[index - 15]
-        right := words[index - 2]
-        small0 := ShaRotate(left, 7) ^ ShaRotate(left, 18) ^ (left >> 3)
-        small1 := ShaRotate(right, 17) ^ ShaRotate(right, 19) ^ (right >> 10)
-        words[index] = words[index - 16] + small0 + words[index - 7] + small1
-    }
-    a := state.state[0]
-    b := state.state[1]
-    c := state.state[2]
-    d := state.state[3]
-    e := state.state[4]
-    f := state.state[5]
-    g := state.state[6]
-    h := state.state[7]
-    for index: 0..63 {
-        choice := (e & f) ^ (~e & g)
-        majority := (a & b) ^ (a & c) ^ (b & c)
-        large0 := ShaRotate(a, 2) ^ ShaRotate(a, 13) ^ ShaRotate(a, 22)
-        large1 := ShaRotate(e, 6) ^ ShaRotate(e, 11) ^ ShaRotate(e, 25)
-        first := h + large1 + choice + constants[index] + words[index]
-        second := large0 + majority
-        h = g; g = f; f = e; e = d + first
-        d = c; c = b; b = a; a = first + second
-    }
-    state.state[0] += a
-    state.state[1] += b
-    state.state[2] += c
-    state.state[3] += d
-    state.state[4] += e
-    state.state[5] += f
-    state.state[6] += g
-    state.state[7] += h
-    state.used = 0
-}
-
-ShaByte :: (state: *Sha256State, byte: u8) {
-    state.block[state.used] = byte
-    state.used += 1
-    state.total += 1
-    if state.used == 64 { ShaBlock(state) }
-}
-
+ShaTextView :: struct { data: *u8; count: usize }
 ShaText :: (state: *Sha256State, text: string) {
-    for byte: text { ShaByte(state, byte) }
+    // The foreign hasher borrows these read-only string bytes.
+    view := cast(*ShaTextView)*text
+    if view.count > 0 { ShaAddRaw(cast(*void)state, view.data, view.count) }
 }
 
 ShaU32 :: (state: *Sha256State, value: u32) {
-    for byte: 0..3 { ShaByte(state, cast(u8)(value >> cast(u32)(byte * 8))) }
+    bytes: [4]u8
+    for byte: 0..3 { bytes[byte] = cast(u8)(value >> cast(u32)(byte * 8)) }
+    ShaAddRaw(cast(*void)state, *bytes[0], 4)
 }
 
 ShaU64 :: (state: *Sha256State, value: u64) {
-    for byte: 0..7 { ShaByte(state, cast(u8)(value >> cast(u64)(byte * 8))) }
+    bytes: [8]u8
+    for byte: 0..7 { bytes[byte] = cast(u8)(value >> cast(u64)(byte * 8)) }
+    ShaAddRaw(cast(*void)state, *bytes[0], 8)
 }
 
 ShaEnd :: (state: *Sha256State) -> [32]u8 {
-    bit_count := state.total * 8
-    ShaByte(state, 0x80)
-    while state.used != 56 { ShaByte(state, 0) }
-    for index: 0..7 {
-        shift := cast(u64)((7 - index) * 8)
-        ShaByte(state, cast(u8)(bit_count >> shift))
-    }
     result: [32]u8
-    for index: 0..7 {
-        value := state.state[index]
-        result[index * 4] = cast(u8)(value >> 24)
-        result[index * 4 + 1] = cast(u8)(value >> 16)
-        result[index * 4 + 2] = cast(u8)(value >> 8)
-        result[index * 4 + 3] = cast(u8)value
-    }
+    ShaEndRaw(cast(*void)state, *result[0])
     return result
 }
 
@@ -243,8 +161,8 @@ ContentDigest :: (budget: *ZxExecBudget, entry: s32, program: [32]u8,
     ShaText(*state, "ZX28-CONTENT\x00")
     ShaU32(*state, cast(u32)entry)
     ShaU64(*state, 1)
-    for byte: program { ShaByte(*state, byte) }
-    for byte: assets { ShaByte(*state, byte) }
+    ShaText(*state, TextView(program[:]))
+    ShaText(*state, TextView(assets[:]))
     return .{valid = true, bytes = ShaEnd(*state)}
 }
 

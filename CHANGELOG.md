@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Executable ZX identities hash whole byte ranges through the runtime’s shared SHA-256 implementation, including CPU acceleration where supported, instead of feeding a separate hasher one byte at a time. Identity validation and resource limits are unchanged.
+
 - The native disk cache reloads ARMv7 and AArch64 machine images, including the ARMv7 runtime helper relocations. Android apps reuse compiled code across launches.
 - ZX lowering turns a range test with literal bounds, such as `code >= 12288 && code <= 12543`, on a stable local, record member or fixed-array element into one unsigned comparison. Kryon's TextIdeographic drops from 55 to 41 instructions, and the Text widget scenario ran faster in Wasm in 8 of 10 alternating Alpha rounds, with the paint result checked on every call.
 - Wasm frames hold only the record slots a procedure still uses. A large record read in place, or a zeroed record that is never built, reserves no frame space, so Shovey, whose level replay reads single fields of a 306 KB global, compiles to Wasm instead of exceeding the 8 MB frame limit.

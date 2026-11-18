@@ -45,6 +45,81 @@ InCycle :: (function: LirFunction, start: s64, budget: *LirSsaBudget) -> bool {
     return false
 }
 
+Aggregate :: (program: LirProgram, function: LirFunction, value: s32) -> bool {
+    kind := program.types[function.values[value]].kind
+    return kind == .Record || kind == .Array
+}
+
+// Folding CONDITION to BIT keeps the blocks still reachable. Original code
+// reads a field through an aggregate load and an extract, which every backend
+// turns into one field read; when folding removes each such use, the unused
+// aggregate load would copy the whole record. Pure instructions are treated as
+// removable even when they could trap, so an uncertain case rejects the copy.
+AddsAggregateWork :: (program: LirProgram, function: LirFunction, condition: s32, bit: s64,
+    budget: *LirSsaBudget) -> bool {
+    count := function.values.count
+    if !LirSsaReserve(budget, count, 16) || !LirSsaSpend(budget, count) { return true }
+    before: Vec(s32)
+    after: Vec(s32)
+    defer VecFree(before)
+    defer VecFree(after)
+    if !VecResizeBounded(before, count, count) || !VecResizeBounded(after, count, count) {
+        budget.problem = .Allocation
+        return true
+    }
+    queue: [MaximumBody]s32
+    reachable: [MaximumBody]bool
+    queue[0] = function.entry
+    reachable[function.entry] = true
+    end: s64 = 1
+    for first: 0..function.blocks.count - 1 {
+        if first == end { break }
+        block := function.blocks[queue[first]]
+        for instruction: block.instructions {
+            if !LirSsaSpend(budget, 1) { return true }
+            for value: instruction.operands { after[value] += 1 }
+            folded := instruction.op == .Branch && instruction.operands[0] == condition
+            for edge, at: instruction.edges {
+                if folded && at != 1 - bit { continue }
+                for value: edge.arguments { after[value] += 1 }
+                if reachable[edge.block] { continue }
+                reachable[edge.block] = true
+                queue[end] = edge.block
+                end += 1
+            }
+        }
+    }
+    for block: function.blocks {
+        for instruction: block.instructions {
+            if !LirSsaSpend(budget, 1) { return true }
+            for value: instruction.operands { before[value] += 1 }
+            for edge: instruction.edges { for value: edge.arguments { before[value] += 1 } }
+        }
+    }
+    changed := true
+    while changed {
+        changed = false
+        for at: 0..end - 1 {
+            for instruction: function.blocks[queue[at]].instructions {
+                if !LirSsaSpend(budget, 1) { return true }
+                result := instruction.result
+                if result == LirNoId || after[result] != 0 || LirEffectful(instruction.op) ||
+                    LirTerminator(instruction.op) { continue }
+                after[result] = -1
+                for value: instruction.operands { after[value] -= 1 }
+                changed = true
+            }
+        }
+    }
+    for at: 0..end - 1 {
+        for instruction: function.blocks[queue[at]].instructions {
+            if instruction.op == .Load && after[instruction.result] == 0 && before[instruction.result] > 0 &&
+                Aggregate(program, function, instruction.result) { return true }
+        }
+    }
+    return false
+}
+
 Choose :: (program: LirProgram, index: s32, maximum: s64, budget: *LirSsaBudget) -> Candidate {
     choice := Candidate.{parameter = -1, copies = .{-1, -1}}
     function := program.functions[index]
@@ -62,8 +137,13 @@ Choose :: (program: LirProgram, index: s32, maximum: s64, budget: *LirSsaBudget)
         for value, parameter: entry.parameters {
             if !LirSsaSpend(budget, 1) { return choice }
             if value != condition { continue }
-            if InCycle(function, index, budget) { choice.parameter = parameter; return choice }
-            break
+            if !InCycle(function, index, budget) { break }
+            choice.parameter = parameter
+            // A copy that leaves aggregate work behind is never made.
+            for bit: 0..1 {
+                if AddsAggregateWork(program, function, condition, bit, budget) { choice.copies[bit] = -2 }
+            }
+            return choice
         }
     }
     return choice

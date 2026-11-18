@@ -630,8 +630,35 @@ SpecializeExercise :: (test: *NativeTest, compiler: string) -> bool {
     if !NativeAssert(test, TextContains(code, "name=\"Sum\"") &&
         TextContains(code, "name=\"Sum$0\"") && TextContains(code, "name=\"Sum$1\"") &&
         TextContains(code, "call.indirect"), "literal Bool calls must specialize while indirect calls keep the original") { return false }
+    if !NativeAssert(test, TextContains(code, "name=\"Layer$0\"") && !TextContains(code, "name=\"Layer$1\""),
+        "a copy must not leave a record load without its field read") { return false }
     execute := string.[compiler, "run", "--backend", "engine", "--fuel", "9223372036854775807", bundle]
     unused NativeRun(test, execute[:], "", 42)
+    owner: ZxExecOwner
+    defer ZxExecReadFree(*owner)
+    read := ZxExecRead(*owner, NativeRead(test, bundle), LirDefaultLimits())
+    if !NativeAssert(test, read.problem == .None, "decode specialization fixture") { return false }
+    program := ZxExecReadProgram(*owner)
+    uses: Vec(s64)
+    defer VecFree(uses)
+    for function: program.functions {
+        VecClear(uses)
+        if !NativeAssert(test, VecResize(uses, function.values.count), "count value uses") { return false }
+        for block: function.blocks {
+            for instruction: block.instructions {
+                for value: instruction.operands { uses[value] += 1 }
+                for edge: instruction.edges { for value: edge.arguments { uses[value] += 1 } }
+            }
+        }
+        for block: function.blocks {
+            for instruction: block.instructions {
+                if instruction.op != .Load { continue }
+                kind := program.types[function.values[instruction.result]].kind
+                if !NativeAssert(test, uses[instruction.result] > 0 || kind != .Record && kind != .Array,
+                    "an unused load must not copy a whole record") { return false }
+            }
+        }
+    }
     return !test.failed
 }
 

@@ -10,6 +10,8 @@ using Vectors :: #import "std/vec"
 WIDGETS :: "generated/library-targets/matrix.json";
 JSON_TEXT :: "generated/json-text/matrix.json";
 KERNELS :: "generated/kernel-targets/wasm-tier-gated-2026-11-18.json";
+SCENES :: "generated/kryon-scenes/visual-scene-gpu.json";
+SCENE_LOG :: "generated/kryon-scenes/visual-scene-gpu.log";
 COLUMNS: [4]string = .["c", "go", "zx", "wasm"];
 
 Load :: (doc: *JsonDocument, file: string) -> bool {
@@ -114,23 +116,90 @@ KernelTable :: (out: *Vec(u8), doc: *JsonDocument) -> bool {
     return true
 }
 
+SceneNote :: (id: string) -> (title: string, note: string) {
+    if id == "lit-meshes" { return "Lit meshes", "Meshes shaded by scene lights" }
+    if id == "skinned-character" { return "Skinned character", "An articulated character with weighted joint deformation" }
+    if id == "textured-room" { return "Textured room", "A textured room" }
+    if id == "particle-field" { return "Particle field", "Transparent particles sorted every frame" }
+    return "", ""
+}
+
+// A completed scene run at one size: its mean and nearest-rank p95 frame
+// time in ms, or zeros when the receipt lacks it or did not hash every frame.
+SceneRun :: (doc: *JsonDocument, results: s32, scene: string, size: string, samples: s64) -> (mean: float64, p95: float64) {
+    for index: cast(s32)0..JsonCount(doc, results) - 1 {
+        row := JsonElement(doc, results, index)
+        if Field(doc, row, "shader") != scene || Field(doc, row, "resolution") != size || Field(doc, row, "mode") != "scene-gpu" { continue }
+        count, ok := JsonInteger(doc, JsonMember(doc, row, "samples"))
+        if !ok || count != samples || cast(s64)JsonCount(doc, JsonMember(doc, row, "hashes")) != samples { return 0.0, 0.0 }
+        return Real(doc, JsonMember(doc, row, "mean_ms")), Real(doc, JsonMember(doc, row, "p95_ms"))
+    }
+    return 0.0, 0.0
+}
+
+// Kryon's animated scenes on a real GPU, from a clean pushed Kryon revision.
+SceneTable :: (out: *Vec(u8), doc: *JsonDocument) -> bool {
+    provenance := JsonMember(doc, doc.root, "provenance")
+    revision := Field(doc, provenance, "source_revision")
+    dirty, has_dirty := JsonBool(doc, JsonMember(doc, provenance, "source_dirty"))
+    warmup, has_warmup := JsonInteger(doc, JsonMember(doc, doc.root, "warmup_frames"))
+    identities := JsonMember(doc, doc.root, "identities")
+    results := JsonMember(doc, doc.root, "results")
+    if Field(doc, doc.root, "suite") != "visual" || revision.count != 40 || !has_dirty || dirty || !has_warmup ||
+        JsonCount(doc, identities) == 0 || JsonCount(doc, results) == 0 { return false }
+    gpu := TextDetach(JsonString(doc, JsonElement(doc, identities, 0)))
+    for index: cast(s32)0..JsonCount(doc, identities) - 1 {
+        identity := JsonString(doc, JsonElement(doc, identities, index))
+        if !TextHasPrefix(identity, "identity true ") || identity != gpu { return false }
+    }
+    samples: s64 = 60
+    Append(out, "<section class=\"section benchmark-section\" id=\"kryon-scenes\"><h2>Kryon 3D scenes</h2><p>Animated scenes rendered on the GPU through Kryon's OpenGL ES backend, at two sizes.</p>")
+    Append(out, "<div class=\"matrix-scroll\" role=\"region\" tabindex=\"0\" aria-label=\"Kryon 3D scenes\"><table class=\"target-matrix bench-table\"><caption class=\"sr-only\">Kryon 3D scenes</caption><thead><tr><th scope=\"col\">Scene<small>µs per frame</small></th><th scope=\"col\">640×360<small>Mean</small></th><th scope=\"col\">640×360<small>p95</small></th><th scope=\"col\">1920×1080<small>Mean</small></th><th scope=\"col\">1920×1080<small>p95</small></th></tr></thead><tbody>")
+    scenes := string.["lit-meshes", "skinned-character", "textured-room", "particle-field"]
+    sizes := string.["640x360", "1920x1080"]
+    for scene: scenes {
+        title, note := SceneNote(scene)
+        RowStart(out, title, note)
+        for size: sizes {
+            mean, p95 := SceneRun(doc, results, scene, size, samples)
+            if mean <= 0.0 || p95 <= 0.0 { return false }
+            Append(out, "<td>"); Clock(out, mean); Append(out, "</td><td>"); Clock(out, p95); Append(out, "</td>")
+        }
+        Append(out, "</tr>")
+    }
+    Append(out, "</tbody></table></div><p>Each scene and size times 60 completed frames after ")
+    Append(out, Numbers.FormatNumber(cast(float64)warmup))
+    Append(out, " warmup frames and hashes every frame. Scene construction, shader compilation, warmup and hashing are outside the timing; p95 is nearest rank. GPU: ")
+    Escape(out, gpu["identity true ".count:])
+    Append(out, ". <a href=\"")
+    Escape(out, SCENES)
+    Append(out, "\">Frame times and hashes</a> · <a href=\"")
+    Escape(out, SCENE_LOG)
+    Append(out, "\">Raw records</a> · <a href=\"https://github.com/kryonlabs/kryon/commit/")
+    Escape(out, revision)
+    Append(out, "\">Kryon revision</a></p></section>")
+    return true
+}
+
 main :: (argc: s32, argv: **u8) -> s32 {
     checking := argc == 2 && TextFromCString(argv[1]) == "--check"
     if argc > 1 && !checking { return 2 }
     page, found := ReadEntireFile("site/targets.html")
     if !found { return 1 }
-    widget: JsonDocument; text: JsonDocument; kernels: JsonDocument
-    if !Load(*widget, WIDGETS) || !Load(*text, JSON_TEXT) || !Load(*kernels, KERNELS) { return 1 }
-    widgets: Vec(u8); json: Vec(u8); tiers: Vec(u8)
+    widget: JsonDocument; text: JsonDocument; kernels: JsonDocument; scenes: JsonDocument
+    if !Load(*widget, WIDGETS) || !Load(*text, JSON_TEXT) || !Load(*kernels, KERNELS) || !Load(*scenes, SCENES) { return 1 }
+    widgets: Vec(u8); json: Vec(u8); tiers: Vec(u8); visual: Vec(u8)
     if !Scenarios(*widgets, *widget, true) { print("invalid widget receipt\n"); return 1 }
     Append(*widgets, "<p>Warm calls reuse the runner and widget sessions. The Wasm runs use no step budget. <a href=\"generated/library-targets/matrix.json\">Samples and paint checksums</a> · <a href=\"generated/library-targets/sources.zip\">Sources</a> · <a href=\"generated/library-targets/checked-ir.zip\">Checked IR</a></p>")
     Append(*json, "<section class=\"section benchmark-section\" id=\"json-text\"><h2>JSON and UTF-8</h2><p>Inputs are prepared during warmup. Timed calls parse or serialize, allocate output and validate the result.</p>")
     if !Scenarios(*json, *text, false) { print("invalid JSON and UTF-8 receipt\n"); return 1 }
     Append(*json, "<p><a href=\"generated/json-text/matrix.json\">Samples, exclusions and verified outputs</a></p></section>")
     if !KernelTable(*tiers, *kernels) { print("invalid kernel receipt\n"); return 1 }
+    if !SceneTable(*visual, *scenes) { print("invalid Kryon scene receipt\n"); return 1 }
     result := ReplaceSection(page, "library_matrix", BuilderFinish(widgets))
     if result != "" { result = ReplaceSection(result, "kernel_tiers", BuilderFinish(tiers)) }
     if result != "" { result = ReplaceSection(result, "json_text", BuilderFinish(json)) }
+    if result != "" { result = ReplaceSection(result, "kryon_scenes", BuilderFinish(visual)) }
     if result == "" { print("missing benchmark section marker\n"); return 1 }
     if checking {
         if result != page { print("stale benchmark tables\n"); return 1 }

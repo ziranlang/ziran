@@ -258,8 +258,17 @@ write per run: arrays.zi 1.150 → 1.023 µs, enums.zi 0.392 → 0.360 and
 loops.zi 1.780 → 1.600 ([raw samples](../bench/results/standard/native-console-alpha.json));
 score.zi and text_demo.zi stay near 0.023 µs.
 
-Still open: each print piece is one host call through the generic native
-host veneer, which spills the argument registers and decodes each value by
-its type; C formats a whole line in one `printf`. Next, a direct console
-service veneer that appends bytes without that decoding.
+Console services now read their arguments straight from the saved
+registers on x86-64 and aarch64, µs per call
+([raw samples](../bench/results/standard/native-console-direct-alpha.json)):
+
+| Example | Before | After | C | Wasm |
+| --- | ---: | ---: | ---: | ---: |
+| arrays.zi | 1.018 | 0.490 | 0.397 | 0.398 |
+| enums.zi | 0.353 | 0.177 | 0.143 | 0.224 |
+| loops.zi | 1.560 | 0.720 | 0.690 | 0.506 |
+
+Still open: arrays.zi and loops.zi trail Wasm by about 25–40%. Each print
+piece is still one host call through the veneer, which saves every
+argument register; C formats a line in one `printf`.
 

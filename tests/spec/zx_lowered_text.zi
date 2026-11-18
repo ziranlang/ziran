@@ -1,5 +1,5 @@
 // Byte builders and owned Text on revision-28 ZX, pinned by
-// tests/zx_lowered_parity.sh: BuilderAppend with the C runtime's reserve
+// tests/zx_lowered_parity_cases.zi: BuilderAppend with the C runtime's reserve
 // policy, BuilderFinish kept as a Text, TextView and TextCopy.
 #import "vec"
 

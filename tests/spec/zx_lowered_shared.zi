@@ -1,5 +1,5 @@
 // Types two modules both spell, and long zero arrays, on revision-28 ZX,
-// pinned by tests/zx_lowered_parity.sh. `float32` and `[4]float32` are one
+// pinned by tests/zx_lowered_parity_cases.zi. `float32` and `[4]float32` are one
 // lowered type whichever module wrote them, so values pass between modules.
 // A zero `[1024]u8` is read whole from a slot the procedure never writes,
 // instead of built one element at a time, and every `block: Block` starts

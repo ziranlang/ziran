@@ -63,79 +63,101 @@ PlanChecks :: (checks: []CheckCase) -> Vec(s64) {
     return selected
 }
 
-// Ziran case files that drive the compiler named by their first argument.
-CheckCompilerCase :: (name: string) -> bool {
-    return name == "module_parameters_cases.zi" || name == "insert_source_cases.zi" ||
-        name == "std_environment_cases.zi" || name == "std_input_cases.zi" || name == "c_teacher_cases.zi" || name == "audio_checks.zi" ||
-        name == "std_finite_cases.zi"
+// Direct check programs share the same launcher and discovery table. Shell
+// scripts that still provide distinct fixtures are discovered below.
+CheckProgram :: struct {
+    name: string
+    source: string
+    cost: s64
+    module_path: string
+    no_compiler_argument: bool
+}
+
+check_programs: [49]CheckProgram = .[
+    .{name = "module_parameters_cases.zi", cost = 2},
+    .{name = "insert_source_cases.zi", cost = 2},
+    .{name = "std_environment_cases.zi", cost = 2},
+    .{name = "std_input_cases.zi", cost = 2},
+    .{name = "c_teacher_cases.zi", cost = 2},
+    .{name = "audio_checks.zi", cost = 2},
+    .{name = "std_finite_cases.zi", cost = 2},
+    .{name = "native_backend_policy", source = "native_backend_policy_cases.zi", no_compiler_argument = true},
+    .{name = "native_worker_pool", source = "spec/native_parallel_windows_test.zi", no_compiler_argument = true},
+    .{name = "x86_encoder", source = "x86_encoder_cases.zi", cost = 2, module_path = "cmd", no_compiler_argument = true},
+    .{name = "aarch64_encoder", source = "aarch64_encoder_cases.zi", cost = 2, module_path = "cmd", no_compiler_argument = true},
+    .{name = "armv7_encoder", source = "armv7_encoder_cases.zi", cost = 2, module_path = "cmd", no_compiler_argument = true},
+    .{name = "artifact_consumer_cases.zi"},
+    .{name = "native_disk_cache_cases.zi"},
+    .{name = "trust_boundary_cases.zi"},
+    .{name = "verified_loading_cases.zi", module_path = "cmd"},
+    .{name = "proven_pointer_cases.zi", cost = 2, module_path = "cmd"},
+    .{name = "checks_granularity_cases.zi", cost = 2},
+    .{name = "temp_arena_cases.zi", cost = 2},
+    .{name = "context_scope_cases.zi", cost = 2},
+    .{name = "compiler_inventory_cases.zi", cost = 2},
+    .{name = "compiler_modules_cases.zi", cost = 25},
+    .{name = "wasm_value_cases.zi", cost = 3},
+    .{name = "unicode_cases.zi", cost = 15},
+    .{name = "zip_cases.zi", cost = 3},
+    .{name = "call_argument_cases.zi", cost = 3},
+    .{name = "machine_ir", source = "machine_ir_cases.zi", cost = 4, module_path = "cmd", no_compiler_argument = true},
+    .{name = "assembly_compare", source = "assembly_compare_cases.zi", module_path = "bench"},
+    .{name = "build_playground", source = "build_playground_cases.zi"},
+    .{name = "bundle_runtime_provider", source = "bundle_provider_cases.zi"},
+    .{name = "c_foreign_records", source = "c_foreign_records_cases.zi"},
+    .{name = "compiler_lowered_verify", source = "lowered_verify_cases.zi", module_path = "cmd"},
+    .{name = "compiler_vectorize", source = "compiler_vectorize_cases.zi", module_path = "cmd", cost = 5},
+    .{name = "compound_order", source = "compound_order_cases.zi"},
+    .{name = "direct_assembly", source = "assembly_cases.zi", module_path = "cmd"},
+    .{name = "generic_assembly", source = "generic_assembly_cases.zi"},
+    .{name = "install_user", source = "install_user_cases.zi"},
+    .{name = "lowered_exec", source = "lowered_exec_cases.zi", cost = 80, module_path = "cmd"},
+    .{name = "module_root_capacity", source = "module_root_capacity_cases.zi"},
+    .{name = "native_package_conformance", source = "native_package_conformance_cases.zi"},
+    .{name = "package_nested_exports", source = "package_nested_exports_cases.zi", cost = 25},
+    .{name = "site_pages", source = "site_pages_cases.zi"},
+    .{name = "std_foreign_size_types", source = "std_foreign_size_types_cases.zi", module_path = "cmd"},
+    .{name = "text_call_mutation", source = "text_call_mutation_cases.zi"},
+    .{name = "tool_diagnostics", source = "tool_diagnostics_cases.zi"},
+    .{name = "vorbis_linux", source = "vorbis_cases.zi"},
+    .{name = "zstd_go", source = "zstd_go_cases.zi"},
+    .{name = "zx_lowered_parity", source = "zx_lowered_parity_cases.zi"},
+    .{name = "zx_windows_parity", source = "zx_windows_parity_cases.zi", cost = 4},
+];
+
+FindCheckProgram :: (name: string) -> CheckProgram {
+    for check: check_programs[:] {
+        if check.name == name { return check }
+    }
+    return .{}
 }
 
 CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
     result: Vec(string)
     tests := CheckPath(repo, "tests")
-    if CheckCompilerCase(name) {
-        command := string.[CheckPath(bin, "ziran"), "run", "--target=c", "--root", tests,
-            CheckPath(tests, name), "--", CheckPath(bin, "ziran")]
-        for argument: command { VecPush(result, argument) }
-        return result
-    }
-    if name == "native_worker_pool" {
-        command := string.[CheckPath(bin, "ziran"), "run", "--target=c", "--root", tests,
-            CheckPath(tests, "spec/native_parallel_windows_test.zi")]
-        for argument: command { VecPush(result, argument) }
-        return result
-    }
-    if name == "native_backend_policy" || name == "x86_encoder" || name == "aarch64_encoder" ||
-        name == "armv7_encoder" {
-        VecPush(result, CheckPath(bin, "ziran"))
-        VecPush(result, "run")
-        VecPush(result, "--target=c")
-        VecPush(result, "--root")
-        VecPush(result, tests)
-        if name == "x86_encoder" {
+    ziran := CheckPath(bin, "ziran")
+    check := FindCheckProgram(name)
+    if check.name != "" {
+        prefix := string.[ziran, "run", "--target=c", "--root", tests]
+        for argument: prefix { VecPush(result, argument) }
+        if check.module_path != "" {
             VecPush(result, "--module-path")
-            VecPush(result, CheckPath(tests, "../cmd"))
-            VecPush(result, CheckPath(tests, "x86_encoder_cases.zi"))
-        } else if name == "aarch64_encoder" || name == "armv7_encoder" {
-            VecPush(result, "--module-path")
-            VecPush(result, CheckPath(tests, "../cmd"))
-            VecPush(result, CheckPath(tests, CheckConcat(name, "_cases.zi")))
-        } else {
-            VecPush(result, CheckPath(tests, "native_backend_policy_cases.zi"))
+            VecPush(result, CheckPath(repo, check.module_path))
         }
+        VecPush(result, CheckPath(tests, ifx check.source == "" then check.name else check.source))
+        if !check.no_compiler_argument {
+            VecPush(result, "--")
+            VecPush(result, ziran)
+        }
+        return result
+    }
+    if name == "check_runner" {
+        VecPush(result, CheckPath(bin, "check-runner"))
+        VecPush(result, "--self-test")
         return result
     }
     if name == "bundle-link-test" {
         VecPush(result, CheckPath(bin, name))
-        return result
-    }
-    if name == "verified_loading_cases.zi" || name == "proven_pointer_cases.zi" {
-        command := string.[CheckPath(bin, "ziran"), "run", "--target=c", "--root", tests,
-            "--module-path", CheckPath(repo, "cmd"), CheckPath(tests, name), "--", CheckPath(bin, "ziran")]
-        for argument: command { VecPush(result, argument) }
-        return result
-    }
-    if name == "artifact_consumer_cases.zi" || name == "native_disk_cache_cases.zi" ||
-        name == "trust_boundary_cases.zi" {
-        VecPush(result, CheckPath(bin, "ziran"))
-        VecPush(result, "run")
-        VecPush(result, "--target=c")
-        VecPush(result, "--root")
-        VecPush(result, tests)
-        VecPush(result, CheckPath(tests, name))
-        VecPush(result, "--")
-        VecPush(result, CheckPath(bin, "ziran"))
-        return result
-    }
-    if name == "temp_arena_cases.zi" || name == "context_scope_cases.zi" || name == "checks_granularity_cases.zi" {
-        VecPush(result, CheckPath(bin, "ziran"))
-        VecPush(result, "run")
-        VecPush(result, "--target=c")
-        VecPush(result, "--root")
-        VecPush(result, tests)
-        VecPush(result, CheckPath(tests, name))
-        VecPush(result, "--")
-        VecPush(result, CheckPath(bin, "ziran"))
         return result
     }
     VecPush(result, "sh")
@@ -157,51 +179,11 @@ CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
 DiscoverChecks :: (repo: string, bin: string, filter: string) -> Vec(CheckCase) {
     checks: Vec(CheckCase)
     tests := CheckPath(repo, "tests")
-    compiler_cases := string.["module_parameters_cases.zi", "insert_source_cases.zi",
-        "std_environment_cases.zi", "std_input_cases.zi", "c_teacher_cases.zi", "audio_checks.zi", "std_finite_cases.zi"]
-    for name: compiler_cases {
-        if TextContains(name, filter) { VecPush(checks, CheckCase.{.name = name, .cost = 2}) }
+    for check: check_programs[:] {
+        if TextContains(check.name, filter) { VecPush(checks, CheckCase.{.name = check.name, .cost = check.cost}) }
     }
-    if TextContains("native_backend_policy", filter) {
-        VecPush(checks, CheckCase.{.name = "native_backend_policy"})
-    }
-    if TextContains("native_worker_pool", filter) {
-        VecPush(checks, CheckCase.{.name = "native_worker_pool"})
-    }
-    if TextContains("x86_encoder", filter) {
-        VecPush(checks, CheckCase.{.name = "x86_encoder", .cost = 2})
-    }
-    if TextContains("aarch64_encoder", filter) {
-        VecPush(checks, CheckCase.{.name = "aarch64_encoder", .cost = 2})
-    }
-    if TextContains("armv7_encoder", filter) {
-        VecPush(checks, CheckCase.{.name = "armv7_encoder", .cost = 2})
-    }
+    if TextContains("check_runner", filter) { VecPush(checks, CheckCase.{.name = "check_runner"}) }
     if TextContains("bundle-link-test", filter) { VecPush(checks, CheckCase.{.name = "bundle-link-test"}) }
-    if TextContains("artifact_consumer_cases.zi", filter) {
-        VecPush(checks, CheckCase.{.name = "artifact_consumer_cases.zi"})
-    }
-    if TextContains("native_disk_cache_cases.zi", filter) {
-        VecPush(checks, CheckCase.{.name = "native_disk_cache_cases.zi"})
-    }
-    if TextContains("trust_boundary_cases.zi", filter) {
-        VecPush(checks, CheckCase.{.name = "trust_boundary_cases.zi"})
-    }
-    if TextContains("verified_loading_cases.zi", filter) {
-        VecPush(checks, CheckCase.{.name = "verified_loading_cases.zi"})
-    }
-    if TextContains("proven_pointer_cases.zi", filter) {
-        VecPush(checks, CheckCase.{.name = "proven_pointer_cases.zi", .cost = 2})
-    }
-    if TextContains("checks_granularity_cases.zi", filter) {
-        VecPush(checks, CheckCase.{.name = "checks_granularity_cases.zi", .cost = 2})
-    }
-    if TextContains("temp_arena_cases.zi", filter) {
-        VecPush(checks, CheckCase.{.name = "temp_arena_cases.zi", .cost = 2})
-    }
-    if TextContains("context_scope_cases.zi", filter) {
-        VecPush(checks, CheckCase.{.name = "context_scope_cases.zi", .cost = 2})
-    }
     names: Vec(string)
     if !ListDirectory(tests, *names) { return .{} }
     for name: names {

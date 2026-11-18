@@ -1,4 +1,4 @@
-// Vector operations on revision-28 ZX, pinned by tests/zx_lowered_parity.sh.
+// Vector operations on revision-28 ZX, pinned by tests/zx_lowered_parity_cases.zi.
 // A vector is lowered as an array of its lanes and each operation lane by
 // lane: arithmetic wraps in the lane, a comparison gives a lane of all ones
 // or zero and follows the lane's signedness. Edges follow zi_ref: shifts past

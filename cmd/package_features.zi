@@ -169,7 +169,7 @@ Features :: (arguments: []string) -> s32 {
         accepted_example = "Text :: #import \"text\";\n#program_export\nAnswer :: () -> s32 {\n    if Text.LowerASCII(cast(u8)65) != cast(u8)97 { return 1 }\n    return 0\n}\n",
         rejected_example = "Text :: #import <text>;\nAnswer :: () -> s32 { return 0 }\n",
         rejection = "Jai imports require a quoted module or file name.",
-        evidence = "tests/features.sh\nparse.syntax\n",
+        evidence = "tests/compiler_inventory_cases.zi\nparse.syntax\n",
         targets = module_targets
     },
     .{
@@ -191,7 +191,7 @@ Features :: (arguments: []string) -> s32 {
         accepted_example = "Check :: () -> s32 {\n    bytes: [1]u8 = .[97]\n    {\n        text := TextView(bytes[:])\n        if text.count != 1 { return 1 }\n    }\n    bytes[0] = cast(u8)98\n    return cast(s32)bytes[0]\n}\n",
         rejected_example = "Check :: () -> s32 {\n    bytes: [1]u8\n    text := TextView(bytes[:])\n    bytes[0] = cast(u8)98\n    return cast(s32)text[0]\n}\n",
         rejection = "Mutable backing storage cannot be changed while a view of it is live.",
-        evidence = "tests/text_view_mutation.sh\ntests/aggregate_view_lifetime.sh\ntests/capabilities.sh\n",
+        evidence = "tests/text_view_mutation.sh\ntests/aggregate_view_lifetime.sh\ntests/compiler_inventory_cases.zi\n",
         targets = view_targets
     },
     .{
@@ -202,7 +202,7 @@ Features :: (arguments: []string) -> s32 {
         accepted_example = "#import \"vec\"\nInner :: struct { items: Vec(s32); other: Vec(s32); }\nCheck :: () -> s32 {\n    value: Inner\n    VecPush(value.items, 1)\n    VecPush(value.other, 2)\n    moved := value.items\n    return moved[0] + value.other[0]\n}\n",
         rejected_example = "#import \"vec\"\nInner :: struct { items: Vec(s32); }\nBox :: struct { inners: [2]Inner; }\nCheck :: () -> s32 {\n    value: Box\n    VecPush(value.inners[0].items, 1)\n    moved := value.inners[0].items\n    return moved[0]\n}\n",
         rejection = "Indexed aggregate fields do not yet have a precise per-element ownership transfer.",
-        evidence = "tests/aggregate_vec_safety.sh\ntests/vec_move_expression.sh\ntests/capabilities.sh\n",
+        evidence = "tests/aggregate_vec_safety.sh\ntests/vec_move_expression.sh\ntests/compiler_inventory_cases.zi\n",
         targets = record_targets
     },
     ]
@@ -236,7 +236,7 @@ Features :: (arguments: []string) -> s32 {
     widening_feature.accepted_example = "#program_export\nAnswer :: () -> s64 {\n    small: s32 = 40\n    big: s64 = small\n    return big + small\n}\n"
     widening_feature.rejected_example = "Narrow :: (x: s64) -> s32 { return x }\n"
     widening_feature.rejection = "Narrowing, sign changes, and integer-to-float conversions need an explicit cast."
-    widening_feature.evidence = "tests/features.sh\n"
+    widening_feature.evidence = "tests/compiler_inventory_cases.zi\n"
     widening_feature.targets = numeric_targets
     contract_targets: [3]PkgTargetSupport = .[
         .{target = "c", status = "supported", limit = ""},
@@ -283,7 +283,7 @@ Features :: (arguments: []string) -> s32 {
             accepted_example = "Square :: (value: s64) -> s64 { return value * value }\n#program_export\nAnswer :: () -> s64 {\n    #parallel_gpu for 0..3 {\n        local := Square(it)\n    }\n    return 42\n}\n",
             rejected_example = "shared: s64;\nAnswer :: () {\n    #parallel_gpu for 0..3 {\n        shared += it\n    }\n}\n",
             rejection = "A GPU selection has no device backend; CPU execution is never selected.",
-            evidence = "tests/capabilities.sh\n",
+            evidence = "tests/compiler_inventory_cases.zi\n",
             status = "implemented",
             targets = gpu_targets
         },
@@ -316,7 +316,7 @@ Features :: (arguments: []string) -> s32 {
             accepted_example = "Offset :: (base: s32 = 40, extra: s32 = 2) -> s32 { return base + extra }\n#program_export\nAnswer :: () -> s32 { return Offset() }\n",
             rejected_example = "Required :: (value: s32) -> s32 { return value }\nAnswer :: () -> s32 { return Required() }\n",
             rejection = "Required parameters without defaults cannot be omitted.",
-            evidence = "tests/default_arguments.sh\ntests/default_bounds.sh\n",
+            evidence = "tests/call_argument_cases.zi\ntests/default_bounds.sh\n",
             status = "implemented",
             targets = contract_targets
         },
@@ -327,7 +327,7 @@ Features :: (arguments: []string) -> s32 {
             accepted_example = "Callback :: #type (value: s32) -> s32;\nIncrement :: (value: s32) -> s32 { return value + 1 }\nApply :: (callback: Callback) -> s32 { return callback(41) }\n#program_export\nAnswer :: () -> s32 { return Apply(Increment) }\n",
             rejected_example = "Callback :: #type (value: s32) -> s32;\nWrong :: (value: bool) -> s32 { return 0 }\nApply :: (callback: Callback) -> s32 { return callback(41) }\nAnswer :: () -> s32 { return Apply(Wrong) }\n",
             rejection = "Procedure values must match their checked parameter and result signature.",
-            evidence = "tests/features.sh\n",
+            evidence = "tests/compiler_inventory_cases.zi\n",
             status = "implemented",
             targets = contract_targets
         },
@@ -345,7 +345,7 @@ Features :: (arguments: []string) -> s32 {
     assembly_feature.accepted_example = "#program_export\nAnswer :: () -> s64 {\n    value: s64 = 41\n    result: s64\n    #asm(\"x86_64\", \"leaq 1(%[value]), %[result]\", \"=r:result\", \"r:value\", \"\", \"\") {\n        result = value + 1\n    }\n    return result\n}\n"
     assembly_feature.rejected_example = "Wrong :: (value: s64) -> s64 #asm(\"x86_64\", \"\", \"=r\", \"\", \"\", \"\") { return value }\n"
     assembly_feature.rejection = "Input and output constraint counts must match parameters and results."
-    assembly_feature.evidence = "tests/assembly.sh\ntests/assembly_features.sh\ntests/assembly_blocks.sh\ntests/go_assembly.sh\ntests/go_direct_assembly.sh\ntests/generic_assembly.sh\nbench/assembly.py\nbench/cpu_features.py\nbench/go_assembly.py\ncheck.assembly\n"
+    assembly_feature.evidence = "tests/assembly.sh\ntests/assembly_features.sh\ntests/assembly_blocks.sh\ntests/go_assembly.sh\ntests/go_direct_assembly.sh\ntests/generic_assembly_cases.zi\nbench/assembly.py\nbench/cpu_features.py\nbench/go_assembly.py\ncheck.assembly\n"
     assembly_feature.targets = assembly_targets
     features: [16]PkgFeature = .[
         base_features[0], law_feature, contracts[0], contracts[1], contracts[2],

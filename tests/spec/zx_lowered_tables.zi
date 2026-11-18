@@ -1,4 +1,4 @@
-// Long array literals and large locals, pinned by tests/zx_lowered_parity.sh.
+// Long array literals and large locals, pinned by tests/zx_lowered_parity_cases.zi.
 // A literal of 64 or more numeric literals is read-only data decoded by one
 // loop, and a fixed-array or record local or parameter of more than 4096
 // bytes lives in a frame slot, so a loop over it does not copy it on every

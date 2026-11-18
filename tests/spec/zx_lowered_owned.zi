@@ -1,4 +1,4 @@
-// Owned values on revision-28 ZX, pinned by tests/zx_lowered_parity.sh:
+// Owned values on revision-28 ZX, pinned by tests/zx_lowered_parity_cases.zi:
 // moves into declarations, parameters, results and vector elements,
 // records that hold a vector, vectors of vectors, and a fresh result
 // nobody keeps. Every heap block is freed by the time main returns.

@@ -1,4 +1,4 @@
-// VecResize on revision-28 ZX, pinned by tests/zx_lowered_parity.sh: growing
+// VecResize on revision-28 ZX, pinned by tests/zx_lowered_parity_cases.zi: growing
 // gives at least the requested capacity and zero elements, shrinking keeps the
 // capacity and drops what it removes, growing again inside the capacity gives
 // zeros rather than the old elements, and a negative request changes nothing.

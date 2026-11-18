@@ -74,13 +74,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "wasm-values-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)
-    if !NativeAssert(*test, argc == 4, "pass slices or enums") { return 1 }
-    mode := TextFromCString(argv[3]); valid := false
-    if mode == "enums" { valid = WasmValueEnums(*test) }
-    else if mode == "slices" {
-        cases := WasmValueCase.[.{"slices", "42"}]
-        valid = WasmValueFixture(*test, "slices", "wasm_slices.zi.in") && WasmValueRun(*test, cases[:], false)
-        if valid { print("Wasm and the engine: omitted slice bounds, full-length and empty slices agree from source and saved IR in local tests\n") }
-    }
-    return ifx valid && !test.failed then 0 else 1
+    if !WasmValueEnums(*test) { return 1 }
+    slices := WasmValueCase.[.{"slices", "42"}]
+    if !WasmValueFixture(*test, "slices", "wasm_slices.zi.in") || !WasmValueRun(*test, slices[:], false) { return 1 }
+    print("Wasm and the engine: omitted slice bounds, full-length and empty slices agree from source and saved IR in local tests\n")
+    return 0
 }

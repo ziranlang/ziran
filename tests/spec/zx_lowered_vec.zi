@@ -1,4 +1,4 @@
-// Owned vectors on revision-28 ZX, pinned by tests/zx_lowered_parity.sh:
+// Owned vectors on revision-28 ZX, pinned by tests/zx_lowered_parity_cases.zi:
 // growth, indexing, slices, VecClear and VecFree, and the drops at block
 // close, return, break and continue.
 #import "std/vec"

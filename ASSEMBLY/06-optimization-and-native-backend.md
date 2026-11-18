@@ -45,7 +45,7 @@ Implemented machine-IR modules: `cmd/compiler_machine_ir.zi`, `cmd/compiler_mach
 
 Add independent native-backend fixtures for register pressure, spills across calls, fixed-register division/shifts, flags, cyclic copies, float edge cases, stack alignment, aggregate ABI classes, varargs, and C callbacks.
 
-Current machine-IR local tests: `tests/machine_ir.sh` covers lowering, ABI constraints, malformed-MIR rejection, exact x86-64 encoded bytes, relocations, fuel and traps, and encoder negatives including float and stack call forms and out-of-range global-address addends rejected before encoding. `tests/regalloc.sh` covers allocation, the allocated verifier, incoming-argument order, and late failures that leave the owner's program intact. They use `--target=c` only to run the test programs.
+Current machine-IR local tests: `tests/machine_ir_cases.zi` covers lowering, ABI constraints and malformed-MIR rejection. `tests/x86_encoder_cases.zi` covers exact encoded bytes, relocations, fuel and traps, and rejection of unsupported float and stack call forms and out-of-range global-address addends. `tests/regalloc.sh` covers allocation, the allocated verifier, incoming-argument order, and late failures that leave the owner's program intact. They use `--target=c` only to run the test programs.
 
 Compare optimized/unoptimized new-native output with the portable instruction engine and existing C execution. Use external handwritten C/assembly ABI fixtures as independent callers/callees where practical. Inspect actual encoded instructions after step 08; text snapshots alone cannot validate encoding or execution.
 

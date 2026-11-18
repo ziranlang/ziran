@@ -98,8 +98,8 @@ earlier than written; literals, `-1` and globals it leaves alone may come
 first. An `else if` becomes an `else` block holding a plain `if`, and the
 second operand of `&&` or `||` or a scalar `ifx` arm runs as statements
 that leave its value in a local, so results read there are scoped to their
-own blocks (`tests/text_condition_arms.sh`). `tests/text_scoped_arguments.sh` shows no allocations left in 1000 rounds of such reads and keeps stored, pushed,
-returned, aliased, deferred and global arguments and locals alive.
+own blocks. Stored, pushed, returned, aliased, deferred and global arguments
+and locals keep their storage alive.
 `tests/owned_text_results.sh` counts 1000 allocations kept in 1000 rounds of
 three `Text` results used as strings, from the one read after a call, and
 none kept as `Text`. The standard producers, such as `TextReplace`,

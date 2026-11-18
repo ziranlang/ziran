@@ -1,5 +1,5 @@
 // Fields read and written through a pointer on revision-28 ZX, pinned by
-// tests/zx_lowered_parity.sh.
+// tests/zx_lowered_parity_cases.zi.
 Activity :: struct { quiet: s32; total: s64 }
 
 Observe :: (activity: *Activity, active: bool) -> bool {

@@ -1,0 +1,131 @@
+#import "native_test"
+#import "check_support"
+#import "std/environment_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+UnicodeCase :: struct {
+    name: string
+    entry: string
+    expected: string
+    check_source: bool
+    exports: string
+    native_backends: bool
+}
+
+UnicodeNative :: (test: *NativeTest, item: UnicodeCase, root: string,
+    modules: string, input: string, output: string) -> bool {
+    entry := CheckConcat(item.name, ":NativeMain")
+    c := CheckPath(output, "c")
+    c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry", entry,
+        "--root", root, "--module-path", modules, "-o", c, input]
+    unused NativeRun(test, c_build[:])
+    executable := CheckPath(c, item.name)
+    c_run := string.[executable]
+    unused NativeRun(test, c_run[:])
+    if test.failed { return false }
+    if item.exports != "" {
+        inspect := string.["nm", executable]
+        symbols := NativeRun(test, inspect[:]).output
+        names := TextSplit(item.exports, " ")
+        for name: names {
+            if !NativeAssert(test, TextContains(symbols, CheckConcat(" T ", CheckConcat(name, "\n"))),
+                CheckConcat("missing named C export: ", name)) { return false }
+        }
+    }
+
+    go := CheckPath(output, "go")
+    go_build := string.[test.ziran, "build", "--target=go", "--exe", "--entry", entry, "--pkg", "main",
+        "--root", root, "--module-path", modules, "-o", go, input]
+    unused NativeRun(test, go_build[:])
+    go_run := string.["env", "GO111MODULE=off", "go", "run"]
+    command: Vec(string)
+    for argument: go_run { VecPush(command, argument) }
+    files := NativeFiles(go, ".go")
+    for file: files { VecPush(command, file) }
+    unused NativeRun(test, command[:])
+    return !test.failed
+}
+
+UnicodeParity :: (test: *NativeTest, item: UnicodeCase) -> bool {
+    source_root := CheckPath(test.repo, "tests/spec")
+    std := CheckPath(test.repo, "std")
+    source := CheckPath(source_root, CheckConcat(item.name, ".zi"))
+    work := CheckPath(test.work, item.name)
+    ir := CheckPath(work, "ir")
+    if item.check_source {
+        check := string.[test.ziran, "check", "--root", source_root, "--module-path", std, source]
+        unused NativeRun(test, check[:])
+    }
+    save := string.[test.ziran, "ir", "--root", source_root, "--module-path", std, "-o", ir, source]
+    unused NativeRun(test, save[:])
+    entry := CheckConcat(item.name, CheckConcat(":", item.entry))
+    inputs := string.[source, CheckPath(ir, CheckConcat(item.name, ".zir"))]
+    roots := string.[source_root, ir]
+    module_paths := string.[std, ir]
+    forms := string.["source", "saved"]
+    bundles := string.[CheckPath(work, "source.zx"), CheckPath(work, "saved.zx")]
+    for form: 0..1 {
+        bundle := string.[test.ziran, "bundle", "--root", roots[form], "--module-path", module_paths[form],
+            "--entry", entry, "-o", bundles[form], inputs[form]]
+        unused NativeRun(test, bundle[:])
+        if test.failed { return false }
+        if item.native_backends && !UnicodeNative(test, item, roots[form], module_paths[form], inputs[form], CheckPath(work, forms[form])) { return false }
+    }
+    if !NativeAssert(test, NativeSameFile(bundles[0], bundles[1]), "Unicode source and saved IR bundles differ") { return false }
+    run := string.[test.ziran, "run", bundles[0]]
+    return NativeExpect(test, run[:], CheckConcat(item.expected, "\n"))
+}
+
+UnicodeGenerator :: struct {
+    name: string
+    corpus: string
+}
+
+UnicodeRegenerate :: (test: *NativeTest, input: string, item: UnicodeGenerator) -> bool {
+    scripts := CheckPath(test.repo, "scripts")
+    source := CheckPath(scripts, CheckConcat(item.name, ".zi"))
+    generator := CheckPath(test.work, item.name)
+    command := string.[test.ziran, "build", "--root", scripts, "--module-path", CheckPath(test.repo, "std"),
+        "--target=c", "--exe", "--entry", CheckConcat(item.name, ":main"), "-o", generator, source]
+    unused NativeRun(test, command[:])
+    data := CheckPath(test.work, CheckConcat(item.name, ".zi"))
+    corpus := CheckPath(test.work, item.corpus)
+    regenerate := string.[CheckPath(generator, item.name), input, data, corpus]
+    unused NativeRun(test, regenerate[:])
+    return !test.failed && NativeAssert(test,
+        NativeSameFile(data, CheckPath(CheckPath(test.repo, "std"), CheckConcat(item.name, ".zi"))) &&
+        NativeSameFile(corpus, CheckPath(CheckPath(test.repo, "tests/spec"), item.corpus)),
+        CheckConcat("generated Unicode data or conformance corpus differs: ", item.name))
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "unicode-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    NativeSet(*test, "TMPDIR", test.work)
+    cases := UnicodeCase.[
+        .{"std_unicode", "NativeMain", "0", true, "", true},
+        .{"unicode_conformance", "NativeMain", "0", true, "", true},
+        .{"unicode_normalization_test", "NativeMain", "0", true, "", true},
+        .{"std_grapheme", "SelfTest", "42", false, "GraphemeNext GraphemeCount", true},
+        .{"grapheme_conformance", "NativeMain", "0", false, "GraphemeNext", true},
+        .{"std_text", "SelfTest", "42", true, "", false},
+        .{"std_number_text", "SelfTest", "42", true, "", false},
+    ]
+    for item: cases {
+        print("Checking % from source and saved IR\n", item.name)
+        if !UnicodeParity(*test, item) { return 1 }
+    }
+    input := EnvironmentText("ZIRAN_UNICODE_UCD")
+    if input != "" {
+        generators := UnicodeGenerator.[.{"unicode_data", "unicode_conformance.zi"},
+            .{"unicode_normalization_data", "unicode_normalization_cases.zi"}]
+        for item: generators {
+            if !UnicodeRegenerate(*test, input, item) { return 1 }
+        }
+        print("Unicode data and conformance corpora regenerate byte for byte\n")
+    }
+    return 0
+}

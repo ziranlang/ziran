@@ -19,7 +19,7 @@ The lean suite checks these production commands directly:
 build-queue -- sh tests/zir_api.sh build/bin/ziran
 build-queue -- sh tests/semantic_edit.sh build/bin/ziran
 build-queue -- sh tests/transport_view.sh build/bin/ziran
-build-queue -- sh tests/tool_diagnostics.sh build/bin/ziran
+build-queue -- make CHECK_FILTER=tool_diagnostics check
 ```
 
 API, diagnostic, edit and transport commands share canonical `.zi` source and

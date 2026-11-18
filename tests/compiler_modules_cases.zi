@@ -1,0 +1,146 @@
+#import "native_test"
+#import "check_support"
+#import "std/environment_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+CompilerModuleCase :: struct {
+    name: string
+    includes: string
+    libraries: string
+}
+
+CompilerModuleBundle :: (test: *NativeTest, root: string, modules: string,
+    input: string, module: string, entry: string, output: string) -> string {
+    bundle := string.[test.ziran, "bundle", "--root", root, "--module-path", modules,
+        "--entry", CheckConcat(module, CheckConcat(":", entry)), "-o", output, input]
+    unused NativeRun(test, bundle[:])
+    run := string.[test.ziran, "run", output]
+    return NativeRun(test, run[:]).output
+}
+
+CompilerModuleParity :: (test: *NativeTest, name: string, work: string) -> bool {
+    root := CheckPath(test.repo, "tests/spec")
+    modules := CheckPath(test.repo, "cmd")
+    module := CheckConcat(name, "_test")
+    source := CheckPath(root, CheckConcat(module, ".zi"))
+    ir := CheckPath(work, "ir")
+    save := string.[test.ziran, "ir", "--root", root, "--module-path", modules, "-o", ir, source]
+    unused NativeRun(test, save[:])
+    if test.failed { return false }
+    inputs := string.[source, CheckPath(ir, CheckConcat(module, ".zir"))]
+    forms := string.["source", "saved"]
+    answer := CheckPath(work, "answer.zx")
+    fingerprint := CheckPath(work, "fingerprint.zx")
+    expected := ""
+    for index: cast(s64)0..inputs.count - 1 {
+        input := inputs[index]
+        output := CheckPath(work, forms[index])
+        actual := CompilerModuleBundle(test, root, modules, input, module, "Answer", answer)
+        if !NativeAssert(test, !test.failed && actual == "42\n", "compiler module Answer differs") { return false }
+        digest := CompilerModuleBundle(test, root, modules, input, module, "Fingerprint", fingerprint)
+        if test.failed { return false }
+        if index == 0 { expected = CheckConcat("42 ", digest) }
+        else if !NativeAssert(test, CheckConcat("42 ", digest) == expected, "saved IR changes the compiler module fingerprint") { return false }
+        entry := CheckConcat(module, ":Run")
+        c := CheckPath(output, "c")
+        c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry", entry,
+            "--root", root, "--module-path", modules, "-o", c, input]
+        unused NativeRun(test, c_build[:])
+        c_run := string.[CheckPath(c, module)]
+        if !NativeExpect(test, c_run[:], expected) { return false }
+        go := CheckPath(output, "go")
+        go_build := string.[test.ziran, "build", "--target=go", "--exe", "--entry", entry,
+            "--pkg", "main", "--root", root, "--module-path", modules, "-o", go, input]
+        unused NativeRun(test, go_build[:])
+        go_run := string.["env", "GO111MODULE=off", "go", "run"]
+        command: Vec(string)
+        for argument: go_run { VecPush(command, argument) }
+        go_files := NativeFiles(go, ".go")
+        for file: go_files { VecPush(command, file) }
+        if !NativeExpect(test, command[:], expected) { return false }
+    }
+    return true
+}
+
+CompilerModuleSeed :: (test: *NativeTest, name: string, work: string) -> bool {
+    root := CheckPath(test.repo, "cmd")
+    source := CheckPath(root, CheckConcat(name, ".zi"))
+    ir := CheckPath(work, "seed-ir")
+    save := string.[test.ziran, "ir", "--root", root, "-o", ir, source]
+    unused NativeRun(test, save[:])
+    seed := CheckPath(CheckPath(test.repo, "bootstrap"), name)
+    files := NativeFiles(seed, "")
+    if !NativeAssert(test, files.count > 0, CheckConcat("missing bootstrap seed: ", seed)) { return false }
+    tools := PathParent(test.ziran)
+    inputs := string.[source, CheckPath(ir, CheckConcat(name, ".zir"))]
+    outputs := string.[CheckPath(work, "source-seed-c"), CheckPath(work, "saved-seed-c")]
+    for index: 0..1 {
+        input := inputs[index]
+        output := outputs[index]
+        generate := string.[CheckPath(tools, "zi2c"), "--no-main", "--root", root, "-o", output, input]
+        unused NativeRun(test, generate[:])
+        if test.failed { return false }
+        for file: files {
+            if !NativeAssert(test, NativeSameFile(file, CheckPath(output, PathName(file))),
+                CheckConcat("bootstrap seed differs: ", file)) { return false }
+        }
+    }
+    return true
+}
+
+CompilerModuleBoundary :: (test: *NativeTest, item: CompilerModuleCase, work: string) -> bool {
+    library := EnvironmentText("ZIRAN_LIB")
+    if library == "" { library = CheckPath(test.repo, "build/libziran.a") }
+    compiler := EnvironmentText("CC")
+    if compiler == "" { compiler = "cc" }
+    command: Vec(string)
+    if !NativeAssert(test, NativeWords(compiler, *command) && NativeWords(EnvironmentText("VM_CFLAGS"), *command), "invalid C compiler command or sanitizer flags") { return false }
+    flags := string.["-std=c11", "-D_GNU_SOURCE", CheckConcat("-I", CheckPath(test.repo, "include"))]
+    for argument: flags {
+        VecPush(command, argument)
+    }
+    includes := TextSplit(item.includes, " ")
+    for include: includes {
+        directory := ifx TextHasPrefix(include, "compiler-") then PathParent(library) else test.repo
+        VecPush(command, CheckConcat("-I", CheckPath(directory, include)))
+    }
+    source := CheckPath(CheckPath(test.repo, "tests"), CheckConcat(item.name, "_test.c"))
+    output := CheckPath(work, "c-boundary")
+    VecPush(command, source)
+    VecPush(command, library)
+    if !NativeWords(item.libraries, *command) { return false }
+    VecPush(command, "-o")
+    VecPush(command, output)
+    unused NativeRun(test, command[:])
+    run := string.[output]
+    unused NativeRun(test, run[:])
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "compiler-modules-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    cases := CompilerModuleCase.[
+        .{"compiler_declaration", "compiler-declaration compiler-text compiler-source compiler-scan", ""},
+        .{"compiler_enum", "compiler-enum compiler-text cmd/zir bootstrap/compiler_ir", "-pthread"},
+        .{"compiler_expression", "compiler-expression compiler-text compiler-source compiler-scan cmd/zir bootstrap/compiler_ir", ""},
+        .{"compiler_proof_kernel", "compiler-proof-kernel", "-pthread -lm"},
+        .{"compiler_source", "compiler-source", ""},
+        .{"compiler_statement", "compiler-statement compiler-text compiler-source compiler-scan cmd/zir bootstrap/compiler_ir", "-lm"},
+        .{"compiler_text", "cmd/zir bootstrap/compiler_ir", ""},
+        .{"compiler_type", "compiler-type compiler-text cmd/zir bootstrap/compiler_ir", ""},
+    ]
+    for item: cases {
+        print("Checking %\n", item.name)
+        work := CheckPath(test.work, item.name)
+        if !NativeAssert(*test, CreateDirectories(work), "cannot create compiler module test directory") ||
+            !CompilerModuleParity(*test, item.name, work) || !CompilerModuleSeed(*test, item.name, work) ||
+            !CompilerModuleBoundary(*test, item, work) { return 1 }
+        print("% source and saved IR, bootstrap and C boundary passed\n", item.name)
+    }
+    return 0
+}

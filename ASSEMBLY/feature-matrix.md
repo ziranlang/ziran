@@ -31,12 +31,12 @@ replace ZX or establish portability/performance completion.
 |---|---|---|
 | Fixed-width integers | Working on C, Go, ZX source/saved IR: declared-width wrap, signed-min division/remainder, shifts, casts, bitwise and mixed-width behavior. Wasm uses the same scalar tier inside its subset; unknown outside available Wasm fixtures. | [numeric semantics](../tests/numeric_semantics.sh), [width matrix](../tests/numeric_width_matrix.sh), [manifest](../tests/numeric_conformance.json) |
 | Float32/float64 | Working arithmetic, compare, infinity/NaN and range-checked conversion on native C/Go/ZX. lowered IR must not preserve that gap. | [numeric manifest](../tests/numeric_conformance.json), [status](../docs/IMPLEMENTATION_STATUS.md) |
-| Implicit widening | Working for the checked feature contract on C, Go, ZX. | [feature registry](../docs/FEATURES.json), [features test](../tests/features.sh) |
+| Implicit widening | Working for the checked feature contract on C, Go, ZX. | [feature registry](../docs/FEATURES.json), [features test](../tests/compiler_inventory_cases.zi) |
 | SIMD vectors | Working with identical lanes across native C tiers, Go lane loops, bundles and source/saved IR. C wasm32 may use SIMD128; bundles run vectors lane by lane. CPU feature selection is target-specific. | [status](../docs/IMPLEMENTATION_STATUS.md), [SIMD target](../tests/simd_target.sh) |
 | Scalars, strings, enums, plain records | Working in portable subset, including literals, copies, fields, scalar compound assignment, parameters and returns. Pointer-sized `isize`/`usize` and functions/statements outside the verifier subset are rejected. | [ZX subset](../docs/ZX.md), [verifier](../cmd/compiler_lowered_verify.zi) |
 | Fixed arrays, slices, vector indexing | Working with checked bounds. Generated C may omit only proven bounds checks; portable host slices copy successful mutations back and reject overlapping mutable arguments. | [proven ranges](../tests/proven_index_ranges.sh), [host slices](../tests/host_slices.sh) |
 | Compile-time assertions, `#run`, laws | Working as checked language features on all advertised targets; unsupported proof/effect forms or exhausted budgets are rejected/unknown rather than guessed. | [feature registry](../docs/FEATURES.json), [compile run](../tests/compile_run.sh), [laws](../tests/laws.sh) |
-| Procedure defaults and procedure values | Working for advertised examples on C, Go, ZX; portable verifier checks slot signatures and rejects C callback procedure types. | [feature registry](../docs/FEATURES.json), [defaults](../tests/default_arguments.sh) |
+| Procedure defaults and procedure values | Working for advertised examples on C, Go, ZX; portable verifier checks slot signatures and rejects C callback procedure types. | [feature registry](../docs/FEATURES.json), [defaults](../tests/call_argument_cases.zi) |
 | Print and I/O | Working literal-format print on C, Go, ZX. Rich OS I/O is a library/capability contract, not a portable opcode. | [feature registry](../docs/FEATURES.json), [print](../tests/print.sh) |
 | Named imports and linking | Working; bundles follow direct calls, retain required startup/types/laws, and reject unresolved imports or unreachable unsupported code. | [ZX linker](../docs/ZX.md), [bundle verification](../tests/bundle_verification.sh) |
 
@@ -56,7 +56,7 @@ replace ZX or establish portability/performance completion.
 
 | Feature | Current behavior | Evidence |
 |---|---|---|
-| Argument and compound order | Working: left-to-right call arguments; destination read before compound right side on C, Go, ZX. | [call order](../tests/call_order.sh), [compound order](../tests/compound_order.sh) |
+| Argument and compound order | Working: left-to-right call arguments; destination read before compound right side on C, Go, ZX. | [call order](../tests/call_order.sh), [compound order](../tests/compound_order_cases.zi) |
 | Bounded execution | Working by explicit host selection. The engine and Wasm count calls and loop iterations; cumulative limited open includes initialization and every run. | [ZX limits](../docs/ZX.md), [step limit](../tests/bundle_step_limit.sh) |
 | CPU parallel regions | Current baseline: C threads on supported hosts; Go/ZX serial downgrade and reverse-region serialization are assembly-target Gaps. The direct target rejects them until their promised parallel implementation exists. | [parallel test](../tests/parallel.sh), [native parallel](../tests/zx_native_parallel.sh) |
 | GPU regions | Every target reports an explicit Gap and rejects GPU selection; there is no CPU fallback. | [capabilities](../docs/CAPABILITIES.md), [assembly blocks](../tests/assembly_blocks.sh) |

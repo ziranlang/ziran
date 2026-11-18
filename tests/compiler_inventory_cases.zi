@@ -134,8 +134,6 @@ InventoryFeatures :: (test: *NativeTest) -> bool {
     select := string.[test.ziran, "features", "--id", ids[0], "--json"]; selected := NativeRun(test, select[:]); projection: JsonDocument
     if !NativeAssert(test, JsonRead(*projection, selected.output) && CheckInteger(*projection, projection.root, "schema_version") == 1 && CheckField(*projection, projection.root, "stability") == "stable-id" &&
         CheckField(*projection, JsonMember(*projection, projection.root, "feature"), "id") == ids[0], "feature ID projection differs") { return false }
-    capabilities := string.[test.ziran, "capabilities", "--json"]; caps := NativeRun(test, capabilities[:]); cap_document: JsonDocument
-    if !NativeAssert(test, JsonRead(*cap_document, caps.output), "invalid capability inventory") || !InventoryTargets(test, *cap_document, JsonMember(*cap_document, cap_document.root, "targets")) { return false }
     guide := string.[test.ziran, "guide"]; guide_result := NativeRun(test, guide[:]); help := string.[test.ziran, "--help"]; help_result := NativeRun(test, help[:])
     if !NativeAssert(test, TextContains(guide_result.output, "ziran features --id compile.assertions --json") && TextContains(help_result.output, "features"), "guide or help omitted feature discovery") { return false }
     for mode: 0..2 {
@@ -150,12 +148,10 @@ InventoryFeatures :: (test: *NativeTest) -> bool {
 
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
-    test := NativeStart(ifx argc >= 2 then 2 else argc, argv, "compiler-inventory-")
+    test := NativeStart(argc, argv, "compiler-inventory-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)
-    mode := ifx argc > 2 then TextFromCString(argv[2]) else ""
-    valid := ifx mode == "features" then InventoryFeatures(*test) else ifx mode == "capabilities" then InventoryCapabilities(*test) else false
-    if !valid { return 1 }
-    print("Compiler % inventory: schema, evidence, source/saved targets and CLI rejection local tests passed\n", mode)
+    if !InventoryCapabilities(*test) || !InventoryFeatures(*test) { return 1 }
+    print("Compiler inventory: capabilities, feature evidence and CLI rejection passed\n")
     return 0
 }

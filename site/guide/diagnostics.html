@@ -72,7 +72,7 @@ flag. Invalid UTF-8 bytes in paths and subprocess logs are escaped; valid
 Unicode is retained. Native C compilation captures and drains both output
 streams in JSON mode, bounds the retained log, and reports truncation with
 <code>zir_c.toolchain</code>. Allocation failure reporting does not allocate another
-diagnostic buffer. <code>tests/tool_diagnostics.sh</code> covers these paths, missing
+diagnostic buffer. <code>tests/tool_diagnostics_cases.zi</code> covers these paths, missing
 launcher tools, invalid command arguments, and formatter errors.</p>
 <p>Arbitrary external package tools and fatal process signals can still produce
 unstructured output. Consumers should

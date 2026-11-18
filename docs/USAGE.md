@@ -54,7 +54,7 @@ known operand types; every concrete instance checks all scalar/pointer inputs,
 result fields, local bindings and its portable body. A type-dependent result
 must match the declared output constraints at each call. Aggregate inputs are
 rejected even when the current target would execute the portable body.
-Generic local blocks follow the same rules. `tests/generic_assembly.sh` checks
+Generic local blocks follow the same rules. `tests/generic_assembly_cases.zi` checks
 integer widths, floating-point copies, tied outputs, memory aliases, caller-owned
 record types and multiple results across native and portable targets.
 
@@ -1966,7 +1966,7 @@ streams, trailing bytes, damaged pages and anything longer than `max_frames`. It
 records mirror the Xiph headers, and a guard after the decoder state is
 checked on every call. Only programs that import it link
 `-l:libvorbisfile.so.3` (or `-lvorbisfile` with the development package).
-`tests/vorbis_linux.sh` needs ffmpeg with libvorbis; with the Vorbis
+`tests/vorbis_cases.zi` needs ffmpeg with libvorbis; with the Vorbis
 development headers (or `VORBIS_INCLUDE`) it also compares the record sizes
 with the C compiler's. `VorbisDecoderOpen`/`VorbisDecoderOpenFile` support
 incremental float or PCM16 reads, exact frame seeks and owned comments.
@@ -2039,7 +2039,7 @@ bytes and the frame's window, rejects malformed/trailing data, and returns no
 partial bytes on failure. It accepts valid concatenated frames within the same
 total limit. Native C targets continue to use their transport's negotiated
 decoder; this Go module does not provide a portable bundle capability. Run
-`sh tests/zstd_go.sh build/bin/ziran` for source/saved-IR, race, independent
+`make CHECK_FILTER=zstd_go check` for source/saved-IR, race, independent
 libzstd interoperability and malformed/bounded-input verification.
 
 ### Binary fields

@@ -71,7 +71,8 @@ ReadCheckOptions :: (arguments: []string, options: *CheckOptions) -> bool {
 
 CheckEnvironment :: (options: CheckOptions, self: string) -> Vec(string) {
     environment: Vec(string)
-    removals: [4]string = .["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS"]
+    removals := string.["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS",
+        "GDK_DISPLAY", "SESSION_MANAGER"]
     for value: removals { VecPush(environment, value) }
     VecPush(environment, "HARMONY_DESKTOP_RECOVERY=0")
     VecPush(environment, "YUE_DESKTOP_RECOVERY=0")

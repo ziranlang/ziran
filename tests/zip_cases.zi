@@ -1,0 +1,102 @@
+// Info-ZIP independently produces the streaming input and reads the file-backed output.
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file_tree_linux"
+using Vectors :: #import "std/vec"
+
+ZipMemory :: (test: *NativeTest) -> bool {
+    root := CheckPath(test.repo, "tests/spec")
+    std := CheckPath(test.repo, "std")
+    source := CheckPath(root, "zip_test.zi")
+    ir := CheckPath(test.work, "ir")
+    check := string.[test.ziran, "check", "--root", root, "--module-path", std, source]
+    save := string.[test.ziran, "ir", "--root", root, "--module-path", std, "-o", ir, source]
+    source_bundle := CheckPath(test.work, "source.zx")
+    saved_bundle := CheckPath(test.work, "saved.zx")
+    source_build := string.[test.ziran, "bundle", "--root", root, "--module-path", std,
+        "--entry", "zip_test:SelfTest", "-o", source_bundle, source]
+    saved_build := string.[test.ziran, "bundle", "--root", ir, "--module-path", ir,
+        "--entry", "zip_test:SelfTest", "-o", saved_bundle, CheckPath(ir, "zip_test.zir")]
+    unused NativeRun(test, check[:])
+    unused NativeRun(test, save[:])
+    unused NativeRun(test, source_build[:])
+    unused NativeRun(test, saved_build[:])
+    if test.failed || !NativeAssert(test, NativeSameFile(source_bundle, saved_bundle), "ZIP source and saved IR bundles differ") { return false }
+    run := string.[test.ziran, "run", source_bundle]
+    return NativeExpect(test, run[:], "0\n")
+}
+
+ZipNativeCase :: struct {
+    library: string
+    harness: string
+    libraries: string
+    input: string
+    output: string
+}
+
+ZipNative :: (test: *NativeTest, item: ZipNativeCase) -> bool {
+    root := CheckPath(test.repo, "tests/spec")
+    std := CheckPath(test.repo, "std")
+    fixture := CheckConcat(item.library, "_test")
+    source := CheckPath(root, CheckConcat(fixture, ".zi"))
+    generated := CheckPath(test.work, fixture)
+    check := string.[test.ziran, "check", "--root", root, "--module-path", std, source]
+    generate := string.[CheckPath(PathParent(test.ziran), "zi2c"), "--no-main", "--root", root,
+        "--module-path", std, "-o", generated, source]
+    unused NativeRun(test, check[:])
+    unused NativeRun(test, generate[:])
+    harness := CheckPath(generated, "driver.c")
+    if !NativeWrite(test, harness, item.harness) { return false }
+
+    compiler := EnvironmentText("CC")
+    if compiler == "" { compiler = "cc" }
+    command: Vec(string)
+    if !NativeAssert(test, NativeWords(compiler, *command), "invalid C compiler command") { return false }
+    flags := string.["-std=c11", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", generated)]
+    for flag: flags { VecPush(command, flag) }
+    modules := string.["zip", item.library, "file_linux", "c_string", "mapped_file_linux", "byte_text_linux", fixture]
+    for name: modules { VecPush(command, CheckPath(generated, CheckConcat(name, ".c"))) }
+    VecPush(command, harness)
+    if !NativeWords(item.libraries, *command) { return false }
+    executable := CheckPath(generated, "zip-test")
+    VecPush(command, "-o")
+    VecPush(command, executable)
+    unused NativeRun(test, command[:])
+    run := string.[executable, CheckPath(test.work, item.input), CheckPath(test.work, item.output)]
+    unused NativeRun(test, run[:], test.work)
+    return !test.failed
+}
+
+ZipInteropGenerate :: (test: *NativeTest) -> bool {
+    contents: Vec(u8)
+    BuilderAppend(contents, "OggS")
+    for index: 0..149999 { VecPush(contents, 65) }
+    if !NativeWrite(test, CheckPath(test.work, "long"), BuilderFinish(contents)) { return false }
+    command := string.["zip", "-q", "-Z", "deflate", CheckPath(test.work, "large.zip"), "long"]
+    unused NativeRun(test, command[:], test.work)
+    return !test.failed
+}
+
+ZipInteropRead :: (test: *NativeTest) -> bool {
+    path := CheckPath(test.work, "archive.zip")
+    list := string.["unzip", "-Z1", path]
+    if !NativeExpect(test, list[:], "meta\na\n") { return false }
+    metadata := string.["unzip", "-p", path, "meta"]
+    message := string.["unzip", "-p", path, "a"]
+    return NativeExpect(test, metadata[:], "{}") && NativeExpect(test, message[:], "hello")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "zip-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    streaming := ZipNativeCase.{"zip_linux", "#include <stdint.h>\nint SelfTest(void);\nint StreamingTest(uint8_t *, uint8_t *);\nint main(int argc, char **argv) {\n    if (argc != 3 || SelfTest() != 0) return 1;\n    return StreamingTest((uint8_t *)argv[1], (uint8_t *)argv[2]);\n}\n", "-lz", "large.zip", "large-output.bin"}
+    file := ZipNativeCase.{"zip_file_linux", "#include \"zip_file_linux_test.h\"\n#include <stdint.h>\nint main(int argc, char **argv) {\n    return argc == 3 ? SelfTest((uint8_t *)argv[1], (uint8_t *)argv[2]) : 12;\n}\n", "", "archive.tmp", "archive.zip"}
+    if !ZipMemory(*test) || !ZipInteropGenerate(*test) || !ZipNative(*test, streaming) ||
+        !ZipNative(*test, file) || !ZipInteropRead(*test) { return 1 }
+    print("ZIP memory, streaming and file-backed operation agree with the Info-ZIP fixtures\n")
+    return 0
+}

@@ -97,8 +97,8 @@ earlier than written; literals, <code>-1</code> and globals it leaves alone may 
 first. An <code>else if</code> becomes an <code>else</code> block holding a plain <code>if</code>, and the
 second operand of <code>&amp;&amp;</code> or <code>||</code> or a scalar <code>ifx</code> arm runs as statements
 that leave its value in a local, so results read there are scoped to their
-own blocks (<code>tests/text_condition_arms.sh</code>). <code>tests/text_scoped_arguments.sh</code> shows no allocations left in 1000 rounds of such reads and keeps stored, pushed,
-returned, aliased, deferred and global arguments and locals alive.
+own blocks. Stored, pushed, returned, aliased, deferred and global arguments
+and locals keep their storage alive.
 <code>tests/owned_text_results.sh</code> counts 1000 allocations kept in 1000 rounds of
 three <code>Text</code> results used as strings, from the one read after a call, and
 none kept as <code>Text</code>. The standard producers, such as <code>TextReplace</code>,

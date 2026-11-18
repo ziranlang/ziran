@@ -58,7 +58,7 @@ The checked graph records move and borrow facts. Lowering must make each effect 
 
 ## Calls, effects, concurrency, and fuel
 
-Call arguments evaluate left to right on every target. Named/default binding occurs after argument evaluation. Call results feed directly into the consuming call or operation, but earlier values are read before later calls can mutate them. Compound assignment reads its destination before evaluating the right operand. These rules are fixed by [call order](../tests/call_order.sh) and [compound order](../tests/compound_order.sh).
+Call arguments evaluate left to right on every target. Named/default binding occurs after argument evaluation. Call results feed directly into the consuming call or operation, but earlier values are read before later calls can mutate them. Compound assignment reads its destination before evaluating the right operand. These rules are fixed by [call order](../tests/call_order.sh) and [compound order](../tests/compound_order_cases.zi).
 
 Every callable and foreign capability carries an explicit effect class: pure, observing, mutating, external/host, allocation, trap, parallel, or combinations accepted by the verifier. Effects drive reordering restrictions, borrow checks, fuel placement, host preflight, and optimization barriers. A pure operation can be controlled only if its result and trap behavior remain indistinguishable.
 

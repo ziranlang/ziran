@@ -304,7 +304,9 @@ harness; what they check is the direct native pipeline.
 
 ```sh
 env -u DISPLAY -u WAYLAND_DISPLAY HARMONY_DESKTOP_RECOVERY=0 \
-  build-queue -- sh tests/machine_ir.sh build/bin/ziran
+  build-queue -- make CHECK_FILTER=machine_ir check
+env -u DISPLAY -u WAYLAND_DISPLAY HARMONY_DESKTOP_RECOVERY=0 \
+  build-queue -- make CHECK_FILTER=x86_encoder check
 env -u DISPLAY -u WAYLAND_DISPLAY HARMONY_DESKTOP_RECOVERY=0 \
   build-queue -- sh tests/regalloc.sh build/bin/ziran
 ```
@@ -312,8 +314,8 @@ env -u DISPLAY -u WAYLAND_DISPLAY HARMONY_DESKTOP_RECOVERY=0 \
 The machine-IR fixture checks target descriptions, real LIR lowering, ABI
 constraints, owned metadata, deterministic output, dynamic-allocation
 representation, explicit unsupported targets/calling forms, bounded limits,
-malformed MIR rejection and repeatable cleanup, then runs the encoder fixture,
-which checks exact bytes, frames, relocations, fuel, traps, hard pre-encoding
+malformed MIR rejection and repeatable cleanup. The x86 encoder fixture
+checks exact bytes, frames, relocations, fuel, traps, pre-encoding
 call/addend rejection and output preservation. The allocation fixture lowers
 real LIR and checks register pressure, call splitting, spills and reloads,
 division and shift registers, flags, register, memory and aggregate copy

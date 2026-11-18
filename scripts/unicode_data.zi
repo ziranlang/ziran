@@ -213,44 +213,107 @@ ScalarLiteral :: (output: *Vec(u8), point: s32) {
     }
 }
 
-BeginCase :: (output: *Vec(u8), count: s32) {
-    if count % 32 == 0 { BuilderPrint(output, "Cases% :: () -> bool {\n", count / 32) }
+ScalarBytes :: (point: s32) -> s32 {
+    if point < 128 { return 1 }
+    if point < 2048 { return 2 }
+    if point < 65536 { return 3 }
+    return 4
 }
-EndCase :: (output: *Vec(u8), count: s32) {
-    if count % 32 == 0 { BuilderAppend(<<output, "    return true\n}\n") }
+
+TestRuntime :: #string TEST_RUNTIME_END
+// Generated Unicode 17.0.0 case mappings and property boundaries.
+// Unicode License V3; see LICENSE-Unicode.
+U :: #import "std/unicode";
+
+// Each row stores two byte counts followed by the input and expected UTF-8.
+CheckMappings :: (mode: s32, data: string) -> bool {
+    at: s64
+    while at < data.count {
+        input_count := cast(s64)data[at]
+        expected_count := cast(s64)data[at + 1]
+        start := at + 2
+        split := start + input_count
+        at = split + expected_count
+        input := data[start:split]
+        expected := data[split:at]
+        matches := false
+        if mode == 0 { matches = U.CaseFold(input) == expected }
+        else if mode == 1 { matches = U.Lower(input) == expected }
+        else { matches = U.Capitalize(input) == expected }
+        if !matches { print("Unicode mapping % differs for %\n", mode, input); return false }
+    }
+    return true
 }
+
+// Each row stores the code point followed by four expected property bits.
+CheckProperties :: (data: []u32) -> bool {
+    for row: data {
+        point := row >> 4
+        if U.IsWord(point) != ((row & 1) != 0) || U.IsSpace(point) != ((row & 2) != 0) ||
+           U.IsDecimal(point) != ((row & 4) != 0) || U.IsPrintable(point) != ((row & 8) != 0) {
+            print("Unicode properties differ for code point %\n", point)
+            return false
+        }
+    }
+    return true
+}
+
+#program_export
+NativeMain :: () -> s32 {
+TEST_RUNTIME_END;
+
+MappingTests :: (output: *Vec(u8), entries: []Entry, mode: s32) -> s32 {
+    count: s32
+    for point: 0..cast(s32)1114111 {
+        value := entries[point].fold
+        if mode == 1 { value = entries[point].lower }
+        if mode == 2 { value = entries[point].title }
+        if value == "" { continue }
+        parts := TextSplit(value, " ")
+        if parts.count == 1 && Hex(parts[0]) == point { continue }
+        size: s32
+        for part: parts { size += ScalarBytes(Hex(part)) }
+        if size > 127 { return -1 }
+        if count % 32 == 0 { BuilderPrint(output, "    if !CheckMappings(%, \"", mode) }
+        Byte(output, ScalarBytes(point))
+        Byte(output, size)
+        ScalarLiteral(output, point)
+        for part: parts { ScalarLiteral(output, Hex(part)) }
+        count += 1
+        if count % 32 == 0 { BuilderAppend(<<output, "\") { return 1 }\n") }
+    }
+    if count % 32 != 0 { BuilderAppend(<<output, "\") { return 1 }\n") }
+    return count
+}
+
+CloseProperties :: (output: *Vec(u8), chunk: s32) {
+    BuilderPrint(output, "]\n    if !CheckProperties(properties%[:]) { return 1 }\n", chunk)
+}
+
 PropertyCase :: (output: *Vec(u8), point: s32, flags: s32, count: s32) {
-    BeginCase(output, count)
-    BuilderPrint(output, "    if U.IsWord(%) != % || U.IsSpace(%) != % || U.IsDecimal(%) != % || U.IsPrintable(%) != % { return false }\n",
-        point, (flags & 1) != 0 || point == 95, point, (flags & 2) != 0, point, (flags & 16) != 0, point, (flags & 32) != 0)
-    EndCase(output, count + 1)
+    column := count % 32
+    chunk := count / 32
+    if column == 0 { BuilderPrint(output, "    properties% := u32.[", chunk) }
+    else { BuilderAppend(<<output, ", ") }
+    expected := (flags & 3) | ((flags & 48) >> 2)
+    if point == 95 { expected |= 1 }
+    BuilderPrint(output, "%", point * 16 + expected)
+    if column == 31 { CloseProperties(output, chunk) }
 }
 
 EmitTests :: (entries: []Entry, path: string) -> bool {
     output: Vec(u8)
-    BuilderAppend(output, "// Generated Unicode 17.0.0 case mappings and property boundaries.\n// Unicode License V3; see LICENSE-Unicode.\nU :: #import \"std/unicode\";\n")
-    count: s32
-    for mode: 0..2 {
-        for point: 0..cast(s32)1114111 {
-            value := entries[point].fold
-            name := "CaseFold"
-            if mode == 1 { value = entries[point].lower; name = "Lower" }
-            if mode == 2 { value = entries[point].title; name = "Capitalize" }
-            if value == "" { continue }
-            parts := TextSplit(value, " ")
-            if parts.count == 1 && Hex(parts[0]) == point { continue }
-            BeginCase(*output, count)
-            BuilderPrint(*output, "    if U.%(\"", name)
-            ScalarLiteral(*output, point)
-            BuilderAppend(output, "\") != \"")
-            for part: VecSlice(parts, 0, parts.count) { ScalarLiteral(*output, Hex(part)) }
-            BuilderAppend(output, "\" { return false }\n")
-            count += 1; EndCase(*output, count)
-        }
+    BuilderAppend(output, TestRuntime)
+    mappings: s32
+    for mode: 0..cast(s32)2 {
+        count := MappingTests(*output, entries, mode)
+        if count < 0 { return false }
+        mappings += count
     }
     // Probe both sides of every boundary, plus the interior endpoints. The
     // focused fixture covers underscore, invalid scalars and full contexts.
     point: s32
+    count: s32
     while point <= 1114111 {
         flags := entries[point].flags & 51
         end := point
@@ -259,15 +322,9 @@ EmitTests :: (entries: []Entry, path: string) -> bool {
         if end != point { PropertyCase(*output, end, flags, count); count += 1 }
         point = end + 1
     }
-    if count % 32 != 0 { BuilderAppend(output, "    return true\n}\n") }
-    BuilderAppend(output, "#program_export\nNativeMain :: () -> s32 {\n")
-    index: s32
-    while index < (count + 31) / 32 {
-        BuilderPrint(*output, "    if !Cases%() { return % }\n", index, index + 1)
-        index += 1
-    }
+    if count % 32 != 0 { CloseProperties(*output, count / 32) }
     BuilderAppend(output, "    return 0\n}\n")
-    print("Generated % Unicode conformance assertions\n", count)
+    print("Generated % Unicode conformance cases\n", mappings + count)
     return WriteEntireFile(path, BuilderFinish(output))
 }
 

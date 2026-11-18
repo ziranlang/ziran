@@ -49,7 +49,7 @@ known operand types; every concrete instance checks all scalar/pointer inputs,
 result fields, local bindings and its portable body. A type-dependent result
 must match the declared output constraints at each call. Aggregate inputs are
 rejected even when the current target would execute the portable body.
-Generic local blocks follow the same rules. <code>tests/generic_assembly.sh</code> checks
+Generic local blocks follow the same rules. <code>tests/generic_assembly_cases.zi</code> checks
 integer widths, floating-point copies, tied outputs, memory aliases, caller-owned
 record types and multiple results across native and portable targets.</p>
 <p>For example, a two-field record can use output constraints <code>"=a;=d"</code> to capture
@@ -1676,7 +1676,7 @@ streams, trailing bytes, damaged pages and anything longer than <code>max_frames
 records mirror the Xiph headers, and a guard after the decoder state is
 checked on every call. Only programs that import it link
 <code>-l:libvorbisfile.so.3</code> (or <code>-lvorbisfile</code> with the development package).
-<code>tests/vorbis_linux.sh</code> needs ffmpeg with libvorbis; with the Vorbis
+<code>tests/vorbis_cases.zi</code> needs ffmpeg with libvorbis; with the Vorbis
 development headers (or <code>VORBIS_INCLUDE</code>) it also compares the record sizes
 with the C compiler's. <code>VorbisDecoderOpen</code>/<code>VorbisDecoderOpenFile</code> support
 incremental float or PCM16 reads, exact frame seeks and owned comments.
@@ -1744,7 +1744,7 @@ bytes and the frame's window, rejects malformed/trailing data, and returns no
 partial bytes on failure. It accepts valid concatenated frames within the same
 total limit. Native C targets continue to use their transport's negotiated
 decoder; this Go module does not provide a portable bundle capability. Run
-<code>sh tests/zstd_go.sh build/bin/ziran</code> for source/saved-IR, race, independent
+<code>make CHECK_FILTER=zstd_go check</code> for source/saved-IR, race, independent
 libzstd interoperability and malformed/bounded-input verification.</p>
 <h3 id="binary-fields">Binary fields</h3>
 <p><code>std/binary.zi</code> reads little-endian numbers from byte text such as file or

@@ -181,7 +181,7 @@ Run:
 
 ```sh
 env -u DISPLAY -u WAYLAND_DISPLAY build-queue -- \
-    sh tests/lowered_exec.sh build/bin/ziran
+    make CHECK_FILTER=lowered_exec check
 ```
 
 The focused test reports:

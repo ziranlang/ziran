@@ -100,7 +100,7 @@ Python releases using a different Unicode database can differ for newly
 assigned or updated characters. UTF-8 strings contain scalars, so Python's
 isolated-surrogate string behavior is outside this API's input model.</p>
 <p>The canonical tables live in <code>std/unicode_data.zi</code>. Regenerate them and the
-unpacked expected-value corpus with the native Ziran generator:</p>
+expected-value corpus with the native Ziran generator:</p>
 <pre><code class="language-sh">build-queue -- build/bin/ziran run --target=c scripts/unicode_data.zi -- \
     build/unicode-ucd std/unicode_data.zi tests/spec/unicode_conformance.zi
 </code></pre>
@@ -135,25 +135,22 @@ NormalizationTest.txt     5019ffd530751a741900c849c0e010332f142a3612234639bd200b
 <a href="https://www.unicode.org/Public/17.0.0/ucd/NormalizationTest.txt">NormalizationTest</a>.
 The normalization suite tests its five NFC invariants for every row and
 identity normalization for every assigned scalar absent from Part 1, as
-required by UAX #15. Source and saved IR execute on C, Go and both portable
-bundle runners. Focused cases cover strict malformed UTF-8, empty/reused
+required by UAX #15. Source and saved IR execute on C, Go and the ZX
+instruction engine. Focused cases cover strict malformed UTF-8, empty/reused
 outputs, NUL, recursive/blocked composition, Hangul, lowercase context and
 the distinction between Python whitespace and Unicode White_Space.</p>
-<pre><code class="language-sh">build-queue -- sh tests/std_unicode_normalization.sh build/bin/ziran
+<pre><code class="language-sh">build-queue -- make CHECK_FILTER=unicode_cases check
 </code></pre>
-<p>Set <code>ZIRAN_UNICODE_UCD=build/unicode-ucd</code> to also regenerate and compare both
-normalization outputs byte for byte. Normal tests need no network access.</p>
-<pre><code class="language-sh">build-queue -- sh tests/std_unicode.sh build/bin/ziran
-build-queue -- sh tests/unicode_data.sh build/bin/ziran
+<p>Set <code>ZIRAN_UNICODE_UCD=build/unicode-ucd</code> to also regenerate and compare the
+case mapping and normalization tables and corpora byte for byte. Normal tests need no network access.</p>
+<pre><code class="language-sh">ZIRAN_UNICODE_UCD=build/unicode-ucd build-queue -- make CHECK_FILTER=unicode_cases check
 </code></pre>
 <p>The Unicode suite executes source and saved IR on native C, Go and bundles
 (<code>ziran run</code>), comparing source/saved bundles.
 It covers every changed fold/lower/title mapping and every word, space, decimal
 and printability range's endpoints (8,323 generated assertions), plus contextual
 sigma, combining and titlecase expansions, supplementary scalars, splitting, malformed UTF-8,
-embedded NUL and result lifetimes. The generator suite uses small official-format
-fixtures without downloads. With <code>ZIRAN_UNICODE_UCD=build/unicode-ucd</code>, it also
-regenerates both canonical outputs and compares them byte for byte.</p>
+embedded NUL and result lifetimes.</p>
 <p><code>std/utf8.DecodeReplace(source: []u8) -&gt; string</code> is a separate whole-input
 UTF-8 replacement decoder. It substitutes U+FFFD once per maximal valid prefix
 of an ill-formed sequence, as Python UTF-8 decoding with <code>errors='replace'</code>
@@ -163,10 +160,8 @@ replaced separately: <code>C0 AF</code> yields two replacements, <code>ED A0 80<
 <code>E0 80 80</code> yield three, and <code>F4 90 80 80</code> yields four. The immutable result
 has independent storage, is always valid UTF-8, and preserves valid scalars
 and embedded NUL. This does not alter the existing <code>Decode</code> or bounded <code>Copy</code>
-one-malformed-lead-byte contracts. Run <code>build-queue -- sh tests/std_utf8.sh
-build/bin/ziran</code> and <code>build-queue -- sh tests/utf8_copy_valid.sh
-build/bin/ziran</code> for the new replacement matrix and the original repair-copy
-regression suite.</p>
+one-malformed-lead-byte contracts. Run <code>build-queue -- make CHECK_FILTER=std_utf8 check</code> for the replacement
+and repair-copy cases.</p>
 <p>Mapping semantics follow <a href="https://www.unicode.org/Public/17.0.0/ucd/SpecialCasing.txt">Unicode SpecialCasing</a>
 and <a href="https://www.unicode.org/Public/17.0.0/ucd/CaseFolding.txt">CaseFolding</a>.
 The Python equivalents are documented in

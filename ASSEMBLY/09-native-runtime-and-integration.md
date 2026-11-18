@@ -122,7 +122,7 @@ Proposed modules: `cmd/compiler_native_load.zi`, `cmd/compiler_native_cache.zi`,
 
 ## Tests
 
-Extend [native run](../tests/native_run.sh), [portable entry](../tests/portable_entry.sh), [bundle providers](../tests/bundle_runtime_provider.sh), [cache tests](../tests/native_cache.sh), [object reuse](../tests/native_object_reuse_cases.zi), [build concurrency](../tests/native_cache_parallel.sh), [browser lifecycle](../tests/zx_web_lifecycle.sh), and [install tests](../tests/install_user.sh).
+Extend [native run](../tests/native_run.sh), [portable entry](../tests/portable_entry.sh), [bundle providers](../tests/bundle_provider_cases.zi), [cache tests](../tests/native_cache.sh), [object reuse](../tests/native_object_reuse_cases.zi), [build concurrency](../tests/native_cache_parallel.sh), [browser lifecycle](../tests/zx_web_lifecycle.sh), and [install tests](../tests/install_user_cases.zi).
 
 Add cold/warm cache correctness, interrupted writes, incompatible CPU cache reuse, stale runtime ABI, corrupted entries, load/unload races, nested host callbacks, parallel failure, and mutable-state separation. Test from stripped bundles with no C compiler available. Run independent native AOT and native ZX instances against the same fixture expectations.
 

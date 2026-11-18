@@ -114,7 +114,7 @@ assigned or updated characters. UTF-8 strings contain scalars, so Python's
 isolated-surrogate string behavior is outside this API's input model.
 
 The canonical tables live in `std/unicode_data.zi`. Regenerate them and the
-unpacked expected-value corpus with the native Ziran generator:
+expected-value corpus with the native Ziran generator:
 
 ```sh
 build-queue -- build/bin/ziran run --target=c scripts/unicode_data.zi -- \
@@ -163,21 +163,20 @@ The generated test corpus preserves all five UTF-8 columns of the primary
 [NormalizationTest](https://www.unicode.org/Public/17.0.0/ucd/NormalizationTest.txt).
 The normalization suite tests its five NFC invariants for every row and
 identity normalization for every assigned scalar absent from Part 1, as
-required by UAX #15. Source and saved IR execute on C, Go and both portable
-bundle runners. Focused cases cover strict malformed UTF-8, empty/reused
+required by UAX #15. Source and saved IR execute on C, Go and the ZX
+instruction engine. Focused cases cover strict malformed UTF-8, empty/reused
 outputs, NUL, recursive/blocked composition, Hangul, lowercase context and
 the distinction between Python whitespace and Unicode White_Space.
 
 ```sh
-build-queue -- sh tests/std_unicode_normalization.sh build/bin/ziran
+build-queue -- make CHECK_FILTER=unicode_cases check
 ```
 
-Set `ZIRAN_UNICODE_UCD=build/unicode-ucd` to also regenerate and compare both
-normalization outputs byte for byte. Normal tests need no network access.
+Set `ZIRAN_UNICODE_UCD=build/unicode-ucd` to also regenerate and compare the
+case mapping and normalization tables and corpora byte for byte. Normal tests need no network access.
 
 ```sh
-build-queue -- sh tests/std_unicode.sh build/bin/ziran
-build-queue -- sh tests/unicode_data.sh build/bin/ziran
+ZIRAN_UNICODE_UCD=build/unicode-ucd build-queue -- make CHECK_FILTER=unicode_cases check
 ```
 
 The Unicode suite executes source and saved IR on native C, Go and bundles
@@ -185,9 +184,7 @@ The Unicode suite executes source and saved IR on native C, Go and bundles
 It covers every changed fold/lower/title mapping and every word, space, decimal
 and printability range's endpoints (8,323 generated assertions), plus contextual
 sigma, combining and titlecase expansions, supplementary scalars, splitting, malformed UTF-8,
-embedded NUL and result lifetimes. The generator suite uses small official-format
-fixtures without downloads. With `ZIRAN_UNICODE_UCD=build/unicode-ucd`, it also
-regenerates both canonical outputs and compares them byte for byte.
+embedded NUL and result lifetimes.
 
 `std/utf8.DecodeReplace(source: []u8) -> string` is a separate whole-input
 UTF-8 replacement decoder. It substitutes U+FFFD once per maximal valid prefix
@@ -198,10 +195,8 @@ replaced separately: `C0 AF` yields two replacements, `ED A0 80` and
 `E0 80 80` yield three, and `F4 90 80 80` yields four. The immutable result
 has independent storage, is always valid UTF-8, and preserves valid scalars
 and embedded NUL. This does not alter the existing `Decode` or bounded `Copy`
-one-malformed-lead-byte contracts. Run `build-queue -- sh tests/std_utf8.sh
-build/bin/ziran` and `build-queue -- sh tests/utf8_copy_valid.sh
-build/bin/ziran` for the new replacement matrix and the original repair-copy
-regression suite.
+one-malformed-lead-byte contracts. Run `build-queue -- make CHECK_FILTER=std_utf8 check` for the replacement
+and repair-copy cases.
 
 Mapping semantics follow [Unicode SpecialCasing](https://www.unicode.org/Public/17.0.0/ucd/SpecialCasing.txt)
 and [CaseFolding](https://www.unicode.org/Public/17.0.0/ucd/CaseFolding.txt).

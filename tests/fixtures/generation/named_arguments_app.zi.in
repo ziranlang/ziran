@@ -1,0 +1,30 @@
+#import "lib"
+FROM_RUN :: #run Sum(second = 2, first = 40);
+#assert FROM_RUN == 42
+calls: s32;
+Step :: (value: s32) -> s32 {
+    calls += 1
+    return calls * 10 + value
+}
+Pack :: (first: s32, second: s32) -> s32 {
+    return first * 100 + second
+}
+Pair :: struct { value: s32; }
+Read :: (record: Pair, extra: s32) -> s32 {
+    return record.value + extra
+}
+Pick :: (first: $T, second: T) -> T { return first }
+Operation :: #type (first: s32, second: s32) -> s32;
+#program_export
+Answer :: () -> s32 {
+    ordered: s32 = Pack(second = Step(2), first = Step(1))
+    if ordered != 2112 || calls != 2 { return 0 }
+    one: s32 = 1
+    two: s32 = 2
+    if Pick(second = two, first = one) != 1 { return 0 }
+    operation: Operation = Pack
+    if operation(second = 2, first = 4) != 402 { return 0 }
+    if Read(extra = 2, record = Pair.{value = 40}) != 42 { return 0 }
+    if Sum(second = 2, first = 40) != FROM_RUN { return 0 }
+    return 42
+}

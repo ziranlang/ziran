@@ -1,4 +1,4 @@
-// Lowering features pinned by tests/zx_lowered_parity.sh: global procedure
+// Lowering features pinned by tests/zx_lowered_parity_cases.zi: global procedure
 // slots, typed null, slice element stores (scalar and record elements),
 // views of records, comparisons of unsigned values with literals, and an
 // untyped float literal compared with a float32, which takes the float32 type.

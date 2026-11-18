@@ -1,4 +1,4 @@
-// VecReserve on revision-28 ZX, pinned by tests/zx_lowered_parity.sh: it
+// VecReserve on revision-28 ZX, pinned by tests/zx_lowered_parity_cases.zi: it
 // grows to at least the requested capacity (how much more is the target's
 // choice), refuses a negative request, and reaches the vector through a
 // dereferenced pointer.

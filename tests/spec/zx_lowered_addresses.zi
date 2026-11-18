@@ -1,5 +1,5 @@
 // More calls and allocations than the portable interpreter's address table
-// has slots, pinned by tests/zx_lowered_parity.sh. A frame gives its
+// has slots, pinned by tests/zx_lowered_parity_cases.zi. A frame gives its
 // addresses back when it returns and a heap block when it is freed; without
 // that the 1,048,575th address ended the run.
 #import "vec"

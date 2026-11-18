@@ -1,4 +1,4 @@
-// Global initializers on revision-28 ZX, pinned by tests/zx_lowered_parity.sh:
+// Global initializers on revision-28 ZX, pinned by tests/zx_lowered_parity_cases.zi:
 // record, nested record, string, float and fixed-array literals are stored
 // by private initializers before any other code runs. An enum member named
 // through its type initializes a global. A move out of an owned global

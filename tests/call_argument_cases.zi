@@ -1,0 +1,324 @@
+#import "native_test"
+#import "check_support"
+#import "std/environment_linux"
+using Vectors :: #import "std/vec"
+
+CallFixture :: struct {
+    name: string
+    source: string
+    diagnostic: string
+}
+
+default_arguments_dependency :: #string FIXTURE_END
+#scope_export
+Other :: () -> s32 { return 43 }
+FIXTURE_END;
+
+default_arguments_containers :: #string FIXTURE_END
+Packet :: struct($T: Type) { value: T }
+FIXTURE_END;
+
+default_arguments_lib :: #string FIXTURE_END
+Dependency :: #import "dependency";
+Containers :: #import "containers";
+#scope_file
+Base :: () -> s32 { return 40 }
+#scope_export
+Offset :: (base: s32 = Base(), extra: s32) -> s32 {
+    return base + extra
+}
+InferredFromPrivate :: (value := Base()) -> s32 { return value }
+COUNT :: 42;
+ChooseScoped :: (first: $T, second: T = Base()) -> T {
+    return first + second
+}
+Box :: struct { value: s32 }
+ChooseRecord :: (first: $T, second: T = T.{value = 40}) -> T {
+    return second
+}
+ChooseInferredRecord :: (first: $T, second: T = .{value = 41}) -> T {
+    return second
+}
+ChooseRecordScoped :: (first: $T, second: T = T.{value = Base()}) -> T {
+    return second
+}
+PairBox :: struct {
+    first: s32
+    second: s32
+}
+ChoosePairScoped :: (first: $T,
+                     second: T = T.{first = Base(), second = Base() + 2}) -> T {
+    return second
+}
+ChooseImported :: (first: $T,
+                   second: T = T.{value = Dependency.Other()}) -> T {
+    return second
+}
+ProcedureName :: () -> string { return #procedure_name() }
+DefaultName :: (name: string = #procedure_name()) -> string {
+    return name
+}
+ChooseName :: (first: $T, name: string = #procedure_name()) -> string {
+    return name
+}
+GenericBodyName :: (first: $T) -> string {
+    return #procedure_name()
+}
+ImportedRecordDefault :: (packet: *Containers.Packet(s32),
+                          extra: s32 = Base()) -> s32 {
+    return packet.value + extra
+}
+NestedRecordDefault :: (packet: *Containers.Packet(Containers.Packet(s32)),
+                        extra: s32 = 2) -> s32 {
+    return packet.value.value + extra
+}
+ConstructedRecordDefault :: (packet: Containers.Packet(s32) =
+                             Containers.Packet(s32).{value = Base()}) -> s32 {
+    return packet.value
+}
+FIXTURE_END;
+
+default_arguments_missing :: #string FIXTURE_END
+Required :: (optional: s32 = 1, required: s32) -> s32 {
+    return optional + required
+}
+Answer :: () -> s32 { return Required() }
+FIXTURE_END;
+
+default_arguments_procedure_name_outside :: #string FIXTURE_END
+NAME :: #procedure_name();
+FIXTURE_END;
+
+default_arguments_invalid_default :: #string FIXTURE_END
+Broken :: (value: s32 = Missing()) -> s32 { return value }
+Answer :: () -> s32 { return Broken(42) }
+FIXTURE_END;
+
+default_arguments_unknown_inferred_type :: #string FIXTURE_END
+Broken :: (value := null) -> s32 { return 0 }
+FIXTURE_END;
+
+default_arguments_missing_in_inferred_default :: #string FIXTURE_END
+Broken :: (value := Required()) -> s32 { return value }
+Required :: (value: s32) -> s32 { return value }
+FIXTURE_END;
+
+named_arguments_lib :: #string FIXTURE_END
+Sum :: (first: s32, second: s32) -> s32 { return first + second }
+FIXTURE_END;
+
+named_arguments_unknown :: #string FIXTURE_END
+Pack :: (first: s32, second: s32) -> s32 { return first + second }
+Answer :: () -> s32 { return Pack(unknown = 1, second = 2) }
+FIXTURE_END;
+
+named_arguments_duplicate :: #string FIXTURE_END
+Pack :: (first: s32, second: s32) -> s32 { return first + second }
+Answer :: () -> s32 { return Pack(first = 1, first = 2) }
+FIXTURE_END;
+
+caller_location_lib :: #string FIXTURE_END
+Captured :: (loc := #caller_location) -> Source_Code_Location {
+    return loc
+}
+Typed :: (loc: Source_Code_Location = #caller_location) -> Source_Code_Location {
+    return loc
+}
+Generic :: (value: $T, loc := #caller_location) -> s64 {
+    return loc.line_number
+}
+Nested :: () -> s64 {
+    return Captured().line_number
+}
+FIXTURE_END;
+
+caller_location_extra :: #string FIXTURE_END
+Loaded :: () -> bool {
+    if Captured().line_number != #line { return false }
+    if Captured().fully_pathed_filename != #file { return false }
+    return true
+}
+FIXTURE_END;
+
+caller_location_app :: #string FIXTURE_END
+#import "lib"
+Library :: #import "lib";
+#load "extra.zi";
+CompileLine :: #run Library.Captured().line_number;
+#assert CompileLine == 4;
+#assert Library.Captured().line_number == 6;
+CompileFile :: #run Library.Captured().fully_pathed_filename;
+#assert CompileFile == #file;
+NestedLine :: #run Library.Nested();
+#assert NestedLine == 11;
+#if Library.Captured().line_number == 11 {
+CompileFlag :: 1;
+} else {
+CompileFlag :: 0;
+}
+#assert CompileFlag == 1;
+Manual :: #run Library.Captured(
+    loc = Source_Code_Location.{.fully_pathed_filename = "manual",
+                                  .line_number = 77}).line_number;
+#assert Manual == 77;
+Local :: (loc := #caller_location) -> s64 {
+    return loc.line_number
+}
+#if Local() == 24 {
+LocalFlag :: 1;
+} else {
+LocalFlag :: 0;
+}
+#assert LocalFlag == 1;
+#program_export
+Answer :: () -> s32 {
+    if Captured().line_number != #line { return 0 }
+    if Captured().fully_pathed_filename != #file { return 0 }
+    if Typed().line_number != #line { return 0 }
+    if Library.Captured().line_number != #line { return 0 }
+    value: s32 = 42
+    if Generic(value) != #line { return 0 }
+    if !Loaded() { return 0 }
+    provided := Source_Code_Location.{.fully_pathed_filename = "manual",
+                                      .line_number = 77}
+    if Captured(loc = provided).line_number != 77 { return 0 }
+    if Captured(loc = provided).fully_pathed_filename != "manual" { return 0 }
+    continued: bool =
+        Captured().line_number == #line
+    if !continued { return 0 }
+    return 42
+}
+FIXTURE_END;
+
+caller_location_direct :: #string FIXTURE_END
+Answer :: () -> Source_Code_Location { return #caller_location }
+FIXTURE_END;
+
+caller_location_file_scope :: #string FIXTURE_END
+HERE :: #caller_location;
+FIXTURE_END;
+
+caller_location_wrong_type :: #string FIXTURE_END
+Bad :: (loc: s32 = #caller_location) -> s32 { return loc }
+FIXTURE_END;
+
+caller_location_shadow_type :: #string FIXTURE_END
+Source_Code_Location :: struct { value: s32; }
+FIXTURE_END;
+
+CheckCallNative :: (test: *NativeTest, root: string, input: string, work: string) -> bool {
+    c := CheckPath(work, "c")
+    c_build := string.[test.ziran, "build", "--target=c", "--root", root, "-o", c, input]
+    unused NativeRun(test, c_build[:])
+    driver := CheckPath(c, "main.c")
+    if !NativeWrite(test, driver, "#include \"app.h\"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n") { return false }
+    executable := CheckPath(c, "app")
+    compiler := EnvironmentText("CC")
+    if compiler == "" { compiler = "cc" }
+    compile: Vec(string)
+    if !NativeAssert(test, NativeWords(compiler, *compile), "invalid C compiler command") { return false }
+    flags := string.["-std=c11", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", c), "-o", executable]
+    for flag: flags { VecPush(compile, flag) }
+    c_files := NativeFiles(c, ".c")
+    for file: c_files { VecPush(compile, file) }
+    unused NativeRun(test, compile[:])
+    run := string.[executable]
+    unused NativeRun(test, run[:])
+
+    go := CheckPath(work, "go")
+    go_build := string.[test.ziran, "build", "--target=go", "--pkg", "main", "--root", root, "-o", go, input]
+    unused NativeRun(test, go_build[:])
+    if !NativeWrite(test, CheckPath(go, "main.go"), "package main\nfunc main() { if App_Answer() != 42 { panic(\"call arguments\") } }\n") { return false }
+    go_run := string.["env", "GO111MODULE=off", "go", "run"]
+    command: Vec(string)
+    for argument: go_run { VecPush(command, argument) }
+    go_files := NativeFiles(go, ".go")
+    for file: go_files { VecPush(command, file) }
+    unused NativeRun(test, command[:])
+    return !test.failed
+}
+
+CheckCallCase :: (test: *NativeTest, name: string, fixtures: []CallFixture) -> bool {
+    work := CheckPath(test.work, name)
+    for fixture: fixtures {
+        if fixture.diagnostic != "" { continue }
+        source := fixture.source
+        if fixture.name == "app.zi" && source == "" {
+            fixtures_root := CheckPath(test.repo, "tests/fixtures/generation")
+            source = NativeRead(test, CheckPath(fixtures_root, CheckConcat(name, "_app.zi.in")))
+        }
+        if !NativeAssert(test, source != "", CheckConcat("empty call fixture: ", fixture.name)) ||
+            !NativeWrite(test, CheckPath(work, fixture.name), source) { return false }
+    }
+    source := CheckPath(work, "app.zi")
+    ir := CheckPath(work, "ir")
+    check := string.[test.ziran, "check", "--root", work, source]
+    save := string.[test.ziran, "ir", "--root", work, "-o", ir, source]
+    unused NativeRun(test, check[:])
+    unused NativeRun(test, save[:])
+    roots := string.[work, ir]
+    inputs := string.[source, CheckPath(ir, "app.zir")]
+    forms := string.["source", "saved"]
+    bundles := string.[CheckPath(work, "source.zx"), CheckPath(work, "saved.zx")]
+    for form: 0..1 {
+        bundle := string.[test.ziran, "bundle", "--root", roots[form], "--entry", "app:Answer", "-o", bundles[form], inputs[form]]
+        unused NativeRun(test, bundle[:])
+        if test.failed || !CheckCallNative(test, roots[form], inputs[form], CheckPath(work, forms[form])) { return false }
+    }
+    if !NativeAssert(test, NativeSameFile(bundles[0], bundles[1]), "call arguments: source and saved IR bundles differ") { return false }
+    run := string.[test.ziran, "run", bundles[0]]
+    if !NativeExpect(test, run[:], "42\n") { return false }
+    for fixture: fixtures {
+        if fixture.diagnostic == "" { continue }
+        source := CheckPath(work, fixture.name)
+        if !NativeWrite(test, source, fixture.source) { return false }
+        reject := string.[test.ziran, "check", "--root", work, source]
+        if !NativeReject(test, reject[:], fixture.diagnostic) { return false }
+    }
+    return true
+}
+
+CallCase :: struct { name: string; fixtures: []CallFixture }
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "call-arguments-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    default_arguments_fixtures := CallFixture.[
+        .{"dependency.zi", default_arguments_dependency, ""},
+        .{"containers.zi", default_arguments_containers, ""},
+        .{"lib.zi", default_arguments_lib, ""},
+        .{"app.zi", "", ""},
+        .{"missing.zi", default_arguments_missing, "argument count mismatch"},
+        .{"procedure_name_outside.zi", default_arguments_procedure_name_outside, "#procedure_name() requires a procedure scope"},
+        .{"invalid_default.zi", default_arguments_invalid_default, "unresolved function: Missing"},
+        .{"unknown_inferred_type.zi", default_arguments_unknown_inferred_type, "cannot infer default parameter type: value"},
+        .{"missing_in_inferred_default.zi", default_arguments_missing_in_inferred_default, "argument count mismatch: Required"},
+    ]
+    named_arguments_fixtures := CallFixture.[
+        .{"lib.zi", named_arguments_lib, ""},
+        .{"app.zi", "", ""},
+        .{"unknown.zi", named_arguments_unknown, "unknown named argument: unknown"},
+        .{"duplicate.zi", named_arguments_duplicate, "duplicate call argument: first"},
+    ]
+    caller_location_fixtures := CallFixture.[
+        .{"lib.zi", caller_location_lib, ""},
+        .{"extra.zi", caller_location_extra, ""},
+        .{"app.zi", caller_location_app, ""},
+        .{"direct.zi", caller_location_direct, "#caller_location is only valid as a parameter default"},
+        .{"file_scope.zi", caller_location_file_scope, "#caller_location is only valid as a parameter default"},
+        .{"wrong_type.zi", caller_location_wrong_type, "#caller_location requires a Source_Code_Location parameter"},
+        .{"shadow_type.zi", caller_location_shadow_type, "built-in type cannot be redeclared"},
+    ]
+    cases := CallCase.[
+        .{"default_arguments", default_arguments_fixtures[:]},
+        .{"named_arguments", named_arguments_fixtures[:]},
+        .{"caller_location", caller_location_fixtures[:]},
+    ]
+    for item: cases {
+        print("Checking % on source and saved IR\n", item.name)
+        if !CheckCallCase(*test, item.name, item.fixtures) { return 1 }
+    }
+    return 0
+}

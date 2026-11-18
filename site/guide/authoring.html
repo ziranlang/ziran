@@ -21,7 +21,7 @@
 <pre><code class="language-sh">build-queue -- sh tests/zir_api.sh build/bin/ziran
 build-queue -- sh tests/semantic_edit.sh build/bin/ziran
 build-queue -- sh tests/transport_view.sh build/bin/ziran
-build-queue -- sh tests/tool_diagnostics.sh build/bin/ziran
+build-queue -- make CHECK_FILTER=tool_diagnostics check
 </code></pre>
 <p>API, diagnostic, edit and transport commands share canonical <code>.zi</code> source and
 the same checker. Apply exact edits only against their recorded document hash

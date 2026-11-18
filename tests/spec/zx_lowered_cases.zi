@@ -1,4 +1,4 @@
-// Integer case lists on revision-28 ZX, pinned by tests/zx_lowered_parity.sh.
+// Integer case lists on revision-28 ZX, pinned by tests/zx_lowered_parity_cases.zi.
 // A list of eight or more values lowers to a binary search over the values;
 // a value that matches no case runs none of the arms.
 Name :: (value: s32) -> s32 {

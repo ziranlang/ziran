@@ -1,4 +1,4 @@
-// Fields promoted by `using`, pinned by tests/zx_lowered_parity.sh: reads,
+// Fields promoted by `using`, pinned by tests/zx_lowered_parity_cases.zi: reads,
 // stores and compound assignment through a value, a pointer and a `using`
 // binding reach the field through each record on its path.
 Point :: struct { x: s64; y: s64 }

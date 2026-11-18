@@ -50,7 +50,7 @@ Proposed modules: `cmd/compiler_lower.zi`, `cmd/compiler_lower_expr.zi`, `cmd/co
 
 ## Tests
 
-Create lowering fixtures in Ziran and reuse current behavior tests, including [numeric semantics](../tests/numeric_semantics.sh), [operand order](../tests/spec/native_operand_order_test.zi), [parallel captures](../tests/parallel_captures.sh), [generic assembly](../tests/generic_assembly.sh), and [saved-IR mutations](../tests/saved_ir_mutations.zi).
+Create lowering fixtures in Ziran and reuse current behavior tests, including [numeric semantics](../tests/numeric_semantics.sh), [operand order](../tests/spec/native_operand_order_test.zi), [parallel captures](../tests/parallel_captures.sh), [generic assembly](../tests/generic_assembly_cases.zi), and [saved-IR mutations](../tests/saved_ir_mutations.zi).
 
 For each matrix feature, compile from `.zi` and saved `.zir`; compare verified lowered structure, outputs, traps, observable host calls, and cleanup effects against the existing supported execution paths. Add independent expected-result oracles for numeric boundaries and aliasing cases rather than relying only on agreement between backends sharing helper code.
 

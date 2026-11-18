@@ -310,13 +310,13 @@ close the full upgrade's feature or validation gates.
 ```sh
 env -u DISPLAY -u WAYLAND_DISPLAY build-queue -- sh -eu <<'SH'
 make assembly JOBS=2
-sh tests/direct_assembly.sh build/bin/ziran
-sh tests/compiler_lowered_verify.sh build/bin/ziran
+make CHECK_FILTER=direct_assembly check
+make CHECK_FILTER=compiler_lowered_verify check
 sh tests/lowered_serial.sh build/bin/ziran
-sh tests/lowered_exec.sh build/bin/ziran
+make CHECK_FILTER=lowered_exec check
 sh tests/compiler_opt.sh build/bin/ziran
 sh tests/machine_elf.sh build/bin/ziran
-sh tests/assembly_compare.sh build/bin/ziran
+make CHECK_FILTER=assembly_compare check
 make check check-bootstrap JOBS=2 CHECK_JOBS=2
 SH
 ```

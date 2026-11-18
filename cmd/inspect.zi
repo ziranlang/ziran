@@ -1,0 +1,293 @@
+// The standalone saved-IR listing and hex dump used by `ziran inspect`.
+IR :: #import "compiler_ir"
+
+#scope_file
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+Printf :: (format: *u8, args: ..any) -> s32 #foreign libc "printf";
+PutChar :: (byte: s32) -> s32 #foreign libc "putchar";
+Find :: (text: *u8, needle: *u8) -> *u8 #foreign libc "strstr";
+Free :: (memory: *void) #foreign libc "free";
+Open :: (path: *u8, mode: *u8) -> *void #foreign libc "fopen";
+Close :: (file: *void) -> s32 #foreign libc "fclose";
+Read :: (data: *void, size: usize, count: usize, file: *void) -> usize #foreign libc "fread";
+FileError :: (file: *void) -> s32 #foreign libc "ferror";
+RewindIR :: (file: *void) -> s32 #foreign compiler "ZiranInspectRewind";
+IOError :: () -> *u8 #foreign compiler "ZiranInspectIOError";
+OutputError :: () -> s32 #foreign compiler "ZiranInspectOutputError";
+ReadProgram :: (file: *void, path: *u8) -> *IR.ZirProgram #foreign compiler "ProgramRead";
+FreeProgram :: (program: *IR.ZirProgram) #foreign compiler "ProgramFree";
+PathIsIR :: (path: *u8) -> s32 #foreign compiler "PathIsIR";
+ExpressionOwners :: (function: *IR.ZirFunction) -> *s32 #foreign compiler "ExpressionOwners";
+ExprKindName :: (kind: IR.ZirExprKind) -> *u8 #foreign compiler "ExprKindName";
+StmtKindName :: (kind: IR.ZirStmtKind) -> *u8 #foreign compiler "StmtKindName";
+Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+SetFormatFromArguments :: (argc: s32, argv: **u8) #foreign compiler "SetDiagnosticFormatFromArguments";
+SetFormat :: (format: *u8) -> s32 #foreign compiler "SetDiagnosticFormat";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, args: ..any) #foreign compiler "Diagnostic";
+
+TextDescriptor :: struct { data: *u8; length: usize }
+// The callers use literal-backed strings, whose storage includes the NUL.
+CStr :: (text: string) -> *u8 { return (cast(*TextDescriptor)(*text)).data }
+Put :: (text: string) { Printf(CStr("%s"), CStr(text)) }
+Nonempty :: (text: *u8) -> bool { return text != null && text[0] != 0 }
+VoidIfEmpty :: (text: *u8) -> *u8 { return ifx Nonempty(text) then text else CStr("void") }
+
+// In statement comments, preserve source bytes except control characters.
+Escaped :: (text: *u8, quote: bool) {
+    if quote { PutChar(#char "\"") }
+    at: usize = 0
+    while text[at] != 0 {
+        byte := cast(s32)text[at]
+        if quote && (byte == #char "\"" || byte == #char "\\") {
+            PutChar(#char "\\")
+            PutChar(byte)
+        } else if byte == #char "\n" { Put("\\n") }
+        else if byte == #char "\r" { Put("\\r") }
+        else if byte == #char "\t" { Put("\\t") }
+        else if byte < 32 || byte == 127 || (quote && byte > 127) {
+            Printf(CStr("\\x%02x"), cast(u32)byte)
+        } else { PutChar(byte) }
+        at += 1
+    }
+    if quote { PutChar(#char "\"") }
+}
+
+// An expression's text can already appear in its statement or a shared one.
+TextInStatement :: (function: *IR.ZirFunction, owners: *s32, index: s32) -> bool {
+    text := function.exprs[index].text
+    if !Nonempty(text) { return true }
+    if owners != null && owners[index] >= 0 {
+        statement := function.stmts[owners[index]].text
+        if statement != null && Find(statement, text) != null { return true }
+    }
+    for at: 0..function.stmt_count - 1 {
+        statement := function.stmts[at].text
+        if statement != null && Find(statement, text) != null { return true }
+    }
+    return false
+}
+
+Link :: (label: string, index: s32) {
+    if index >= 0 { Printf(CStr(" %s=%%%d"), CStr(label), index) }
+}
+
+Attribute :: (label: string, value: *u8) {
+    if Nonempty(value) { Printf(CStr(" %s=%s"), CStr(label), value) }
+}
+
+ShowCall :: (function: *IR.ZirFunction, expr: *IR.ZirExpr) {
+    if Nonempty(expr.name) { Printf(CStr(" %s("), expr.name) }
+    else if expr.left >= 0 { Printf(CStr(" %%%d("), expr.left) }
+    else { Put(" (") }
+    child := expr.first_child
+    guard: s32 = 0
+    while child >= 0 && child < function.expr_count && guard < function.expr_count {
+        if guard != 0 { Put(", ") }
+        argument := *function.exprs[child]
+        if Nonempty(argument.argument_name) { Printf(CStr("%s="), argument.argument_name) }
+        Printf(CStr("%%%d"), child)
+        child = argument.next_sibling
+        guard += 1
+    }
+    Printf(CStr(") -> %s"), VoidIfEmpty(expr.type))
+}
+
+ShowExpression :: (function: *IR.ZirFunction, owners: *s32, index: s32) {
+    expr := *function.exprs[index]
+    Printf(CStr("    %%%d %s"), index, ExprKindName(expr.kind))
+    literal := expr.kind == .INT || expr.kind == .FLOAT || expr.kind == .STRING
+    if literal {
+        Printf(CStr(" %s"), expr.text)
+        if Nonempty(expr.type) && IR.CText(expr.type) != "string" { Printf(CStr(" -> %s"), expr.type) }
+    } else if expr.kind == .CALL {
+        ShowCall(function, expr)
+    } else {
+        Attribute("type", expr.type)
+        Attribute("name", expr.name)
+        Attribute("op", *expr.op[0])
+        Link("left", expr.left)
+        Link("right", expr.right)
+        Link("child", expr.first_child)
+    }
+    Link("next", expr.next_sibling)
+    if !literal && expr.kind != .CALL { Link("third", expr.third) }
+    if !literal && !TextInStatement(function, owners, index) {
+        Put(" text=")
+        Escaped(expr.text, true)
+    }
+    PutChar(#char "\n")
+}
+
+Location :: (span: IR.ZirSourceSpan, suffix: string) {
+    path := SpanPath(span)
+    if Nonempty(path) { Printf(CStr(" @ %s:%d:%d"), path, span.line, span.column) }
+    Put(suffix)
+}
+
+ShowFunction :: (function: *IR.ZirFunction) {
+    args := ifx function.args_text != null then function.args_text else CStr("")
+    Printf(CStr("  function %s(%s) -> %s"), *function.name[0], args, VoidIfEmpty(*function.return_type[0]))
+    if function.exported != 0 { Put(" export") }
+    if function.is_extern != 0 { Put(" foreign") }
+    Location(function.span, "\n")
+    for at: 0..function.stmt_count - 1 {
+        statement := *function.stmts[at]
+        Printf(CStr("    stmt %d %s"), cast(s32)at, StmtKindName(statement.kind))
+        Attribute("name", statement.name)
+        Attribute("type", statement.type)
+        Link("expr", statement.expr_root)
+        Link("lhs", statement.lhs_root)
+        if statement.loop_id != 0 { Printf(CStr(" loop=%d"), statement.loop_id) }
+        if statement.target_id != 0 { Printf(CStr(" target=%d"), statement.target_id) }
+        if statement.is_else != 0 { Put(" else") }
+        if Nonempty(statement.text) {
+            Put("  // ")
+            Escaped(statement.text, false)
+        }
+        PutChar(#char "\n")
+    }
+    owners := ExpressionOwners(function)
+    defer Free(cast(*void)owners)
+    for index: 0..function.expr_count - 1 { ShowExpression(function, owners, cast(s32)index) }
+}
+
+ShowModule :: (module: *IR.ZirModule) {
+    Printf(CStr("module %s from %s\n"), *module.name[0], *module.source_path[0])
+    for at: 0..module.import_count - 1 {
+        item := *module.imports[at]
+        kind := "open"
+        if item.kind == .EXTERN { kind = "foreign" }
+        else if item.kind == .MODULE { kind = "module" }
+        Printf(CStr("  import %s %s"), CStr(kind), *item.name[0])
+        if item.target[0] != 0 { Printf(CStr(" -> %s"), *item.target[0]) }
+        if item.extern_symbol[0] != 0 { Printf(CStr(" symbol %s"), *item.extern_symbol[0]) }
+        if Nonempty(item.parameters) {
+            Put(" parameters ")
+            Escaped(item.parameters, true)
+        }
+        Location(item.span, "\n")
+    }
+    for at: 0..module.parameter_count - 1 {
+        item := *module.parameters[at]
+        Printf(CStr("  parameter %s: %s = "), *item.name[0], *item.type[0])
+        Escaped(item.value, true)
+        Put(" default ")
+        Escaped(item.default_value, true)
+        Location(item.span, "\n")
+    }
+    for at: 0..module.define_count - 1 {
+        item := *module.defines[at]
+        Printf(CStr("  constant %s = "), *item.name[0])
+        Escaped(item.value, true)
+        Location(item.span, "\n")
+    }
+    for at: 0..module.global_count - 1 {
+        item := *module.globals[at]
+        Printf(CStr("  global %s: %s"), *item.name[0], *item.type[0])
+        if Nonempty(item.init) {
+            Put(" = ")
+            Escaped(item.init, true)
+        }
+        Location(item.span, "\n")
+    }
+    for at: 0..module.type_count - 1 {
+        item := *module.types[at]
+        Printf(CStr("  type %s"), *item.name[0])
+        if item.is_enum != 0 { Put(" enum") }
+        if item.is_record_template != 0 { Put(" template") }
+        if item.is_procedure_type != 0 { Put(" procedure") }
+        Location(item.span, " = ")
+        Escaped(*item.body[0], true)
+        PutChar(#char "\n")
+    }
+    for at: 0..module.function_count - 1 { ShowFunction(*module.functions[at]) }
+}
+
+ShowHex :: (file: *void) -> bool {
+    if RewindIR(file) != 0 { return false }
+    bytes: [16]u8
+    offset: usize = 0
+    while true {
+        count := Read(cast(*void)(*bytes[0]), 1, 16, file)
+        if count == 0 { break }
+        Printf(CStr("%08zx  "), offset)
+        for at: 0..15 {
+            if cast(usize)at < count { Printf(CStr("%02x "), cast(u32)bytes[at]) }
+            else { Put("   ") }
+            if at == 7 { PutChar(#char " ") }
+        }
+        Put(" |")
+        for at: 0..cast(s64)count - 1 {
+            byte := cast(s32)bytes[at]
+            PutChar(ifx byte >= 32 && byte < 127 then byte else #char ".")
+        }
+        Put("|\n")
+        offset += count
+    }
+    return FileError(file) == 0
+}
+
+InspectFile :: (path: *u8, hex: bool) -> s32 {
+    text := IR.CText(path)
+    length := cast(s64)text.count
+    if length > 3 && text[length - 3:length] == ".zx" {
+        Diagnostic(Span(path, 0, 0), CStr("zir.input"),
+                   CStr("a .zx file holds instructions; list them with zi2zx --emit lir"))
+        return 2
+    }
+    if PathIsIR(path) == 0 {
+        Diagnostic(Span(path, 0, 0), CStr("zir.input"), CStr("expected a .zir file: %s"), path)
+        return 2
+    }
+    file := Open(path, CStr("rb"))
+    if file == null {
+        detail := IOError()
+        Diagnostic(Span(path, 0, 0), CStr("zir.input"), CStr("cannot open %s: %s"), path, detail)
+        return 1
+    }
+    defer Close(file)
+    program := ReadProgram(file, path)
+    if program == null { return 1 }
+    defer FreeProgram(program)
+    Printf(CStr("file %s\n"), path)
+    if hex {
+        if !ShowHex(file) {
+            detail := IOError()
+            Diagnostic(Span(path, 0, 0), CStr("zir.input"), CStr("cannot read %s: %s"), path, detail)
+            return 1
+        }
+    } else {
+        for at: 0..program.module_count - 1 { ShowModule(*program.modules[at]) }
+    }
+    return 0
+}
+
+#scope_export
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    SetFormatFromArguments(argc, argv)
+    no_source: IR.ZirSourceSpan
+    hex := false
+    first: s32 = 1
+    while first < argc && argv[first][0] == #char "-" {
+        option := IR.CText(argv[first])
+        if option == "--hex" { hex = true }
+        else if option.count < 14 || option[0:14] != "--diagnostics=" || SetFormat(*argv[first][14]) == 0 {
+            Diagnostic(no_source, CStr("command.arguments"), CStr("unknown inspect option: %s"), argv[first])
+            return 2
+        }
+        first += 1
+    }
+    if first == argc {
+        Diagnostic(no_source, CStr("command.arguments"),
+                   CStr("usage: ziran inspect [--hex] [--diagnostics=text|json] file.zir ..."))
+        return 2
+    }
+    for at: first..argc - 1 {
+        status := InspectFile(argv[at], hex)
+        if status != 0 { return status }
+    }
+    return ifx OutputError() != 0 then 1 else 0
+}

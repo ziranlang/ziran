@@ -7,8 +7,14 @@
 #include "zir_diagnostic.h"
 #include "zir_memory.h"
 
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* Native stdio details used by the saved-IR inspector. */
+int ZiranInspectRewind(FILE *file) { return fseek(file, 0, SEEK_SET); }
+const char *ZiranInspectIOError(void) { return strerror(errno); }
+int ZiranInspectOutputError(void) { return ferror(stdout); }
 
 static char *
 terminated(String text)

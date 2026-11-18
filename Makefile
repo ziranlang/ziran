@@ -378,7 +378,7 @@ $(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY) $(NATIVE_NAME
 
 $(call obj,cmd/zi2c/main.c): $(BACKEND_PROCESS_READY)
 $(call obj,cmd/zir/zir.c): $(TYPE_READY)
-$(call obj,cmd/zir/zir_serial.c cmd/zir-inspect/main.c): $(PARSE_READY)
+$(call obj,cmd/zir/zir_serial.c): $(PARSE_READY)
 $(SCANNER_OBJECT): $(SCANNER_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SCANNER_C)/compiler_scan.c
@@ -615,8 +615,10 @@ $(BIN_DIR)/zi2zir: $(call obj,cmd/zi2zir/main.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJ
 $(BIN_DIR)/zi-api: $(call obj,cmd/zir-api/main.c) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
-$(BIN_DIR)/zi-inspect: $(call obj,cmd/zir-inspect/main.c) $(FRONTEND_OBJECTS) $(BUNDLE_OBJECT) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+INSPECT_C := $(BUILD_DIR)/inspect-c
+$(BIN_DIR)/zi-inspect: cmd/inspect.zi cmd/compiler_ir.zi $(BIN_DIR)/zi2c $(FRONTEND_OBJECTS) $(BUNDLE_OBJECT) | $(BIN_DIR)
+	$(BIN_DIR)/zi2c --entry inspect:main $(ZIRAN_DEFINES) --root cmd -o $(INSPECT_C) cmd/inspect.zi
+	$(NICE) $(CC) $(CFLAGS) -I$(INSPECT_C) -o $@ $(INSPECT_C)/inspect.c $(FRONTEND_OBJECTS) $(BUNDLE_OBJECT) -lm
 
 RUNTIME_HEADERS := include/zir_bounds.h include/zir_string_types.h include/zir_string.h include/zir_slice.h \
     include/zir_vec.h include/ziran_parallel.h include/ziran_simd.h \

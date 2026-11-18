@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- ZX reads the length of a local fixed array without loading its elements. Iterating an address-backed array no longer copies it at every loop condition.
 - The ZX optimizer specializes direct calls that pass a literal Boolean controlling a loop branch. Spectral-norm took 19.9% less time across 11 matched rounds on Alpha, with identical output.
 - Native x86-64 multiplies by 31 with a shift and subtract. FASTA ran faster in 17 of 18 matched rounds on Alpha, with a median paired gain of 0.7% in the original 11-workload suite.
 - Native x86-64 divides a signed product known to be even by two with one arithmetic shift. Spectral-norm takes 24.2% less time on Alpha at the diagnostic size, with identical output.

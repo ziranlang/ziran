@@ -1,0 +1,16 @@
+calls: s32;
+
+Make :: () -> [3]s32 {
+    calls += 1
+    return s32.[19, 20, 2]
+}
+
+Answer :: () -> s32 {
+    values: [3]s32 = .[19, 20, 2]
+    unused values.data
+    sum: s32
+    for value: values { sum += value }
+    count := Make().count
+    if count != 3 || calls != 1 { return 1 }
+    return sum + 1
+}

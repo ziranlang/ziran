@@ -60,8 +60,9 @@ the host call, `calloc` and block list on every `New` and `free`.
 
 The expanded Alpha cohort measured **k-nucleotide** at 1,971 µs in C,
 71,099 µs in native and 46,958 µs in Wasm. The native profile puts 999 of
-1,062 samples in a 128 KiB copy loop. Check whether iteration over
-`KNucleotide`'s `counts: [16384]s64` materializes a fresh copy on each pass.
+1,062 samples in a 128 KiB copy loop. The loop condition loaded
+`KNucleotide`'s entire `counts: [16384]s64` before folding `.count` to a
+constant. The body already loaded just the indexed element.
 
 ## Exact division by two on Alpha
 
@@ -115,6 +116,25 @@ the C digest. [Raw samples](../bench/results/standard/native-bool-specialization
 Spectral-norm improved in all 18 rounds. In the seven-round cohort the
 other paired medians ranged from −1.15% to +1.84%. Fib and binary-trees
 had the largest increases at +1.84% and +1.46%, respectively.
+
+## Fixed-array count on Alpha
+
+ZX lowering now folds the count of a plain local fixed array before
+emitting a load. Receiver expressions that can perform work, such as
+calls returning arrays, still evaluate. The k-nucleotide source and
+input stayed the same.
+
+| Runner | Before (ms) | After (ms) | Median paired change |
+| --- | ---: | ---: | ---: |
+| C (`cc -O2`) | 1.948 | 1.948 | |
+| Native ZX | 65.623 | 3.216 | −95.14% |
+| Wasm | 45.084 | 3.779 | −91.35% |
+
+Both ZX variants improved in all 11 matched k-nucleotide rounds. The
+five other workloads had paired changes from −1.85% to +1.85%.
+All 29 suite probes matched C in Go, native and Wasm, and every timed
+invocation matched the C digest.
+[Raw samples and exclusions](../bench/results/standard/fixed-array-count-alpha.json).
 
 ## Every in-process native function
 

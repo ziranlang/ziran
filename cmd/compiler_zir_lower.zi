@@ -2057,6 +2057,22 @@ Member :: (program: *AssemblyProgram, function: *AssemblyFunction, expression: *
         operands[1] = zero
         return Emit(program, function, LirOp.ElementAddress, result_type, operands, 2, -1, expression.span)
     }
+    // A plain local's fixed length needs no load from its backing storage.
+    // Other receiver expressions still evaluate before selecting the member.
+    if expression.kind == ZirExprKind.MEMBER && IR.CText(expression.name) == "count" &&
+       expression.left >= 0 && expression.left < function.source.expr_count {
+        base := *function.source.exprs[expression.left]
+        if base.kind == ZirExprKind.IDENT && base.is_global_value == 0 && base.is_move == 0 {
+            binding := Binding(function, base.name)
+            if binding >= 0 {
+                array := TypeAt(program, function.bindings.data[binding].type)
+                if array.kind == LirTypeKind.Array {
+                    result_type := Type(program, function, expression.type, expression.span)
+                    return Constant(program, function, result_type, cast(u64)array.count, expression.span)
+                }
+            }
+        }
+    }
     value := Expression(program, function, expression.left, depth + 1)
     if program.failed != 0 { return -1 }
     identity := function.values.data[value]

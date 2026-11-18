@@ -635,6 +635,29 @@ SpecializeExercise :: (test: *NativeTest, compiler: string) -> bool {
     return !test.failed
 }
 
+ArrayCountExercise :: (test: *NativeTest, compiler: string) -> bool {
+    name := "assembly_array_count"
+    source := NativeRead(test, CheckPath(test.repo, "tests/spec/assembly_array_count.zi"))
+    if !Exercise(test, compiler, name, source, 42) { return false }
+    owner: ZxExecOwner
+    defer ZxExecReadFree(*owner)
+    wire := NativeRead(test, CheckPath(test.work, "assembly_array_count.zi.zx"))
+    read := ZxExecRead(*owner, wire, LirDefaultLimits())
+    if !NativeAssert(test, read.problem == .None, "decode fixed array count fixture") { return false }
+    program := ZxExecReadProgram(*owner)
+    for function: program.functions {
+        for block: function.blocks {
+            for instruction: block.instructions {
+                if instruction.op != .Load { continue }
+                type := program.types[function.values[instruction.result]]
+                if !NativeAssert(test, type.kind != .Array,
+                    "reading the count of a local fixed array must not load the array") { return false }
+            }
+        }
+    }
+    return true
+}
+
 GlobalExercise :: (test: *NativeTest, compiler: string, name: string, source: string, operation: string) -> bool {
     if !LowerExercise(test, compiler, name, source, 42, operation, true) { return false }
     input := CheckPath(test.work, CheckConcat(name, ".zi"))
@@ -908,6 +931,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !LowerExercise(*test, compiler, "records", records, 42, "insert", true) { return 1 }
     arrays := "Answer :: () -> s32 { values: [3]s32 = .[20, 20, 1]; values[1] += 1; return values[0] + values[1] + values[2] }\n"
     if !LowerExercise(*test, compiler, "arrays", arrays, 42, "extract", true) { return 1 }
+    if !ArrayCountExercise(*test, compiler) { return 1 }
     dynamic_arrays := "Read :: (values: [3]s32, index: s64) -> s32 { return values[index] }; Answer :: () -> s32 { values: [3]s32 = .[19, 20, 0]; for index: 0..2 { values[index] += cast(s32)index }; total: s32; for index: 0..2 { total += Read(values, index) }; return total }\n"
     if !GlobalExercise(*test, compiler, "dynamic_arrays", dynamic_arrays, "insert") { return 1 }
     dynamic_nested := "Box :: struct { values: [2]s32 }; Answer :: () -> s32 { boxes: [2]Box; outer: s32 = 1; inner: s64; boxes[outer].values[inner] = 20; boxes[outer].values[inner + 1] = 22; return boxes[outer].values[inner] + boxes[outer].values[inner + 1] }\n"

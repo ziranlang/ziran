@@ -86,6 +86,15 @@ in C. The median paired change was −0.29%. N-queens took 7.273 ms before and
 7.456 ms after, against 5.150 ms in C. The median paired change was +0.09%.
 Both matched the C digest in every round. The emitter trial was removed.
 
+## Multiplication by 31 on Alpha
+
+Native x86-64 now uses a shift and subtract for a constant factor of 31.
+FASTA improved in 10 of 11 focused rounds and all seven rounds across the
+original suite. The median paired gains were 0.79% and 0.70%, respectively.
+The full run measured 107.192 ms in C, 124.622 ms before and 123.544 ms after.
+All samples matched the C digest. The quicksort changes varied across runs.
+[Raw samples](../bench/results/standard/native-multiply-31-alpha.json).
+
 ## Every in-process native function
 
 - Step metering (`fuel`) is always on for in-process code: one check per

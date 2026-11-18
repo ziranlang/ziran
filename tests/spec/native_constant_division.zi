@@ -9,6 +9,7 @@ Signed64 :: (n: s64, hash: u64) -> u64 {
     h = Mix(h, cast(u64)((n * (3 - n)) / 2))
     h = Mix(h, cast(u64)((n * 6) / 2))
     h = Mix(h, cast(u64)((n * (n + 2)) / 2))
+    h = Mix(h, cast(u64)((n * 31) / 3))
     h = Mix(h, cast(u64)(n / 3)); h = Mix(h, cast(u64)(n % 3))
     h = Mix(h, cast(u64)(n / 7)); h = Mix(h, cast(u64)(n % 7))
     h = Mix(h, cast(u64)(n / 10)); h = Mix(h, cast(u64)(n % 10))
@@ -45,6 +46,7 @@ Narrow :: (n: s64, hash: u64) -> u64 {
     h = Mix(h, cast(u64)(c / 3)); h = Mix(h, cast(u64)(c % 5))
     e := cast(s8)n
     h = Mix(h, cast(u64)((e * (e + 1)) / 2))
+    h = Mix(h, cast(u64)((e * 31) % 7))
     d := cast(u8)n
     h = Mix(h, cast(u64)(d / 3)); h = Mix(h, cast(u64)(d % 10))
     return h

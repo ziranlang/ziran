@@ -736,7 +736,13 @@ Binary :: (state: *State, opcode: MachineOpcode) -> bool {
         return true
     }
     if opcode == .IntegerMultiply {
-        if constant { X86MultiplyValue(*state.writer, destination, destination, value) }
+        if constant && value == 31 && destination != X86R11 {
+            // Cut the dependency chain for x * 31 to a shift and subtract.
+            // The original value stays in the encoder's scratch register.
+            X86Move(*state.writer, X86R11, destination)
+            X86ShiftImmediate(*state.writer, 4, destination, 5)
+            X86Arithmetic(*state.writer, X86Subtract, destination, X86R11)
+        } else if constant { X86MultiplyValue(*state.writer, destination, destination, value) }
         else { X86Multiply(*state.writer, destination, right) }
     } else {
         code: u32 = X86Add

@@ -1,18 +1,292 @@
 #import "native_test"
 #import "check_support"
+#import "std/byte_text_linux"
+#import "std/c_string"
 #import "std/environment_linux"
 #import "std/file"
 #import "std/file_tree_linux"
 #import "std/text_tools"
-using Bundle :: #import "compiler_bundle"
-using Link :: #import "compiler_exec_link"
-using Lir :: #import "compiler_lowered_ir"
 using Vectors :: #import "std/vec"
 
 Build :: (test: *NativeTest, command: []string) -> bool {
     unused NativeRun(test, command)
     return !test.failed
 }
+
+// The host test links the runtime without also emitting its compiler modules.
+#if #defined(ZX_MODULE_HOSTED_TEST) {
+using Host :: #import "std/bundle_host"
+
+// Public C ABI from ziran_zx_module.h and ziran_host.h.
+hosting :: #system_library "ziran";
+BackendOptions :: struct { backend: s32; max_steps: s32; unbounded: s32 }
+ReleaseImage :: #type (context: *void, data: *u8, size: usize) #c_call;
+Image :: struct { data: *u8; size: usize; release: ReleaseImage }
+ResolveImage :: #type (context: *void, path: *u8, image: *Image) -> s32 #c_call;
+ConsoleWrite :: #type (context: *void, descriptor: s32, data: *u8, size: usize) -> s32 #c_call;
+LoaderConfig :: struct {
+    roots: **u8
+    root_count: usize
+    options: BackendOptions
+    library_bindings: *Host.HostBinding
+    library_binding_count: usize
+    resolve: ResolveImage
+    resolve_context: *void
+    write: ConsoleWrite
+    console_context: *void
+}
+OpenLoader :: (config: *LoaderConfig) -> *void #foreign hosting "ZxModuleLoaderOpenConfigured";
+CloseLoader :: (loader: *void) #foreign hosting "ZxModuleLoaderClose";
+LoaderProblem :: (loader: *void) -> *u8 #foreign hosting "ZxModuleLoaderError";
+OpenProgram :: (loader: *void, bundle: *void, bindings: *Host.HostBinding,
+    count: usize) -> *void #foreign hosting "ZxModuleProgramOpen";
+ProgramBackend :: (program: *void) -> s32 #foreign hosting "ZxModuleProgramBackend";
+RunProgram :: (program: *void, result: *s64, present: *s32) -> s32 #foreign hosting "ZxModuleProgramRun";
+CloseProgram :: (program: *void) #foreign hosting "ZxModuleProgramClose";
+RenewSteps :: () -> s32 #foreign hosting "BundleHostRenewSteps";
+
+HostedState :: struct {
+    bridge: string
+    counter: string
+    releases: s32
+    console: Vec(u8)
+}
+
+HostedBytes :: (text: string) -> *u8 {
+    descriptor := cast(*TextDescriptor)*text
+    return descriptor.data
+}
+
+#program_export
+ReleaseHostedImage :: (opaque: *void, data: *u8, size: usize) {
+    unused data; unused size
+    state := cast(*HostedState)opaque
+    state.releases += 1
+}
+
+#program_export
+ResolveHostedImage :: (opaque: *void, path: *u8, output: *Image) -> s32 {
+    state := cast(*HostedState)opaque
+    bytes: string = ""
+    candidate := TextFromCString(path)
+    if candidate == "/zx-guest/demo/bridge.zx" { bytes = state.bridge }
+    if candidate == "/zx-guest/demo/counter.zx" { bytes = state.counter }
+    if bytes == "" { return 0 }
+    <<output = .{HostedBytes(bytes), cast(usize)bytes.count, ReleaseHostedImage}
+    return 1
+}
+
+#program_export
+WriteHostedConsole :: (opaque: *void, descriptor: s32, data: *u8, size: usize) -> s32 {
+    state := cast(*HostedState)opaque
+    if descriptor != 1 { return 0 }
+    for byte: BytesFromPointer(data, cast(u64)size) {
+        if !VecPush(state.console, byte) { return 0 }
+    }
+    return 1
+}
+
+GrantContext :: struct { argument: s64; answer: s64; calls: s32 }
+
+#program_export
+HostedGrant :: (opaque: *void, module: *u8, function: *u8, args: *Host.HostValue,
+    count: s32, result: *Host.HostValue) -> s32 {
+    unused module; unused function
+    grant := cast(*GrantContext)opaque
+    if count != 1 || args[0].kind != cast(s32)Host.HostValueKind.HostInteger ||
+        args[0].integer != grant.argument || TextFromCString(args[0].type_name) != "s32" { return 0 }
+    grant.calls += 1
+    result.kind = cast(s32)Host.HostValueKind.HostInteger
+    result.integer = grant.answer
+    return 1
+}
+
+HostedApp :: #string ZI
+using Modules :: #import "std/zx_module"
+host_api :: #system_library "host_api";
+Grant :: (value: s32) -> s32 #foreign host_api;
+Total :: (handle: u64, amount: s32) -> s32 #foreign host_api;
+seed: s32 = Start();
+Start :: () -> s32 {
+    print("app init\n")
+    return Grant(3)
+}
+main :: () -> s32 {
+    print("app run\n")
+    handle := Modules.Load("Bridge.v1")
+    if handle == 0 { return -1 }
+    return Total(handle, seed)
+}
+ZI;
+
+HostedCounter :: #string ZI
+host_api :: #system_library "host_api";
+Grant :: (value: s32) -> s32 #foreign host_api;
+seed: s32 = Start();
+Start :: () -> s32 {
+    print("lib init\n")
+    return Grant(4)
+}
+Add :: (value: s32) -> s32 {
+    print("lib run\n")
+    return seed + value
+}
+ZI;
+
+CheckHostedProgram :: (test: *NativeTest, config: *LoaderConfig, bundle: *void, binding: *Host.HostBinding,
+    problem: string = "") -> bool {
+    loader := OpenLoader(config)
+    if !NativeAssert(test, loader != null, "open configured module loader") { return false }
+    defer CloseLoader(loader)
+    program := OpenProgram(loader, bundle, binding, ifx binding != null then 1 else 0)
+    defer CloseProgram(program)
+    if problem != "" {
+        actual := TextFromCString(LoaderProblem(loader))
+        return NativeAssert(test, program == null && TextContains(actual, problem), CheckConcat(problem, CheckConcat(": ", actual)))
+    }
+    result: s64; present: s32
+    return NativeAssert(test, ProgramBackend(program) == 1 && RunProgram(program, *result, *present) != 0 &&
+        present == 1 && result == 42, CheckConcat("run application with virtual transitive library: ", TextFromCString(LoaderProblem(loader))))
+}
+
+HostedCases :: (test: *NativeTest, compiler: string, std: string, bridge: string) -> bool {
+    source := CheckPath(test.work, "hosted_app.zi")
+    provider := CheckPath(test.work, "hosted_counter.zi")
+    app_image := CheckPath(test.work, "hosted-app.zx")
+    counter_image := CheckPath(test.work, "hosted-counter.zx")
+    if !NativeWrite(test, source, HostedApp) || !NativeWrite(test, provider, HostedCounter) { return false }
+    compile := string.[compiler, "--root", test.work, "--module-path", std, "--entry", "hosted_app:main",
+        "--require-module", "Bridge.v1=demo/bridge", "--import", "hosted_app:Total=Bridge.v1:Total", "-o", app_image, source]
+    library := string.[compiler, "--root", test.work, "--library", "demo/counter", "--export", "hosted_counter:Add", "-o", counter_image, provider]
+    if !Build(test, compile[:]) || !Build(test, library[:]) { return false }
+    bytes := NativeRead(test, app_image)
+    bundle := Host.OpenBundleBytes(HostedBytes(bytes), cast(u64)bytes.count)
+    if !NativeAssert(test, bundle != null, "open verified app image") { return false }
+    defer Host.CloseBundle(bundle)
+    library_grant := GrantContext.{4, 23, 0}
+    entry_grant := GrantContext.{3, 19, 0}
+    app_binding := Host.HostBinding.{HostedBytes("hosted_app"), HostedBytes("Grant"), HostedGrant, cast(*void)*entry_grant}
+    lib_binding := Host.HostBinding.{HostedBytes("hosted_counter"), HostedBytes("Grant"), HostedGrant, cast(*void)*library_grant}
+    // The second root contains real host files. A configured resolver must
+    // still report missing when it declines to supply those files.
+    host_root: [4096]u8
+    if !NativeAssert(test, CopyCString(PathParent(test.work), host_root[:]), "copy host test root") { return false }
+    roots: [2]*u8 = .[HostedBytes("/zx-guest/"), *host_root[0]]
+    hosted := HostedState.{bridge = NativeRead(test, bridge), counter = NativeRead(test, counter_image)}
+    defer VecFree(hosted.console)
+    config := LoaderConfig.{roots = *roots[0], root_count = 2, options = .{1, 200, 0},
+        library_bindings = *lib_binding, library_binding_count = 1,
+        resolve = ResolveHostedImage, resolve_context = cast(*void)*hosted,
+        write = WriteHostedConsole, console_context = cast(*void)*hosted}
+    counter := hosted.counter
+    hosted.counter = ""
+    if !CheckHostedProgram(test, *config, bundle, *app_binding, "ZX module not found: demo/counter") { return false }
+    hosted.counter = "invalid ZX bytes"
+    if !CheckHostedProgram(test, *config, bundle, *app_binding, "cannot open verified ZX module") { return false }
+    if !NativeAssert(test, hosted.releases == 3, "resolver releases both valid and rejected images") { return false }
+    if !NativeWrite(test, provider, "Add :: (value: u32) -> s32 { return cast(s32)value }\n") || !Build(test, library[:]) { return false }
+    hosted.counter = NativeRead(test, counter_image)
+    if !CheckHostedProgram(test, *config, bundle, *app_binding, "import signature mismatch") { return false }
+    hosted.counter = counter
+    config.library_binding_count = 0
+    if !CheckHostedProgram(test, *config, bundle, *app_binding, "needs one loader host binding") { return false }
+    config.library_binding_count = 1
+    if !CheckHostedProgram(test, *config, bundle, null, "initialization failed") { return false }
+    config.options.backend = 2
+    if !CheckHostedProgram(test, *config, bundle, *app_binding, "initialization failed") { return false }
+    config.options.backend = 1
+    if !NativeAssert(test, hosted.console.count == 0 && entry_grant.calls == 0 && library_grant.calls == 0,
+        "failed preflight never invokes grants or console") { return false }
+    if !CheckHostedProgram(test, *config, bundle, *app_binding) { return false }
+    return NativeAssert(test, entry_grant.calls == 1 && library_grant.calls == 1 &&
+        TextView(hosted.console[:]) == "app init\napp run\nlib init\nlib run\n", "entry and library use separate typed grants and one console")
+}
+
+FuelApp :: #string ZI
+host_api :: #system_library "host_api";
+Pulse :: () #foreign host_api;
+seed: s32 = Start();
+Start :: () -> s32 {
+    Pulse()
+    return 17
+}
+main :: () -> s32 {
+    for i: 0..999 { Pulse() }
+    return seed
+}
+runaway :: () -> s32 {
+    Pulse()
+    while true { seed += 1 }
+    return seed
+}
+ZI;
+
+PulseContext :: struct { calls: s32; renewals: s32 }
+
+#program_export
+HostedPulse :: (opaque: *void, module: *u8, function: *u8, args: *Host.HostValue,
+    count: s32, result: *Host.HostValue) -> s32 {
+    unused module; unused function; unused args; unused result
+    if count != 0 { return 0 }
+    pulse := cast(*PulseContext)opaque
+    pulse.calls += 1
+    pulse.renewals += RenewSteps()
+    return 1
+}
+
+FuelCase :: (test: *NativeTest, path: string, runaway: bool) -> bool {
+    bytes := NativeRead(test, path)
+    bundle := Host.OpenBundleBytes(HostedBytes(bytes), cast(u64)bytes.count)
+    if !NativeAssert(test, bundle != null, "verify fuel fixture") { return false }
+    defer Host.CloseBundle(bundle)
+    config := LoaderConfig.{options = .{1, 200, 0}}
+    loader := OpenLoader(*config)
+    defer CloseLoader(loader)
+    pulse: PulseContext
+    binding := Host.HostBinding.{HostedBytes("fuel"), HostedBytes("Pulse"), HostedPulse, cast(*void)*pulse}
+    program := OpenProgram(loader, bundle, *binding, 1)
+    defer CloseProgram(program)
+    if !NativeAssert(test, program != null && pulse.calls == 1 && pulse.renewals == 0 && RenewSteps() == 0,
+        "fuel renewal requires an active entry callback") { return false }
+    result: s64; present: s32
+    completed := RunProgram(program, *result, *present) != 0
+    if runaway {
+        return NativeAssert(test, !completed && pulse.calls == 2 && pulse.renewals == 1 &&
+            RunProgram(program, *result, *present) == 0, "runaway after one renewal exhausts the fresh budget")
+    }
+    return NativeAssert(test, completed && result == 17 && present == 1 && pulse.calls == 1001 && pulse.renewals == 1000,
+        "one bounded invocation handles 1000 recurring checkpoints")
+}
+
+FuelCases :: (test: *NativeTest, compiler: string) -> bool {
+    source := CheckPath(test.work, "fuel.zi")
+    if !NativeWrite(test, source, FuelApp) { return false }
+    entries := string.["fuel:main", "fuel:runaway"]
+    for entry: entries {
+        output := CheckPath(test.work, "fuel.zx")
+        compile := string.[compiler, "--root", test.work, "--entry", entry, "-o", output, source]
+        if !Build(test, compile[:]) || !FuelCase(test, output, entry == "fuel:runaway") { return false }
+    }
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "zx-module-hosted-")
+    if test.failed || argc != 4 { return 1 }
+    defer NativeCleanup(*test)
+    compiler := CheckPath(PathParent(test.ziran), "zi2zx")
+    std := CheckPath(test.repo, "std")
+    bridge := TextFromCString(argv[3])
+    if !HostedCases(*test, compiler, std, bridge) || !FuelCases(*test, compiler) { return 1 }
+    return 0
+}
+}
+
+#if !#defined(ZX_MODULE_HOSTED_TEST) {
+using Bundle :: #import "compiler_bundle"
+using Link :: #import "compiler_exec_link"
+using Lir :: #import "compiler_lowered_ir"
 
 Provider :: (test: *NativeTest, compiler: string, fixtures: string, path: string, source: string) -> bool {
     command := string.[compiler, "--module-path", fixtures, "--library", "demo/counter", "--export", "counter:Add", "--export", "counter:Echo",
@@ -128,6 +402,13 @@ main :: (argc: s32, argv: **u8) -> s32 {
     result = NativeInvoke(*test, source_run[:])
     if !NativeAssert(*test, result.code == 0 && result.output == "42\n", CheckConcat(result.output, result.error)) { return 1 }
     if !TryWasm(*test, fixtures, application, chain) { return 1 }
+    tests := CheckPath(test.repo, "tests")
+    hosted_build := CheckPath(test.work, "hosted-build")
+    hosted := string.[test.ziran, "build", "--target=c", "--define", "ZX_MODULE_HOSTED_TEST", "--root", tests,
+        "--exe", "--entry", "zx_module_runtime_cases:main", "-o", hosted_build, CheckPath(tests, "zx_module_runtime_cases.zi")]
+    guest := string.[CheckPath(hosted_build, "zx_module_runtime_cases"), test.ziran, CheckPath(test.work, "hosted"),
+        CheckPath(test.work, "demo/bridge.zx")]
+    if !Build(*test, hosted[:]) || !Build(*test, guest[:]) { return 1 }
 
     stale := CheckPath(test.work, "stale.zx")
     stale_build := string.[compiler, "--root", fixtures, "--module-path", std, "--entry", "application:stale",
@@ -159,4 +440,5 @@ main :: (argc: s32, argv: **u8) -> s32 {
     cyclic := string.[compiler, "run", "--backend", "engine", "--module-root", other, application]
     if !Build(*test, cycle[:]) || !Reject(*test, cyclic[:], "ZX module dependency cycle") { return 1 }
     return 0
+}
 }

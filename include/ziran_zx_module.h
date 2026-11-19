@@ -23,6 +23,45 @@ ZxModuleLoader *ZxModuleLoaderOpen(const char *const *roots, size_t root_count,
 ZxModuleLoader *ZxModuleLoaderOpenWithBindings(const char *const *roots, size_t root_count,
                                               const BundleInstanceOptions *options,
                                               const HostBinding *bindings, size_t count);
+
+typedef enum ZxModuleResolveResult {
+    ZX_MODULE_IMAGE_MISSING,
+    ZX_MODULE_IMAGE_FOUND,
+    ZX_MODULE_IMAGE_ERROR
+} ZxModuleResolveResult;
+
+typedef struct ZxModuleImage {
+    const unsigned char *data;
+    size_t size;
+    void (*release)(void *context, const unsigned char *data, size_t size);
+} ZxModuleImage;
+
+/* PATH is borrowed for the call. On FOUND, the immutable bytes stay valid
+ * through synchronous verification. If supplied, release is called once
+ * with the resolver context, even when the loader rejects the image. */
+typedef ZxModuleResolveResult (*ZxModuleResolve)(void *context, const char *path,
+                                                ZxModuleImage *image);
+
+typedef struct ZxModuleLoaderConfig {
+    const char *const *roots;
+    size_t root_count;
+    BundleInstanceOptions options;
+    const HostBinding *library_bindings;
+    size_t library_binding_count;
+    ZxModuleResolve resolve;
+    void *resolve_context;
+    BundleConsoleWrite write;
+    void *console_context;
+} ZxModuleLoaderConfig;
+
+/* With a resolver, all library reads, including replacement, go through it.
+ * MISSING advances the search. ERROR stops it. Multiple guest candidates for
+ * the same name are ambiguous. A write callback serves the app and all
+ * libraries, including initializers, and needs an instruction-engine backend.
+ * Callback contexts must outlive the loader. Resolver, release and console
+ * callbacks must not reenter the loader. Roots, options and callback pointers
+ * are copied. Library grants are borrowed as with OpenWithBindings. */
+ZxModuleLoader *ZxModuleLoaderOpenConfigured(const ZxModuleLoaderConfig *config);
 void ZxModuleLoaderClose(ZxModuleLoader *loader);
 const char *ZxModuleLoaderError(const ZxModuleLoader *loader);
 

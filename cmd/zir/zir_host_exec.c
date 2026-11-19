@@ -725,6 +725,7 @@ typedef struct ExecImage {
 } ExecImage;
 
 struct ExecHosts {
+    ExecInstance *engine;
     const ExecBundle *bundle;
     const HostBinding **bound;
     /* Each call's host values, freed when it returns. */
@@ -1493,6 +1494,8 @@ failed:
     return NULL;
 }
 
+static _Thread_local ExecInstance *active_host_engine;
+
 int
 ExecHostsCall(ExecHosts *hosts, size_t index, ExecHostArgument *arguments, size_t count, ExecHostArgument *result)
 {
@@ -1527,7 +1530,11 @@ ExecHostsCall(ExecHosts *hosts, size_t index, ExecHostArgument *arguments, size_
     HostValue returned;
     memset(&returned, 0, sizeof(returned));
     returned.type = host->result >= 0 ? bundle->nodes[host->result].spelling : "void";
-    if(!binding->call(binding->context, host->module, host->name, values, (int)count, &returned)) goto done;
+    ExecInstance *outer = active_host_engine;
+    active_host_engine = hosts->engine;
+    int called = binding->call(binding->context, host->module, host->name, values, (int)count, &returned);
+    active_host_engine = outer;
+    if(!called) goto done;
     hosts->back.length = 0;
     for(size_t at = 0; at < count; at++)
         if(bundle->nodes[host->parameters[at]].class == NODE_SLICE) {
@@ -1822,10 +1829,21 @@ struct ExecInstance {
     /* Steps for each run, or for initialization and all runs together when
      * cumulative; 0 is unbounded. */
     long long limit, used;
+    long long active_limit, run_fuel;
+    int renew_steps;
     int cumulative;
     int failed;
     ZxConsole console;
 };
+
+int
+BundleHostRenewSteps(void)
+{
+    ExecInstance *instance = active_host_engine;
+    if(instance == NULL || instance->active_limit <= 0) return 0;
+    instance->renew_steps = 1;
+    return 1;
+}
 
 static bool
 exec_host_call(void *closure, void *context, int32_t function, Slice arguments, LirExecArgument *result)
@@ -1845,6 +1863,14 @@ exec_host_call(void *closure, void *context, int32_t function, Slice arguments, 
     ExecHostArgument returned = {0};
     if(!ExecHostsCall(instance->hosts, call->host, instance->arguments, (size_t)arguments.length, &returned))
         return false;
+    if(instance->renew_steps) {
+        /* The engine hands typed calls to the slow path before invoking
+         * the host, so no precharged segment fuel remains to restore. */
+        instance->renew_steps = 0;
+        instance->used = 0;
+        instance->run_fuel = instance->active_limit;
+        instance->instance.fuel_remaining = instance->run_fuel;
+    }
     for(int64_t at = 0; at < arguments.length; at++)
         if(instance->arguments[at].changed) {
             given[at].changed = true;
@@ -1861,16 +1887,19 @@ static int
 exec_run(ExecInstance *instance, int initialize, LirExecResult *ran)
 {
     const ExecBundle *bundle = instance->bundle;
+    long long limit = instance->limit;
     long long fuel = INT64_MAX;
-    if(instance->limit > 0) fuel = instance->cumulative ? instance->limit - instance->used : instance->limit;
-    if(instance->failed) return 0;
+    if(limit > 0) fuel = instance->cumulative ? limit - instance->used : limit;
+    if(instance->failed || instance->instance.running) return 0;
     if(fuel <= 0) {
         Diagnostic((ZirSourceSpan){0}, "zx.runtime", "portable execution failed: stopped after %lld steps",
-            instance->limit);
+            limit);
         instance->failed = 1;
         return 0;
     }
     instance->instance.limits.fuel = fuel;
+    instance->active_limit = initialize ? 0 : limit;
+    instance->run_fuel = fuel;
     /* A run that succeeds leaves its result and remaining fuel in the
      * instance; only a failure fills `ran`. */
     int ok;
@@ -1883,7 +1912,9 @@ exec_run(ExecInstance *instance, int initialize, LirExecResult *ran)
         ok = compiler_exec_LirExecRunEntry(&instance->instance, ran);
         remaining = ok ? instance->instance.fuel_remaining : ran->fuel_remaining;
     }
-    if(instance->cumulative) instance->used += fuel - remaining;
+    instance->active_limit = 0;
+    instance->renew_steps = 0;
+    if(instance->cumulative) instance->used += instance->run_fuel - remaining;
     /* A run that ends normally leaves its output to the stream's own
      * buffering, as a C program's does; a failed run's output comes out
      * before its diagnostic. */
@@ -1891,9 +1922,9 @@ exec_run(ExecInstance *instance, int initialize, LirExecResult *ran)
     if(ok) return 1;
     if(instance->console.write == NULL) fflush(stdout);
     instance->failed = 1;
-    if(ran->problem == LirExecProblem_FuelLimit && instance->limit > 0)
+    if(ran->problem == LirExecProblem_FuelLimit && limit > 0)
         Diagnostic((ZirSourceSpan){0}, "zx.runtime", "portable execution failed: stopped after %lld steps",
-            instance->limit);
+            limit);
     else {
         String problem = compiler_exec_LirExecProblemName(ran->problem);
         const char *text = ZxExecProblemText(ran->problem);
@@ -1923,6 +1954,7 @@ ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, 
     instance->calls = calloc(bundle->host_count + 1, sizeof(*instance->calls));
     instance->arguments = calloc(parameters, sizeof(*instance->arguments));
     if(instance->hosts == NULL || instance->calls == NULL || instance->arguments == NULL) goto failed;
+    instance->hosts->engine = instance;
     LirExecLimits limits = compiler_exec_LirExecDefaultLimits();
     limits.work = INT64_MAX;
     limits.fuel = INT64_MAX;
@@ -2268,6 +2300,7 @@ int ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result)
     return 0;
 }
 void ExecInstanceLimitSteps(ExecInstance *instance, long long max_steps) { (void)instance; (void)max_steps; }
+int BundleHostRenewSteps(void) { return 0; }
 void ExecInstanceMatchFieldsByName(ExecInstance *instance, int enabled) { (void)instance; (void)enabled; }
 size_t ExecInstanceLiveBytes(const ExecInstance *instance) { (void)instance; return 0; }
 size_t ExecInstanceStateCount(const ExecInstance *instance) { (void)instance; return 0; }

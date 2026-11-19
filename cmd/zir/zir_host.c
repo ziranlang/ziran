@@ -375,6 +375,11 @@ instantiate_bundle_with_policy(const Bundle *bundle, const HostBinding *bindings
     BundleExecutionBackend selected = policy == BUNDLE_BACKEND_ENGINE ?
         BUNDLE_EXECUTION_ENGINE : policy == BUNDLE_BACKEND_NATIVE ?
         NATIVE_PLATFORM_BACKEND : auto_platform_backend();
+    if(write != NULL && selected != BUNDLE_EXECUTION_ENGINE) {
+        Diagnostic(Span("<host>", 1, 1), "zx.capability", "a console callback requires the instruction engine");
+        BundleInstanceClose(instance);
+        return NULL;
+    }
     if(selected == BUNDLE_EXECUTION_WASM) {
         if(ZxWasmPlatformActive() == NULL) {
             BundleInstanceClose(instance);
@@ -430,10 +435,18 @@ BundleInstance *
 BundleInstantiateWithOptions(const Bundle *bundle, const HostBinding *bindings,
                              size_t binding_count, const BundleInstanceOptions *options)
 {
+    return BundleInstantiateWithOptionsAndConsole(bundle, bindings, binding_count, options, NULL, NULL);
+}
+
+BundleInstance *
+BundleInstantiateWithOptionsAndConsole(const Bundle *bundle, const HostBinding *bindings,
+                                       size_t binding_count, const BundleInstanceOptions *options,
+                                       BundleConsoleWrite write, void *context)
+{
     if(options == NULL || options->max_steps < 0)
         return NULL;
     return instantiate_bundle_with_policy(bundle, bindings, binding_count,
-                                          options->max_steps, options->backend, options->unbounded, NULL, NULL);
+                                          options->max_steps, options->backend, options->unbounded, write, context);
 }
 
 BundleInstance *
@@ -441,9 +454,9 @@ BundleInstantiateWithConsole(const Bundle *bundle, const HostBinding *bindings,
                              size_t binding_count, int max_steps,
                              BundleConsoleWrite write, void *context)
 {
-    if(max_steps < 0 || write == NULL) return NULL;
-    return instantiate_bundle_with_policy(bundle, bindings, binding_count,
-                                          max_steps, BUNDLE_BACKEND_ENGINE, 0, write, context);
+    if(write == NULL) return NULL;
+    const BundleInstanceOptions options = {.backend = BUNDLE_BACKEND_ENGINE, .max_steps = max_steps};
+    return BundleInstantiateWithOptionsAndConsole(bundle, bindings, binding_count, &options, write, context);
 }
 
 BundleExecutionBackend

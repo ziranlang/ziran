@@ -52,6 +52,29 @@ interface. Replacement retains the handle and migrates compatible globals.
 An incompatible candidate leaves the original instance available. C embedders
 can supply a state migration callback and grant libraries host bindings through
 <a href="https://github.com/ziranlang/ziran/blob/master/include/ziran_zx_module.h"><code>ziran_zx_module.h</code></a>. Module calls are synchronous.</p>
+<p>Embedders with a separate filesystem namespace can pass a
+<code>ZxModuleLoaderConfig</code> to <code>ZxModuleLoaderOpenConfigured</code>. Open the app with
+<code>BundleOpenBytes</code>, then pass it to <code>ZxModuleProgramOpen</code>. For each named
+library the loader asks the configured resolver for <code>ROOT/LOGICAL_NAME.zx</code>
+under each root, including for transitive dependencies. The guest <code>Replace</code>
+service uses the same search. C <code>ZxModuleReplace</code> passes the supplied path
+directly to the resolver.
+Return <code>ZX_MODULE_IMAGE_MISSING</code> to advance the search or
+<code>ZX_MODULE_IMAGE_ERROR</code> to abort. When returning <code>ZX_MODULE_IMAGE_FOUND</code>, keep
+the bytes valid through verification. The loader calls the optional release
+function with the resolver context after it finishes with those bytes. It
+uses only the resolver for library reads when one is configured. Distinct
+guest paths that both return an image are ambiguous. The loader verifies
+each selected bundle and its logical name, dependency graph and typed imports
+before running any initializer.</p>
+<p>Supply ordinary library host grants in <code>library_bindings</code> and grant app
+bindings separately in <code>ZxModuleProgramOpen</code>. Supply <code>write</code> to route the
+app's and libraries' platform writes, including initializers, to a common
+descriptor callback. Select <code>BUNDLE_BACKEND_ENGINE</code> for an explicit engine
+policy. With a console callback, a native or Wasm backend selection fails
+before initialization. The loader copies roots and options. Keep callback
+contexts and library grants alive through loader close, and the app bundle
+alive through program close.</p>
 <h2 id="running-bundles">Running bundles</h2>
 <p>Run source in one command with <code>ziran run hello.zi</code> or <code>zi2zx run hello.zi</code>.
 Both check the file, write the bundle in memory and execute its <code>main</code>.
@@ -224,6 +247,15 @@ bounds each later run on its own. Steps are function calls and loop
 iterations. A runaway recursion stops with "nested calls filled the stack";
 other run failures name what happened, such as an index out of bounds or
 unreachable code executed, and the instruction where it did.</p>
+<p>For an entry that handles a long stream of events in one instruction-engine
+invocation, start it with a positive step budget. A typed <code>HostCall</code> can
+request <code>BundleHostRenewSteps()</code> after it observes an event it accepts as
+progress. A successful callback gives the active entry a fresh full budget.
+A loop between events can still exhaust it. In cumulative mode, subsequent
+runs count from the last successful renewal. The request returns zero
+outside an eligible callback, during initialization, with no active step
+budget, or on native or Wasm. <code>BundleInstanceLimitSteps</code> updates the settings
+used by subsequent invocations.</p>
 <h2 id="target-contract">Target contract</h2>
 <p>The pipeline is Source → ZIR → LIR → optimized LIR → ZX → native
 (ELF/PE, x86-64/AArch64/ARMv7). Wasm lowers from ZX; C/Go export

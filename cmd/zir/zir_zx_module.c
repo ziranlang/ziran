@@ -12,6 +12,7 @@
 
 #define DISPATCH "__zx_module_dispatch"
 #define SERVICES "zx_module"
+#define MODULE_IMAGE_LIMIT 268435456
 
 typedef struct ModuleImage ModuleImage;
 typedef struct ModuleScope ModuleScope;
@@ -103,6 +104,10 @@ struct ZxModuleLoader {
     const HostBinding *bindings;
     size_t binding_count;
     BundleInstanceOptions options;
+    ZxModuleResolve resolve;
+    void *resolve_context;
+    BundleConsoleWrite write;
+    void *console_context;
     unsigned depth;
     char error[512];
 };
@@ -472,24 +477,31 @@ verify_imports(ZxModuleLoader *loader, ModuleImage *image)
 }
 
 static char *
-resolve_path(ZxModuleLoader *loader, const char *name)
+candidate_path(ZxModuleLoader *loader, size_t index, const char *name)
 {
-    if(!valid_name(name, 1)) {
-        module_problem(loader, "invalid ZX module logical name");
-        return NULL;
+    const char *root = loader->roots[index];
+    size_t root_length = strlen(root), name_length = strlen(name);
+    char *path = NULL;
+    if(name_length <= SIZE_MAX - sizeof("/.zx") && root_length <= SIZE_MAX - name_length - sizeof("/.zx")) {
+        /* Keep guest paths canonical at the root join. Host roots retain
+         * their existing spelling, including platform-specific // roots. */
+        const char *separator = loader->resolve != NULL && root[root_length - 1] == '/' ? "" : "/";
+        size_t length = root_length + name_length + sizeof("/.zx");
+        path = malloc(length);
+        if(path != NULL) snprintf(path, length, "%s%s%s.zx", root, separator, name);
     }
+    if(path == NULL) memory_problem(loader);
+    return path;
+}
+
+static char *
+resolve_host_path(ZxModuleLoader *loader, const char *name)
+{
     char *selected = NULL;
     struct stat selected_info = {0};
-    size_t name_length = strlen(name);
     for(size_t i = 0; i < loader->root_count; i++) {
-        const char *root = loader->roots[i];
-        size_t root_length = strlen(root);
-        if(name_length > SIZE_MAX - sizeof("/.zx") || root_length > SIZE_MAX - name_length - sizeof("/.zx"))
-            goto memory;
-        size_t length = root_length + name_length + sizeof("/.zx");
-        char *path = malloc(length);
-        if(path == NULL) goto memory;
-        snprintf(path, length, "%s/%s.zx", root, name);
+        char *path = candidate_path(loader, i, name);
+        if(path == NULL) goto fail;
         struct stat info;
         if(stat(path, &info) != 0) {
             int missing = errno == ENOENT || errno == ENOTDIR;
@@ -517,10 +529,55 @@ resolve_path(ZxModuleLoader *loader, const char *name)
     }
     if(selected == NULL) module_problem(loader, "ZX module not found: %s", name);
     return selected;
-memory:
-    memory_problem(loader);
 fail:
     free(selected);
+    return NULL;
+}
+
+static Bundle *
+verify_guest_image(ZxModuleLoader *loader, const ZxModuleImage *image, const char *path)
+{
+    Bundle *bundle = image->size <= MODULE_IMAGE_LIMIT ? BundleOpenBytes(image->data, image->size) : NULL;
+    if(image->release != NULL) image->release(loader->resolve_context, image->data, image->size);
+    if(bundle == NULL) module_problem(loader, "cannot open verified ZX module from %s", path);
+    return bundle;
+}
+
+static Bundle *
+resolve_guest_bundle(ZxModuleLoader *loader, const char *name, char **selected_path)
+{
+    Bundle *selected = NULL;
+    for(size_t i = 0; i < loader->root_count; i++) {
+        char *path = candidate_path(loader, i, name);
+        if(path == NULL) goto failed;
+        if(*selected_path != NULL && strcmp(*selected_path, path) == 0) {
+            free(path);
+            continue;
+        }
+        ZxModuleImage image = {0};
+        ZxModuleResolveResult status = loader->resolve(loader->resolve_context, path, &image);
+        if(status == ZX_MODULE_IMAGE_FOUND && selected == NULL) {
+            *selected_path = path;
+            selected = verify_guest_image(loader, &image, path);
+            if(selected == NULL) goto failed;
+            continue;
+        }
+        if(status != ZX_MODULE_IMAGE_MISSING) {
+            if(status == ZX_MODULE_IMAGE_FOUND) {
+                if(image.release != NULL) image.release(loader->resolve_context, image.data, image.size);
+                module_problem(loader, "ambiguous ZX module %s: %s and %s", name, *selected_path, path);
+            } else {
+                module_problem(loader, "cannot resolve ZX module %s at %s", name, path);
+            }
+            free(path);
+            goto failed;
+        }
+        free(path);
+    }
+    if(selected == NULL) module_problem(loader, "ZX module not found: %s", name);
+    return selected;
+failed:
+    BundleClose(selected);
     return NULL;
 }
 
@@ -549,20 +606,13 @@ library_binding(const ZxModuleLoader *loader, const Bundle *bundle, size_t capab
 }
 
 static ModuleImage *
-open_image(ZxModuleLoader *loader, const char *path, const char *name)
+open_image(ZxModuleLoader *loader, Bundle *bundle, const char *path, const char *name)
 {
+    if(bundle == NULL) return NULL;
     ModuleImage *image = calloc(1, sizeof(*image));
     if(image == NULL) {
         memory_problem(loader);
-        return NULL;
-    }
-    size_t size = 0;
-    unsigned char *bytes = CommandReadBounded(path, 268435456, &size);
-    Bundle *bundle = BundleOpenBytes(bytes, size);
-    free(bytes);
-    if(bundle == NULL) {
-        module_problem(loader, "cannot open verified ZX module %s from %s", name, path);
-        free(image);
+        BundleClose(bundle);
         return NULL;
     }
     if(!image_read(loader, image, bundle)) goto failed;
@@ -585,15 +635,53 @@ failed:
     return NULL;
 }
 
+static Bundle *
+open_path_bundle(ZxModuleLoader *loader, const char *path, const char *name)
+{
+    if(loader->resolve != NULL) {
+        ZxModuleImage image = {0};
+        ZxModuleResolveResult status = loader->resolve(loader->resolve_context, path, &image);
+        if(status == ZX_MODULE_IMAGE_FOUND) return verify_guest_image(loader, &image, path);
+        if(status == ZX_MODULE_IMAGE_MISSING)
+            module_problem(loader, "ZX module not found: %s at %s", name, path);
+        else
+            module_problem(loader, "cannot resolve ZX module %s at %s", name, path);
+        return NULL;
+    }
+    size_t size = 0;
+    unsigned char *bytes = CommandReadBounded(path, MODULE_IMAGE_LIMIT, &size);
+    Bundle *bundle = BundleOpenBytes(bytes, size);
+    free(bytes);
+    if(bundle == NULL) module_problem(loader, "cannot open verified ZX module %s from %s", name, path);
+    return bundle;
+}
+
+static ModuleImage *
+open_logical_image(ZxModuleLoader *loader, const char *artifact, const char *name)
+{
+    if(!valid_name(artifact, 1)) {
+        module_problem(loader, "invalid ZX module logical name");
+        return NULL;
+    }
+    char *path = NULL;
+    Bundle *bundle;
+    if(loader->resolve != NULL) {
+        bundle = resolve_guest_bundle(loader, artifact, &path);
+    } else {
+        path = resolve_host_path(loader, artifact);
+        bundle = path != NULL ? open_path_bundle(loader, path, name) : NULL;
+    }
+    ModuleImage *image = open_image(loader, bundle, path, name);
+    free(path);
+    return image;
+}
+
 static ModuleImage *
 resolve_image(ZxModuleLoader *loader, const char *name)
 {
     for(ModuleImage *image = loader->cache; image != NULL; image = image->next)
         if(strcmp(name, image->name) == 0) return image;
-    char *path = resolve_path(loader, name);
-    if(path == NULL) return NULL;
-    ModuleImage *image = open_image(loader, path, name);
-    free(path);
+    ModuleImage *image = open_logical_image(loader, name, name);
     if(image != NULL) {
         image->next = loader->cache;
         loader->cache = image;
@@ -688,7 +776,9 @@ scope_open(ModuleScope *scope, const HostBinding *external, size_t external_coun
         bindings[used++] = (HostBinding){BundleCapabilityModule(image->bundle, i),
             BundleCapabilityFunction(image->bundle, i), bind_call, &scope->hosts[i]};
     }
-    scope->instance = BundleInstantiateWithOptions(image->bundle, bindings, used, &scope->loader->options);
+    ZxModuleLoader *loader = scope->loader;
+    scope->instance = BundleInstantiateWithOptionsAndConsole(image->bundle, bindings, used, &loader->options,
+                                                             loader->write, loader->console_context);
     free(bindings);
     if(scope->instance == NULL && *ZxModuleLoaderError(scope->loader) == 0)
         module_problem(scope->loader, "ZX module initialization failed: %s",
@@ -869,15 +959,17 @@ same_linkage(const ModuleImage *a, const ModuleImage *b)
 }
 
 static int
-replace_slot(ModuleSlot *slot, const char *path, BundleStateMigrate migrate, void *context)
+replace_slot(ModuleSlot *slot, const char *artifact, int search_roots, BundleStateMigrate migrate, void *context)
 {
     ModuleScope *old = slot->scope;
     ZxModuleLoader *loader = old->loader;
-    if(path == NULL || *path == 0)
+    if(artifact == NULL || *artifact == 0)
         return module_problem(loader, "ZX module replacement requires an artifact path");
     if(old->frame != NULL || old->children != NULL || loader->depth >= 64)
         return module_problem(loader, "ZX module replacement requires an idle instance without live child handles");
-    ModuleImage *image = open_image(loader, path, old->image->name);
+    const char *name = old->image->name;
+    ModuleImage *image = search_roots ? open_logical_image(loader, artifact, name) :
+        open_image(loader, open_path_bundle(loader, artifact, name), artifact, name);
     if(image == NULL) return 0;
     if(!same_linkage(old->image, image) ||
        ((old->image->external_count != 0 || image->external_count != 0) &&
@@ -983,10 +1075,8 @@ service_call(ModuleScope *scope, BindingKind kind, const HostValue *args, HostVa
     if(slot == NULL) module_problem(loader, "invalid or released ZX module handle");
     if(kind == REPLACE) {
         char *name = read_text(&args[1]);
-        char *path = slot != NULL ? resolve_path(loader, name) : NULL;
-        int ok = path != NULL && replace_slot(slot, path, NULL, NULL);
+        int ok = slot != NULL && replace_slot(slot, name, 1, NULL, NULL);
         set_number(result, ok);
-        free(path);
         free(name);
     } else if(kind == EXPORT_COUNT) {
         set_number(result, slot != NULL ? slot->scope->image->export_count : 0);
@@ -1048,6 +1138,21 @@ ZxModuleLoader *
 ZxModuleLoaderOpenWithBindings(const char *const *roots, size_t count, const BundleInstanceOptions *options,
                                const HostBinding *bindings, size_t binding_count)
 {
+    const ZxModuleLoaderConfig config = {
+        .roots = roots, .root_count = count,
+        .options = options != NULL ? *options : (BundleInstanceOptions){0},
+        .library_bindings = bindings, .library_binding_count = binding_count,
+    };
+    return ZxModuleLoaderOpenConfigured(&config);
+}
+
+ZxModuleLoader *
+ZxModuleLoaderOpenConfigured(const ZxModuleLoaderConfig *config)
+{
+    if(config == NULL) return NULL;
+    size_t count = config->root_count, binding_count = config->library_binding_count;
+    const char *const *roots = config->roots;
+    const HostBinding *bindings = config->library_bindings;
     if((count != 0 && roots == NULL) || (binding_count != 0 && bindings == NULL)) return NULL;
     for(size_t i = 0; i < binding_count; i++)
         if(bindings[i].module == NULL || bindings[i].function == NULL || bindings[i].call == NULL) return NULL;
@@ -1056,7 +1161,11 @@ ZxModuleLoaderOpenWithBindings(const char *const *roots, size_t count, const Bun
     loader->root.loader = loader;
     loader->bindings = bindings;
     loader->binding_count = binding_count;
-    loader->options = options != NULL ? *options : (BundleInstanceOptions){0};
+    loader->options = config->options;
+    loader->resolve = config->resolve;
+    loader->resolve_context = config->resolve_context;
+    loader->write = config->write;
+    loader->console_context = config->console_context;
     loader->roots = count != 0 ? calloc(count, sizeof(*loader->roots)) : NULL;
     if(count != 0 && loader->roots == NULL) goto failed;
     while(loader->root_count < count) {
@@ -1240,6 +1349,6 @@ ZxModuleReplace(ZxModuleLoader *loader, uint64_t handle, const char *path,
     if(loader == NULL) return 0;
     *loader->error = 0;
     ModuleSlot *slot = find_slot(&loader->root, handle);
-    return slot != NULL ? replace_slot(slot, path, migrate, context) :
+    return slot != NULL ? replace_slot(slot, path, 0, migrate, context) :
         module_problem(loader, "invalid or released ZX module handle");
 }

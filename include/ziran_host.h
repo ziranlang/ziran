@@ -190,6 +190,12 @@ BundleInstance *BundleInstantiateWithOptions(
 BundleInstance *BundleInstantiateWithConsole(
     const Bundle *bundle, const HostBinding *bindings, size_t binding_count,
     int max_steps, BundleConsoleWrite write, void *context);
+/* Compose backend selection and console routing. A non-null write requires
+ * that the selected backend be the instruction engine. An unsupported
+ * combination fails before initialization. A null write uses platform output. */
+BundleInstance *BundleInstantiateWithOptionsAndConsole(
+    const Bundle *bundle, const HostBinding *bindings, size_t binding_count,
+    const BundleInstanceOptions *options, BundleConsoleWrite write, void *context);
 BundleExecutionBackend BundleInstanceBackend(const BundleInstance *instance);
 /* Native preflight: compiles the bundle for this host on first use, sharing
  * code with any open bundle of the same content. An empty string when it
@@ -200,6 +206,13 @@ int BundleInstanceRun(BundleInstance *instance, long long *result,
 /* Bound each subsequent run to max_steps steps (function calls and loop
  * iterations), so a runaway bundle stops with an error. Zero is unbounded. */
 void BundleInstanceLimitSteps(BundleInstance *instance, int max_steps);
+/* Request a fresh full step budget after this HostCall successfully returns.
+ * Returns nonzero only inside a typed host callback on the calling thread
+ * during a bounded instruction-engine entry. Applies to the innermost call.
+ * Initializers and invocations with no positive budget cannot renew. The host
+ * should call this only after an event that it accepts as progress. The next
+ * run's settings and the instance's budget mode are unaffected. */
+int BundleHostRenewSteps(void);
 /* Let records the host returns to this instance omit fields the bundle
  * declares (they take zero values) or carry fields it does not (ignored),
  * so a bundle and its host may be built against different layouts. */

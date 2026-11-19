@@ -60,6 +60,31 @@ An incompatible candidate leaves the original instance available. C embedders
 can supply a state migration callback and grant libraries host bindings through
 [`ziran_zx_module.h`](../include/ziran_zx_module.h). Module calls are synchronous.
 
+Embedders with a separate filesystem namespace can pass a
+`ZxModuleLoaderConfig` to `ZxModuleLoaderOpenConfigured`. Open the app with
+`BundleOpenBytes`, then pass it to `ZxModuleProgramOpen`. For each named
+library the loader asks the configured resolver for `ROOT/LOGICAL_NAME.zx`
+under each root, including for transitive dependencies. The guest `Replace`
+service uses the same search. C `ZxModuleReplace` passes the supplied path
+directly to the resolver.
+Return `ZX_MODULE_IMAGE_MISSING` to advance the search or
+`ZX_MODULE_IMAGE_ERROR` to abort. When returning `ZX_MODULE_IMAGE_FOUND`, keep
+the bytes valid through verification. The loader calls the optional release
+function with the resolver context after it finishes with those bytes. It
+uses only the resolver for library reads when one is configured. Distinct
+guest paths that both return an image are ambiguous. The loader verifies
+each selected bundle and its logical name, dependency graph and typed imports
+before running any initializer.
+
+Supply ordinary library host grants in `library_bindings` and grant app
+bindings separately in `ZxModuleProgramOpen`. Supply `write` to route the
+app's and libraries' platform writes, including initializers, to a common
+descriptor callback. Select `BUNDLE_BACKEND_ENGINE` for an explicit engine
+policy. With a console callback, a native or Wasm backend selection fails
+before initialization. The loader copies roots and options. Keep callback
+contexts and library grants alive through loader close, and the app bundle
+alive through program close.
+
 ## Running bundles
 
 Run source in one command with `ziran run hello.zi` or `zi2zx run hello.zi`.
@@ -256,6 +281,16 @@ bounds each later run on its own. Steps are function calls and loop
 iterations. A runaway recursion stops with "nested calls filled the stack";
 other run failures name what happened, such as an index out of bounds or
 unreachable code executed, and the instruction where it did.
+
+For an entry that handles a long stream of events in one instruction-engine
+invocation, start it with a positive step budget. A typed `HostCall` can
+request `BundleHostRenewSteps()` after it observes an event it accepts as
+progress. A successful callback gives the active entry a fresh full budget.
+A loop between events can still exhaust it. In cumulative mode, subsequent
+runs count from the last successful renewal. The request returns zero
+outside an eligible callback, during initialization, with no active step
+budget, or on native or Wasm. `BundleInstanceLimitSteps` updates the settings
+used by subsequent invocations.
 
 ## Target contract
 

@@ -27,6 +27,12 @@ int SetDiagnosticFormat(const char *format);
 void SetDiagnosticFormatFromArguments(int argc, char *const *argv);
 int DiagnosticJsonEnabled(void);
 void DiagnosticOutOfMemory(void);
+/* Editor collection: while enabled, every diagnostic also appends one compact
+ * JSON entry to a bounded buffer. EndCollection returns a malloc(d),
+ * comma-joined entry list (empty string when none) and disables collection;
+ * the caller frees the result. The streamed output keeps its exact shape. */
+void ZiranDiagnosticsBeginCollection(void);
+char *ZiranDiagnosticsEndCollection(void);
 void Diagnostic(ZirSourceSpan span, const char *code, const char *format, ...);
 void DiagnosticV(ZirSourceSpan span, const char *code, const char *format, va_list args);
 void DiagnosticDetailed(ZirSourceSpan span, const char *code,

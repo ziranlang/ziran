@@ -1,3 +1,9 @@
+/* Diagnostic records and the edit-tool collection buffer outlive every
+ * recoverable frontend operation, so this file uses raw libc storage. The
+ * allocator macros would track the collection buffer into a candidate
+ * check's memory scope, and a failed check frees tracked allocations,
+ * leaving the collector pointer dangling. */
+#define ZIR_MEMORY_IMPLEMENTATION
 #include "zir_memory.h"
 #include "zir_diagnostic.h"
 #include "zir_document.h"
@@ -11,6 +17,29 @@
 static atomic_int diagnostic_json = ATOMIC_VAR_INIT(-1);
 static atomic_flag diagnostic_lock = ATOMIC_FLAG_INIT;
 static atomic_int diagnostic_errors = ATOMIC_VAR_INIT(0);
+
+/* Editor collection: while enabled, every report() also appends one compact
+ * JSON entry (no schema envelope) to a bounded buffer the edit tool takes as
+ * a comma-joined list. Disabled by default; the streamed output keeps its
+ * shape, and over-limit entries are dropped, never malformed. */
+#define COLLECTOR_BYTES (128*1024)
+#define COLLECTOR_ENTRIES 128
+static char *collector = NULL;
+static size_t collector_count = 0, collector_capacity = 0;
+static int collector_entries = 0, collecting = 0;
+static int collector_room(size_t need)
+{
+    if(!need || collector_count + need > COLLECTOR_BYTES || collector_entries >= COLLECTOR_ENTRIES) return 0;
+    if(collector_count + need > collector_capacity) {
+        size_t capacity = collector_capacity ? collector_capacity : 4096;
+        while(capacity < collector_count + need) capacity *= 2;
+        char *grown = realloc(collector, capacity);
+        if(!grown) return 0;
+        collector = grown;
+        collector_capacity = capacity;
+    }
+    return 1;
+}
 
 /* Preserve valid UTF-8; escape invalid bytes so every record is decodable. */
 static size_t utf8_length(const unsigned char *at)
@@ -101,6 +130,29 @@ int DiagnosticJsonEnabled(void)
     }
     return diagnostic_json;
 }
+void ZiranDiagnosticsBeginCollection(void)
+{
+    while(atomic_flag_test_and_set_explicit(&diagnostic_lock, memory_order_acquire)) {}
+    collecting = 1;
+    collector_count = 0;
+    collector_entries = 0;
+    atomic_flag_clear_explicit(&diagnostic_lock, memory_order_release);
+}
+char *ZiranDiagnosticsEndCollection(void)
+{
+    while(atomic_flag_test_and_set_explicit(&diagnostic_lock, memory_order_acquire)) {}
+    collecting = 0;
+    char *taken = malloc(collector_count + 1);
+    if(taken) {
+        if(collector_count) memcpy(taken, collector, collector_count);
+        taken[collector_count] = 0;
+    }
+    collector_count = 0;
+    collector_entries = 0;
+    atomic_flag_clear_explicit(&diagnostic_lock, memory_order_release);
+    return taken;
+}
+
 void DiagnosticOutOfMemory(void)
 {
     /* No allocation, source interning, or nested diagnostic buffer. */
@@ -114,6 +166,18 @@ void DiagnosticOutOfMemory(void)
     else fputs("ziran: out of memory\n", stderr);
 }
 typedef struct DiagnosticVBuffers { char message[ZIR_TEXT_MAX * 2]; JsonBuffer json; } DiagnosticVBuffers;
+/* Raw libc storage mirrors the raw allocator this file uses throughout:
+ * AllocateOrExit tracks its pointer in the active frontend scope, and a
+ * failed scope would free a buffer this file already released. */
+static DiagnosticVBuffers *alloc_buffers(void)
+{
+    DiagnosticVBuffers *buffers = malloc(sizeof(*buffers));
+    if(!buffers) {
+        DiagnosticOutOfMemory();
+        exit(1);
+    }
+    return buffers;
+}
 
 static void report(ZirSourceSpan span, const char *severity, const char *code,
                    const DiagnosticDetails *details, const char *format,
@@ -128,7 +192,7 @@ static void report(ZirSourceSpan span, const char *severity, const char *code,
                         span.column, buffers->message, code);
 #endif
     while(atomic_flag_test_and_set_explicit(&diagnostic_lock, memory_order_acquire)) {}
-    if(json) {
+    if(json || collecting) {
         JsonBuffer *out = &buffers->json; out->count = 0; out->failed = 0;
         int omitted = 0;
         put(out, "{\"schema_version\":2,\"severity\":"); string(out, severity, 16);
@@ -199,11 +263,18 @@ static void report(ZirSourceSpan span, const char *severity, const char *code,
         char tail[100];
         int count=snprintf(tail, sizeof(tail), ",\"truncation\":{\"message\":%s,\"metadata\":%s}}\n", clipped ? "true" : "false", omitted ? "true" : "false");
         memcpy(out->bytes+out->count, tail, (size_t)count); out->count+=(size_t)count;
-        fwrite(out->bytes, 1, out->count, stderr);
-    } else if(SpanPath(span)[0] != '\0') {
+        if(json) fwrite(out->bytes, 1, out->count, stderr);
+        if(collecting && collector_room(out->count + (collector_entries ? 1 : 0))) {
+            if(collector_entries) collector[collector_count++] = ',';
+            memcpy(collector + collector_count, out->bytes, out->count);
+            collector_count += out->count;
+            collector_entries++;
+        }
+    }
+    if(!json && SpanPath(span)[0] != '\0') {
         fprintf(stderr, "%s:%d:%d: %s%s\n", SpanPath(span), span.line, span.column,
                 warning ? "warning: " : "", buffers->message);
-    } else fprintf(stderr, "ziran: %s%s\n", warning ? "warning: " : "", buffers->message);
+    } else if(!json) fprintf(stderr, "ziran: %s%s\n", warning ? "warning: " : "", buffers->message);
     if(!json && details && details->related_message && details->related_span.line > 0)
         fprintf(stderr, "%s:%d:%d: note: %s\n", SpanPath(details->related_span),
                 details->related_span.line, details->related_span.column, details->related_message);
@@ -211,7 +282,7 @@ static void report(ZirSourceSpan span, const char *severity, const char *code,
 }
 void DiagnosticV(ZirSourceSpan span, const char *code, const char *format, va_list args)
 {
-    DiagnosticVBuffers *buffers = AllocateOrExit(sizeof(*buffers));
+    DiagnosticVBuffers *buffers = alloc_buffers();
     report(span, "error", code, NULL, format, args, buffers); free(buffers);
 }
 void Diagnostic(ZirSourceSpan span, const char *code, const char *format, ...)
@@ -220,20 +291,20 @@ void Diagnostic(ZirSourceSpan span, const char *code, const char *format, ...)
 }
 void DiagnosticDetailed(ZirSourceSpan span, const char *code, const DiagnosticDetails *details, const char *format, ...)
 {
-    DiagnosticVBuffers *buffers = AllocateOrExit(sizeof(*buffers));
+    DiagnosticVBuffers *buffers = alloc_buffers();
     va_list args; va_start(args, format); report(span, "error", code, details, format, args, buffers);
     va_end(args); free(buffers);
 }
 void Warning(ZirSourceSpan span, const char *code, const char *format, ...)
 {
-    DiagnosticVBuffers *buffers = AllocateOrExit(sizeof(*buffers));
+    DiagnosticVBuffers *buffers = alloc_buffers();
     va_list args; va_start(args, format); report(span, "warning", code, NULL, format, args, buffers);
     va_end(args); free(buffers);
 }
 void DiagnosticTarget(ZirSourceSpan span, const char *code, const char *target, const char *capability, const char *format, ...)
 {
     DiagnosticDetails details = {.target=target, .capability=capability, .cause_kind="target_restriction"};
-    DiagnosticVBuffers *buffers = AllocateOrExit(sizeof(*buffers));
+    DiagnosticVBuffers *buffers = alloc_buffers();
     va_list args; va_start(args, format); report(span, "error", code, &details, format, args, buffers);
     va_end(args); free(buffers);
 }

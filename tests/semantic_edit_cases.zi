@@ -53,13 +53,34 @@ SemanticRaw :: (context: SemanticContext, request: string, apply: bool = true, a
     after := NativeRead(test, context.source)
     if !accepted {
         lines := TextLines(TextTrimEnd(result.error))
-        if !NativeAssert(test, !test.failed && after == before && result.output == "" && lines.count > 0 && SemanticNoTemporary(context), "failed semantic edit changed source, leaked a temporary or omitted diagnostics") { return false }
-        for line: lines { document: JsonDocument; if !NativeAssert(test, JsonRead(*document, line) && CheckInteger(*document, document.root, "schema_version") == 2, "failed semantic edit emitted malformed diagnostics") { return false } }
+        envelope: JsonDocument
+        if !NativeAssert(test, !test.failed && after == before && lines.count > 0 && SemanticNoTemporary(context), "failed semantic edit changed source or leaked a temporary") { return false }
+        parsed := JsonRead(*envelope, result.output)
+        if !NativeAssert(test, parsed && CheckInteger(*envelope, envelope.root, "schema_version") == 1, CheckConcat("rejected result document malformed: ", CheckConcat(result.output, CheckConcat("|stderr|", result.error)))) { return false }
+        if !NativeAssert(test, JsonKindOf(*envelope, JsonMember(*envelope, envelope.root, "applied")) == JsonKind.False, "rejected result document applied flag") { return false }
+        if !NativeAssert(test, JsonKindOf(*envelope, JsonMember(*envelope, envelope.root, "diagnostics")) == .Array, "rejected result document diagnostics array") { return false }
+        diagnostics := JsonMember(*envelope, envelope.root, "diagnostics")
+        if !NativeAssert(test, JsonCount(*envelope, diagnostics) == lines.count, "edit result omitted diagnostics") { return false }
+        index: s32 = 0
+        for line: lines {
+            document: JsonDocument
+            if !NativeAssert(test, JsonRead(*document, line) && CheckInteger(*document, document.root, "schema_version") == 2, "failed semantic edit emitted malformed diagnostics") { return false }
+            embedded := JsonElement(*envelope, diagnostics, index)
+            fields := string.["severity", "code", "message"]
+            for field: fields {
+                if !NativeAssert(test, CheckField(*envelope, embedded, field) == CheckField(*document, document.root, field), "embedded diagnostic differs from stderr") { return false }
+            }
+            if CheckField(*document, document.root, "code") != "command.arguments" {
+                if !NativeAssert(test, JsonWrite(*envelope, embedded, JsonCompactStyle()) == JsonWrite(*document, document.root, JsonCompactStyle()), "embedded native diagnostic lost metadata") { return false }
+            }
+            index += 1
+        }
         return true
     }
     document: JsonDocument
     if !NativeAssert(test, JsonRead(*document, result.output) && CheckInteger(*document, document.root, "schema_version") == 1 &&
-        JsonKindOf(*document, JsonMember(*document, document.root, "applied")) == (ifx apply then JsonKind.True else JsonKind.False), "invalid semantic edit response") { return false }
+        JsonKindOf(*document, JsonMember(*document, document.root, "applied")) == (ifx apply then JsonKind.True else JsonKind.False) &&
+        JsonKindOf(*document, JsonMember(*document, document.root, "diagnostics")) == .Array, "invalid semantic edit response") { return false }
     return NativeAssert(test, ifx apply then after == CheckField(*document, document.root, "source") else after == before, "semantic preview wrote source or applied output disagrees with source")
 }
 
@@ -92,6 +113,7 @@ SemanticTests :: (test: *NativeTest) -> bool {
         if !JsonRead(*value, version) { return false }; JsonSet(*patch, patch.root, "schema_version", JsonCopy(*patch, *value, value.root))
         if !SemanticTry(context, *patch, true, false) { return false }
     }
+    if !SemanticReset(context) || !SemanticRaw(context, "{", true, false) { return false }
     if !SemanticReset(context) || !SemanticRaw(context, "{\"schema_version\":1,\"schema_version\":1,\"path\":\"main.zi\",\"document_sha256\":\"x\",\"edits\":[]}", true, false) { return false }
     fields := string.["path", "path", "path", "document_sha256", "unknown"]; values := string.["../main.zi", "/main.zi", "./main.zi", "0000000000000000000000000000000000000000000000000000000000000000", ""]
     for index: cast(s64)0..fields.count - 1 {

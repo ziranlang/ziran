@@ -75,7 +75,7 @@ CheckProgram :: struct {
     compiler_library: bool
 }
 
-check_programs: [51]CheckProgram = .[
+check_programs: [52]CheckProgram = .[
     .{name = "module_parameters_cases.zi", cost = 2},
     .{name = "insert_source_cases.zi", cost = 2},
     .{name = "std_environment_cases.zi", cost = 2},
@@ -90,6 +90,7 @@ check_programs: [51]CheckProgram = .[
     .{name = "armv7_encoder", source = "armv7_encoder_cases.zi", cost = 2, module_path = "cmd", no_compiler_argument = true},
     .{name = "artifact_consumer_cases.zi"},
     .{name = "native_disk_cache_cases.zi"},
+    .{name = "native_instance_cases.zi", compiler_library = true},
     .{name = "trust_boundary_cases.zi"},
     .{name = "verified_loading_cases.zi", compiler_library = true, module_path = "cmd"},
     .{name = "proven_pointer_cases.zi", compiler_library = true, cost = 2, module_path = "cmd"},

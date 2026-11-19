@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Native instances release temporary frame reservations while idle, so multiple bundles fit in a 32-bit address space without reducing the active frame limit or checked pointer protection.
 - Embedders can route instruction-engine ZX output through a per-instance console callback, including output from global initializers.
 
 - In-process native ZX resizes large heap blocks through the allocator instead of always allocating and copying a replacement. Growth remains zero-filled and checked aliases are invalidated even when the address stays the same. The Vectors kernel on Alpha took 38.19 µs instead of 40.04 µs in 11 matched rounds, against 34.07 µs for C.

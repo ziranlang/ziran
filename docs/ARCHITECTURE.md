@@ -20,6 +20,13 @@ instruction engine can be selected explicitly with `--backend engine` on
 `zi2zx run`. A failed native lowering does not retry on another engine.
 Browser execution uses the Wasm tier. See [ZX](ZX.md).
 
+Native instances retain globals, heap and checked pointer slots between calls.
+Temporary frame storage lives only during an active outermost invocation,
+including its reentrant host callbacks, and is released on return or trap.
+Idle instances do not reserve the frame limit, keeping multiple bundles usable
+in a 32-bit address space. The full limit and pointer lifetime checks still
+apply during execution.
+
 ## Safety and capabilities
 
 Safety is manual by default. `--checks` enables build-wide runtime checking;

@@ -237,8 +237,10 @@ struct NativeInstance {
     NativeHeap heap;
     /* Bytes of the program's globals, which the engine counts as live. */
     size_t global_bytes;
-    /* The pointer table and frame arena; the header is in data. */
+    /* Pointer slots persist; temporary frame storage lives only during an
+     * outermost invocation, including any reentrant host callbacks. */
     ZirNativeMapping pointers;
+    ZirNativeMapping frames;
     unsigned char *pointer_header;
     /* Standard output the program writes, handed to stdio once per run.
      * Last, so its buffer keeps the fields every call reads together. */
@@ -1611,7 +1613,7 @@ native_global_bytes(const NativeInstance *instance, MachineImage image, int64_t 
     return base + offsets[at];
 }
 
-/* The header and frame arena; with --checks also slot 0 (live and empty at
+/* The persistent pointer header; with --checks also slot 0 (live and empty at
  * address 0), a slot per global, and the host bridge's token resolver.
  * Without it a pointer is the address and hosts take it as it is. */
 static int
@@ -1620,16 +1622,30 @@ native_pointers_open(NativeInstance *instance, MachineImage image, unsigned char
     instance->checked = ((const LirProgram *)ExecBundleProgram(instance->bundle))->checks;
     instance->constants = constants;
     size_t table = instance->checked ? (size_t)(MachinePointerCapacity + 1) * MachinePointerEntryBytes : 0;
-    if(!ZirNativeReserve(table + MachinePointerArenaBytes, &instance->pointers)) return 0;
+    if(table != 0 && !ZirNativeReserve(table, &instance->pointers)) {
+        int error = errno;
+        Diagnostic((ZirSourceSpan){0}, "zx.native.pointers",
+            "cannot reserve pointer table for %s (bytes=%llu errno=%d)",
+            ExecBundleEntryFunction(instance->bundle),
+            (unsigned long long)table, error);
+        return 0;
+    }
     instance->pointer_header = instance->data + image.pointer_offset;
     unsigned char *base = instance->pointers.address;
-    native_set_header(instance, MachinePointerHeaderArenaTop, (uint64_t)(uintptr_t)(base + table));
-    native_set_header(instance, MachinePointerHeaderArenaLimit,
-                      (uint64_t)(uintptr_t)(base + table + MachinePointerArenaBytes));
+    native_set_header(instance, MachinePointerHeaderArenaTop, 0);
+    native_set_header(instance, MachinePointerHeaderArenaLimit, 0);
     int64_t global_count = instance->code->global_count;
     if(global_count + 1 >= MachinePointerCapacity) return 0;
     for(int64_t at = 0; at < global_count; at++) {
-        if(native_global_bytes(instance, image, at) == NULL) return 0;
+        if(native_global_bytes(instance, image, at) == NULL) {
+            Diagnostic((ZirSourceSpan){0}, "zx.native.pointers",
+                "global %lld has no native section in %s (writable=%d globals=%lld constants=%lld)",
+                (long long)at, ExecBundleEntryFunction(instance->bundle),
+                instance->code->globals[at].writable,
+                (long long)image.global_offsets.length,
+                (long long)image.constant_offsets.length);
+            return 0;
+        }
         instance->global_bytes += (size_t)instance->code->globals[at].size;
     }
     if(!instance->checked) return 1;
@@ -1738,9 +1754,32 @@ native_call(NativeInstance *instance, void *address, long long *result)
         instance->terminal = 1;
         return 0;
     }
-    if(instance->active == NULL)
+    int outermost = instance->active == NULL;
+    if(outermost) {
+        /* Frame addresses are valid only while their call is active. Keeping
+         * this reservation in idle instances exhausts a 32-bit host's address
+         * space after a few bundles, even though almost none is resident. */
+        if(!ZirNativeReserve(MachinePointerArenaBytes, &instance->frames)) {
+            int error = errno;
+            Diagnostic((ZirSourceSpan){0}, "zx.native.pointers",
+                "cannot reserve active frame arena for %s (bytes=%llu errno=%d)",
+                ExecBundleEntryFunction(instance->bundle),
+                (unsigned long long)MachinePointerArenaBytes, error);
+            instance->terminal = 1;
+            return 0;
+        }
+        unsigned char *base = instance->frames.address;
+        native_set_header(instance, MachinePointerHeaderArenaTop, (uint64_t)(uintptr_t)base);
+        native_set_header(instance, MachinePointerHeaderArenaLimit,
+            (uint64_t)(uintptr_t)(base + MachinePointerArenaBytes));
         memcpy(instance->data + instance->fuel_offset, &budget, sizeof(budget));
+    }
     int called = native_call_entry(instance, address, result);
+    if(outermost) {
+        native_set_header(instance, MachinePointerHeaderArenaTop, 0);
+        native_set_header(instance, MachinePointerHeaderArenaLimit, 0);
+        ZirNativeRelease(&instance->frames);
+    }
     /* A run hands its output to stdio's buffering, before any report. */
     if(instance->console.used != 0) ZxConsoleFlush(&instance->console);
     if(instance->cumulative && instance->active == NULL) {
@@ -1791,8 +1830,11 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
     instance->heap.limit = NATIVE_HEAP_LIMIT;
     instance->bundle = bundle;
     ZxConsoleOpen(&instance->console);
+    const char *load_stage = "host bindings";
+    int64_t relocation_at = -1;
     instance->hosts = ExecHostsOpen(bundle, (ExecFindBinding)find, context);
     if(instance->hosts == NULL) goto failed;
+    load_stage = "host metadata";
     const LirProgram *lir = ExecBundleProgram(bundle);
     size_t function_count = lir != NULL ? (size_t)lir->functions.length : 0;
     instance->capabilities = calloc(function_count ? function_count : 1, sizeof(*instance->capabilities));
@@ -1808,6 +1850,7 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
             instance->services[at] |= NATIVE_SERVICE_DIRECT;
     }
     instance->function_count = function_count;
+    load_stage = "image layout";
     size_t page = ZirNativePageSize();
     size_t code_size = (size_t)image.code.bytes.length;
     size_t stubs = (size_t)image.relocations.length;
@@ -1836,6 +1879,7 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
     if(code_pages == 0 ||
        (uint64_t)image.data.bytes.length > SIZE_MAX - code_pages)
         goto failed;
+    load_stage = "image memory";
     if(!ZirNativeReserve(code_pages + (size_t)image.data.bytes.length,
                          &instance->arena))
         goto failed;
@@ -1860,10 +1904,12 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
     if(image.data.bytes.length > 0)
         memcpy(instance->data, image.data.bytes.data,
                (size_t)image.data.bytes.length);
+    load_stage = "pointer metadata";
     if(image.pointer_offset <= 0 ||
        (uint64_t)image.pointer_offset > instance->data_size - MachinePointerHeaderBytes ||
        !native_pointers_open(instance, image, base + constants_at))
         goto failed;
+    load_stage = "runtime veneers";
     NativeVeneerCalls calls = {
         .instance = instance,
         .host = (uintptr_t)(void *)&NativeHostInvoke,
@@ -1881,12 +1927,14 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
                                                (uint64_t)(uintptr_t)(base + resize_at)) < 0)
         goto failed;
 #endif
+    load_stage = "relocations";
     MachineRelocation *relocations = image.relocations.data;
     size_t stub_at = (size_t)image.code.bytes.length;
 #if defined(__arm__)
     size_t helper_at[MachineHelperCount] = {0};
 #endif
     for(int64_t at = 0; at < image.relocations.length; at++) {
+        relocation_at = at;
         MachineRelocation relocation = relocations[at];
         if(relocation.section != MachineSectionKind_Code || relocation.offset < 0 ||
            relocation.offset > image.code.bytes.length - 4)
@@ -1961,20 +2009,31 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
             goto failed;
         }
         if(!ZirNativePatch(base + relocation.offset, target, relocation.width,
-                           relocation.addend))
+                           relocation.addend)) {
+            Diagnostic((ZirSourceSpan){0}, "zx.native.relocation",
+                "cannot patch relocation %lld: kind=%d offset=%lld width=%d "
+                "addend=%lld distance=%lld code_bytes=%lld",
+                (long long)at, (int)relocation.kind, (long long)relocation.offset,
+                (int)relocation.width, (long long)relocation.addend,
+                (long long)((int64_t)target - (int64_t)(uintptr_t)(base + relocation.offset)),
+                (long long)image.code.bytes.length);
             goto failed;
+        }
     }
+    load_stage = "entry point";
     int64_t *functions = image.function_offsets.data;
     if(functions[image.entry] < 0 ||
        functions[image.entry] >= image.code.bytes.length)
         goto failed;
     instance->entry = base + functions[image.entry];
+    load_stage = "executable mapping";
     ZirNativeMapping code_mapping = {.address = base, .size = code_pages};
     if(!ZirNativeFlushInstructions(&code_mapping) ||
        !ZirNativeProtectRX(&code_mapping))
         goto failed;
     ProfileEnd("zx.native.load", load_started);
     uint64_t init_started = ProfileStart();
+    load_stage = "initializers";
     int32_t *initializers = image.initializers.data;
     for(int64_t at = 0; at < image.initializers.length; at++) {
         int32_t function = initializers[at];
@@ -1993,8 +2052,9 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
     return instance;
 failed:
     Diagnostic((ZirSourceSpan){0}, "zx.native",
-        "cannot load the native image of %s; no alternate engine was selected",
-        ExecBundleEntryFunction(bundle));
+        "cannot load the native image of %s (stage=%s relocation=%lld); "
+        "no alternate engine was selected",
+        ExecBundleEntryFunction(bundle), load_stage, (long long)relocation_at);
     NativeInstanceClose(instance);
     return NULL;
 }
@@ -2110,6 +2170,7 @@ NativeInstanceClose(NativeInstance *instance)
     free(instance->capabilities);
     free(instance->services);
     ZirNativeRelease(&instance->pointers);
+    ZirNativeRelease(&instance->frames);
     ZirNativeRelease(&instance->arena);
     free(instance);
 }

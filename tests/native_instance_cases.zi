@@ -1,0 +1,68 @@
+// Native instances share code and keep only persistent state while idle.
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+
+host :: #system_library "ziran";
+libc :: #system_library "c";
+OpenBundle :: (path: *u8) -> *void #foreign host "BundleOpen";
+CloseBundle :: (bundle: *void) #foreign host "BundleClose";
+OpenInstance :: (bundle: *void, bindings: *void, count: usize) -> *void #foreign host "BundleInstantiate";
+CloseInstance :: (instance: *void) #foreign host "BundleInstanceClose";
+InstanceBackend :: (instance: *void) -> s32 #foreign host "BundleInstanceBackend";
+RunInstance :: (instance: *void, result: *s64, present: *s32) -> s32 #foreign host "BundleInstanceRun";
+AddressLimit :: struct { current: usize; maximum: usize }
+SetAddressLimit :: (resource: s32, limit: *AddressLimit) -> s32 #foreign libc "setrlimit";
+
+CloseInstances :: (instances: []*void) {
+    for closing: instances { if closing != null { CloseInstance(closing) } }
+}
+
+// Idle native instances must not each pin the full temporary frame arena.
+// Keep this in a child: its address-space limit must not affect other checks.
+IdleInstances :: (path: *u8) -> s32 {
+    limit := AddressLimit.{current = 805306368, maximum = 805306368}
+    if SetAddressLimit(9, *limit) != 0 { return 2 }
+    bundle := OpenBundle(path)
+    if bundle == null { return 3 }
+    defer CloseBundle(bundle)
+    instances: [8]*void
+    defer CloseInstances(instances[:])
+    for index: 0..7 {
+        instances[index] = OpenInstance(bundle, null, 0)
+        if instances[index] == null || InstanceBackend(instances[index]) < 3 { return 4 }
+    }
+    for round: 0..1 {
+        for instance: instances {
+            result: s64
+            present: s32
+            if RunInstance(instance, *result, *present) == 0 || present == 0 || result != 8 + round { return 5 }
+        }
+    }
+    return 0
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc == 3 && TextFromCString(argv[1]) == "--idle-instances" { return IdleInstances(argv[2]) }
+    test := NativeStart(argc, argv, "native-instances-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    source := CheckPath(test.work, "instances.zi")
+    if !NativeWrite(*test, source, "slot: s64 = 7;\n#program_export\nmain :: () -> s64 { slot += 1; return slot }\n") { return 1 }
+    for checked: 0..1 {
+        bundle := CheckPath(test.work, "instances.zx")
+        build := string.[CheckPath(PathParent(test.ziran), "zi2zx"),
+            ifx checked == 1 then "--checks" else "--debug", "--root", test.work,
+            "--entry", "instances:main", "-o", bundle, source]
+        unused NativeRun(*test, build[:])
+        if test.failed { return 1 }
+        idle := string.[TextFromCString(argv[0]), "--idle-instances", bundle]
+        kept := NativeInvoke(*test, idle[:])
+        if !NativeAssert(*test, kept.code == 0,
+            CheckConcat("8 idle native instances under a 768 MiB address limit: ", kept.error)) { return 1 }
+    }
+    return 0
+}

@@ -1,12 +1,65 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="The compression package for Ziran."><title>compression · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/compression"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="compression/inflate decodes raw DEFLATE and gzip into caller-owned buffers."><title>Compression · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/compression"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
-<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>compression</h1><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/compression">Repository ↗</a></p></div>
-<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#module-inflate">inflate</a></aside><div class="article-body api-body">
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>Compression</h1><p>compression/inflate decodes raw DEFLATE and gzip into caller-owned buffers.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/compression">Repository ↗</a></p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-inflate">inflate</a><a href="#module-zstd">zstd</a><a href="#module-zstd_encode">zstd_encode</a><a href="#module-zstd_frame">zstd_frame</a><a href="#module-zstd_native">zstd_native</a></aside><div class="article-body api-body">
 <section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.compression]
 git = "https://github.com/ziranlang/compression.git"
 ref = "master"</code></pre></section>
+<section id="overview" class="prose"><h2>Overview</h2><h2 id="zstandard">Zstandard</h2>
+<p><code>compression/zstd</code> is a pure Ziran decoder for one dictionary-free <a href="https://www.rfc-editor.org/rfc/rfc8878.html">Zstandard frame</a>. It supports raw, RLE and compressed blocks, frames with or without a declared content size, and XXH64 checksum validation. Provide a disjoint output buffer and an explicit maximum window in bytes. Output capacity is the expansion limit. The decoder uses already decoded output as match history and needs at most 128 KiB of heap scratch for literals. The result reports the number of bytes written on success. Discard the output on failure.</p>
+<pre><code class="language-zi">using Zstd :: #import &quot;compression/zstd&quot;
+
+ReadAsset :: (frame: []u8, asset: []u8) -&gt; bool {
+    result := Zstd.ZstdDecode(frame, asset, 32 * 1024 * 1024)
+    return result.problem == .None &amp;&amp; result.count == asset.count
+}
+</code></pre>
+<p><code>compression/zstd_frame</code> exposes <code>ZstdReadHeader</code> for inspecting a frame's window, content size, checksum flag and dictionary ID before allocating output. Header inspection checks framing only through the end of the header. Apply application limits before using those fields to allocate memory.</p>
+<p><code>compression/zstd_encode</code> writes a dictionary-free frame in pure Ziran, with a declared content size and checksum. <code>ZstdEncodeBound</code> covers any frame the encoder may write for an input of up to 4 GiB minus one byte. Give the encoder disjoint input and output slices. A smaller output slice is allowed and returns <code>.OutputLimit</code> if the frame does not fit. Discard output on failure.</p>
+<pre><code class="language-zi">using Encode :: #import &quot;compression/zstd_encode&quot;
+
+CompressAsset :: (asset: []u8, output: []u8) -&gt; s64 {
+    result := Encode.ZstdEncode(asset, output, .High)
+    if result.problem != .None { return -1 }
+    return result.count
+}
+</code></pre>
+<p><code>.Balanced</code> has a window of up to 2 MiB and about 10 MiB of heap scratch for large inputs. <code>.High</code> is the default and uses a window of up to 16 MiB, longer-prefix matching and adaptive sequence tables, with about 73 MiB of heap scratch for large inputs. Both use Huffman literals when beneficial and emit raw or RLE blocks when they are smaller. These are package presets with their own speed and compression ratios. The native API exposes libzstd's numbered levels.</p>
+<p><code>compression/zstd_native</code> is an opt-in C target binding. Import it and link with <code>-lzstd</code> on targets that supply the library. The pure Ziran modules build without libzstd. <a href="https://facebook.github.io/zstd/doc/api_manual_latest.html">libzstd API manual</a></p>
+<p><code>ZstdEncodeBound</code> returns the capacity needed for <code>ZstdEncode</code>. Encoding defaults to level 22 with the frame checksum and content size enabled. The native decoder has the same output and window limits as the portable decoder. Use <code>ZstdDecodeWithDictionary</code> when the frame and formatted dictionary advertise the same nonzero ID. Both decoders take exactly one standard frame and reject trailing bytes, concatenated frames and skippable frames.</p>
+<p>The format tables carry the IETF attribution and Revised BSD notice in <a href="https://github.com/ziranlang/compression/blob/HEAD/src/zstd_tables.zi">zstd_tables.zi</a>. The optional native binding uses the system library under its upstream terms. <a href="https://github.com/meta/zstd/blob/v1.5.7/LICENSE">libzstd BSD license</a> · <a href="https://github.com/meta/zstd/blob/v1.5.7/COPYING">libzstd GPLv2 terms</a></p>
+<h2 id="local-tests-and-benchmarks">Local tests and benchmarks</h2>
+<p><code>make test</code> exercises gzip. <code>make test-zstd</code> tests native and pure round trips and uses the <code>zstd</code> CLI for interoperability. <code>make test-zstd-wasm</code> runs pure encoding, decoding and bounds fixtures in Node.js. Build the benchmark driver with <code>make zstd-fixture</code>. Run <code>python3 bench/zstd.py LABEL=PATH_TO_WASM</code> to measure the reference codecs, then run <code>python3 bench/zstd.py --complete-pure</code> in the same output directory to compare both pure presets using those exact bytes. The driver verifies decoded output against the input hash.</p>
+<p>For example, on the local Jungle and Breeze WASM builds used during development, the measured size and encode times were as follows. These are single-run wall times.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Asset</th>
+<th style="text-align: right;">Pure High size</th>
+<th style="text-align: right;">Pure High time</th>
+<th style="text-align: right;">libzstd Ultra-22 size</th>
+<th style="text-align: right;">libzstd Ultra-22 time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Jungle</td>
+<td style="text-align: right;">4,182,760 B</td>
+<td style="text-align: right;">0.745 s</td>
+<td style="text-align: right;">3,797,400 B</td>
+<td style="text-align: right;">2.412 s</td>
+</tr>
+<tr>
+<td>Breeze</td>
+<td style="text-align: right;">62,683,590 B</td>
+<td style="text-align: right;">16.714 s</td>
+<td style="text-align: right;">61,615,106 B</td>
+<td style="text-align: right;">26.589 s</td>
+</tr>
+</tbody>
+</table></div></section>
 <section id="module-inflate"><p class="eyebrow">compression/src/inflate.zi</p><h2>inflate</h2><p>RFC 1951 DEFLATE and RFC 1952 gzip, implemented entirely in Ziran. Callers own a bounded output buffer. Malformed trees, distance overruns, truncated input, CRC mismatch and trailing streams are rejected.</p><p>Import with <code>#import "compression/inflate"</code>.</p><div class="api-list">
 <div><code>Bits :: struct { input: []u8; at: s32; value: u32; count: s32; valid: bool; }</code></div>
 <div><code>Tree :: struct { counts: [16]s32; symbols: [288]s32; valid: bool; }</code></div>
@@ -24,5 +77,26 @@ ref = "master"</code></pre></section>
 <div><code>Word :: (bytes: []u8, at: s32) -&gt; u32</code></div>
 <div><code>Gzip :: (input: []u8, output: []u8) -&gt; s32</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/compression/blob/HEAD/src/inflate.zi">Source ↗</a></p></section>
+<section id="module-zstd"><p class="eyebrow">compression/src/zstd.zi</p><h2>zstd</h2><p>Import with <code>#import "compression/zstd"</code>.</p><div class="api-list">
+<div><code>ZstdDecode :: (input: []u8, output: []u8, max_window: u64) -&gt; Frame.ZstdResult</code><p>Decode one standard dictionary-free frame. INPUT and OUTPUT must be disjoint. No input is borrowed after the call. On failure discard OUTPUT.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/compression/blob/HEAD/src/zstd.zi">Source ↗</a></p></section>
+<section id="module-zstd_encode"><p class="eyebrow">compression/src/zstd_encode.zi</p><h2>zstd_encode</h2><p>Import with <code>#import "compression/zstd_encode"</code>.</p><div class="api-list">
+<div><code>ZstdEncodeMode :: enum { Balanced = 0; High = 1; }</code></div>
+<div><code>ZstdEncodeBound :: (input_count: s64) -&gt; Frame.ZstdResult</code><p>Maximum space for a single frame, including content size and checksum.</p></div>
+<div><code>ZstdEncode :: (input: []u8, output: []u8, mode: ZstdEncodeMode) -&gt; Frame.ZstdResult</code><p>Compress a dictionary-free standard frame into disjoint caller storage. Only output[:result.count] is usable on success. Discard output on failure.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/compression/blob/HEAD/src/zstd_encode.zi">Source ↗</a></p></section>
+<section id="module-zstd_frame"><p class="eyebrow">compression/src/zstd_frame.zi</p><h2>zstd_frame</h2><p>RFC 8878 frame metadata. Reading a header does not validate the blocks.</p><p>Import with <code>#import "compression/zstd_frame"</code>.</p><div class="api-list">
+<div><code>ZstdProblem :: enum { None = 0; Truncated = 1; Format = 2; Trailing = 3; WindowLimit = 4; OutputLimit = 5; Dictionary = 6; Checksum = 7; Allocation = 8; InvalidArgument = 9; Backend = 10; }</code></div>
+<div><code>ZstdResult :: struct { problem: ZstdProblem; count: s64; }</code></div>
+<div><code>ZstdHeader :: struct { problem: ZstdProblem; size: s64; window: u64; content_size: u64; dictionary_id: u32; has_content_size: bool; checksum: bool; }</code></div>
+<div><code>ZstdReadHeader :: (input: []u8) -&gt; ZstdHeader</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/compression/blob/HEAD/src/zstd_frame.zi">Source ↗</a></p></section>
+<section id="module-zstd_native"><p class="eyebrow">compression/src/zstd_native.zi</p><h2>zstd_native</h2><p>Import with <code>#import "compression/zstd_native"</code>.</p><div class="api-list">
+<div><code>ZstdUltraLevel :: 22</code></div>
+<div><code>ZstdEncodeBound :: (input_count: s64) -&gt; ZstdResult</code></div>
+<div><code>ZstdEncode :: (input: []u8, output: []u8, level: s32) -&gt; ZstdResult</code><p>Writes one standard frame with its content size and checksum recorded. INPUT and OUTPUT must be disjoint. OUTPUT is usable only on success.</p></div>
+<div><code>ZstdDecode :: (input: []u8, output: []u8, max_window: u64) -&gt; ZstdResult</code><p>Decodes exactly one standard frame into caller storage. MAX_WINDOW is an exact byte limit checked before libzstd runs. OUTPUT is usable only on success.</p></div>
+<div><code>ZstdDecodeWithDictionary :: (input: []u8, output: []u8, max_window: u64, dictionary: []u8) -&gt; ZstdResult</code><p>For frames with a dictionary ID, the formatted dictionary must carry that ID.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/compression/blob/HEAD/src/zstd_native.zi">Source ↗</a></p></section>
 </div></div></main>
 <footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

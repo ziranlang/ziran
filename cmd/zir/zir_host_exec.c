@@ -1499,6 +1499,10 @@ ExecHostsCall(ExecHosts *hosts, size_t index, ExecHostArgument *arguments, size_
     const ExecBundle *bundle = hosts->bundle;
     if(index >= bundle->host_count || count != (size_t)bundle->hosts[index].parameter_count) return 0;
     const ExecHost *host = &bundle->hosts[index];
+    /* A callback may run this instance again. Its borrowed HostValues must
+     * survive until that callback returns, including a failing nested call. */
+    ExecBlock *outer_blocks = hosts->blocks;
+    hosts->blocks = NULL;
     int ok = 0;
     HostValue *values = exec_arena(hosts, count, sizeof(*values));
     size_t *backs = exec_arena(hosts, count, sizeof(*backs));
@@ -1568,6 +1572,7 @@ done:
             if(!ok) arguments[at].changed = 0;
         }
     exec_arena_free(hosts);
+    hosts->blocks = outer_blocks;
     return ok;
 }
 
@@ -1616,7 +1621,12 @@ ExecHostsCallNative(ExecHosts *hosts, size_t index,
         return 0;
     }
     int ok = 0;
-    hosts->native_in.length = 0;
+    /* Detach the input image while the callback is active. A reentrant call
+     * can reuse its own scratch, but cannot overwrite this call's arguments.
+     * Keep the outermost buffer cached as before; discard nested scratch. */
+    ExecImage native_in = hosts->native_in;
+    hosts->native_in = (ExecImage){0};
+    native_in.length = 0;
     for(size_t at = 0; at < count; at++) {
         int32_t type = parameters[at];
         const ExecNode *node = &bundle->nodes[host->parameters[at]];
@@ -1629,11 +1639,11 @@ ExecHostsCallNative(ExecHosts *hosts, size_t index,
         }
         if(arguments[at].bytes == NULL || arguments[at].size < (size_t)width)
             goto done;
-        offsets[at] = hosts->native_in.length;
-        hosts->native_in.base = hosts->native_in.length;
-        int64_t root = exec_image_grow(&hosts->native_in, width);
+        offsets[at] = native_in.length;
+        native_in.base = native_in.length;
+        int64_t root = exec_image_grow(&native_in, width);
         if(root < 0 ||
-           !exec_native_to_image(hosts, &hosts->native_in,
+           !exec_native_to_image(hosts, &native_in,
                                  host->parameters[at], type,
                                  arguments[at].bytes, root, 0))
             goto done;
@@ -1642,7 +1652,7 @@ ExecHostsCallNative(ExecHosts *hosts, size_t index,
         const ExecNode *node = &bundle->nodes[host->parameters[at]];
         if(node->class == NODE_SCALAR || node->class == NODE_POINTER)
             continue;
-        size_t end = hosts->native_in.length;
+        size_t end = native_in.length;
         for(size_t next = at + 1; next < count; next++) {
             const ExecNode *next_node = &bundle->nodes[host->parameters[next]];
             if(next_node->class != NODE_SCALAR && next_node->class != NODE_POINTER) {
@@ -1650,7 +1660,7 @@ ExecHostsCallNative(ExecHosts *hosts, size_t index,
                 break;
             }
         }
-        wire[at].bytes = hosts->native_in.bytes + offsets[at];
+        wire[at].bytes = native_in.bytes + offsets[at];
         wire[at].size = end - offsets[at];
     }
     /* The semantic engine rejects overlapping mutable views. Do it before
@@ -1758,6 +1768,8 @@ ExecHostsCallNative(ExecHosts *hosts, size_t index,
     if(!exec_native_retain(hosts, root_bytes)) goto done;
     ok = 1;
 done:
+    free(hosts->native_in.bytes);
+    hosts->native_in = native_in;
     free(offsets);
     free(wire);
     return ok;

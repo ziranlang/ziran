@@ -2,6 +2,7 @@
 #import "native_test"
 #import "check_support"
 #import "std/byte_text_linux"
+#import "std/c_string"
 #import "std/file_tree_linux"
 #import "std/text_tools"
 
@@ -15,6 +16,91 @@ InstanceBackend :: (instance: *void) -> s32 #foreign host "BundleInstanceBackend
 RunInstance :: (instance: *void, result: *s64, present: *s32) -> s32 #foreign host "BundleInstanceRun";
 AddressLimit :: struct { current: usize; maximum: usize }
 SetAddressLimit :: (resource: s32, limit: *AddressLimit) -> s32 #foreign libc "setrlimit";
+
+// Public ziran_host.h ABI. Keep the callback and its assertions in Ziran.
+HostValue :: struct {
+    kind: s32; type: *u8; integer: s64; bits: u64; real: float64;
+    data: *u8; length: usize; fields: *HostField; field_count: usize;
+    elements: *HostValue; pointer: *void
+}
+HostField :: struct { name: *u8; value: HostValue }
+HostCall :: #type (*void, *u8, *u8, *HostValue, s32, *HostValue) -> s32 #c_call;
+HostBinding :: struct { module: *u8; function: *u8; call: HostCall; context: *void }
+CallbackContext :: struct { peer: *void; depth: *s32; calls: *s32; validated: *s32; fail_leaf: *s32 }
+
+PacketValid :: (value: *HostValue, marker: s64) -> bool {
+    if value.kind != 5 || value.field_count != 3 || value.fields == null { return false }
+    fields := value.fields
+    if fields[0].value.kind != 1 || fields[0].value.integer != marker { return false }
+    text := fields[1].value
+    if text.kind != 4 || text.length != 96 || text.data == null { return false }
+    for index: 0..95 { if text.data[index] != cast(u8)(marker + index) { return false } }
+    items := fields[2].value
+    if items.kind != 8 || items.length != 4 || items.elements == null { return false }
+    for index: 0..3 {
+        if items.elements[index].kind != 1 || items.elements[index].integer != marker + index { return false }
+    }
+    return true
+}
+
+#program_export
+LifetimeCallback :: (opaque: *void, module: *u8, function: *u8,
+    arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
+    unused module; unused function
+    if count != 1 || arguments == null || arguments[0].kind != 5 || arguments[0].field_count != 3 { return 0 }
+    marker := arguments[0].fields[0].value.integer
+    if !PacketValid(arguments, marker) { print("invalid callback argument before reentry\n"); return 0 }
+    context := cast(*CallbackContext)opaque
+    context.calls[0] += 1
+    context.depth[0] += 1
+    defer { context.depth[0] -= 1 }
+    nested_ok := true
+    if context.depth[0] < 3 {
+        nested: s64; present: s32
+        nested_ok = RunInstance(context.peer, *nested, *present) != 0 && present == 1 && nested == 42
+    }
+    // The outer callback still owns its borrowed arguments after A -> B -> A.
+    if !PacketValid(arguments, marker) { print("invalid callback argument after reentry at depth %\n", context.depth[0]); return 0 }
+    context.validated[0] += 1
+    if !nested_ok || context.fail_leaf[0] != 0 && context.depth[0] == 3 { return 0 }
+    // Returning the argument exercises copying its record, array and string
+    // before the callback's borrowed values are released.
+    result[0] = arguments[0]
+    return 1
+}
+
+ReentrantInstances :: (path: *u8) -> s32 {
+    bundle := OpenBundle(path)
+    if bundle == null { return 10 }
+    defer CloseBundle(bundle)
+    depth: s32; calls: s32; validated: s32; fail_leaf: s32
+    left := CallbackContext.{depth = *depth, calls = *calls, validated = *validated, fail_leaf = *fail_leaf}
+    right := CallbackContext.{depth = *depth, calls = *calls, validated = *validated, fail_leaf = *fail_leaf}
+    module_name: [32]u8; function_name: [32]u8
+    if !CopyCString("native_lifetime", module_name[:]) || !CopyCString("RoundTrip", function_name[:]) { return 15 }
+    binding := HostBinding.{module = *module_name[0],
+        function = *function_name[0], call = LifetimeCallback, context = cast(*void)*left}
+    a := OpenInstance(bundle, cast(*void)*binding, 1)
+    if a == null || InstanceBackend(a) < 3 { return 11 }
+    defer CloseInstance(a)
+    binding.context = cast(*void)*right
+    b := OpenInstance(bundle, cast(*void)*binding, 1)
+    if b == null || InstanceBackend(b) < 3 { return 12 }
+    defer CloseInstance(b)
+    left.peer = b; right.peer = a
+    for round: 0..3 {
+        answer: s64; present: s32
+        if RunInstance(a, *answer, *present) == 0 || present != 1 || answer != 42 { return 13 }
+    }
+    if calls != 12 || validated != 12 || depth != 0 { return 14 }
+    // A failed inner host call also unwinds its scratch without freeing the
+    // outer callbacks' arguments. Failed instances are closed, never reused.
+    fail_leaf = 1
+    answer: s64; present: s32
+    if RunInstance(a, *answer, *present) != 0 { return 16 }
+    if calls != 15 || validated != 15 || depth != 0 { return 17 }
+    return 0
+}
 
 CloseInstances :: (instances: []*void) {
     for closing: instances { if closing != null { CloseInstance(closing) } }
@@ -47,6 +133,7 @@ IdleInstances :: (path: *u8) -> s32 {
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     if argc == 3 && TextFromCString(argv[1]) == "--idle-instances" { return IdleInstances(argv[2]) }
+    if argc == 3 && TextFromCString(argv[1]) == "--reentrant-instances" { return ReentrantInstances(argv[2]) }
     test := NativeStart(argc, argv, "native-instances-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)
@@ -63,6 +150,17 @@ main :: (argc: s32, argv: **u8) -> s32 {
         kept := NativeInvoke(*test, idle[:])
         if !NativeAssert(*test, kept.code == 0,
             CheckConcat("8 idle native instances under a 768 MiB address limit: ", kept.error)) { return 1 }
+        lifetime := CheckPath(test.work, "lifetime.zx")
+        fixture := CheckPath(test.repo, "tests/spec/native_lifetime.zi")
+        compile := string.[CheckPath(PathParent(test.ziran), "zi2zx"),
+            ifx checked == 1 then "--checks" else "--debug", "--root", CheckPath(test.repo, "tests/spec"),
+            "--entry", "native_lifetime:main", "-o", lifetime, fixture]
+        unused NativeRun(*test, compile[:])
+        if test.failed { return 1 }
+        callback := string.[TextFromCString(argv[0]), "--reentrant-instances", lifetime]
+        nested := NativeInvoke(*test, callback[:])
+        if !NativeAssert(*test, nested.code == 0,
+            CheckConcat("borrowed arguments and returned values across native A -> B -> A callbacks: ", CheckConcat(nested.output, nested.error))) { return 1 }
     }
     return 0
 }

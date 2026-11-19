@@ -1,0 +1,31 @@
+// Live locals and host-returned owned strings during native callback reentry.
+#import "std/byte_text_linux"
+host_api :: #system_library "host_api";
+Packet :: struct { marker: s64; text: string; items: [4]s64 }
+RoundTrip :: (value: Packet) -> Packet #foreign host_api;
+sequence: s64;
+saved: string;
+saved_marker: s64;
+
+TextValid :: (text: string, marker: s64) -> bool {
+    if text.count != 96 { return false }
+    for index: 0..95 { if text[index] != cast(u8)(marker + index) { return false } }
+    return true
+}
+
+#program_export
+main :: () -> s64 {
+    if saved.count != 0 && !TextValid(saved, saved_marker) { return 1 }
+    sequence += 1
+    marker := sequence
+    bytes: [96]u8
+    for index: 0..95 { bytes[index] = cast(u8)(marker + index) }
+    packet := Packet.{marker = marker, text = TextFromBytes(bytes[:])}
+    for index: 0..3 { packet.items[index] = marker + index }
+    returned := RoundTrip(packet)
+    if returned.marker != marker || !TextValid(returned.text, marker) || !TextValid(packet.text, marker) { return 2 }
+    for index: 0..3 { if returned.items[index] != marker + index || packet.items[index] != marker + index { return 3 } }
+    saved = returned.text
+    saved_marker = marker
+    return 42
+}

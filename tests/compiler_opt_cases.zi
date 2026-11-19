@@ -16,6 +16,7 @@ using LoopLayout :: #import "compiler_opt_layout_cases"
 using LicmCases :: #import "compiler_opt_licm_cases"
 using InductionCases :: #import "compiler_opt_induction_cases"
 using Accumulation :: #import "compiler_opt_accumulate_cases"
+using Devirt :: #import "compiler_opt_devirt_cases"
 
 OptInstruction :: (op: LirOp, result: s32, operands: []s32,
     symbol: s32 = -1, origin: s32 = 0) -> LirInstruction {
@@ -234,6 +235,8 @@ OptRegressionCases :: () -> s32 {
 }
 
 main :: (argc: s32, argv: **u8) -> s32 {
+    devirt := DevirtCases()
+    if devirt != 0 { print("devirt case % failed\n", devirt); return 1 }
     layout := OptLayoutCases()
     if layout != 0 { return layout }
     hoisting := OptLicmCases()

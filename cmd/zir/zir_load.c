@@ -18,8 +18,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-enum { MAX_MODULES = 1024 };
-
 typedef struct LoadContext {
     ProgramSet *set;
     const char *root;
@@ -271,12 +269,6 @@ add_program_named(LoadContext *context, const char *path, const char *root,
         free(canonical);
         return 0;
     }
-    if(set->count >= MAX_MODULES) {
-        Diagnostic(Span(path, 1, 1), "module.limit",
-                   "module graph exceeds %d files", MAX_MODULES);
-        free(canonical);
-        return 0;
-    }
     /* Canonicalize the parent directory, but preserve a symlink at the final
      * component. This gives relative and absolute inputs the same module
      * identity while allowing a project to link a shared .zi file by name. */
@@ -393,6 +385,16 @@ add_program_named(LoadContext *context, const char *path, const char *root,
             free(canonical);
             return 0;
         }
+    if(set->count == INT_MAX ||
+       (size_t)set->count >= SIZE_MAX / sizeof(*set->programs) ||
+       (size_t)set->count >= SIZE_MAX / sizeof(*set->paths) ||
+       (size_t)set->count >= SIZE_MAX / sizeof(*set->roots)) {
+        Diagnostic(Span(path, 1, 1), "module.limit",
+                   "module graph exceeds addressable storage");
+        ProgramFree(program);
+        free(canonical);
+        return 0;
+    }
     ZirProgram **programs = realloc(set->programs,
                                    (size_t)(set->count + 1) * sizeof(*programs));
     if(programs == NULL) {
@@ -1156,6 +1158,9 @@ early_target(LoadContext *context, ZirProgram *current,
              const ZirImport *import)
 {
     ZirModule *found = NULL;
+    ZirModule *candidates[5];
+    int candidate_count = 0;
+    int total = 0;
     for(int p = -1; p < context->set->count; p++) {
         ZirProgram *program = p < 0 ? current : context->set->programs[p];
         for(int m = 0; m < program->module_count; m++) {
@@ -1169,13 +1174,38 @@ early_target(LoadContext *context, ZirProgram *current,
             if(strcmp(import->target, candidate->name) != 0 &&
                strcmp(import->target, stem) != 0)
                 continue;
-            if(found != NULL && found != candidate) {
-                Diagnostic(import->span, "module.ambiguous",
-                           "ambiguous Ziran import: %s", import->target);
-                return NULL;
-            }
+            if(found == candidate)
+                continue;
+            total++;
+            if(candidate_count < (int)(sizeof(candidates) / sizeof(*candidates)))
+                candidates[candidate_count++] = candidate;
             found = candidate;
         }
+    }
+    if(total > 1) {
+        char listing[ZIR_TEXT_MAX];
+        size_t used = 0;
+        listing[0] = '\0';
+        for(int i = 0; i < candidate_count; i++) {
+            int written = snprintf(listing + used, sizeof(listing) - used,
+                                   "%s%s", i ? ", " : "",
+                                   candidates[i]->source_path);
+            if(written < 0 || (size_t)written >= sizeof(listing) - used)
+                break;
+            used += (size_t)written;
+        }
+        if(total > candidate_count &&
+           used + sizeof(" (and N more)") < sizeof(listing)) {
+            int written = snprintf(listing + used, sizeof(listing) - used,
+                                   " (%d more)", total - candidate_count);
+            if(written > 0 && (size_t)written < sizeof(listing) - used)
+                used += (size_t)written;
+        }
+        Diagnostic(import->span, "module.ambiguous",
+                   "ambiguous Ziran import: %s matches %d modules: %s; "
+                   "keep one file or import the module by its unique path",
+                   import->target, total, listing);
+        return NULL;
     }
     return found;
 }

@@ -1,0 +1,12 @@
+#import "payload"
+
+total: s32 = StartTotal();
+
+StartTotal :: () -> s32 { return 3 }
+Add :: (value: s32) -> s32 {
+    total += value + 1
+    return total
+}
+Echo :: (value: string) -> string { return value }
+Move :: (value: Pair) -> Pair { return Pair.{value.name, value.value + 1} }
+Reset :: () { total = 0 }

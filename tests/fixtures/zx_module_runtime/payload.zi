@@ -1,0 +1,2 @@
+#scope_export
+Pair :: struct { name: string; value: s32 }

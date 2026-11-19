@@ -1,0 +1,34 @@
+using Modules :: #import "std/zx_module"
+#import "payload"
+
+host_api :: #system_library "host_api";
+AddExternal :: (handle: u64, amount: s32) -> s32 #foreign host_api;
+EchoExternal :: (handle: u64, value: string) -> string #foreign host_api;
+MoveExternal :: (handle: u64, value: Pair) -> Pair #foreign host_api;
+ResetExternal :: (handle: u64) #foreign host_api;
+
+main :: () -> s32 {
+    first := Modules.Load("Counter.v1")
+    second := Modules.Load("Counter.v1")
+    if first == 0 || second == 0 || first == second { return 1 }
+    if Modules.ExportCount(first) != 4 || Modules.ExportName(first, 0) != "Add" ||
+       Modules.ExportName(first, 3) != "Reset" || Modules.ParameterCount(first, 0) != 1 ||
+       Modules.ParameterType(first, 0, 0) != "s32" || Modules.ResultType(first, 3) != "void" { return 2 }
+    if AddExternal(first, 4) != 8 || AddExternal(first, 1) != 10 || AddExternal(second, 0) != 4 { return 3 }
+    if EchoExternal(first, "hello") != "hello" { return 4 }
+    moved := MoveExternal(second, Pair.{"record", 4})
+    if moved.name != "record" || moved.value != 5 { return 5 }
+    ResetExternal(second)
+    if AddExternal(second, 0) != 1 { return 6 }
+    if !Modules.Replace(first, "counter-next") || AddExternal(first, 1) != 13 { return 7 }
+    if Modules.Replace(first, "counter-incompatible") || Modules.Problem() == "" || AddExternal(first, 0) != 15 { return 8 }
+    if AddExternal(second, 0) != 2 { return 9 }
+    if !Modules.Release(first) || Modules.Release(first) || !Modules.Release(second) { return 10 }
+    return 42
+}
+
+stale :: () -> s32 {
+    handle := Modules.Load("Counter.v1")
+    if !Modules.Release(handle) { return 11 }
+    return AddExternal(handle, 0)
+}

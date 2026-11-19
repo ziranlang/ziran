@@ -1,0 +1,12 @@
+using Modules :: #import "std/zx_module"
+
+host_api :: #system_library "host_api";
+WrongExternal :: (handle: u64, amount: u32) -> s32 #foreign host_api;
+
+Initialize :: () -> u32 {
+    print("unexpected initialization\n")
+    return 17
+}
+amount: u32 = Initialize();
+
+main :: () -> s32 { return WrongExternal(Modules.Load("Counter.v1"), amount) }

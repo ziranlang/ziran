@@ -1,0 +1,131 @@
+#import "native_test"
+#import "check_support"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+
+Reject :: (test: *NativeTest, arguments: []string, message: string) {
+    result := NativeInvoke(test, arguments)
+    unused NativeAssert(test, result.code != 0 && TextContains(result.error, message),
+        CheckConcat("expected a ZX module diagnostic: ", CheckConcat(message, CheckConcat("\n", result.error))))
+}
+
+LirDeclaration :: (listing: string, name: string) -> string {
+    marker := CheckConcat(" name=\"", CheckConcat(name, "\" result="))
+    label := TextFind(listing, marker)
+    if label < 0 { return "" }
+    start := label + marker.count
+    end := TextFind(listing, "\n", start)
+    return ifx end >= start then listing[start:end] else ""
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "zx-module-compiler-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    compiler := CheckPath(PathParent(test.ziran), "zi2zx")
+    fixtures := CheckPath(test.repo, "tests/fixtures/zx_modules")
+    counter := CheckPath(fixtures, "counter.zi")
+    consumer := CheckPath(fixtures, "consumer.zi")
+    unrelated := CheckPath(fixtures, "unrelated.zi")
+    library := CheckPath(test.work, "counter.zx")
+    repeat := CheckPath(test.work, "repeat.zx")
+    application := CheckPath(test.work, "app.zx")
+
+    first := string.[compiler, "--library", "demo/hello", "--export", "counter:Reset",
+        "--export", "counter:Move", "--export", "counter:Echo", "--export", "counter:Add",
+        "-o", library, counter, unrelated]
+    second := string.[compiler, "--library", "demo/hello", "--export", "counter:Add",
+        "--export", "counter:Echo", "--export", "counter:Move", "--export", "counter:Reset",
+        "-o", repeat, counter, unrelated]
+    unused NativeRun(*test, first[:])
+    unused NativeRun(*test, second[:])
+    same := string.["cmp", "-s", library, repeat]
+    unused NativeRun(*test, same[:])
+    library_listing := string.[compiler, "--emit", "linkage", "-o", "-", library]
+    manifest := NativeInvoke(*test, library_listing[:])
+    expected := "module\tdemo/hello\nexport\tAdd\nexport\tEcho\nexport\tMove\nexport\tReset\n"
+    if !NativeAssert(*test, manifest.code == 0 && manifest.output == expected,
+        CheckConcat("unexpected library linkage: ", manifest.output)) { return 1 }
+    forward := string.[test.ziran, "inspect", "--emit", "linkage", library]
+    forwarded := NativeInvoke(*test, forward[:])
+    if !NativeAssert(*test, forwarded.code == 0 && forwarded.output == expected,
+        CheckConcat("ziran inspect did not forward ZX linkage: ", forwarded.error)) { return 1 }
+
+    read_lir := string.[compiler, "--emit", "lir", "-o", "-", library]
+    lir := NativeInvoke(*test, read_lir[:])
+    required := string.["name=\"__zx_module_dispatch\"", "name=\"total\"", "host.call", " trap"]
+    if !NativeAssert(*test, lir.code == 0, lir.error) { return 1 }
+    for token: required[:] {
+        if !NativeAssert(*test, TextContains(lir.output, token), CheckConcat("missing LIR token: ", token)) { return 1 }
+    }
+    names := string.["Add", "Echo", "Move"]
+    arguments := string.["arg_0_0", "arg_1_0", "arg_2_0"]
+    results := string.["result_0", "result_1", "result_2"]
+    for index: 0..2 {
+        method := LirDeclaration(lir.output, names[index])
+        type_end := TextFind(method, " ")
+        if !NativeAssert(*test, type_end > 0, "missing export in generated LIR") { return 1 }
+        value_type := method[0:type_end]
+        parameter := CheckConcat(" parameters=(", CheckConcat(value_type, ")"))
+        argument := LirDeclaration(lir.output, arguments[index])
+        result := LirDeclaration(lir.output, results[index])
+        if !NativeAssert(*test, TextContains(method, parameter) &&
+            TextHasPrefix(argument, CheckConcat(value_type, " ")) && TextContains(argument, " parameters=()") &&
+            TextHasPrefix(result, "t0 ") && TextContains(result, parameter) &&
+            TextContains(argument, " calling=3 external=1 ") && TextContains(result, " calling=3 external=1 "),
+            CheckConcat("incorrect dispatch signature for ", names[index])) { return 1 }
+        if index == 0 {
+            select := LirDeclaration(lir.output, "select")
+            integer := CheckConcat("type ", CheckConcat(value_type, " kind=3 bits=32 signed=1 "))
+            if !NativeAssert(*test, TextContains(lir.output, integer) &&
+                TextHasPrefix(select, CheckConcat(value_type, " ")) &&
+                TextContains(select, " calling=3 external=1 ") && TextContains(select, " parameters=()"),
+                "selection must be a zero-argument s32 capability") { return 1 }
+        }
+    }
+    void_result := LirDeclaration(lir.output, "result_3")
+    if !NativeAssert(*test, TextHasPrefix(void_result, "t0 ") &&
+        TextContains(void_result, " calling=3 external=1 ") && TextContains(void_result, " parameters=()"),
+        "the void export must publish its result through a zero-argument capability") { return 1 }
+    if !NativeAssert(*test, !TextContains(lir.output, "name=\"Unused\"") &&
+        !TextContains(lir.output, "unused_global") && !TextContains(lir.output, "unrelated_state"),
+        "unreachable library code or state was emitted") { return 1 }
+
+    build_app := string.[compiler, "--root", fixtures, "--entry", "consumer:main",
+        "--require-module", "Other-Tools=spare", "--require-module", "Demo.v1=demo/hello",
+        "--import", "consumer:EchoExternal=Demo.v1:Echo", "--import", "consumer:AddExternal=Demo.v1:Add",
+        "-o", application, consumer]
+    unused NativeRun(*test, build_app[:])
+    app_listing := string.[compiler, "--emit", "linkage", "-o", "-", application]
+    app := NativeInvoke(*test, app_listing[:])
+    linked := "require\tDemo.v1\tdemo/hello\nrequire\tOther-Tools\tspare\nimport\tconsumer\tAddExternal\tDemo.v1\tAdd\nimport\tconsumer\tEchoExternal\tDemo.v1\tEcho\n"
+    if !NativeAssert(*test, app.code == 0 && app.output == linked,
+        CheckConcat("unexpected app linkage: ", app.output)) { return 1 }
+
+    duplicate := string.[compiler, "--library", "hello", "--export", "counter:Add",
+        "--export", "counter:Add", "-o", repeat, counter]
+    Reject(*test, duplicate[:], "duplicate --export key")
+    bad_name := string.[compiler, "--library", "demo/../hello", "--export", "counter:Add",
+        "-o", repeat, counter]
+    Reject(*test, bad_name[:], "expected one valid --library name")
+    missing_export := string.[compiler, "--library", "hello", "--export", "counter:Missing",
+        "-o", repeat, counter]
+    Reject(*test, missing_export[:], "expected one concrete export root")
+    no_requirement := string.[compiler, "--root", fixtures, "--entry", "consumer:main",
+        "--import", "consumer:AddExternal=Demo:Add", "-o", repeat, consumer]
+    Reject(*test, no_requirement[:], "import interface has no --require-module")
+    bad_interface := string.[compiler, "--root", fixtures, "--entry", "consumer:main",
+        "--require-module", "Demo..v1=demo/hello", "-o", repeat, consumer]
+    Reject(*test, bad_interface[:], "invalid --require-module value")
+    bad_handle := string.[compiler, "--root", fixtures, "--entry", "consumer:main",
+        "--require-module", "Demo=hello", "--import", "consumer:BadHandle=Demo:Add", "-o", repeat, consumer]
+    Reject(*test, bad_handle[:], "must take a u64 handle")
+    missing := string.[compiler, "--root", fixtures, "--entry", "consumer:main",
+        "--require-module", "Demo=hello", "--import", "consumer:Missing=Demo:Add", "-o", repeat, consumer]
+    Reject(*test, missing[:], "expected one unbound, fixed-signature host_api declaration")
+    unreachable := string.[compiler, "--root", fixtures, "--entry", "consumer:main",
+        "--require-module", "Demo=hello", "--import", "consumer:UnusedExternal=Demo:Add", "-o", repeat, consumer]
+    Reject(*test, unreachable[:], "module import is not reachable")
+    return ifx test.failed then 1 else 0
+}

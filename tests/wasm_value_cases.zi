@@ -69,12 +69,36 @@ WasmValueEnums :: (test: *NativeTest) -> bool {
     return true
 }
 
+// Host pointers can name partially overlapping records even though their
+// static types agree. Keep all expected-value checks in the Ziran program.
+WasmValueOverlap :: (test: *NativeTest) -> bool {
+    name := "overlapping_stores"
+    if !WasmValueFixture(test, name, "wasm_overlapping_stores.zi.in") { return false }
+    runner := CheckPath(test.work, "overlapping_stores.cjs")
+    if !NativeWrite(test, runner, NativeRead(test,
+        CheckPath(test.repo, "tests/fixtures/generation/wasm_overlapping_stores.cjs.in"))) { return false }
+    tools := PathParent(test.ziran)
+    source := CheckPath(test.work, "overlapping_stores.zi")
+    bundle := CheckPath(test.work, "overlapping_stores.zx")
+    image := CheckPath(test.work, "overlapping_stores.wasm")
+    lower := string.[CheckPath(tools, "zi2zx"), "--target", "wasm", "--root", test.work,
+        "--entry", "overlapping_stores:Answer", "-o", bundle, source]
+    emit := string.[CheckPath(tools, "zx2wasm"), "-o", image, bundle]
+    unused WasmValueCommand(test, lower[:])
+    unused WasmValueCommand(test, emit[:])
+    if test.failed { return false }
+    run := string.["node", runner, image]
+    result := WasmValueCommand(test, run[:])
+    return NativeAssert(test, !test.failed && TextTrim(result.output) == "42",
+        "WebAssembly overlapping stores or retained snapshots differ")
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "wasm-values-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)
-    if !WasmValueEnums(*test) { return 1 }
+    if !WasmValueEnums(*test) || !WasmValueOverlap(*test) { return 1 }
     slices := WasmValueCase.[.{"slices", "42"}]
     if !WasmValueFixture(*test, "slices", "wasm_slices.zi.in") || !WasmValueRun(*test, slices[:], false) { return 1 }
     print("Wasm and the engine: omitted slice bounds, full-length and empty slices agree from source and saved IR in local tests\n")

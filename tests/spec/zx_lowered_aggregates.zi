@@ -130,6 +130,52 @@ Scatter :: (seed: s64) -> s64 {
     return total
 }
 
+// A by-value call keeps its entry snapshot when another argument aliases
+// the caller's storage. Nonlinear recursion keeps a real call boundary.
+ReadSnapshot :: (particle: Particle, alias: *Particle, depth: s64) -> s64 {
+    alias.x += 10
+    if depth == 0 { return particle.x }
+    nested := ReadSnapshot(particle, alias, depth - 1)
+    return nested * nested + particle.y
+}
+
+// A read-only record argument with field reads on several control-flow paths.
+// Keep enough work to retain a call after the ordinary small-call inliner.
+ReadFields :: (particle: Particle, seed: s64) -> s64 {
+    total := seed
+    if seed < 0 { total += particle.x * 3 } else { total += particle.y * 5 }
+    if seed < 1 { total += particle.dx * 7 } else { total += particle.dy * 11 }
+    if seed < 2 { total += particle.x * 13 } else { total += particle.y * 17 }
+    if seed < 3 { total += particle.dx * 19 } else { total += particle.dy * 23 }
+    if seed < 4 { total += particle.x * 29 } else { total += particle.y * 31 }
+    if seed < 5 { total += particle.dx * 37 } else { total += particle.dy * 41 }
+    if seed < 6 { total += particle.x * 43 } else { total += particle.y * 47 }
+    if seed < 7 { total += particle.dx * 53 } else { total += particle.dy * 59 }
+    return total / (seed * seed + 1)
+}
+
+FieldCalls :: (values: []Particle) -> s64 {
+    total: s64
+    for value, at: values { total += ReadFields(value, at - 2) }
+    return total
+}
+
+Scalars :: struct { x: float64; y: float64; z: float64 }
+ReadScalars :: (seed: s64, values: Scalars, alias: *float64, tail: float64) -> float64 {
+    alias.* = 900
+    total := tail
+    if seed < 0 { total += values.x * 3 } else { total += values.y * 5 }
+    if seed < 1 { total += values.y * 7 } else { total += values.z * 11 }
+    if seed < 2 { total += values.z * 13 } else { total += values.x * 17 }
+    if seed < 3 { total += values.x * 19 } else { total += values.y * 23 }
+    if seed < 4 { total += values.y * 29 } else { total += values.z * 31 }
+    if seed < 5 { total += values.z * 37 } else { total += values.x * 41 }
+    if seed < 6 { total += values.x * 43 } else { total += values.y * 47 }
+    if seed < 7 { total += values.y * 53 } else { total += values.z * 59 }
+    return total
+}
+
+
 main :: () -> s32 {
     print("records %\n", Records())
     print("snapshot %\n", Snapshot())
@@ -142,5 +188,19 @@ main :: () -> s32 {
     print("carried %\n", Carried())
     print("scatter %\n", Scatter(3))
     print("walk %\n", Walk())
+    aliased := Particle.{x = 4, y = 5, dx = 6, dy = 7}
+    snapshot := ReadSnapshot(aliased, *aliased, 2)
+    print("call snapshot % %\n", snapshot, aliased.x)
+    if snapshot != 446 || aliased.x != 34 { return 1 }
+    samples: [10]Particle
+    for i: 0..9 { samples[i] = .{x = i + 1, y = 2 * i, dx = 3 - i, dy = i % 3 + 1} }
+    print("call fields %\n", FieldCalls(samples[:]))
+    float_total: float64
+    for i: 0..9 {
+        numbers := Scalars.{x = cast(float64)i + 0.5, y = 2.5, z = 3.25}
+        float_total += ReadScalars(i - 2, numbers, *numbers.x, 0.75)
+        if numbers.x != 900 { return 1 }
+    }
+    print("float call fields %\n", float_total)
     return 0
 }

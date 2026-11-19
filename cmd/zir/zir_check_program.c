@@ -1,4 +1,5 @@
 #include "zir_memory.h"
+#include <ctype.h>
 #include <inttypes.h>
 #include "zir_check_internal.h"
 #include "compiler_link.h"
@@ -72,6 +73,80 @@ check_native_storage(const ZirModule *module)
     return 1;
 }
 
+/* The compiler synthesizes default-parameter helpers into the zi_default_
+ * namespace; a user declaration there collides with names the compiler may
+ * generate for any procedure with a default argument. Generated helpers
+ * themselves spell zi_default_<16 hex digits>, optionally followed by
+ * _field_<digits>, and pass through unchanged. */
+static int
+generated_helper_name(const char *name)
+{
+    static const char prefix[] = "zi_default_";
+    const size_t at = sizeof(prefix) - 1;
+    size_t length = strlen(name);
+    if(length < at + 16 || strncmp(name, prefix, at) != 0) return 0;
+    for(size_t i = at; i < at + 16; i++)
+        if(!isxdigit((unsigned char)name[i])) return 0;
+    if(length == at + 16) return 1;
+    if(strncmp(name + at + 16, "_field_", 7) != 0) return 0;
+    for(size_t i = at + 16 + 7; i < length; i++)
+        if(!isdigit((unsigned char)name[i])) return 0;
+    return length > at + 16 + 7;
+}
+
+static int
+reserved_declaration(const ZirModule *module)
+{
+    static const char prefix[] = "zi_default_";
+    const size_t at = sizeof(prefix) - 1;
+    for(int i = 0; i < module->function_count; i++) {
+        const char *name = module->functions[i].name;
+        if(strncmp(name, prefix, at) == 0 && !generated_helper_name(name)) {
+            Diagnostic(module->functions[i].span, "check.reserved_name",
+                       "declaration name starts with the compiler's generated-helper prefix: %s",
+                       name);
+            return 0;
+        }
+    }
+    for(int i = 0; i < module->global_count; i++) {
+        const char *name = module->globals[i].name;
+        if(strncmp(name, prefix, at) == 0 && !generated_helper_name(name)) {
+            Diagnostic(module->globals[i].span, "check.reserved_name",
+                       "declaration name starts with the compiler's generated-helper prefix: %s",
+                       name);
+            return 0;
+        }
+    }
+    for(int i = 0; i < module->define_count; i++) {
+        const char *name = module->defines[i].name;
+        if(strncmp(name, prefix, at) == 0 && !generated_helper_name(name)) {
+            Diagnostic(module->defines[i].span, "check.reserved_name",
+                       "declaration name starts with the compiler's generated-helper prefix: %s",
+                       name);
+            return 0;
+        }
+    }
+    for(int i = 0; i < module->type_count; i++) {
+        const char *name = module->types[i].name;
+        if(strncmp(name, prefix, at) == 0 && !generated_helper_name(name)) {
+            Diagnostic(module->types[i].span, "check.reserved_name",
+                       "declaration name starts with the compiler's generated-helper prefix: %s",
+                       name);
+            return 0;
+        }
+    }
+    for(int i = 0; i < module->import_count; i++) {
+        const char *name = module->imports[i].name;
+        if(strncmp(name, prefix, at) == 0 && !generated_helper_name(name)) {
+            Diagnostic(module->imports[i].span, "check.reserved_name",
+                       "declaration name starts with the compiler's generated-helper prefix: %s",
+                       name);
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static int
 CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffers *buffers)
 {
@@ -107,6 +182,8 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                       buffers->saved_path);
             SymbolLookupsChanged();
             if(!check_native_storage(module))
+                return 0;
+            if(!reserved_declaration(module))
                 return 0;
             for(int g = 0; g < module->global_count; g++) {
                 size_t init_capacity;

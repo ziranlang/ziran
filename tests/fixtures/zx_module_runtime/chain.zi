@@ -1,0 +1,12 @@
+using Modules :: #import "std/zx_module"
+
+host_api :: #system_library "host_api";
+TotalExternal :: (handle: u64, amount: s32) -> s32 #foreign host_api;
+
+main :: () -> s32 {
+    bridge := Modules.Load("Bridge.v1")
+    if bridge == 0 { return -1 }
+    result := TotalExternal(bridge, 38)
+    if !Modules.Release(bridge) { return -2 }
+    return result
+}

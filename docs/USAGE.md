@@ -673,7 +673,8 @@ module-root count limit; storage grows with the inputs, subject to available
 memory and operating-system argument limits. Search order remains the order
 of the supplied paths. `check`, `ir`,
 `api`, `build`, and `bundle` load extensionless `#import "module"` dependencies
-transitively from `.zi` or saved `.zir`. For example:
+transitively from `.zi` or saved `.zir`. The loaded graph also grows
+dynamically; it has no fixed 1,024-module limit. For example:
 
 ```sh
 build/bin/zi2zir --check-only --root app --module-path ../kryon/src/ui app/main.zi

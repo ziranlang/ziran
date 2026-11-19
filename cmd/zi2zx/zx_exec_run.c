@@ -6,9 +6,11 @@
 #include "zir_diagnostic.h"
 #include "zir_scalar.h"
 #include "zir_text.h"
+#include "ziran_zx_module.h"
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 int
@@ -56,6 +58,46 @@ ZxExecRunProgram(const LirProgram *program, LirExecLimits limits, int heap_repor
     return status;
 }
 
+int
+ZxExecRunBundle(const Bundle *bundle, const char *path, const char *const *roots,
+                size_t root_count, const BundleInstanceOptions *options,
+                long long *result, int *has_result)
+{
+    if(!ZxModuleProgramNeedsLoader(bundle)) {
+        BundleInstance *instance = BundleInstantiateWithOptions(bundle, NULL, 0, options);
+        int ok = instance != NULL && BundleInstanceRun(instance, result, has_result);
+        BundleInstanceClose(instance);
+        return ok;
+    }
+
+    char *directory = NULL;
+    const char *default_root = ".";
+    if(root_count == 0) {
+        const char *slash = path == NULL ? NULL : strrchr(path, '/');
+        if(slash != NULL) {
+            directory = strndup(path, slash == path ? 1 : (size_t)(slash - path));
+            if(directory == NULL) {
+                Diagnostic((ZirSourceSpan){0}, "zx.module-run", "cannot allocate the module root path");
+                return 0;
+            }
+            default_root = directory;
+        }
+        roots = &default_root;
+        root_count = 1;
+    }
+    ZxModuleLoader *loader = ZxModuleLoaderOpen(roots, root_count, options);
+    free(directory);
+    ZxModuleProgram *program = loader == NULL ? NULL : ZxModuleProgramOpen(loader, bundle, NULL, 0);
+    int ok = program != NULL && ZxModuleProgramRun(program, result, has_result);
+    if(!ok) {
+        const char *problem = ZxModuleLoaderError(loader);
+        if(*problem) Diagnostic((ZirSourceSpan){0}, "zx.module-run", "%s", problem);
+    }
+    ZxModuleProgramClose(program);
+    ZxModuleLoaderClose(loader);
+    return ok;
+}
+
 /* A bundle's entry: a zero-argument Ziran function returning an integer,
  * bool, an enum or nothing. */
 static int
@@ -81,17 +123,42 @@ portable_entry(const ZirProgram *program, const char *module, const char *functi
     return ScalarWidth(result) != 0 || !strcmp(result, "bool") || !strcmp(result, "void");
 }
 
+static int
+same_name(String name, const char *text)
+{
+    size_t length = strlen(text);
+    return name.length == length && memcmp(name.data, text, length) == 0;
+}
+
+static int
+has_module_import(const LirProgram *program, const ZxImportRoot *root)
+{
+    const LirFunction *functions = program->functions.data;
+    const String *modules = program->modules.data;
+    for(int64_t i = 0; i < program->functions.length; i++) {
+        const LirFunction *function = &functions[i];
+        if(function->external && function->calling == LirCalling_Host &&
+           same_name(modules[function->module], root->module) &&
+           same_name(function->name, root->function))
+            return 1;
+    }
+    return 0;
+}
+
 int
 ZxLowerBuild(struct ZirProgram *program, const char *module, const char *function,
-             int optimize, ZxLowerOwner *owner)
+             const ZxModuleBuild *link, int optimize, ZxLowerOwner *owner)
 {
     memset(owner, 0, sizeof(*owner));
-    if(!portable_entry(program, module, function)) {
+    if(link->export_count > 0) {
+        owner->lowered = AssemblyLowerModule(program, link->exports, link->export_count);
+    } else if(!portable_entry(program, module, function)) {
         Diagnostic(Span("<bundle>", 1, 1), "zx.entry",
                    "entry must be one unique zero-argument integer, bool, or void Ziran function");
         return 0;
+    } else {
+        owner->lowered = AssemblyLower(program, (uint8_t *)module, (uint8_t *)function);
     }
-    owner->lowered = AssemblyLower(program, (uint8_t *)module, (uint8_t *)function);
     if(owner->lowered == NULL) return 0;
     const LirProgram *view = AssemblyView(owner->lowered);
     LirDiagnostic diagnostic = compiler_lowered_verify_LirVerify(*view, compiler_lowered_ir_LirDefaultLimits());
@@ -119,6 +186,15 @@ ZxLowerBuild(struct ZirProgram *program, const char *module, const char *functio
         owner->program = compiler_opt_LirOptProgram(&owner->optimized);
         owner->has_optimization = 1;
     }
+    for(int i = 0; i < link->import_count; i++) {
+        const ZxImportRoot *root = &link->imports[i];
+        if(!has_module_import(&owner->program, root)) {
+            Diagnostic(Span("<command>", 1, 1), "zx.module-import",
+                       "module import is not reachable: %s:%s", root->module, root->function);
+            ZxLowerFree(owner);
+            return 0;
+        }
+    }
     return 1;
 }
 
@@ -143,20 +219,20 @@ ZxLowerFree(ZxLowerOwner *owner)
 }
 
 unsigned char *
-ZxExecBuild(struct ZirProgram *program, const char *module, const char *function, Slice assets,
-            int debug, size_t *size)
+ZxExecBuild(struct ZirProgram *program, const char *module, const char *function,
+            const ZxModuleBuild *link, Slice assets, int debug, size_t *size)
 {
     unsigned char *bytes = NULL;
     *size = 0;
     ZxLowerOwner lower = {0};
-    if(!ZxLowerBuild(program, module, function, 1, &lower)) return NULL;
+    if(!ZxLowerBuild(program, module, function, link, 1, &lower)) return NULL;
     const LirProgram *optimized_program = ZxLowerView(&lower);
     size_t interface_length = 0;
     const char *interface = (const char *)AssemblyHostInterface(lower.lowered, &interface_length);
     if(interface == NULL) goto done;
     String interface_text = {interface, interface_length};
-    ZxExecResult measured = compiler_exec_link_ZxExecWrite(*optimized_program, assets, (Slice){0}, interface_text,
-        debug != 0);
+    ZxExecResult measured = compiler_exec_link_ZxExecWriteModule(*optimized_program, assets,
+        (Slice){0}, interface_text, debug != 0, link->linkage);
     if(measured.problem != ZxExecProblem_None || measured.size <= 0 || measured.size > 268435456) {
         String problem = compiler_exec_link_ZxExecProblemName(measured.problem);
         Diagnostic((ZirSourceSpan){0}, "assembly.container",
@@ -166,8 +242,8 @@ ZxExecBuild(struct ZirProgram *program, const char *module, const char *function
     }
     bytes = malloc((size_t)measured.size);
     if(bytes == NULL) goto done;
-    ZxExecResult encoded = compiler_exec_link_ZxExecWrite(*optimized_program, assets,
-        (Slice){bytes, measured.size}, interface_text, debug != 0);
+    ZxExecResult encoded = compiler_exec_link_ZxExecWriteModule(*optimized_program, assets,
+        (Slice){bytes, measured.size}, interface_text, debug != 0, link->linkage);
     if(encoded.problem != ZxExecProblem_None || encoded.size != measured.size) {
         String problem = compiler_exec_link_ZxExecProblemName(encoded.problem);
         Diagnostic((ZirSourceSpan){0}, "assembly.container",

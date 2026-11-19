@@ -244,8 +244,37 @@ SquareRoot :: () -> bool {
         Check(image.relocations.count == 0, "f64 sqrt needs no runtime helper")
 }
 
+LatePredecessor :: () -> bool {
+    b: Builder
+    defer BuilderFree(*b)
+    Setup(*b, Target.TargetDescribe(.ArmV7, .Android).target)
+    b.entry = Begin(*b, "late_predecessor")
+    first := Parameter(*b, S64, P0)
+    second := Parameter(*b, S64, P1)
+    replacement := Value(*b, S64)
+    entry := Blocks(*b, 3)
+    join := entry + 1
+    late := entry + 2
+    Enter(*b, entry)
+    unused Compare(*b, P0, first, P1, second, .Less)
+    unused BranchFlags(*b, .Less, join, late)
+    Enter(*b, join)
+    returned := Return(*b, P0, first)
+    Enter(*b, late)
+    write := Constant(*b, P1, replacement, 42)
+    unused Jump(*b, join)
+    End(*b, 0)
+    limits := MachineDefaultLimits()
+    valid := Apply(*b, .Verify, null, limits)
+    if valid.problem != .None { Report("armv7 valid join", valid); return false }
+    b.operands[b.instructions[write].operand_begin].id = P0
+    bad := Apply(*b, .Verify, null, limits)
+    return Check(bad.problem == .Undefined && bad.block == join && bad.instruction == returned,
+        "a later predecessor that overwrites the returned register invalidates the join")
+}
+
 main :: () -> s32 {
-    if !SquareRoot() || !Basics() || !Negatives() { return 1 }
+    if !SquareRoot() || !Basics() || !Negatives() || !LatePredecessor() { return 1 }
     print("armv7 encoder: exact A32 words for pair and word arithmetic, checked shifts, signed pair compares, 64-bit fuel, helper division, looped record copies, relocation fields and rejection of untied and foreign programs local tests passed\n")
     return 0
 }

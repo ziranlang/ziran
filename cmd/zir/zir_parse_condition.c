@@ -142,6 +142,13 @@ select_compile_condition(ZirModule *module, const ZirConsts *consts,
     consts = &visible;
     expand_compile_expr(expanded, sizeof(expanded), consts, source, SpanPath(span));
     normalize_jai_source_tokens(expanded, SpanPath(span), source_path, span.line);
+    /* A file-scope using does not make every condition depend on its imports.
+     * Resolve self-contained conditions first, so platform flags can select
+     * declarations inside an otherwise ordinary cyclic module graph. Layout
+     * queries still need the fully resolved types below. */
+    if(using_scope.using_count > 0 && strstr(expanded, "size_of") == NULL &&
+       eval_typed_condition(expanded, module, consts, span, &value))
+        goto selected;
     if(using_scope.using_count > 0 && context != NULL &&
        context->resolver != NULL &&
        !context->resolver(context->resolver_context, context->program,
@@ -204,6 +211,7 @@ select_compile_condition(ZirModule *module, const ZirConsts *consts,
         die_at(span, "#if condition is not a compile-time constant: %s",
                expanded);
     }
+selected:
     free_visible_compile_module(&using_scope);
     free(visible.items);
     return value != 0;

@@ -296,6 +296,13 @@ translation. Function-body expressions remain symbolic in checked source and
 saved IR, then lower to the selected target's size operation; consequently a
 borrowed slice is 16 bytes in C and the portable layout but 24 bytes in
 Go. An untyped integer local inferred with `:=` also has `s64` storage.
+An untyped literal with no constraining context resolves to its usual type:
+integer literals to `s64`, real literals to `float64`, and `#char` values to
+`s64`. Contexts still pin a literal: a typed declaration, parameter, default,
+or call argument keeps its written width, so `value: f32 = 1.5` stores `f32`.
+Overload resolution prefers an exact type match, then an argument that is an
+untyped literal at the parameter's usual type, then another literal type, then
+a widening conversion priced by its extra bits.
 The C `sizeof` spelling is rejected. In function bodies,
 `size_of(type_of(expression))` uses the checked expression type without
 evaluating the expression. File-scope queries also infer types from previously

@@ -1,0 +1,17 @@
+Pair :: struct { name: string; value: s32 }
+
+total: s32 = StartTotal();
+unused_global: s32 = 33;
+
+StartTotal :: () -> s32 { return 3 }
+Step :: (value: s32) -> s32 { return value + 1 }
+Unused :: () -> s32 { return unused_global }
+
+Add :: (value: s32) -> s32 {
+    total += Step(value)
+    return total
+}
+
+Echo :: (value: string) -> string { return value }
+Move :: (value: Pair) -> Pair { return Pair.{value.name, value.value + 1} }
+Reset :: () { total = 0 }

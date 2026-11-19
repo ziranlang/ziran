@@ -3,18 +3,60 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Ziran portable bundle (`.zx`): the Ziran guide, rendered from docs/ZX.md."><title>Ziran portable bundle (`.zx`) · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/zx"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Ziran portable bundle (`.zx`)</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/ZX.md">docs/ZX.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#running-bundles">Running bundles</a><a href="#learning">Learning</a><a href="#writing-bundles">Writing bundles</a><a href="#embedding">Embedding</a><a href="#target-contract">Target contract</a><a href="#component-identity-state-and-replacement">Component identity, state, and replacement</a><a href="#webassembly-execution-tier">WebAssembly execution tier</a><a href="#embedded-files-and-application-hosts">Embedded files and application hosts</a></aside><div class="article-body">
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#loading-libraries">Loading libraries</a><a href="#running-bundles">Running bundles</a><a href="#learning">Learning</a><a href="#writing-bundles">Writing bundles</a><a href="#embedding">Embedding</a><a href="#target-contract">Target contract</a><a href="#component-identity-state-and-replacement">Component identity, state, and replacement</a><a href="#webassembly-execution-tier">WebAssembly execution tier</a><a href="#embedded-files-and-application-hosts">Embedded files and application hosts</a></aside><div class="article-body">
 <section class="prose"><p>The file roles are <code>.zi</code> for source, <code>.zir</code> for checked intermediate modules,
-and <code>.zx</code> for portable executables. The portable tool is <code>zi2zx</code>, and its
-target name is <code>zx</code>. A <code>.zx</code> file is revision-28 executable ZX: verified
-lowered instructions, the program's assets and the names its embedder sees.
+and <code>.zx</code> for portable applications and libraries. The portable tool is <code>zi2zx</code>,
+and its target name is <code>zx</code>. Revision-28 executable ZX contains verified
+lowered instructions, assets and the names its embedder sees.
 The normative byte contract is
 <a href="https://github.com/ziranlang/ziran/blob/master/ASSEMBLY/zx-executable-format.md">the executable format specification</a>; see
 <a href="implementation-status.html">Implementation status</a> for the remaining work.</p>
+<h2 id="loading-libraries">Loading libraries</h2>
+<p>Build a provider with a logical name and explicit export roots. Save it as
+<code>LOGICAL_NAME.zx</code> beneath a module root. This example exports <code>counter:Add</code>,
+which takes an <code>s32</code> and returns an <code>s32</code>.</p>
+<pre><code class="language-sh">mkdir -p modules/demo
+zi2zx --library demo/counter --export counter:Add \
+    -o modules/demo/counter.zx counter.zi
+</code></pre>
+<p>In <code>app.zi</code>, declare the import with a <code>u64</code> instance handle followed by the
+provider's parameter types. Load the declared interface before calling it.</p>
+<pre><code class="language-ziran">using Modules :: #import &quot;std/zx_module&quot;
+
+host_api :: #system_library &quot;host_api&quot;;
+AddExternal :: (handle: u64, amount: s32) -&gt; s32 #foreign host_api;
+
+main :: () -&gt; s32 {
+    handle := Modules.Load(&quot;Counter.v1&quot;)
+    if handle == 0 { return 1 }
+    result := AddExternal(handle, 2)
+    if !Modules.Release(handle) { return 1 }
+    return result
+}
+</code></pre>
+<pre><code class="language-sh">zi2zx --require-module Counter.v1=demo/counter \
+    --import app:AddExternal=Counter.v1:Add -o app.zx app.zi
+ziran run --module-root modules app.zx
+ziran inspect --emit linkage modules/demo/counter.zx
+</code></pre>
+<p>Repeat <code>--module-root</code> to search several folders. With no explicit root, a
+saved bundle uses its own directory and a source run uses the current
+directory. The loader checks dependency graphs and import signatures before
+running initializers. Distinct files claiming the same requested path are
+ambiguous. Each successful <code>Load</code> creates independent module state and
+returns a handle scoped to its caller. Use <code>Problem()</code> to read the loader's
+latest diagnostic and the export and parameter queries to inspect its types.</p>
+<p><code>Replace(handle, artifact_name)</code> resolves a candidate under the same roots.
+Use its path without <code>.zx</code>. It must declare the same logical name and export
+interface. Replacement retains the handle and migrates compatible globals.
+An incompatible candidate leaves the original instance available. C embedders
+can supply a state migration callback and grant libraries host bindings through
+<a href="https://github.com/ziranlang/ziran/blob/master/include/ziran_zx_module.h"><code>ziran_zx_module.h</code></a>. Module calls are synchronous.</p>
 <h2 id="running-bundles">Running bundles</h2>
-<p>Run source in one command: <code>ziran run hello.zi</code> or <code>zi2zx run hello.zi</code>. Both
-check the file, write the bundle in memory and execute its <code>main</code>; its folder
-is the default module root. <code>ziran run app.zx</code> and <code>zi2zx run app.zx</code> run a
+<p>Run source in one command with <code>ziran run hello.zi</code> or <code>zi2zx run hello.zi</code>.
+Both check the file, write the bundle in memory and execute its <code>main</code>.
+The file's folder is the default source root. <code>ziran run app.zx</code> and
+<code>zi2zx run app.zx</code> run a
 bundle file. Zero-argument entries returning an integer, <code>bool</code> or nothing
 run; the command prints a non-void result on its own line, unsigned results
 over their full range.</p>
@@ -41,6 +83,14 @@ the CPU's features and the build of the compiler that made it. It is checked
 against that key and its SHA-256 digest before it is used, and a damaged entry
 is removed and rebuilt. <code>ZIRAN_NATIVE_CACHE=DIR</code> uses another directory and
 <code>ZIRAN_NATIVE_CACHE=off</code> turns the cache off.</p>
+<p>Set <code>ZIRAN_PROFILE</code> to an absolute output filename to write a JSON timing
+record at normal process exit. <code>zx.bundle.open</code> covers portable bundle
+validation and content hashing after the bytes are read. <code>zx.native.lookup</code>,
+<code>zx.native.compile</code> and <code>zx.native.store</code> separate cache lookup, compilation
+and cache writing. <code>zx.native.load</code> covers native instance setup through
+executable mapping. <code>zx.native.init</code> measures the module initializers before
+the entry runs. A warm cache hit records lookup and instance startup without
+a compile phase.</p>
 <h2 id="learning">Learning</h2>
 <p><code>ziran build FILE.zi</code> keeps a corpus of the programs it compiles to native code,
 as training data for improving Ziran's machine code. It is on by default,

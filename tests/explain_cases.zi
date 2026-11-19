@@ -98,6 +98,18 @@ ExplainInventory :: (test: *NativeTest) -> bool {
     for path: files { text := NativeRead(test, path); ExplainCalls(text, first_calls[:], *codes, 1); ExplainCalls(text, second_calls[:], *codes, 2) }
     if test.failed { return false }
     SortText(codes[:])
+    if codes.count != JsonCount(*listing, nodes) {
+        for code: codes {
+            found := false
+            for index: cast(s32)0..JsonCount(*listing, nodes) - 1 { found = found || JsonIs(*listing, JsonElement(*listing, nodes, index), code) }
+            if !found { print("Missing explain code: %\n", code) }
+        }
+        for index: cast(s32)0..JsonCount(*listing, nodes) - 1 {
+            code := JsonString(*listing, JsonElement(*listing, nodes, index)); found := false
+            for emitted: codes { found = found || emitted == code }
+            if !found { print("Unemitted explain code: %\n", code) }
+        }
+    }
     if !NativeAssert(test, codes.count == JsonCount(*listing, nodes), "explain registry count differs from independently discovered emitted codes") { return false }
     for index: cast(s64)0..codes.count - 1 {
         if !NativeAssert(test, JsonIs(*listing, JsonElement(*listing, nodes, cast(s32)index), codes[index]), CheckConcat("explain registry sorting or coverage differs at emitted code ", codes[index])) { return false }

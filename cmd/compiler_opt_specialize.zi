@@ -8,6 +8,7 @@ LirSpecializeResult :: struct { problem: LirSsaProblem; codec: LirCodecResult; w
 #scope_file
 MaximumBody :: 96
 MaximumCopies :: 24
+MaximumDevirt :: 64
 
 Candidate :: struct { parameter: s64; size: s64; copies: [2]s32 }
 Specialization :: struct {
@@ -18,6 +19,16 @@ Specialization :: struct {
     blocks: Vec(LirBlock)
     instructions: Vec(LirInstruction)
     function: LirFunction
+}
+DevirtSite :: struct { function: s32; block: s32; instruction: s32; symbol: s32; operands: []s32 }
+
+FreeVersion :: (copy: *Specialization) {
+    VecFree(copy.name); VecFree(copy.values)
+    VecFree(copy.blocks); VecFree(copy.instructions)
+}
+
+FreeVersions :: (copies: []Specialization) {
+    for at: 0..copies.count - 1 { FreeVersion(*copies[at]) }
 }
 
 // A branch is hot enough to duplicate when control can come back to it.
@@ -214,10 +225,61 @@ Constants :: (function: LirFunction, symbols: []s32) {
     }
 }
 
+// Rewrites CALL-INDIRECT to CALL when the address is a FUNCTION-ADDRESS of
+// the same block: the verifier ties that value's type to the target's exact
+// signature and refuses external targets, so the direct call checks out, and
+// both ops are effectful, so effect order stays put. The program is
+// borrowed, so RestoreDevirt puts every site back after serialization; DEAD
+// later removes the unused addresses.
+Devirtualize :: (program: LirProgram, sites: []DevirtSite, budget: *LirSsaBudget) -> s64 {
+    changed: s64
+    for function, fi: program.functions {
+        for block, bi: function.blocks {
+            for instruction, ii: block.instructions {
+                if !LirSsaSpend(budget, 1) { return changed }
+                if instruction.op != .CallIndirect || instruction.operands.count < 1 { continue }
+                if changed >= sites.count { return changed }
+                target: s32 = -1
+                for back: 0..ii - 1 {
+                    if !LirSsaSpend(budget, 1) { return changed }
+                    earlier := block.instructions[back]
+                    if earlier.op == .FunctionAddress && earlier.result == instruction.operands[0] {
+                        target = earlier.symbol
+                        break
+                    }
+                }
+                if target < 0 { continue }
+                site := block.instructions[ii]
+                sites[changed] = .{function = cast(s32)fi, block = cast(s32)bi,
+                    instruction = cast(s32)ii, symbol = site.symbol, operands = site.operands}
+                site.op = .Call
+                site.symbol = target
+                site.operands = site.operands[1:]
+                block.instructions[ii] = site
+                changed += 1
+            }
+        }
+    }
+    return changed
+}
+
+RestoreDevirt :: (program: LirProgram, sites: []DevirtSite) {
+    for site: sites {
+        block := program.functions[site.function].blocks[site.block]
+        restored := block.instructions[site.instruction]
+        restored.op = .CallIndirect
+        restored.symbol = site.symbol
+        restored.operands = site.operands
+        block.instructions[site.instruction] = restored
+    }
+}
+
 #scope_export
 // Keep one copy for each literal value of one loop-controlling Bool argument.
 // The original remains the target for other calls and all function addresses.
 // CFG cleanup later removes the untaken edges and any resulting dead blocks.
+// CALL-INDIRECT sites on same-block function addresses become direct calls
+// even when there is no room to copy anything.
 LirSpecializeBranches :: (program: LirProgram, replacement: *LirReadOwner,
     limits: LirLimits, work: s64, maximum: s64) -> LirSpecializeResult {
     count := program.functions.count
@@ -236,23 +298,52 @@ LirSpecializeBranches :: (program: LirProgram, replacement: *LirReadOwner,
     if growth > work / 4096 - total { growth = work / 4096 - total }
     capacity := limits.functions - count
     if capacity > MaximumCopies { capacity = MaximumCopies }
-    if capacity <= 0 || growth <= 0 || maximum <= 0 { return .{} }
+    direct_only := capacity <= 0 || growth <= 0 || maximum <= 0
+    // Devirtualize first: it needs no function copies, so it still applies
+    // when this pass has no room to specialize.
+    if !LirSsaReserve(*budget, MaximumDevirt, size_of(DevirtSite)) { return .{} }
+    sites: Vec(DevirtSite)
+    defer VecFree(sites)
+    if !VecResizeBounded(sites, MaximumDevirt, MaximumDevirt) { return .{problem = .Allocation} }
+    devirt := Devirtualize(program, sites[:], *budget)
+    defer RestoreDevirt(program, sites[:devirt])
+    if budget.problem != .None {
+        problem := ifx budget.problem == .Limit then LirSsaProblem.None else budget.problem
+        return .{problem = problem, work = budget.used, scratch_bytes = budget.reserved}
+    }
+    if direct_only {
+        if devirt == 0 { return .{work = budget.used, scratch_bytes = budget.reserved} }
+        direct := LirSpecializeResult.{work = budget.used, scratch_bytes = budget.reserved}
+        direct.codec = LirSsaSerialize(replacement, program, limits, *budget)
+        direct.scratch_bytes = budget.reserved
+        if budget.problem == .None && direct.codec.problem == .None { direct.copies = devirt; return direct }
+        if direct.codec.problem == .Limit || direct.codec.diagnostic.problem == .Limit { direct.codec = .{} }
+        if budget.problem != .Limit { direct.problem = budget.problem }
+        return direct
+    }
     if !LirSsaSpend(*budget, total * 6 + values * 2 + count) || !LirSsaReserve(*budget, count + capacity, 160) ||
-        !LirSsaReserve(*budget, count, 24) || !LirSsaReserve(*budget, largest, 4) { return .{} }
+        !LirSsaReserve(*budget, count, 24) || !LirSsaReserve(*budget, largest, 4) {
+        return .{work = budget.used, scratch_bytes = budget.reserved}
+    }
     choices: Vec(Candidate)
     functions: Vec(LirFunction)
     symbols: Vec(s32)
     versions: [MaximumCopies]Specialization
+    defer FreeVersions(versions[:])
     defer VecFree(choices)
     defer VecFree(functions)
     defer VecFree(symbols)
     if !VecResizeBounded(choices, count, count) || !VecResizeBounded(functions, count + capacity, count + capacity) ||
-        !VecResizeBounded(symbols, largest, largest) { return .{problem = .Allocation} }
+        !VecResizeBounded(symbols, largest, largest) {
+        return .{problem = .Allocation}
+    }
     if maximum > MaximumBody { maximum = MaximumBody }
     for function, at: program.functions {
         functions[at] = function
         choices[at] = Choose(program, cast(s32)at, maximum, *budget)
-        if budget.problem != .None { return .{work = budget.used, scratch_bytes = budget.reserved} }
+        if budget.problem != .None {
+            return .{work = budget.used, scratch_bytes = budget.reserved}
+        }
     }
     copied: s64
     for function, caller: program.functions {
@@ -273,6 +364,7 @@ LirSpecializeBranches :: (program: LirProgram, replacement: *LirReadOwner,
                     copied += 1
                     growth -= choice.size + 1
                 } else {
+                    FreeVersion(*versions[copied])
                     choices[callee].copies[bit] = -2
                 }
                 if budget.problem != .None {
@@ -283,7 +375,7 @@ LirSpecializeBranches :: (program: LirProgram, replacement: *LirReadOwner,
         }
     }
     outcome := LirSpecializeResult.{work = budget.used, scratch_bytes = budget.reserved}
-    if copied == 0 { return outcome }
+    if copied == 0 && devirt == 0 { return outcome }
     for function, caller: program.functions {
         Constants(function, symbols[:])
         for block: function.blocks {
@@ -313,7 +405,9 @@ LirSpecializeBranches :: (program: LirProgram, replacement: *LirReadOwner,
             }
         }
     }
-    if budget.problem == .None && outcome.codec.problem == .None { outcome.copies = copied; return outcome }
+    if budget.problem == .None && outcome.codec.problem == .None {
+        outcome.copies = copied + devirt; return outcome
+    }
     if outcome.codec.problem == .Limit || outcome.codec.diagnostic.problem == .Limit { outcome.codec = .{} }
     if budget.problem != .Limit { outcome.problem = budget.problem }
     return outcome

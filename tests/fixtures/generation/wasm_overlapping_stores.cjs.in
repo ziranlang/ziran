@@ -1,0 +1,17 @@
+// Target glue: every capability takes a word offset and returns a pointer.
+// The Ziran fixture initializes and verifies the overlapping copies.
+const fs = require('fs');
+let wasm, base = 0;
+const instance = new WebAssembly.Instance(new WebAssembly.Module(fs.readFileSync(process.argv[2])), {zx: {
+    budget: new WebAssembly.Global({value: 'i64', mutable: true}, 10000000n),
+    overrun() { throw Error('budget spent'); },
+    host(index, record) {
+        if (!base) { base = wasm.memory.buffer.byteLength; wasm.memory.grow(1); }
+        const view = new DataView(wasm.memory.buffer);
+        const offset = view.getBigInt64(record, true);
+        view.setBigUint64(record + 16, BigInt(base) + offset * 8n, true);
+        return 1;
+    },
+}});
+wasm = instance.exports;
+console.log(wasm.zx_entry().toString());

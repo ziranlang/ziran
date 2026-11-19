@@ -280,6 +280,9 @@ extern "C" {
 #define INT64_MIN -9223372036854775807 - 1
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
+#define DispatchModule "__zx_module_dispatch"
+#endif
+#ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
 typedef struct ZirParameter ZirParameter;
 #endif
 #ifdef ZIRAN_COMPILER_ZIR_LOWER_H_PRIVATE
@@ -326,6 +329,7 @@ typedef struct __type_dd536e055506338b __type_dd536e055506338b;
 typedef struct __type_745e0b4796abfa08 __type_745e0b4796abfa08;
 #endif
 typedef struct AssemblyFunction AssemblyFunction;
+typedef struct AssemblyExportRoot AssemblyExportRoot;
 #ifndef ZIRAN_CONCRETE_FORWARD___type_5a6f11963c9bea0f
 #define ZIRAN_CONCRETE_FORWARD___type_5a6f11963c9bea0f
 typedef struct __type_5a6f11963c9bea0f __type_5a6f11963c9bea0f;
@@ -614,6 +618,7 @@ struct __type_745e0b4796abfa08 {
 struct AssemblyFunction {
     ZirModule* module;
     ZirFunction* source;
+    uint8_t* dispatch_type;
     bool checking;
     ZirImport* import;
     LirFunction result;
@@ -629,6 +634,11 @@ struct AssemblyFunction {
     int32_t literal_at;
     int32_t literal_type;
     __type_745e0b4796abfa08 zero_slots;
+};
+
+struct AssemblyExportRoot {
+    ZirModule* module;
+    ZirFunction* function;
 };
 #ifndef ZIRAN_CONCRETE___type_5a6f11963c9bea0f
 #define ZIRAN_CONCRETE___type_5a6f11963c9bea0f
@@ -872,6 +882,7 @@ Slice compiler_zir_lower_LirTypeItems(LirType* data, int64_t count);
 Slice compiler_zir_lower_LirConstantItems(LirConstant* data, int64_t count);
 Slice compiler_zir_lower_LirOriginItems(LirOrigin* data, int64_t count);
 AssemblyProgram* AssemblyLower(ZirProgram* source, uint8_t* module_name, uint8_t* function_name);
+AssemblyProgram* AssemblyLowerModule(ZirProgram* source, AssemblyExportRoot* roots, int32_t count);
 LirProgram* AssemblyView(AssemblyProgram* program);
 void AssemblyFree(AssemblyProgram* program);
 uint8_t* AssemblyHostInterface(AssemblyProgram* program, size_t* length);

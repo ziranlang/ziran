@@ -52,6 +52,9 @@ extern "C" {
 #define ExecutableFeaturePortableLir 1
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableFeatureModuleLinkage 2
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 #define ExecutableSectionManifest 1
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
@@ -62,6 +65,9 @@ extern "C" {
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 #define ExecutableSectionVariants 4
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableSectionModuleLinkage 5
 #endif
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 #define ExecutableSectionDebug 0x80000001
@@ -151,6 +157,7 @@ struct ExecutableHeader {
     String source;
     String interface;
     Slice attachments;
+    String module_linkage;
 };
 
 struct ExecutableResult {
@@ -175,6 +182,7 @@ struct ExecutableLayout {
     String debug;
     String source;
     String interface;
+    String module_linkage;
 };
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 
@@ -205,6 +213,7 @@ struct ExecutableCursor {
     ExecutableProblem problem;
 };
 #endif
+uint64_t compiler_bundle_ExecutableRequiredFeatures(bool has_module_linkage);
 bool compiler_bundle_AssetName(String name);
 ExecutableResult compiler_bundle_ExecutableEncode(Slice output, ExecutableHeader header);
 ExecutableLayout compiler_bundle_ExecutableDecode(String bytes, Slice assets);
@@ -214,8 +223,20 @@ String compiler_bundle_ExecutableMessage(ExecutableProblem problem);
 /* Small procedures other modules inline; compiler_bundle.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_BUNDLE_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdint.h>
+#include <stdbool.h>
+static inline uint64_t compiler_bundle_ExecutableRequiredFeatures_ziran_inline(bool has_module_linkage);
+#define compiler_bundle_ExecutableRequiredFeatures(...) compiler_bundle_ExecutableRequiredFeatures_ziran_inline(__VA_ARGS__)
 static inline uint32_t compiler_bundle_ExecutableVersionNumber_ziran_inline(void);
 #define compiler_bundle_ExecutableVersionNumber(...) compiler_bundle_ExecutableVersionNumber_ziran_inline(__VA_ARGS__)
+
+static inline uint64_t
+compiler_bundle_ExecutableRequiredFeatures_ziran_inline(bool has_module_linkage)
+{
+    if (has_module_linkage) {
+        return 3ULL;
+    }
+    return 1ULL;
+}
 
 static inline uint32_t
 compiler_bundle_ExecutableVersionNumber_ziran_inline(void)

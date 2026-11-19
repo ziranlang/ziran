@@ -13,12 +13,121 @@ RootNumber :: (number: s64) -> string {
     return text
 }
 
+ConditionalImportCase :: (test: *NativeTest, name: string, definitions: string,
+    condition: string, peer: string, expected: string) -> bool {
+    root := CheckPath(test.work, name)
+    source := CheckPath(root, "main.zi")
+    lines := string.[
+        "using Peer :: #import \"peer\"",
+        "using Peer.Mode;",
+        definitions,
+        CheckConcat("#if ", CheckConcat(condition, " {\nSelected :: 42;\n}")),
+        CheckConcat("#if !(", CheckConcat(condition, ") {\nSelected :: 41;\n}")),
+        "#program_export",
+        "Answer :: () -> s32 { return Selected + Peer.Zero() }",
+        "",
+    ]
+    body := TextDetach(TextJoin(lines[:], "\n"))
+    if !NativeWrite(test, source, body) ||
+        !NativeWrite(test, CheckPath(root, "peer.zi"), peer) {
+        return false
+    }
+    saved := CheckPath(test.work, CheckConcat(name, "-saved"))
+    save := string.[test.ziran, "ir", "--root", root, "-o", saved, source]
+    unused NativeRun(test, save[:])
+    if test.failed {
+        return false
+    }
+    forms := string.[source, CheckPath(saved, "main.zir")]
+    outputs := string.[CheckPath(root, "source.zx"), CheckPath(root, "saved.zx")]
+    for index: cast(s64)0..1 {
+        input_root := ifx index == 0 then root else saved
+        bundle := string.[test.ziran, "bundle", "--root", input_root,
+            "--entry", "main:Answer", "-o", outputs[index], forms[index]]
+        unused NativeRun(test, bundle[:])
+        run := string.[test.ziran, "run", outputs[index]]
+        if !NativeExpect(test, run[:], expected) {
+            return false
+        }
+    }
+    return !test.failed && NativeAssert(test,
+        NativeSameFile(outputs[0], outputs[1]), "conditional import bundles differ")
+}
+
+ConditionalImports :: (test: *NativeTest) -> bool {
+    peer := "using Main :: #import \"main\"\nMode :: enum u8 { Ready :: 1; }\nZero :: () -> s32 { return 0 }\n"
+    if !ConditionalImportCase(test, "defined-cycle-present", "Enabled :: 1;",
+        "#defined(Enabled)", peer, "42\n") ||
+        !ConditionalImportCase(test, "defined-cycle-absent", "",
+        "#defined(Enabled)", peer, "41\n") {
+        return false
+    }
+    peer = "Mode :: enum u8 { Ready :: 1; }\nPayload :: struct { value: s64 }\nZero :: () -> s32 { return 0 }\n"
+    if !ConditionalImportCase(test, "imported-enum-condition", "", "Ready == 1",
+        peer, "42\n") ||
+        !ConditionalImportCase(test, "imported-layout-condition", "",
+        "size_of(Peer.Payload) == 8", peer, "42\n") {
+        return false
+    }
+    root := CheckPath(test.work, "ambiguous-enum-condition")
+    source := CheckPath(root, "main.zi")
+    if !NativeWrite(test, source,
+        "using Peer :: #import \"peer\"\nusing Peer.First;\nusing Peer.Second;\n#if Ready == 1 {\nAnswer :: () -> s32 { return 42 }\n}\n") ||
+        !NativeWrite(test, CheckPath(root, "peer.zi"),
+        "First :: enum u8 { Ready :: 1; }\nSecond :: enum u8 { Ready :: 1; }\n") {
+        return false
+    }
+    check := string.[test.ziran, "check", "--root", root, source]
+    return NativeReject(test, check[:], "ambiguous using enum member")
+}
+
+WideModuleGraph :: (test: *NativeTest) -> bool {
+    root := CheckPath(test.work, "wide-graph")
+    source := CheckPath(root, "main.zi")
+    imports := ""
+    for index: cast(s64)0..1099 {
+        name := CheckConcat("Leaf", RootNumber(index))
+        path := CheckPath(root, CheckConcat(name, ".zi"))
+        if !NativeWrite(test, path, "Value :: () -> s32 { return 42 }\n") {
+            return false
+        }
+        imports = CheckConcat(imports, CheckConcat("using ", CheckConcat(name,
+            CheckConcat(" :: #import \"", CheckConcat(name, "\"\n")))))
+    }
+    if !NativeWrite(test, source, CheckConcat(imports,
+        "#program_export\nResult :: () -> s32 { return Leaf1099.Value() }\n")) {
+        return false
+    }
+    check := string.[test.ziran, "check", "--root", root, source, source]
+    unused NativeRun(test, check[:])
+    saved := CheckPath(test.work, "wide-saved")
+    save := string.[test.ziran, "ir", "--root", root, "-o", saved, source]
+    unused NativeRun(test, save[:])
+    forms := string.[source, CheckPath(saved, "main.zir")]
+    outputs := string.[CheckPath(test.work, "wide-source.zx"),
+        CheckPath(test.work, "wide-saved.zx")]
+    for index: cast(s64)0..1 {
+        input_root := ifx index == 0 then root else saved
+        bundle := string.[test.ziran, "bundle", "--root", input_root,
+            "--entry", "main:Result", "-o", outputs[index], forms[index]]
+        unused NativeRun(test, bundle[:])
+        run := string.[test.ziran, "run", outputs[index]]
+        if !NativeExpect(test, run[:], "42\n") {
+            return false
+        }
+    }
+    return !test.failed && NativeAssert(test,
+        NativeSameFile(outputs[0], outputs[1]), "wide module graph bundles differ")
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "module-roots-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)
     defer { unused RemoveTree(test.work) }
+    if !ConditionalImports(*test) { return 1 }
+    if !WideModuleGraph(*test) { return 1 }
     app := CheckPath(test.work, "app")
     roots: Vec(string)
     saved: Vec(string)
@@ -121,6 +230,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     rejected := NativeInvoke(*test, invalid[:])
     if !NativeAssert(*test, rejected.code != 0 && TextContains(CheckConcat(rejected.output, rejected.error), "module search path is unavailable"), "missing module root was accepted") { return 1 }
     if test.failed { return 1 }
-    print("PASS: 273 roots, last-root resolution, first-root ordering, source/saved IR, identical ZX/portable engine, native C/Go, invalid path\n")
+    print("PASS: 1101-module graph, 273 roots, last-root resolution, first-root ordering, source/saved IR, identical ZX/portable engine, native C/Go, invalid path\n")
     return 0
 }

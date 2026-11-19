@@ -1,0 +1,12 @@
+host_api :: #system_library "host_api";
+
+AddExternal :: (handle: u64, amount: s32) -> s32 #foreign host_api;
+EchoExternal :: (handle: u64, value: string) -> string #foreign host_api;
+BadHandle :: (handle: s64) -> s32 #foreign host_api;
+UnusedExternal :: (handle: u64) -> s32 #foreign host_api;
+
+main :: () -> s32 {
+    handle: u64 = 1
+    if EchoExternal(handle, "example") != "example" { return 1 }
+    return AddExternal(handle, 4)
+}

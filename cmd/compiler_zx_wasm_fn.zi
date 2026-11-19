@@ -277,7 +277,18 @@ StoreValue :: (fn: *Fn, destination: Addr, value: s32) {
         }
         return
     }
-    CopyFixed(fn, destination, AddrOfSlot(fn, value), size)
+    source := AddrOfSlot(fn, value)
+    // A borrowed load stored through another pointer may overlap its source.
+    // memory.copy reads the original bytes even for partial overlap; the
+    // unrolled non-overlapping copy would clobber subsequent source words.
+    if source.kind == ADDR_LOCAL && destination.kind == ADDR_LOCAL &&
+        fn.view_root[value] < 0 {
+        if size > 0 && !SamePlace(destination, source) {
+            PushFull(fn, destination); PushFull(fn, source); I32Const(fn, size); MemoryCopy(fn)
+        }
+        return
+    }
+    CopyFixed(fn, destination, source, size)
 }
 
 LoadValue :: (fn: *Fn, source: Addr, value: s32) {

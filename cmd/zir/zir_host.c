@@ -9,9 +9,11 @@
 #include "zir_diagnostic.h"
 #include "zir_host_exec.h"
 #include "zir_host_native.h"
+#include "zir_profile.h"
 #include "zir_sha256.h"
 #include "zir_zx_wasm.h"
 #include "zir_zx_wasm_platform.h"
+#include "zir_zx_module_internal.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,6 +31,12 @@ struct Bundle {
     unsigned char digest[32];
 };
 
+const ExecBundle *
+BundleVerifiedExec(const Bundle *bundle)
+{
+    return bundle != NULL ? bundle->exec : NULL;
+}
+
 static Bundle *
 open_bundle(const unsigned char *bytes, size_t size, const char *name)
 {
@@ -36,6 +44,7 @@ open_bundle(const unsigned char *bytes, size_t size, const char *name)
     if(bundle == NULL)
         return NULL;
     bundle->references = 1;
+    uint64_t started = ProfileStart();
     bundle->exec = ExecBundleOpen(bytes, size, name);
     if(bundle->exec == NULL) {
         free(bundle);
@@ -45,6 +54,7 @@ open_bundle(const unsigned char *bytes, size_t size, const char *name)
     Sha256Begin(&hash);
     Sha256Add(&hash, bytes, size);
     Sha256End(&hash, bundle->digest);
+    ProfileEnd("zx.bundle.open", started);
     return bundle;
 }
 
@@ -690,6 +700,20 @@ clone_state_value(const HostValue *input, HostValue *output,
 fail:
     release_owned_state_value(output, depth);
     return 0;
+}
+
+int
+BundleCopyHostValue(const HostValue *input, HostValue *output)
+{
+    StateBudget budget = {0};
+    return clone_state_value(input, output, 0, &budget);
+}
+
+void
+BundleFreeHostValue(HostValue *value)
+{
+    release_owned_state_value(value, 0);
+    *value = (HostValue){0};
 }
 
 static void

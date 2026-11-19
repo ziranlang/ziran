@@ -221,12 +221,13 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     bundle: bool = command == "bundle" || command == "run"
     transport: bool = command == "compact" || command == "expand"
     build: bool = command == "build"
+    zx_inspect: bool = command == "inspect" && PkgHasBundle(arguments)
     wasm_build: bool = false
     native_build: bool = false
     zx_build: bool = false
     if check || command == "ir" { executable = "zi2zir" }
     else if command == "api" { executable = "zi-api" }
-    else if command == "inspect" { executable = "zi-inspect" }
+    else if command == "inspect" { executable = ifx zx_inspect then "zi2zx" else "zi-inspect" }
     else if command == "fmt" { executable = "zi-fmt" }
     else if command == "edit" || transport { executable = "zi-edit" }
     else if bundle { executable = "zi2zx" }
@@ -308,6 +309,16 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     count: s32 = 0
     child[count] = binary
     count += 1
+    if zx_inspect {
+        child[count] = "-o"
+        child[count + 1] = "-"
+        count += 2
+        if !PkgHasArgument(arguments, "--emit") {
+            child[count] = "--emit"
+            child[count + 1] = "lir"
+            count += 2
+        }
+    }
     if check { child[count] = "--check-only"; count += 1 }
     // `ziran build -o DIR` owns DIR: generated files from an earlier build
     // that this one does not write are removed so they cannot be linked.
@@ -329,7 +340,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     if command == "run" || transport { child[count] = command; count += 1 }
     // `ziran run --project FILE.zx` runs a bundle with the pinned toolchain
     // that built it; a bundle takes no source root.
-    if project && command != "run" && !transport && !PkgHasArgument(arguments, "--root") {
+    if project && command != "run" && !transport && !zx_inspect && !PkgHasArgument(arguments, "--root") {
         child[count] = "--root"
         count += 1
         child[count] = PkgJoin3(root, "/", current.roots[0])
@@ -780,7 +791,9 @@ PkgUsage :: (command: string) -> string {
         return "usage: ziran run FILE.zx | ziran run [--target=c [--no-cache]] [--root DIR] [--entry module:function] [FILE.zi [-- ARGS]]; in a project: ziran run [-- ARGS]\n"
     }
     if command == "fmt" { return "usage: ziran fmt [--check] FILE.zi ...\n" }
-    if command == "inspect" { return "usage: ziran inspect [--hex] FILE.zir|FILE.zx\n" }
+    if command == "inspect" {
+        return "usage: ziran inspect [--hex] FILE.zir | ziran inspect [--emit lir|linkage] FILE.zx\n"
+    }
     if command == "compile-commands" {
         return "usage: ziran compile-commands [--compiler CC] [--include DIR] [-o FILE] GENERATED_DIR\n"
     }

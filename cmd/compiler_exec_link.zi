@@ -35,6 +35,8 @@ ZxExecOwner :: struct {
     // absent. ZxExecReadDebug validates it against the program identity.
     debug: Vec(u8)
     identity: [32]u8
+    // The identity-checked module linkage bytes, copied; empty for apps.
+    module_linkage: Vec(u8)
 }
 
 #scope_file
@@ -154,15 +156,31 @@ AssetsDigest :: (budget: *ZxExecBudget, assets: []Bundle.Asset) -> BudgetDigest 
 }
 
 ContentDigest :: (budget: *ZxExecBudget, entry: s32, program: [32]u8,
-    assets: [32]u8) -> BudgetDigest {
-    if !BudgetSpend(budget, 96) { return .{} }
+    assets: [32]u8, module_linkage: string = "", interface: string = "") -> BudgetDigest {
+    has_module_linkage := module_linkage.count != 0
+    domain := "ZX28-CONTENT\x00"
+    if has_module_linkage {
+        if !BudgetFitsBytes(budget, module_linkage.count) || interface.count < 0 ||
+            interface.count > budget.maximum_bytes - module_linkage.count ||
+            !BudgetSpend(budget, module_linkage.count) || !BudgetSpend(budget, interface.count) ||
+            !BudgetSpend(budget, 112) { return .{} }
+        domain = "ZX28-MODULE-CONTENT\x00"
+    } else if !BudgetSpend(budget, 96) {
+        return .{}
+    }
     state: Sha256State
     ShaBegin(*state)
-    ShaText(*state, "ZX28-CONTENT\x00")
+    ShaText(*state, domain)
     ShaU32(*state, cast(u32)entry)
-    ShaU64(*state, 1)
+    ShaU64(*state, Bundle.ExecutableRequiredFeatures(has_module_linkage))
     ShaText(*state, TextView(program[:]))
     ShaText(*state, TextView(assets[:]))
+    if has_module_linkage {
+        ShaU64(*state, cast(u64)module_linkage.count)
+        ShaText(*state, module_linkage)
+        ShaU64(*state, cast(u64)interface.count)
+        ShaText(*state, interface)
+    }
     return .{valid = true, bytes = ShaEnd(*state)}
 }
 
@@ -467,6 +485,13 @@ ZxExecFrame :: (program_bytes: string, entry: s32, output: []u8) -> ZxExecResult
 
 ZxExecWrite :: (program: LirProgram, assets: []Bundle.Asset, output: []u8, interface: string = "",
     debug: bool = false) -> ZxExecResult {
+    return ZxExecWriteModule(program, assets, output, interface, debug, "")
+}
+
+// A nonempty linkage payload requires a nonempty host interface. Both enter
+// the combined identity. Empty linkage writes the ordinary app container.
+ZxExecWriteModule :: (program: LirProgram, assets: []Bundle.Asset, output: []u8, interface: string,
+    debug: bool, module_linkage: string) -> ZxExecResult {
     limits := IR.LirDefaultLimits()
     budget := BudgetBegin(limits)
     diagnostic := Verify.LirVerify(program, limits)
@@ -514,7 +539,8 @@ ZxExecWrite :: (program: LirProgram, assets: []Bundle.Asset, output: []u8, inter
     if !program_digest.valid { VecFree(encoded); return Result(.Limit) }
     assets_digest := AssetsDigest(*budget, assets)
     if !assets_digest.valid { VecFree(encoded); return Result(.Limit) }
-    content_digest := ContentDigest(*budget, program.entry, program_digest.bytes, assets_digest.bytes)
+    content_digest := ContentDigest(*budget, program.entry, program_digest.bytes, assets_digest.bytes,
+        module_linkage, interface)
     if !content_digest.valid { VecFree(encoded); return Result(.Limit) }
     program_identity := program_digest.bytes
     assets_identity := assets_digest.bytes
@@ -530,7 +556,7 @@ ZxExecWrite :: (program: LirProgram, assets: []Bundle.Asset, output: []u8, inter
     header := Bundle.ExecutableHeader.{entry = program.entry, capabilities = capabilities, program = TextView(encoded[:]), assets = assets,
         program_identity = TextView(program_identity[:]), assets_identity = TextView(assets_identity[:]),
         content_identity = TextView(content_identity[:]), debug = TextView(attachment[:]),
-        interface = interface, attachments = no_attachments}
+        interface = interface, attachments = no_attachments, module_linkage = module_linkage}
     result := EncodeContainer(*budget, header, output)
     VecFree(encoded)
     VecFree(attachment)
@@ -583,6 +609,7 @@ ZxExecReadFree :: (owner: *ZxExecOwner) {
     Serial.LirReadFree(*owner.read)
     VecFree(owner.interface)
     VecFree(owner.debug)
+    VecFree(owner.module_linkage)
     owner.valid = false
     owner.entry = LirNoId
     owner.assets = 0
@@ -624,7 +651,8 @@ ZxExecRead :: (owner: *ZxExecOwner, input: string, limits: LirLimits) -> ZxExecR
     if !program_digest.valid { VecFree(assets); return Result(.Limit) }
     assets_digest := AssetsDigest(*budget, assets[:])
     if !assets_digest.valid { VecFree(assets); return Result(.Limit) }
-    content_digest := ContentDigest(*budget, layout.entry, program_digest.bytes, assets_digest.bytes)
+    content_digest := ContentDigest(*budget, layout.entry, program_digest.bytes, assets_digest.bytes,
+        layout.module_linkage, layout.interface)
     if !content_digest.valid || !BudgetSpend(*budget, 96) {
         VecFree(assets); return Result(.Limit)
     }
@@ -667,7 +695,19 @@ ZxExecRead :: (owner: *ZxExecOwner, input: string, limits: LirLimits) -> ZxExecR
         ZxExecReadFree(owner)
         return Result(.CapabilityCount)
     }
-    if !BudgetStorage(*budget, layout.interface.count, 1) ||
+    if layout.module_linkage.count != 0 &&
+        (!BudgetSpend(*budget, layout.interface.count) || !BudgetSpend(*budget, layout.module_linkage.count) ||
+        !BudgetStorage(*budget, layout.module_linkage.count, 1) ||
+        !BudgetStorage(*budget, layout.interface.count, 1)) {
+        ZxExecReadFree(owner)
+        return Result(.Limit)
+    }
+    if !VecResizeBounded(owner.module_linkage, layout.module_linkage.count, layout.module_linkage.count) {
+        ZxExecReadFree(owner)
+        return Result(.Allocation)
+    }
+    for at: cast(s64)0..layout.module_linkage.count - 1 { owner.module_linkage[at] = layout.module_linkage[at] }
+    if (layout.module_linkage.count == 0 && !BudgetStorage(*budget, layout.interface.count, 1)) ||
         !VecResizeBounded(owner.interface, layout.interface.count, layout.interface.count) {
         ZxExecReadFree(owner)
         return Result(.Allocation)
@@ -692,6 +732,12 @@ ZxExecRead :: (owner: *ZxExecOwner, input: string, limits: LirLimits) -> ZxExecR
 ZxExecReadProgram :: (owner: *ZxExecOwner) -> LirProgram {
     if owner == null || !owner.valid { return .{version = LirVersion, entry = LirNoId} }
     return Serial.LirReadProgram(*owner.read)
+}
+
+// Verified bytes stored by OWNER until its next read or free.
+ZxExecReadModuleLinkage :: (owner: *ZxExecOwner) -> string {
+    if owner == null || !owner.valid { return "" }
+    return TextView(owner.module_linkage[:])
 }
 
 // The program with the debug attachment's source texts and origins restored,

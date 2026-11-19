@@ -1,0 +1,162 @@
+#import "native_test"
+#import "check_support"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Bundle :: #import "compiler_bundle"
+using Link :: #import "compiler_exec_link"
+using Lir :: #import "compiler_lowered_ir"
+using Vectors :: #import "std/vec"
+
+Build :: (test: *NativeTest, command: []string) -> bool {
+    unused NativeRun(test, command)
+    return !test.failed
+}
+
+Provider :: (test: *NativeTest, compiler: string, fixtures: string, path: string, source: string) -> bool {
+    command := string.[compiler, "--module-path", fixtures, "--library", "demo/counter", "--export", "counter:Add", "--export", "counter:Echo",
+        "--export", "counter:Move", "--export", "counter:Reset", "-o", path, source]
+    return Build(test, command[:])
+}
+
+Reject :: (test: *NativeTest, command: []string, expected: string) -> bool {
+    result := NativeInvoke(test, command)
+    return NativeAssert(test, result.code != 0 && result.output == "" && TextContains(result.error, expected),
+        CheckConcat(expected, CheckConcat("\n", CheckConcat(result.output, result.error))))
+}
+
+Reframe :: (test: *NativeTest, source: string, output: string, linkage: string) -> bool {
+    data, found := ReadEntireFile(source)
+    if !NativeAssert(test, found, "read verified ZX fixture") { return false }
+    no_assets: []Bundle.Asset
+    empty: []u8
+    layout := Bundle.ExecutableDecode(data, no_assets)
+    owner: Link.ZxExecOwner
+    defer Link.ZxExecReadFree(*owner)
+    read := Link.ZxExecRead(*owner, data, Lir.LirDefaultLimits())
+    if !NativeAssert(test, read.problem == .None && layout.problem == .None, "decode fixture for linkage rewrite") { return false }
+    program := Link.ZxExecReadProgram(*owner)
+    measured := Link.ZxExecWriteModule(program, no_assets, empty, layout.interface, false, linkage)
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if !NativeAssert(test, measured.problem == .None && VecResize(bytes, measured.size), "measure new linkage") { return false }
+    written := Link.ZxExecWriteModule(program, no_assets, bytes[:], layout.interface, false, linkage)
+    return NativeAssert(test, written.problem == .None, "encode new linkage with valid identity") &&
+        NativeWrite(test, output, TextView(bytes[:]))
+}
+
+TryWasm :: (test: *NativeTest, fixtures: string, application: string, chain: string) -> bool {
+    library := EnvironmentText("ZIRAN_ZX_MODULE_WASM_LIBRARY")
+    if library == "" { return true }
+    emcc := EnvironmentText("ZIRAN_WASM_EMCC")
+    if emcc == "" { emcc = "emcc" }
+    runner := CheckPath(test.work, "wasm-host.js")
+    compile := string.[emcc, "-O2", "-std=gnu11", "-I", CheckPath(test.repo, "include"),
+        CheckPath(fixtures, "embed.c"), library, "-s", "ENVIRONMENT=node", "-s", "NODERAWFS=1",
+        "-s", "ALLOW_MEMORY_GROWTH=1", "-s", "STACK_SIZE=1048576", "-o", runner]
+    if !Build(test, compile[:]) { return false }
+    programs := string.[application, chain]
+    for program: programs[:] {
+        run := string.["node", runner, test.work, program, "wasm"]
+        result := NativeInvoke(test, run[:])
+        if !NativeAssert(test, result.code == 0 && result.output == "42\n",
+            CheckConcat("Wasm module execution: ", CheckConcat(result.output, result.error))) { return false }
+    }
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "zx-module-runtime-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    compiler := CheckPath(PathParent(test.ziran), "zi2zx")
+    fixtures := CheckPath(test.repo, "tests/fixtures/zx_module_runtime")
+    counter := CheckPath(fixtures, "counter.zi")
+    app := CheckPath(fixtures, "application.zi")
+    std := CheckPath(test.repo, "std")
+    library := CheckPath(test.work, "demo/counter.zx")
+    replacement_source := CheckPath(test.work, "counter.zi")
+    compatible := CheckPath(test.work, "counter-next.zx")
+    incompatible := CheckPath(test.work, "counter-incompatible.zx")
+    application := CheckPath(test.work, "app.zx")
+    if !NativeAssert(*test, CreateDirectories(PathParent(library)), "create module search root") { return 1 }
+    replacement, found := ReadEntireFile(CheckPath(fixtures, "replacement.zi.in"))
+    if !NativeAssert(*test, found, "read replacement source") || !NativeWrite(*test, replacement_source, replacement) { return 1 }
+    if !Provider(*test, compiler, fixtures, library, counter) ||
+       !Provider(*test, compiler, fixtures, compatible, replacement_source) { return 1 }
+    bad := string.[compiler, "--library", "demo/counter", "--export", "counter:Add", "-o", incompatible, counter]
+    if !Build(*test, bad[:]) { return 1 }
+    compile := string.[compiler, "--root", fixtures, "--module-path", std, "--entry", "application:main",
+        "--require-module", "Counter.v1=demo/counter", "--import", "application:AddExternal=Counter.v1:Add",
+        "--import", "application:EchoExternal=Counter.v1:Echo", "--import", "application:MoveExternal=Counter.v1:Move",
+        "--import", "application:ResetExternal=Counter.v1:Reset", "-o", application, app]
+    if !Build(*test, compile[:]) { return 1 }
+    bridge := string.[compiler, "--root", fixtures, "--module-path", std, "--library", "demo/bridge",
+        "--export", "bridge:Total", "--require-module", "Counter.v1=demo/counter",
+        "--import", "bridge:AddExternal=Counter.v1:Add", "-o", CheckPath(test.work, "demo/bridge.zx"),
+        CheckPath(fixtures, "bridge.zi")]
+    chain := CheckPath(test.work, "chain.zx")
+    chain_build := string.[compiler, "--root", fixtures, "--module-path", std, "--entry", "chain:main",
+        "--require-module", "Bridge.v1=demo/bridge", "--import", "chain:TotalExternal=Bridge.v1:Total",
+        "-o", chain, CheckPath(fixtures, "chain.zi")]
+    if !Build(*test, bridge[:]) || !Build(*test, chain_build[:]) { return 1 }
+    platform := string.["uname", "-s"]
+    host := NativeInvoke(*test, platform[:])
+    if !NativeAssert(*test, host.code == 0, "read test host platform") { return 1 }
+    backends := string.["engine", "native"]
+    tier_count: s64 = ifx host.output == "Linux\n" then 2 else 1
+    for backend: backends[0:tier_count] {
+        run := string.[compiler, "run", "--backend", backend, "--module-root", test.work, application]
+        result := NativeInvoke(*test, run[:])
+        if !NativeAssert(*test, result.code == 0 && result.output == "42\n",
+            CheckConcat(backend, CheckConcat(": ", CheckConcat(result.output, result.error)))) { return 1 }
+        run[6] = chain
+        result = NativeInvoke(*test, run[:])
+        if !NativeAssert(*test, result.code == 0 && result.output == "42\n",
+            CheckConcat("nested module invocation: ", CheckConcat(result.output, result.error))) { return 1 }
+    }
+    forwarded := string.[test.ziran, "run", "--module-root", test.work, application]
+    result := NativeInvoke(*test, forwarded[:])
+    if !NativeAssert(*test, result.code == 0 && result.output == "42\n", result.error) { return 1 }
+    source_run := string.[compiler, "run", "--backend", "engine", "--module-root", test.work,
+        "--root", fixtures, "--module-path", std, "--entry", "application:main",
+        "--require-module", "Counter.v1=demo/counter", "--import", "application:AddExternal=Counter.v1:Add",
+        "--import", "application:EchoExternal=Counter.v1:Echo", "--import", "application:MoveExternal=Counter.v1:Move",
+        "--import", "application:ResetExternal=Counter.v1:Reset", app]
+    result = NativeInvoke(*test, source_run[:])
+    if !NativeAssert(*test, result.code == 0 && result.output == "42\n", CheckConcat(result.output, result.error)) { return 1 }
+    if !TryWasm(*test, fixtures, application, chain) { return 1 }
+
+    stale := CheckPath(test.work, "stale.zx")
+    stale_build := string.[compiler, "--root", fixtures, "--module-path", std, "--entry", "application:stale",
+        "--require-module", "Counter.v1=demo/counter", "--import", "application:AddExternal=Counter.v1:Add", "-o", stale, app]
+    stale_run := string.[compiler, "run", "--backend", "engine", "--module-root", test.work, stale]
+    if !Build(*test, stale_build[:]) || !Reject(*test, stale_run[:], "invalid ZX module handle") { return 1 }
+    wrong := CheckPath(test.work, "wrong.zx")
+    wrong_build := string.[compiler, "--root", fixtures, "--module-path", std, "--entry", "mismatch:main",
+        "--require-module", "Counter.v1=demo/counter", "--import", "mismatch:WrongExternal=Counter.v1:Add",
+        "-o", wrong, CheckPath(fixtures, "mismatch.zi")]
+    wrong_run := string.[compiler, "run", "--backend", "engine", "--module-root", test.work, wrong]
+    if !Build(*test, wrong_build[:]) || !Reject(*test, wrong_run[:], "import signature mismatch") { return 1 }
+
+    malformed := CheckPath(test.work, "malformed.zx")
+    if !Reframe(*test, application, malformed, "require\tCounter.v1\tdemo/../counter\n") { return 1 }
+    malformed_run := string.[compiler, "run", "--backend", "engine", "--module-root", test.work, malformed]
+    if !Reject(*test, malformed_run[:], "invalid ZX module linkage") { return 1 }
+    missing := string.[compiler, "run", "--backend", "engine", "--module-root", CheckPath(test.work, "missing"), application]
+    if !Reject(*test, missing[:], "ZX module not found") { return 1 }
+    other := CheckPath(test.work, "other")
+    shadow := CheckPath(other, "demo/counter.zx")
+    if !NativeAssert(*test, CreateDirectories(PathParent(shadow)), "create second module root") ||
+       !Provider(*test, compiler, fixtures, shadow, counter) { return 1 }
+    ambiguity := string.[compiler, "run", "--backend", "engine", "--module-root", test.work,
+        "--module-root", other, application]
+    if !Reject(*test, ambiguity[:], "ambiguous ZX module") { return 1 }
+    cycle := string.[compiler, "--library", "demo/counter", "--export", "counter:Add", "--require-module",
+        "Self=demo/counter", "-o", shadow, counter]
+    cyclic := string.[compiler, "run", "--backend", "engine", "--module-root", other, application]
+    if !Build(*test, cycle[:]) || !Reject(*test, cyclic[:], "ZX module dependency cycle") { return 1 }
+    return 0
+}

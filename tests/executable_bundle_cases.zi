@@ -448,6 +448,94 @@ DigestBoundaries :: (program: Lir.LirProgram) -> s32 {
     return 0
 }
 
+ModuleLinkage :: (program: Lir.LirProgram) -> s32 {
+    empty: []u8
+    no_assets: []Bundle.Asset
+    linkage := "M\x00L"
+    interface := "entry\t\ts32\n"
+    limits := Lir.LirDefaultLimits()
+    missing_interface := Link.ZxExecWriteModule(program, no_assets, empty, "", false, linkage)
+    if missing_interface.problem != .Container || missing_interface.container != .Section { return Fail(91) }
+
+    legacy := Link.ZxExecWrite(program, no_assets, empty, interface, true)
+    absent := Link.ZxExecWriteModule(program, no_assets, empty, interface, true, "")
+    app: Vec(u8)
+    app_from_module_writer: Vec(u8)
+    defer VecFree(app)
+    defer VecFree(app_from_module_writer)
+    if legacy.problem != .None || absent.problem != .None || legacy.size != absent.size ||
+        !VecResize(app, legacy.size) || !VecResize(app_from_module_writer, absent.size) ||
+        Link.ZxExecWrite(program, no_assets, app[:], interface, true).problem != .None ||
+        Link.ZxExecWriteModule(program, no_assets, app_from_module_writer[:], interface, true, "").problem != .None ||
+        !SameBytes(app[:], app_from_module_writer[:]) || ReadU64(app[:], 16) != 1 { return Fail(92) }
+
+    measured := Link.ZxExecWriteModule(program, no_assets, empty, interface, false, linkage)
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if measured.problem != .None || !VecResize(bytes, measured.size) ||
+        Link.ZxExecWriteModule(program, no_assets, bytes[:], interface, false, linkage).problem != .None {
+        return Fail(93, cast(s32)measured.problem)
+    }
+    layout := Bundle.ExecutableDecode(TextView(bytes[:]), no_assets)
+    module_dir := 64 + 3 * 32
+    interface_dir := module_dir + 32
+    if layout.problem != .None || layout.found_version != 28 || layout.required_features != 3 ||
+        layout.module_linkage != linkage || layout.interface != interface || layout.optional_sections != 1 ||
+        ReadU64(bytes[:], module_dir) != ((cast(u64)1 << 32) | 5) ||
+        ReadU64(bytes[:], module_dir + 16) != cast(u64)linkage.count { return Fail(94) }
+    module_offset := cast(s64)ReadU64(bytes[:], module_dir + 8)
+    interface_offset := cast(s64)ReadU64(bytes[:], interface_dir + 8)
+
+    // Moving a byte across the linkage/interface boundary keeps their
+    // concatenation identical but changes the combined identity.
+    if !VecResize(app_from_module_writer, measured.size) { return Fail(103) }
+    reframed := Link.ZxExecWriteModule(program, no_assets, app_from_module_writer[:],
+        "ntry\t\ts32\n", false, "M\x00Le")
+    if reframed.problem != .None { return Fail(103, cast(s32)reframed.problem) }
+    other := Bundle.ExecutableDecode(TextView(VecSlice(app_from_module_writer, 0, reframed.size)), no_assets)
+    if other.problem != .None || other.program_identity != layout.program_identity ||
+        other.assets_identity != layout.assets_identity || other.content_identity == layout.content_identity {
+        return Fail(104)
+    }
+
+    owner: Link.ZxExecOwner
+    defer Link.ZxExecReadFree(*owner)
+    read := Link.ZxExecRead(*owner, TextView(bytes[:]), limits)
+    if read.problem != .None || Link.ZxExecReadModuleLinkage(*owner) != linkage { return Fail(95) }
+    bytes[module_offset + 1] ^= 1
+    if Link.ZxExecReadModuleLinkage(*owner) != linkage { return Fail(96) }
+    read = Link.ZxExecRead(*owner, TextView(bytes[:]), limits)
+    if read.problem != .Identity || owner.valid || Link.ZxExecReadModuleLinkage(*owner) != "" { return Fail(97) }
+    bytes[module_offset + 1] ^= 1
+    bytes[interface_offset] ^= 1
+    read = Link.ZxExecRead(*owner, TextView(bytes[:]), limits)
+    if read.problem != .Identity || owner.valid || Link.ZxExecReadModuleLinkage(*owner) != "" { return Fail(98) }
+    bytes[interface_offset] ^= 1
+
+    read = Link.ZxExecRead(*owner, TextView(app[:]), limits)
+    if read.problem != .None || Link.ZxExecReadModuleLinkage(*owner) != "" { return Fail(99) }
+    app[16] = 3 // Advertise linkage without section 5.
+    read = Link.ZxExecRead(*owner, TextView(app[:]), limits)
+    if read.problem != .Container || read.container != .Section || owner.valid { return Fail(100) }
+
+    // Remove the feature bit, required flag, linkage length or interface kind.
+    invalid_fields: [4]s64 = .{16, module_dir + 4, module_dir + 16, interface_dir}
+    replacements: [4]u8 = .{1, 0, 0, 4}
+    for index: 0..invalid_fields.count - 1 {
+        at := invalid_fields[index]
+        original := bytes[at]
+        bytes[at] = replacements[index]
+        read = Link.ZxExecRead(*owner, TextView(bytes[:]), limits)
+        if read.problem != .Container || read.container != .Section || owner.valid ||
+            Link.ZxExecReadModuleLinkage(*owner) != "" { return Fail(101, cast(s32)index) }
+        bytes[at] = original
+    }
+    limits.bytes = bytes.count - 1
+    read = Link.ZxExecRead(*owner, TextView(bytes[:]), limits)
+    if read.problem != .Limit || owner.valid { return Fail(102) }
+    return 0
+}
+
 main :: () -> s32 {
     types: [2]Lir.LirType = .{.{kind = .Void}, .{kind = .Integer, bits = 32, is_signed = true}}
     modules: [1]string = .{"executable"}
@@ -468,6 +556,8 @@ main :: () -> s32 {
 
     digest_result := DigestBoundaries(program)
     if digest_result != 0 { return digest_result }
+    module_result := ModuleLinkage(program)
+    if module_result != 0 { return module_result }
 
     asset_bytes: [5]u8 = .{1, 0, 2, 0, 255}
     assets: [1]Bundle.Asset = .{.{name = "data/binary.bin", data = TextView(asset_bytes[:])}}
@@ -558,6 +648,6 @@ main :: () -> s32 {
     if host_result != 0 { return host_result }
     debug_result := DebugAttachment(program)
     if debug_result != 0 { return debug_result }
-    print("executable bundle: deterministic stripped execution, bounded hostile symbols/indirect calls, host capabilities, read-only bytes, debug attachment and mutation local tests passed\n")
+    print("executable bundle: deterministic stripped execution, bounded hostile symbols/indirect calls, host capabilities, read-only bytes, debug attachment, module linkage and mutation local tests passed\n")
     return 0
 }

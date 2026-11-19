@@ -25,6 +25,34 @@ Release :: (node: *Node) {
     free(node)
 }
 
+// Several live allocations grow in different orders, retain their data,
+// and expose only zeros in new elements. Freeing their neighbours must not
+// disturb the remaining buffers or the instance's allocation list.
+Buffers :: () -> u64 {
+    left: Vec(s64)
+    middle: Vec(s64)
+    right: Vec(s64)
+    unused VecResize(left, 64)
+    unused VecResize(middle, 80)
+    unused VecResize(right, 96)
+    for at: 0..63 { left[at] = at + 1 }
+    for at: 0..79 { middle[at] = at + 101 }
+    for at: 0..95 { right[at] = at + 201 }
+    unused VecResize(middle, 8192)
+    unused VecResize(left, 2048)
+    unused VecResize(right, 16384)
+    hash: u64 = 14695981039346656037
+    for value: middle { hash = Mix(hash, cast(u64)value) }
+    VecFree(middle)
+    unused VecResize(left, 32768)
+    for value: left { hash = Mix(hash, cast(u64)value) }
+    VecFree(left)
+    unused VecResize(right, 65536)
+    for value: right { hash = Mix(hash, cast(u64)value) }
+    VecFree(right)
+    return hash
+}
+
 main :: () -> s32 {
     hash: u64 = 14695981039346656037
     for round: 0..5 {
@@ -49,6 +77,7 @@ main :: () -> s32 {
     unused VecResize(values, 40)
     for value: values { hash = Mix(hash, cast(u64)value) }
     VecFree(values)
+    hash = Mix(hash, Buffers())
     print("heap classes %\n", hash)
     return 0
 }

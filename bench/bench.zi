@@ -84,6 +84,7 @@ Registry :: () -> Vec(Benchmark) {
     Add(*list, "native-builds", "bench/native_builds.py", .Python, .Host, "complete native builds against C and Go")
     Add(*list, "native-header-graphs", "bench/native_header_graphs.py", .Python, .Host, "native builds with a dense record ABI")
     Add(*list, "native-probe", "bench/native_probe.py", .Python, .Host, "native builds with interleaved probes")
+    Add(*list, "native-resize-ab", "bench/native_resize_ab.py", .Python, .Host, "matched frozen native runtimes on scalar and vector kernels")
     Add(*list, "reachable-types", "bench/reachable_types.py", .Python, .Host, "qualified type-graph lookup")
     Add(*list, "record-calls", "bench/record_calls.py", .Python, .Host, "record values and calls across backends")
     Add(*list, "smoke", "bench/smoke.py", .Python, .Host, "cross-target smoke, startup included")

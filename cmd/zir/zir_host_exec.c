@@ -19,6 +19,7 @@
  * Bootstrap builds have no engine; they compile the stubs at the end.
  */
 #include "zir_host_exec.h"
+#include "zir_zx_module_internal.h"
 
 #ifndef ZIRAN_NO_ENGINE
 
@@ -244,6 +245,7 @@ typedef struct ExecHost {
     int *parameters;
     /* The declaration as written, from its abi line. */
     int variadic, reads;
+    int abi_lines, host_lines;
     const char *signature, *arguments, *return_type;
 } ExecHost;
 
@@ -265,6 +267,7 @@ struct ExecBundle {
     LirProgram program;
     LirExecPlan plan;
     char *text;
+    int interface_complete;
     ExecNode *nodes;
     int node_count;
     ExecHost *hosts;
@@ -383,6 +386,7 @@ exec_parse_interface(ExecBundle *bundle, ExecHost **hosts, int *host_lines)
             for(int line = 0; line < *host_lines && host == NULL; line++)
                 if((*hosts)[line].function == function) host = &(*hosts)[line];
             if(host == NULL) return 0;
+            host->abi_lines++;
             host->variadic = variadic != 0;
             host->reads = reads != 0;
             host->signature = fields[3];
@@ -529,21 +533,30 @@ ExecBundleOpen(const unsigned char *bytes, size_t size, const char *name)
     if(bundle->entry_module == NULL || bundle->entry_function == NULL || bundle->text == NULL) goto failed;
     if(bundle->owner.interface.count) memcpy(bundle->text, bundle->owner.interface.data, (size_t)bundle->owner.interface.count);
     bundle->text[bundle->owner.interface.count] = 0;
+    bundle->interface_complete = memchr(bundle->text, 0, (size_t)bundle->owner.interface.count) == NULL;
     if(!exec_parse_interface(bundle, &lines, &line_count)) {
         Diagnostic(Span(name, 1, 1), "zx.input", "executable ZX has an invalid host interface section; rebuild it");
         goto failed;
     }
     bundle->hosts = calloc((size_t)bundle->program.functions.length + 1, sizeof(*bundle->hosts));
     if(bundle->hosts == NULL) goto failed;
+    /* Index the interface lines by LIR function before packing the binding
+     * table in function order. The packed prefix cannot overwrite a later
+     * function's index. */
+    for(int line = 0; line < line_count; line++) {
+        int32_t index = lines[line].function;
+        if(index < 0 || index >= bundle->program.functions.length) continue;
+        ExecHost *host = &bundle->hosts[index];
+        if(host->host_lines++ == 0) host->function = line;
+    }
     for(int64_t index = 0; index < bundle->program.functions.length; index++) {
         const LirFunction *function = &functions[index];
         if(!function->external || function->calling != LirCalling_Host ||
            ZxPlatformService(&bundle->program, index) != ZX_SERVICE_NONE) continue;
-        ExecHost *found = NULL;
-        for(int line = 0; line < line_count && found == NULL; line++)
-            if(lines[line].function == index) found = &lines[line];
+        int host_lines = bundle->hosts[index].host_lines;
+        ExecHost *found = host_lines ? &lines[bundle->hosts[index].function] : NULL;
         ExecHost *host = &bundle->hosts[bundle->host_count++];
-        host->function = (int32_t)index;
+        *host = (ExecHost){.function = (int32_t)index, .host_lines = host_lines};
         host->module = exec_copy(modules[function->module]);
         host->name = exec_copy(function->name);
         if(host->module == NULL || host->name == NULL) goto failed;
@@ -559,6 +572,7 @@ ExecBundleOpen(const unsigned char *bytes, size_t size, const char *name)
         host->parameters = found->parameters;
         host->variadic = found->variadic;
         host->reads = found->reads;
+        host->abi_lines = found->abi_lines;
         host->signature = found->signature;
         host->arguments = found->arguments;
         host->return_type = found->return_type;
@@ -575,6 +589,26 @@ failed:
 }
 
 const void *ExecBundleProgram(const ExecBundle *bundle) { return &bundle->program; }
+
+const char *
+ExecBundleModuleLinkage(const ExecBundle *bundle, size_t *length)
+{
+    String text = compiler_exec_link_ZxExecReadModuleLinkage((ZxExecOwner *)&bundle->owner);
+    *length = text.length;
+    return text.data;
+}
+
+int
+ExecBundleModuleEntry(const ExecBundle *bundle)
+{
+    if(strcmp(bundle->entry_module, "__zx_module_dispatch") != 0) return 0;
+    const LirFunction *functions = bundle->program.functions.data;
+    const LirFunction *entry = &functions[bundle->program.entry];
+    const LirType *types = bundle->program.types.data;
+    return strcmp(bundle->entry_function, "__zx_module_dispatch") == 0 &&
+           !entry->external && !entry->variadic && entry->calling == LirCalling_Portable &&
+           entry->parameters.length == 0 && types[entry->result].kind == LirTypeKind_Void ? 1 : -1;
+}
 
 int
 ExecBundleDebugProgram(const ExecBundle *bundle, void *debug)
@@ -778,6 +812,127 @@ exec_view_element(const ExecBundle *bundle, int32_t type)
     if(view->kind != LirTypeKind_Record || view->fields.length != 2) return -1;
     const LirType *pointer = exec_type(bundle, ((const int32_t *)view->fields.data)[0]);
     return pointer->kind == LirTypeKind_Pointer ? pointer->element : -1;
+}
+
+typedef struct ModuleType {
+    const ExecBundle *bundle;
+    int node;
+    int32_t type;
+} ModuleType;
+
+static int exec_type_matches(const char *expected, const char *actual, int depth);
+
+static int
+module_host_type(const ExecBundle *bundle, size_t host_id, int parameter, ModuleType *out)
+{
+    if(!bundle->interface_complete || host_id >= bundle->host_count) return 0;
+    const ExecHost *host = &bundle->hosts[host_id];
+    const LirFunction *function = &((const LirFunction *)bundle->program.functions.data)[host->function];
+    if(host->host_lines != 1 || host->abi_lines != 1 || host->variadic || function->variadic ||
+       parameter < -1 || parameter >= host->parameter_count)
+        return 0;
+    *out = parameter < 0 ? (ModuleType){bundle, host->result, function->result} :
+        (ModuleType){bundle, host->parameters[parameter], ((const int32_t *)function->parameters.data)[parameter]};
+    return 1;
+}
+
+static int
+module_scalar(const ExecNode *node, const LirType *type)
+{
+    const char *name = node->spelling;
+    if(!strcmp(name, "bool")) return type->kind == LirTypeKind_Bool;
+    if(!strcmp(name, "float32") || !strcmp(name, "float64"))
+        return type->kind == LirTypeKind_Float && type->bits == (name[5] == '3' ? 32 : 64);
+    if(name[0] == 's' || name[0] == 'u') {
+        static const char *const widths[] = {"8", "16", "32", "64"};
+        for(size_t i = 0; i < sizeof(widths) / sizeof(widths[0]); i++)
+            if(!strcmp(name + 1, widths[i]))
+                return type->kind == LirTypeKind_Integer && type->bits == (8 << i) &&
+                       type->is_signed == (name[0] == 's') && !type->native_width;
+    }
+    return type->kind == LirTypeKind_Integer || type->kind == LirTypeKind_Float || type->kind == LirTypeKind_Bool;
+}
+
+/* Compare portable value shapes using both the HostValue declaration and the
+ * verified LIR, including nested members of a nominal record or array. */
+static int
+module_type_equal(ModuleType left, ModuleType right, int depth, size_t *remaining)
+{
+    if(depth > EXEC_DEPTH || *remaining == 0) return 0;
+    (*remaining)--;
+    const LirType *a = exec_type(left.bundle, left.type);
+    const LirType *b = exec_type(right.bundle, right.type);
+    if(left.node < 0 || right.node < 0)
+        return left.node == right.node && a->kind == LirTypeKind_Void && b->kind == LirTypeKind_Void;
+    const ExecNode *x = &left.bundle->nodes[left.node];
+    const ExecNode *y = &right.bundle->nodes[right.node];
+    if(!x->spelling[0] || strcmp(x->spelling, y->spelling) || x->class != y->class || a->kind != b->kind)
+        return 0;
+    switch(x->class) {
+    case NODE_SCALAR:
+        return module_scalar(x, a) && module_scalar(y, b) && a->bits == b->bits &&
+               a->is_signed == b->is_signed && a->native_width == b->native_width;
+    case NODE_STRING: {
+        int32_t l = exec_view_element(left.bundle, left.type);
+        int32_t r = exec_view_element(right.bundle, right.type);
+        if(l < 0 || r < 0 || a->fields.length != 2 || b->fields.length != 2 ||
+           strcmp(x->spelling, "string") != 0) return 0;
+        const LirType *lc = exec_type(left.bundle, ((const int32_t *)a->fields.data)[1]);
+        const LirType *rc = exec_type(right.bundle, ((const int32_t *)b->fields.data)[1]);
+        const LirType *le = exec_type(left.bundle, l), *re = exec_type(right.bundle, r);
+        return le->kind == LirTypeKind_Integer && re->kind == LirTypeKind_Integer &&
+               le->bits == 8 && re->bits == 8 && !le->is_signed && !re->is_signed &&
+               lc->kind == LirTypeKind_Integer && rc->kind == LirTypeKind_Integer &&
+               lc->bits == 64 && rc->bits == 64;
+    }
+    case NODE_ARRAY:
+        return a->kind == LirTypeKind_Array && a->count == b->count &&
+            module_type_equal((ModuleType){left.bundle, x->child, a->element},
+                              (ModuleType){right.bundle, y->child, b->element}, depth + 1, remaining);
+    case NODE_RECORD:
+        if(a->kind != LirTypeKind_Record || x->field_count != y->field_count ||
+           a->fields.length != x->field_count || b->fields.length != y->field_count) return 0;
+        for(int field = 0; field < x->field_count; field++) {
+            int32_t l = ((const int32_t *)a->fields.data)[field];
+            int32_t r = ((const int32_t *)b->fields.data)[field];
+            if(strcmp(x->field_names[field], y->field_names[field]) ||
+               !module_type_equal((ModuleType){left.bundle, x->field_nodes[field], l},
+                                  (ModuleType){right.bundle, y->field_nodes[field], r}, depth + 1, remaining)) return 0;
+        }
+        return 1;
+    default:
+        /* Pointers, slices and procedures require a shared address space. */
+        return 0;
+    }
+}
+
+const char *
+ExecBundleModuleType(const ExecBundle *bundle, size_t host, int parameter)
+{
+    ModuleType type;
+    size_t remaining = 65536;
+    if(!module_host_type(bundle, host, parameter, &type) || !module_type_equal(type, type, 0, &remaining))
+        return NULL;
+    const char *name = type.node >= 0 ? bundle->nodes[type.node].spelling : "void";
+    const char *declared = bundle->hosts[host].return_type;
+    if(parameter < 0 && !exec_type_matches(name, *declared ? declared : "void", 0)) return NULL;
+    return name;
+}
+
+int
+ExecBundleModuleTypeEqual(const ExecBundle *left, size_t left_host, int left_parameter,
+                          const ExecBundle *right, size_t right_host, int right_parameter)
+{
+    ModuleType a, b;
+    size_t remaining = 65536;
+    return module_host_type(left, left_host, left_parameter, &a) &&
+           module_host_type(right, right_host, right_parameter, &b) && module_type_equal(a, b, 0, &remaining);
+}
+
+int
+ExecBundleModuleParameterCount(const ExecBundle *bundle, size_t host)
+{
+    return host < bundle->host_count ? bundle->hosts[host].parameter_count : -1;
 }
 
 /* A scalar's bits as the semantic VM gives them to a host, which keeps a
@@ -1996,6 +2151,16 @@ ExecBundle *ExecBundleOpen(const unsigned char *bytes, size_t size, const char *
 }
 void ExecBundleClose(ExecBundle *bundle) { (void)bundle; }
 const void *ExecBundleProgram(const ExecBundle *bundle) { (void)bundle; return NULL; }
+const char *ExecBundleModuleLinkage(const ExecBundle *bundle, size_t *length)
+{ (void)bundle; *length = 0; return NULL; }
+int ExecBundleModuleEntry(const ExecBundle *bundle) { (void)bundle; return 0; }
+const char *ExecBundleModuleType(const ExecBundle *bundle, size_t host, int parameter)
+{ (void)bundle; (void)host; (void)parameter; return NULL; }
+int ExecBundleModuleTypeEqual(const ExecBundle *left, size_t left_host, int left_parameter,
+                              const ExecBundle *right, size_t right_host, int right_parameter)
+{ (void)left; (void)left_host; (void)left_parameter; (void)right; (void)right_host; (void)right_parameter; return 0; }
+int ExecBundleModuleParameterCount(const ExecBundle *bundle, size_t host)
+{ (void)bundle; (void)host; return -1; }
 int ExecBundleDebugProgram(const ExecBundle *bundle, void *debug) { (void)bundle; (void)debug; return 0; }
 size_t ExecBundleCapabilityCount(const ExecBundle *bundle) { (void)bundle; return 0; }
 const char *ExecBundleCapabilityModule(const ExecBundle *bundle, size_t index) { (void)bundle; (void)index; return NULL; }

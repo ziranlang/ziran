@@ -203,10 +203,10 @@ main :: (argc: s32, argv: **u8) -> s32 {
         counts.index_proven == 1, "the runtime-index accesses are not direct behind their index checks") ||
         !Runs(*test, tools, index, "") || !WasmRuns(*test, tools, index, "") { return 1 }
 
-    // A heap block moved by growth: the stale element pointer has no root,
-    // keeps its resolve and traps.
+    // Growing an existing large block invalidates its element pointers,
+    // even when the allocator keeps the storage at the same address.
     resized := Bundle(*test, tools, test.work, "resized",
-        "#import \"vec\"\n#program_export\nmain :: () -> s64 {\n    values: Vec(s64)\n    defer VecFree(values)\n    VecPush(values, 1)\n    first := *values[0]\n    for i: 0..99 { VecPush(values, cast(s64)i) }\n    return <<first\n}\n")
+        "#import \"vec\"\n#program_export\nmain :: () -> s64 {\n    values: Vec(s64)\n    defer VecFree(values)\n    unused VecResize(values, 64)\n    values[0] = 1\n    first := *values[0]\n    for i: 0..99 { VecPush(values, cast(s64)i) }\n    return <<first\n}\n")
     if test.failed || !Counts(*test, resized, *counts) { return 1 }
     if !NativeAssert(*test, counts.resolves > 0, "a heap access lost its resolve") ||
         !Runs(*test, tools, resized, "") { return 1 }

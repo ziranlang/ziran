@@ -1,0 +1,76 @@
+{
+  "host": "alpha",
+  "cpu": "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
+  "kernel": "7.0.0-43-generic",
+  "revision": "31f4184827f6e77907fa7d26063dcacdda75c9df",
+  "compiler": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "baseline_native_source_sha256": "e07ca93ade8d034c89b84d701f0792c52d8ad77f9b7f7c17f36d84dcd81d8f80",
+  "files": {
+    "cmd/zir/zir_host_native.c": {
+      "sha256": "87964d6c5336f8e73497ef95aff9e2e37377b07ccd5fce6de140729de1848b25",
+      "bytes": 88457
+    },
+    "backup/native-float-calls/native-resize.patch": {
+      "sha256": "e409adedbab800311fbc410d692297610ecd6574b956ef68917268ff2fcb1ec2",
+      "bytes": 1315
+    },
+    "backup/native-float-calls/libziran-before.a": {
+      "sha256": "423b16ba81a11467b5080c808c947037e61b447e4acf8826e738a39e5b5daa9a",
+      "bytes": 4977156
+    },
+    "backup/native-float-calls/libziran-after.a": {
+      "sha256": "c5c861a438a4af963943054fa6da7da16360da4566307bdfed7afad30fdb644e",
+      "bytes": 4977500
+    },
+    "backup/native-float-calls/native-runner-before": {
+      "sha256": "62b14d040f41831bf9c62a9075b8fa44df60164668b1d75d8fa6999b248da862",
+      "bytes": 3277200
+    },
+    "backup/native-float-calls/native-runner-after": {
+      "sha256": "d1146c3c0aa76a2310b004a37e9e124f99f04fd920f3b85ffe9644fd93771e9e",
+      "bytes": 3281344
+    },
+    "backup/native-float-calls/Vectors-before.bin": {
+      "sha256": "c92541c1fb1cf644c95df52e8daffd847f35507b2ef834916faeae7a94fdf16c",
+      "bytes": 8192
+    },
+    "build/standard-profile/Vectors.bin": {
+      "sha256": "e2e4a1787b8220048dc504edf0970fd8b6b7aed9543ed1b19db92743ce406b9d",
+      "bytes": 8192
+    },
+    "bench/native_resize_ab.py": {
+      "sha256": "da81ba052e925f14c8dfcb9a2a269be704e00d11187b97b117c1040d4a91eb9e",
+      "bytes": 4638
+    },
+    "bench/wasm_tier.zi": {
+      "sha256": "2faf18fdf60af30357c3fac3f72ffc218c6135f176ec9919b4d879d7e80e3c18",
+      "bytes": 2007
+    },
+    "bench/site_target_host.c": {
+      "sha256": "eced150880fd7ea7eda5225f9c88408efbb2f13303395934b5245447cebab8e4",
+      "bytes": 8580
+    },
+    "bench/site_target_backend.h": {
+      "sha256": "ce817b1429f463760332a7afe0ac703d0b93ac400a0d5b0cd36d9e8eb248aafd",
+      "bytes": 821
+    },
+    "bench/results/native-resize-alpha-matched.json": {
+      "sha256": "307db005a4aa6f34cc3b7114abf85d6aa0a3d4a8c6f3cdb2b594a0b137c53790",
+      "bytes": 465093
+    }
+  },
+  "archive_members_verified": 96,
+  "changed_archive_members": {
+    "zir_host_native.o": {
+      "before": {
+        "sha256": "64ef8d5b9e65f5c6b913994ae24bfb24c14b30cba6eaeedf14d05dc8ed8f111e",
+        "bytes": 48688
+      },
+      "after": {
+        "sha256": "971a40b9b398b5ca7ace7882a9290e933c12e55357ce95832de15c4617a1591b",
+        "bytes": 49032
+      }
+    }
+  },
+  "build_method": "Frozen baseline archive copied; only freshly compiled zir_host_native.o replaced, with allocator-only source patch. Both benchmark hosts use the same command and backend flags; no compiler optimizer changes in this A/B."
+}

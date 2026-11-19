@@ -75,7 +75,7 @@ CheckProgram :: struct {
     compiler_library: bool
 }
 
-check_programs: [49]CheckProgram = .[
+check_programs: [51]CheckProgram = .[
     .{name = "module_parameters_cases.zi", cost = 2},
     .{name = "insert_source_cases.zi", cost = 2},
     .{name = "std_environment_cases.zi", cost = 2},
@@ -124,6 +124,8 @@ check_programs: [49]CheckProgram = .[
     .{name = "vorbis_linux", source = "vorbis_cases.zi"},
     .{name = "zstd_go", source = "zstd_go_cases.zi"},
     .{name = "zx_lowered_parity", source = "zx_lowered_parity_cases.zi"},
+    .{name = "zx_module_compiler", source = "zx_module_compiler_cases.zi"},
+    .{name = "zx_module_runtime", source = "zx_module_runtime_cases.zi", module_path = "cmd", compiler_library = true},
     .{name = "zx_windows_parity", source = "zx_windows_parity_cases.zi", cost = 4},
 ];
 

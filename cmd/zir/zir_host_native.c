@@ -844,6 +844,7 @@ native_slot_prepare(NativeBundleSlot *slot, const ExecBundle *bundle,
     native_variant_digest(bundle_digest, unbounded, digest);
     pthread_mutex_lock(&native_lock);
     if(!slot->ready) {
+        uint64_t lookup_started = ProfileStart();
         uint64_t cpu = ZirNativeCpuKey();
         for(NativeBundleCode *code = native_cache; code != NULL; code = code->next)
             if(code->cpu == cpu && !memcmp(code->digest, digest, 32)) {
@@ -851,13 +852,22 @@ native_slot_prepare(NativeBundleSlot *slot, const ExecBundle *bundle,
                 slot->code = code;
                 break;
             }
-        if(slot->code == NULL) {
+        if(slot->code != NULL) {
+            ProfileEnd("zx.native.lookup", lookup_started);
+        } else {
             NativeCacheDigest key;
             int keyed = native_disk_key(digest, cpu, &key);
             NativeBundleCode *code = keyed ? native_disk_load(bundle, &key) : NULL;
+            ProfileEnd("zx.native.lookup", lookup_started);
             if(code == NULL) {
+                uint64_t compile_started = ProfileStart();
                 code = native_compile(bundle, unbounded, slot->problem, sizeof(slot->problem));
-                if(code != NULL && keyed) native_disk_store(code, &key);
+                ProfileEnd("zx.native.compile", compile_started);
+                if(code != NULL && keyed) {
+                    uint64_t store_started = ProfileStart();
+                    native_disk_store(code, &key);
+                    ProfileEnd("zx.native.store", store_started);
+                }
             }
             if(code != NULL) {
                 memcpy(code->digest, digest, 32);
@@ -1482,6 +1492,21 @@ NativeResize(uint64_t data, uint64_t old_count, uint64_t new_count, uint64_t ele
         heap->live = heap->live - old_bytes + new_bytes;
         return data;
     }
+    if(old != NULL && !native_small(old_bytes) && !native_small(new_bytes)) {
+        /* Keep large storage when the allocator can grow it in place. A
+         * failed realloc leaves both the old block and its list links live. */
+        NativeBlock *previous = (NativeBlock *)(uintptr_t)(data - sizeof(NativeBlock));
+        NativeBlock *resized = realloc(previous, sizeof(NativeBlock) + new_bytes);
+        if(resized == NULL) return 0;
+        if(resized->previous) resized->previous->next = resized;
+        else instance->blocks = resized;
+        if(resized->next) resized->next->previous = resized;
+        unsigned char *bytes = (unsigned char *)(resized + 1);
+        if(new_bytes > old_bytes) memset(bytes + old_bytes, 0, new_bytes - old_bytes);
+        resized->header.count = new_count;
+        heap->live = heap->live - old_bytes + new_bytes;
+        return (uint64_t)(uintptr_t)bytes;
+    }
     unsigned char *block = native_small(new_bytes) ? native_small_take(instance, new_bytes)
                                                    : native_large_take(instance, new_bytes);
     if(block == NULL) return 0;
@@ -1753,6 +1778,7 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
                    NativeFindBinding find, void *context, long long max_steps)
 {
     if(code == NULL || bundle == NULL || (code->unbounded && max_steps > 0)) return NULL;
+    uint64_t load_started = ProfileStart();
     MachineImage image = code->image;
     if(image.code.bytes.data == NULL || image.code.bytes.length <= 0 ||
        image.entry < 0 || image.entry >= image.function_offsets.length ||
@@ -1947,6 +1973,8 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
     if(!ZirNativeFlushInstructions(&code_mapping) ||
        !ZirNativeProtectRX(&code_mapping))
         goto failed;
+    ProfileEnd("zx.native.load", load_started);
+    uint64_t init_started = ProfileStart();
     int32_t *initializers = image.initializers.data;
     for(int64_t at = 0; at < image.initializers.length; at++) {
         int32_t function = initializers[at];
@@ -1961,6 +1989,7 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
             return NULL;
         }
     }
+    ProfileEnd("zx.native.init", init_started);
     return instance;
 failed:
     Diagnostic((ZirSourceSpan){0}, "zx.native",

@@ -12,6 +12,7 @@
 #include "compiler_lowered_ir.h"
 #include "compiler_opt.h"
 #include "zir_exec_console.h"
+#include "ziran_host.h"
 
 #include <stddef.h>
 
@@ -19,7 +20,26 @@
  * integer result, 0 for void, 125 for a failed run. */
 int ZxExecRunProgram(const LirProgram *program, LirExecLimits limits, int heap_report);
 
+/* Runs a bundle, resolving module dependencies from ROOTS or the bundle's
+ * parent directory. A null PATH uses the current directory for source runs. */
+int ZxExecRunBundle(const Bundle *bundle, const char *path, const char *const *roots,
+                    size_t root_count, const BundleInstanceOptions *options,
+                    long long *result, int *has_result);
+
 struct ZirProgram;
+
+typedef struct ZxImportRoot {
+    const char *module;
+    const char *function;
+} ZxImportRoot;
+
+typedef struct ZxModuleBuild {
+    AssemblyExportRoot *exports;
+    int export_count;
+    ZxImportRoot *imports;
+    int import_count;
+    String linkage;
+} ZxModuleBuild;
 
 /* Source lowering shared by zi2zx's ZX, LIR and optimization-report views.
  * The owner retains the source-side interface spelling and, when requested,
@@ -33,7 +53,8 @@ typedef struct ZxLowerOwner {
 } ZxLowerOwner;
 
 int ZxLowerBuild(struct ZirProgram *program, const char *module,
-                 const char *function, int optimize, ZxLowerOwner *owner);
+                 const char *function, const ZxModuleBuild *link,
+                 int optimize, ZxLowerOwner *owner);
 const LirProgram *ZxLowerView(const ZxLowerOwner *owner);
 const LirOptResult *ZxLowerOptimization(const ZxLowerOwner *owner);
 void ZxLowerFree(ZxLowerOwner *owner);
@@ -42,9 +63,10 @@ void ZxLowerFree(ZxLowerOwner *owner);
  * executable ZX with its host interface section: what zi2zx
  * writes. `assets` is a slice of compiler_bundle Asset values in name order.
  * The entry must take no arguments and return an integer, bool or nothing.
+ * A library supplies sorted export roots as its generated entry instead.
  * With `debug`, source texts and origins go to the optional debug
  * attachment. Returns malloc'd bytes, or NULL after a diagnostic. */
-unsigned char *ZxExecBuild(struct ZirProgram *program, const char *module, const char *function, Slice assets,
-                           int debug, size_t *size);
+unsigned char *ZxExecBuild(struct ZirProgram *program, const char *module, const char *function,
+                           const ZxModuleBuild *link, Slice assets, int debug, size_t *size);
 
 #endif

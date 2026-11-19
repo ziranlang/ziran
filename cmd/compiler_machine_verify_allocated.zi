@@ -1335,20 +1335,20 @@ Values :: (state: *State, program: MachineProgram, limits: MachineLimits, functi
     defer VecFree(states)
     current: Vec(s32)
     defer VecFree(current)
-    visited: Vec(u8)
-    defer VecFree(visited)
+    pending: Vec(u8)
+    defer VecFree(pending)
     marks: Vec(u8)
     defer VecFree(marks)
     if !VecResizeBounded(states, blocks * width, limits.bytes) || !VecResizeBounded(current, width, limits.bytes) ||
-        !VecResizeBounded(visited, blocks, limits.bytes) ||
+        !VecResizeBounded(pending, blocks, limits.bytes) ||
         !VecResizeBounded(marks, cast(s64)function.virtual_count, limits.bytes) { return Fail(state, .Allocation, function_id) }
     for index: cast(s64)0..marks.count - 1 { marks[index] = 0 }
     if !Spend(state, states.count) { return false }
     for index: cast(s64)0..states.count - 1 { states[index] = StateTop }
-    for index: cast(s64)0..blocks - 1 { visited[index] = 0 }
+    for index: cast(s64)0..blocks - 1 { pending[index] = 0 }
     entry := cast(s64)(function.entry - function.block_begin)
     base := entry * width
-    visited[entry] = 1
+    pending[entry] = 1
     for slot: cast(s64)0..width - 1 { states[base + slot] = StateUnknown }
     for parameter: 0..function.parameter_count - 1 {
         value_id := function.virtual_begin + parameter
@@ -1361,35 +1361,41 @@ Values :: (state: *State, program: MachineProgram, limits: MachineLimits, functi
             states[base + FirstStackSlot + cast(s64)(value.stack_object - function.stack_begin)] = value_id
         }
     }
-    changed := true
-    while changed {
-        changed = false
+    // Recheck a block only when its input lattice changes. Updates to a
+    // later block in this scan will be consumed in this scan. An unseen
+    // successor starts at StateTop, which changes on its first incoming edge.
+    another_pass := true
+    while another_pass {
+        another_pass = false
         for local: cast(s64)0..blocks - 1 {
-            if visited[local] == 0 { continue }
+            if pending[local] == 0 { continue }
+            pending[local] = 0
             if !Spend(state, width) { return false }
             for slot: cast(s64)0..width - 1 { current[slot] = states[local * width + slot] }
             block_id := function.block_begin + cast(s32)local
-            // States only descend, so a failed check here also fails at the
-            // fixed point; reporting it now keeps the root-cause location.
+            // A failed check on these inputs also fails at the fixed point.
             if !Transfer(state, program, function_id, block_id, current[:], marks[:], true) { return false }
             block := program.blocks[block_id]
             terminator := program.instructions[block.instruction_begin + block.instruction_count - 1]
             for edge_id: terminator.edge_begin..terminator.edge_begin + terminator.edge_count - 1 {
                 successor := cast(s64)(program.edges[edge_id].target - function.block_begin)
                 if !Spend(state, width) { return false }
-                if visited[successor] == 0 { visited[successor] = 1; changed = true }
+                changed := false
                 for slot: cast(s64)0..width - 1 {
                     old := states[successor * width + slot]
                     met := Meet(old, current[slot])
-                    if met != old { states[successor * width + slot] = met; changed = true }
+                    if met == old { continue }
+                    states[successor * width + slot] = met
+                    changed = true
+                }
+                if changed {
+                    pending[successor] = 1
+                    if successor <= local { another_pass = true }
                 }
             }
         }
-    }
-    for local: cast(s64)0..blocks - 1 {
-        if visited[local] == 0 { continue }
-        for slot: cast(s64)0..width - 1 { current[slot] = states[local * width + slot] }
-        if !Transfer(state, program, function_id, function.block_begin + cast(s32)local, current[:], marks[:], true) { return false }
+        // Even a sparse scan spends time on every block in the function.
+        if another_pass && !Spend(state, blocks) { return false }
     }
     return true
 }

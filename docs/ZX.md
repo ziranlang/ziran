@@ -1,18 +1,71 @@
 # Ziran portable bundle (`.zx`)
 
 The file roles are `.zi` for source, `.zir` for checked intermediate modules,
-and `.zx` for portable executables. The portable tool is `zi2zx`, and its
-target name is `zx`. A `.zx` file is revision-28 executable ZX: verified
-lowered instructions, the program's assets and the names its embedder sees.
+and `.zx` for portable applications and libraries. The portable tool is `zi2zx`,
+and its target name is `zx`. Revision-28 executable ZX contains verified
+lowered instructions, assets and the names its embedder sees.
 The normative byte contract is
 [the executable format specification](../ASSEMBLY/zx-executable-format.md); see
 [Implementation status](IMPLEMENTATION_STATUS.md) for the remaining work.
 
+## Loading libraries
+
+Build a provider with a logical name and explicit export roots. Save it as
+`LOGICAL_NAME.zx` beneath a module root. This example exports `counter:Add`,
+which takes an `s32` and returns an `s32`.
+
+```sh
+mkdir -p modules/demo
+zi2zx --library demo/counter --export counter:Add \
+    -o modules/demo/counter.zx counter.zi
+```
+
+In `app.zi`, declare the import with a `u64` instance handle followed by the
+provider's parameter types. Load the declared interface before calling it.
+
+```ziran
+using Modules :: #import "std/zx_module"
+
+host_api :: #system_library "host_api";
+AddExternal :: (handle: u64, amount: s32) -> s32 #foreign host_api;
+
+main :: () -> s32 {
+    handle := Modules.Load("Counter.v1")
+    if handle == 0 { return 1 }
+    result := AddExternal(handle, 2)
+    if !Modules.Release(handle) { return 1 }
+    return result
+}
+```
+
+```sh
+zi2zx --require-module Counter.v1=demo/counter \
+    --import app:AddExternal=Counter.v1:Add -o app.zx app.zi
+ziran run --module-root modules app.zx
+ziran inspect --emit linkage modules/demo/counter.zx
+```
+
+Repeat `--module-root` to search several folders. With no explicit root, a
+saved bundle uses its own directory and a source run uses the current
+directory. The loader checks dependency graphs and import signatures before
+running initializers. Distinct files claiming the same requested path are
+ambiguous. Each successful `Load` creates independent module state and
+returns a handle scoped to its caller. Use `Problem()` to read the loader's
+latest diagnostic and the export and parameter queries to inspect its types.
+
+`Replace(handle, artifact_name)` resolves a candidate under the same roots.
+Use its path without `.zx`. It must declare the same logical name and export
+interface. Replacement retains the handle and migrates compatible globals.
+An incompatible candidate leaves the original instance available. C embedders
+can supply a state migration callback and grant libraries host bindings through
+[`ziran_zx_module.h`](../include/ziran_zx_module.h). Module calls are synchronous.
+
 ## Running bundles
 
-Run source in one command: `ziran run hello.zi` or `zi2zx run hello.zi`. Both
-check the file, write the bundle in memory and execute its `main`; its folder
-is the default module root. `ziran run app.zx` and `zi2zx run app.zx` run a
+Run source in one command with `ziran run hello.zi` or `zi2zx run hello.zi`.
+Both check the file, write the bundle in memory and execute its `main`.
+The file's folder is the default source root. `ziran run app.zx` and
+`zi2zx run app.zx` run a
 bundle file. Zero-argument entries returning an integer, `bool` or nothing
 run; the command prints a non-void result on its own line, unsigned results
 over their full range.
@@ -41,6 +94,15 @@ the CPU's features and the build of the compiler that made it. It is checked
 against that key and its SHA-256 digest before it is used, and a damaged entry
 is removed and rebuilt. `ZIRAN_NATIVE_CACHE=DIR` uses another directory and
 `ZIRAN_NATIVE_CACHE=off` turns the cache off.
+
+Set `ZIRAN_PROFILE` to an absolute output filename to write a JSON timing
+record at normal process exit. `zx.bundle.open` covers portable bundle
+validation and content hashing after the bytes are read. `zx.native.lookup`,
+`zx.native.compile` and `zx.native.store` separate cache lookup, compilation
+and cache writing. `zx.native.load` covers native instance setup through
+executable mapping. `zx.native.init` measures the module initializers before
+the entry runs. A warm cache hit records lookup and instance startup without
+a compile phase.
 
 ## Learning
 

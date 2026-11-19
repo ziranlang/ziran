@@ -1,0 +1,30 @@
+// Runtime services for a ZX application or library. Load takes the interface
+// alias declared with --require-module. Each call opens independent state.
+// Handles belong to the loading instance. Zero denotes a failed load.
+#scope_file
+host_api :: #system_library "host_api";
+HostLoad :: (interface_name: string) -> u64 #foreign host_api;
+HostRelease :: (handle: u64) -> bool #foreign host_api;
+HostExportCount :: (handle: u64) -> s32 #foreign host_api;
+HostExportName :: (handle: u64, ordinal: s32) -> string #foreign host_api;
+HostParameterCount :: (handle: u64, ordinal: s32) -> s32 #foreign host_api;
+HostParameterType :: (handle: u64, ordinal: s32, index: s32) -> string #foreign host_api;
+HostResultType :: (handle: u64, ordinal: s32) -> string #foreign host_api;
+HostReplace :: (handle: u64, artifact_name: string) -> bool #foreign host_api;
+HostProblem :: () -> string #foreign host_api;
+
+#scope_export
+Load :: (interface_name: string) -> u64 { return HostLoad(interface_name) }
+Release :: (handle: u64) -> bool { return HostRelease(handle) }
+ExportCount :: (handle: u64) -> s32 { return HostExportCount(handle) }
+ExportName :: (handle: u64, ordinal: s32) -> string { return HostExportName(handle, ordinal) }
+ParameterCount :: (handle: u64, ordinal: s32) -> s32 { return HostParameterCount(handle, ordinal) }
+ParameterType :: (handle: u64, ordinal: s32, index: s32) -> string {
+    return HostParameterType(handle, ordinal, index)
+}
+ResultType :: (handle: u64, ordinal: s32) -> string { return HostResultType(handle, ordinal) }
+// Resolve artifact_name beneath the loader's roots. Its declared logical
+// module name must match the handle. Retains the handle and migrates state.
+Replace :: (handle: u64, artifact_name: string) -> bool { return HostReplace(handle, artifact_name) }
+// The most recent module problem from this program run, or an empty string.
+Problem :: () -> string { return HostProblem() }

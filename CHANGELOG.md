@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- In-process native ZX resizes large heap blocks through the allocator instead of always allocating and copying a replacement. Growth remains zero-filled and checked aliases are invalidated even when the address stays the same. The Vectors kernel on Alpha took 38.19 µs instead of 40.04 µs in 11 matched rounds, against 34.07 µs for C.
+- Wasm stores can copy a loaded record directly from its source when no intervening effect requires a snapshot. Copies through pointers preserve partially overlapping memory in either direction.
+- The shared optimizer resolves calls through known function addresses, gives calls inside loops a larger inlining budget, and restores borrowed input on resource-limited specialization. Standalone ZX tools now rebuild when the specialization module changes.
+- Source and saved module graphs can grow beyond 1,024 files, with bounds checked against available addressable storage.
+- Platform conditions in modules with file-scope enum imports no longer force an otherwise ordinary import cycle to resolve at compile time.
 - Executable ZX identities hash whole byte ranges through the runtime’s shared SHA-256 implementation, including CPU acceleration where supported, instead of feeding a separate hasher one byte at a time. Identity validation and resource limits are unchanged.
 
 - The native disk cache reloads ARMv7 and AArch64 machine images, including the ARMv7 runtime helper relocations. Android apps reuse compiled code across launches.
@@ -15,6 +20,8 @@
 - Fixes: native ARMv7 and AArch64 code reads and changes members of large records and globals in place, as x86-64 code does, instead of copying the whole record into the frame for every access. Shovey's `LevelReplayPump`, whose 12 MB frame stopped it at its frame limit when Play was pressed on an ARMv7 phone, now needs 1.8 MB on every target. A record or array built from zeros is zeroed in one pass instead of one store per member, so Shovey's native code shrinks from 6.4 to 1.4 MB on ARMv7 and from 2.8 to 0.9 MB on x86-64, and its AArch64 build, where one 4.7 MB function put branches out of range, now compiles.
 - Native code is verified once: the encoder no longer verifies again a program register allocation just verified, which shortens a phone's on-device compile. The native disk cache now works in Android apps: a library linked without a GNU build ID, as reproducible APKs are, is identified by its code, and an app process caches in its own cache directory, so only the first launch after an install compiles a bundle.
 - Fixes: generated C declares a generic procedure's copy for its caller when the copy's signature names a type through the template's own import alias and the caller has a module-scoped import of that name; GCC 14 rejected the call as an implicit declaration (Kryon's text Draw called from Terminal).
+- ZX applications can load separately compiled libraries with verified typed imports, independent instances, export inspection and state-preserving replacement. The loader checks dependency graphs and accepts explicit module roots.
+
 ## [0.7.0] - 2026-11-18
 
 - Wasm now runs all three Kryon widget scenarios faster than Go, and two of them faster than C: Button takes 2.46 µs, Text 3.59 µs and Input 3.24 µs per two frames on Alpha, against 4.33, 3.89 and 6.59 µs in Go. Wasm code reads a record's fields where the record lies instead of copying it, builds records where their caller or parent keeps them, writes a single changed field in place, and writes zeroed records with wide stores or `memory.fill`. `zx2wasm --unbounded` makes a module with no step budget for runs that need none.

@@ -153,6 +153,40 @@ Expandable :: (program: LirProgram, caller: s64, call: LirInstruction, maximum: 
     return returns
 }
 
+// A block is inside a loop when it can reach itself. DONE/FLAGS memoize one
+// answer per block; SEEN/QUEUE hold one breadth-first walk over at most every
+// block. Calls in such a block repeat every iteration, so their site pays
+// twice the body limit.
+InLoop :: (function: LirFunction, start: s64, done: []u8, flags: []u8,
+    seen: []u8, queue: []s32, budget: *LirSsaBudget) -> bool {
+    if done[start] != 0 { return flags[start] != 0 }
+    // Charge both visiting and clearing each queued block before marking it.
+    if !LirSsaSpend(budget, 2) { return false }
+    end: s64 = 1
+    queue[0] = cast(s32)start
+    seen[start] = 1
+    loops := false
+    for first: 0..function.blocks.count - 1 {
+        if first == end { break }
+        block := function.blocks[queue[first]]
+        for edge: block.instructions[block.instructions.count - 1].edges {
+            if !LirSsaSpend(budget, 1) { break }
+            if edge.block == start { loops = true; break }
+            if seen[edge.block] != 0 { continue }
+            if !LirSsaSpend(budget, 2) { break }
+            seen[edge.block] = 1
+            queue[end] = edge.block
+            end += 1
+        }
+        if loops || budget.problem != .None { break }
+    }
+    for at: 0..end - 1 { seen[queue[at]] = 0 }
+    if budget.problem != .None { return false }
+    done[start] = 1
+    if loops { flags[start] = 1 } else { flags[start] = 0 }
+    return loops
+}
+
 // A single-block callee whose result, if any, an instruction of its block
 // defines is copied into the caller's block in place: no blocks, jumps or
 // block parameters. Returns that instruction's index, -2 for a void return,
@@ -532,11 +566,13 @@ LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum
     total: s64
     largest: s64
     widest: s64
+    widest_blocks: s64
     for function: program.functions {
         size := Measure(function).instructions
         total += size
         if size > largest { largest = size }
         if function.values.count > widest { widest = function.values.count }
+        if function.blocks.count > widest_blocks { widest_blocks = function.blocks.count }
     }
     if allowance < 0 {
         allowance = total / 2
@@ -553,17 +589,39 @@ LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum
     order: Vec(s32)
     pure: Vec(u8)
     read_only: Vec(u8)
+    loop_done: Vec(u8)
+    loop_flags: Vec(u8)
+    loop_seen: Vec(u8)
+    loop_queue: Vec(s32)
     defer VecFree(functions)
     defer VecFree(sites)
     defer VecFree(order)
     defer VecFree(pure)
     defer VecFree(read_only)
+    defer VecFree(loop_done)
+    defer VecFree(loop_flags)
+    defer VecFree(loop_seen)
+    defer VecFree(loop_queue)
     defer VecFree(versions)
     defer FreeExpanded(versions[:])
     if !LirSsaReserve(*budget, largest, 4) { result.problem = budget.problem; return result }
     if !VecResizeBounded(functions, program.functions.count, program.functions.count) ||
         !VecResizeBounded(sites, largest, largest) ||
         !VecResizeBounded(order, program.functions.count, program.functions.count) {
+        result.problem = .Allocation
+        return result
+    }
+    // Reuse one set of memo and walk arrays across differently sized callers.
+    // Projected inlining does not use loop weighting.
+    if projected { widest_blocks = 0 }
+    if !LirSsaReserve(*budget, widest_blocks * 3, 1) || !LirSsaReserve(*budget, widest_blocks, 4) {
+        result.problem = budget.problem
+        return result
+    }
+    if !VecResizeBounded(loop_done, widest_blocks, widest_blocks) ||
+        !VecResizeBounded(loop_flags, widest_blocks, widest_blocks) ||
+        !VecResizeBounded(loop_seen, widest_blocks, widest_blocks) ||
+        !VecResizeBounded(loop_queue, widest_blocks, widest_blocks) {
         result.problem = .Allocation
         return result
     }
@@ -604,13 +662,27 @@ LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum
             }
             if budget.problem != .None { break }
         }
+        // Clear memo entries for this caller; each new graph walk spends its
+        // actual visited blocks and edges, including on an exhausted budget.
+        loop_blocks := ifx projected then 0 else function.blocks.count
+        if !LirSsaSpend(*budget, loop_blocks) { break }
+        for at: 0..loop_blocks - 1 { loop_done[at] = 0 }
         found: s64
         flat: s64
-        for block: function.blocks {
+        for block, bi: function.blocks {
             for instruction: block.instructions {
                 sites[flat] = -1
                 eligible := false
-                if allowance > 0 && !projected { eligible = Expandable(current, fi, instruction, maximum) }
+                if allowance > 0 && !projected {
+                    // A call inside a loop repeats every iteration, so its
+                    // site pays twice the body limit.
+                    site_maximum := maximum
+                    if instruction.op == .Call && InLoop(function, bi, loop_done[:],
+                        loop_flags[:], loop_seen[:], loop_queue[:], *budget) &&
+                        maximum <= 4611686018427387903 { site_maximum = maximum * 2 }
+                    if budget.problem != .None { break }
+                    eligible = Expandable(current, fi, instruction, site_maximum)
+                }
                 if allowance > 0 && projected && instruction.op == .Call && instruction.result != LirNoId &&
                     read_only[instruction.result] == 1 && instruction.symbol >= 0 &&
                     cast(s64)instruction.symbol < program.functions.count && pure[instruction.symbol] != 0 {
@@ -627,7 +699,9 @@ LirInlineCalls :: (storage: *LirReadOwner, limits: LirLimits, work: s64, maximum
                 }
                 flat += 1
             }
+            if budget.problem != .None { break }
         }
+        if budget.problem != .None { break }
         if found == 0 { continue }
         expanded: Expanded
         built := Expand(current, function, sites[:count], limits, *budget, *expanded)

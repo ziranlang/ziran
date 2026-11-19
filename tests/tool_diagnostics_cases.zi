@@ -26,7 +26,37 @@ ToolDiagnostics :: (test: *NativeTest, arguments: []string, code: string) -> Jso
     return records
 }
 
+// Ordinary declarations exercise every table; defaults create real helpers.
+ToolDeclarationNames :: (test: *NativeTest) -> bool {
+    source := CheckPath(test.work, "names.zi")
+    ordinary := "Byte :: 3\nCText: s32 = 4;\nRecordPath :: struct { value: s32 }\nText :: #import \"std/text\";\nSetBlocks :: (value: s32 = 5) -> s32 { return value }\n#program_export\nAnswer :: () -> s32 { path: RecordPath = .{value = 9}; return Byte + CText + path.value + SetBlocks() }\n"
+    if !NativeWrite(test, source, ordinary) { return false }
+    check := string.[test.ziran, "check", "--root", test.work, source]
+    unused NativeRun(test, check[:])
+    if test.failed { return false }
+    declarations := string.[
+        "zi_default_helper :: () -> s32 { return 1 }",
+        "zi_default_value :: 3",
+        "zi_default_count: s32 = 4;",
+        "zi_default_point :: struct { x: s32 }",
+        "zi_default_lib :: #import \"std/text\";",
+        "zi_default_0123456789abcde :: 3",
+        "zi_default_0123456789abcdeg :: 3",
+        "zi_default_0123456789abcdef_field_ :: 3",
+        "zi_default_0123456789abcdef_field_x :: 3",
+        "zi_default_0123456789abcdef_extra :: 3",
+    ]
+    for declaration: declarations {
+        if !NativeWrite(test, source, CheckConcat(declaration, "\n#program_export\nAnswer :: () -> s32 { return 0 }\n")) { return false }
+        command := string.[test.ziran, "check", "--diagnostics=json", "--root", test.work, source]
+        unused ToolDiagnostics(test, command[:], "check.reserved_name")
+        if test.failed { return false }
+    }
+    return true
+}
+
 ToolCases :: (test: *NativeTest) -> bool {
+    if !ToolDeclarationNames(test) { return false }
     binary := PathParent(test.ziran); tools := string.["zi2c", "zi2go", "zi2zir", "zi2zx", "zi-api", "zi-inspect", "zi-fmt", "zi-edit"]
     for tool: tools { command := string.[CheckPath(binary, tool), "--unknown", "--diagnostics=json"]; unused ToolDiagnostics(test, command[:], "command.arguments"); if test.failed { return false } }
     unknown := string.[test.ziran, "build", "--target=unknown", "--diagnostics=json"]; unused ToolDiagnostics(test, unknown[:], "package.command")

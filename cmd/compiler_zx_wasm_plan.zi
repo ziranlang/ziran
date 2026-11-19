@@ -141,7 +141,8 @@ SameMember :: (left: *LirInstruction, left_fixed: s64, right: *LirInstruction, r
 
 // A load used only for member reads can borrow its pointer instead of
 // materializing the whole record. Follow nested extracts up to their member
-// reads or the copy that initializes a fresh allocation. A read after any
+// reads or a copy into memory. Stores use overlap-safe memory.copy when
+// their source borrows memory. A read after any
 // possible memory effect needs the original snapshot.
 PlanLoadViews :: (fn: *Fn, aggregate: []bool) -> bool {
     count := fn.function.values.count
@@ -179,8 +180,9 @@ PlanLoadViews :: (fn: *Fn, aggregate: []bool) -> bool {
                 value := instruction.operands[at]
                 if !ValueValid(fn, value) || root[value] < 0 { continue }
                 base := root[value]
-                reads := instruction.op == .Extract || instruction.op == .Allocate
-                if !reads || at != 0 || home[base] != block || stamp[base] != version {
+                reads := (instruction.op == .Extract || instruction.op == .Allocate) && at == 0 ||
+                    instruction.op == .Store && at == 1
+                if !reads || home[base] != block || stamp[base] != version {
                     valid[base] = false
                     continue
                 }

@@ -27,7 +27,7 @@ truncation, and trailing bytes. There is no recovery scan or legacy fallback.
 | 4 | 4 | format revision `28` |
 | 8 | 4 | header size `64` |
 | 12 | 4 | directory record size `32` |
-| 16 | 8 | required feature mask; exactly bit 0 today |
+| 16 | 8 | required feature mask, `1` for apps or `3` with module linkage |
 | 24 | 8 | optional feature mask |
 | 32 | 4 | section count |
 | 36 | 4 | container flags; zero |
@@ -36,12 +36,13 @@ truncation, and trailing bytes. There is no recovery scan or legacy fallback.
 | 56 | 4 | identity algorithm; `1` means SHA-256 |
 | 60 | 4 | reserved; zero |
 
-Required feature bit 0 retains the manifest contract name `portable-lir-schema-3`;
-the internal payload independently carries and verifies current LIR schema 4.
-A reader rejects any missing
-or additional required feature. Optional bits are non-executable hints and may
-be ignored. Any other revision is unsupported, and the reader never sends a
-payload to the `.zir` parser.
+Required feature bit 0 retains the manifest contract name `portable-lir-schema-3`.
+The internal payload independently carries and verifies current LIR schema 4.
+Required feature bit 1 advertises module linkage. A reader requires bit 0 and
+rejects unknown required bits. A revision-28 reader that knows only bit 0 rejects
+a module bundle. Optional bits are non-executable hints and may be ignored.
+Any other revision is unsupported, and the reader never sends a payload to the
+`.zir` parser.
 
 ## Directory record (32 bytes)
 
@@ -62,6 +63,7 @@ Implemented kinds are:
 | 2 | yes | deterministic stripped internal instruction payload |
 | 3 | yes | canonical assets, including an empty table |
 | 4 | not accepted as required | reserved native variants |
+| 5 | iff required feature bit 1 is set | module linkage bytes |
 | `0x80000001` | no | opaque debug attachment |
 | `0x80000002` | no | opaque source attachment |
 | `0x80000003` | no | host interface: the names an embedder sees (below) |
@@ -71,7 +73,10 @@ An unknown optional section is bounded and skipped. An unknown required section
 rejects before LIR decoding. A required kind-4 section rejects as an unsupported
 native variant; arbitrary machine bytes are never selected or executed.
 
-## Host interface (kind `0x80000003`, optional)
+## Host interface (kind `0x80000003`)
+
+The section is mandatory and nonempty when required feature bit 1 is set.
+Its directory flags are zero in both app and module bundles.
 
 The instruction payload is structural: a record is its field types, a string
 is `{data, count}`. An embedder's host values carry names, so `zi2zx` writes
@@ -100,8 +105,8 @@ A spelling is the type as declared at that position, which a host sees as the
 value's type name. Declaration text has its tabs and line ends as spaces. The
 embedding API (`include/ziran_host.h`) uses these lines to translate host
 values, copy a host's changes to `[]T` arguments back, export and import
-module globals as state, and compare two files' capability ABIs. The engine
-never reads this section, and a file without it runs the same.
+module globals as state, and compare two files' capability ABIs. App bundles
+may omit this section.
 
 ## Manifest (kind 1, exactly 128 bytes)
 
@@ -122,12 +127,20 @@ never reads this section, and a file without it runs the same.
 The program identity is SHA-256 of `ZX28-PROGRAM\0` followed by the exact kind-2
 bytes. The asset identity is SHA-256 of `ZX28-ASSETS\0`, the u32 asset count,
 then each sorted asset's u32 name length/name bytes and u32 data length/data
-bytes. The combined identity is SHA-256 of `ZX28-CONTENT\0`, the little-endian
-entry ID, required-feature u64, program identity and asset identity.
+bytes. For a bundle with required-feature mask `1`, the combined identity is
+SHA-256 of `ZX28-CONTENT\0`, the entry ID as a little-endian u32, the mask as
+a little-endian u64, the program identity and the asset identity.
 
-All three identities are checked before the executable is exposed. Required
-program, entry and assets affect content identity. Optional debug, source and
-unknown optional attachments intentionally do not. Proof status zero means no
+For a bundle with required-feature mask `3`, the combined identity is SHA-256
+of `ZX28-MODULE-CONTENT\0`, the entry ID as a little-endian u32, the mask as
+a little-endian u64, the program identity, the asset identity, the linkage byte
+length as a little-endian u64, the exact kind-5 bytes, the host-interface byte
+length as a little-endian u64 and the exact kind-`0x80000003` bytes.
+
+The owned reader checks all three identities before exposing the executable.
+Module linkage and its host interface affect the module bundle's content
+identity. Debug, source and unknown optional attachments are outside the
+combined identity. Proof status zero means no
 opaque producer law/proof claim becomes verified merely by being attached or
 hashed.
 
@@ -163,8 +176,9 @@ the embedder has bound every capability.
 Outer validation uses the caller's `LirLimits` as well as the inner codec and
 verifier. The reader rejects a container larger than `limits.bytes` before
 framing or hashing and charges `limits.work` for container bytes, program and
-asset hashing, symbol-name bytes, hash-table initialization/probes, reachability
-and temporary copies. Temporary asset, symbol and reachability allocations are
+asset hashing, module linkage and module host-interface hashing and copying,
+symbol-name bytes, hash-table initialization/probes, reachability and temporary
+copies. Temporary asset, symbol and reachability allocations are
 checked against the byte budget before allocation. Symbol uniqueness uses
 deterministic open-addressed tables; hash collisions remain explicitly charged.
 The first reachable indirect call adds every function once, and later indirect
@@ -186,6 +200,15 @@ API validates and hashes them during the read; the embedding API copies them
 when it opens the file and exposes them through `BundleAsset*`. `zi2zx
 --asset-dir` stores them.
 
+## Module linkage (kind 5)
+
+The section is present exactly when required feature bit 1 is set. Its flags
+are `1`, alignment is `8`, and its payload consists of the compiler's canonical
+module linkage bytes. The payload must be nonempty and fits within the container
+and reader byte limits. The framing API treats the payload as bytes. The owned
+reader verifies the combined identity and copies the payload before returning.
+The linkage codec defines the interpretation of these bytes.
+
 ## APIs and failure behavior
 
 `ExecutableEncode` measures when output is empty. A short output returns its
@@ -193,6 +216,11 @@ required size and changes no byte. `ExecutableDecode` frames sections and assets
 without interpreting LIR. `ZxExecWrite` produces a stripped deterministic
 container; `ZxExecRead`, `ZxExecReadProgram`, and `ZxExecReadFree` provide the
 bounded owned verified program. Empty and repeated frees are safe.
+`ZxExecWriteModule(program, assets, output, interface, debug, module_linkage)`
+writes the module form when linkage is nonempty. Empty linkage produces the app
+form. `ZxExecReadModuleLinkage(owner)` returns bytes owned by a successful read
+and valid until that owner is reused or freed. It returns an empty string for
+an app bundle or an invalid owner.
 
 The format-specific tools keep generated-output replacement semantics: they write a sibling
 temporary and replaces the requested path only after a complete successful

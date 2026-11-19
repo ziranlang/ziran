@@ -1,0 +1,2 @@
+unrelated_state: s32 = InitUnrelated();
+InitUnrelated :: () -> s32 { return 71 }

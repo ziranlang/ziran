@@ -1,0 +1,5795 @@
+{
+  "host": "alpha",
+  "virtualization": "none",
+  "measured_at": "2026-11-18T21:49:55.418926+00:00",
+  "methodology": "Five shuffled rounds per artifact, 11 samples per run; median of run medians.  Host gate: every measured job runs pinned (inherited affinity, no wrapper) to one logical CPU of the quietest core, chosen again before each attempt once its other hyperthread has settled, and is repeated unless that CPU kept its clock within 3% of the job median (10th to 90th percentile), the median reached 95% of the clock calibrated at start, and the hyperthread sibling was busy at most 15% of the job; Go runs with GOMAXPROCS=1 on that CPU. Rejected attempts are retained with their observations.",
+  "artifacts": {
+    "before": {
+      "button.wasm": {
+        "sha256": "2938b2bea8126ad64a5098556dde7f26db917c080a0f306e794d4d54f1433c93",
+        "bytes": 2244279
+      },
+      "button.zx": {
+        "sha256": "4e365a842695e86ae254d9f7324f4386c6fdf53cc314de9220918f29c8238f6c",
+        "bytes": 1379565
+      },
+      "input.lir": {
+        "sha256": "c61039000f9012645a8f55d594fc1b0622db19e45e956b9cfd7b1a6dd46e887d",
+        "bytes": 3338145
+      },
+      "input.wasm": {
+        "sha256": "8816dd81c2fcb1561fcc3bdda16f5da85aa1af97803392b2ec28bfdadc20cac4",
+        "bytes": 2333124
+      },
+      "input.zx": {
+        "sha256": "d049bc3eec79a45cfd168d41f50e1064261b7fd3b416b35e4d398c3ccb225f07",
+        "bytes": 1991098
+      },
+      "text.wasm": {
+        "sha256": "cf7d094ff4081d742e8168c02a3ead04b416a2b98b66d2c84a388732607418ee",
+        "bytes": 2092196
+      },
+      "text.zx": {
+        "sha256": "f4e8d06eebc6a49c87c7a94fd73b1eb580f575c5e22aeefa11386105f734989c",
+        "bytes": 1151529
+      },
+      "zx-runner": {
+        "sha256": "62b14d040f41831bf9c62a9075b8fa44df60164668b1d75d8fa6999b248da862",
+        "bytes": 3277200
+      }
+    },
+    "after": {
+      "button.wasm": {
+        "sha256": "00f7b3dfdafaff39ce9b250d83e5e9a7201b4a590c647b5ebbe214a804b4a85d",
+        "bytes": 2245767
+      },
+      "button.zx": {
+        "sha256": "8c2d1b61faf592020b036c0ea4d33a964ac8e13bd53592de4b723e268c020086",
+        "bytes": 1391765
+      },
+      "input.wasm": {
+        "sha256": "ebfa7dce8d680120d0787485af74b43da93c835a9efe4df6837354cd5821d1d4",
+        "bytes": 2335672
+      },
+      "input.zx": {
+        "sha256": "46100f18e67538c740c7c16d9ce97c3d3e9fdbad807f4ea20ae50a887f08e09e",
+        "bytes": 2010474
+      },
+      "text.wasm": {
+        "sha256": "cf7d094ff4081d742e8168c02a3ead04b416a2b98b66d2c84a388732607418ee",
+        "bytes": 2092196
+      },
+      "text.zx": {
+        "sha256": "f4e8d06eebc6a49c87c7a94fd73b1eb580f575c5e22aeefa11386105f734989c",
+        "bytes": 1151529
+      },
+      "zx-runner": {
+        "sha256": "62b14d040f41831bf9c62a9075b8fa44df60164668b1d75d8fa6999b248da862",
+        "bytes": 3277200
+      }
+    }
+  },
+  "runs": [
+    {
+      "round": 0,
+      "id": "input",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "46100f18e67538c740c7c16d9ce97c3d3e9fdbad807f4ea20ae50a887f08e09e",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 70.038855016,
+        "warmup_ms": 150.00238198,
+        "warmup_count": 23201,
+        "batch_samples_ms": [
+          12.547807992,
+          12.466600001,
+          12.980234981,
+          13.065108955,
+          13.645128012,
+          12.795907021,
+          12.548961997,
+          12.838108003,
+          12.961768985,
+          14.15942204,
+          13.43582195
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.00612685937109375,
+          0.006087207031738281,
+          0.0063380053618164066,
+          0.0063794477319335935,
+          0.006662660162109375,
+          0.006248001475097656,
+          0.006127422850097656,
+          0.006268607423339844,
+          0.006328988762207032,
+          0.00691378029296875,
+          0.006560459936523437
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0057643496551513665,
+          "upper_ms": 0.006893316341674804,
+          "excluded_indices": [
+            9
+          ],
+          "included_samples_ms": [
+            0.00612685937109375,
+            0.006087207031738281,
+            0.0063380053618164066,
+            0.0063794477319335935,
+            0.006662660162109375,
+            0.006248001475097656,
+            0.006127422850097656,
+            0.006268607423339844,
+            0.006328988762207032,
+            0.006560459936523437
+          ],
+          "median_ms": 0.006298798092773438
+        },
+        "execution_ms": 0.006298798092773438,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 19,
+              "median_khz": 4379535,
+              "p10_khz": 4299963,
+              "p90_khz": 4400001,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 0,
+      "id": "text",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "cf7d094ff4081d742e8168c02a3ead04b416a2b98b66d2c84a388732607418ee",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.024459,
+        "warmup_count": 24126,
+        "batch_samples_ms": [
+          14.817109000000016,
+          15.72580499999998,
+          15.784497999999985,
+          14.724989999999991,
+          14.737712000000045,
+          14.744406999999967,
+          14.776314000000013,
+          14.690140999999983,
+          14.714579000000015,
+          14.479547999999966,
+          14.386804999999981
+        ],
+        "load_ms": 4.879708000000001,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.003617458251953129,
+          0.00383930786132812,
+          0.0038536372070312463,
+          0.003594968261718748,
+          0.003598074218750011,
+          0.003599708740234367,
+          0.0036074985351562533,
+          0.003586460205078121,
+          0.0035924265136718786,
+          0.0035350458984374916,
+          0.0035124035644531204
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0035548908081054625,
+          "upper_ms": 0.0036470309448242283,
+          "excluded_indices": [
+            1,
+            2,
+            9,
+            10
+          ],
+          "included_samples_ms": [
+            0.003617458251953129,
+            0.003594968261718748,
+            0.003598074218750011,
+            0.003599708740234367,
+            0.0036074985351562533,
+            0.003586460205078121,
+            0.0035924265136718786
+          ],
+          "median_ms": 0.003598074218750011
+        },
+        "execution_ms": 0.003598074218750011,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 19,
+              "median_khz": 4300008,
+              "p10_khz": 4299959,
+              "p90_khz": 4400005,
+              "sibling_busy": 0.0256,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 0,
+      "id": "input",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "8816dd81c2fcb1561fcc3bdda16f5da85aa1af97803392b2ec28bfdadc20cac4",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.018983,
+        "warmup_count": 8569,
+        "batch_samples_ms": [
+          14.565300999999977,
+          14.199281000000042,
+          13.990186999999992,
+          14.147440000000017,
+          14.134522000000004,
+          14.281661999999983,
+          14.083889999999997,
+          14.118052999999975,
+          14.494399999999985,
+          14.685758999999962,
+          13.808576000000016
+        ],
+        "load_ms": 10.608338999999997,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0035559816894531193,
+          0.003466621337890635,
+          0.003415572998046873,
+          0.0034539648437500042,
+          0.003450811035156251,
+          0.003486733886718746,
+          0.003438449707031249,
+          0.003446790283203119,
+          0.0035386718749999962,
+          0.0035853903808593657,
+          0.003371234375000004
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0033374956665039035,
+          "upper_ms": 0.0036178272094726516,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0035559816894531193,
+            0.003466621337890635,
+            0.003415572998046873,
+            0.0034539648437500042,
+            0.003450811035156251,
+            0.003486733886718746,
+            0.003438449707031249,
+            0.003446790283203119,
+            0.0035386718749999962,
+            0.0035853903808593657,
+            0.003371234375000004
+          ],
+          "median_ms": 0.0034539648437500042
+        },
+        "execution_ms": 0.0034539648437500042,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 22,
+              "median_khz": 4300006,
+              "p10_khz": 4299983,
+              "p90_khz": 4399021,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 0,
+      "id": "input",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "ebfa7dce8d680120d0787485af74b43da93c835a9efe4df6837354cd5821d1d4",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.018918,
+        "warmup_count": 8724,
+        "batch_samples_ms": [
+          14.231528999999995,
+          14.161732999999998,
+          13.76109200000002,
+          13.769286000000022,
+          13.67149599999999,
+          13.94470100000001,
+          13.709228999999993,
+          13.650855000000035,
+          13.843620000000044,
+          13.639124999999979,
+          14.28119399999997
+        ],
+        "load_ms": 4.771646999999998,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0034744943847656237,
+          0.0034574543457031245,
+          0.0033596416015625047,
+          0.0033616420898437555,
+          0.0033377675781249977,
+          0.0034044680175781272,
+          0.0033469797363281234,
+          0.0033327282714843837,
+          0.0033797900390625107,
+          0.0033298645019531198,
+          0.003486619628906243
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0032094923706054625,
+          "upper_ms": 0.003563842468261724,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0034744943847656237,
+            0.0034574543457031245,
+            0.0033596416015625047,
+            0.0033616420898437555,
+            0.0033377675781249977,
+            0.0034044680175781272,
+            0.0033469797363281234,
+            0.0033327282714843837,
+            0.0033797900390625107,
+            0.0033298645019531198,
+            0.003486619628906243
+          ],
+          "median_ms": 0.0033616420898437555
+        },
+        "execution_ms": 0.0033616420898437555,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 20,
+              "median_khz": 4399994,
+              "p10_khz": 4395396,
+              "p90_khz": 4400005,
+              "sibling_busy": 0.0244,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 0,
+      "id": "text",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "cf7d094ff4081d742e8168c02a3ead04b416a2b98b66d2c84a388732607418ee",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.023097,
+        "warmup_count": 23628,
+        "batch_samples_ms": [
+          15.29651100000001,
+          15.01819900000001,
+          15.120362,
+          15.056320000000028,
+          15.099419000000012,
+          14.818491999999992,
+          15.001356999999985,
+          14.974896000000001,
+          15.127010000000041,
+          15.111612999999977,
+          14.92706099999998
+        ],
+        "load_ms": 9.157904000000002,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0037344997558593773,
+          0.0036665524902343774,
+          0.00369149462890625,
+          0.003675859375000007,
+          0.003686381591796878,
+          0.003617795898437498,
+          0.0036624406738281212,
+          0.0036559804687500003,
+          0.00369311767578126,
+          0.0036893586425781194,
+          0.0036443020019531203
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.003612386474609375,
+          "upper_ms": 0.0037372507324218707,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0037344997558593773,
+            0.0036665524902343774,
+            0.00369149462890625,
+            0.003675859375000007,
+            0.003686381591796878,
+            0.003617795898437498,
+            0.0036624406738281212,
+            0.0036559804687500003,
+            0.00369311767578126,
+            0.0036893586425781194,
+            0.0036443020019531203
+          ],
+          "median_ms": 0.003675859375000007
+        },
+        "execution_ms": 0.003675859375000007,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 20,
+              "median_khz": 4376837,
+              "p10_khz": 4300002,
+              "p90_khz": 4400002,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 0,
+      "id": "input",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "d049bc3eec79a45cfd168d41f50e1064261b7fd3b416b35e4d398c3ccb225f07",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 87.263933003,
+        "warmup_ms": 150.005707979,
+        "warmup_count": 25020,
+        "batch_samples_ms": [
+          12.044803977,
+          12.099995017,
+          12.316507995,
+          12.409932017,
+          12.032380998,
+          11.865685999,
+          11.887304008,
+          12.118811011,
+          12.254746974,
+          12.138570011,
+          12.102881014
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.005881251941894532,
+          0.005908200691894531,
+          0.006013919919433594,
+          0.006059537117675781,
+          0.005875186034179688,
+          0.005793791991699219,
+          0.00580434766015625,
+          0.005917388188964844,
+          0.005983763170898437,
+          0.005927036138183594,
+          0.005909609870117187
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0057624479882812515,
+          "upper_ms": 0.0060711706542968735,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.005881251941894532,
+            0.005908200691894531,
+            0.006013919919433594,
+            0.006059537117675781,
+            0.005875186034179688,
+            0.005793791991699219,
+            0.00580434766015625,
+            0.005917388188964844,
+            0.005983763170898437,
+            0.005927036138183594,
+            0.005909609870117187
+          ],
+          "median_ms": 0.005909609870117187
+        },
+        "execution_ms": 0.005909609870117187,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 20,
+              "median_khz": 4399998,
+              "p10_khz": 4396841,
+              "p90_khz": 4400015,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 0,
+      "id": "text",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "f4e8d06eebc6a49c87c7a94fd73b1eb580f575c5e22aeefa11386105f734989c",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 48.833397031,
+        "warmup_ms": 150.000452995,
+        "warmup_count": 26192,
+        "batch_samples_ms": [
+          11.803327024,
+          11.274113953,
+          11.307036042,
+          11.386162043,
+          11.433863997,
+          12.09296298,
+          11.609893024,
+          11.560066998,
+          11.576328993,
+          11.546659052,
+          11.541603982
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0057633432734375,
+          0.0055049384536132815,
+          0.0055210136923828125,
+          0.005559649435058594,
+          0.005582941404785156,
+          0.005904767080078125,
+          0.005668893078125,
+          0.0056445639638671875,
+          0.0056525043911132816,
+          0.005638017115234375,
+          0.005635548819335937
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.005437190447875978,
+          "upper_ms": 0.0057948037066650375,
+          "excluded_indices": [
+            5
+          ],
+          "included_samples_ms": [
+            0.0057633432734375,
+            0.0055049384536132815,
+            0.0055210136923828125,
+            0.005559649435058594,
+            0.005582941404785156,
+            0.005668893078125,
+            0.0056445639638671875,
+            0.0056525043911132816,
+            0.005638017115234375,
+            0.005635548819335937
+          ],
+          "median_ms": 0.005636782967285156
+        },
+        "execution_ms": 0.005636782967285156,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 15,
+              "median_khz": 4396851,
+              "p10_khz": 4299994,
+              "p90_khz": 4400003,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 0,
+      "id": "button",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "8c2d1b61faf592020b036c0ea4d33a964ac8e13bd53592de4b723e268c020086",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "load_ms": 51.747162998,
+        "warmup_ms": 150.003391981,
+        "warmup_count": 35488,
+        "batch_samples_ms": [
+          16.587650001,
+          16.922233999,
+          16.568617046,
+          17.005160034,
+          16.544224977,
+          18.526493013,
+          17.313870013,
+          17.982896984,
+          16.874687016,
+          17.274684966,
+          17.268018007
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.004049719238525391,
+          0.004131404784912109,
+          0.004045072520996094,
+          0.004151650398925781,
+          0.00403911742602539,
+          0.004523069583251953,
+          0.004227019046142578,
+          0.004390355708984375,
+          0.004119796634765625,
+          0.0042174523842773435,
+          0.004215824708740234
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.003878541268798828,
+          "upper_ms": 0.00442845238305664,
+          "excluded_indices": [
+            5
+          ],
+          "included_samples_ms": [
+            0.004049719238525391,
+            0.004131404784912109,
+            0.004045072520996094,
+            0.004151650398925781,
+            0.00403911742602539,
+            0.004227019046142578,
+            0.004390355708984375,
+            0.004119796634765625,
+            0.0042174523842773435,
+            0.004215824708740234
+          ],
+          "median_ms": 0.004141527591918945
+        },
+        "execution_ms": 0.004141527591918945,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 23,
+              "median_khz": 4300026,
+              "p10_khz": 4299983,
+              "p90_khz": 4400003,
+              "sibling_busy": 0.0233,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 0,
+      "id": "button",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "2938b2bea8126ad64a5098556dde7f26db917c080a0f306e794d4d54f1433c93",
+      "measurement": {
+        "result": "0",
+        "batches": 8192,
+        "warmup_ms": 150.024328,
+        "warmup_count": 31127,
+        "batch_samples_ms": [
+          19.528013000000016,
+          19.482906000000014,
+          19.67576600000001,
+          19.527140999999972,
+          19.649361999999996,
+          19.59196700000001,
+          19.34698800000001,
+          19.433805000000007,
+          19.238488000000018,
+          19.61835499999995,
+          19.566373999999996
+        ],
+        "load_ms": 9.560366000000002,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0023837906494140644,
+          0.0023782844238281267,
+          0.0024018269042968762,
+          0.002383684204101559,
+          0.0023986037597656246,
+          0.002391597534179689,
+          0.0023616928710937513,
+          0.0023722906494140633,
+          0.002348448242187502,
+          0.0023948187255859316,
+          0.0023884733886718745
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0023484066467285222,
+          "upper_ms": 0.002420089019775383,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0023837906494140644,
+            0.0023782844238281267,
+            0.0024018269042968762,
+            0.002383684204101559,
+            0.0023986037597656246,
+            0.002391597534179689,
+            0.0023616928710937513,
+            0.0023722906494140633,
+            0.002348448242187502,
+            0.0023948187255859316,
+            0.0023884733886718745
+          ],
+          "median_ms": 0.0023837906494140644
+        },
+        "execution_ms": 0.0023837906494140644,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 25,
+              "median_khz": 4300007,
+              "p10_khz": 4299973,
+              "p90_khz": 4397094,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 0,
+      "id": "text",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "f4e8d06eebc6a49c87c7a94fd73b1eb580f575c5e22aeefa11386105f734989c",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 41.904210031,
+        "warmup_ms": 150.002803981,
+        "warmup_count": 26114,
+        "batch_samples_ms": [
+          11.645301044,
+          11.453978956,
+          11.512483001,
+          12.162230015,
+          11.666976035,
+          11.584710002,
+          11.576774001,
+          11.603980005,
+          11.701689005,
+          11.583122969,
+          11.640240014
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.005686182150390625,
+          0.005592763162109375,
+          0.005621329590332031,
+          0.005938588874511719,
+          0.0056967656420898434,
+          0.005656596680664062,
+          0.0056527216801757815,
+          0.005666005861816406,
+          0.0057137153344726565,
+          0.005655821762207031,
+          0.005683710944335937
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.005598468458618164,
+          "upper_ms": 0.005747277158813476,
+          "excluded_indices": [
+            1,
+            3
+          ],
+          "included_samples_ms": [
+            0.005686182150390625,
+            0.005621329590332031,
+            0.0056967656420898434,
+            0.005656596680664062,
+            0.0056527216801757815,
+            0.005666005861816406,
+            0.0057137153344726565,
+            0.005655821762207031,
+            0.005683710944335937
+          ],
+          "median_ms": 0.005666005861816406
+        },
+        "execution_ms": 0.005666005861816406,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 15,
+              "median_khz": 4300026,
+              "p10_khz": 4299986,
+              "p90_khz": 4397088,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 0,
+      "id": "button",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "4e365a842695e86ae254d9f7324f4386c6fdf53cc314de9220918f29c8238f6c",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "load_ms": 65.329246998,
+        "warmup_ms": 150.00136596,
+        "warmup_count": 34107,
+        "batch_samples_ms": [
+          17.661503017,
+          17.517571986,
+          17.668868005,
+          17.890240014,
+          17.551357985,
+          17.776630998,
+          17.546734989,
+          17.219334006,
+          17.523503006,
+          17.514126956,
+          17.55844301
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.004311890385009766,
+          0.004276750973144531,
+          0.004313688477783203,
+          0.004367734378417969,
+          0.0042849995080566404,
+          0.004339997802246094,
+          0.004283870846923828,
+          0.004203938966308594,
+          0.004278198976074218,
+          0.004275909901367187,
+          0.0042867292504882816
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.00422450328942871,
+          "upper_ms": 0.004365761116577149,
+          "excluded_indices": [
+            3,
+            7
+          ],
+          "included_samples_ms": [
+            0.004311890385009766,
+            0.004276750973144531,
+            0.004313688477783203,
+            0.0042849995080566404,
+            0.004339997802246094,
+            0.004283870846923828,
+            0.004278198976074218,
+            0.004275909901367187,
+            0.0042867292504882816
+          ],
+          "median_ms": 0.0042849995080566404
+        },
+        "execution_ms": 0.0042849995080566404,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 25,
+              "median_khz": 4300029,
+              "p10_khz": 4299977,
+              "p90_khz": 4399991,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 0,
+      "id": "button",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "00f7b3dfdafaff39ce9b250d83e5e9a7201b4a590c647b5ebbe214a804b4a85d",
+      "measurement": {
+        "result": "0",
+        "batches": 8192,
+        "warmup_ms": 150.02509300000003,
+        "warmup_count": 31668,
+        "batch_samples_ms": [
+          19.430307,
+          19.506066000000033,
+          19.594775999999968,
+          19.63649700000002,
+          19.558452000000045,
+          19.750695000000007,
+          19.15680100000003,
+          19.430173999999965,
+          20.147811999999988,
+          20.017754000000025,
+          19.93355600000001
+        ],
+        "load_ms": 4.287178999999998,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0023718636474609374,
+          0.002381111572265629,
+          0.002391940429687496,
+          0.002397033325195315,
+          0.0023875063476562555,
+          0.0024109735107421884,
+          0.002338476684570316,
+          0.0023718474121093708,
+          0.0024594497070312485,
+          0.002443573486328128,
+          0.0024332954101562512
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0023080173339843782,
+          "upper_ms": 0.0024906047363281248,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0023718636474609374,
+            0.002381111572265629,
+            0.002391940429687496,
+            0.002397033325195315,
+            0.0023875063476562555,
+            0.0024109735107421884,
+            0.002338476684570316,
+            0.0023718474121093708,
+            0.0024594497070312485,
+            0.002443573486328128,
+            0.0024332954101562512
+          ],
+          "median_ms": 0.002391940429687496
+        },
+        "execution_ms": 0.002391940429687496,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 25,
+              "median_khz": 4388023,
+              "p10_khz": 4299978,
+              "p90_khz": 4400006,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 1,
+      "id": "button",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "2938b2bea8126ad64a5098556dde7f26db917c080a0f306e794d4d54f1433c93",
+      "measurement": {
+        "result": "0",
+        "batches": 8192,
+        "warmup_ms": 150.024864,
+        "warmup_count": 32347,
+        "batch_samples_ms": [
+          19.17666299999999,
+          19.43539899999999,
+          20.397442000000012,
+          18.91931999999997,
+          20.29916000000003,
+          19.39000100000004,
+          19.110532999999975,
+          20.083439999999996,
+          20.038373000000036,
+          19.609016999999994,
+          19.706276000000003
+        ],
+        "load_ms": 5.055861,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0023409012451171864,
+          0.0023724852294921862,
+          0.0024899221191406265,
+          0.0023094873046874964,
+          0.0024779248046875035,
+          0.0023669434814453175,
+          0.0023328287353515595,
+          0.0024515917968749995,
+          0.002446090454101567,
+          0.002393678833007812,
+          0.0024055512695312503
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.002211544219970705,
+          "upper_ms": 0.00259121926879883,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0023409012451171864,
+            0.0023724852294921862,
+            0.0024899221191406265,
+            0.0023094873046874964,
+            0.0024779248046875035,
+            0.0023669434814453175,
+            0.0023328287353515595,
+            0.0024515917968749995,
+            0.002446090454101567,
+            0.002393678833007812,
+            0.0024055512695312503
+          ],
+          "median_ms": 0.002393678833007812
+        },
+        "execution_ms": 0.002393678833007812,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 25,
+              "median_khz": 4397125,
+              "p10_khz": 4299979,
+              "p90_khz": 4400006,
+              "sibling_busy": 0.0222,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 1,
+      "id": "text",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "f4e8d06eebc6a49c87c7a94fd73b1eb580f575c5e22aeefa11386105f734989c",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 42.282552958,
+        "warmup_ms": 150.001812994,
+        "warmup_count": 25922,
+        "batch_samples_ms": [
+          11.528765976,
+          11.511484027,
+          11.556810021,
+          11.50989598,
+          11.485445976,
+          11.508648038,
+          11.548295975,
+          11.526035011,
+          11.494319022,
+          11.598185003,
+          11.476485968
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.00562928026171875,
+          0.005620841810058594,
+          0.0056429736430664065,
+          0.005620066396484375,
+          0.00560812791796875,
+          0.005619457049804688,
+          0.005638816394042969,
+          0.0056279467827148435,
+          0.005612460459960938,
+          0.005663176270996093,
+          0.0056037529140625
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.005588824395385744,
+          "upper_ms": 0.00566118268737793,
+          "excluded_indices": [
+            9
+          ],
+          "included_samples_ms": [
+            0.00562928026171875,
+            0.005620841810058594,
+            0.0056429736430664065,
+            0.005620066396484375,
+            0.00560812791796875,
+            0.005619457049804688,
+            0.005638816394042969,
+            0.0056279467827148435,
+            0.005612460459960938,
+            0.0056037529140625
+          ],
+          "median_ms": 0.005620454103271484
+        },
+        "execution_ms": 0.005620454103271484,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 14,
+              "median_khz": 4300006,
+              "p10_khz": 4299980,
+              "p90_khz": 4300036,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 1,
+      "id": "input",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "ebfa7dce8d680120d0787485af74b43da93c835a9efe4df6837354cd5821d1d4",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.02106700000002,
+        "warmup_count": 8846,
+        "batch_samples_ms": [
+          14.207159999999988,
+          15.203013999999996,
+          13.953732000000002,
+          13.963430000000017,
+          14.10065899999995,
+          14.64847599999996,
+          14.277727000000027,
+          14.112062999999978,
+          14.16618699999998,
+          14.203444999999988,
+          14.095870999999988
+        ],
+        "load_ms": 5.668655999999999,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.003468544921874997,
+          0.003711673339843749,
+          0.0034066728515625005,
+          0.003409040527343754,
+          0.003442543701171863,
+          0.00357628808593749,
+          0.0034857731933593816,
+          0.0034453278808593696,
+          0.00345854174804687,
+          0.003467637939453122,
+          0.003441374755859372
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.00338915948486326,
+          "upper_ms": 0.003529958801269547,
+          "excluded_indices": [
+            1,
+            5
+          ],
+          "included_samples_ms": [
+            0.003468544921874997,
+            0.0034066728515625005,
+            0.003409040527343754,
+            0.003442543701171863,
+            0.0034857731933593816,
+            0.0034453278808593696,
+            0.00345854174804687,
+            0.003467637939453122,
+            0.003441374755859372
+          ],
+          "median_ms": 0.0034453278808593696
+        },
+        "execution_ms": 0.0034453278808593696,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 21,
+              "median_khz": 4299998,
+              "p10_khz": 4299958,
+              "p90_khz": 4300034,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 1,
+      "id": "text",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "cf7d094ff4081d742e8168c02a3ead04b416a2b98b66d2c84a388732607418ee",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.025417,
+        "warmup_count": 23892,
+        "batch_samples_ms": [
+          14.718422000000004,
+          14.696291000000002,
+          14.734767000000005,
+          14.736235000000022,
+          14.827221000000009,
+          14.83351399999998,
+          14.960096000000021,
+          14.823979999999949,
+          15.001536999999985,
+          15.156684000000041,
+          15.109542000000033
+        ],
+        "load_ms": 4.540965,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.003593364746093751,
+          0.0035879616699218755,
+          0.0035973552246093762,
+          0.0035977136230468804,
+          0.003619927001953127,
+          0.003621463378906245,
+          0.0036523671875000052,
+          0.0036191357421874876,
+          0.0036624846191406213,
+          0.00370036230468751,
+          0.003688853027343758
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.003507697204589851,
+          "upper_ms": 0.0037472631225585907,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.003593364746093751,
+            0.0035879616699218755,
+            0.0035973552246093762,
+            0.0035977136230468804,
+            0.003619927001953127,
+            0.003621463378906245,
+            0.0036523671875000052,
+            0.0036191357421874876,
+            0.0036624846191406213,
+            0.00370036230468751,
+            0.003688853027343758
+          ],
+          "median_ms": 0.003619927001953127
+        },
+        "execution_ms": 0.003619927001953127,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 19,
+              "median_khz": 4300000,
+              "p10_khz": 4299953,
+              "p90_khz": 4300034,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 1,
+      "id": "button",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "00f7b3dfdafaff39ce9b250d83e5e9a7201b4a590c647b5ebbe214a804b4a85d",
+      "measurement": {
+        "result": "0",
+        "batches": 8192,
+        "warmup_ms": 150.019213,
+        "warmup_count": 31629,
+        "batch_samples_ms": [
+          19.696607,
+          20.006441999999993,
+          19.97844600000002,
+          19.721435999999983,
+          19.886982999999987,
+          19.638963999999987,
+          19.96314000000001,
+          19.480052,
+          19.736783000000003,
+          19.745102999999972,
+          19.87578400000001
+        ],
+        "load_ms": 5.070318,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0024043709716796875,
+          0.002442192626953124,
+          0.0024387751464843774,
+          0.002407401855468748,
+          0.002427610229492186,
+          0.0023973344726562484,
+          0.002436906738281251,
+          0.00237793603515625,
+          0.002409275268554688,
+          0.002410290893554684,
+          0.0024262431640625012
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0023663283081054665,
+          "upper_ms": 0.0024718165893554698,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0024043709716796875,
+            0.002442192626953124,
+            0.0024387751464843774,
+            0.002407401855468748,
+            0.002427610229492186,
+            0.0023973344726562484,
+            0.002436906738281251,
+            0.00237793603515625,
+            0.002409275268554688,
+            0.002410290893554684,
+            0.0024262431640625012
+          ],
+          "median_ms": 0.002410290893554684
+        },
+        "execution_ms": 0.002410290893554684,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 26,
+              "median_khz": 4396634,
+              "p10_khz": 4300006,
+              "p90_khz": 4400005,
+              "sibling_busy": 0.0213,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 1,
+      "id": "input",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "8816dd81c2fcb1561fcc3bdda16f5da85aa1af97803392b2ec28bfdadc20cac4",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.02114899999998,
+        "warmup_count": 9011,
+        "batch_samples_ms": [
+          14.484829999999988,
+          14.620281000000006,
+          14.20117399999998,
+          14.142108000000007,
+          14.261991000000023,
+          14.787584999999979,
+          14.262691000000018,
+          14.451690999999983,
+          14.324897999999962,
+          14.390075999999965,
+          14.118368000000032
+        ],
+        "load_ms": 5.766950000000001,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.003536335449218747,
+          0.0035694045410156264,
+          0.0034670834960937452,
+          0.003452663085937502,
+          0.0034819313964843807,
+          0.00361025024414062,
+          0.0034821022949218794,
+          0.0035282448730468707,
+          0.0034972895507812407,
+          0.0035132021484374915,
+          0.003446867187500008
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.003387833374023444,
+          "upper_ms": 0.003618964233398428,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.003536335449218747,
+            0.0035694045410156264,
+            0.0034670834960937452,
+            0.003452663085937502,
+            0.0034819313964843807,
+            0.00361025024414062,
+            0.0034821022949218794,
+            0.0035282448730468707,
+            0.0034972895507812407,
+            0.0035132021484374915,
+            0.003446867187500008
+          ],
+          "median_ms": 0.0034972895507812407
+        },
+        "execution_ms": 0.0034972895507812407,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 21,
+              "median_khz": 4300011,
+              "p10_khz": 4299961,
+              "p90_khz": 4300033,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 1,
+      "id": "button",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "4e365a842695e86ae254d9f7324f4386c6fdf53cc314de9220918f29c8238f6c",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "load_ms": 51.08354497,
+        "warmup_ms": 150.002572,
+        "warmup_count": 35361,
+        "batch_samples_ms": [
+          17.061484039,
+          17.348800004,
+          17.227700055,
+          17.476613998,
+          17.060262978,
+          17.109731972,
+          17.10670495,
+          17.018715978,
+          17.183748007,
+          17.054062009,
+          17.076286972
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.004165401376708984,
+          0.004235546875976563,
+          0.004205981458740234,
+          0.004266751464355469,
+          0.0041651032661132814,
+          0.004177180657226562,
+          0.004176441638183594,
+          0.004154959955566406,
+          0.004195250978271484,
+          0.004163589357666015,
+          0.004169015374023437
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.004112206475769044,
+          "upper_ms": 0.0042536620641479474,
+          "excluded_indices": [
+            3
+          ],
+          "included_samples_ms": [
+            0.004165401376708984,
+            0.004235546875976563,
+            0.004205981458740234,
+            0.0041651032661132814,
+            0.004177180657226562,
+            0.004176441638183594,
+            0.004154959955566406,
+            0.004195250978271484,
+            0.004163589357666015,
+            0.004169015374023437
+          ],
+          "median_ms": 0.0041727285061035155
+        },
+        "execution_ms": 0.0041727285061035155,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 23,
+              "median_khz": 4299991,
+              "p10_khz": 4299967,
+              "p90_khz": 4300041,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 1,
+      "id": "text",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "cf7d094ff4081d742e8168c02a3ead04b416a2b98b66d2c84a388732607418ee",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.023475,
+        "warmup_count": 24035,
+        "batch_samples_ms": [
+          14.879829,
+          15.131087000000008,
+          14.802031,
+          14.917070000000024,
+          14.865396999999973,
+          14.75064999999995,
+          14.879773,
+          14.986379999999997,
+          14.833740999999975,
+          15.313007000000027,
+          15.410443999999984
+        ],
+        "load_ms": 4.793861,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.003632770751953125,
+          0.003694113037109377,
+          0.003613777099609375,
+          0.003641862792968756,
+          0.0036292473144531184,
+          0.003601232910156238,
+          0.003632757080078125,
+          0.0036587841796874992,
+          0.003621518798828119,
+          0.0037385270996093817,
+          0.003762315429687496
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0035487847290038895,
+          "upper_ms": 0.0037530469360351672,
+          "excluded_indices": [
+            10
+          ],
+          "included_samples_ms": [
+            0.003632770751953125,
+            0.003694113037109377,
+            0.003613777099609375,
+            0.003641862792968756,
+            0.0036292473144531184,
+            0.003601232910156238,
+            0.003632757080078125,
+            0.0036587841796874992,
+            0.003621518798828119,
+            0.0037385270996093817
+          ],
+          "median_ms": 0.003632763916015625
+        },
+        "execution_ms": 0.003632763916015625,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 19,
+              "median_khz": 4300005,
+              "p10_khz": 4299986,
+              "p90_khz": 4300038,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 1,
+      "id": "input",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "46100f18e67538c740c7c16d9ce97c3d3e9fdbad807f4ea20ae50a887f08e09e",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 70.804636002,
+        "warmup_ms": 150.005585015,
+        "warmup_count": 22616,
+        "batch_samples_ms": [
+          13.382457972,
+          13.343337953,
+          13.369737983,
+          13.30338496,
+          13.270841956,
+          13.291980028,
+          13.378959,
+          13.253251016,
+          13.717491984,
+          13.844395995,
+          13.947090983
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.006534403306640625,
+          0.006515301734863282,
+          0.006528192374511719,
+          0.0064957934375,
+          0.006479903298828125,
+          0.006490224623046875,
+          0.00653269482421875,
+          0.00647131397265625,
+          0.0066979941328125,
+          0.006759958981933593,
+          0.006810103019042969
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.006308224496093751,
+          "upper_ms": 0.00680098325390625,
+          "excluded_indices": [
+            10
+          ],
+          "included_samples_ms": [
+            0.006534403306640625,
+            0.006515301734863282,
+            0.006528192374511719,
+            0.0064957934375,
+            0.006479903298828125,
+            0.006490224623046875,
+            0.00653269482421875,
+            0.00647131397265625,
+            0.0066979941328125,
+            0.006759958981933593
+          ],
+          "median_ms": 0.006521747054687501
+        },
+        "execution_ms": 0.006521747054687501,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 20,
+              "median_khz": 4299998,
+              "p10_khz": 4299978,
+              "p90_khz": 4300039,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 1,
+      "id": "button",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "8c2d1b61faf592020b036c0ea4d33a964ac8e13bd53592de4b723e268c020086",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "load_ms": 51.490755975,
+        "warmup_ms": 150.001459002,
+        "warmup_count": 35021,
+        "batch_samples_ms": [
+          17.184914947,
+          17.30083698,
+          17.250855029,
+          17.322950959,
+          17.088365018,
+          17.211157024,
+          17.297387958,
+          17.351321042,
+          17.643072009,
+          17.094019949,
+          17.188107014
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.004195535875732422,
+          0.004223837153320312,
+          0.004211634528564453,
+          0.004229236073974609,
+          0.0041719641157226565,
+          0.0042019426328125,
+          0.004222995106933594,
+          0.004236162363769531,
+          0.004307390627197266,
+          0.004173344714111328,
+          0.004196315188964844
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.004150008910400391,
+          "upper_ms": 0.004272453235595702,
+          "excluded_indices": [
+            8
+          ],
+          "included_samples_ms": [
+            0.004195535875732422,
+            0.004223837153320312,
+            0.004211634528564453,
+            0.004229236073974609,
+            0.0041719641157226565,
+            0.0042019426328125,
+            0.004222995106933594,
+            0.004236162363769531,
+            0.004173344714111328,
+            0.004196315188964844
+          ],
+          "median_ms": 0.004206788580688476
+        },
+        "execution_ms": 0.004206788580688476,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 23,
+              "median_khz": 4299995,
+              "p10_khz": 4299964,
+              "p90_khz": 4300013,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 1,
+      "id": "input",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "d049bc3eec79a45cfd168d41f50e1064261b7fd3b416b35e4d398c3ccb225f07",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 69.465511978,
+        "warmup_ms": 150.002985001,
+        "warmup_count": 24077,
+        "batch_samples_ms": [
+          12.38221097,
+          12.728855968,
+          12.452266991,
+          12.425477982,
+          12.427816987,
+          12.428546011,
+          12.40772599,
+          12.452450991,
+          12.539640963,
+          12.475430965,
+          12.430329978
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.006046001450195312,
+          0.006215261703125,
+          0.006080208491699219,
+          0.006067127920898438,
+          0.006068270013183594,
+          0.006068625981933594,
+          0.006058459956054687,
+          0.006080298335449218,
+          0.006122871563964844,
+          0.006091519025878906,
+          0.006069497059570312
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.006040384396606445,
+          "upper_ms": 0.006113223251098632,
+          "excluded_indices": [
+            1,
+            8
+          ],
+          "included_samples_ms": [
+            0.006046001450195312,
+            0.006080208491699219,
+            0.006067127920898438,
+            0.006068270013183594,
+            0.006068625981933594,
+            0.006058459956054687,
+            0.006080298335449218,
+            0.006091519025878906,
+            0.006069497059570312
+          ],
+          "median_ms": 0.006068625981933594
+        },
+        "execution_ms": 0.006068625981933594,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 18,
+              "median_khz": 4299990,
+              "p10_khz": 4299962,
+              "p90_khz": 4300022,
+              "sibling_busy": 0.0256,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 1,
+      "id": "text",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "f4e8d06eebc6a49c87c7a94fd73b1eb580f575c5e22aeefa11386105f734989c",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 41.858955979,
+        "warmup_ms": 150.000238001,
+        "warmup_count": 26118,
+        "batch_samples_ms": [
+          11.597166002,
+          11.614293993,
+          11.576593995,
+          11.625966012,
+          11.612444997,
+          11.594790995,
+          11.60284096,
+          11.653177023,
+          11.596786976,
+          11.581674993,
+          11.584061027
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.005662678711914062,
+          0.0056710419887695315,
+          0.005652633786621094,
+          0.005676741216796875,
+          0.005670139158691407,
+          0.005661519040527344,
+          0.0056654496875,
+          0.0056900278432617185,
+          0.005662493640625,
+          0.005655114742675781,
+          0.005656279798339844
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.005641362687988281,
+          "upper_ms": 0.005688127305175782,
+          "excluded_indices": [
+            7
+          ],
+          "included_samples_ms": [
+            0.005662678711914062,
+            0.0056710419887695315,
+            0.005652633786621094,
+            0.005676741216796875,
+            0.005670139158691407,
+            0.005661519040527344,
+            0.0056654496875,
+            0.005662493640625,
+            0.005655114742675781,
+            0.005656279798339844
+          ],
+          "median_ms": 0.005662586176269531
+        },
+        "execution_ms": 0.005662586176269531,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 14,
+              "median_khz": 4299985,
+              "p10_khz": 4299969,
+              "p90_khz": 4300025,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "id": "input",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "ebfa7dce8d680120d0787485af74b43da93c835a9efe4df6837354cd5821d1d4",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.02264399999999,
+        "warmup_count": 7631,
+        "batch_samples_ms": [
+          15.255627000000032,
+          14.74974599999996,
+          14.17616700000002,
+          14.16432599999996,
+          14.275666000000001,
+          14.26123100000001,
+          14.525156000000038,
+          14.54739699999999,
+          14.351378000000011,
+          14.997771,
+          14.090554999999995
+        ],
+        "load_ms": 5.510522000000002,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.003724518310546883,
+          0.00360101220703124,
+          0.00346097827148438,
+          0.0034580874023437402,
+          0.0034852700195312503,
+          0.0034817458496093773,
+          0.0035461806640625093,
+          0.0035516105957031224,
+          0.0035037543945312527,
+          0.003661565185546875,
+          0.0034400769042968737
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.003313938049316425,
+          "upper_ms": 0.003733735412597635,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.003724518310546883,
+            0.00360101220703124,
+            0.00346097827148438,
+            0.0034580874023437402,
+            0.0034852700195312503,
+            0.0034817458496093773,
+            0.0035461806640625093,
+            0.0035516105957031224,
+            0.0035037543945312527,
+            0.003661565185546875,
+            0.0034400769042968737
+          ],
+          "median_ms": 0.0035037543945312527
+        },
+        "execution_ms": 0.0035037543945312527,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 21,
+              "median_khz": 4299995,
+              "p10_khz": 4299969,
+              "p90_khz": 4300022,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "id": "text",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "f4e8d06eebc6a49c87c7a94fd73b1eb580f575c5e22aeefa11386105f734989c",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 42.559771001,
+        "warmup_ms": 150.005567014,
+        "warmup_count": 24867,
+        "batch_samples_ms": [
+          11.846542001,
+          11.935562968,
+          11.882878006,
+          13.867422998,
+          12.157956004,
+          11.873236001,
+          11.792011023,
+          11.951133013,
+          11.765447021,
+          11.989722013,
+          11.806504011
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.005784444336425781,
+          0.00582791160546875,
+          0.005802186526367188,
+          0.006771202635742188,
+          0.005936501955078125,
+          0.0057974785161132815,
+          0.005757817882324219,
+          0.005835514166503906,
+          0.005744847178222656,
+          0.005854356451660156,
+          0.0057648945366210935
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.005669270627685545,
+          "upper_ms": 0.005950334117919924,
+          "excluded_indices": [
+            3
+          ],
+          "included_samples_ms": [
+            0.005784444336425781,
+            0.00582791160546875,
+            0.005802186526367188,
+            0.005936501955078125,
+            0.0057974785161132815,
+            0.005757817882324219,
+            0.005835514166503906,
+            0.005744847178222656,
+            0.005854356451660156,
+            0.0057648945366210935
+          ],
+          "median_ms": 0.0057998325212402346
+        },
+        "execution_ms": 0.0057998325212402346,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 15,
+              "median_khz": 4299993,
+              "p10_khz": 4299963,
+              "p90_khz": 4300043,
+              "sibling_busy": 0.0556,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "id": "text",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "cf7d094ff4081d742e8168c02a3ead04b416a2b98b66d2c84a388732607418ee",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.022451,
+        "warmup_count": 24028,
+        "batch_samples_ms": [
+          14.665432999999979,
+          14.667203999999998,
+          14.655284999999992,
+          14.689692000000036,
+          14.703088999999977,
+          14.629856000000018,
+          15.038718000000017,
+          14.791015999999956,
+          14.959294999999997,
+          14.716125000000034,
+          14.646631000000014
+        ],
+        "load_ms": 4.730730999999999,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.00358042797851562,
+          0.0035808603515624995,
+          0.003577950439453123,
+          0.003586350585937509,
+          0.0035896213378906194,
+          0.0035717421875000044,
+          0.003671562011718754,
+          0.0036110878906249894,
+          0.0036521716308593744,
+          0.003592803955078133,
+          0.0035758376464843783
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0035450541381835867,
+          "upper_ms": 0.003636080993652346,
+          "excluded_indices": [
+            6,
+            8
+          ],
+          "included_samples_ms": [
+            0.00358042797851562,
+            0.0035808603515624995,
+            0.003577950439453123,
+            0.003586350585937509,
+            0.0035896213378906194,
+            0.0035717421875000044,
+            0.0036110878906249894,
+            0.003592803955078133,
+            0.0035758376464843783
+          ],
+          "median_ms": 0.0035808603515624995
+        },
+        "execution_ms": 0.0035808603515624995,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 19,
+              "median_khz": 4300007,
+              "p10_khz": 4299975,
+              "p90_khz": 4300034,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "id": "input",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "d049bc3eec79a45cfd168d41f50e1064261b7fd3b416b35e4d398c3ccb225f07",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 69.195414007,
+        "warmup_ms": 150.005850017,
+        "warmup_count": 23956,
+        "batch_samples_ms": [
+          12.374606013,
+          12.494979978,
+          12.461663008,
+          12.469591022,
+          12.588218987,
+          12.515626013,
+          12.428537965,
+          12.523514032,
+          12.491176963,
+          12.522546947,
+          12.736670017
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.006042288092285156,
+          0.0061010644423828125,
+          0.006084796390625,
+          0.006088667491210937,
+          0.0061465913022460935,
+          0.006111145514160156,
+          0.006068622053222656,
+          0.0061149970859375,
+          0.006099207501464843,
+          0.006114524876464844,
+          0.006219077156738281
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0060446883804931625,
+          "upper_ms": 0.006156804541625977,
+          "excluded_indices": [
+            0,
+            10
+          ],
+          "included_samples_ms": [
+            0.0061010644423828125,
+            0.006084796390625,
+            0.006088667491210937,
+            0.0061465913022460935,
+            0.006111145514160156,
+            0.006068622053222656,
+            0.0061149970859375,
+            0.006099207501464843,
+            0.006114524876464844
+          ],
+          "median_ms": 0.0061010644423828125
+        },
+        "execution_ms": 0.0061010644423828125,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 18,
+              "median_khz": 4300000,
+              "p10_khz": 4299966,
+              "p90_khz": 4300041,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "id": "button",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "00f7b3dfdafaff39ce9b250d83e5e9a7201b4a590c647b5ebbe214a804b4a85d",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.025421,
+        "warmup_count": 31484,
+        "batch_samples_ms": [
+          9.96850999999998,
+          10.038460000000015,
+          9.975741,
+          9.97003699999999,
+          10.101673000000005,
+          10.125854000000004,
+          10.01507700000002,
+          9.960666000000003,
+          10.162547000000018,
+          10.315402000000006,
+          10.047218999999984
+        ],
+        "load_ms": 4.410354999999999,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0024337182617187453,
+          0.0024507958984375036,
+          0.002435483642578125,
+          0.0024340910644531227,
+          0.0024662287597656263,
+          0.002472132324218751,
+          0.0024450871582031297,
+          0.002431803222656251,
+          0.0024810905761718793,
+          0.0025184086914062515,
+          0.002452934326171871
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0023831975708007765,
+          "upper_ms": 0.002520770324707036,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0024337182617187453,
+            0.0024507958984375036,
+            0.002435483642578125,
+            0.0024340910644531227,
+            0.0024662287597656263,
+            0.002472132324218751,
+            0.0024450871582031297,
+            0.002431803222656251,
+            0.0024810905761718793,
+            0.0025184086914062515,
+            0.002452934326171871
+          ],
+          "median_ms": 0.0024507958984375036
+        },
+        "execution_ms": 0.0024507958984375036,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 13,
+              "median_khz": 4300024,
+              "p10_khz": 4299972,
+              "p90_khz": 4300033,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "id": "text",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "f4e8d06eebc6a49c87c7a94fd73b1eb580f575c5e22aeefa11386105f734989c",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 41.878584027,
+        "warmup_ms": 150.002947032,
+        "warmup_count": 26084,
+        "batch_samples_ms": [
+          11.550011992,
+          11.543497026,
+          11.573139966,
+          11.540688992,
+          11.556777,
+          11.392067015,
+          11.681581974,
+          11.379716992,
+          11.308261037,
+          11.655443013,
+          11.90812099
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.00563965429296875,
+          0.005636473157226563,
+          0.005650947249023437,
+          0.005635102046875,
+          0.00564295751953125,
+          0.005562532722167969,
+          0.005703897448242188,
+          0.0055565024375,
+          0.005521611834472656,
+          0.005691134283691406,
+          0.005814512202148438
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.00549048231176758,
+          "upper_ms": 0.005779375839111327,
+          "excluded_indices": [
+            10
+          ],
+          "included_samples_ms": [
+            0.00563965429296875,
+            0.005636473157226563,
+            0.005650947249023437,
+            0.005635102046875,
+            0.00564295751953125,
+            0.005562532722167969,
+            0.005703897448242188,
+            0.0055565024375,
+            0.005521611834472656,
+            0.005691134283691406
+          ],
+          "median_ms": 0.005638063725097656
+        },
+        "execution_ms": 0.005638063725097656,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 15,
+              "median_khz": 4300041,
+              "p10_khz": 4299988,
+              "p90_khz": 4400000,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "id": "input",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "46100f18e67538c740c7c16d9ce97c3d3e9fdbad807f4ea20ae50a887f08e09e",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 71.297475994,
+        "warmup_ms": 150.001812041,
+        "warmup_count": 23565,
+        "batch_samples_ms": [
+          12.924074054,
+          13.42739898,
+          12.933215976,
+          12.886819005,
+          12.985161006,
+          12.918632984,
+          12.81932801,
+          12.929497004,
+          13.057231009,
+          12.889796972,
+          12.827820957
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0063105830341796875,
+          0.006556347158203125,
+          0.00631504686328125,
+          0.006292392092285156,
+          0.006340410647460938,
+          0.00630792626171875,
+          0.006259437504882812,
+          0.006313230958984375,
+          0.0063756010786132815,
+          0.006293846177734375,
+          0.006263584451660156
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.006241204704467773,
+          "upper_ms": 0.006379643185913085,
+          "excluded_indices": [
+            1
+          ],
+          "included_samples_ms": [
+            0.0063105830341796875,
+            0.00631504686328125,
+            0.006292392092285156,
+            0.006340410647460938,
+            0.00630792626171875,
+            0.006259437504882812,
+            0.006313230958984375,
+            0.0063756010786132815,
+            0.006293846177734375,
+            0.006263584451660156
+          ],
+          "median_ms": 0.006309254647949219
+        },
+        "execution_ms": 0.006309254647949219,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 19,
+              "median_khz": 4395948,
+              "p10_khz": 4299984,
+              "p90_khz": 4399999,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "id": "button",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "2938b2bea8126ad64a5098556dde7f26db917c080a0f306e794d4d54f1433c93",
+      "measurement": {
+        "result": "0",
+        "batches": 8192,
+        "warmup_ms": 150.026619,
+        "warmup_count": 31043,
+        "batch_samples_ms": [
+          19.983469999999983,
+          19.398764,
+          19.517878999999994,
+          19.587004999999976,
+          19.51767000000001,
+          19.584940000000017,
+          19.05499900000001,
+          19.58376800000002,
+          19.601387999999986,
+          19.67342100000002,
+          19.198529000000008
+        ],
+        "load_ms": 5.115431000000001,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.002439388427734373,
+          0.00236801318359375,
+          0.0023825535888671867,
+          0.0023909918212890596,
+          0.002382528076171876,
+          0.002390739746093752,
+          0.0023260496826171886,
+          0.0023905966796875025,
+          0.0023927475585937483,
+          0.002401540649414065,
+          0.0023435704345703134
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0023503720397949268,
+          "upper_ms": 0.0024167682800292902,
+          "excluded_indices": [
+            0,
+            6,
+            10
+          ],
+          "included_samples_ms": [
+            0.00236801318359375,
+            0.0023825535888671867,
+            0.0023909918212890596,
+            0.002382528076171876,
+            0.002390739746093752,
+            0.0023905966796875025,
+            0.0023927475585937483,
+            0.002401540649414065
+          ],
+          "median_ms": 0.0023906682128906273
+        },
+        "execution_ms": 0.0023906682128906273,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 25,
+              "median_khz": 4399989,
+              "p10_khz": 4299985,
+              "p90_khz": 4400003,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "id": "button",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "8c2d1b61faf592020b036c0ea4d33a964ac8e13bd53592de4b723e268c020086",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "load_ms": 50.623789012,
+        "warmup_ms": 150.000840008,
+        "warmup_count": 36065,
+        "batch_samples_ms": [
+          17.077121019,
+          17.164362967,
+          16.970023036,
+          16.925076008,
+          17.32553798,
+          16.844767034,
+          16.822794974,
+          17.293682992,
+          16.752803981,
+          16.731612027,
+          17.171131015
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.004169218998779297,
+          0.004190518302490234,
+          0.004143072030273438,
+          0.004132098634765625,
+          0.0042298676708984375,
+          0.004112491951660156,
+          0.004107127679199219,
+          0.00422209057421875,
+          0.004090040034423828,
+          0.004084866217529297,
+          0.0041921706579589844
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0039875078182373055,
+          "upper_ms": 0.004313646477416992,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.004169218998779297,
+            0.004190518302490234,
+            0.004143072030273438,
+            0.004132098634765625,
+            0.0042298676708984375,
+            0.004112491951660156,
+            0.004107127679199219,
+            0.00422209057421875,
+            0.004090040034423828,
+            0.004084866217529297,
+            0.0041921706579589844
+          ],
+          "median_ms": 0.004143072030273438
+        },
+        "execution_ms": 0.004143072030273438,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 22,
+              "median_khz": 4300021,
+              "p10_khz": 4299974,
+              "p90_khz": 4396662,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "id": "input",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "8816dd81c2fcb1561fcc3bdda16f5da85aa1af97803392b2ec28bfdadc20cac4",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.034319,
+        "warmup_count": 9432,
+        "batch_samples_ms": [
+          14.538810000000012,
+          14.260699999999986,
+          14.101724999999988,
+          14.235642999999982,
+          13.974904999999978,
+          13.939913999999987,
+          13.980676000000017,
+          13.954416999999978,
+          13.979620000000011,
+          14.087465000000009,
+          14.006351999999993
+        ],
+        "load_ms": 5.772492,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.003549514160156253,
+          0.0034816162109374965,
+          0.003442803955078122,
+          0.0034754987792968706,
+          0.0034118420410156197,
+          0.003403299316406247,
+          0.003413250976562504,
+          0.0034068400878906197,
+          0.0034129931640625027,
+          0.003439322509765627,
+          0.003419519531249998
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0033423169555664087,
+          "upper_ms": 0.003529252014160149,
+          "excluded_indices": [
+            0
+          ],
+          "included_samples_ms": [
+            0.0034816162109374965,
+            0.003442803955078122,
+            0.0034754987792968706,
+            0.0034118420410156197,
+            0.003403299316406247,
+            0.003413250976562504,
+            0.0034068400878906197,
+            0.0034129931640625027,
+            0.003439322509765627,
+            0.003419519531249998
+          ],
+          "median_ms": 0.003416385253906251
+        },
+        "execution_ms": 0.003416385253906251,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 21,
+              "median_khz": 4300003,
+              "p10_khz": 4299972,
+              "p90_khz": 4300045,
+              "sibling_busy": 0.0244,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "id": "button",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "4e365a842695e86ae254d9f7324f4386c6fdf53cc314de9220918f29c8238f6c",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "load_ms": 50.786549032,
+        "warmup_ms": 150.002426028,
+        "warmup_count": 35691,
+        "batch_samples_ms": [
+          16.804542005,
+          16.869938016,
+          17.196248055,
+          16.913905978,
+          16.886835992,
+          17.240148008,
+          16.901018023,
+          16.934885979,
+          16.937308013,
+          16.85570997,
+          16.904115975
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.004102671387939453,
+          0.0041186372109375,
+          0.004198302747802735,
+          0.004129371576660156,
+          0.004122762693359375,
+          0.004209020509765625,
+          0.004126225103271484,
+          0.004134493647216797,
+          0.004135084964111328,
+          0.004115163566894531,
+          0.004126981439208984
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.004099565921875,
+          "upper_ms": 0.0041559233359375,
+          "excluded_indices": [
+            2,
+            5
+          ],
+          "included_samples_ms": [
+            0.004102671387939453,
+            0.0041186372109375,
+            0.004129371576660156,
+            0.004122762693359375,
+            0.004126225103271484,
+            0.004134493647216797,
+            0.004135084964111328,
+            0.004115163566894531,
+            0.004126981439208984
+          ],
+          "median_ms": 0.004126225103271484
+        },
+        "execution_ms": 0.004126225103271484,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 22,
+              "median_khz": 4300006,
+              "p10_khz": 4299947,
+              "p90_khz": 4300030,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 2,
+      "id": "text",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "cf7d094ff4081d742e8168c02a3ead04b416a2b98b66d2c84a388732607418ee",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.024728,
+        "warmup_count": 23650,
+        "batch_samples_ms": [
+          14.846294999999998,
+          14.810775000000007,
+          15.026149000000032,
+          14.713075000000003,
+          14.780846999999994,
+          14.678669000000014,
+          14.763936000000001,
+          14.715585999999973,
+          14.765972000000033,
+          15.399162999999987,
+          14.740335000000016
+        ],
+        "load_ms": 3.967852999999998,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0036245837402343745,
+          0.0036159118652343766,
+          0.003668493408203133,
+          0.003592059326171876,
+          0.0036086052246093736,
+          0.0035836594238281283,
+          0.0036044765625000003,
+          0.0035926723632812435,
+          0.003604973632812508,
+          0.003759561279296872,
+          0.003598714599609379
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0035588619995117147,
+          "upper_ms": 0.003657079284667972,
+          "excluded_indices": [
+            2,
+            9
+          ],
+          "included_samples_ms": [
+            0.0036245837402343745,
+            0.0036159118652343766,
+            0.003592059326171876,
+            0.0036086052246093736,
+            0.0035836594238281283,
+            0.0036044765625000003,
+            0.0035926723632812435,
+            0.003604973632812508,
+            0.003598714599609379
+          ],
+          "median_ms": 0.0036044765625000003
+        },
+        "execution_ms": 0.0036044765625000003,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 19,
+              "median_khz": 4300008,
+              "p10_khz": 4299962,
+              "p90_khz": 4300028,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 3,
+      "id": "text",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "f4e8d06eebc6a49c87c7a94fd73b1eb580f575c5e22aeefa11386105f734989c",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 43.543814957,
+        "warmup_ms": 150.000258982,
+        "warmup_count": 25981,
+        "batch_samples_ms": [
+          11.779931009,
+          11.678472042,
+          11.737083972,
+          11.693628013,
+          11.664801002,
+          11.707236052,
+          11.725547969,
+          11.701227009,
+          11.647592008,
+          11.680986047,
+          11.748955965
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.005751919437988281,
+          0.005702378926757812,
+          0.005730998033203125,
+          0.005709779303222656,
+          0.005695703614257813,
+          0.005716423853515625,
+          0.005725365219238282,
+          0.005713489750488281,
+          0.00568730078515625,
+          0.005703606468261718,
+          0.0057367949047851564
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.005665209304443359,
+          "upper_ms": 0.00576596501928711,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.005751919437988281,
+            0.005702378926757812,
+            0.005730998033203125,
+            0.005709779303222656,
+            0.005695703614257813,
+            0.005716423853515625,
+            0.005725365219238282,
+            0.005713489750488281,
+            0.00568730078515625,
+            0.005703606468261718,
+            0.0057367949047851564
+          ],
+          "median_ms": 0.005713489750488281
+        },
+        "execution_ms": 0.005713489750488281,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 15,
+              "median_khz": 4300004,
+              "p10_khz": 4299958,
+              "p90_khz": 4300032,
+              "sibling_busy": 0.0286,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 3,
+      "id": "text",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "cf7d094ff4081d742e8168c02a3ead04b416a2b98b66d2c84a388732607418ee",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.01969400000002,
+        "warmup_count": 23244,
+        "batch_samples_ms": [
+          14.903397000000012,
+          14.845323000000008,
+          14.909604000000002,
+          14.942861999999991,
+          15.078579999999988,
+          14.893845999999996,
+          15.966694000000018,
+          14.88479000000001,
+          14.897437000000025,
+          16.135843999999963,
+          15.109700999999973
+        ],
+        "load_ms": 4.586649000000001,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.003638524658203128,
+          0.003624346435546877,
+          0.0036400400390625004,
+          0.003648159667968748,
+          0.003681293945312497,
+          0.003636192871093749,
+          0.0038981186523437544,
+          0.0036339819335937523,
+          0.003637069580078131,
+          0.003939415039062491,
+          0.0036888918457031183
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0035639387207031387,
+          "upper_ms": 0.003757785400390609,
+          "excluded_indices": [
+            6,
+            9
+          ],
+          "included_samples_ms": [
+            0.003638524658203128,
+            0.003624346435546877,
+            0.0036400400390625004,
+            0.003648159667968748,
+            0.003681293945312497,
+            0.003636192871093749,
+            0.0036339819335937523,
+            0.003637069580078131,
+            0.0036888918457031183
+          ],
+          "median_ms": 0.003638524658203128
+        },
+        "execution_ms": 0.003638524658203128,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 19,
+              "median_khz": 4299998,
+              "p10_khz": 4299965,
+              "p90_khz": 4300031,
+              "sibling_busy": 0.025,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 3,
+      "id": "button",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "8c2d1b61faf592020b036c0ea4d33a964ac8e13bd53592de4b723e268c020086",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "load_ms": 52.473269999,
+        "warmup_ms": 150.005629957,
+        "warmup_count": 35718,
+        "batch_samples_ms": [
+          16.778025985,
+          17.088846982,
+          16.628809988,
+          16.692319036,
+          16.636800945,
+          16.557506025,
+          16.755548,
+          16.730241001,
+          16.723810017,
+          16.602218986,
+          16.661476016
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0040961977502441405,
+          0.004172081782714844,
+          0.004059768063476563,
+          0.004075273202148438,
+          0.004061718980712891,
+          0.004042359869384765,
+          0.0040907099609375,
+          0.0040845314943847655,
+          0.004082961429931641,
+          0.004053276119628906,
+          0.00406774316796875
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.004020427713745119,
+          "upper_ms": 0.0041279365360107415,
+          "excluded_indices": [
+            1
+          ],
+          "included_samples_ms": [
+            0.0040961977502441405,
+            0.004059768063476563,
+            0.004075273202148438,
+            0.004061718980712891,
+            0.004042359869384765,
+            0.0040907099609375,
+            0.0040845314943847655,
+            0.004082961429931641,
+            0.004053276119628906,
+            0.00406774316796875
+          ],
+          "median_ms": 0.004071508185058594
+        },
+        "execution_ms": 0.004071508185058594,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 22,
+              "median_khz": 4300000,
+              "p10_khz": 4299974,
+              "p90_khz": 4300031,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 3,
+      "id": "button",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "2938b2bea8126ad64a5098556dde7f26db917c080a0f306e794d4d54f1433c93",
+      "measurement": {
+        "result": "0",
+        "batches": 8192,
+        "warmup_ms": 150.025514,
+        "warmup_count": 30922,
+        "batch_samples_ms": [
+          20.551434,
+          19.977656000000025,
+          20.71747399999998,
+          20.072921000000008,
+          20.490305999999975,
+          20.384935999999982,
+          20.110501,
+          19.872183000000007,
+          19.945761000000005,
+          19.940830000000005,
+          20.384923000000015
+        ],
+        "load_ms": 5.392423999999998,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.002508719970703125,
+          0.002438678710937503,
+          0.0025289885253906227,
+          0.0024503077392578135,
+          0.002501258056640622,
+          0.002488395507812498,
+          0.0024548951416015624,
+          0.0024258035888671883,
+          0.002434785278320313,
+          0.0024341833496093757,
+          0.0024883939208984393
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.00234958981323243,
+          "upper_ms": 0.0025819689636230377,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.002508719970703125,
+            0.002438678710937503,
+            0.0025289885253906227,
+            0.0024503077392578135,
+            0.002501258056640622,
+            0.002488395507812498,
+            0.0024548951416015624,
+            0.0024258035888671883,
+            0.002434785278320313,
+            0.0024341833496093757,
+            0.0024883939208984393
+          ],
+          "median_ms": 0.0024548951416015624
+        },
+        "execution_ms": 0.0024548951416015624,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 26,
+              "median_khz": 4299999,
+              "p10_khz": 4299982,
+              "p90_khz": 4300036,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 3,
+      "id": "button",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "00f7b3dfdafaff39ce9b250d83e5e9a7201b4a590c647b5ebbe214a804b4a85d",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.025248,
+        "warmup_count": 31013,
+        "batch_samples_ms": [
+          9.989901000000003,
+          10.172732000000025,
+          10.601432000000017,
+          10.005117999999982,
+          10.019500000000022,
+          10.060952999999984,
+          9.98563299999995,
+          10.095236999999997,
+          10.036331000000018,
+          10.120683999999983,
+          10.017165999999975
+        ],
+        "load_ms": 5.360289999999999,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.002438940673828126,
+          0.002483577148437506,
+          0.002588240234375004,
+          0.0024426557617187455,
+          0.0024461669921875054,
+          0.002456287353515621,
+          0.002437898681640613,
+          0.0024646574707031244,
+          0.0024502761230468795,
+          0.002470870117187496,
+          0.002445597167968744
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0024086704711913966,
+          "upper_ms": 0.002503219787597658,
+          "excluded_indices": [
+            2
+          ],
+          "included_samples_ms": [
+            0.002438940673828126,
+            0.002483577148437506,
+            0.0024426557617187455,
+            0.0024461669921875054,
+            0.002456287353515621,
+            0.002437898681640613,
+            0.0024646574707031244,
+            0.0024502761230468795,
+            0.002470870117187496,
+            0.002445597167968744
+          ],
+          "median_ms": 0.0024482215576171924
+        },
+        "execution_ms": 0.0024482215576171924,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 13,
+              "median_khz": 4299996,
+              "p10_khz": 4299962,
+              "p90_khz": 4300016,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 3,
+      "id": "button",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "4e365a842695e86ae254d9f7324f4386c6fdf53cc314de9220918f29c8238f6c",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "load_ms": 51.221044004,
+        "warmup_ms": 150.000072002,
+        "warmup_count": 35350,
+        "batch_samples_ms": [
+          16.966413021,
+          17.028335989,
+          16.896524012,
+          17.065856993,
+          16.959729016,
+          16.98347801,
+          17.260325015,
+          16.934195995,
+          16.980729997,
+          17.13638103,
+          16.940582991
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.004142190678955078,
+          0.004157308591064453,
+          0.004125127932617188,
+          0.004166468992431641,
+          0.004140558841796875,
+          0.004146356936035156,
+          0.004213946536865234,
+          0.004134325194091797,
+          0.004145686034423828,
+          0.0041836867749023435,
+          0.004135884519287109
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.00410272101373291,
+          "upper_ms": 0.004197389458557128,
+          "excluded_indices": [
+            6
+          ],
+          "included_samples_ms": [
+            0.004142190678955078,
+            0.004157308591064453,
+            0.004125127932617188,
+            0.004166468992431641,
+            0.004140558841796875,
+            0.004146356936035156,
+            0.004134325194091797,
+            0.004145686034423828,
+            0.0041836867749023435,
+            0.004135884519287109
+          ],
+          "median_ms": 0.004143938356689454
+        },
+        "execution_ms": 0.004143938356689454,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 22,
+              "median_khz": 4300006,
+              "p10_khz": 4299972,
+              "p90_khz": 4300040,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 3,
+      "id": "input",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "8816dd81c2fcb1561fcc3bdda16f5da85aa1af97803392b2ec28bfdadc20cac4",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.01883999999998,
+        "warmup_count": 7782,
+        "batch_samples_ms": [
+          14.561892,
+          14.53827499999997,
+          13.758500000000026,
+          13.758162999999968,
+          13.634217000000035,
+          13.588835000000017,
+          13.696065999999973,
+          13.576940999999977,
+          13.73197399999998,
+          13.69095900000002,
+          13.518857999999966
+        ],
+        "load_ms": 5.634581000000001,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0035551494140625,
+          0.0035493835449218678,
+          0.0033590087890625064,
+          0.003358926513671867,
+          0.0033286662597656336,
+          0.0033175866699218792,
+          0.0033437661132812435,
+          0.0033146828613281193,
+          0.003352532714843745,
+          0.00334251928710938,
+          0.0033005024414062417
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.003269364685058611,
+          "upper_ms": 0.0034127294311523323,
+          "excluded_indices": [
+            0,
+            1
+          ],
+          "included_samples_ms": [
+            0.0033590087890625064,
+            0.003358926513671867,
+            0.0033286662597656336,
+            0.0033175866699218792,
+            0.0033437661132812435,
+            0.0033146828613281193,
+            0.003352532714843745,
+            0.00334251928710938,
+            0.0033005024414062417
+          ],
+          "median_ms": 0.00334251928710938
+        },
+        "execution_ms": 0.00334251928710938,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 20,
+              "median_khz": 4300007,
+              "p10_khz": 4299981,
+              "p90_khz": 4300047,
+              "sibling_busy": 0.0244,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 3,
+      "id": "text",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "f4e8d06eebc6a49c87c7a94fd73b1eb580f575c5e22aeefa11386105f734989c",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 42.509642005,
+        "warmup_ms": 150.005155981,
+        "warmup_count": 26078,
+        "batch_samples_ms": [
+          11.588043034,
+          11.60274601,
+          11.557976007,
+          11.572480977,
+          11.712731004,
+          11.520667017,
+          11.54540199,
+          11.517754018,
+          11.544936001,
+          11.527119994,
+          11.546917021
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0056582241376953125,
+          0.005665403325195313,
+          0.005643542972167969,
+          0.005650625477050781,
+          0.005719106935546875,
+          0.005625325691894531,
+          0.005637403315429688,
+          0.005623903329101562,
+          0.005637175781738281,
+          0.005628476559570312,
+          0.0056381430766601565
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.005600428215576172,
+          "upper_ms": 0.005686822762451172,
+          "excluded_indices": [
+            4
+          ],
+          "included_samples_ms": [
+            0.0056582241376953125,
+            0.005665403325195313,
+            0.005643542972167969,
+            0.005650625477050781,
+            0.005625325691894531,
+            0.005637403315429688,
+            0.005623903329101562,
+            0.005637175781738281,
+            0.005628476559570312,
+            0.0056381430766601565
+          ],
+          "median_ms": 0.005637773196044922
+        },
+        "execution_ms": 0.005637773196044922,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 15,
+              "median_khz": 4300003,
+              "p10_khz": 4299976,
+              "p90_khz": 4300055,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 3,
+      "id": "input",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "d049bc3eec79a45cfd168d41f50e1064261b7fd3b416b35e4d398c3ccb225f07",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 68.977283001,
+        "warmup_ms": 150.003130019,
+        "warmup_count": 24196,
+        "batch_samples_ms": [
+          12.452682972,
+          12.666723013,
+          12.50940299,
+          12.578463018,
+          12.628913999,
+          12.515978038,
+          12.835466981,
+          12.508911967,
+          12.497256994,
+          12.50059396,
+          12.481115997
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.006080411607421875,
+          0.006184923346191406,
+          0.0061081069287109374,
+          0.006141827645507813,
+          0.006166461913574219,
+          0.0061113174013671875,
+          0.006267317861816406,
+          0.0061078671713867185,
+          0.006102176266601563,
+          0.00610380564453125,
+          0.006094294920410156
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.006026260219604493,
+          "upper_ms": 0.006230875515502929,
+          "excluded_indices": [
+            6
+          ],
+          "included_samples_ms": [
+            0.006080411607421875,
+            0.006184923346191406,
+            0.0061081069287109374,
+            0.006141827645507813,
+            0.006166461913574219,
+            0.0061113174013671875,
+            0.0061078671713867185,
+            0.006102176266601563,
+            0.00610380564453125,
+            0.006094294920410156
+          ],
+          "median_ms": 0.006107987050048828
+        },
+        "execution_ms": 0.006107987050048828,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 18,
+              "median_khz": 4300000,
+              "p10_khz": 4299967,
+              "p90_khz": 4396986,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 3,
+      "id": "input",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "ebfa7dce8d680120d0787485af74b43da93c835a9efe4df6837354cd5821d1d4",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.023151,
+        "warmup_count": 9112,
+        "batch_samples_ms": [
+          14.525365999999991,
+          13.900070000000028,
+          13.987022000000024,
+          13.968203000000017,
+          14.02702099999999,
+          13.813588000000038,
+          14.118786,
+          14.073759999999993,
+          13.93346299999996,
+          13.99069899999995,
+          13.897466000000009
+        ],
+        "load_ms": 5.3797580000000025,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.003546231933593748,
+          0.003393571777343757,
+          0.003414800292968756,
+          0.003410205810546879,
+          0.0034245656738281227,
+          0.0033724580078125094,
+          0.00344696923828125,
+          0.0034359765624999983,
+          0.0034017243652343654,
+          0.0034156979980468627,
+          0.003392936035156252
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.003348713500976562,
+          "upper_ms": 0.0034792056884765596,
+          "excluded_indices": [
+            0
+          ],
+          "included_samples_ms": [
+            0.003393571777343757,
+            0.003414800292968756,
+            0.003410205810546879,
+            0.0034245656738281227,
+            0.0033724580078125094,
+            0.00344696923828125,
+            0.0034359765624999983,
+            0.0034017243652343654,
+            0.0034156979980468627,
+            0.003392936035156252
+          ],
+          "median_ms": 0.0034125030517578175
+        },
+        "execution_ms": 0.0034125030517578175,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 21,
+              "median_khz": 4299994,
+              "p10_khz": 4299970,
+              "p90_khz": 4300028,
+              "sibling_busy": 0.0238,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 3,
+      "id": "input",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "46100f18e67538c740c7c16d9ce97c3d3e9fdbad807f4ea20ae50a887f08e09e",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 70.492632031,
+        "warmup_ms": 150.001264989,
+        "warmup_count": 23899,
+        "batch_samples_ms": [
+          12.564216018,
+          12.508965015,
+          12.528303027,
+          12.585583985,
+          12.555477023,
+          12.489582002,
+          12.495020986,
+          12.696469009,
+          12.667739987,
+          12.496888995,
+          12.461395979
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.006134871102539062,
+          0.0061078930737304684,
+          0.006117335462402344,
+          0.006145304680175781,
+          0.006130604015136719,
+          0.006098428711914063,
+          0.0061010844658203126,
+          0.006199447758300781,
+          0.006185419915527343,
+          0.006101996579589844,
+          0.006084666005371094
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.006043719469726563,
+          "upper_ms": 0.006197908944335938,
+          "excluded_indices": [
+            7
+          ],
+          "included_samples_ms": [
+            0.006134871102539062,
+            0.0061078930737304684,
+            0.006117335462402344,
+            0.006145304680175781,
+            0.006130604015136719,
+            0.006098428711914063,
+            0.0061010844658203126,
+            0.006185419915527343,
+            0.006101996579589844,
+            0.006084666005371094
+          ],
+          "median_ms": 0.0061126142680664065
+        },
+        "execution_ms": 0.0061126142680664065,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 19,
+              "median_khz": 4300005,
+              "p10_khz": 4299965,
+              "p90_khz": 4300051,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 3,
+      "id": "text",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "cf7d094ff4081d742e8168c02a3ead04b416a2b98b66d2c84a388732607418ee",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.01737200000002,
+        "warmup_count": 24411,
+        "batch_samples_ms": [
+          15.079376999999994,
+          16.281958000000003,
+          15.672418999999962,
+          15.582280999999966,
+          15.949387999999999,
+          15.66625300000004,
+          15.48900500000002,
+          15.524618999999973,
+          15.005993999999987,
+          14.998865000000023,
+          15.904695000000004
+        ],
+        "load_ms": 4.712256,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0036814885253906235,
+          0.003975087402343751,
+          0.003826274169921866,
+          0.0038042678222656168,
+          0.0038938935546874998,
+          0.003824768798828135,
+          0.00378149536132813,
+          0.0037901901855468684,
+          0.003663572753906247,
+          0.0036618322753906307,
+          0.003882982177734376
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0035467875976562604,
+          "upper_ms": 0.004039332519531237,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0036814885253906235,
+            0.003975087402343751,
+            0.003826274169921866,
+            0.0038042678222656168,
+            0.0038938935546874998,
+            0.003824768798828135,
+            0.00378149536132813,
+            0.0037901901855468684,
+            0.003663572753906247,
+            0.0036618322753906307,
+            0.003882982177734376
+          ],
+          "median_ms": 0.0038042678222656168
+        },
+        "execution_ms": 0.0038042678222656168,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 19,
+              "median_khz": 4376711,
+              "p10_khz": 4299994,
+              "p90_khz": 4396957,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 4,
+      "id": "input",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "8816dd81c2fcb1561fcc3bdda16f5da85aa1af97803392b2ec28bfdadc20cac4",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.02007500000002,
+        "warmup_count": 8298,
+        "batch_samples_ms": [
+          14.730835000000013,
+          14.16450900000001,
+          13.976116999999988,
+          13.757632000000001,
+          13.723838999999998,
+          13.904222000000004,
+          13.863525999999979,
+          13.94413000000003,
+          13.999435000000005,
+          13.752276000000052,
+          13.695875000000001
+        ],
+        "load_ms": 5.8260760000000005,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0035963952636718782,
+          0.0034581320800781273,
+          0.003412137939453122,
+          0.0033587968750000002,
+          0.0033505466308593745,
+          0.003394585449218751,
+          0.003384649902343745,
+          0.0034043286132812572,
+          0.0034178308105468763,
+          0.0033574892578125126,
+          0.0033437194824218752
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0032728811035156423,
+          "upper_ms": 0.0035002463378906133,
+          "excluded_indices": [
+            0
+          ],
+          "included_samples_ms": [
+            0.0034581320800781273,
+            0.003412137939453122,
+            0.0033587968750000002,
+            0.0033505466308593745,
+            0.003394585449218751,
+            0.003384649902343745,
+            0.0034043286132812572,
+            0.0034178308105468763,
+            0.0033574892578125126,
+            0.0033437194824218752
+          ],
+          "median_ms": 0.003389617675781248
+        },
+        "execution_ms": 0.003389617675781248,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 20,
+              "median_khz": 4300009,
+              "p10_khz": 4299989,
+              "p90_khz": 4300044,
+              "sibling_busy": 0.0238,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 4,
+      "id": "input",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "d049bc3eec79a45cfd168d41f50e1064261b7fd3b416b35e4d398c3ccb225f07",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 69.499071002,
+        "warmup_ms": 150.001138031,
+        "warmup_count": 24460,
+        "batch_samples_ms": [
+          12.248535991,
+          12.351302028,
+          12.653266966,
+          12.459912002,
+          12.491254032,
+          12.70739001,
+          12.156565964,
+          12.264481008,
+          12.201394975,
+          12.307515025,
+          12.847980976
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.005980730464355469,
+          0.006030909193359375,
+          0.006178353010742188,
+          0.006083941407226562,
+          0.0060992451328125,
+          0.006204780278320312,
+          0.005935823224609375,
+          0.0059885161171875,
+          0.0059577123901367185,
+          0.006009528820800782,
+          0.0062734282109375
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.005753359619262696,
+          "upper_ms": 0.006370062743286133,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.005980730464355469,
+            0.006030909193359375,
+            0.006178353010742188,
+            0.006083941407226562,
+            0.0060992451328125,
+            0.006204780278320312,
+            0.005935823224609375,
+            0.0059885161171875,
+            0.0059577123901367185,
+            0.006009528820800782,
+            0.0062734282109375
+          ],
+          "median_ms": 0.006030909193359375
+        },
+        "execution_ms": 0.006030909193359375,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 18,
+              "median_khz": 4300004,
+              "p10_khz": 4299965,
+              "p90_khz": 4300026,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 4,
+      "id": "text",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "cf7d094ff4081d742e8168c02a3ead04b416a2b98b66d2c84a388732607418ee",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.029256,
+        "warmup_count": 21326,
+        "batch_samples_ms": [
+          17.23163600000001,
+          15.015375000000006,
+          15.24953899999997,
+          15.384575999999981,
+          15.186566999999968,
+          15.493138000000044,
+          15.437481999999989,
+          19.15102999999999,
+          16.980035999999984,
+          16.057108000000028,
+          15.398924000000022
+        ],
+        "load_ms": 4.877174,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.004206942382812502,
+          0.0036658630371093764,
+          0.0037230319824218677,
+          0.0037559999999999955,
+          0.0037076579589843672,
+          0.003782504394531261,
+          0.0037689165039062472,
+          0.004675544433593748,
+          0.004145516601562496,
+          0.003920192382812507,
+          0.0037595029296875054
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0032995082397460768,
+          "upper_ms": 0.004472862243652356,
+          "excluded_indices": [
+            7
+          ],
+          "included_samples_ms": [
+            0.004206942382812502,
+            0.0036658630371093764,
+            0.0037230319824218677,
+            0.0037559999999999955,
+            0.0037076579589843672,
+            0.003782504394531261,
+            0.0037689165039062472,
+            0.004145516601562496,
+            0.003920192382812507,
+            0.0037595029296875054
+          ],
+          "median_ms": 0.0037642097167968763
+        },
+        "execution_ms": 0.0037642097167968763,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 21,
+              "median_khz": 4300013,
+              "p10_khz": 4299984,
+              "p90_khz": 4300036,
+              "sibling_busy": 0.075,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 4,
+      "id": "button",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "4e365a842695e86ae254d9f7324f4386c6fdf53cc314de9220918f29c8238f6c",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "load_ms": 52.963719964,
+        "warmup_ms": 150.001698017,
+        "warmup_count": 32609,
+        "batch_samples_ms": [
+          17.841470003,
+          17.559722006,
+          17.525523007,
+          17.504670024,
+          17.678974032,
+          18.486256003,
+          19.917595983,
+          17.861892998,
+          17.641336024,
+          18.009290993,
+          17.81981504
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.004355827637451172,
+          0.004287041505371094,
+          0.0042786921403808595,
+          0.004273601080078125,
+          0.00431615576953125,
+          0.004513246094482422,
+          0.004862694331787109,
+          0.004360813720214843,
+          0.004306966802734375,
+          0.004396799558837891,
+          0.00435054078125
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.004174300425842286,
+          "upper_ms": 0.004501510367736815,
+          "excluded_indices": [
+            5,
+            6
+          ],
+          "included_samples_ms": [
+            0.004355827637451172,
+            0.004287041505371094,
+            0.0042786921403808595,
+            0.004273601080078125,
+            0.00431615576953125,
+            0.004360813720214843,
+            0.004306966802734375,
+            0.004396799558837891,
+            0.00435054078125
+          ],
+          "median_ms": 0.00431615576953125
+        },
+        "execution_ms": 0.00431615576953125,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 24,
+              "median_khz": 4300002,
+              "p10_khz": 4299959,
+              "p90_khz": 4300037,
+              "sibling_busy": 0.0476,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 4,
+      "id": "button",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "00f7b3dfdafaff39ce9b250d83e5e9a7201b4a590c647b5ebbe214a804b4a85d",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.02603200000001,
+        "warmup_count": 28201,
+        "batch_samples_ms": [
+          9.90033200000002,
+          10.16160499999998,
+          9.90673099999998,
+          10.695880000000017,
+          10.03013900000002,
+          9.948305000000005,
+          10.011041999999975,
+          10.35492099999999,
+          10.055301999999983,
+          10.162724999999966,
+          12.446253000000013
+        ],
+        "load_ms": 5.624503999999998,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.002417073242187505,
+          0.00248086059570312,
+          0.00241863549804687,
+          0.002611298828125004,
+          0.00244876440429688,
+          0.002428785400390626,
+          0.002444102050781244,
+          0.0025280568847656226,
+          0.002454907714843746,
+          0.0024811340332031168,
+          0.003038635986328128
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.002334216125488283,
+          "upper_ms": 0.0026068230590820217,
+          "excluded_indices": [
+            3,
+            10
+          ],
+          "included_samples_ms": [
+            0.002417073242187505,
+            0.00248086059570312,
+            0.00241863549804687,
+            0.00244876440429688,
+            0.002428785400390626,
+            0.002444102050781244,
+            0.0025280568847656226,
+            0.002454907714843746,
+            0.0024811340332031168
+          ],
+          "median_ms": 0.00244876440429688
+        },
+        "execution_ms": 0.00244876440429688,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 14,
+              "median_khz": 4300011,
+              "p10_khz": 4299985,
+              "p90_khz": 4300025,
+              "sibling_busy": 0.0571,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 4,
+      "id": "text",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "cf7d094ff4081d742e8168c02a3ead04b416a2b98b66d2c84a388732607418ee",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.021982,
+        "warmup_count": 23598,
+        "batch_samples_ms": [
+          14.736632000000014,
+          14.76129499999999,
+          14.789066999999989,
+          14.749377000000038,
+          14.76567399999999,
+          14.843794000000003,
+          14.816421999999989,
+          14.764767000000006,
+          14.824979999999982,
+          14.890864000000022,
+          14.80735900000002
+        ],
+        "load_ms": 4.788837000000001,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0035978105468750035,
+          0.0036038317871093725,
+          0.0036106120605468722,
+          0.0036009221191406343,
+          0.0036049008789062476,
+          0.0036239731445312506,
+          0.0036172905273437472,
+          0.0036046794433593765,
+          0.0036193798828124957,
+          0.0036354648437500053,
+          0.0036150778808593798
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.003583136230468754,
+          "upper_ms": 0.003639454589843742,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0035978105468750035,
+            0.0036038317871093725,
+            0.0036106120605468722,
+            0.0036009221191406343,
+            0.0036049008789062476,
+            0.0036239731445312506,
+            0.0036172905273437472,
+            0.0036046794433593765,
+            0.0036193798828124957,
+            0.0036354648437500053,
+            0.0036150778808593798
+          ],
+          "median_ms": 0.0036106120605468722
+        },
+        "execution_ms": 0.0036106120605468722,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 23,
+              "median_khz": 4299990,
+              "p10_khz": 4299972,
+              "p90_khz": 4300023,
+              "sibling_busy": 0.2326,
+              "accepted": false,
+              "rejected_because": "hyperthread sibling busy",
+              "measurement": {
+                "result": "0",
+                "batches": 4096,
+                "warmup_ms": 150.030142,
+                "warmup_count": 18162,
+                "batch_samples_ms": [
+                  15.100107000000008,
+                  15.036428,
+                  15.209375999999963,
+                  15.367379999999969,
+                  15.363501999999983,
+                  15.328124000000003,
+                  15.272453999999982,
+                  17.402017999999998,
+                  27.898916000000042,
+                  15.839179000000001,
+                  26.557939999999974
+                ],
+                "load_ms": 5.218196999999996,
+                "stdout_verified": true,
+                "execution_samples_ms": [
+                  0.003686549560546877,
+                  0.0036710029296875,
+                  0.003713226562499991,
+                  0.0037518017578124924,
+                  0.0037508549804687458,
+                  0.0037422177734375006,
+                  0.0037286264648437456,
+                  0.0042485395507812496,
+                  0.00681125878906251,
+                  0.0038669870605468754,
+                  0.006483872070312494
+                ],
+                "sample_statistics": {
+                  "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                  "lower_ms": 0.003215671325683577,
+                  "upper_ms": 0.004563018493652354,
+                  "excluded_indices": [
+                    8,
+                    10
+                  ],
+                  "included_samples_ms": [
+                    0.003686549560546877,
+                    0.0036710029296875,
+                    0.003713226562499991,
+                    0.0037518017578124924,
+                    0.0037508549804687458,
+                    0.0037422177734375006,
+                    0.0037286264648437456,
+                    0.0042485395507812496,
+                    0.0038669870605468754
+                  ],
+                  "median_ms": 0.0037422177734375006
+                },
+                "execution_ms": 0.0037422177734375006,
+                "checksum": "0"
+              }
+            },
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 19,
+              "median_khz": 4299991,
+              "p10_khz": 4299954,
+              "p90_khz": 4300032,
+              "sibling_busy": 0.8205,
+              "accepted": false,
+              "rejected_because": "hyperthread sibling busy",
+              "measurement": {
+                "result": "0",
+                "batches": 2048,
+                "warmup_ms": 150.036971,
+                "warmup_count": 8544,
+                "batch_samples_ms": [
+                  14.105743999999987,
+                  13.889921000000015,
+                  14.022593,
+                  13.88160099999999,
+                  13.98798499999998,
+                  13.910528,
+                  13.958818999999949,
+                  13.832772999999975,
+                  14.225700000000018,
+                  13.930484000000035,
+                  14.015502000000026
+                ],
+                "load_ms": 4.428426999999999,
+                "stdout_verified": true,
+                "execution_samples_ms": [
+                  0.006887570312499994,
+                  0.0067821879882812575,
+                  0.00684696923828125,
+                  0.006778125488281245,
+                  0.0068300708007812405,
+                  0.00679225,
+                  0.006815829589843725,
+                  0.006754283691406238,
+                  0.006946142578125009,
+                  0.006801994140625017,
+                  0.006843506835937513
+                ],
+                "sample_statistics": {
+                  "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                  "lower_ms": 0.006700190429687499,
+                  "upper_ms": 0.006932266601562511,
+                  "excluded_indices": [
+                    8
+                  ],
+                  "included_samples_ms": [
+                    0.006887570312499994,
+                    0.0067821879882812575,
+                    0.00684696923828125,
+                    0.006778125488281245,
+                    0.0068300708007812405,
+                    0.00679225,
+                    0.006815829589843725,
+                    0.006754283691406238,
+                    0.006801994140625017,
+                    0.006843506835937513
+                  ],
+                  "median_ms": 0.006808911865234371
+                },
+                "execution_ms": 0.006808911865234371,
+                "checksum": "0"
+              }
+            },
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 20,
+              "median_khz": 4300006,
+              "p10_khz": 4299966,
+              "p90_khz": 4300036,
+              "sibling_busy": 0.9756,
+              "accepted": false,
+              "rejected_because": "hyperthread sibling busy",
+              "measurement": {
+                "result": "0",
+                "batches": 2048,
+                "warmup_ms": 150.034699,
+                "warmup_count": 7709,
+                "batch_samples_ms": [
+                  14.83713800000001,
+                  14.573065999999983,
+                  14.112611000000015,
+                  14.103261999999972,
+                  14.023027000000013,
+                  13.939610000000016,
+                  14.093220999999971,
+                  14.05791499999998,
+                  14.002170999999976,
+                  14.131107999999983,
+                  13.975371999999993
+                ],
+                "load_ms": 6.309971000000004,
+                "stdout_verified": true,
+                "execution_samples_ms": [
+                  0.007244696289062505,
+                  0.007115754882812492,
+                  0.0068909233398437575,
+                  0.0068863583984374865,
+                  0.0068471811523437565,
+                  0.006806450195312508,
+                  0.006881455566406236,
+                  0.00686421630859374,
+                  0.006836997558593738,
+                  0.006899955078124992,
+                  0.006823912109374997
+                ],
+                "sample_statistics": {
+                  "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                  "lower_ms": 0.006762064575195306,
+                  "upper_ms": 0.006975463989257816,
+                  "excluded_indices": [
+                    0,
+                    1
+                  ],
+                  "included_samples_ms": [
+                    0.0068909233398437575,
+                    0.0068863583984374865,
+                    0.0068471811523437565,
+                    0.006806450195312508,
+                    0.006881455566406236,
+                    0.00686421630859374,
+                    0.006836997558593738,
+                    0.006899955078124992,
+                    0.006823912109374997
+                  ],
+                  "median_ms": 0.00686421630859374
+                },
+                "execution_ms": 0.00686421630859374,
+                "checksum": "0"
+              }
+            },
+            {
+              "cpu": 0,
+              "sibling": 6,
+              "readings": 22,
+              "median_khz": 4300008,
+              "p10_khz": 4299971,
+              "p90_khz": 4300042,
+              "sibling_busy": 0.1628,
+              "accepted": false,
+              "rejected_because": "hyperthread sibling busy",
+              "measurement": {
+                "result": "0",
+                "batches": 4096,
+                "warmup_ms": 150.020064,
+                "warmup_count": 22703,
+                "batch_samples_ms": [
+                  15.320531999999986,
+                  15.401850000000024,
+                  19.79717099999999,
+                  15.644526999999982,
+                  15.50692799999996,
+                  15.675204000000008,
+                  15.399878000000001,
+                  15.320660000000032,
+                  15.450786999999991,
+                  18.171246999999994,
+                  15.449786000000017
+                ],
+                "load_ms": 5.798003999999999,
+                "stdout_verified": true,
+                "execution_samples_ms": [
+                  0.0037403642578124965,
+                  0.003760217285156256,
+                  0.004833293701171873,
+                  0.0038194645996093707,
+                  0.00378587109374999,
+                  0.003826954101562502,
+                  0.0037597358398437503,
+                  0.003740395507812508,
+                  0.003772164794921873,
+                  0.0044363395996093735,
+                  0.0037719204101562542
+                ],
+                "sample_statistics": {
+                  "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                  "lower_ms": 0.0036651273803711033,
+                  "upper_ms": 0.003918058532714836,
+                  "excluded_indices": [
+                    2,
+                    9
+                  ],
+                  "included_samples_ms": [
+                    0.0037403642578124965,
+                    0.003760217285156256,
+                    0.0038194645996093707,
+                    0.00378587109374999,
+                    0.003826954101562502,
+                    0.0037597358398437503,
+                    0.003740395507812508,
+                    0.003772164794921873,
+                    0.0037719204101562542
+                  ],
+                  "median_ms": 0.0037719204101562542
+                },
+                "execution_ms": 0.0037719204101562542,
+                "checksum": "0"
+              }
+            },
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 21,
+              "median_khz": 4300006,
+              "p10_khz": 4299985,
+              "p90_khz": 4300034,
+              "sibling_busy": 0.1905,
+              "accepted": false,
+              "rejected_because": "hyperthread sibling busy",
+              "measurement": {
+                "result": "0",
+                "batches": 4096,
+                "warmup_ms": 150.038906,
+                "warmup_count": 21269,
+                "batch_samples_ms": [
+                  15.151403999999985,
+                  15.613379999999978,
+                  15.676592000000028,
+                  15.61373900000001,
+                  15.481245999999999,
+                  15.645999000000018,
+                  15.323224000000039,
+                  15.769998999999984,
+                  15.209550999999976,
+                  15.556577000000004,
+                  15.118097999999975
+                ],
+                "load_ms": 6.18225,
+                "stdout_verified": true,
+                "execution_samples_ms": [
+                  0.0036990732421874964,
+                  0.0038118603515624946,
+                  0.003827292968750007,
+                  0.0038119479980468773,
+                  0.0037796010742187497,
+                  0.0038198239746093793,
+                  0.0037410214843750095,
+                  0.003850097412109371,
+                  0.003713269287109369,
+                  0.003797992431640626,
+                  0.003690941894531244
+                ],
+                "sample_statistics": {
+                  "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                  "lower_ms": 0.003594034484863281,
+                  "upper_ms": 0.003948996887207037,
+                  "excluded_indices": [],
+                  "included_samples_ms": [
+                    0.0036990732421874964,
+                    0.0038118603515624946,
+                    0.003827292968750007,
+                    0.0038119479980468773,
+                    0.0037796010742187497,
+                    0.0038198239746093793,
+                    0.0037410214843750095,
+                    0.003850097412109371,
+                    0.003713269287109369,
+                    0.003797992431640626,
+                    0.003690941894531244
+                  ],
+                  "median_ms": 0.003797992431640626
+                },
+                "execution_ms": 0.003797992431640626,
+                "checksum": "0"
+              }
+            },
+            {
+              "cpu": 5,
+              "sibling": 11,
+              "readings": 20,
+              "median_khz": 4300010,
+              "p10_khz": 4299974,
+              "p90_khz": 4300048,
+              "sibling_busy": 1.0,
+              "accepted": false,
+              "rejected_because": "hyperthread sibling busy",
+              "measurement": {
+                "result": "0",
+                "batches": 2048,
+                "warmup_ms": 150.030792,
+                "warmup_count": 7667,
+                "batch_samples_ms": [
+                  14.971351999999996,
+                  13.710945000000038,
+                  13.964167000000032,
+                  13.804547000000014,
+                  13.788994000000002,
+                  13.586227999999949,
+                  13.757447999999954,
+                  13.76849100000004,
+                  13.691993999999966,
+                  12.441145000000006,
+                  13.570404999999994
+                ],
+                "load_ms": 5.997101999999998,
+                "stdout_verified": true,
+                "execution_samples_ms": [
+                  0.007310230468749998,
+                  0.0066947973632812685,
+                  0.0068184409179687655,
+                  0.006740501464843757,
+                  0.006732907226562501,
+                  0.006633900390624975,
+                  0.0067175039062499775,
+                  0.0067228959960937695,
+                  0.006685543945312483,
+                  0.006074777832031253,
+                  0.006626174316406247
+                ],
+                "sample_statistics": {
+                  "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+                  "lower_ms": 0.006544248901367129,
+                  "upper_ms": 0.006852177612304729,
+                  "excluded_indices": [
+                    0,
+                    9
+                  ],
+                  "included_samples_ms": [
+                    0.0066947973632812685,
+                    0.0068184409179687655,
+                    0.006740501464843757,
+                    0.006732907226562501,
+                    0.006633900390624975,
+                    0.0067175039062499775,
+                    0.0067228959960937695,
+                    0.006685543945312483,
+                    0.006626174316406247
+                  ],
+                  "median_ms": 0.0067175039062499775
+                },
+                "execution_ms": 0.0067175039062499775,
+                "checksum": "0"
+              }
+            },
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 19,
+              "median_khz": 4299988,
+              "p10_khz": 4299964,
+              "p90_khz": 4300031,
+              "sibling_busy": 0.025,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 4,
+      "id": "input",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "46100f18e67538c740c7c16d9ce97c3d3e9fdbad807f4ea20ae50a887f08e09e",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 70.18670404,
+        "warmup_ms": 150.003424048,
+        "warmup_count": 23081,
+        "batch_samples_ms": [
+          12.896062016,
+          13.295511007,
+          13.579092979,
+          13.057561994,
+          12.989409983,
+          13.553378999,
+          13.125992,
+          13.030403972,
+          13.214188039,
+          12.876269996,
+          12.957697988
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.00629690528125,
+          0.006491948733886719,
+          0.006630416493652344,
+          0.006375762692382813,
+          0.006342485343261719,
+          0.0066178608393554685,
+          0.00640917578125,
+          0.006362501939453125,
+          0.006452240253417969,
+          0.006287241208984375,
+          0.006327000970703125
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.006128716151977539,
+          "upper_ms": 0.006678121498657227,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.00629690528125,
+            0.006491948733886719,
+            0.006630416493652344,
+            0.006375762692382813,
+            0.006342485343261719,
+            0.0066178608393554685,
+            0.00640917578125,
+            0.006362501939453125,
+            0.006452240253417969,
+            0.006287241208984375,
+            0.006327000970703125
+          ],
+          "median_ms": 0.006375762692382813
+        },
+        "execution_ms": 0.006375762692382813,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 19,
+              "median_khz": 4300000,
+              "p10_khz": 4299961,
+              "p90_khz": 4300063,
+              "sibling_busy": 0.05,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 4,
+      "id": "button",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "8c2d1b61faf592020b036c0ea4d33a964ac8e13bd53592de4b723e268c020086",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "load_ms": 52.248304009,
+        "warmup_ms": 150.004122972,
+        "warmup_count": 34763,
+        "batch_samples_ms": [
+          17.713741958,
+          17.034910023,
+          17.618245006,
+          17.034280956,
+          17.257696986,
+          17.181186974,
+          17.409947991,
+          18.315011978,
+          17.38014698,
+          17.877909005,
+          17.361505985
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.004324644032714844,
+          0.004158913579833984,
+          0.004301329347167968,
+          0.0041587599990234375,
+          0.004213304928222656,
+          0.0041946257260742185,
+          0.004250475583740234,
+          0.0044714384711914065,
+          0.004243199946289062,
+          0.004364723878173828,
+          0.004238648922119141
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.004040433282958985,
+          "upper_ms": 0.004476518734130858,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.004324644032714844,
+            0.004158913579833984,
+            0.004301329347167968,
+            0.0041587599990234375,
+            0.004213304928222656,
+            0.0041946257260742185,
+            0.004250475583740234,
+            0.0044714384711914065,
+            0.004243199946289062,
+            0.004364723878173828,
+            0.004238648922119141
+          ],
+          "median_ms": 0.004243199946289062
+        },
+        "execution_ms": 0.004243199946289062,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 23,
+              "median_khz": 4299998,
+              "p10_khz": 4299963,
+              "p90_khz": 4300039,
+              "sibling_busy": 0.0233,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 4,
+      "id": "input",
+      "target": "wasm",
+      "variant": "after",
+      "artifact_sha256": "ebfa7dce8d680120d0787485af74b43da93c835a9efe4df6837354cd5821d1d4",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.02388100000002,
+        "warmup_count": 8531,
+        "batch_samples_ms": [
+          15.06035700000001,
+          14.685180000000003,
+          14.260532000000012,
+          14.458371999999997,
+          14.312351999999976,
+          14.79258299999998,
+          14.776484000000039,
+          14.525945999999976,
+          14.66491000000002,
+          14.413027,
+          14.335899999999981
+        ],
+        "load_ms": 6.0022069999999985,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.0036768449707031275,
+          0.0035852490234375006,
+          0.003481575195312503,
+          0.0035298759765624993,
+          0.003494226562499994,
+          0.00361147045898437,
+          0.0036075400390625095,
+          0.003546373535156244,
+          0.003580300292968755,
+          0.003518805419921875,
+          0.0034999755859374954
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.003378884460449205,
+          "upper_ms": 0.003726900573730485,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0036768449707031275,
+            0.0035852490234375006,
+            0.003481575195312503,
+            0.0035298759765624993,
+            0.003494226562499994,
+            0.00361147045898437,
+            0.0036075400390625095,
+            0.003546373535156244,
+            0.003580300292968755,
+            0.003518805419921875,
+            0.0034999755859374954
+          ],
+          "median_ms": 0.003546373535156244
+        },
+        "execution_ms": 0.003546373535156244,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 21,
+              "median_khz": 4300010,
+              "p10_khz": 4299981,
+              "p90_khz": 4300038,
+              "sibling_busy": 0.0238,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 4,
+      "id": "text",
+      "target": "zx",
+      "variant": "after",
+      "artifact_sha256": "f4e8d06eebc6a49c87c7a94fd73b1eb580f575c5e22aeefa11386105f734989c",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 42.088,
+        "warmup_ms": 150.004785001,
+        "warmup_count": 24901,
+        "batch_samples_ms": [
+          12.019513011,
+          12.131314993,
+          12.012687027,
+          11.999184966,
+          12.062772036,
+          12.03402704,
+          12.160147011,
+          12.011290014,
+          11.941343963,
+          11.995791018,
+          12.155287981
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.005868902837402344,
+          0.005923493648925781,
+          0.005865569837402344,
+          0.005858977034179687,
+          0.005890025408203125,
+          0.005875989765625,
+          0.0059375717827148435,
+          0.0058648877021484375,
+          0.0058307343569335935,
+          0.005857319833007813,
+          0.005935199209472657
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0057946916275634745,
+          "upper_ms": 0.005974000269165041,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.005868902837402344,
+            0.005923493648925781,
+            0.005865569837402344,
+            0.005858977034179687,
+            0.005890025408203125,
+            0.005875989765625,
+            0.0059375717827148435,
+            0.0058648877021484375,
+            0.0058307343569335935,
+            0.005857319833007813,
+            0.005935199209472657
+          ],
+          "median_ms": 0.005868902837402344
+        },
+        "execution_ms": 0.005868902837402344,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 15,
+              "median_khz": 4299998,
+              "p10_khz": 4299965,
+              "p90_khz": 4300034,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 4,
+      "id": "button",
+      "target": "wasm",
+      "variant": "before",
+      "artifact_sha256": "2938b2bea8126ad64a5098556dde7f26db917c080a0f306e794d4d54f1433c93",
+      "measurement": {
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150.024645,
+        "warmup_count": 30232,
+        "batch_samples_ms": [
+          10.225696999999997,
+          10.572711999999996,
+          10.005233000000004,
+          10.143504000000007,
+          10.072600999999992,
+          10.232237999999995,
+          10.206830999999966,
+          10.221990000000005,
+          10.357764999999972,
+          10.231131000000005,
+          10.203397000000052
+        ],
+        "load_ms": 5.307891999999999,
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.002496508056640624,
+          0.002581228515624999,
+          0.002442683837890626,
+          0.0024764414062500018,
+          0.002459131103515623,
+          0.002498104980468749,
+          0.0024919020996093666,
+          0.0024956030273437513,
+          0.002528751220703118,
+          0.002497834716796876,
+          0.0024910637207031378
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0024624266357422056,
+          "upper_ms": 0.0025192957763671767,
+          "excluded_indices": [
+            1,
+            2,
+            4,
+            8
+          ],
+          "included_samples_ms": [
+            0.002496508056640624,
+            0.0024764414062500018,
+            0.002498104980468749,
+            0.0024919020996093666,
+            0.0024956030273437513,
+            0.002497834716796876,
+            0.0024910637207031378
+          ],
+          "median_ms": 0.0024956030273437513
+        },
+        "execution_ms": 0.0024956030273437513,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 13,
+              "median_khz": 4299998,
+              "p10_khz": 4299969,
+              "p90_khz": 4300041,
+              "sibling_busy": 0.0,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "round": 4,
+      "id": "text",
+      "target": "zx",
+      "variant": "before",
+      "artifact_sha256": "f4e8d06eebc6a49c87c7a94fd73b1eb580f575c5e22aeefa11386105f734989c",
+      "measurement": {
+        "result": "0",
+        "batches": 2048,
+        "load_ms": 42.444067955,
+        "warmup_ms": 150.001928031,
+        "warmup_count": 23512,
+        "batch_samples_ms": [
+          11.935981035,
+          11.925608993,
+          12.224492013,
+          12.141119003,
+          13.182799995,
+          12.043219984,
+          11.98597604,
+          11.969270051,
+          12.07853204,
+          12.156268001,
+          12.060350001
+        ],
+        "stdout_verified": true,
+        "execution_samples_ms": [
+          0.005828115739746093,
+          0.005823051266113282,
+          0.005968990240722657,
+          0.005928280763183594,
+          0.006436914060058594,
+          0.0058804785078125,
+          0.00585252736328125,
+          0.005844370142089844,
+          0.00589772072265625,
+          0.005935677734863282,
+          0.005888842773925781
+        ],
+        "sample_statistics": {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.00572315300817871,
+          "upper_ms": 0.006057274993530274,
+          "excluded_indices": [
+            4
+          ],
+          "included_samples_ms": [
+            0.005828115739746093,
+            0.005823051266113282,
+            0.005968990240722657,
+            0.005928280763183594,
+            0.0058804785078125,
+            0.00585252736328125,
+            0.005844370142089844,
+            0.00589772072265625,
+            0.005935677734863282,
+            0.005888842773925781
+          ],
+          "median_ms": 0.005884660640869141
+        },
+        "execution_ms": 0.005884660640869141,
+        "checksum": "0",
+        "host_gate": {
+          "cpu": 3,
+          "sibling": 9,
+          "reference_khz": 4300026,
+          "rules": {
+            "steady": 0.03,
+            "floor": 0.95,
+            "sibling_busy_max": 0.15,
+            "attempts": 8
+          },
+          "accepted": true,
+          "attempts": [
+            {
+              "cpu": 3,
+              "sibling": 9,
+              "readings": 15,
+              "median_khz": 4300006,
+              "p10_khz": 4299948,
+              "p90_khz": 4300051,
+              "sibling_busy": 0.0571,
+              "accepted": true
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "summary": [
+    {
+      "id": "button",
+      "target": "zx",
+      "microseconds": {
+        "before": 4.172728506103516,
+        "after": 4.143072030273438
+      },
+      "after_before": 0.9928927856708869
+    },
+    {
+      "id": "button",
+      "target": "wasm",
+      "microseconds": {
+        "before": 2.3936788330078116,
+        "after": 2.4482215576171926
+      },
+      "after_before": 1.0227861498615687
+    },
+    {
+      "id": "text",
+      "target": "zx",
+      "microseconds": {
+        "before": 5.713489750488281,
+        "after": 5.662586176269531
+      },
+      "after_before": 0.9910906334934091
+    },
+    {
+      "id": "text",
+      "target": "wasm",
+      "microseconds": {
+        "before": 3.6327639160156253,
+        "after": 3.619927001953127
+      },
+      "after_before": 0.9964663505916516
+    },
+    {
+      "id": "input",
+      "target": "zx",
+      "microseconds": {
+        "before": 6.068625981933594,
+        "after": 6.309254647949219
+      },
+      "after_before": 1.0396512598950702
+    },
+    {
+      "id": "input",
+      "target": "wasm",
+      "microseconds": {
+        "before": 3.416385253906251,
+        "after": 3.4453278808593697
+      },
+      "after_before": 1.008471710536751
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+// The host gives typed pointers into the same backing storage. Exercise
+// copies in both overlap directions, self-copy, and snapshot lifetimes.
+host_api :: #system_library "host_api";
+Words :: struct { items: [10]s64 }
+WordsAt :: (offset: s64) -> *Words #foreign host_api;
+BlockAt :: (offset: s64) -> *CopyBlock #foreign host_api;
+CopyBlock :: struct { items: [8]s64 }
+MoveBlock :: (destination: *CopyBlock, source: *CopyBlock) {
+    snapshot := source.*
+    destination.* = snapshot
+}
+MoveAfterWrite :: (destination: *CopyBlock, source: *CopyBlock) {
+    snapshot := source.*
+    source.items[0] = 999
+    destination.* = snapshot
+}
+MoveBeforeRead :: (destination: *CopyBlock, source: *CopyBlock) -> s64 {
+    snapshot := source.*
+    destination.* = snapshot
+    source.items[0] = 888
+    return snapshot.items[0]
+}
+OverlapCopy :: (mode: s64) -> s64 {
+    words := WordsAt(0)
+    expected: [10]s64
+    for i: 0..9 { words.items[i] = 100 + 3 * i; expected[i] = words.items[i] }
+    from := ifx mode == 1 then 1 else 0
+    to := ifx mode == 1 || mode == 2 then 0 else 1
+    source := BlockAt(from)
+    destination := BlockAt(to)
+    if mode < 3 {
+        MoveBlock(destination, source)
+    } else if mode == 3 {
+        MoveAfterWrite(destination, source)
+        expected[0] = 999
+    } else {
+        if MoveBeforeRead(destination, source) != 100 { return -1 }
+    }
+    for i: 0..7 { expected[to + i] = 100 + 3 * (from + i) }
+    if mode == 4 { expected[from] = 888 }
+    total: s64
+    for i: 0..9 {
+        if words.items[i] != expected[i] { return -1 }
+        total += words.items[i] * (i + 1)
+    }
+    return total
+}
+
+Answer :: () -> s32 {
+    for mode: 0..4 { if OverlapCopy(mode) < 0 { return 1 } }
+    return 42
+}

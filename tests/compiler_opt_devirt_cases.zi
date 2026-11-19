@@ -1,0 +1,280 @@
+using IR :: #import "compiler_lowered_ir"
+using Verify :: #import "compiler_lowered_verify"
+using Opt :: #import "compiler_opt"
+using Exec :: #import "compiler_exec"
+using Vectors :: #import "std/vec"
+using Ssa :: #import "compiler_opt_ssa"
+using Codec :: #import "compiler_exec_serial"
+using Specialize :: #import "compiler_opt_specialize"
+
+#scope_file
+
+Execute :: (program: LirProgram, function: s32) -> LirExecResult {
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
+    if built.problem != .None { return built }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    opened := LirExecInstanceOpen(*plan, LirExecDefaultLimits(), cast(u32)(function + 101), *instance)
+    if opened.problem != .None { return opened }
+    arguments: [0]LirExecArgument
+    return LirExecCall(*instance, function, arguments[:])
+}
+
+HasOp :: (program: LirProgram, function: s32, op: LirOp) -> bool {
+    for block: program.functions[function].blocks {
+        for instruction: block.instructions { if instruction.op == op { return true } }
+    }
+    return false
+}
+
+CountOp :: (program: LirProgram, function: s32, op: LirOp) -> s64 {
+    count: s64
+    for block: program.functions[function].blocks {
+        for instruction: block.instructions { if instruction.op == op { count += 1 } }
+    }
+    return count
+}
+
+// A successful rewrite and every budget-limited attempt must leave the
+// borrowed source intact. Sweep work and scratch limits on both paths:
+// devirtualization alone, and devirtualization followed by specialization.
+Stage :: (program: LirProgram, expect: u64, changed: bool) -> s32 {
+    block := program.functions[0].blocks.count - 1
+    item := ifx block == 0 then 2 else 1
+    original := program.functions[0].blocks[block].instructions[item]
+    for mode: 0..2 {
+        bound: s64 = 1
+        for step: 0..18 {
+            limits := LirDefaultLimits()
+            work: s64 = 1000000000
+            if mode == 0 { work = bound * 8 }
+            if mode == 1 { limits.bytes = bound }
+            if mode == 2 { limits.functions = program.functions.count; work = bound * 8 }
+            replacement: LirReadOwner
+            specialized := LirSpecializeBranches(program, *replacement, limits, work, 96)
+            defer LirReadFree(*replacement)
+            restored := program.functions[0].blocks[block].instructions[item]
+            if restored.op != original.op || restored.symbol != original.symbol ||
+                restored.operands.count != original.operands.count { return 11 }
+            for value, at: original.operands { if restored.operands[at] != value { return 12 } }
+            if LirVerify(program, LirDefaultLimits()).problem != .None { return 13 }
+            if specialized.problem != .None || specialized.codec.problem != .None { return 14 }
+            if specialized.copies > 0 {
+                output := LirReadProgram(*replacement)
+                if !changed || LirVerify(output, LirDefaultLimits()).problem != .None { return 15 }
+                executed := Execute(output, 0)
+                if executed.problem != .None || executed.value.bits != expect { return 16 }
+            }
+            bound *= 2
+        }
+    }
+    replacement: LirReadOwner
+    defer LirReadFree(*replacement)
+    specialized := LirSpecializeBranches(program, *replacement, LirDefaultLimits(), 1000000000, 96)
+    if specialized.problem != .None || specialized.codec.problem != .None ||
+        (specialized.copies > 0) != changed { return 17 }
+    if changed {
+        output := LirReadProgram(*replacement)
+        executed := Execute(output, 0)
+        if LirVerify(output, LirDefaultLimits()).problem != .None ||
+            HasOp(output, 0, .CallIndirect) || executed.problem != .None ||
+            executed.value.bits != expect { return 18 }
+    }
+    return 0
+}
+
+// Full optimization may expose addresses across block parameters before
+// devirtualization. Check the final call shape and semantic result separately.
+Pipeline :: (program: LirProgram, expect: u64, indirect: bool, calls: s64, adds: s64) -> s32 {
+    owner: LirOptOwner
+    built := LirOptBuild(*owner, program, LirDefaultLimits(), LirOptDefaultOptions())
+    if built.problem != .None || !owner.valid {
+        print("optimizer problem %\n", cast(s32)built.problem)
+        return 1
+    }
+    optimized := LirOptProgram(*owner)
+    if LirVerify(optimized, LirDefaultLimits()).problem != .None { LirOptFree(*owner); return 2 }
+    if HasOp(optimized, 0, .CallIndirect) != indirect { LirOptFree(*owner); return 3 }
+    if calls >= 0 && CountOp(optimized, 0, .Call) != calls { LirOptFree(*owner); return 4 }
+    if CountOp(optimized, 0, .Add) < adds { LirOptFree(*owner); return 5 }
+    before := Execute(program, 0)
+    after := Execute(optimized, 0)
+    LirOptFree(*owner)
+    if before.problem != .None || after.problem != .None ||
+        before.value.bits != after.value.bits || after.value.bits != expect { return 6 }
+    return 0
+}
+
+// Function 1 doubles its argument; function 0 calls it through a FUNCTION-
+// ADDRESS of its own block, which devirtualizes to a direct call that later
+// cleanup keeps. The unused address itself dies.
+Double :: (name: string, indirect: bool) -> s32 {
+    none: [0]s32
+    parameter_types: [1]s32 = .{1}
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true},
+        .{kind = .Function, parameters = parameter_types[:], result = 1}]
+    constants := LirConstant.[.{type = 1, bits = 20}]
+    modules := string.["devirt"]
+    address := s32.[0]
+    // Direct: address value plus the argument constant. Parameter-fed: the
+    // block parameter plus the constant.
+    arguments: [2]s32 = .{0, 1}
+    if indirect { arguments[0] = 1; arguments[1] = 2 }
+    answer: [1]s32 = .{2}
+    if indirect { answer[0] = 3 }
+    jump_edges: [1]LirEdge = .{.{block = 1, arguments = address[:]}}
+    entry_code: [2]LirInstruction
+    entry_code[0] = .{op = .FunctionAddress, result = 0, operands = none[:], symbol = 1, origin = -1}
+    entry_code[1] = .{op = .Jump, result = -1, operands = none[:], origin = -1, symbol = -1}
+    entry_code[1].edges = jump_edges[:]
+    block_parameters: [1]s32 = .{1}
+    tail_code: [3]LirInstruction = .{
+        .{op = .Constant, result = 2, operands = none[:], symbol = 0, origin = -1},
+        .{op = .CallIndirect, result = 3, operands = arguments[:], effect = 1, origin = -1, symbol = -1},
+        .{op = .Return, result = -1, operands = answer[:], origin = -1, symbol = -1}}
+    code: [4]LirInstruction
+    code[0] = .{op = .FunctionAddress, result = 0, operands = none[:], symbol = 1, origin = -1}
+    code[1] = .{op = .Constant, result = 1, operands = none[:], symbol = 0, origin = -1}
+    code[2] = .{op = .CallIndirect, result = 2, operands = arguments[:], effect = 1, origin = -1, symbol = -1}
+    code[3] = .{op = .Return, result = -1, operands = answer[:], origin = -1, symbol = -1}
+    blocks: [2]LirBlock
+    entry_blocks: []LirBlock
+    if indirect {
+        blocks[0] = .{instructions = entry_code[:]}
+        blocks[1] = .{parameters = block_parameters[:], instructions = tail_code[:]}
+        entry_blocks = blocks[:2]
+    } else {
+        blocks[0] = .{instructions = code[:]}
+        entry_blocks = blocks[:1]
+    }
+    values: [4]s32 = .{2, 1, 1, 1}
+    // The fed-through block parameter carries the function type itself.
+    if indirect { values[1] = 2 }
+    double_values: [2]s32 = .{1, 1}
+    double_pair: [2]s32 = .{0, 0}
+    double_answer: [1]s32 = .{1}
+    double_parameters: [1]s32 = .{1}
+    double_block_parameters: [1]s32 = .{0}
+    double_code := LirInstruction.[
+        .{op = .Add, result = 1, operands = double_pair[:], origin = -1, symbol = -1},
+        .{op = .Return, result = -1, operands = double_answer[:], origin = -1, symbol = -1}]
+    double_blocks := LirBlock.[.{parameters = double_block_parameters[:], instructions = double_code[:]}]
+    functions: [2]LirFunction = .{
+        .{module = 0, name = name, result = 1, values = ifx indirect then values[:] else values[:3], blocks = entry_blocks, entry = 0, origin = -1},
+        .{module = 0, name = "double", parameters = double_parameters[:], result = 1,
+            values = double_values[:], blocks = double_blocks[:], entry = 0, origin = -1}}
+    program := LirProgram.{version = LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = 0}
+    checked := LirVerify(program, LirDefaultLimits())
+    if checked.problem != .None {
+        print("verify %: problem=% f=% b=% i=% v=%\n", name, cast(s32)checked.problem,
+            checked.function, checked.block, checked.instruction, checked.value)
+        return 10
+    }
+    // The local proof excludes the forwarded address. CFG cleanup can later
+    // expose it to another round, so both full pipelines eliminate indirection.
+    isolated := Stage(program, 40, !indirect)
+    if isolated != 0 { return isolated }
+    return Pipeline(program, 40, false, 1, 0)
+}
+
+// weight(p) adds seven to its argument 58 times: 60 instructions, above the
+// direct call limit (48) and below twice the limit (96). A call inside the
+// loop below is worth the doubled limit and is copied in; the same call in
+// the loop-exit block is not.
+LoopInline :: () -> s32 {
+    none: [0]s32
+    types := LirType.[.{kind = .Void}, .{kind = .Integer, bits = 64, is_signed = true},
+        .{kind = .Bool, bits = 1}]
+    constants := LirConstant.[.{type = 1, bits = 7}, .{type = 1, bits = 1},
+        .{type = 1, bits = 3}, .{type = 1, bits = 0}]
+    modules := string.["devirt"]
+    weight_values: Vec(s32)
+    weight_ops: Vec(s32)
+    weight_code: Vec(LirInstruction)
+    weight_blocks: Vec(LirBlock)
+    defer VecFree(weight_values)
+    defer VecFree(weight_ops)
+    defer VecFree(weight_code)
+    defer VecFree(weight_blocks)
+    if !VecResizeBounded(weight_values, 60, 60) { return 1 }
+    if !VecResizeBounded(weight_ops, 116, 116) { return 1 }
+    if !VecResizeBounded(weight_code, 60, 60) { return 1 }
+    if !VecResizeBounded(weight_blocks, 1, 1) { return 1 }
+    for at: 0..59 { weight_values[at] = 1 }
+    weight_code[0] = .{op = .Constant, result = 1, operands = none[:], symbol = 0, origin = -1}
+    for i: 2..59 {
+        base := (i - 2) * 2
+        weight_ops[base] = ifx i == 2 then 0 else cast(s32)(i - 1)
+        weight_ops[base + 1] = 1
+        weight_code[i - 1] = .{op = .Add, result = cast(s32)i,
+            operands = weight_ops[base:base + 2], origin = -1, symbol = -1}
+    }
+    weight_return: [1]s32 = .{59}
+    weight_code[59] = .{op = .Return, result = -1, operands = weight_return[:], origin = -1, symbol = -1}
+    weight_parameters: [1]s32 = .{1}
+    weight_block_parameters: [1]s32 = .{0}
+    weight_blocks[0] = .{parameters = weight_block_parameters[:], instructions = weight_code[:]}
+
+    run_values: [9]s32 = .{1, 1, 2, 1, 1, 1, 1, 1, 1}
+    run_start: [1]s32 = .{0}
+    run_loop: [1]s32 = .{6}
+    run_exit: [1]s32 = .{1}
+    run_first: [1]s32 = .{1}
+    run_second: [1]s32 = .{7}
+    run_header_ops: [2]s32 = .{1, 3}
+    run_branch_ops: [1]s32 = .{2}
+    run_call_ops: [1]s32 = .{1}
+    run_step_ops: [2]s32 = .{4, 5}
+    run_return_ops: [1]s32 = .{8}
+    run_entry_edge: [1]LirEdge = .{.{block = 1, arguments = run_start[:]}}
+    run_branch_edges: [2]LirEdge = .{.{block = 2}, .{block = 3, arguments = run_exit[:]}}
+    run_back_edge: [1]LirEdge = .{.{block = 1, arguments = run_loop[:]}}
+    run_entry: [2]LirInstruction
+    run_entry[0] = .{op = .Constant, result = 0, operands = none[:], symbol = 3, origin = -1}
+    run_entry[1] = .{op = .Jump, result = -1, operands = none[:], origin = -1, symbol = -1}
+    run_entry[1].edges = run_entry_edge[:]
+    run_header: [3]LirInstruction
+    run_header[0] = .{op = .Constant, result = 3, operands = none[:], symbol = 2, origin = -1}
+    run_header[1] = .{op = .Less, result = 2, operands = run_header_ops[:], origin = -1, symbol = -1}
+    run_header[2] = .{op = .Branch, result = -1, operands = run_branch_ops[:], origin = -1, symbol = -1}
+    run_header[2].edges = run_branch_edges[:]
+    run_body: [4]LirInstruction
+    run_body[0] = .{op = .Call, result = 4, operands = run_call_ops[:], symbol = 1, effect = 1, origin = -1}
+    run_body[1] = .{op = .Constant, result = 5, operands = none[:], symbol = 1, origin = -1}
+    run_body[2] = .{op = .Add, result = 6, operands = run_step_ops[:], origin = -1, symbol = -1}
+    run_body[3] = .{op = .Jump, result = -1, operands = none[:], origin = -1, symbol = -1}
+    run_body[3].edges = run_back_edge[:]
+    run_last: [2]LirInstruction
+    run_last[0] = .{op = .Call, result = 8, operands = run_second[:], symbol = 1, effect = 1, origin = -1}
+    run_last[1] = .{op = .Return, result = -1, operands = run_return_ops[:], origin = -1, symbol = -1}
+    run_blocks: [4]LirBlock = .{
+        .{instructions = run_entry[:]},
+        .{parameters = run_first[:], instructions = run_header[:]},
+        .{instructions = run_body[:]},
+        .{parameters = run_second[:], instructions = run_last[:]}}
+    functions := LirFunction.[
+        .{module = 0, name = "run", result = 1, values = run_values[:], blocks = run_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "weight", parameters = weight_parameters[:], result = 1,
+            values = weight_values[:], blocks = weight_blocks[:], entry = 0, origin = -1}]
+    program := LirProgram.{version = LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = 0}
+    if LirVerify(program, LirDefaultLimits()).problem != .None { return 2 }
+    // One loop pass (p0=0 -> 407), then one more weight on the way out:
+    // 406 + 1 + 406 = 813.
+    return Pipeline(program, 813, false, 1, 58)
+}
+
+#scope_export
+DevirtCases :: () -> s32 {
+    direct := Double("entry", false)
+    if direct != 0 { print("devirt direct case % failed\n", direct); return 1 }
+    parameter := Double("parameter", true)
+    if parameter != 0 { print("devirt parameter case % failed\n", parameter); return 2 }
+    loop := LoopInline()
+    if loop != 0 { print("devirt loop inline case % failed\n", loop); return 3 }
+    print("compiler optimizer: devirtualized addresses and loop-site inlining passed\n")
+    return 0
+}

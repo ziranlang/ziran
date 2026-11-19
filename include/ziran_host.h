@@ -76,6 +76,9 @@ typedef struct HostBinding {
     void *context;
 } HostBinding;
 
+typedef int (*BundleConsoleWrite)(void *context, int descriptor,
+                                 const void *bytes, size_t size);
+
 typedef enum BundleBackendPolicy {
     BUNDLE_BACKEND_AUTO,
     BUNDLE_BACKEND_ENGINE,
@@ -180,6 +183,13 @@ BundleInstance *BundleInstantiateLimited(const Bundle *bundle,
 BundleInstance *BundleInstantiateWithOptions(
     const Bundle *bundle, const HostBinding *bindings, size_t binding_count,
     const BundleInstanceOptions *options);
+/* Run on the instruction engine with platform output sent to write, including
+ * during global initialization. The callback receives descriptor 1 or 2 and
+ * returns nonzero after writing all bytes. The bytes are borrowed for the call.
+ * The context must outlive the instance. A zero step budget is unbounded. */
+BundleInstance *BundleInstantiateWithConsole(
+    const Bundle *bundle, const HostBinding *bindings, size_t binding_count,
+    int max_steps, BundleConsoleWrite write, void *context);
 BundleExecutionBackend BundleInstanceBackend(const BundleInstance *instance);
 /* Native preflight: compiles the bundle for this host on first use, sharing
  * code with any open bundle of the same content. An empty string when it

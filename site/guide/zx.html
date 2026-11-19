@@ -76,6 +76,11 @@ built without it. The engine always checks. A native trap is reported once. Noth
 engine. <code>zi2zx --debug</code> also writes
 the program's source origins to the optional debug attachment, so native trap
 diagnostics and <code>zx2native --emit map</code> name source lines.</p>
+<p>C embedders can open verified bytes with <code>BundleOpenBytes</code> and use
+<code>BundleInstantiateWithConsole</code> to run them on the instruction engine. The
+callback receives writes to descriptors 1 and 2, including writes during
+global initialization. The embedder can connect those descriptors to its
+own console or process namespace. See <a href="https://github.com/ziranlang/ziran/blob/master/include/ziran_host.h">ziran_host.h</a>.</p>
 <p>Compiled native code is cached on disk in <code>$XDG_CACHE_HOME/ziran/native</code>, or
 <code>~/.cache/ziran/native</code> without it, so a later run in another process maps the
 code instead of compiling it again. An entry is keyed by the bundle's content,

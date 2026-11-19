@@ -131,7 +131,7 @@ void ExecHostsClose(ExecHosts *hosts);
  * missing or initialization fails. With max_steps > 0 initialization and all
  * runs together have that many steps. */
 ExecInstance *ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context,
-                               long long max_steps);
+                               long long max_steps, BundleConsoleWrite write, void *console_context);
 /* A failed run leaves the instance unusable. */
 int ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result);
 /* Bounds each later run, or all of them on an instance opened with a limit. */

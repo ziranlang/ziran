@@ -321,7 +321,8 @@ validate_bindings(const Bundle *bundle, BindingSet *set)
 static BundleInstance *
 instantiate_bundle_with_policy(const Bundle *bundle, const HostBinding *bindings,
                                size_t binding_count, int max_steps,
-                               BundleBackendPolicy policy, int unbounded)
+                               BundleBackendPolicy policy, int unbounded,
+                               BundleConsoleWrite write, void *console_context)
 {
     if(bundle == NULL || (binding_count != 0 && bindings == NULL) || (unbounded && max_steps > 0) ||
        binding_count > SIZE_MAX / sizeof(HostBinding) ||
@@ -393,7 +394,8 @@ instantiate_bundle_with_policy(const Bundle *bundle, const HostBinding *bindings
                                               &instance->set, max_steps);
         instance->backend = NATIVE_PLATFORM_BACKEND;
     } else {
-        instance->exec = ExecInstanceOpen(bundle->exec, find_binding, &instance->set, max_steps);
+        instance->exec = ExecInstanceOpen(bundle->exec, find_binding, &instance->set,
+                                          max_steps, write, console_context);
         instance->backend = BUNDLE_EXECUTION_ENGINE;
     }
     if(instance->exec == NULL && instance->wasm == NULL && instance->native == NULL) {
@@ -408,7 +410,7 @@ instantiate_bundle(const Bundle *bundle, const HostBinding *bindings,
                    size_t binding_count, int max_steps)
 {
     return instantiate_bundle_with_policy(bundle, bindings, binding_count,
-                                          max_steps, BUNDLE_BACKEND_AUTO, 0);
+                                          max_steps, BUNDLE_BACKEND_AUTO, 0, NULL, NULL);
 }
 
 BundleInstance *
@@ -431,7 +433,17 @@ BundleInstantiateWithOptions(const Bundle *bundle, const HostBinding *bindings,
     if(options == NULL || options->max_steps < 0)
         return NULL;
     return instantiate_bundle_with_policy(bundle, bindings, binding_count,
-                                          options->max_steps, options->backend, options->unbounded);
+                                          options->max_steps, options->backend, options->unbounded, NULL, NULL);
+}
+
+BundleInstance *
+BundleInstantiateWithConsole(const Bundle *bundle, const HostBinding *bindings,
+                             size_t binding_count, int max_steps,
+                             BundleConsoleWrite write, void *context)
+{
+    if(max_steps < 0 || write == NULL) return NULL;
+    return instantiate_bundle_with_policy(bundle, bindings, binding_count,
+                                          max_steps, BUNDLE_BACKEND_ENGINE, 0, write, context);
 }
 
 BundleExecutionBackend

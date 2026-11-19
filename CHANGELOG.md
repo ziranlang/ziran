@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Embedders can route instruction-engine ZX output through a per-instance console callback, including output from global initializers.
+
 - In-process native ZX resizes large heap blocks through the allocator instead of always allocating and copying a replacement. Growth remains zero-filled and checked aliases are invalidated even when the address stays the same. The Vectors kernel on Alpha took 38.19 µs instead of 40.04 µs in 11 matched rounds, against 34.07 µs for C.
 - Wasm stores can copy a loaded record directly from its source when no intervening effect requires a snapshot. Copies through pointers preserve partially overlapping memory in either direction.
 - The shared optimizer resolves calls through known function addresses, gives calls inside loops a larger inlining budget, and restores borrowed input on resource-limited specialization. Standalone ZX tools now rebuild when the specialization module changes.

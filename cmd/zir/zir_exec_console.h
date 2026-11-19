@@ -9,6 +9,7 @@
 
 #include "compiler_exec.h"
 #include "compiler_lowered_ir.h"
+#include "ziran_host.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -36,6 +37,8 @@ int ZxPlatformService(const LirProgram *program, int64_t function);
 typedef struct ZxConsole {
     size_t used;
     int direct;
+    BundleConsoleWrite write;
+    void *context;
     unsigned char data[4096];
 } ZxConsole;
 

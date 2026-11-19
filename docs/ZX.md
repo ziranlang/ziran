@@ -87,6 +87,12 @@ engine. `zi2zx --debug` also writes
 the program's source origins to the optional debug attachment, so native trap
 diagnostics and `zx2native --emit map` name source lines.
 
+C embedders can open verified bytes with `BundleOpenBytes` and use
+`BundleInstantiateWithConsole` to run them on the instruction engine. The
+callback receives writes to descriptors 1 and 2, including writes during
+global initialization. The embedder can connect those descriptors to its
+own console or process namespace. See [ziran_host.h](../include/ziran_host.h).
+
 Compiled native code is cached on disk in `$XDG_CACHE_HOME/ziran/native`, or
 `~/.cache/ziran/native` without it, so a later run in another process maps the
 code instead of compiling it again. An entry is keyed by the bundle's content,

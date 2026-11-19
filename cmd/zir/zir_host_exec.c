@@ -30,6 +30,7 @@
 #include "zir_exec_console.h"
 #include "zir_text.h"
 
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,11 +79,13 @@ ZxConsoleFlush(ZxConsole *console)
     return fwrite(console->data, 1, used, stdout) == used;
 }
 
-/* Standard output through the console; NULL or a terminal writes at once. */
+/* Custom sinks and terminals get each write at once. */
 static bool
 exec_console_out(ZxConsole *console, const void *bytes, size_t size)
 {
     if(size == 0) return true;
+    if(console != NULL && console->write != NULL)
+        return console->write(console->context, 1, bytes, size) != 0;
     if(console == NULL || console->direct) return fwrite(bytes, 1, size, stdout) == size;
     if(size > sizeof(console->data) - console->used) {
         if(!ZxConsoleFlush(console)) return false;
@@ -115,6 +118,8 @@ exec_console_write(void *closure, void *context, uint64_t descriptor, Slice byte
     ZxConsole *console = closure;
     if(descriptor == 1) return exec_console_out(console, bytes.data, (size_t)bytes.length);
     if(descriptor != 2) return false;
+    if(console != NULL && console->write != NULL)
+        return bytes.length == 0 || console->write(console->context, 2, bytes.data, (size_t)bytes.length) != 0;
     /* What came before on standard output reaches stdio first, as it did
      * when every print went straight there. */
     if(!ZxConsoleFlush(console)) return false;
@@ -1872,7 +1877,7 @@ exec_run(ExecInstance *instance, int initialize, LirExecResult *ran)
      * before its diagnostic. */
     ZxConsoleFlush(&instance->console);
     if(ok) return 1;
-    fflush(stdout);
+    if(instance->console.write == NULL) fflush(stdout);
     instance->failed = 1;
     if(ran->problem == LirExecProblem_FuelLimit && instance->limit > 0)
         Diagnostic((ZirSourceSpan){0}, "zx.runtime", "portable execution failed: stopped after %lld steps",
@@ -1889,9 +1894,10 @@ exec_run(ExecInstance *instance, int initialize, LirExecResult *ran)
 }
 
 ExecInstance *
-ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, long long max_steps)
+ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, long long max_steps,
+                 BundleConsoleWrite write, void *console_context)
 {
-    static unsigned identities;
+    static atomic_uint identities;
     ExecInstance *instance = calloc(1, sizeof(*instance));
     if(instance == NULL) return NULL;
     instance->bundle = bundle;
@@ -1911,11 +1917,13 @@ ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, 
     /* Deep recursion works; a runaway one stops at this depth, before it
      * fills the instance's value storage. */
     limits.frames = 65536;
-    unsigned identity = ++identities;
-    if(identity == 0) identity = ++identities;
+    unsigned identity = atomic_fetch_add_explicit(&identities, 1, memory_order_relaxed) + 1;
+    if(identity == 0) identity = atomic_fetch_add_explicit(&identities, 1, memory_order_relaxed) + 1;
     LirExecResult opened = compiler_exec_LirExecInstanceOpen((LirExecPlan *)&bundle->plan, limits, identity, &instance->instance);
     LirExecProblem bound = opened.problem == LirExecProblem_None ?
         ZxBindConsole(&instance->instance, &bundle->program, &instance->console) : opened.problem;
+    instance->console.write = write;
+    instance->console.context = console_context;
     for(size_t index = 0; index < bundle->host_count && bound == LirExecProblem_None; index++) {
         const ExecHost *host = &bundle->hosts[index];
         instance->calls[index] = (ExecCall){instance, index};
@@ -2130,7 +2138,7 @@ ExecInstanceClose(ExecInstance *instance)
     if(instance == NULL) return;
     /* What the instance wrote is out by the time it closes. */
     ZxConsoleFlush(&instance->console);
-    fflush(stdout);
+    if(instance->console.write == NULL) fflush(stdout);
     compiler_exec_LirExecInstanceClose(&instance->instance);
     ExecHostsClose(instance->hosts);
     free(instance->calls);
@@ -2235,9 +2243,11 @@ int ExecHostsStateImage(ExecHosts *hosts, size_t index, const HostValue *value, 
 }
 
 void ExecHostsClose(ExecHosts *hosts) { (void)hosts; }
-ExecInstance *ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, long long max_steps)
+ExecInstance *ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, long long max_steps,
+                               BundleConsoleWrite write, void *console_context)
 {
     (void)bundle; (void)find; (void)context; (void)max_steps;
+    (void)write; (void)console_context;
     return NULL;
 }
 int ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result)

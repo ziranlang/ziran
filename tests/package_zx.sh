@@ -4,17 +4,40 @@ exec python3 - "$1" <<'PY'
 import base64
 import hashlib
 import http.server
-import io
 import json
 import os
 from pathlib import Path
 import shutil
 import ssl
+import struct
 import subprocess
 import sys
 import tempfile
 import threading
-import zipfile
+
+
+def library_sections(image):
+    magic, version, count, size = struct.unpack_from('<4sIII', image)
+    assert magic == b'ZXLB' and version == 1 and size == len(image)
+    position = 16
+    sections = []
+    for _ in range(count):
+        name_length, length, sha = struct.unpack_from('<II32s', image, position)
+        position += 40
+        name = image[position:position + name_length]
+        position += name_length
+        contents = image[position:position + length]
+        position += length
+        assert len(contents) == length and hashlib.sha256(contents).digest() == sha
+        sections.append((name, contents))
+    assert position == size and [name for name, _ in sections] == sorted({name for name, _ in sections})
+    return sections
+
+
+def make_library(sections):
+    body = b''.join(struct.pack('<II32s', len(name), len(data), hashlib.sha256(data).digest()) + name + data
+                    for name, data in sections)
+    return struct.pack('<4sIII', b'ZXLB', 1, len(sections), 16 + len(body)) + body
 
 
 class Registry(http.server.BaseHTTPRequestHandler):
@@ -229,8 +252,10 @@ main :: () -> s32 { return External(); }
         source.mkdir()
         (source / 'src').mkdir()
         provider_module = source / 'src/state.zi'
-        provider_module.write_text('''State :: struct { value: s32; }
-Advance :: (state: *State) { state.value += 2; }
+        provider_module.write_text('''Update :: #type (value: s32) -> s32;
+State :: struct { value: s32; handler: Update; }
+Advance :: (state: *State) { state.value = state.handler(state.value); }
+Copy :: (value: $T) -> T { return value; }
 ''')
         toolchain = Path(command('git', '-C', ziran.parent, 'rev-parse', '--show-toplevel'))
         tool_url = 'https://git.waozi.xyz/ziranlang/ziran.git'
@@ -254,18 +279,62 @@ Advance :: (state: *State) { state.value += 2; }
         (source / '.git/info/exclude').write_text('build/\nziran.local.toml\nziran.lock\n')
         project(source, 'state', [], {})
         command('git', '-C', source, 'config', 'remote.origin.url', repository)
-        archive = root / 'state.zir.zip'
+        archive = root / 'state.zx'
         command(*package, 'pack-ir', repository, checked_revision, 'default', archive, cwd=source)
-        archive_digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        library = archive.read_bytes()
+        archive_digest = hashlib.sha256(library).hexdigest()
+        sections = library_sections(library)
+        assert [name for name, _ in sections] == [b'checked-package.tsv', b'src/state.zir', b'ziran.toml']
+        inspection = command(*package, 'inspect-ir', archive)
+        assert inspection == sections[0][1].decode().strip() + '\t' + archive_digest
+        repeated = root / 'repacked.zx'
+        command(*package, 'pack-ir', repository, checked_revision, 'default', repeated, cwd=source)
+        assert repeated.read_bytes() == library
+        malformed = root / 'malformed.zx'
+        for invalid in (b'PK\x03\x04' + library[4:],
+                        library[:4] + struct.pack('<I', 2) + library[8:],
+                        library[:8] + struct.pack('<I', 4099) + library[12:],
+                        library[:16] + struct.pack('<I', 0xffffffff) + library[20:],
+                        library[:-1], library + b'\0', library[:-1] + bytes([library[-1] ^ 1]),
+                        make_library(sections[::-1]), make_library(sections[:1] + sections),
+                        make_library([(b'../state.zir', sections[1][1]), *sections])):
+            malformed.write_bytes(invalid)
+            command(*package, 'inspect-ir', malformed, failure='cannot verify the checked .zx library')
         assert command(*package, 'publish-ir', repository, checked_revision, 'default', archive,
                        '--netrc', netrc) == archive_digest
         assert command(*package, 'publish-ir', repository, checked_revision, 'default', archive,
                        '--netrc', netrc) == archive_digest
+        command(*package, 'publish', repository, checked_revision, 'default', archive,
+                '--netrc', netrc, failure='cannot verify the portable image')
         command(*package, 'publish-ir', repository, checked_revision, 'other', archive,
-                '--netrc', netrc, failure='archive does not match the declared repository revision or profile')
-        alternate = root / 'alternate.zir.zip'
+                '--netrc', netrc, failure='failed format, revision or profile verification')
+        alternate = root / 'alternate.zx'
         command(*package, 'pack-ir', repository, checked_revision, 'other', alternate, cwd=source)
         alternate_digest = command(*package, 'publish-ir', repository, checked_revision, 'other', alternate, '--netrc', netrc)
+        developer = root / 'developer.zx'
+        dev_pack = [*package, 'pack-dev', repository, checked_revision, 'default', developer, '--offline']
+        command(*dev_pack, cwd=source)
+        original_dev = command(*package, 'inspect-ir', developer).split('\t')
+        provider_module.write_text(provider_module.read_text().replace('state.handler(state.value);',
+                                                                      'state.handler(state.value) + 5;'))
+        command(*dev_pack, cwd=source)
+        current_dev = command(*package, 'inspect-ir', developer).split('\t')
+        assert developer.read_bytes()[:4] == b'ZXLD' and current_dev[0] == 'dev'
+        assert len(current_dev) == 6 and original_dev[:4] == current_dev[:4]
+        assert original_dev[4] != current_dev[4] and len(current_dev[4]) == 64
+        assert current_dev[5] == hashlib.sha256(developer.read_bytes()).hexdigest()
+        command(*package, 'pack-ir', repository, checked_revision, 'default', root / 'dirty.zx',
+                cwd=source, failure='requires the clean declared repository revision')
+        command(*dev_pack, '--locked', cwd=source, failure='pack-dev cannot be used with --locked')
+        before = len(server.requests)
+        command(*package, 'publish-ir', repository, checked_revision, 'default', developer,
+                '--netrc', netrc, failure='failed format, revision or profile verification')
+        assert len(server.requests) == before
+        dev_export = f'/api/packages/ziranlang/generic/fixture-zx-library/{checked_revision}/default.zx'
+        server.images[dev_export] = developer.read_bytes()
+        command(*package, 'fetch-ir', repository, checked_revision, 'default', current_dev[5],
+                failure='failed digest, format or module-name verification')
+        server.images[dev_export] = library
         shutil.rmtree(source)
         archive.unlink()
         alternate.unlink()
@@ -278,40 +347,54 @@ Advance :: (state: *State) { state.value += 2; }
                'commit': checked_revision, 'dependencies': {}}
         project(consumer, 'consumer', [row], {'state': identity})
         pins = consumer / 'ziran.zx.lock'
-        pins.write_text(json.dumps({'format': 1, 'packages': [{'package': identity,
-            'profile': 'default', 'sha256': archive_digest}]}))
         app = consumer / 'app.zi'
         app.write_text('''using Model :: #import "state/model"
+Increment :: (value: s32) -> s32 { return value + 2; }
 main :: () -> s32 {
-    state := Model.State.{value = 40};
+    state := Model.State.{value = Model.Copy(cast(s32)40), handler = Increment};
     Model.Advance(*state);
     return state.value;
 }
 ''')
         built = consumer / 'app.zx'
         argv = [ziran, 'bundle', '--project', '--entry', 'app:main', '-o', built, app]
+        dev_dir = root / 'dev-libraries'
+        dev_dir.mkdir()
+        developer.rename(dev_dir / f'{identity}.zx')
+        env['ZIRAN_DEV_ZX_DIR'] = str(dev_dir)
+        before = len(server.requests)
+        command(*argv, '--offline', cwd=consumer)
+        assert command(ziran, 'run', '--backend', 'engine', built) == '47'
+        assert len(server.requests) == before and not pins.exists()
+        command(*argv, '--offline', '--locked', cwd=consumer, failure='ZIRAN_DEV_ZX_DIR cannot be used with --locked')
+        env.pop('ZIRAN_DEV_ZX_DIR')
+        pins.write_text(json.dumps({'format': 1, 'packages': [{'package': identity,
+            'profile': 'default', 'sha256': archive_digest}]}))
         command(*argv, '--offline', failure='absent from the offline cache', cwd=consumer)
         command(*argv, cwd=consumer)
         assert command(ziran, 'run', '--backend', 'engine', built) == '42'
         request_count = len(server.requests)
         command(*argv, '--offline', cwd=consumer)
+        fetched_library = Path(command(*package, 'fetch-ir', repository, checked_revision, 'default',
+                                       archive_digest, '--offline'))
+        assert fetched_library.read_bytes() == library
         assert len(server.requests) == request_count
 
         # Ordinary add discovers the published descriptor and resolves its
         # package graph from the archive before attempting any Git checkout.
         automatic = root / 'automatic'
         automatic.mkdir()
-        bare_manifest = '[package]\nname = "consumer"\nmodule_roots = ["."]\n' + tool_section
+        bare_manifest = '[package]\nname = "consumer"\nmodule_roots = ["."]\nentry = "app.zi"\n' + tool_section
         automatic_manifest = automatic / 'ziran.toml'
         automatic_manifest.write_text(bare_manifest)
         (automatic / 'ziran.local.toml').write_text(f'[overrides]\nziran = "{toolchain}"\n')
         auto_cache = root / 'automatic-cache'
         env.update(XDG_CACHE_HOME=str(auto_cache), ZIRAN_ZX_REGISTRY=f'https://localhost:{server.server_port}')
-        checked_artifact = f'/api/packages/ziranlang/generic/fixture-zx/{checked_revision}/default.zir.zip'
-        descriptor = checked_artifact.removesuffix('.zip') + '.tsv'
+        checked_artifact = f'/api/packages/ziranlang/generic/fixture-zx-library/{checked_revision}/default.zx'
+        descriptor = checked_artifact + '.tsv'
         good_metadata = server.images[descriptor]
         expected_tool = 'p' + hashlib.sha256(f'{tool_url}\n{tool_revision}'.encode()).hexdigest()[:16]
-        assert good_metadata == f'1\t{identity}\t{expected_tool}\tdefault\t{archive_digest}\n'.encode()
+        assert good_metadata == f'2\t{identity}\t{expected_tool}\tdefault\t{archive_digest}\n'.encode()
         add = [ziran, 'add', repository, '--name', 'state', '--ref', checked_revision]
         server.images[descriptor] = good_metadata.replace(expected_tool.encode(), b'p0000000000000000')
         command(*add, failure='metadata does not match its repository revision, toolchain or profile', cwd=automatic)
@@ -341,6 +424,16 @@ main :: () -> s32 {
         assert automatic_lock.read_bytes() == saved
         command(*auto_bundle, cwd=automatic)
         assert command(ziran, 'run', '--backend', 'engine', auto_output) == '42'
+        command(ziran, 'check', '--offline', cwd=automatic)
+        native_output = automatic / 'native'
+        native_output.mkdir()
+        command(ziran, 'build', '--project', '--offline', '--target=c', '--exe', '--entry', 'app:main',
+                '-o', native_output, auto_app, cwd=automatic)
+        native = subprocess.run([native_output / 'app'], cwd=automatic, check=False, timeout=30)
+        assert native.returncode == 42
+        command(ziran, 'build', '--offline', cwd=automatic)
+        native = subprocess.run([automatic / 'build/consumer'], cwd=automatic, check=False, timeout=30)
+        assert native.returncode == 42
         assert len(server.requests) == before and not (auto_cache / 'ziran/sources').exists()
 
         env['ZIRAN_ZX_PROFILE'] = 'missing'
@@ -362,8 +455,10 @@ main :: () -> s32 {
         (override / 'src').mkdir()
         (override / 'ziran.toml').write_text('[package]\nname = "state"\nmodule_roots = ["src"]\n' +
                                              tool_section + '[exports]\nmodel = "src/state.zi"\n')
-        (override / 'src/state.zi').write_text('''State :: struct { value: s32; }
-Advance :: (state: *State) { state.value += 4; }
+        (override / 'src/state.zi').write_text('''Update :: #type (value: s32) -> s32;
+State :: struct { value: s32; handler: Update; }
+Advance :: (state: *State) { state.value = state.handler(state.value) + 2; }
+Copy :: (value: $T) -> T { return value; }
 ''')
         command('git', '-C', override, 'init', '-q')
         (automatic / 'ziran.local.toml').write_text(f'[overrides]\nziran = "{toolchain}"\nstate = "{override}"\n')
@@ -376,18 +471,11 @@ Advance :: (state: *State) { state.value += 4; }
         pins.write_text('{"format": 1,')
         command(*argv, '--offline', failure='invalid checked packages in ziran.zx.lock', cwd=consumer)
 
-        wrong_tool = io.BytesIO()
-        with (zipfile.ZipFile(io.BytesIO(server.images[checked_artifact])) as original,
-              zipfile.ZipFile(wrong_tool, 'w') as invalid):
-            for name in original.namelist():
-                data = original.read(name)
-                if name == 'checked-package.tsv':
-                    _, package_id, _, profile = data.decode().strip().split('\t')
-                    data = f'1\t{package_id}\tp0000000000000000\t{profile}\n'.encode()
-                invalid.writestr(name, data)
-        server.images[checked_artifact] = wrong_tool.getvalue()
+        wrong_identity = f'2\t{identity}\tp0000000000000000\tdefault\n'.encode()
+        wrong_tool = make_library([(b'checked-package.tsv', wrong_identity), *sections[1:]])
+        server.images[checked_artifact] = wrong_tool
         pins.write_text(json.dumps({'format': 1, 'packages': [{'package': identity, 'profile': 'default',
-            'sha256': hashlib.sha256(wrong_tool.getvalue()).hexdigest()}]}))
+            'sha256': hashlib.sha256(wrong_tool).hexdigest()}]}))
         command(*argv, failure='archive does not match its pinned package, toolchain or profile', cwd=consumer)
     finally:
         server.shutdown()

@@ -47,6 +47,41 @@ jobs:
         run: make
       - name: Run the language, backend, and portable runtime checks
         run: env -u DISPLAY -u WAYLAND_DISPLAY WINDOWS_REQUIRED=1 ARM_REQUIRED=1 WASM_REQUIRED=1 ZIRAN_WASM_CC=clang-18 make check CHECK_JOBS=4
+      - name: Pack the tested Ziran toolchain
+        id: toolchain
+        if: github.server_url == 'https://git.waozi.xyz' && github.event_name == 'push' && github.ref == 'refs/heads/master' && (env.BUILD_NATIVE != 'true' || steps.native.outputs.current == 'true')
+        env:
+          SOURCE: ${{ steps.native.outputs.source || github.workspace }}
+        run: |
+          output="build/toolchains/$GITHUB_SHA"
+          if [ "$BUILD_NATIVE" = true ]; then
+            gitea-native-build run python3 scripts/toolchain_package.py pack "$GITHUB_SHA" "$output"
+          else
+            python3 scripts/toolchain_package.py pack "$GITHUB_SHA" "$output"
+          fi
+          printf 'directory=%s/%s\n' "$SOURCE" "$output" >> "$GITHUB_OUTPUT"
+      - name: Keep the verified toolchain archive
+        if: steps.toolchain.outputs.directory != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: toolchain-${{ github.sha }}
+          path: ${{ steps.toolchain.outputs.directory }}
+          if-no-files-found: error
+      - name: Publish the toolchain to Gitea Packages
+        if: steps.toolchain.outputs.directory != ''
+        env:
+          SOURCE: ${{ steps.native.outputs.source || github.workspace }}
+          OUTPUT: ${{ steps.toolchain.outputs.directory }}
+          ZIRAN_TOOLCHAIN_PACKAGE_USER: ${{ secrets.ZIRAN_TOOLCHAIN_PACKAGE_USER }}
+          ZIRAN_TOOLCHAIN_PACKAGE_TOKEN: ${{ secrets.ZIRAN_TOOLCHAIN_PACKAGE_TOKEN }}
+        run: |
+          if [ -z "$ZIRAN_TOOLCHAIN_PACKAGE_USER$ZIRAN_TOOLCHAIN_PACKAGE_TOKEN" ]; then
+            echo "Gitea package writer is unavailable. The toolchain is in this run's artifacts."
+            exit 0
+          fi
+          for descriptor in "$OUTPUT"/*.json; do
+            python3 "$SOURCE/scripts/toolchain_package.py" publish "$GITHUB_SHA" "$descriptor"
+          done
       - name: Show how much the compile cache saved
         if: always()
         run: ccache --show-stats || true

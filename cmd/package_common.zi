@@ -389,6 +389,11 @@ PkgShowToolFailure :: (output: string) {
     else { PkgPrint(output, true); PkgPrint("\n", true) }
 }
 
+PkgSha256Bytes :: (bytes: []u8, digest: []u8) -> bool {
+    return bytes.count > 0 && digest.count == 32 &&
+        PkgSha256Raw(*bytes[0], cast(u64)bytes.count, *digest[0]) != null
+}
+
 PkgDigest :: (value: string) -> string {
     digest: [32]u8
     memory := PkgAlloc(cast(u64)value.count + 1)

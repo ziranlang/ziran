@@ -12,36 +12,25 @@
 #scope_file
 MaximumImageBytes :: 268435456
 
-RegistrySegment :: (value: string) -> bool {
-    if value.count == 0 || value.count > 128 || value == "." || value == ".." { return false }
-    for ch: value {
-        if !(ch >= #char "a" && ch <= #char "z" || ch >= #char "A" && ch <= #char "Z" ||
-             ch >= #char "0" && ch <= #char "9" || ch == #char "-" || ch == #char "_" || ch == #char ".") {
-            return false
-        }
-    }
-    return true
-}
-
 ModuleName :: (value: string) -> bool {
     if value.count > 512 { return false }
     start: s64 = 0
     for index: 0..cast(s64)value.count - 1 {
         if value[index] == #char "/" {
-            if !RegistrySegment(value[start:index]) { return false }
+            if !PkgRegistrySegment(value[start:index]) { return false }
             start = index + 1
         }
     }
-    return RegistrySegment(value[start:])
+    return PkgRegistrySegment(value[start:])
 }
 
 HexDigest :: (value: string) -> bool { return PkgHex(value, 64) }
 
 // Accept the origin of a Gitea repository, not an arbitrary download URL.
 // The commit and profile are separate checked path segments.
-RegistryUrl :: (repository: string, revision: string, profile: string, extension: string = ".zx") -> string {
+RegistryUrl :: (repository: string, revision: string, profile: string, checked: bool = false) -> string {
     if repository.count > 576 || repository.count <= 8 || repository[0:8] != "https://" ||
-        !PkgValidCommit(revision) || !RegistrySegment(profile) { return "" }
+        !PkgValidCommit(revision) || !PkgRegistrySegment(profile) { return "" }
     authority_end: s64 = 8
     while authority_end < repository.count && repository[authority_end] != #char "/" { authority_end += 1 }
     if authority_end == 8 || authority_end == repository.count { return "" }
@@ -67,11 +56,12 @@ RegistryUrl :: (repository: string, revision: string, profile: string, extension
     owner := repository[authority_end + 1:owner_end]
     repo := repository[owner_end + 1:]
     if PkgEndsWith(repo, ".git") { repo = repo[0:repo.count - 4] }
-    if !RegistrySegment(owner) || !RegistrySegment(repo) { return "" }
+    if !PkgRegistrySegment(owner) || !PkgRegistrySegment(repo) { return "" }
     namespace := PkgJoin3(repository[0:authority_end], "/api/packages/", owner)
     package := PkgJoin3(namespace, "/generic/", repo)
-    version := PkgJoin3(package, "-zx/", revision)
-    return PkgJoin(PkgJoin3(version, "/", profile), extension)
+    channel := ifx checked then "-zx-library/" else "-zx/"
+    version := PkgJoin3(package, channel, revision)
+    return PkgJoin(PkgJoin3(version, "/", profile), ".zx")
 }
 
 // Validate the size before hashing or passing a remote image to the verifier.
@@ -92,8 +82,8 @@ ImageDigest :: (path: string) -> string {
     }
 }
 
-ImageVerified :: (launcher: string, path: string, module: string) -> bool {
-    if PkgEndsWith(path, ".zir.zip") { return PkgCheckedArchive(path, "", "", "", "", "", "") }
+ImageVerified :: (launcher: string, path: string, module: string, id: string = "", profile: string = "") -> bool {
+    if id != "" { return PkgCheckedArchive(path, "", "", id, "", "", profile) }
     compiler := PkgJoin(PkgLauncherDirectory(launcher), "/zi2zx")
     args := string.[compiler, "--emit", "linkage", "-o", "-", path]
     result := PkgCapture(args[:], "")
@@ -139,7 +129,7 @@ TransferFailure :: (action: string, status: string) -> s32 {
 }
 
 CheckedDescriptorUrl :: (archive_url: string) -> string {
-    return PkgJoin(archive_url[0:archive_url.count - 4], ".tsv")
+    return PkgJoin(archive_url, ".tsv")
 }
 
 PublishFile :: (url: string, path: string, digest: string, netrc: string, stage: string) -> s32 {
@@ -157,15 +147,14 @@ PublishFile :: (url: string, path: string, digest: string, netrc: string, stage:
 
 Publish :: (launcher: string, url: string, file: string, netrc: string,
     id: string, profile: string) -> s32 {
-    extension := ifx PkgEndsWith(url, ".zir.zip") then ".zir.zip" else ".zx"
-    if !PkgEndsWith(file, extension) { return PkgFail(PkgJoin("expected an artifact ending in ", extension)) }
+    if !PkgEndsWith(file, ".zx") { return PkgFail("expected an artifact ending in .zx") }
     source := PkgCanonical(file)
     if source == "" { return PkgFail("cannot find the portable image") }
     // Verify and send the same private copy even if a build replaces FILE.
     stage := PkgArtifactStage(PkgJoin(PkgCacheRoot(), "/zx"))
     if stage == "" { return PkgFail("cannot stage the portable image") }
     defer PkgArtifactRemove(stage)
-    image := PkgJoin3(stage, "/upload", extension)
+    image := PkgJoin(stage, "/upload.zx")
     digest := ImageDigest(source)
     if !HexDigest(digest) { return PkgFail("expected a nonempty artifact within the size limit") }
     empty: [0]string
@@ -178,15 +167,8 @@ Publish :: (launcher: string, url: string, file: string, netrc: string,
         if !ImageVerified(launcher, image, "") { return PkgFail("cannot verify the portable image") }
     } else {
         identity: string
-        if !PkgCheckedArchive(image, "", "", "", "", "", "", *identity) {
-            return PkgFail("cannot verify the checked package archive")
-        }
-        prefix := PkgJoin3("1\t", id, "\t")
-        tool_end := prefix.count + 17
-        suffix := PkgJoin3("\t", profile, "\n")
-        if identity.count != tool_end + suffix.count || identity[0:prefix.count] != prefix ||
-            !PkgCheckedIdentity(identity[prefix.count:tool_end]) || identity[tool_end:] != suffix {
-            return PkgFail("archive does not match the declared repository revision or profile")
+        if !PkgCheckedArchive(image, "", "", id, "", "", profile, *identity) {
+            return PkgFail("checked package library failed format, revision or profile verification")
         }
         descriptor = PkgJoin3(identity[0:identity.count - 1], "\t", PkgJoin(digest, "\n"))
     }
@@ -203,7 +185,7 @@ Publish :: (launcher: string, url: string, file: string, netrc: string,
 }
 
 Fetch :: (launcher: string, url: string, profile: string, digest: string,
-    module: string, netrc: string, offline: bool, output: *string) -> s32 {
+    module: string, netrc: string, offline: bool, output: *string, id: string = "") -> s32 {
     if !HexDigest(digest) { return PkgFail("expected a full lowercase SHA-256 digest") }
     cache := PkgJoin(PkgCacheRoot(), "/zx")
     key := PkgDigest(PkgJoin3(url, PkgJoin("\n", digest), PkgJoin("\n", module)))
@@ -211,10 +193,9 @@ Fetch :: (launcher: string, url: string, profile: string, digest: string,
     root := PkgJoin3(cache, "/", key)
     name := module
     if name == "" { name = profile }
-    extension := ifx PkgEndsWith(url, ".zir.zip") then ".zir.zip" else ".zx"
-    image := PkgJoin(PkgJoin3(root, "/", name), extension)
+    image := PkgJoin(PkgJoin3(root, "/", name), ".zx")
     if PathExists(image) {
-        if ImageDigest(image) != digest || !ImageVerified(launcher, image, module) {
+        if ImageDigest(image) != digest || !ImageVerified(launcher, image, module, id, profile) {
             return PkgFail("cached portable image failed digest, format or module-name verification")
         }
     } else {
@@ -222,10 +203,10 @@ Fetch :: (launcher: string, url: string, profile: string, digest: string,
         stage := PkgArtifactStage(cache)
         if stage == "" { return PkgFail("cannot stage the portable image") }
         defer PkgArtifactRemove(stage)
-        temporary := PkgJoin3(stage, "/download", extension)
+        temporary := PkgJoin(stage, "/download.zx")
         status := Transfer(url, temporary, netrc, false)
         if status != "200" { return TransferFailure("cannot fetch the portable image from Gitea", status) }
-        if ImageDigest(temporary) != digest || !ImageVerified(launcher, temporary, module) {
+        if ImageDigest(temporary) != digest || !ImageVerified(launcher, temporary, module, id, profile) {
             return PkgFail("downloaded portable image failed digest, format or module-name verification")
         }
         if !PkgMkdirs(ParentDirectory(image)) || !RenamePath(temporary, image) {
@@ -262,14 +243,16 @@ PkgZxUsage :: () -> string {
     return PkgJoin3(
         "usage: ziran pkg zx publish REPOSITORY REVISION PROFILE FILE.zx [--netrc FILE]\n",
         "       ziran pkg zx fetch REPOSITORY REVISION PROFILE SHA256 [--module LOGICAL_NAME] [--offline] [--netrc FILE]\n",
-        PkgJoin3("       ziran pkg zx pack-ir REPOSITORY REVISION PROFILE FILE.zir.zip [--define NAME]...\n",
-            "       ziran pkg zx publish-ir REPOSITORY REVISION PROFILE FILE.zir.zip [--netrc FILE]\n",
-            "       ziran pkg zx fetch-ir REPOSITORY REVISION PROFILE SHA256 [--offline] [--netrc FILE]\n"))
+        PkgJoin3("       ziran pkg zx pack-ir REPOSITORY REVISION PROFILE FILE.zx [--define NAME]... --locked [--offline]\n",
+            "       ziran pkg zx publish-ir REPOSITORY REVISION PROFILE FILE.zx [--netrc FILE]\n",
+            "       ziran pkg zx fetch-ir REPOSITORY REVISION PROFILE SHA256 [--offline] [--netrc FILE]\n       ziran pkg zx pack-dev REPOSITORY REVISION PROFILE FILE.zx [--define NAME]... [--offline]\n       ziran pkg zx inspect-ir FILE.zx\n"))
 }
 
 PkgCheckedPins :: struct {
     launcher: string
     tool_identity: string
+    lifecycle_manifest: *PkgManifest
+    development_directory: string
     pins: [64]PinnedCheckedPackage
     count: s32
 }
@@ -279,7 +262,7 @@ PkgReadCheckedPins :: (root: string, launcher: string, locked: *PkgLock, pins: *
     tool := PkgLockId(locked.tool_url, locked.tool_commit, false)
     for item: locked.packages[0:locked.count] {
         if item.checked_profile == "" { continue }
-        if !RegistrySegment(item.checked_profile) || item.checked_tool != tool { return false }
+        if !PkgRegistrySegment(item.checked_profile) || item.checked_tool != tool { return false }
         pins.pins[pins.count] = .{package = item.id, profile = item.checked_profile, digest = item.checked_digest}
         pins.count += 1
     }
@@ -306,7 +289,7 @@ PkgReadCheckedPins :: (root: string, launcher: string, locked: *PkgLock, pins: *
         profile := PkgJsonField(json, row, "profile")
         digest := PkgJsonField(json, row, "sha256")
         target := PkgFindById(locked, id)
-        if target < 0 || locked.packages[target].source || !RegistrySegment(profile) || !HexDigest(digest) { return false }
+        if target < 0 || locked.packages[target].source || !PkgRegistrySegment(profile) || !HexDigest(digest) { return false }
         for previous: 0..index - 1 {
             if PkgJsonField(json, ElementAt(json, items, previous), "package") == id { return false }
         }
@@ -347,7 +330,7 @@ PackageNetrc :: (offline: bool, output: *string) -> bool {
 
 OpenChecked :: (pins: *PkgCheckedPins, item: *PkgLocked, locked: *PkgLock,
     pin: *PinnedCheckedPackage, offline: bool) -> bool {
-    url := RegistryUrl(CheckedRepository(item.url), item.commit, pin.profile, ".zir.zip")
+    url := RegistryUrl(CheckedRepository(item.url), item.commit, pin.profile, true)
     if url == "" {
         unused PkgFail("expected an HTTPS registry and exact checked package revision")
         return false
@@ -355,7 +338,7 @@ OpenChecked :: (pins: *PkgCheckedPins, item: *PkgLocked, locked: *PkgLock,
     netrc: string
     if !PackageNetrc(offline, *netrc) { return false }
     archive: string
-    if Fetch(pins.launcher, url, pin.profile, pin.digest, "", netrc, offline, *archive) != 0 { return false }
+    if Fetch(pins.launcher, url, pin.profile, pin.digest, "", netrc, offline, *archive, item.id) != 0 { return false }
     pin.stage = PkgArtifactStage(PkgJoin(PkgCacheRoot(), "/zx"))
     if pin.stage == "" || !PkgCheckedArchive(archive, pin.digest, pin.stage, item.id,
         locked.tool_url, locked.tool_commit, pin.profile) {
@@ -370,10 +353,37 @@ OpenChecked :: (pins: *PkgCheckedPins, item: *PkgLocked, locked: *PkgLock,
 
 PkgSelectChecked :: (context: *void, item: *PkgLocked, locked: *PkgLock, offline: bool) -> bool {
     pins := cast(*PkgCheckedPins)context
+    if pins.lifecycle_manifest != null && pins.lifecycle_manifest.tool != "" { return true }
+    development: string
+    if pins.development_directory != "" {
+        path := PkgJoin(PkgJoin3(pins.development_directory, "/", item.id), ".zx")
+        if PathExists(path) { development = path }
+    }
     for index: 0..pins.count - 1 {
         pin := *pins.pins[index]
-        if pin.package == item.id { return OpenChecked(pins, item, locked, pin, offline) }
+        if pin.package != item.id { continue }
+        if development != "" { return OpenDevelopment(pins, item, locked, pin, development) }
+        return OpenChecked(pins, item, locked, pin, offline)
     }
+    if development == "" { return true }
+    if pins.count >= 64 { return false }
+    pin := *pins.pins[pins.count]
+    pins.count += 1
+    pin.package = item.id
+    return OpenDevelopment(pins, item, locked, pin, development)
+}
+
+OpenDevelopment :: (pins: *PkgCheckedPins, item: *PkgLocked, locked: *PkgLock,
+    pin: *PinnedCheckedPackage, path: string) -> bool {
+    pin.stage = PkgArtifactStage(PkgJoin(PkgCacheRoot(), "/zx"))
+    if pin.stage == "" || !PkgCheckedArchive(path, "", pin.stage, item.id,
+        locked.tool_url, locked.tool_commit, "", null, true) {
+        unused PkgFail("development .zx library does not match its package or toolchain")
+        return false
+    }
+    item.path = pin.stage
+    item.checked = true
+    pins.tool_identity = PkgLockId(locked.tool_url, locked.tool_commit, false)
     return true
 }
 
@@ -387,7 +397,7 @@ PkgDiscoverChecked :: (context: *void, item: *PkgLocked, locked: *PkgLock, offli
     saved := item.checked_profile != ""
     replacing := saved && requested != "" && requested != item.checked_profile
     if saved && !replacing {
-        if item.checked_tool != tool || !RegistrySegment(item.checked_profile) {
+        if item.checked_tool != tool || !PkgRegistrySegment(item.checked_profile) {
             unused PkgFail("saved checked package requires a different toolchain or profile")
             return false
         }
@@ -403,7 +413,7 @@ PkgDiscoverChecked :: (context: *void, item: *PkgLocked, locked: *PkgLock, offli
         prefix := PkgJoin(origin, "/")
         if !replacing && (repository.count <= prefix.count || repository[0:prefix.count] != prefix) { return true }
         profile := ifx requested == "" then "default" else requested
-        url := RegistryUrl(repository, item.commit, profile, ".zir.zip")
+        url := RegistryUrl(repository, item.commit, profile, true)
         if url == "" {
             unused PkgFail("invalid checked package registry address or profile")
             return false
@@ -424,7 +434,7 @@ PkgDiscoverChecked :: (context: *void, item: *PkgLocked, locked: *PkgLock, offli
             return false
         }
         metadata := PkgReadLimited(descriptor, 4096)
-        expected := PkgJoin3(PkgJoin3("1\t", item.id, "\t"), PkgJoin3(tool, "\t", profile), "\t")
+        expected := PkgJoin(CheckedDescriptorPrefix(item.id, tool, profile), "\t")
         if !metadata.valid || metadata.text.count != expected.count + 65 ||
             metadata.text[0:expected.count] != expected ||
             metadata.text[metadata.text.count - 1:] != "\n" ||
@@ -454,10 +464,10 @@ PkgResolveZxLock :: (launcher: string, root: string, refresh: string, offline: b
 }
 
 PkgPackChecked :: (root: string, compiler: string, locked: *PkgLock, current: *PkgManifest,
-    arguments: []string) -> s32 {
+    arguments: []string, development: bool) -> s32 {
     if arguments.count < 4 || (arguments.count - 4) % 2 != 0 ||
-        RegistryUrl(arguments[0], arguments[1], arguments[2], ".zir.zip") == "" ||
-        !PkgEndsWith(arguments[3], ".zir.zip") { return PkgFail(PkgTrim(PkgZxUsage())) }
+        RegistryUrl(arguments[0], arguments[1], arguments[2], true) == "" ||
+        !PkgEndsWith(arguments[3], ".zx") { return PkgFail(PkgTrim(PkgZxUsage())) }
     for index: 4..arguments.count - 1 {
         if (index - 4) % 2 == 0 {
             if arguments[index] != "--define" { return PkgFail("expected --define NAME") }
@@ -467,14 +477,19 @@ PkgPackChecked :: (root: string, compiler: string, locked: *PkgLock, current: *P
     revision := PkgCapture(revision_args[:], root)
     origin_args := string.["git", "remote", "get-url", "origin"]
     origin := PkgCapture(origin_args[:], root)
-    status_args := string.["git", "status", "--porcelain", "--untracked-files=normal"]
-    status := PkgCapture(status_args[:], root)
     if revision.code != 0 || PkgTrim(revision.text) != arguments[1] || origin.code != 0 ||
-        !PkgSameSource(PkgTrim(origin.text), arguments[0]) || status.code != 0 || PkgTrim(status.text) != "" {
-        return PkgFail("checked package export requires the clean declared repository revision")
+        !PkgSameSource(PkgTrim(origin.text), arguments[0]) {
+        return PkgFail("checked package export requires the declared repository and HEAD revision")
+    }
+    if !development {
+        status_args := string.["git", "status", "--porcelain", "--untracked-files=normal"]
+        status := PkgCapture(status_args[:], root)
+        if status.code != 0 || PkgTrim(status.text) != "" || !PkgValidCommit(locked.tool_commit) {
+            return PkgFail("checked package export requires the clean declared repository revision")
+        }
     }
     return PkgCheckedPack(root, locked, current, compiler, arguments[0], arguments[1], arguments[2],
-        arguments[3], arguments[4:])
+        arguments[3], arguments[4:], development)
 }
 
 PkgZx :: (launcher: string, arguments: []string) -> s32 {
@@ -482,13 +497,24 @@ PkgZx :: (launcher: string, arguments: []string) -> s32 {
         PkgPrint(PkgZxUsage(), false)
         return 0
     }
+    if arguments.count == 2 && arguments[0] == "inspect-ir" {
+        path := arguments[1]
+        digest := ImageDigest(path)
+        identity: string
+        if !PkgEndsWith(path, ".zx") || !HexDigest(digest) ||
+            (!PkgCheckedArchive(path, digest, "", "", "", "", "", *identity) &&
+             !PkgCheckedArchive(path, digest, "", "", "", "", "", *identity, true)) {
+            return PkgFail("cannot verify the checked .zx library")
+        }
+        PkgPrint(PkgJoin3(identity[0:identity.count - 1], "\t", PkgJoin(digest, "\n")), false)
+        return 0
+    }
     checked := arguments.count != 0 && (arguments[0] == "publish-ir" || arguments[0] == "fetch-ir")
     if arguments.count < 5 || (!checked && arguments[0] != "publish" && arguments[0] != "fetch") {
         return PkgFail(PkgTrim(PkgZxUsage()))
     }
     publish := arguments[0] == "publish" || arguments[0] == "publish-ir"
-    extension := ifx checked then ".zir.zip" else ".zx"
-    url := RegistryUrl(arguments[1], arguments[2], arguments[3], extension)
+    url := RegistryUrl(arguments[1], arguments[2], arguments[3], checked)
     if url == "" { return PkgFail("expected an HTTPS Gitea repository, full Git revision and portable profile") }
     module: string
     netrc: string
@@ -507,12 +533,12 @@ PkgZx :: (launcher: string, arguments: []string) -> s32 {
             index += 1
         } else { return PkgFail(PkgJoin("invalid portable package option: ", option)) }
     }
+    id := ifx checked then PkgLockId(arguments[1], arguments[2], false) else ""
     if publish {
-        id := ifx checked then PkgLockId(arguments[1], arguments[2], false) else ""
         return Publish(launcher, url, arguments[4], netrc, id, arguments[3])
     }
     output: string
-    code := Fetch(launcher, url, arguments[3], arguments[4], module, netrc, offline, *output)
+    code := Fetch(launcher, url, arguments[3], arguments[4], module, netrc, offline, *output, id)
     if code == 0 { PkgPrint(PkgJoin(output, "\n"), false) }
     return code
 }
@@ -559,7 +585,7 @@ PkgZxLockedArguments :: (launcher: string, arguments: []string, lock_at: s64, fl
         profile := PkgJsonField(json, row, "profile")
         digest := PkgJsonField(json, row, "sha256")
         url := RegistryUrl(PkgJsonField(json, row, "repository"), PkgJsonField(json, row, "commit"), profile)
-        if !RegistrySegment(alias) || !ModuleName(name) || url == "" || !HexDigest(digest) {
+        if !PkgRegistrySegment(alias) || !ModuleName(name) || url == "" || !HexDigest(digest) {
             return LockFailure("invalid pinned ZX module")
         }
         for prior: 0..index - 1 {
@@ -585,7 +611,7 @@ PkgZxLockedArguments :: (launcher: string, arguments: []string, lock_at: s64, fl
         exported := PkgJsonField(json, row, "export")
         found := false
         for pinned: modules[0:module_count] { if pinned.alias == alias { found = true } }
-        if !RegistrySegment(module) || !RegistrySegment(function) || !RegistrySegment(exported) || !found {
+        if !PkgRegistrySegment(module) || !PkgRegistrySegment(function) || !PkgRegistrySegment(exported) || !found {
             return LockFailure("invalid ZX import or unpinned interface alias")
         }
         if build {

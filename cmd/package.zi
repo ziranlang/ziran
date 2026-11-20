@@ -848,7 +848,9 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         return 0
     }
     command: string = arguments[0]
-    pack_checked := command == "pkg" && arguments.count >= 3 && arguments[1] == "zx" && arguments[2] == "pack-ir"
+    package_zx := command == "pkg" && arguments.count >= 3 && arguments[1] == "zx"
+    pack_dev := package_zx && arguments[2] == "pack-dev"
+    pack_checked := pack_dev || (package_zx && arguments[2] == "pack-ir")
     // A binary-only consumer need not have a project or check out its sources.
     if !pack_checked && command == "pkg" && arguments.count >= 2 && arguments[1] == "zx" {
         return PkgZx(launcher, arguments[2:])
@@ -928,6 +930,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     project: bool = PkgHasArgument(flags, "--project") || implied
     locked_mode: bool = PkgHasArgument(flags, "--locked")
     offline: bool = PkgHasArgument(flags, "--offline")
+    if pack_dev && locked_mode { return PkgFail("pack-dev cannot be used with --locked") }
     filtered := PkgStrings(arguments.count)
     if filtered.count != arguments.count { return PkgFail("cannot allocate arguments") }
     count: s32 = 0
@@ -967,12 +970,27 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         }
         selection := PkgCheckedSelection.{call = PkgSelectChecked, context = cast(*void)(*checked_pins)}
         checked: *PkgCheckedSelection = null
-        if command == "bundle" || (command == "build" && PkgHasArgument(flags, "--target=zx")) ||
+        compile := command == "build" || command == "run" || command == "check"
+        target := PkgHasTarget(flags[1:])
+        if compile && lifecycle && !target { checked_pins.lifecycle_manifest = current }
+        if command == "bundle" || (compile && !target) ||
+            (compile && PkgHasArgument(flags, "--target=c")) ||
+            (command == "build" && PkgHasArgument(flags, "--target=zx")) ||
             pack_checked || (command == "pkg" && count >= 1 && filtered[0] == "list") {
             if !PkgReadCheckedPins(root, launcher, locked, *checked_pins) {
                 return PkgFail("invalid checked packages in ziran.zx.lock")
             }
-            if checked_pins.count != 0 { checked = *selection }
+            if command == "bundle" || compile || pack_dev {
+                development := PkgGetenv("ZIRAN_DEV_ZX_DIR")
+                if development != "" {
+                    if locked_mode { return PkgFail("ZIRAN_DEV_ZX_DIR cannot be used with --locked") }
+                    checked_pins.development_directory = PkgCanonical(development)
+                    if !DirectoryExists(checked_pins.development_directory) {
+                        return PkgFail("ZIRAN_DEV_ZX_DIR must name a directory")
+                    }
+                }
+            }
+            if checked_pins.count != 0 || checked_pins.development_directory != "" { checked = *selection }
         }
         if !PkgCheckoutGraph(root, locked, offline, locked_mode, current, checked) {
             if pkg_failure_reported { return 2 }
@@ -1028,7 +1046,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if pack_checked {
         directory := PkgToolDirectory(launcher, locked.tool_path, "zi2zir")
         if directory == "" { return PkgFail("cannot find the pinned Ziran compiler") }
-        return PkgPackChecked(root, PkgJoin(directory, "/zi2zir"), locked, current, filtered[2:count])
+        return PkgPackChecked(root, PkgJoin(directory, "/zi2zir"), locked, current, filtered[2:count], pack_dev)
     }
     if command == "fetch" { return 0 }
     if command == "compile-commands" {

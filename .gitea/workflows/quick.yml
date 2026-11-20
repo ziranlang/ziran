@@ -1,0 +1,27 @@
+name: Quick Ziran build
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quick:
+    runs-on: build-ziran
+    timeout-minutes: 15
+    steps:
+      - uses: https://github.com/actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare the C compiler cache
+        run: sh scripts/ci_packages.sh ccache
+      - uses: ./.github/actions/compile-cache
+        with:
+          key: check
+      - name: Compile and start Ziran
+        run: |
+          make JOBS=2 build/bin/ziran
+          build/bin/ziran --version
+      - name: Report compile cache savings
+        if: always()
+        run: ccache --show-stats

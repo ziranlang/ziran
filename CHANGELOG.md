@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Package tested native Ziran toolchains in Gitea by exact source revision and Linux host profile.
+- Distribute checked packages as versioned `.zx` libraries for source-free imports in ZX and native builds.
+
 - Publish and fetch verified `.zx` images and checked compiler companions through Gitea. Package locks can discover and pin compatible checked dependencies for source-free ZX builds.
 
 - C embedders can open seekable ZX app images through `BundleOpenReadAt` without keeping a full input buffer. The callback is needed only during verification, and images with assets, module linkage, or additional attachments use the byte-based API.

@@ -545,10 +545,39 @@ still checks typed imports and requires the host grants used by the image.
 This workflow uses ZX runtime interfaces. Checked packages support source
 imports and generics. Platform-native dependencies use native artifacts.
 
+## Prebuilt Ziran toolchains
+
+The canonical Gitea check job packages the Ziran executables, standard
+library, headers, and native archive from the build it just tested. Each
+artifact identifies the full Ziran commit and the build host's Linux
+architecture and glibc version. The native job reuses its build directory.
+
+Download `toolchain-<commit>` from the corresponding check run. When the
+workflow has a package writer configured, the same two files are available
+from Gitea Generic Packages under `ziranlang/ziran-toolchain`, using the full
+Git commit as the package version. The `.json` descriptor and `.tar.gz`
+archive share the profile name, for example `linux-x64-glibc-2.39`.
+
+```sh
+python3 scripts/toolchain_package.py verify "$commit" "$profile.json"
+```
+
+Compare `commit` to the toolchain commit in the consuming project's
+`ziran.lock` and use a Linux host that supports the archive's profile.
+The verification command checks the commit, archive length, and SHA-256.
+The archive contains `build/bin/ziran` and its companion tools. Package
+commands that require a source checkout still use their existing exact Git
+source cache.
+
+Configure `ZIRAN_TOOLCHAIN_PACKAGE_USER` and `ZIRAN_TOOLCHAIN_PACKAGE_TOKEN`
+as Gitea Actions secrets for a package writer in the `ziranlang` organization.
+The workflow uploads the archive first and its descriptor second. Existing
+registry files are accepted on retry when their bytes match.
+
 ## Checked packages for source imports
 
 A package with manifest exports can distribute its checked Ziran modules as
-a `.zir.zip` compiler companion. Pack it from the clean provider revision
+a `.zx` library. Pack it from the clean provider revision
 using the exact, clean toolchain and dependencies pinned in `ziran.lock`.
 Each profile names a fixed toolchain and set of feature defines at that
 provider revision. Supply defines with `--define NAME` when packing.
@@ -556,24 +585,27 @@ provider revision. Supply defines with `--define NAME` when packing.
 ```sh
 repo=https://git.waozi.xyz/example/counter.git
 commit=$(git rev-parse HEAD)
-ziran pkg zx pack-ir "$repo" "$commit" default build/counter.zir.zip --locked
-sha256=$(ziran pkg zx publish-ir "$repo" "$commit" default build/counter.zir.zip --netrc "$NETRC_FILE")
+ziran pkg zx pack-ir "$repo" "$commit" default build/counter.zx --locked
+ziran pkg zx inspect-ir build/counter.zx
+sha256=$(ziran pkg zx publish-ir "$repo" "$commit" default build/counter.zx --netrc "$NETRC_FILE")
 ziran pkg zx fetch-ir "$repo" "$commit" default "$sha256"
 ```
 
-`publish-ir` uploads the archive, then publishes the matching discovery
-record at the same revision and profile. Either upload can be repeated with
-identical bytes. Keep the archive and record together when operating a registry.
+`publish-ir` uploads `<profile>.zx` and then `<profile>.zx.tsv` to the
+`<repository>-zx-library` Generic package at the full Git revision. Either
+upload can be repeated with identical bytes. `inspect-ir` verifies local
+library bytes and prints the same tab-separated record with the package,
+toolchain, profile, and digest.
 
-`ziran add` and `ziran lock` discover companions on `https://git.waozi.xyz`
+`ziran add` and `ziran lock` discover libraries on `https://git.waozi.xyz`
 and save their exact profile, digest and toolchain identity in the package
 entry in `ziran.lock`. For a different Gitea server, set `ZIRAN_ZX_REGISTRY`
 to its HTTPS origin. Discovery uses the `default` profile unless
 `ZIRAN_ZX_PROFILE` selects another. Set `ZIRAN_PACKAGE_NETRC`
 for authenticated reads. A missing discovery record for an unpinned package
 allows ordinary source resolution. Invalid metadata, an incompatible
-toolchain, or a missing advertised archive stops resolution. A saved pin
-continues to identify the same exact archive.
+toolchain, or a missing advertised library stops resolution. A saved pin
+continues to identify the same exact library.
 
 ```sh
 ziran add "$repo" --ref "$commit"
@@ -582,7 +614,7 @@ ziran lock --offline
 ziran bundle --project --offline --entry app:main -o app.zx app.zi
 ```
 
-You can also supply a companion pin explicitly in `ziran.zx.lock`, using
+You can also supply a library pin explicitly in `ziran.zx.lock`, using
 the dependency's `id` from `ziran.lock` and the publisher's profile and digest.
 An explicit pin for a package with a discovered pin must agree with it.
 
@@ -599,16 +631,42 @@ An explicit pin for a package with a discovered pin must agree with it.
 }
 ```
 
-`ziran bundle --project` and `ziran build --project --target=zx` select the
-pinned checked archives before checking out those dependencies. Existing
-source imports still resolve through the dependency aliases and manifest
+Project `bundle`, `check`, and native `build` and `run` select pinned libraries
+before checking out those dependencies. `build --target=zx` does the same.
+Source imports resolve through the dependency aliases and manifest
 exports. The compiler verifies the checked modules and uses their types,
 bodies and specializations when it lowers the application. This skips
 dependency source checking and keeps shared types and state in one program.
 Each transitive package whose source will be absent needs a pin. `--offline`
-requires the pinned archives in the local cache. Local source overrides
+requires the pinned libraries in the local cache. Local source overrides
 still take precedence unless `--locked` is set. Distribute the final `.zx`
 with the portable image commands above.
+
+### Check a library from a working tree
+
+From the provider checkout, use its current `ziran.lock` and actual HEAD.
+`pack-dev` includes the working source, manifest, lock and feature defines
+in a source fingerprint. It allows local toolchain and source overrides.
+
+```sh
+ziran pkg zx pack-dev "$repo" "$(git rev-parse HEAD)" default build/counter-dev.zx --offline
+ziran pkg zx inspect-ir build/counter-dev.zx
+```
+
+The inspection record starts with `dev`, followed by the package identity,
+toolchain identity, profile, provider source fingerprint, and file SHA-256.
+Copy the development library to a local directory as `<package-id>.zx`.
+Point `ZIRAN_DEV_ZX_DIR` at that directory when compiling the consumer. Keep
+the normal project lock and remove any source override for that provider
+from the consumer. Several development libraries can share a directory.
+
+```sh
+ZIRAN_DEV_ZX_DIR="$libdir" ziran bundle --project --offline --entry app:main -o app.zx app.zi
+```
+
+The compiler checks each development library against the locked package and
+toolchain. These files are for local verification. `publish-ir`, production
+pins, and `--locked` commands reject development libraries.
 
 ## Dependency-owned native artifacts
 

@@ -1,9 +1,10 @@
 # ZX executable instruction container — revision 28
 
-This is the one `.zx` format. The format owner is `cmd/compiler_bundle.zi`;
+This document specifies the `.zx` executable format. The format owner is `cmd/compiler_bundle.zi`;
 `cmd/compiler_exec_link.zi` binds it to the deterministic LIR codec and
 verifier (current payload schema 4). `zi2zx` writes it; `ziran run`, `zi2zx run`,
 the embedding API (`include/ziran_host.h`), `zx2wasm`, and `zx2native` read it.
+Checked packages use the [ZX library format](zx-library-format.md).
 
 ## Integers, limits and ordering
 

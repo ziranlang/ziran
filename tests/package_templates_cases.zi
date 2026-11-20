@@ -20,7 +20,9 @@ Templates :: (test: *NativeTest) -> bool {
     // explicitly select the compiler under test; the real source tree is never cloned.
     if !FixtureInit(test, tool) || !NativeWrite(test, CheckPath(tool, "VERSION"), "template fixture\n") || !NativeAssert(test, CreateDirectories(work), "create template test folder") { return false }
     unused FixtureCommit(test, tool, "template toolchain metadata")
-    prefixes := string.["https://github.com/ziranlang/ziran.git"]; targets := string.[FixtureUri(tool)]
+    tool_uri := FixtureUri(tool)
+    prefixes := string.["https://git.waozi.xyz/ziranlang/ziran.git", "https://github.com/ziranlang/ziran.git"]
+    targets := string.[tool_uri, tool_uri]
     if !FixtureRedirects(test, prefixes[:], targets[:]) { return false }
     create := string.["new", "greeter"]; created := PackageCommand(test, work, create[:])
     greeter := CheckPath(work, "greeter"); manifest_path := CheckPath(greeter, "ziran.toml")
@@ -87,7 +89,8 @@ Templates :: (test: *NativeTest) -> bool {
         !NativeWrite(test, CheckPath(kit, "templates/panel/ziran.toml"), "[package]\nname = \"{{name}}\"\n[toolchain]\ngit = \"https://github.com/ziranlang/ziran.git\"\nref = \"master\"\n") ||
         !NativeWrite(test, CheckPath(kit, "templates/panel/panel.txt"), "panel for {{name}}\n") { return false }
     unused FixtureCommit(test, kit, "template kit fixture")
-    kit_prefixes := string.[prefixes[0], "https://ziran-lang.org/owner/kit.git"]; kit_targets := string.[targets[0], FixtureUri(kit)]
+    kit_prefixes := string.[prefixes[0], prefixes[1], "https://ziran-lang.org/owner/kit.git"]
+    kit_targets := string.[tool_uri, tool_uri, FixtureUri(kit)]
     if !FixtureRedirects(test, kit_prefixes[:], kit_targets[:]) { return false }
     window_command := string.["new", "my-app", "--template", "ziran-lang.org/owner/kit"]
     windowed := PackageCommand(test, work, window_command[:])

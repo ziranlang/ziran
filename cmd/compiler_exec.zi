@@ -1973,16 +1973,18 @@ ExecAddressSlots :: 2097151
 ExecAddressVersions :: 268435455
 
 // Large VM vectors can stay near their peak for the lifetime of a guest.
-// Leave some geometric headroom for repeated growth, capped at one eighth
-// of the old capacity. The caller has already checked count against maximum.
-ExecGrowthCeiling :: (count: s64, capacity: s64, maximum: s64, small: s64) -> s64 #inline {
+// Limit geometric growth to a fraction of the old capacity. The caller
+// has already checked count against maximum.
+ExecGrowthCeiling :: (count: s64, capacity: s64, maximum: s64, small: s64, growth_divisor: s64 = 8) -> s64 #inline {
     if count <= capacity || count <= small { return maximum }
-    spare := capacity / 8
+    spare := capacity / growth_divisor
     return count + (ifx spare < maximum - count then spare else maximum - count)
 }
 
 ExecResizeAddresses :: (instance: *LirExecInstance, count: s64, maximum: s64) -> bool {
-    ceiling := ExecGrowthCeiling(count, instance.addresses.capacity, maximum, 1024)
+    // Address records are large and realloc may hold both tables at once.
+    // Keep some geometric headroom without needing a much larger free block.
+    ceiling := ExecGrowthCeiling(count, instance.addresses.capacity, maximum, 1024, 64)
     if VecResizeBounded(instance.addresses, count, ceiling) { return true }
     return count > instance.addresses.capacity && count < ceiling &&
         VecResizeBounded(instance.addresses, count, count)

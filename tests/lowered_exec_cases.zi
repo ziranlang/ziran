@@ -1109,7 +1109,7 @@ HeapResize :: () -> bool {
 // A frame holds a fresh address on each iteration. Reusing the same
 // instance recycles those slots and keeps the backing capacity stable.
 AddressGrowthAndChurn :: () -> bool {
-    count := cast(s64)3500
+    count := cast(s64)7000
     types: [4]LirType = .[.{.kind = .Void}, .{.kind = .Integer, .bits = 32, .is_signed = true},
         .{.kind = .Bool, .bits = 1}, .{.kind = .Pointer, .element = 1}]
     constants: [3]LirConstant = .[
@@ -1150,7 +1150,7 @@ AddressGrowthAndChurn :: () -> bool {
     first := LirExecRun(*instance)
     capacity := instance.addresses.capacity
     if first.problem != .None || first.value.bits != 1 || instance.addresses.count != count ||
-        capacity < count || capacity > count + count / 8 { return false }
+        capacity < count || capacity > count + count / 64 { return false }
     for attempt: 1..4 {
         reused := LirExecRun(*instance)
         if reused.problem != .None || reused.value.bits != 1 || instance.addresses.count != count ||

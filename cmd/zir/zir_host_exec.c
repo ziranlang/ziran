@@ -518,7 +518,11 @@ ExecBundleOpen(const unsigned char *bytes, size_t size, const char *name)
         goto failed;
     }
     bundle->program = compiler_exec_link_ZxExecReadProgram(&bundle->owner);
+#ifdef ZIRAN_COMPACT_EXEC_PLAN
+    LirExecResult planned = compiler_exec_LirExecPlanBuildCompact(bundle->program, compiler_lowered_ir_LirDefaultLimits(), &bundle->plan);
+#else
     LirExecResult planned = compiler_exec_LirExecPlanBuild(bundle->program, compiler_lowered_ir_LirDefaultLimits(), &bundle->plan);
+#endif
     if(planned.problem != LirExecProblem_None) {
         String problem = compiler_exec_LirExecProblemName(planned.problem);
         Diagnostic(Span(name, 1, 1), "zx.input", "executable ZX cannot run: problem=%.*s",
@@ -1936,6 +1940,36 @@ exec_run(ExecInstance *instance, int initialize, LirExecResult *ran)
     return 0;
 }
 
+#if defined(ZIRAN_EXEC_FRAME_RESERVE_BYTES) != defined(ZIRAN_EXEC_FRAME_RESERVE_MIN)
+#error "define both ZIRAN_EXEC_FRAME_RESERVE_BYTES and ZIRAN_EXEC_FRAME_RESERVE_MIN"
+#endif
+
+#ifdef ZIRAN_EXEC_FRAME_RESERVE_BYTES
+_Static_assert(ZIRAN_EXEC_FRAME_RESERVE_MIN > 0 &&
+               ZIRAN_EXEC_FRAME_RESERVE_MIN <= ZIRAN_EXEC_FRAME_RESERVE_BYTES &&
+               ZIRAN_EXEC_FRAME_RESERVE_BYTES <= INT64_MAX &&
+               ZIRAN_EXEC_FRAME_RESERVE_BYTES <= SIZE_MAX, "invalid engine frame reservation");
+
+static void
+exec_reserve_frame_storage(LirExecInstance *instance)
+{
+    const LirExecPlan *plan = instance->plan;
+    const int64_t bytes = ZIRAN_EXEC_FRAME_RESERVE_BYTES;
+    if(bytes > instance->limits.value_bytes - plan->global_bytes) return;
+    for(int64_t index = 0; index < plan->functions.count; index++) {
+        if(plan->functions.data[index].frame_bytes < ZIRAN_EXEC_FRAME_RESERVE_MIN) continue;
+        /* A fresh instance has empty storage. Reserve capacity before its
+         * first frame without changing its logical length or value limit. */
+        void *storage = malloc((size_t)bytes);
+        if(storage != NULL) {
+            instance->storage.data = storage;
+            instance->storage.capacity = bytes;
+        }
+        return;
+    }
+}
+#endif
+
 ExecInstance *
 ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, long long max_steps,
                  BundleConsoleWrite write, void *console_context)
@@ -1964,6 +1998,9 @@ ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, 
     unsigned identity = atomic_fetch_add_explicit(&identities, 1, memory_order_relaxed) + 1;
     if(identity == 0) identity = atomic_fetch_add_explicit(&identities, 1, memory_order_relaxed) + 1;
     LirExecResult opened = compiler_exec_LirExecInstanceOpen((LirExecPlan *)&bundle->plan, limits, identity, &instance->instance);
+#ifdef ZIRAN_EXEC_FRAME_RESERVE_BYTES
+    if(opened.problem == LirExecProblem_None) exec_reserve_frame_storage(&instance->instance);
+#endif
     LirExecProblem bound = opened.problem == LirExecProblem_None ?
         ZxBindConsole(&instance->instance, &bundle->program, &instance->console) : opened.problem;
     instance->console.write = write;
@@ -2026,7 +2063,7 @@ ExecInstanceMatchFieldsByName(ExecInstance *instance, int enabled)
 size_t
 ExecInstanceLiveBytes(const ExecInstance *instance)
 {
-    return (size_t)instance->instance.globals.count + (size_t)instance->instance.owned.count;
+    return (size_t)instance->bundle->plan.global_bytes + (size_t)instance->instance.owned.count;
 }
 
 size_t ExecInstanceStateCount(const ExecInstance *instance) { return instance->bundle->global_count; }

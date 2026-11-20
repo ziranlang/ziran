@@ -118,6 +118,20 @@ callback receives writes to descriptors 1 and 2, including writes during
 global initialization. The embedder can connect those descriptors to its
 own console or process namespace. See [ziran_host.h](../include/ziran_host.h).
 
+For a memory-constrained embedder, build `libziran.a` with
+`-DZIRAN_COMPACT_EXEC_PLAN` in `CFLAGS`. The instruction engine runs verified
+instructions directly, with the same binding checks and execution limits.
+This saves the fast-code tables and can make execution slower.
+
+On hosts where growing a contiguous allocation can exhaust a fragmented heap,
+build with both `-DZIRAN_EXEC_FRAME_RESERVE_BYTES=6291456` and
+`-DZIRAN_EXEC_FRAME_RESERVE_MIN=1048576` in `CFLAGS` to reserve 6 MiB of frame
+storage at portable instance creation when a verified function has a frame of
+at least 1 MiB. Both settings are in bytes. The engine attempts the reserve
+only within its existing value-byte limit. If the allocation fails, frame
+storage grows on demand under that same limit. Without these settings, frame
+storage always grows on demand.
+
 Compiled native code is cached on disk in `$XDG_CACHE_HOME/ziran/native`, or
 `~/.cache/ziran/native` without it, so a later run in another process maps the
 code instead of compiling it again. An entry is keyed by the bundle's content,

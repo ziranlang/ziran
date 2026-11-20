@@ -167,6 +167,49 @@ ScalarCases :: () -> bool {
     return true
 }
 
+CompactCodeChunks :: () -> bool {
+    types: [2]LirType = .[.{.kind = .Void}, .{.kind = .Integer, .bits = 32, .is_signed = true}]
+    constants: [1]LirConstant = .[.{.type = 1, .bits = 42}]
+    empty: [0]s32
+    operands: [515]s32
+    values: [515]s32
+    count := cast(s32)values.count - 1
+    instructions: Vec(LirInstruction)
+    defer VecFree(instructions)
+    instruction_count := cast(s64)count + 2
+    if !VecResizeBounded(instructions, instruction_count, instruction_count) { return false }
+    instructions[0] = Instruction(.Constant, 0, empty[:], 0)
+    for index: cast(s32)0..count {
+        values[index] = 1
+        operands[index] = index
+    }
+    for index: cast(s32)0..count - 1 {
+        instructions[index + 1] = Instruction(.Negate, index + 1, operands[index:index + 1])
+    }
+    instructions[count + 1] = Instruction(.Return, -1, operands[count:])
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    modules: [1]string = .["chunks"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "chunks", .result = 1,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None || plan.code.count != 2 { return false }
+    limits := LirExecDefaultLimits()
+    result := RunOnce(*plan, limits, 1, false)
+    if result.problem != .None || result.value.bits != 42 ||
+        !SameResult(result, RunOnce(*plan, limits, 1, true)) { return false }
+    compact: LirExecPlan
+    defer LirExecPlanFree(*compact)
+    if LirExecPlanBuildCompact(program, LirDefaultLimits(), *compact).problem != .None ||
+        compact.code.count != 0 || !SameResult(result, RunOnce(*compact, limits, 1, false)) { return false }
+    limits.work = ExecCodeChunkSize + 2
+    result = RunOnce(*plan, limits, 1, false)
+    return result.problem == .WorkLimit && SameResult(result, RunOnce(*plan, limits, 1, true)) &&
+        SameResult(result, RunOnce(*compact, limits, 1, false))
+}
+
 Flow :: () -> bool {
     fields: [2]s32 = .[4, 4]; parameter: [1]s32 = .[4]; types: [15]LirType
     Types(types[:], fields[:], parameter[:])
@@ -207,7 +250,8 @@ Flow :: () -> bool {
         plan.value_words[3] == plan.value_words[0] ||
         plan.value_words[3] == plan.value_words[4] ||
         plan.block_edge_bases.count != 3 || plan.edge_direct.count != 3 ||
-        plan.block_instruction_bases.count != 3 || plan.instructions.count != 10 ||
+        plan.block_instruction_bases.count != 3 || plan.transient.count != 10 ||
+        plan.code.count != 1 || plan.code[0].entries.capacity > plan.transient.count ||
         plan.block_instruction_bases[0] != 0 ||
         plan.block_instruction_bases[1] != 4 || plan.block_instruction_bases[2] != 9 ||
         plan.edge_direct[plan.block_edge_bases[0]] == 0 ||
@@ -778,7 +822,7 @@ Instances :: () -> bool {
     returned: [1]s32 = .[3]
     counter_values: [4]s32 = .[13, 4, 4, 4]
     counter_instructions: [6]LirInstruction
-    counter_instructions[0] = Instruction(.GlobalAddress, 0, empty[:], 0)
+    counter_instructions[0] = Instruction(.GlobalAddress, 0, empty[:], 1)
     counter_instructions[1] = Instruction(.Load, 1, address_operand[:]); counter_instructions[1].effect = 1
     counter_instructions[2] = Instruction(.Constant, 2, empty[:], 1)
     counter_instructions[3] = Instruction(.Add, 3, add_operands[:])
@@ -795,8 +839,9 @@ Instances :: () -> bool {
     pointer_instructions[1] = Instruction(.Return, -1, pointer_return[:])
     pointer_blocks: [1]LirBlock = .[.{.parameters = pointer_parameters[:],
         .instructions = pointer_instructions[:]}]
-    globals: [1]LirGlobal = .[.{.module = 0, .name = "counter", .type = 4,
-        .constant = 0, .writable = true}]
+    globals: [2]LirGlobal = .[
+        .{.module = 0, .name = "padding", .type = 3, .constant = LirNoId, .writable = true},
+        .{.module = 0, .name = "counter", .type = 4, .constant = 0, .writable = true}]
     modules: [1]string = .["instances"]
     functions: [2]LirFunction = .[
         .{.module = 0, .name = "counter", .result = 4, .values = counter_values[:],
@@ -813,19 +858,21 @@ Instances :: () -> bool {
     defer LirExecInstanceClose(*second)
     if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None { return false }
     limits := LirExecDefaultLimits()
-    small := limits; small.value_bytes = 3
+    small := limits; small.value_bytes = 4
     if LirExecInstanceOpen(*plan, small, 1, *first).problem != .ValueBytes { return false }
     small = limits; small.addresses = 0
     if LirExecInstanceOpen(*plan, small, 1, *first).problem != .AddressLimit { return false }
     if LirExecInstanceOpen(*plan, limits, 1, *first).problem != .None ||
         LirExecInstanceOpen(*plan, limits, 2, *second).problem != .None { return false }
+    if first.globals.count != 2 || second.globals.count != 2 ||
+        first.globals[0].bytes.capacity != 1 || first.globals[1].bytes.capacity != 4 { return false }
     if LirExecRun(*first).value.bits != 41 || LirExecRun(*second).value.bits != 41 ||
         LirExecRun(*first).value.bits != 42 || LirExecRun(*second).value.bits != 42 { return false }
-    cross: [1]LirExecArgument = .[.{.type = 13, .bits = first.addresses[0].token}]
+    cross: [1]LirExecArgument = .[.{.type = 13, .bits = first.addresses[1].token}]
     rejected := LirExecCall(*second, 1, cross[:])
     if rejected.problem != .Pointer || rejected.function != 1 || rejected.block != 0 ||
         rejected.instruction != 0 { return false }
-    own: [1]LirExecArgument = .[.{.type = 13, .bits = second.addresses[0].token}]
+    own: [1]LirExecArgument = .[.{.type = 13, .bits = second.addresses[1].token}]
     if LirExecCall(*second, 1, own[:]).value.bits != 42 { return false }
     if LirExecInstanceOpen(*plan, limits, 9, *second).problem != .None ||
         LirExecRun(*second).value.bits != 41 { return false }
@@ -1488,6 +1535,7 @@ Answer :: () -> s32 {
     if !TypedHostBoundary() { return 22 }
     if !HeapResize() { return 23 }
     if !TypedHostShapes() { return 24 }
+    if !CompactCodeChunks() { return 25 }
     return 42
 }
 

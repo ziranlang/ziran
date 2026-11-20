@@ -104,6 +104,18 @@ diagnostics and <code>zx2native --emit map</code> name source lines.</p>
 callback receives writes to descriptors 1 and 2, including writes during
 global initialization. The embedder can connect those descriptors to its
 own console or process namespace. See <a href="https://github.com/ziranlang/ziran/blob/master/include/ziran_host.h">ziran_host.h</a>.</p>
+<p>For a memory-constrained embedder, build <code>libziran.a</code> with
+<code>-DZIRAN_COMPACT_EXEC_PLAN</code> in <code>CFLAGS</code>. The instruction engine runs verified
+instructions directly, with the same binding checks and execution limits.
+This saves the fast-code tables and can make execution slower.</p>
+<p>On hosts where growing a contiguous allocation can exhaust a fragmented heap,
+build with both <code>-DZIRAN_EXEC_FRAME_RESERVE_BYTES=6291456</code> and
+<code>-DZIRAN_EXEC_FRAME_RESERVE_MIN=1048576</code> in <code>CFLAGS</code> to reserve 6 MiB of frame
+storage at portable instance creation when a verified function has a frame of
+at least 1 MiB. Both settings are in bytes. The engine attempts the reserve
+only within its existing value-byte limit. If the allocation fails, frame
+storage grows on demand under that same limit. Without these settings, frame
+storage always grows on demand.</p>
 <p>Compiled native code is cached on disk in <code>$XDG_CACHE_HOME/ziran/native</code>, or
 <code>~/.cache/ziran/native</code> without it, so a later run in another process maps the
 code instead of compiling it again. An entry is keyed by the bundle's content,

@@ -52,6 +52,7 @@ ZI
 "$ziran" api --json --root "$work/ir" "$work/ir/main.zir" > "$work/saved.json"
 
 "$ziran" run --target=c --root "$repo/tests" "$repo/tests/api_assertions.zi" -- "$ziran" "$work" discovery
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/api_assertions.zi" -- "$ziran" "$work" examples
 
 if "$ziran" api --root "$work" "$work/missing.zi" > "$work/out" 2> "$work/err"; then
     echo 'api accepted a missing source file' >&2

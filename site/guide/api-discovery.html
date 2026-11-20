@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Checked API discovery: the Ziran guide, rendered from docs/API_DISCOVERY.md."><title>Checked API discovery · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/api-discovery"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Checked API discovery</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/API_DISCOVERY.md">docs/API_DISCOVERY.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#scoped-retrieval-and-budgets">Scoped retrieval and budgets</a></aside><div class="article-body">
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#checked-usage-examples">Checked usage examples</a><a href="#scoped-retrieval-and-budgets">Scoped retrieval and budgets</a></aside><div class="article-body">
 <section class="prose"><p><code>ziran api --json --root DIR file.zi</code> loads and checks the input and its
 transitive imports, then prints one bounded JSON object describing visible declarations
 in each loaded module. The same command accepts saved <code>.zir</code> inputs. Use
@@ -32,12 +32,54 @@ it does not flatten import names into the entry module. For example:</p>
 <pre><code class="language-sh">ziran api --json --root std std/json_scan.zi
 </code></pre>
 <p>The additive schema-1 retrieval fields include document identities, semantic
-symbol IDs, checked ownership, module laws and exact known source anchors.
-Per-symbol target availability and checked usage examples remain unavailable;
-<code>examples</code> is explicitly <code>null</code>. Use <code>ziran capabilities --json</code> for
-target-wide limits, use <a href="diagnostics.html"><code>ziran explain</code></a> to decode diagnostic
-codes, and compile a small call before relying on a target that has not been
-exercised by your project.</p>
+symbol IDs, checked ownership, module laws, exact known source anchors and
+checked usage examples when supplied by a module. Use <code>ziran capabilities
+--json</code> for target-wide limits and <a href="diagnostics.html"><code>ziran explain</code></a> to decode
+diagnostic codes.</p>
+<h2 id="checked-usage-examples">Checked usage examples</h2>
+<p>Put <code>library.zi.examples</code> beside the source module <code>library.zi</code>. The first
+line is <code>ziran-api-examples-v1</code>. Each subsequent row has three fields separated
+by literal tabs. Blank rows and rows beginning with <code>#</code> are ignored. LF and
+CRLF are accepted.</p>
+<pre><code class="language-text">ziran-api-examples-v1
+function    Scale   scale_usage.zi
+type    Size    scale_usage.zi
+</code></pre>
+<p>The first field is the API <code>symbol_kind</code>. The second is the exact public name
+or semantic <code>id</code> from the API. A name attaches to all its overloads. Use an
+<code>id</code> for a specific overload. The last field is a sibling source basename
+with a Ziran identifier as its stem, such as <code>scale_usage.zi</code>. That file must
+directly import the documented module using its normal module import and
+provide <code>#program_export</code> followed by <code>main :: () -&gt; s32</code>. For example,
+<code>scale_usage.zi</code> could contain:</p>
+<pre><code class="language-jai">#import &quot;library&quot;
+
+#program_export
+main :: () -&gt; s32 {
+    return Scale(2) - 4
+}
+</code></pre>
+<p>An attached symbol in schema 1 has an <code>examples</code> array. Read entries in sidecar
+order and interpret <code>path</code> relative to the physical directory of the module's
+source. The same file appears once per symbol, even if both a name and an ID
+match it. <code>entry</code> is the resolved <code>MODULE:main</code> entry, and <code>source</code> contains
+the original UTF-8 source bytes.</p>
+<pre><code class="language-json">{&quot;examples&quot;:[{&quot;schema_version&quot;:1,&quot;path&quot;:&quot;scale_usage.zi&quot;,&quot;entry&quot;:&quot;scale_usage:main&quot;,&quot;source&quot;:&quot;#import \&quot;library\&quot;\n\n#program_export\nmain :: () -&gt; s32 {\n    return Scale(2) - 4\n}\n&quot;}]}
+</code></pre>
+<p>An absent or null <code>examples</code> field means no example was returned for that
+symbol. Text, saved IR and <code>--imports-only</code> queries do not discover sidecars.
+Ziran checks selected example sources with the query's module paths, package
+map and defines, using the normal source ownership rules. It checks the entry
+and its imports and does not run <code>main</code> or assert target-specific availability.
+To run the original source, pass <code>entry</code> to <code>ziran run --entry</code> and keep the
+same project or import settings.</p>
+<p>Version 1 allows up to 64 attachment rows per query and up to 16 KiB per
+sidecar or example source. Sidecars in selected source modules must have valid
+headers and selectors for the current checked configuration. Invalid sidecars
+or failed checks of retrieved examples cause a nonzero exit with no API JSON.
+Examples share their symbol's <code>--max-bytes</code> budget. If a symbol together with
+its examples does not fit, the entire symbol is omitted and the result reports
+truncation.</p>
 <h2 id="scoped-retrieval-and-budgets">Scoped retrieval and budgets</h2>
 <p>Use <code>--module NAME</code> to select one loaded module, <code>--symbol NAME</code> to select an
 exact public declaration name (including all matching overloads), or

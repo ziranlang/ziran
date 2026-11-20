@@ -33,12 +33,66 @@ ziran api --json --root std std/json_scan.zi
 ```
 
 The additive schema-1 retrieval fields include document identities, semantic
-symbol IDs, checked ownership, module laws and exact known source anchors.
-Per-symbol target availability and checked usage examples remain unavailable;
-`examples` is explicitly `null`. Use `ziran capabilities --json` for
-target-wide limits, use [`ziran explain`](DIAGNOSTICS.md) to decode diagnostic
-codes, and compile a small call before relying on a target that has not been
-exercised by your project.
+symbol IDs, checked ownership, module laws, exact known source anchors and
+checked usage examples when supplied by a module. Use `ziran capabilities
+--json` for target-wide limits and [`ziran explain`](DIAGNOSTICS.md) to decode
+diagnostic codes.
+
+## Checked usage examples
+
+Put `library.zi.examples` beside the source module `library.zi`. The first
+line is `ziran-api-examples-v1`. Each subsequent row has three fields separated
+by literal tabs. Blank rows and rows beginning with `#` are ignored. LF and
+CRLF are accepted.
+
+```text
+ziran-api-examples-v1
+function	Scale	scale_usage.zi
+type	Size	scale_usage.zi
+```
+
+The first field is the API `symbol_kind`. The second is the exact public name
+or semantic `id` from the API. A name attaches to all its overloads. Use an
+`id` for a specific overload. The last field is a sibling source basename
+with a Ziran identifier as its stem, such as `scale_usage.zi`. That file must
+directly import the documented module using its normal module import and
+provide `#program_export` followed by `main :: () -> s32`. For example,
+`scale_usage.zi` could contain:
+
+```jai
+#import "library"
+
+#program_export
+main :: () -> s32 {
+    return Scale(2) - 4
+}
+```
+
+An attached symbol in schema 1 has an `examples` array. Read entries in sidecar
+order and interpret `path` relative to the physical directory of the module's
+source. The same file appears once per symbol, even if both a name and an ID
+match it. `entry` is the resolved `MODULE:main` entry, and `source` contains
+the original UTF-8 source bytes.
+
+```json
+{"examples":[{"schema_version":1,"path":"scale_usage.zi","entry":"scale_usage:main","source":"#import \"library\"\n\n#program_export\nmain :: () -> s32 {\n    return Scale(2) - 4\n}\n"}]}
+```
+
+An absent or null `examples` field means no example was returned for that
+symbol. Text, saved IR and `--imports-only` queries do not discover sidecars.
+Ziran checks selected example sources with the query's module paths, package
+map and defines, using the normal source ownership rules. It checks the entry
+and its imports and does not run `main` or assert target-specific availability.
+To run the original source, pass `entry` to `ziran run --entry` and keep the
+same project or import settings.
+
+Version 1 allows up to 64 attachment rows per query and up to 16 KiB per
+sidecar or example source. Sidecars in selected source modules must have valid
+headers and selectors for the current checked configuration. Invalid sidecars
+or failed checks of retrieved examples cause a nonzero exit with no API JSON.
+Examples share their symbol's `--max-bytes` budget. If a symbol together with
+its examples does not fit, the entire symbol is omitted and the result reports
+truncation.
 
 ## Scoped retrieval and budgets
 

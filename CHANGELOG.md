@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- `ziran api --json` exposes optional type-checked, runnable usage examples for public symbols.
 - Native instances release temporary frame reservations while idle, so multiple bundles fit in a 32-bit address space without reducing the active frame limit or checked pointer protection.
 - Embedders can route instruction-engine ZX output through a per-instance console callback, including output from global initializers.
 

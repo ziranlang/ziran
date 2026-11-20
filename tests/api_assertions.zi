@@ -170,6 +170,114 @@ ApiRewritten :: (test: *NativeTest) -> bool {
     return true
 }
 
+ApiExampleMatches :: (document: *JsonDocument, item: s32, file: string, source: string) -> bool {
+    return CheckInteger(document, item, "schema_version") == 1 && CheckField(document, item, "path") == file &&
+        CheckField(document, item, "source") == source
+}
+
+ApiExampleReject :: (test: *NativeTest, args: []string, diagnostic: string) -> bool {
+    result := NativeInvoke(test, args)
+    return NativeAssert(test, result.code == 1 && result.output == "" && TextContains(result.error, diagnostic),
+        CheckConcat("expected API example rejection with empty stdout: ", CheckConcat(diagnostic, CheckConcat("\n", result.error))))
+}
+
+ApiExamples :: (test: *NativeTest) -> bool {
+    root := CheckPath(test.work, "examples"); library_root := CheckPath(root, "lib")
+    if !CreateDirectories(library_root) { return false }
+    library := CheckPath(library_root, "library.zi"); sidecar := CheckConcat(library, ".examples")
+    app := CheckPath(root, "app.zi"); sample := CheckPath(library_root, "sample.zi"); other := CheckPath(library_root, "other.zi")
+    library_text := #string ZI
+Choice :: struct { value: s32; }
+Scale :: (x: s32) -> s32 { return x * 2 }
+Scale :: (text: string) -> s32 { return cast(s32)text.count }
+#scope_module
+Hidden :: () -> s32 { return 0 }
+ZI;
+    sample_text := #string ZI
+#import "example_lib/library"
+#program_export
+main :: () -> s32 {
+    print("étape \"quoted\"\n")
+    value := Choice.{Scale(4)}
+    return value.value - 8
+}
+ZI;
+    other_text := #string ZI
+#import "example_lib/library"
+#if #defined(USAGE) {
+#program_export
+main :: () -> s32 { return Scale(5) - 10 }
+}
+ZI;
+    if !NativeWrite(test, library, library_text) || !NativeWrite(test, app, "#import \"example_lib/library\"\n") ||
+        !NativeWrite(test, sample, sample_text) || !NativeWrite(test, other, other_text) { return false }
+    module_path := CheckConcat("example_lib=", library_root)
+    args := string.[test.ziran, "api", "--json", "--define", "USAGE", "--root", root, "--module-path", module_path, app]
+    baseline := NativeRun(test, args[:]); original: JsonDocument
+    if test.failed || !NativeAssert(test, JsonRead(*original, baseline.output), "invalid baseline API JSON") { return false }
+    modules := JsonMember(*original, original.root, "modules")
+    module := JsonElement(*original, modules, 1)
+    module_name := CheckField(*original, module, "name")
+    functions := JsonMember(*original, module, "functions")
+    first := JsonElement(*original, functions, 0)
+    id := CheckField(*original, first, "id")
+    if !NativeAssert(test, CheckField(*original, first, "parameters") == "x: s32" && id != "", "example test did not find the intended overload") { return false }
+    bounded := string.[test.ziran, "api", "--json", "--module", module_name, "--symbol", id, "--max-bytes", "1280", "--define", "USAGE", "--root", root, "--module-path", module_path, app]
+    unadorned := NativeRun(test, bounded[:]); bare: JsonDocument
+    if test.failed || !NativeAssert(test, JsonRead(*bare, unadorned.output) &&
+        CheckInteger(*bare, JsonMember(*bare, bare.root, "truncation"), "emitted_symbols") == 1, "byte budget could not fit the base symbol") { return false }
+    header := "ziran-api-examples-v1\n"
+    valid := CheckConcat(header, CheckConcat("function\t", CheckConcat(id, "\tsample.zi\nfunction\tScale\tother.zi\nfunction\tScale\tsample.zi\ntype\tChoice\tsample.zi\n")))
+    if !NativeWrite(test, sidecar, valid) { return false }
+    filtered := string.[test.ziran, "api", "--json", "--module", module_name, "--symbol", id, "--define", "USAGE", "--root", root, "--module-path", module_path, app]
+    projection := NativeRun(test, filtered[:]); document: JsonDocument
+    if test.failed || !NativeExpect(test, filtered[:], projection.output) ||
+        !NativeAssert(test, JsonRead(*document, projection.output), "invalid example API JSON") { return false }
+    module = JsonElement(*document, JsonMember(*document, document.root, "modules"), 0)
+    first = JsonElement(*document, JsonMember(*document, module, "functions"), 0)
+    entries := JsonMember(*document, first, "examples")
+    entry := CheckField(*document, JsonElement(*document, entries, 0), "entry")
+    if !NativeAssert(test, JsonCount(*document, entries) == 2 &&
+        ApiExampleMatches(*document, JsonElement(*document, entries, 0), "sample.zi", sample_text) &&
+        ApiExampleMatches(*document, JsonElement(*document, entries, 1), "other.zi", other_text), "examples lost source, schema, order or uniqueness") { return false }
+    projection = NativeRun(test, args[:]); all: JsonDocument
+    if test.failed || !NativeAssert(test, JsonRead(*all, projection.output), "invalid unfiltered example API JSON") { return false }
+    module = ApiNamed(*all, JsonMember(*all, all.root, "modules"), module_name)
+    functions = JsonMember(*all, module, "functions")
+    second_entries := JsonMember(*all, JsonElement(*all, functions, 1), "examples")
+    choice := ApiNamed(*all, JsonMember(*all, module, "types"), "Choice")
+    choice_entries := JsonMember(*all, choice, "examples")
+    if !NativeAssert(test, JsonCount(*all, second_entries) == 2 &&
+        ApiExampleMatches(*all, JsonElement(*all, second_entries, 0), "other.zi", other_text) &&
+        ApiExampleMatches(*all, JsonElement(*all, choice_entries, 0), "sample.zi", sample_text), "symbol IDs or name attachments selected the wrong row") { return false }
+    run := string.[test.ziran, "run", "--entry", entry, "--root", root, "--module-path", module_path, sample]
+    if !NativeExpect(test, run[:], "étape \"quoted\"\n0\n") { return false }
+
+    limited := NativeRun(test, bounded[:]); short: JsonDocument
+    if test.failed || !NativeAssert(test, JsonRead(*short, limited.output) && limited.output.count <= 1280, "invalid bounded example API JSON") { return false }
+    truncation := JsonMember(*short, short.root, "truncation")
+    if !NativeAssert(test, CheckInteger(*short, truncation, "matched_symbols") == 1 && CheckInteger(*short, truncation, "emitted_symbols") == 0 &&
+        JsonKindOf(*short, JsonMember(*short, truncation, "byte_limit")) == .True, "API split the symbol from its example to meet its budget") { return false }
+
+    no_define := string.[test.ziran, "api", "--json", "--root", root, "--module-path", module_path, app]
+    if !ApiExampleReject(test, no_define[:], "expected #program_export main") { return false }
+    if !NativeWrite(test, sample, "#import \"example_lib/library\"\n#program_export\nmain :: () -> s32 { return Missing() }\n") ||
+        !ApiExampleReject(test, args[:], "Missing") { return false }
+    if !NativeWrite(test, sample, "#program_export\nmain :: () -> s32 { return 0 }\n") ||
+        !ApiExampleReject(test, args[:], "directly import the documented module") { return false }
+    oversized: [16385]u8
+    for index: 0..oversized.count - 1 { oversized[index] = #char " " }
+    if !NativeWrite(test, sample, TextFromBytes(oversized[:])) || !ApiExampleReject(test, args[:], "at most 16384 bytes") ||
+        !NativeWrite(test, sidecar, TextFromBytes(oversized[:])) || !ApiExampleReject(test, args[:], "at most 16384 bytes") { return false }
+    if !NativeWrite(test, sidecar, CheckConcat(header, "function\tHidden\tsample.zi\n")) ||
+        !ApiExampleReject(test, args[:], "visible checked symbol") { return false }
+    if !NativeWrite(test, sidecar, CheckConcat(header, "type\tChoice\t../sample.zi\n")) ||
+        !ApiExampleReject(test, args[:], "expected KIND<TAB>NAME_OR_ID<TAB>FILE.zi") { return false }
+    import_args := string.[test.ziran, "api", "--json", "--imports-only", "--root", root, "--module-path", module_path, app]
+    imports := NativeRun(test, import_args[:])
+    return !test.failed && NativeAssert(test, !TextContains(imports.output, "examples"), "imports-only read the examples sidecar")
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "api-assertions-")
@@ -177,6 +285,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     defer NativeCleanup(*test)
     mode := ifx argc > 3 then TextFromCString(argv[3]) else ""; valid := false
     if mode == "discovery" { valid = ApiDiscovery(*test) }
+    else if mode == "examples" { valid = ApiExamples(*test) }
     else if mode == "metadata" { valid = ApiMetadata(*test) }
     else if mode == "moved" { valid = ApiMoved(*test) }
     else if mode == "rewritten" { valid = ApiRewritten(*test) }

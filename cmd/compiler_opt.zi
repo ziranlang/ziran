@@ -1312,7 +1312,7 @@ CseEntry :: struct {
     op: LirOp
     immediate: u64
     symbol: s32
-    alignment: u32
+    alignment: u16
     result_type: s32
     operands: s32
     operand_count: s32

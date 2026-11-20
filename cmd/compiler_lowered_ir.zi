@@ -19,7 +19,8 @@ LirType :: struct {
 
 LirCalling :: enum s32 { Portable; C; System; Host }
 
-LirOp :: enum s32 {
+// Opcode ordinals are still encoded as u32 in the executable format.
+LirOp :: enum u8 {
     Invalid
     Constant; Null; GlobalAddress; FunctionAddress
     Add; Subtract; Multiply; Divide; Remainder; Negate
@@ -41,15 +42,15 @@ LirOp :: enum s32 {
 LirEdge :: struct { block: s32; arguments: []s32 }
 
 LirInstruction :: struct {
-    op: LirOp
-    result: s32
     operands: []s32
     edges: []LirEdge
     immediate: u64
+    result: s32
     symbol: s32
-    alignment: u32
     effect: s32
     origin: s32
+    alignment: u16
+    op: LirOp
     // Under `#checks` (or in a module marked with it): an element address,
     // extract or insert keeps its bounds check in a build without --checks.
     checked: bool

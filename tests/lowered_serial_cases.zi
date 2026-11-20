@@ -282,6 +282,7 @@ CodecCases :: () -> s32 {
     allocate_instructions[1].effect = 1
     allocate_instructions[2] = Instruction(.Load, 2)
     allocate_instructions[2].operands = allocate_pointer[:]
+    allocate_instructions[2].alignment = 1
     allocate_instructions[2].effect = 2
     allocate_instructions[3] = Instruction(.Return, -1)
     allocate_instructions[3].operands = allocate_return[:]
@@ -304,7 +305,23 @@ CodecCases :: () -> s32 {
         decoded_allocate.functions[0].blocks[0].instructions.count != 4 ||
         decoded_allocate.functions[0].blocks[0].instructions[1].op != .Allocate ||
         decoded_allocate.functions[0].blocks[0].instructions[1].operands.count != 1 ||
-        decoded_allocate.functions[0].blocks[0].instructions[2].op != .Load { return Fail(35) }
+        decoded_allocate.functions[0].blocks[0].instructions[2].op != .Load ||
+        decoded_allocate.functions[0].blocks[0].instructions[2].alignment != 1 { return Fail(35) }
+
+    // The load is the penultimate instruction. Its wire opcode and alignment
+    // are still 32-bit fields even though they occupy less space in memory.
+    load_opcode := allocate_bytes.count - 96
+    load_alignment := load_opcode + 32
+    if allocate_bytes[load_opcode] != cast(u8)Lir.LirOp.Load ||
+        allocate_bytes[load_alignment] != 1 { return Fail(37) }
+    allocate_bytes[load_alignment] = 0
+    allocate_bytes[load_alignment + 2] = 1
+    read = Serial.LirRead(*owner, TextView(allocate_bytes[:]), limits)
+    if read.problem != .Verify || read.diagnostic.problem != .Alignment { return Fail(38, cast(s32)read.problem) }
+    allocate_bytes[load_alignment + 2] = 0
+    allocate_bytes[load_opcode + 1] = 1
+    read = Serial.LirRead(*owner, TextView(allocate_bytes[:]), limits)
+    if read.problem != .Field { return Fail(39, cast(s32)read.problem) }
     Serial.LirReadFree(*owner)
 
     return 0

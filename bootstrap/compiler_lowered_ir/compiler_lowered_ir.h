@@ -14,7 +14,7 @@ extern "C" {
 typedef int32_t LirTypeKind;
 typedef struct LirType LirType;
 typedef int32_t LirCalling;
-typedef int32_t LirOp;
+typedef uint8_t LirOp;
 typedef struct LirEdge LirEdge;
 typedef struct LirInstruction LirInstruction;
 typedef struct LirBlock LirBlock;
@@ -116,15 +116,15 @@ struct LirEdge {
 };
 
 struct LirInstruction {
-    LirOp op;
-    int32_t result;
     Slice operands;
     Slice edges;
     uint64_t immediate;
+    int32_t result;
     int32_t symbol;
-    uint32_t alignment;
     int32_t effect;
     int32_t origin;
+    uint16_t alignment;
+    LirOp op;
     bool checked;
 };
 

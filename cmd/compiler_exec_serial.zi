@@ -203,7 +203,7 @@ WriteCore :: (writer: *Writer, program: LirProgram) {
                 }
                 U64(writer, instruction.immediate)
                 S32(writer, instruction.symbol)
-                U32(writer, instruction.alignment)
+                U32(writer, cast(u32)instruction.alignment)
                 S32(writer, instruction.effect)
                 S32(writer, instruction.origin)
                 if checked_function { U32(writer, ifx instruction.checked then cast(u32)1 else 0) }
@@ -707,10 +707,12 @@ DecodeCore :: (decoder: *Decoder) {
                 if decoder.mode == ModeViews {
                     operands := VecSlice(decoder.owner.operands,
                         operands_span.at, operands_span.at + operands_span.count)
+                    // Preserve the verifier's alignment diagnostic for malformed wire values.
+                    stored_alignment := cast(u16)(ifx alignment > 1 then 2 else alignment)
                     decoder.owner.instructions[instruction_start + instruction_offset] = .{
                         op = cast(LirOp)raw_op, result = instruction_result, operands = operands,
                         edges = VecSlice(decoder.owner.edges, edge_start, edge_start + edge_count), immediate = immediate,
-                        symbol = symbol, alignment = alignment, effect = effect, origin = origin,
+                        symbol = symbol, alignment = stored_alignment, effect = effect, origin = origin,
                         checked = checked == 1}
                 }
             }

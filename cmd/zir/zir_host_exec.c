@@ -28,6 +28,7 @@
 #include "compiler_lowered_ir.h"
 #include "zir_diagnostic.h"
 #include "zir_exec_console.h"
+#include "zir_sha256.h"
 #include "zir_text.h"
 
 #include <stdatomic.h>
@@ -506,17 +507,178 @@ exec_copy_bundle_assets(ExecBundle *bundle, const unsigned char *bytes, size_t s
     return 0;
 }
 
-ExecBundle *
-ExecBundleOpenWithRelease(const unsigned char *bytes, size_t size, const char *name,
-                          BundleImageRelease consumed, void *context)
+enum { SOURCE_IMAGE_MAX = 256 * 1024 * 1024, SOURCE_PAGE_SIZE = 32 * 1024,
+       SOURCE_FINGERPRINT_BYTES = 32, SOURCE_FRAMING_PAGES = 4 };
+
+typedef struct ExecSourceInput {
+    BundleReadAt read_at;
+    void *context;
+    uint64_t size;
+    unsigned char *digest;
+    int *unsupported;
+} ExecSourceInput;
+
+typedef struct ExecSourceSnapshot {
+    const ExecSourceInput *source;
+    size_t size;
+    size_t page_size;
+    size_t cached_at;
+    unsigned char *page;
+    unsigned char *fingerprints;
+    unsigned char *seen;
+    size_t framing_at[SOURCE_FRAMING_PAGES];
+    size_t framing_count;
+    size_t next_raw_page;
+    Sha256 raw;
+    int streaming;
+    const char *problem;
+} ExecSourceSnapshot;
+
+static size_t
+source_page_size(const ExecSourceSnapshot *snapshot, size_t at)
+{
+    size_t remaining = snapshot->size - at;
+    return snapshot->page_size < remaining ? snapshot->page_size : remaining;
+}
+
+static void
+source_fingerprint(const unsigned char *bytes, size_t size, unsigned char digest[32])
+{
+    Sha256 hash;
+    Sha256Begin(&hash);
+    Sha256Add(&hash, bytes, size);
+    Sha256End(&hash, digest);
+}
+
+static unsigned char *
+source_page(ExecSourceSnapshot *snapshot, size_t index)
+{
+    size_t begin = index * snapshot->page_size;
+    for(size_t i = 0; i < snapshot->framing_count; i++)
+        if(snapshot->framing_at[i] == begin) return snapshot->page + (i + 1) * snapshot->page_size;
+    if(snapshot->cached_at == begin) return snapshot->page;
+    const ExecSourceInput *source = snapshot->source;
+    size_t size = source_page_size(snapshot, begin);
+    int pin = !snapshot->streaming && snapshot->framing_count < SOURCE_FRAMING_PAGES;
+    unsigned char *output = snapshot->page;
+    if(pin) output += (snapshot->framing_count + 1) * snapshot->page_size;
+    if(source->read_at(source->context, begin, output, size) != size) {
+        snapshot->problem = "short read or read error in ZX source";
+        return NULL;
+    }
+    unsigned char digest[SOURCE_FINGERPRINT_BYTES];
+    unsigned char *expected = snapshot->fingerprints + index * sizeof(digest);
+    source_fingerprint(output, size, digest);
+    if(snapshot->seen[index] && memcmp(digest, expected, sizeof(digest)) != 0) {
+        snapshot->problem = "ZX source changed during verification";
+        return NULL;
+    }
+    if(!snapshot->seen[index]) {
+        memcpy(expected, digest, sizeof(digest));
+        snapshot->seen[index] = 1;
+    }
+    if(pin) snapshot->framing_at[snapshot->framing_count++] = begin;
+    else snapshot->cached_at = begin;
+    return output;
+}
+
+static String
+source_window(void *closure, void *context, int64_t at)
+{
+    (void)closure;
+    ExecSourceSnapshot *snapshot = context;
+    if(snapshot->problem != NULL || at < 0 || (uint64_t)at >= snapshot->size) return (String){0};
+    size_t position = (size_t)at;
+    size_t index = position / snapshot->page_size;
+    size_t begin = index * snapshot->page_size;
+    size_t size = source_page_size(snapshot, begin);
+    while(snapshot->streaming && snapshot->next_raw_page <= index) {
+        size_t next = snapshot->next_raw_page++;
+        unsigned char *bytes = source_page(snapshot, next);
+        if(bytes == NULL) return (String){0};
+        Sha256Add(&snapshot->raw, bytes, source_page_size(snapshot, next * snapshot->page_size));
+    }
+    unsigned char *page = source_page(snapshot, index);
+    if(page == NULL) return (String){0};
+    size_t relative = position - begin;
+    return (String){(const char *)page + relative, size - relative};
+}
+
+static void
+source_stream_begin(void *closure, void *context)
+{
+    (void)closure;
+    ExecSourceSnapshot *snapshot = context;
+    snapshot->streaming = 1;
+}
+
+static void
+source_stream_finish(ExecSourceSnapshot *snapshot)
+{
+    snapshot->streaming = 1;
+    if(source_window(NULL, snapshot, (int64_t)snapshot->size - 1).data != NULL)
+        Sha256End(&snapshot->raw, snapshot->source->digest);
+}
+
+static int
+source_snapshot_begin(ExecSourceSnapshot *snapshot, const ExecSourceInput *source)
+{
+    if(source->read_at == NULL || source->size == 0 || source->size > SOURCE_IMAGE_MAX) {
+        snapshot->problem = "invalid ZX source size or callback";
+        return 0;
+    }
+    size_t size = (size_t)source->size;
+    size_t page_size = size < SOURCE_PAGE_SIZE ? size : SOURCE_PAGE_SIZE;
+    size_t pages = 1 + (size - 1) / page_size;
+    size_t window_bytes = (SOURCE_FRAMING_PAGES + 1) * page_size;
+    snapshot->page = malloc(window_bytes + pages * (SOURCE_FINGERPRINT_BYTES + 1));
+    if(snapshot->page == NULL) {
+        snapshot->problem = "cannot allocate a ZX source window";
+        return 0;
+    }
+    snapshot->source = source;
+    snapshot->size = size;
+    snapshot->page_size = page_size;
+    snapshot->cached_at = SIZE_MAX;
+    snapshot->fingerprints = snapshot->page + window_bytes;
+    snapshot->seen = snapshot->fingerprints + pages * SOURCE_FINGERPRINT_BYTES;
+    memset(snapshot->seen, 0, pages);
+    Sha256Begin(&snapshot->raw);
+    return 1;
+}
+
+static ExecBundle *
+exec_open_bundle(const unsigned char *bytes, size_t size, const char *name,
+                 BundleImageRelease consumed, void *context, const ExecSourceInput *source)
 {
     ExecBundle *bundle = calloc(1, sizeof(*bundle));
     if(bundle == NULL) return NULL;
     ExecHost *lines = NULL;
     int line_count = 0;
     bundle->entry_arguments = bundle->entry_return = "";
-    ZxExecResult read = compiler_exec_link_ZxExecRead(&bundle->owner, (String){(const char *)bytes, size},
-        compiler_lowered_ir_LirDefaultLimits());
+    LirLimits limits = compiler_lowered_ir_LirDefaultLimits();
+    ZxExecResult read = {0};
+    if(source == NULL) {
+        read = compiler_exec_link_ZxExecRead(&bundle->owner, (String){(const char *)bytes, size}, limits);
+    } else {
+        ExecSourceSnapshot snapshot = {0};
+        if(source_snapshot_begin(&snapshot, source)) {
+            ExecutableReadSource input = {&snapshot, {NULL, source_window}, (int64_t)snapshot.size};
+            read = compiler_exec_link_ZxExecReadAppSource(&bundle->owner, &input, limits,
+                (ZxExecSourceBegin){NULL, source_stream_begin});
+            if(read.problem == ZxExecProblem_None || read.problem == ZxExecProblem_SourceProfile)
+                source_stream_finish(&snapshot);
+        }
+        free(snapshot.page);
+        if(snapshot.problem != NULL) {
+            Diagnostic(Span(name, 1, 1), "zx.input", "%s", snapshot.problem);
+            goto failed;
+        }
+        if(read.problem == ZxExecProblem_SourceProfile && source->unsupported != NULL) {
+            *source->unsupported = 1;
+            goto failed;
+        }
+    }
     if(read.problem != ZxExecProblem_None) {
         String problem = compiler_exec_link_ZxExecProblemName(read.problem);
         String container = compiler_bundle_ExecutableMessage(read.container);
@@ -542,7 +704,7 @@ ExecBundleOpenWithRelease(const unsigned char *bytes, size_t size, const char *n
             (int)problem.length, problem.data);
         goto failed;
     }
-    if(consumed == NULL && !exec_copy_bundle_assets(bundle, bytes, size, name)) goto failed;
+    if(source == NULL && consumed == NULL && !exec_copy_bundle_assets(bundle, bytes, size, name)) goto failed;
     const LirFunction *functions = bundle->program.functions.data;
     const String *modules = bundle->program.modules.data;
     const LirFunction *entry = &functions[bundle->program.entry];
@@ -605,6 +767,21 @@ failed:
     free(lines);
     ExecBundleClose(bundle);
     return NULL;
+}
+
+ExecBundle *
+ExecBundleOpenWithRelease(const unsigned char *bytes, size_t size, const char *name,
+                          BundleImageRelease consumed, void *context)
+{
+    return exec_open_bundle(bytes, size, name, consumed, context, NULL);
+}
+
+ExecBundle *
+ExecBundleOpenReadAt(uint64_t size, BundleReadAt read_at, void *context,
+                    unsigned char digest[32], int *unsupported)
+{
+    ExecSourceInput source = {read_at, context, size, digest, unsupported};
+    return exec_open_bundle(NULL, 0, "<embedded ZX source>", NULL, NULL, &source);
 }
 
 const void *ExecBundleProgram(const ExecBundle *bundle) { return &bundle->program; }
@@ -2273,6 +2450,17 @@ ExecBundle *ExecBundleOpenWithRelease(const unsigned char *bytes, size_t size, c
     (void)consumed;
     (void)context;
     Diagnostic(Span(name, 1, 1), "zx.input", "this build has no instruction engine");
+    return NULL;
+}
+ExecBundle *ExecBundleOpenReadAt(uint64_t size, BundleReadAt read_at, void *context,
+                                unsigned char digest[32], int *unsupported)
+{
+    (void)size;
+    (void)read_at;
+    (void)context;
+    (void)digest;
+    (void)unsupported;
+    Diagnostic(Span("<embedded ZX source>", 1, 1), "zx.input", "this build has no instruction engine");
     return NULL;
 }
 void ExecBundleClose(ExecBundle *bundle) { (void)bundle; }

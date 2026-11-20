@@ -139,6 +139,18 @@ typedef void (*BundleImageRelease)(void *context, const unsigned char *data, siz
  * callback rejects the call and leaves ownership with the caller. */
 Bundle *BundleOpenOwnedBytes(const unsigned char *data, size_t size,
                              BundleImageRelease release, void *context);
+#define ZIRAN_HOST_HAS_BUNDLE_READ_AT 1
+/* Fill exactly size bytes at the absolute image offset and return size.
+ * A different count fails verification. Return zero for a read error. */
+typedef size_t (*BundleReadAt)(void *context, uint64_t offset, void *output, size_t size);
+/* Opens a revision-28 app image of at most 256 MiB using bounded positional
+ * reads. Keep the source stable during this call. The callback and context
+ * are borrowed synchronously, and the verified bundle owns its decoded data.
+ * On failure returns NULL. If given, unsupported is set to 1 only for a
+ * recognized image outside this reader's profile (assets, module linkage,
+ * or additional attachments), and 0 otherwise. The caller may choose to
+ * retry that image with the owned-byte API, which verifies it independently. */
+Bundle *BundleOpenReadAt(uint64_t size, BundleReadAt read_at, void *context, int *unsupported);
 void BundleClose(Bundle *bundle);
 /* Required capability names, in program order, are borrowed until
  * BundleClose. */

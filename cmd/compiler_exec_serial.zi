@@ -12,6 +12,10 @@ LirCodecFeatureBase :: 1
 // Header flag: the program was built with --checks.
 LirCodecFlagChecks :: 1
 
+// Returns a nonempty view starting at AT, valid until the next call.
+LirReadWindow :: #type (*void, s64) -> string;
+LirReadSource :: struct { context: *void; window: LirReadWindow; size: s64 }
+
 LirCodecProblem :: enum s32 {
     None; Magic; Version; Feature; Flags; Section; Overlap; Truncated; Trailing
     Count; Limit; Allocation; Output; Owner; Field; Verify
@@ -230,7 +234,29 @@ WriteDebug :: (writer: *Writer, program: LirProgram) {
     }
 }
 
-Cursor :: struct { input: string; at: s64; end: s64; problem: LirCodecProblem }
+Cursor :: struct {
+    input: string
+    at: s64
+    end: s64
+    problem: LirCodecProblem
+    source: *LirReadSource
+    window: string
+    window_at: s64
+}
+
+WindowAt :: (cursor: *Cursor, at: s64) -> string {
+    relative := at - cursor.window_at
+    if relative < 0 || relative >= cursor.window.count {
+        cursor.window = cursor.source.window(cursor.source.context, at)
+        cursor.window_at = at
+        if cursor.window.count == 0 || cursor.window.count > cursor.source.size - at {
+            cursor.problem = .Truncated
+            return ""
+        }
+        relative = 0
+    }
+    return cursor.window[relative:]
+}
 
 Need :: (cursor: *Cursor, count: s64) -> s64 {
     if cursor.problem != .None { return 0 }
@@ -246,7 +272,10 @@ Need :: (cursor: *Cursor, count: s64) -> s64 {
 TakeU8 :: (cursor: *Cursor) -> u8 {
     at := Need(cursor, 1)
     if cursor.problem != .None { return 0 }
-    return cursor.input[at]
+    if cursor.source == null { return cursor.input[at] }
+    bytes := WindowAt(cursor, at)
+    if cursor.problem != .None { return 0 }
+    return bytes[0]
 }
 
 // A whole field is read with one bounds check; a truncated one goes byte by
@@ -258,9 +287,14 @@ Holds :: (cursor: *Cursor, count: s64) -> bool {
 TakeU32 :: (cursor: *Cursor) -> u32 {
     value: u32
     if Holds(cursor, 4) {
-        for byte: 0..3 { value |= cast(u32)cursor.input[cursor.at + byte] << cast(u32)(byte * 8) }
-        cursor.at += 4
-        return value
+        bytes := cursor.input
+        start := cursor.at
+        if cursor.source != null { bytes = WindowAt(cursor, start); start = 0 }
+        if bytes.count - start >= 4 {
+            for byte: 0..3 { value |= cast(u32)bytes[start + byte] << cast(u32)(byte * 8) }
+            cursor.at += 4
+            return value
+        }
     }
     for byte: 0..3 { value |= cast(u32)TakeU8(cursor) << cast(u32)(byte * 8) }
     return value
@@ -271,9 +305,14 @@ TakeS32 :: (cursor: *Cursor) -> s32 { return cast(s32)TakeU32(cursor) }
 TakeU64 :: (cursor: *Cursor) -> u64 {
     value: u64
     if Holds(cursor, 8) {
-        for byte: 0..7 { value |= cast(u64)cursor.input[cursor.at + byte] << cast(u64)(byte * 8) }
-        cursor.at += 8
-        return value
+        bytes := cursor.input
+        start := cursor.at
+        if cursor.source != null { bytes = WindowAt(cursor, start); start = 0 }
+        if bytes.count - start >= 8 {
+            for byte: 0..7 { value |= cast(u64)bytes[start + byte] << cast(u64)(byte * 8) }
+            cursor.at += 8
+            return value
+        }
     }
     for byte: 0..7 { value |= cast(u64)TakeU8(cursor) << cast(u64)(byte * 8) }
     return value
@@ -281,13 +320,13 @@ TakeU64 :: (cursor: *Cursor) -> u64 {
 
 Layout :: struct { core_begin: s64; core_end: s64; debug_begin: s64; debug_end: s64; debug: bool; checks: bool }
 
-ReadLayout :: (input: string) -> (layout: Layout, result: LirCodecResult) {
+ReadLayout :: (input: string, source: *LirReadSource, size: s64) -> (layout: Layout, result: LirCodecResult) {
     result: LirCodecResult
     layout: Layout
     result.diagnostic = .{problem = .None, function = LirNoId, block = LirNoId,
         instruction = LirNoId, value = LirNoId, origin = LirNoId}
-    if input.count > CodecMaximumBytes { result.problem = .Limit; return Layout.{}, result }
-    cursor := Cursor.{input = input, end = input.count}
+    if size < 0 || size > CodecMaximumBytes { result.problem = .Limit; return Layout.{}, result }
+    cursor := Cursor.{input = input, end = size, source = source}
     magic := TakeU32(*cursor)
     format := TakeU32(*cursor)
     schema := TakeU32(*cursor)
@@ -318,30 +357,31 @@ ReadLayout :: (input: string) -> (layout: Layout, result: LirCodecResult) {
         result.problem = .Section
         return Layout.{}, result
     }
-    if total > cast(u64)input.count { result.problem = .Truncated; return Layout.{}, result }
-    if total < cast(u64)input.count { result.problem = .Trailing; return Layout.{}, result }
+    if total > cast(u64)size { result.problem = .Truncated; return Layout.{}, result }
+    if total < cast(u64)size { result.problem = .Trailing; return Layout.{}, result }
     expected := CodecHeaderSize + cast(s64)section_count * CodecDirectoryEntrySize
-    if expected > input.count { result.problem = .Truncated; return Layout.{}, result }
+    if expected > size { result.problem = .Truncated; return Layout.{}, result }
     for index: cast(s32)0..cast(s32)section_count - 1 {
         kind := TakeU32(*cursor)
         section_flags := TakeU32(*cursor)
         offset := TakeU64(*cursor)
-        size := TakeU64(*cursor)
+        length := TakeU64(*cursor)
+        if cursor.problem != .None { result.problem = cursor.problem; result.offset = cursor.at; return Layout.{}, result }
         wanted_kind := ifx index == 0 then cast(u32)SectionCore else cast(u32)SectionDebug
         wanted_flags := ifx index == 0 then cast(u32)SectionRequired else cast(u32)0
         if kind != wanted_kind { result.problem = .Section; return Layout.{}, result }
         if section_flags != wanted_flags { result.problem = .Flags; return Layout.{}, result }
         if offset < cast(u64)expected { result.problem = .Overlap; return Layout.{}, result }
         if offset > cast(u64)expected { result.problem = .Section; return Layout.{}, result }
-        if size > cast(u64)(input.count - expected) { result.problem = .Truncated; return Layout.{}, result }
-        end := expected + cast(s64)size
+        if length > cast(u64)(size - expected) { result.problem = .Truncated; return Layout.{}, result }
+        end := expected + cast(s64)length
         if index == 0 { layout.core_begin = expected; layout.core_end = end }
         else { layout.debug = true; layout.debug_begin = expected; layout.debug_end = end }
         expected = end
     }
     if cursor.problem != .None { result.problem = cursor.problem; result.offset = cursor.at; return Layout.{}, result }
-    if expected != input.count { result.problem = ifx expected < input.count then .Trailing else .Truncated; return Layout.{}, result }
-    result.size = input.count
+    if expected != size { result.problem = ifx expected < size then .Trailing else .Truncated; return Layout.{}, result }
+    result.size = size
     return layout, result
 }
 
@@ -375,8 +415,7 @@ PoolKind :: enum s32 {
 }
 
 ModeShape :: 0
-ModeData :: 1
-ModeViews :: 2
+ModeFill :: 1
 
 Decoder :: struct {
     cursor: Cursor
@@ -503,9 +542,24 @@ DecodeS32s :: (decoder: *Decoder, pool: PoolKind) -> Span {
     if !Spend(decoder, count) { return .{} }
     for index: 0..count - 1 {
         value := TakeS32(*decoder.cursor)
-        if decoder.mode == ModeData && decoder.cursor.problem == .None { PoolSet(decoder, pool, start + index, value) }
+        if decoder.mode == ModeFill && decoder.cursor.problem == .None { PoolSet(decoder, pool, start + index, value) }
     }
     return .{at = start, count = count}
+}
+
+CopyInput :: (cursor: *Cursor, at: s64, output: []u8) {
+    if cursor.source == null {
+        for index: 0..output.count - 1 { output[index] = cursor.input[at + index] }
+        return
+    }
+    copied: s64 = 0
+    while copied < output.count {
+        bytes := WindowAt(cursor, at + copied)
+        if cursor.problem != .None { return }
+        count := ifx bytes.count < output.count - copied then bytes.count else output.count - copied
+        for index: 0..count - 1 { output[copied + index] = bytes[index] }
+        copied += count
+    }
 }
 
 DecodeText :: (decoder: *Decoder) -> Span {
@@ -521,8 +575,8 @@ DecodeText :: (decoder: *Decoder) -> Span {
         decoder.text_at += length
     }
     if decoder.cursor.problem != .None { return .{} }
-    if decoder.mode == ModeData && decoder.cursor.problem == .None {
-        for index: 0..length - 1 { decoder.owner.text_bytes[start + index] = decoder.cursor.input[source + index] }
+    if decoder.mode == ModeFill && decoder.cursor.problem == .None {
+        CopyInput(*decoder.cursor, source, decoder.owner.text_bytes[start:start + length])
     }
     return .{at = start, count = length}
 }
@@ -540,8 +594,8 @@ DecodeBlob :: (decoder: *Decoder) -> Span {
         decoder.blob_at += length
     }
     if decoder.cursor.problem != .None { return .{} }
-    if decoder.mode == ModeData && decoder.cursor.problem == .None {
-        for index: 0..length - 1 { decoder.owner.blob_bytes[start + index] = decoder.cursor.input[source + index] }
+    if decoder.mode == ModeFill && decoder.cursor.problem == .None {
+        CopyInput(*decoder.cursor, source, decoder.owner.blob_bytes[start:start + length])
     }
     return .{at = start, count = length}
 }
@@ -556,14 +610,14 @@ TopCount :: (decoder: *Decoder, found: s64, expected: s64, width: s64, maximum: 
 DecodeCore :: (decoder: *Decoder) {
     version := DecodeS32(decoder)
     entry := DecodeS32(decoder)
-    if decoder.mode == ModeViews { decoder.owner.version = version; decoder.owner.entry = entry }
+    if decoder.mode == ModeFill { decoder.owner.version = version; decoder.owner.entry = entry }
     initializer_count := DecodeCount(decoder)
     if decoder.mode == ModeShape { decoder.shape.initializers = initializer_count }
     if !TopCount(decoder, initializer_count, decoder.shape.initializers, 4, decoder.limits.functions) { return }
     if !Spend(decoder, initializer_count) { return }
     for index: 0..initializer_count - 1 {
         initializer := TakeS32(*decoder.cursor)
-        if decoder.mode == ModeData && decoder.cursor.problem == .None {
+        if decoder.mode == ModeFill && decoder.cursor.problem == .None {
             decoder.owner.initializers[index] = initializer
         }
     }
@@ -574,7 +628,7 @@ DecodeCore :: (decoder: *Decoder) {
     for index: 0..module_count - 1 {
         name_span := DecodeText(decoder)
         if decoder.cursor.problem != .None { return }
-        if decoder.mode == ModeViews {
+        if decoder.mode == ModeFill {
             decoder.owner.modules[index] = TextView(VecSlice(decoder.owner.text_bytes,
                 name_span.at, name_span.at + name_span.count))
         }
@@ -594,7 +648,7 @@ DecodeCore :: (decoder: *Decoder) {
         if decoder.cursor.problem != .None { return }
         if raw_kind > cast(u32)LirTypeKind.Capability { DecodeFail(decoder, .Field) }
         if flags > cast(u32)3 { DecodeFail(decoder, .Flags) }
-        if decoder.mode == ModeViews {
+        if decoder.mode == ModeFill {
             fields := VecSlice(decoder.owner.type_fields, fields_span.at, fields_span.at + fields_span.count)
             parameters := VecSlice(decoder.owner.type_parameters,
                 parameters_span.at, parameters_span.at + parameters_span.count)
@@ -612,7 +666,7 @@ DecodeCore :: (decoder: *Decoder) {
         bits := DecodeU64(decoder)
         bytes_span := DecodeBlob(decoder)
         if decoder.cursor.problem != .None { return }
-        if decoder.mode == ModeViews {
+        if decoder.mode == ModeFill {
             decoder.owner.constants[index] = .{type = type, bits = bits,
                 bytes = VecSlice(decoder.owner.blob_bytes, bytes_span.at, bytes_span.at + bytes_span.count)}
         }
@@ -628,7 +682,7 @@ DecodeCore :: (decoder: *Decoder) {
         flags := DecodeU32(decoder)
         if decoder.cursor.problem != .None { return }
         if flags > cast(u32)1 { DecodeFail(decoder, .Flags) }
-        if decoder.mode == ModeViews {
+        if decoder.mode == ModeFill {
             name := TextView(VecSlice(decoder.owner.text_bytes, name_span.at, name_span.at + name_span.count))
             decoder.owner.globals[index] = .{module = module, name = name, type = type,
                 constant = constant, writable = (flags & cast(u32)1) != cast(u32)0}
@@ -689,7 +743,7 @@ DecodeCore :: (decoder: *Decoder) {
                     target := DecodeS32(decoder)
                     arguments_span := DecodeS32s(decoder, .EdgeArguments)
                     if decoder.cursor.problem != .None { return }
-                    if decoder.mode == ModeViews {
+                    if decoder.mode == ModeFill {
                         arguments := VecSlice(decoder.owner.edge_arguments,
                             arguments_span.at, arguments_span.at + arguments_span.count)
                         decoder.owner.edges[edge_start + edge_offset] = .{block = target, arguments = arguments}
@@ -704,7 +758,7 @@ DecodeCore :: (decoder: *Decoder) {
                 if (flags & cast(u32)4) != 0 { checked = DecodeU32(decoder) }
                 if decoder.cursor.problem != .None { return }
                 if raw_op > cast(u32)LirOp.SquareRoot || checked > 1 { DecodeFail(decoder, .Field) }
-                if decoder.mode == ModeViews {
+                if decoder.mode == ModeFill {
                     operands := VecSlice(decoder.owner.operands,
                         operands_span.at, operands_span.at + operands_span.count)
                     // Preserve the verifier's alignment diagnostic for malformed wire values.
@@ -716,7 +770,7 @@ DecodeCore :: (decoder: *Decoder) {
                         checked = checked == 1}
                 }
             }
-            if decoder.mode == ModeViews {
+            if decoder.mode == ModeFill {
                 block_parameters := VecSlice(decoder.owner.block_parameters,
                     block_parameters_span.at, block_parameters_span.at + block_parameters_span.count)
                 decoder.owner.blocks[block_start + block_offset] = .{parameters = block_parameters,
@@ -729,7 +783,7 @@ DecodeCore :: (decoder: *Decoder) {
         if decoder.cursor.problem != .None { return }
         if raw_calling > cast(u32)LirCalling.Host { DecodeFail(decoder, .Field) }
         if flags > cast(u32)7 { DecodeFail(decoder, .Flags) }
-        if decoder.mode == ModeViews {
+        if decoder.mode == ModeFill {
             name := TextView(VecSlice(decoder.owner.text_bytes, name_span.at, name_span.at + name_span.count))
             parameters := VecSlice(decoder.owner.function_parameters,
                 parameters_span.at, parameters_span.at + parameters_span.count)
@@ -751,7 +805,7 @@ DecodeDebug :: (decoder: *Decoder) {
     for index: 0..source_count - 1 {
         source_span := DecodeText(decoder)
         if decoder.cursor.problem != .None { return }
-        if decoder.mode == ModeViews {
+        if decoder.mode == ModeFill {
             decoder.owner.sources[index] = TextView(VecSlice(decoder.owner.text_bytes,
                 source_span.at, source_span.at + source_span.count))
         }
@@ -764,14 +818,14 @@ DecodeDebug :: (decoder: *Decoder) {
             end_line = DecodeS32(decoder), end_column = DecodeS32(decoder),
             begin = DecodeS64(decoder), end = DecodeS64(decoder), parent = DecodeS32(decoder)}
         if decoder.cursor.problem != .None { return }
-        if decoder.mode == ModeViews { decoder.owner.origins[index] = origin }
+        if decoder.mode == ModeFill { decoder.owner.origins[index] = origin }
     }
 }
 
-DecodePass :: (input: string, layout: Layout, owner: *LirReadOwner, limits: LirLimits,
+DecodePass :: (input: string, source: *LirReadSource, layout: Layout, owner: *LirReadOwner, limits: LirLimits,
     shape: Shape, mode: s32) -> Decoder {
     decoder := Decoder.{owner = owner, limits = limits, shape = shape, mode = mode, work = limits.work,
-        cursor = .{input = input, at = layout.core_begin, end = layout.core_end}}
+        cursor = .{input = input, at = layout.core_begin, end = layout.core_end, source = source}}
     DecodeCore(*decoder)
     if decoder.cursor.problem == .None && decoder.cursor.at != decoder.cursor.end { DecodeFail(*decoder, .Trailing) }
     if decoder.cursor.problem == .None && layout.debug {
@@ -918,36 +972,42 @@ LirReadReplace :: (owner: *LirReadOwner, replacement: *LirReadOwner) {
 // and blobs, rejects noncanonical framing/trailing bytes, then calls LirVerify.
 // OWNER is empty after any failure. INPUT must not alias OWNER's old storage.
 LirRead :: (owner: *LirReadOwner, input: string, limits: LirLimits) -> LirCodecResult {
+    return LirReadInternal(owner, input, null, input.count, limits)
+}
+
+LirReadFromSource :: (owner: *LirReadOwner, source: *LirReadSource, limits: LirLimits) -> LirCodecResult {
+    return LirReadInternal(owner, "", source, source.size, limits)
+}
+
+#scope_file
+LirReadInternal :: (owner: *LirReadOwner, input: string, source: *LirReadSource,
+    size: s64, limits: LirLimits) -> LirCodecResult {
     if owner == null { return .{problem = .Owner} }
     LirReadFree(owner)
-    layout, framing := ReadLayout(input)
+    layout, framing := ReadLayout(input, source, size)
     if framing.problem != .None { return framing }
     if limits.work < 0 || limits.types < 0 || limits.functions < 0 || limits.blocks < 0 ||
         limits.values < 0 || limits.instructions < 0 || limits.bytes < 0 {
         return .{problem = .Limit}
     }
-    measured := DecodePass(input, layout, owner, limits, .{}, ModeShape)
+    measured := DecodePass(input, source, layout, owner, limits, .{}, ModeShape)
     if measured.cursor.problem != .None {
-        return .{problem = measured.cursor.problem, size = input.count, offset = measured.cursor.at}
+        return .{problem = measured.cursor.problem, size = size, offset = measured.cursor.at}
     }
     if layout.debug != (measured.shape.sources != 0 || measured.shape.origins != 0) {
-        return .{problem = .Section, size = input.count}
+        return .{problem = .Section, size = size}
     }
     if !Allocate(owner, measured.shape) {
         LirReadFree(owner)
-        return .{problem = .Allocation, size = input.count}
+        return .{problem = .Allocation, size = size}
     }
-    copied := DecodePass(input, layout, owner, limits, measured.shape, ModeData)
-    if copied.cursor.problem != .None {
-        problem := copied.cursor.problem; offset := copied.cursor.at
+    // Fill the preallocated pools and attach their views in one pass. Pool
+    // storage does not move while the decoder runs.
+    filled := DecodePass(input, source, layout, owner, limits, measured.shape, ModeFill)
+    if filled.cursor.problem != .None {
+        problem := filled.cursor.problem; offset := filled.cursor.at
         LirReadFree(owner)
-        return .{problem = problem, size = input.count, offset = offset}
-    }
-    viewed := DecodePass(input, layout, owner, limits, measured.shape, ModeViews)
-    if viewed.cursor.problem != .None {
-        problem := viewed.cursor.problem; offset := viewed.cursor.at
-        LirReadFree(owner)
-        return .{problem = problem, size = input.count, offset = offset}
+        return .{problem = problem, size = size, offset = offset}
     }
     owner.program = .{version = owner.version, modules = owner.modules[:], sources = owner.sources[:],
         types = owner.types[:], constants = owner.constants[:], globals = owner.globals[:],
@@ -957,12 +1017,13 @@ LirRead :: (owner: *LirReadOwner, input: string, limits: LirLimits) -> LirCodecR
     diagnostic := LirVerify(program, limits)
     if diagnostic.problem != .None {
         LirReadFree(owner)
-        return .{problem = .Verify, diagnostic = diagnostic, size = input.count}
+        return .{problem = .Verify, diagnostic = diagnostic, size = size}
     }
     owner.valid = true
-    return .{size = input.count}
+    return .{size = size}
 }
 
+#scope_export
 // The returned program borrows OWNER. It becomes invalid at the next
 // LirRead/LirReadFree call; callers must not retain any nested slice or string.
 LirReadProgram :: (owner: *LirReadOwner) -> LirProgram {

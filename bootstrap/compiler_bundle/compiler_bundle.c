@@ -82,9 +82,12 @@ static void compiler_bundle_ExecutablePayload(ExecutableWriter* writer, Executab
 static ExecutableProblem compiler_bundle_ExecutableValidateHeader(ExecutableHeader header) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_bundle_ExecutableNeed(ExecutableCursor* cursor, int64_t count) ZIRAN_MAYBE_UNUSED;
 static uint8_t compiler_bundle_ExecutableTakeU8(ExecutableCursor* cursor) ZIRAN_MAYBE_UNUSED;
+static uint8_t compiler_bundle_ExecutableByte(ExecutableCursor* cursor, int64_t at) ZIRAN_MAYBE_UNUSED;
 static uint32_t compiler_bundle_ExecutableTakeU32(ExecutableCursor* cursor) ZIRAN_MAYBE_UNUSED;
 static uint64_t compiler_bundle_ExecutableTakeU64(ExecutableCursor* cursor) ZIRAN_MAYBE_UNUSED;
-static bool compiler_bundle_ExecutableZero(String input, int64_t begin, int64_t end) ZIRAN_MAYBE_UNUSED;
+static bool compiler_bundle_ExecutableZero(ExecutableCursor* cursor, int64_t begin, int64_t end) ZIRAN_MAYBE_UNUSED;
+static ExecutableFraming compiler_bundle_ExecutableFrame(String bytes, ExecutableReadSource* source, int64_t length) ZIRAN_MAYBE_UNUSED;
+static String compiler_bundle_ExecutableBytes(String bytes, ExecutableRange range) ZIRAN_MAYBE_UNUSED;
 static ExecutableLayout compiler_bundle_ExecutableDecodeInternal(String bytes, Slice assets) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_bundle_EncodeAssets(Slice output, Slice assets) ZIRAN_MAYBE_UNUSED;
 
@@ -1140,7 +1143,43 @@ compiler_bundle_ExecutableTakeU8(ExecutableCursor* cursor)
     if (((ExecutableProblem)(cursor->problem)) != ExecutableProblem_None) {
         return 0;
     }
-    return (uint8_t)cursor->input.data[at];
+    return compiler_bundle_ExecutableByte(cursor, at);
+}
+
+static uint8_t
+compiler_bundle_ExecutableByte(ExecutableCursor* cursor, int64_t at)
+{
+    if (cursor->source == ((void *)0)) {
+        return (uint8_t)cursor->input.data[at];
+    }
+    int64_t relative = (int64_t)((uint64_t)at - (uint64_t)(cursor->window_at));
+    bool value_0 = relative < 0LL;
+    if (!value_0) {
+        int64_t value_1 = (int64_t)(cursor->window).length;
+        value_0 = (relative >= value_1);
+    }
+    if (value_0) {
+        String* value_2 = &(cursor->window);
+        ExecutableWindow value_3 = cursor->source->window;
+        String value_4 = value_3.call(value_3.context, cursor->source->context, at);
+        (*value_2) = value_4;
+        int64_t* value_5 = &(cursor->window_at);
+        (*value_5) = at;
+        int64_t value_6 = (int64_t)(cursor->window).length;
+        bool value_7 = value_6 == 0LL;
+        if (!value_7) {
+            int64_t value_8 = (int64_t)(cursor->window).length;
+            int64_t value_9 = (int64_t)((uint64_t)(cursor->source->size) - (uint64_t)at);
+            value_7 = (value_8 > value_9);
+        }
+        if (value_7) {
+            ExecutableProblem* value_10 = &(cursor->problem);
+            (*value_10) = ExecutableProblem_Truncated;
+            return 0;
+        }
+        relative = 0LL;
+    }
+    return (uint8_t)cursor->window.data[relative];
 }
 
 static uint32_t
@@ -1195,7 +1234,7 @@ compiler_bundle_ExecutableTakeU32(ExecutableCursor* cursor)
                 value_2 = 0;
                 goto value_3;
             }
-            value_2 = (uint8_t)cursor->input.data[at];
+            value_2 = compiler_bundle_ExecutableByte(cursor, at);
         value_3: ;
         }
         uint32_t value_16 = ZiShl32((uint32_t)(value_2), (uint64_t)((uint32_t)(((int64_t)((uint64_t)byte * UINT64_C(8))))), 32);
@@ -1256,7 +1295,7 @@ compiler_bundle_ExecutableTakeU64(ExecutableCursor* cursor)
                 value_2 = 0;
                 goto value_3;
             }
-            value_2 = (uint8_t)cursor->input.data[at];
+            value_2 = compiler_bundle_ExecutableByte(cursor, at);
         value_3: ;
         }
         uint64_t value_16 = ZiShl64((uint64_t)(value_2), (uint64_t)((uint64_t)(((int64_t)((uint64_t)byte * UINT64_C(8))))), 64);
@@ -1266,9 +1305,14 @@ compiler_bundle_ExecutableTakeU64(ExecutableCursor* cursor)
 }
 
 static bool
-compiler_bundle_ExecutableZero(String input, int64_t begin, int64_t end)
+compiler_bundle_ExecutableZero(ExecutableCursor* cursor, int64_t begin, int64_t end)
 {
-    if (begin < 0LL || end < begin || end > (int64_t)(input).length) {
+    bool value_0 = begin < 0LL || end < begin;
+    if (!value_0) {
+        int64_t value_1 = cursor->end;
+        value_0 = (end > value_1);
+    }
+    if (value_0) {
         return false;
     }
     {
@@ -1276,7 +1320,8 @@ compiler_bundle_ExecutableZero(String input, int64_t begin, int64_t end)
         int64_t range_last_3 = (int64_t)((uint64_t)end - UINT64_C(1));
         int64_t index = range_first_3;
         if (index <= range_last_3) for (;;) {
-            if ((uint8_t)input.data[index] != 0) {
+            bool value_2 = compiler_bundle_ExecutableByte(cursor, index) != 0;
+            if (value_2 || ((ExecutableProblem)(cursor->problem)) != ExecutableProblem_None) {
                 return false;
             }
             if (index == range_last_3) {
@@ -1288,16 +1333,16 @@ compiler_bundle_ExecutableZero(String input, int64_t begin, int64_t end)
     return true;
 }
 
-static ExecutableLayout
-compiler_bundle_ExecutableDecodeInternal(String bytes, Slice assets)
+static ExecutableFraming
+compiler_bundle_ExecutableFrame(String bytes, ExecutableReadSource* source, int64_t length)
 {
-    ExecutableLayout layout = {0};
-    if ((int64_t)(bytes).length > 268435456LL) {
+    ExecutableFraming layout = {0};
+    if (length < 0LL || length > 268435456LL) {
         ExecutableProblem* value_0 = &(layout.problem);
         (*value_0) = ExecutableProblem_Limit;
         return layout;
     }
-    ExecutableCursor cursor = {.input = bytes, .end = (int64_t)(bytes).length};
+    ExecutableCursor cursor = {.input = bytes, .end = length, .source = source};
     uint32_t magic = compiler_bundle_ExecutableTakeU32(&(cursor));
     uint32_t version = compiler_bundle_ExecutableTakeU32(&(cursor));
     uint32_t* value_1 = &(layout.found_version);
@@ -1373,34 +1418,33 @@ compiler_bundle_ExecutableDecodeInternal(String bytes, Slice assets)
         (*value_17) = ExecutableProblem_Limit;
         return layout;
     }
-    if (total > (uint64_t)((int64_t)(bytes).length)) {
+    if (total > (uint64_t)(length)) {
         ExecutableProblem* value_18 = &(layout.problem);
         (*value_18) = ExecutableProblem_Truncated;
         return layout;
     }
-    if (total < (uint64_t)((int64_t)(bytes).length)) {
+    if (total < (uint64_t)(length)) {
         ExecutableProblem* value_19 = &(layout.problem);
         (*value_19) = ExecutableProblem_Trailing;
         return layout;
     }
     int64_t directory_end = (int64_t)(UINT64_C(64) + ((uint64_t)section_count * UINT64_C(32)));
-    if (directory_end > (int64_t)(bytes).length) {
+    if (directory_end > length) {
         ExecutableProblem* value_20 = &(layout.problem);
         (*value_20) = ExecutableProblem_Truncated;
         return layout;
     }
-    String manifest = StringView(NULL, 0);
-    String asset_bytes = StringView(NULL, 0);
+    ExecutableRange manifest = {0};
     int64_t expected = directory_end;
     uint32_t previous = 0;
     bool found_manifest = false;
     bool found_program = false;
     bool found_assets = false;
     {
-        int64_t range_first_76 = 0LL;
-        int64_t range_last_76 = (int64_t)((uint64_t)section_count - UINT64_C(1));
-        int64_t index = range_first_76;
-        if (index <= range_last_76) for (;;) {
+        int64_t range_first_75 = 0LL;
+        int64_t range_last_75 = (int64_t)((uint64_t)section_count - UINT64_C(1));
+        int64_t index = range_first_75;
+        if (index <= range_last_75) for (;;) {
             uint32_t kind = compiler_bundle_ExecutableTakeU32(&(cursor));
             uint32_t section_flags = compiler_bundle_ExecutableTakeU32(&(cursor));
             uint64_t offset_raw = compiler_bundle_ExecutableTakeU64(&(cursor));
@@ -1462,186 +1506,339 @@ compiler_bundle_ExecutableDecodeInternal(String bytes, Slice assets)
             }
             bool value_33 = offset > aligned;
             if (!value_33) {
-                bool value_34 = compiler_bundle_ExecutableZero(bytes, expected, offset);
+                bool value_34 = compiler_bundle_ExecutableZero(&(cursor), expected, offset);
                 value_33 = !value_34;
             }
             if (value_33) {
                 ExecutableProblem* value_35 = &(layout.problem);
-                (*value_35) = ExecutableProblem_Alignment;
+                ExecutableProblem value_36 = (ExecutableProblem)(0);
+                if (((ExecutableProblem)(cursor.problem)) != ExecutableProblem_None) {
+                    value_36 = (ExecutableProblem)(cursor.problem);
+                } else {
+                    value_36 = ExecutableProblem_Alignment;
+                }
+                (*value_35) = value_36;
                 return layout;
             }
-            if (offset > (int64_t)(bytes).length || size > (int64_t)((uint64_t)((int64_t)(bytes).length) - (uint64_t)offset)) {
-                ExecutableProblem* value_36 = &(layout.problem);
-                (*value_36) = ExecutableProblem_Truncated;
+            if (offset > length || size > (int64_t)((uint64_t)length - (uint64_t)offset)) {
+                ExecutableProblem* value_37 = &(layout.problem);
+                (*value_37) = ExecutableProblem_Truncated;
                 return layout;
             }
-            String section = StringRangeAt(bytes, (int64_t)offset, (int64_t)((int64_t)((uint64_t)offset + (uint64_t)size)));
+            ExecutableRange section = {.at = offset, .size = size};
             bool required = ((uint32_t)((uint32_t)section_flags & 1u)) != 0;
             if (kind == 1) {
                 if (!required || size != 128LL) {
-                    ExecutableProblem* value_37 = &(layout.problem);
-                    (*value_37) = ExecutableProblem_Manifest;
+                    ExecutableProblem* value_38 = &(layout.problem);
+                    (*value_38) = ExecutableProblem_Manifest;
                     return layout;
                 }
                 manifest = section;
                 found_manifest = true;
             } else if (kind == 2) {
                 if (!required || size < 1LL || size > 268435456LL) {
-                    ExecutableProblem* value_38 = &(layout.problem);
-                    (*value_38) = ExecutableProblem_Section;
+                    ExecutableProblem* value_39 = &(layout.problem);
+                    (*value_39) = ExecutableProblem_Section;
                     return layout;
                 }
-                String* value_39 = &(layout.program);
-                (*value_39) = section;
+                ExecutableRange* value_40 = &(layout.program);
+                (*value_40) = section;
                 found_program = true;
             } else if (kind == 3) {
                 if (!required) {
-                    ExecutableProblem* value_40 = &(layout.problem);
-                    (*value_40) = ExecutableProblem_Assets;
+                    ExecutableProblem* value_41 = &(layout.problem);
+                    (*value_41) = ExecutableProblem_Assets;
                     return layout;
                 }
-                asset_bytes = section;
+                ExecutableRange* value_42 = &(layout.asset_section);
+                (*value_42) = section;
                 found_assets = true;
             } else if (kind == 4) {
                 if (required) {
-                    ExecutableProblem* value_41 = &(layout.problem);
-                    (*value_41) = ExecutableProblem_Variant;
+                    ExecutableProblem* value_43 = &(layout.problem);
+                    (*value_43) = ExecutableProblem_Variant;
                     return layout;
                 }
-                int64_t* value_42 = &(layout.optional_sections);
-                (*value_42) = (int64_t)((uint64_t)((*value_42)) + UINT64_C(1));
+                int64_t* value_44 = &(layout.optional_sections);
+                (*value_44) = (int64_t)((uint64_t)((*value_44)) + UINT64_C(1));
             } else if (kind == 5) {
                 if (!has_module_linkage || !required || size == 0LL) {
-                    ExecutableProblem* value_43 = &(layout.problem);
-                    (*value_43) = ExecutableProblem_Section;
+                    ExecutableProblem* value_45 = &(layout.problem);
+                    (*value_45) = ExecutableProblem_Section;
                     return layout;
                 }
                 if (alignment != 8LL) {
-                    ExecutableProblem* value_44 = &(layout.problem);
-                    (*value_44) = ExecutableProblem_Alignment;
+                    ExecutableProblem* value_46 = &(layout.problem);
+                    (*value_46) = ExecutableProblem_Alignment;
                     return layout;
                 }
-                String* value_45 = &(layout.module_linkage);
-                (*value_45) = section;
+                ExecutableRange* value_47 = &(layout.module_linkage);
+                (*value_47) = section;
             } else if (kind == 2147483649) {
                 if (required) {
-                    ExecutableProblem* value_46 = &(layout.problem);
-                    (*value_46) = ExecutableProblem_RequiredSection;
+                    ExecutableProblem* value_48 = &(layout.problem);
+                    (*value_48) = ExecutableProblem_RequiredSection;
                     return layout;
                 }
-                String* value_47 = &(layout.debug);
-                (*value_47) = section;
-                int64_t* value_48 = &(layout.optional_sections);
-                (*value_48) = (int64_t)((uint64_t)((*value_48)) + UINT64_C(1));
+                ExecutableRange* value_49 = &(layout.debug);
+                (*value_49) = section;
+                int64_t* value_50 = &(layout.optional_sections);
+                (*value_50) = (int64_t)((uint64_t)((*value_50)) + UINT64_C(1));
             } else if (kind == 2147483650) {
                 if (required) {
-                    ExecutableProblem* value_49 = &(layout.problem);
-                    (*value_49) = ExecutableProblem_RequiredSection;
+                    ExecutableProblem* value_51 = &(layout.problem);
+                    (*value_51) = ExecutableProblem_RequiredSection;
                     return layout;
                 }
-                String* value_50 = &(layout.source);
-                (*value_50) = section;
-                int64_t* value_51 = &(layout.optional_sections);
-                (*value_51) = (int64_t)((uint64_t)((*value_51)) + UINT64_C(1));
+                ExecutableRange* value_52 = &(layout.source);
+                (*value_52) = section;
+                int64_t* value_53 = &(layout.optional_sections);
+                (*value_53) = (int64_t)((uint64_t)((*value_53)) + UINT64_C(1));
             } else if (kind == 2147483651) {
                 if (required) {
-                    ExecutableProblem* value_52 = &(layout.problem);
-                    (*value_52) = ExecutableProblem_RequiredSection;
+                    ExecutableProblem* value_54 = &(layout.problem);
+                    (*value_54) = ExecutableProblem_RequiredSection;
                     return layout;
                 }
-                String* value_53 = &(layout.interface);
-                (*value_53) = section;
-                int64_t* value_54 = &(layout.optional_sections);
-                (*value_54) = (int64_t)((uint64_t)((*value_54)) + UINT64_C(1));
-            } else {
-                if (required) {
-                    ExecutableProblem* value_55 = &(layout.problem);
-                    (*value_55) = ExecutableProblem_RequiredSection;
-                    return layout;
-                }
+                ExecutableRange* value_55 = &(layout.interface);
+                (*value_55) = section;
                 int64_t* value_56 = &(layout.optional_sections);
                 (*value_56) = (int64_t)((uint64_t)((*value_56)) + UINT64_C(1));
+            } else {
+                if (required) {
+                    ExecutableProblem* value_57 = &(layout.problem);
+                    (*value_57) = ExecutableProblem_RequiredSection;
+                    return layout;
+                }
+                int64_t* value_58 = &(layout.optional_sections);
+                (*value_58) = (int64_t)((uint64_t)((*value_58)) + UINT64_C(1));
             }
             expected = (int64_t)((uint64_t)offset + (uint64_t)size);
-            if (index == range_last_76) {
+            if (index == range_last_75) {
                 break;
             }
             index = (int64_t)((uint64_t)index + UINT64_C(1));
         }
     }
-    if (expected != (int64_t)(bytes).length) {
-        ExecutableProblem* value_57 = &(layout.problem);
-        ExecutableProblem value_58 = (ExecutableProblem)(0);
-        if (expected < (int64_t)(bytes).length) {
-            value_58 = ExecutableProblem_Trailing;
+    if (expected != length) {
+        ExecutableProblem* value_59 = &(layout.problem);
+        ExecutableProblem value_60 = (ExecutableProblem)(0);
+        if (expected < length) {
+            value_60 = ExecutableProblem_Trailing;
         } else {
-            value_58 = ExecutableProblem_Truncated;
+            value_60 = ExecutableProblem_Truncated;
         }
-        (*value_57) = value_58;
+        (*value_59) = value_60;
         return layout;
     }
     if (!found_manifest || !found_program || !found_assets) {
-        ExecutableProblem* value_59 = &(layout.problem);
-        (*value_59) = ExecutableProblem_Section;
+        ExecutableProblem* value_61 = &(layout.problem);
+        (*value_61) = ExecutableProblem_Section;
         return layout;
     }
-    if (has_module_linkage && ((int64_t)(layout.module_linkage).length == 0LL || (int64_t)(layout.interface).length == 0LL)) {
-        ExecutableProblem* value_60 = &(layout.problem);
-        (*value_60) = ExecutableProblem_Section;
+    if (has_module_linkage && (layout.module_linkage.size == 0LL || layout.interface.size == 0LL)) {
+        ExecutableProblem* value_62 = &(layout.problem);
+        (*value_62) = ExecutableProblem_Section;
         return layout;
     }
-    ExecutableCursor manifest_cursor = {.input = manifest, .end = (int64_t)(manifest).length};
-    uint32_t schema = compiler_bundle_ExecutableTakeU32(&(manifest_cursor));
-    uint32_t lir_schema = compiler_bundle_ExecutableTakeU32(&(manifest_cursor));
-    int32_t* value_61 = &(layout.entry);
-    uint32_t value_62 = compiler_bundle_ExecutableTakeU32(&(manifest_cursor));
-    (*value_61) = (int32_t)(value_62);
-    uint32_t capabilities = compiler_bundle_ExecutableTakeU32(&(manifest_cursor));
-    uint32_t variants = compiler_bundle_ExecutableTakeU32(&(manifest_cursor));
-    uint32_t value_63 = compiler_bundle_ExecutableTakeU32(&(manifest_cursor));
-    int64_t manifest_assets = (int64_t)(value_63);
-    uint32_t proof_status = compiler_bundle_ExecutableTakeU32(&(manifest_cursor));
-    uint32_t manifest_reserved = compiler_bundle_ExecutableTakeU32(&(manifest_cursor));
-    bool value_64 = ((ExecutableProblem)(manifest_cursor.problem)) != ExecutableProblem_None || schema != 1 || lir_schema != 3;
-    if (value_64 || proof_status != 0 || manifest_reserved != 0) {
-        ExecutableProblem* value_65 = &(layout.problem);
-        (*value_65) = ExecutableProblem_Manifest;
+    int64_t* value_63 = &(cursor.at);
+    (*value_63) = manifest.at;
+    int64_t* value_64 = &(cursor.end);
+    (*value_64) = (int64_t)((uint64_t)(manifest.at) + (uint64_t)(manifest.size));
+    uint32_t schema = compiler_bundle_ExecutableTakeU32(&(cursor));
+    uint32_t lir_schema = compiler_bundle_ExecutableTakeU32(&(cursor));
+    int32_t* value_65 = &(layout.entry);
+    uint32_t value_66 = compiler_bundle_ExecutableTakeU32(&(cursor));
+    (*value_65) = (int32_t)(value_66);
+    uint32_t capabilities = compiler_bundle_ExecutableTakeU32(&(cursor));
+    uint32_t variants = compiler_bundle_ExecutableTakeU32(&(cursor));
+    uint32_t value_67 = compiler_bundle_ExecutableTakeU32(&(cursor));
+    int64_t manifest_assets = (int64_t)(value_67);
+    uint32_t proof_status = compiler_bundle_ExecutableTakeU32(&(cursor));
+    uint32_t manifest_reserved = compiler_bundle_ExecutableTakeU32(&(cursor));
+    if (((ExecutableProblem)(cursor.problem)) != ExecutableProblem_None) {
+        ExecutableProblem* value_68 = &(layout.problem);
+        ExecutableProblem value_69 = (ExecutableProblem)(0);
+        if (source == ((void *)0)) {
+            value_69 = ExecutableProblem_Manifest;
+        } else {
+            value_69 = (ExecutableProblem)(cursor.problem);
+        }
+        (*value_68) = value_69;
+        return layout;
+    }
+    if (schema != 1 || lir_schema != 3 || proof_status != 0 || manifest_reserved != 0) {
+        ExecutableProblem* value_70 = &(layout.problem);
+        (*value_70) = ExecutableProblem_Manifest;
         return layout;
     }
     if (layout.entry < 0) {
-        ExecutableProblem* value_66 = &(layout.problem);
-        (*value_66) = ExecutableProblem_Entry;
+        ExecutableProblem* value_71 = &(layout.problem);
+        (*value_71) = ExecutableProblem_Entry;
         return layout;
     }
     if (capabilities > 4096) {
-        ExecutableProblem* value_67 = &(layout.problem);
-        (*value_67) = ExecutableProblem_Capabilities;
+        ExecutableProblem* value_72 = &(layout.problem);
+        (*value_72) = ExecutableProblem_Capabilities;
         return layout;
     }
-    int64_t* value_68 = &(layout.capabilities);
-    (*value_68) = (int64_t)(capabilities);
+    int64_t* value_73 = &(layout.capabilities);
+    (*value_73) = (int64_t)(capabilities);
     if (variants != 0) {
-        ExecutableProblem* value_69 = &(layout.problem);
-        (*value_69) = ExecutableProblem_Variant;
+        ExecutableProblem* value_74 = &(layout.problem);
+        (*value_74) = ExecutableProblem_Variant;
         return layout;
     }
-    int64_t identity_at = manifest_cursor.at;
-    String* value_70 = &(layout.program_identity);
-    (*value_70) = StringRangeAt(manifest, (int64_t)identity_at, (int64_t)((int64_t)((uint64_t)identity_at + UINT64_C(32))));
-    identity_at = (int64_t)((uint64_t)identity_at + UINT64_C(32));
-    String* value_71 = &(layout.assets_identity);
-    (*value_71) = StringRangeAt(manifest, (int64_t)identity_at, (int64_t)((int64_t)((uint64_t)identity_at + UINT64_C(32))));
-    identity_at = (int64_t)((uint64_t)identity_at + UINT64_C(32));
-    String* value_72 = &(layout.content_identity);
-    (*value_72) = StringRangeAt(manifest, (int64_t)identity_at, (int64_t)((int64_t)((uint64_t)identity_at + UINT64_C(32))));
-    Slice output = {0};
-    Codec asset_codec = {.input = asset_bytes, .output = output, .at = 0LL, .reading = true, .write = false, .valid = true, .ended = false};
-    int64_t* value_73 = &(layout.assets);
-    (*value_73) = compiler_bundle_Assets(&(asset_codec), assets);
-    if (!asset_codec.valid || layout.assets != manifest_assets) {
-        ExecutableProblem* value_74 = &(layout.problem);
-        (*value_74) = ExecutableProblem_Assets;
+    ExecutableRange* value_75 = &(layout.identities);
+    (*value_75) = (ExecutableRange){.at = cursor.at, .size = 96LL};
+    int64_t* value_76 = &(layout.assets);
+    (*value_76) = manifest_assets;
+    return layout;
+}
+
+static String
+compiler_bundle_ExecutableBytes(String bytes, ExecutableRange range)
+{
+    if (range.at == 0LL) {
+        return StringLiteral("");
+    }
+    return StringRangeAt(bytes, (int64_t)range.at, (int64_t)((int64_t)((uint64_t)(range.at) + (uint64_t)(range.size))));
+}
+
+static ExecutableLayout
+compiler_bundle_ExecutableDecodeInternal(String bytes, Slice assets)
+{
+    ExecutableFraming frame = compiler_bundle_ExecutableFrame(bytes, (void *)0, (int64_t)(bytes).length);
+    ExecutableLayout value_0 = {0};
+    value_0.problem = (ExecutableProblem)(frame.problem);
+    value_0.found_version = frame.found_version;
+    value_0.required_features = frame.required_features;
+    value_0.optional_features = frame.optional_features;
+    value_0.entry = frame.entry;
+    value_0.capabilities = frame.capabilities;
+    value_0.optional_sections = frame.optional_sections;
+    String value_1 = bytes;
+    ExecutableRange value_2 = frame.program;
+    String value_3 = StringView(NULL, 0);
+    {
+        String bytes = value_1;
+        ExecutableRange range = value_2;
+        if (range.at == 0LL) {
+            value_3 = StringLiteral("");
+            goto value_4;
+        }
+        value_3 = StringRangeAt(bytes, (int64_t)range.at, (int64_t)((int64_t)((uint64_t)(range.at) + (uint64_t)(range.size))));
+    value_4: ;
+    }
+    value_0.program = value_3;
+    String value_5 = bytes;
+    ExecutableRange value_6 = frame.debug;
+    String value_7 = StringView(NULL, 0);
+    {
+        String bytes = value_5;
+        ExecutableRange range = value_6;
+        if (range.at == 0LL) {
+            value_7 = StringLiteral("");
+            goto value_8;
+        }
+        value_7 = StringRangeAt(bytes, (int64_t)range.at, (int64_t)((int64_t)((uint64_t)(range.at) + (uint64_t)(range.size))));
+    value_8: ;
+    }
+    value_0.debug = value_7;
+    String value_9 = bytes;
+    ExecutableRange value_10 = frame.source;
+    String value_11 = StringView(NULL, 0);
+    {
+        String bytes = value_9;
+        ExecutableRange range = value_10;
+        if (range.at == 0LL) {
+            value_11 = StringLiteral("");
+            goto value_12;
+        }
+        value_11 = StringRangeAt(bytes, (int64_t)range.at, (int64_t)((int64_t)((uint64_t)(range.at) + (uint64_t)(range.size))));
+    value_12: ;
+    }
+    value_0.source = value_11;
+    String value_13 = bytes;
+    ExecutableRange value_14 = frame.interface;
+    String value_15 = StringView(NULL, 0);
+    {
+        String bytes = value_13;
+        ExecutableRange range = value_14;
+        if (range.at == 0LL) {
+            value_15 = StringLiteral("");
+            goto value_16;
+        }
+        value_15 = StringRangeAt(bytes, (int64_t)range.at, (int64_t)((int64_t)((uint64_t)(range.at) + (uint64_t)(range.size))));
+    value_16: ;
+    }
+    value_0.interface = value_15;
+    String value_17 = bytes;
+    ExecutableRange value_18 = frame.module_linkage;
+    String value_19 = StringView(NULL, 0);
+    {
+        String bytes = value_17;
+        ExecutableRange range = value_18;
+        if (range.at == 0LL) {
+            value_19 = StringLiteral("");
+            goto value_20;
+        }
+        value_19 = StringRangeAt(bytes, (int64_t)range.at, (int64_t)((int64_t)((uint64_t)(range.at) + (uint64_t)(range.size))));
+    value_20: ;
+    }
+    value_0.module_linkage = value_19;
+    ExecutableLayout layout = value_0;
+    if (((ExecutableProblem)(frame.problem)) != ExecutableProblem_None) {
         return layout;
+    }
+    String value_21 = bytes;
+    ExecutableRange value_22 = frame.identities;
+    String value_23 = StringView(NULL, 0);
+    {
+        String bytes = value_21;
+        ExecutableRange range = value_22;
+        if (range.at == 0LL) {
+            value_23 = StringLiteral("");
+            goto value_24;
+        }
+        value_23 = StringRangeAt(bytes, (int64_t)range.at, (int64_t)((int64_t)((uint64_t)(range.at) + (uint64_t)(range.size))));
+    value_24: ;
+    }
+    String identities = value_23;
+    String* value_25 = &(layout.program_identity);
+    (*value_25) = StringRangeAt(identities, (int64_t)0LL, (int64_t)32LL);
+    String* value_26 = &(layout.assets_identity);
+    (*value_26) = StringRangeAt(identities, (int64_t)32LL, (int64_t)64LL);
+    String* value_27 = &(layout.content_identity);
+    (*value_27) = StringRangeAt(identities, (int64_t)64LL, (int64_t)96LL);
+    Slice output = {0};
+    Codec value_28 = {0};
+    String value_29 = bytes;
+    ExecutableRange value_30 = frame.asset_section;
+    String value_31 = StringView(NULL, 0);
+    {
+        String bytes = value_29;
+        ExecutableRange range = value_30;
+        if (range.at == 0LL) {
+            value_31 = StringLiteral("");
+            goto value_32;
+        }
+        value_31 = StringRangeAt(bytes, (int64_t)range.at, (int64_t)((int64_t)((uint64_t)(range.at) + (uint64_t)(range.size))));
+    value_32: ;
+    }
+    value_28.input = value_31;
+    value_28.output = output;
+    value_28.at = 0LL;
+    value_28.reading = true;
+    value_28.write = false;
+    value_28.valid = true;
+    value_28.ended = false;
+    Codec asset_codec = value_28;
+    int64_t* value_33 = &(layout.assets);
+    (*value_33) = compiler_bundle_Assets(&(asset_codec), assets);
+    if (!asset_codec.valid || layout.assets != frame.assets) {
+        ExecutableProblem* value_34 = &(layout.problem);
+        (*value_34) = ExecutableProblem_Assets;
     }
     return layout;
 }
@@ -1835,6 +2032,12 @@ compiler_bundle_ExecutableEncode(Slice output, ExecutableHeader header)
         return (ExecutableResult){.problem = value_9, .size = total, .offset = writer.at};
     }
     return (ExecutableResult){.size = total};
+}
+
+ExecutableFraming
+compiler_bundle_ExecutableReadFraming(ExecutableReadSource* source)
+{
+    return compiler_bundle_ExecutableFrame(StringLiteral(""), source, source->size);
 }
 
 ExecutableLayout

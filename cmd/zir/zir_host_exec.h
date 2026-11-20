@@ -23,6 +23,9 @@ ExecBundle *ExecBundleOpen(const unsigned char *bytes, size_t size, const char *
  * for release if it does not run. */
 ExecBundle *ExecBundleOpenWithRelease(const unsigned char *bytes, size_t size, const char *name,
                                       BundleImageRelease consumed, void *context);
+/* Verifies the source and writes the bundle's raw SHA-256 on success. */
+ExecBundle *ExecBundleOpenReadAt(uint64_t size, BundleReadAt read_at, void *context,
+                                unsigned char digest[32], int *unsupported);
 void ExecBundleClose(ExecBundle *bundle);
 /* The verified program, a `const LirProgram *`. */
 const void *ExecBundleProgram(const ExecBundle *bundle);

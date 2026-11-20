@@ -284,6 +284,17 @@ not matter. Separate instances of one bundle may run concurrently; each owns its
 globals, which persist across `BundleInstanceRun` calls. Global initializers run
 when the instance opens.
 
+For app images without assets, module linkage or additional attachments,
+`BundleOpenReadAt` verifies a seekable image without retaining the input
+bytes. Provide the image size (up to 256 MiB) and a callback that fills each
+requested range and returns its exact byte count. The source must stay stable
+until open returns. Verification rejects short reads, read errors, and changed
+bytes on a repeated read. The returned bundle owns its decoded program and
+has the same SHA-256 identity as the byte-based open functions. You can close
+the source and dispose of the callback context as soon as open returns.
+If the optional `unsupported` output is 1, the source profile cannot verify
+the image. The caller can explicitly retry through `BundleOpenOwnedBytes`.
+
 Each host call is translated between the engine's host image and `HostValue`
 trees by the host interface section. A value's type is the spelling declared at
 its position, and a spelling that starts with `u` is unsigned; a `u64` above the

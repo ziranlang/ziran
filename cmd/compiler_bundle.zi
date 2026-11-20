@@ -48,6 +48,27 @@ ExecutableLayout :: struct {
     module_linkage: string
 }
 
+ExecutableWindow :: #type (*void, s64) -> string;
+ExecutableReadSource :: struct { context: *void; window: ExecutableWindow; size: s64 }
+ExecutableRange :: struct { at: s64; size: s64 }
+ExecutableFraming :: struct {
+    problem: ExecutableProblem
+    found_version: u32
+    required_features: u64
+    optional_features: u64
+    entry: s32
+    capabilities: s64
+    assets: s64
+    optional_sections: s64
+    program: ExecutableRange
+    identities: ExecutableRange
+    asset_section: ExecutableRange
+    debug: ExecutableRange
+    source: ExecutableRange
+    interface: ExecutableRange
+    module_linkage: ExecutableRange
+}
+
 #scope_file
 Signature :: 0x585a;        // "ZX\0\0" as a little-endian word
 // Revisions 26 and 27 held semantic IR; they are refused by name.
@@ -334,7 +355,15 @@ ExecutableValidateHeader :: (header: ExecutableHeader) -> ExecutableProblem {
     return .None
 }
 
-ExecutableCursor :: struct { input: string; at: s64; end: s64; problem: ExecutableProblem }
+ExecutableCursor :: struct {
+    input: string
+    at: s64
+    end: s64
+    problem: ExecutableProblem
+    source: *ExecutableReadSource
+    window: string
+    window_at: s64
+}
 ExecutableNeed :: (cursor: *ExecutableCursor, count: s64) -> s64 {
     if cursor.problem != .None { return 0 }
     if count < 0 || cursor.at < 0 || cursor.at > cursor.end || count > cursor.end - cursor.at {
@@ -348,7 +377,22 @@ ExecutableNeed :: (cursor: *ExecutableCursor, count: s64) -> s64 {
 ExecutableTakeU8 :: (cursor: *ExecutableCursor) -> u8 {
     at := ExecutableNeed(cursor, 1)
     if cursor.problem != .None { return 0 }
-    return cursor.input[at]
+    return ExecutableByte(cursor, at)
+}
+
+ExecutableByte :: (cursor: *ExecutableCursor, at: s64) -> u8 {
+    if cursor.source == null { return cursor.input[at] }
+    relative := at - cursor.window_at
+    if relative < 0 || relative >= cursor.window.count {
+        cursor.window = cursor.source.window(cursor.source.context, at)
+        cursor.window_at = at
+        if cursor.window.count == 0 || cursor.window.count > cursor.source.size - at {
+            cursor.problem = .Truncated
+            return 0
+        }
+        relative = 0
+    }
+    return cursor.window[relative]
 }
 ExecutableTakeU32 :: (cursor: *ExecutableCursor) -> u32 {
     value: u32
@@ -360,16 +404,18 @@ ExecutableTakeU64 :: (cursor: *ExecutableCursor) -> u64 {
     for byte: 0..7 { value |= cast(u64)ExecutableTakeU8(cursor) << cast(u64)(byte * 8) }
     return value
 }
-ExecutableZero :: (input: string, begin: s64, end: s64) -> bool {
-    if begin < 0 || end < begin || end > input.count { return false }
-    for index: begin..end - 1 { if input[index] != 0 { return false } }
+ExecutableZero :: (cursor: *ExecutableCursor, begin: s64, end: s64) -> bool {
+    if begin < 0 || end < begin || end > cursor.end { return false }
+    for index: begin..end - 1 {
+        if ExecutableByte(cursor, index) != 0 || cursor.problem != .None { return false }
+    }
     return true
 }
 
-ExecutableDecodeInternal :: (bytes: string, assets: []Asset) -> ExecutableLayout {
-    layout: ExecutableLayout
-    if bytes.count > ExecutableByteLimit { layout.problem = .Limit; return layout }
-    cursor := ExecutableCursor.{input = bytes, end = bytes.count}
+ExecutableFrame :: (bytes: string, source: *ExecutableReadSource, length: s64) -> ExecutableFraming {
+    layout: ExecutableFraming
+    if length < 0 || length > ExecutableByteLimit { layout.problem = .Limit; return layout }
+    cursor := ExecutableCursor.{input = bytes, end = length, source = source}
     magic := ExecutableTakeU32(*cursor)
     version := ExecutableTakeU32(*cursor)
     layout.found_version = version
@@ -400,13 +446,12 @@ ExecutableDecodeInternal :: (bytes: string, assets: []Asset) -> ExecutableLayout
     }
     if flags != 0 { layout.problem = .Flags; return layout }
     if section_count < 3 || section_count > ExecutableSectionLimit { layout.problem = .Limit; return layout }
-    if total > cast(u64)bytes.count { layout.problem = .Truncated; return layout }
-    if total < cast(u64)bytes.count { layout.problem = .Trailing; return layout }
+    if total > cast(u64)length { layout.problem = .Truncated; return layout }
+    if total < cast(u64)length { layout.problem = .Trailing; return layout }
     directory_end := ExecutableHeaderSize + section_count * ExecutableDirectoryEntrySize
-    if directory_end > bytes.count { layout.problem = .Truncated; return layout }
+    if directory_end > length { layout.problem = .Truncated; return layout }
 
-    manifest: string
-    asset_bytes: string
+    manifest: ExecutableRange
     expected := directory_end
     previous: u32
     found_manifest := false
@@ -439,15 +484,15 @@ ExecutableDecodeInternal :: (bytes: string, assets: []Asset) -> ExecutableLayout
         offset := cast(s64)offset_raw
         size := cast(s64)size_raw
         if offset < aligned { layout.problem = .Overlap; return layout }
-        if offset > aligned || !ExecutableZero(bytes, expected, offset) {
-            layout.problem = .Alignment
+        if offset > aligned || !ExecutableZero(*cursor, expected, offset) {
+            layout.problem = ifx cursor.problem != .None then cursor.problem else .Alignment
             return layout
         }
-        if offset > bytes.count || size > bytes.count - offset {
+        if offset > length || size > length - offset {
             layout.problem = .Truncated
             return layout
         }
-        section := bytes[offset:offset + size]
+        section := ExecutableRange.{offset, size}
         required := (section_flags & cast(u32)ExecutableSectionRequired) != 0
         if kind == ExecutableSectionManifest {
             if !required || size != ExecutableManifestSize { layout.problem = .Manifest; return layout }
@@ -457,7 +502,7 @@ ExecutableDecodeInternal :: (bytes: string, assets: []Asset) -> ExecutableLayout
             layout.program = section; found_program = true
         } else if kind == ExecutableSectionAssets {
             if !required { layout.problem = .Assets; return layout }
-            asset_bytes = section; found_assets = true
+            layout.asset_section = section; found_assets = true
         } else if kind == ExecutableSectionVariants {
             if required { layout.problem = .Variant; return layout }
             layout.optional_sections += 1
@@ -480,23 +525,28 @@ ExecutableDecodeInternal :: (bytes: string, assets: []Asset) -> ExecutableLayout
         }
         expected = offset + size
     }
-    if expected != bytes.count { layout.problem = ifx expected < bytes.count then .Trailing else .Truncated; return layout }
+    if expected != length { layout.problem = ifx expected < length then .Trailing else .Truncated; return layout }
     if !found_manifest || !found_program || !found_assets { layout.problem = .Section; return layout }
-    if has_module_linkage && (layout.module_linkage.count == 0 || layout.interface.count == 0) {
+    if has_module_linkage && (layout.module_linkage.size == 0 || layout.interface.size == 0) {
         layout.problem = .Section
         return layout
     }
 
-    manifest_cursor := ExecutableCursor.{input = manifest, end = manifest.count}
-    schema := ExecutableTakeU32(*manifest_cursor)
-    lir_schema := ExecutableTakeU32(*manifest_cursor)
-    layout.entry = cast(s32)ExecutableTakeU32(*manifest_cursor)
-    capabilities := ExecutableTakeU32(*manifest_cursor)
-    variants := ExecutableTakeU32(*manifest_cursor)
-    manifest_assets := cast(s64)ExecutableTakeU32(*manifest_cursor)
-    proof_status := ExecutableTakeU32(*manifest_cursor)
-    manifest_reserved := ExecutableTakeU32(*manifest_cursor)
-    if manifest_cursor.problem != .None || schema != ExecutableManifestSchema ||
+    cursor.at = manifest.at
+    cursor.end = manifest.at + manifest.size
+    schema := ExecutableTakeU32(*cursor)
+    lir_schema := ExecutableTakeU32(*cursor)
+    layout.entry = cast(s32)ExecutableTakeU32(*cursor)
+    capabilities := ExecutableTakeU32(*cursor)
+    variants := ExecutableTakeU32(*cursor)
+    manifest_assets := cast(s64)ExecutableTakeU32(*cursor)
+    proof_status := ExecutableTakeU32(*cursor)
+    manifest_reserved := ExecutableTakeU32(*cursor)
+    if cursor.problem != .None {
+        layout.problem = ifx source == null then .Manifest else cursor.problem
+        return layout
+    }
+    if schema != ExecutableManifestSchema ||
         lir_schema != ExecutableLirSchema || proof_status != 0 || manifest_reserved != 0 {
         layout.problem = .Manifest
         return layout
@@ -505,19 +555,37 @@ ExecutableDecodeInternal :: (bytes: string, assets: []Asset) -> ExecutableLayout
     if capabilities > cast(u32)CapabilityLimit { layout.problem = .Capabilities; return layout }
     layout.capabilities = cast(s64)capabilities
     if variants != 0 { layout.problem = .Variant; return layout }
-    identity_at := manifest_cursor.at
-    layout.program_identity = manifest[identity_at:identity_at + ExecutableIdentitySize]
-    identity_at += ExecutableIdentitySize
-    layout.assets_identity = manifest[identity_at:identity_at + ExecutableIdentitySize]
-    identity_at += ExecutableIdentitySize
-    layout.content_identity = manifest[identity_at:identity_at + ExecutableIdentitySize]
-
-    output: []u8
-    asset_codec := Codec.{asset_bytes, output, 0, true, false, true, false}
-    layout.assets = Assets(*asset_codec, assets)
-    if !asset_codec.valid || layout.assets != manifest_assets { layout.problem = .Assets; return layout }
+    layout.identities = .{cursor.at, ExecutableIdentitySize * 3}
+    layout.assets = manifest_assets
     return layout
 }
+
+ExecutableBytes :: (bytes: string, range: ExecutableRange) -> string {
+    if range.at == 0 { return "" }
+    return bytes[range.at:range.at + range.size]
+}
+
+ExecutableDecodeInternal :: (bytes: string, assets: []Asset) -> ExecutableLayout {
+    frame := ExecutableFrame(bytes, null, bytes.count)
+    layout := ExecutableLayout.{problem = frame.problem, found_version = frame.found_version,
+        required_features = frame.required_features, optional_features = frame.optional_features,
+        entry = frame.entry, capabilities = frame.capabilities, optional_sections = frame.optional_sections,
+        program = ExecutableBytes(bytes, frame.program), debug = ExecutableBytes(bytes, frame.debug),
+        source = ExecutableBytes(bytes, frame.source), interface = ExecutableBytes(bytes, frame.interface),
+        module_linkage = ExecutableBytes(bytes, frame.module_linkage)}
+    if frame.problem != .None { return layout }
+    identities := ExecutableBytes(bytes, frame.identities)
+    layout.program_identity = identities[0:ExecutableIdentitySize]
+    layout.assets_identity = identities[ExecutableIdentitySize:ExecutableIdentitySize * 2]
+    layout.content_identity = identities[ExecutableIdentitySize * 2:ExecutableIdentitySize * 3]
+
+    output: []u8
+    asset_codec := Codec.{ExecutableBytes(bytes, frame.asset_section), output, 0, true, false, true, false}
+    layout.assets = Assets(*asset_codec, assets)
+    if !asset_codec.valid || layout.assets != frame.assets { layout.problem = .Assets }
+    return layout
+}
+
 // The asset section's size, or -1 when a field breaks the format. It is
 // written only when OUTPUT holds all of its bytes.
 EncodeAssets :: (output: []u8, assets: []Asset) -> s64 {
@@ -612,6 +680,11 @@ ExecutableEncode :: (output: []u8, header: ExecutableHeader) -> ExecutableResult
             size = total, offset = writer.at}
     }
     return .{size = total}
+}
+
+// Frames the container without retaining views or parsing the asset section.
+ExecutableReadFraming :: (source: *ExecutableReadSource) -> ExecutableFraming {
+    return ExecutableFrame("", source, source.size)
 }
 
 // Decodes framing and assets. Program bytes and all returned strings borrow

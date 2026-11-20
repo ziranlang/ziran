@@ -22,6 +22,8 @@ hosting :: #system_library "ziran";
 BackendOptions :: struct { backend: s32; max_steps: s32; unbounded: s32 }
 ReleaseImage :: #type (context: *void, data: *u8, size: usize) #c_call;
 OpenOwnedBytes :: (data: *u8, size: usize, release: ReleaseImage, context: *void) -> *void #foreign hosting "BundleOpenOwnedBytes";
+ReadAt :: #type (context: *void, offset: u64, output: *u8, size: usize) -> usize #c_call;
+OpenReadAt :: (size: u64, read_at: ReadAt, context: *void, unsupported: *s32) -> *void #foreign hosting "BundleOpenReadAt";
 CodeIdentity :: (bundle: *void, digest: *u8) #foreign hosting "BundleCodeIdentity";
 AssetCount :: (bundle: *void) -> usize #foreign hosting "BundleAssetCount";
 AssetName :: (bundle: *void, index: usize) -> *u8 #foreign hosting "BundleAssetName";
@@ -212,6 +214,12 @@ HostedCases :: (test: *NativeTest, compiler: string, std: string, bridge: string
         TextFromCString(AssetName(bundle, 0)) == "assets/label.txt" &&
         TextView(BytesFromPointer(AssetData(bundle, 0), cast(u64)AssetSize(bundle, 0))) == "embedded label",
         "preserve exact code identity and assets after releasing the original image") { return false }
+    source_snapshot := SourceFixture.{bytes = bytes}
+    unsupported: s32
+    unsupported_bundle := OpenReadAt(cast(u64)bytes.count, ReadSourceFixture, cast(*void)*source_snapshot, *unsupported)
+    Host.CloseBundle(unsupported_bundle)
+    if !NativeAssert(test, unsupported_bundle == null && unsupported == 1,
+        "report an image with assets and module linkage outside the source profile") { return false }
     library_grant := GrantContext.{4, 23, 0}
     entry_grant := GrantContext.{3, 19, 0}
     app_binding := Host.HostBinding.{HostedBytes("hosted_app"), HostedBytes("Grant"), HostedGrant, cast(*void)*entry_grant}
@@ -260,6 +268,7 @@ Start :: () -> s32 {
     return 17
 }
 main :: () -> s32 {
+    if padding[seed] != 120 { return 0 }
     for i: 0..999 { Pulse() }
     return seed
 }
@@ -283,11 +292,94 @@ HostedPulse :: (opaque: *void, module: *u8, function: *u8, args: *Host.HostValue
     return 1
 }
 
+SourceReadMode :: enum s32 { Complete; Short; Changed; ReadError }
+SourceFixture :: struct {
+    bytes: string
+    reads: s32
+    seen: [16]bool
+    repeated: bool
+    mode: SourceReadMode
+}
+
+#program_export
+ReadSourceFixture :: (opaque: *void, offset: u64, output: *u8, size: usize) -> usize {
+    source := cast(*SourceFixture)opaque
+    source.reads += 1
+    length := cast(u64)source.bytes.count
+    if offset > length || cast(u64)size > length - offset { return 0 }
+    if source.mode == .Short && source.reads == 1 { return size - 1 }
+    for at: cast(s64)0..cast(s64)size - 1 { output[at] = source.bytes[cast(s64)offset + at] }
+    window := offset / 32768
+    if window >= 16 { return 0 }
+    if source.seen[window] {
+        source.repeated = true
+        if source.mode == .Changed { output[0] = output[0] ^ 1 }
+        if source.mode == .ReadError { return 0 }
+    }
+    source.seen[window] = true
+    return size
+}
+
+CheckSourceReader :: (test: *NativeTest, bytes: string, borrowed: *void) -> *void {
+    image_size := cast(u64)bytes.count
+    limit: u64 = 256 * 1024 * 1024
+    for size: u64.[0, limit + 1, 18446744073709551615] {
+        source := SourceFixture.{bytes = bytes}
+        unsupported: s32 = -1
+        rejected := OpenReadAt(size, ReadSourceFixture, cast(*void)*source, *unsupported)
+        Host.CloseBundle(rejected)
+        if !NativeAssert(test, rejected == null && unsupported == 0 && source.reads == 0,
+            "reject an out-of-range source size before any read") { return null }
+    }
+    at_limit := SourceFixture.{bytes = bytes, mode = .Short}
+    limited := OpenReadAt(limit, ReadSourceFixture, cast(*void)*at_limit, null)
+    Host.CloseBundle(limited)
+    if !NativeAssert(test, limited == null && at_limit.reads == 1,
+        "accept the largest allowed size for reading and reject its short read") { return null }
+    for mode: SourceReadMode.[.Short, .Changed, .ReadError] {
+        source := SourceFixture.{bytes = bytes, mode = mode}
+        unsupported: s32 = -1
+        rejected := OpenReadAt(image_size, ReadSourceFixture, cast(*void)*source, *unsupported)
+        Host.CloseBundle(rejected)
+        if !NativeAssert(test, rejected == null && unsupported == 0 && (mode == .Short || source.repeated),
+            "reject a short read, changed page, or read error before accepting a source") { return null }
+    }
+    source := SourceFixture.{bytes = bytes}
+    truncated := OpenReadAt(image_size - 1, ReadSourceFixture, cast(*void)*source, null)
+    Host.CloseBundle(truncated)
+    if !NativeAssert(test, truncated == null, "reject a truncated ZX source") { return null }
+    input: Vec(u8)
+    if !NativeAssert(test, BuilderAppend(input, bytes), "allocate a disposable source") { return null }
+    source = .{bytes = TextView(input[:])}
+    unsupported: s32 = -1
+    bundle := OpenReadAt(image_size, ReadSourceFixture, cast(*void)*source, *unsupported)
+    // Retire both the reader and its bytes before querying or running the bundle.
+    source = .{}
+    for at: cast(s64)0..input.count - 1 { input[at] = 0 }
+    VecFree(input)
+    if !NativeAssert(test, bundle != null && unsupported == 0, "verify a source across several windows") {
+        Host.CloseBundle(bundle)
+        return null
+    }
+    borrowed_id: [32]u8; source_id: [32]u8
+    CodeIdentity(borrowed, *borrowed_id[0])
+    CodeIdentity(bundle, *source_id[0])
+    if !NativeAssert(test, TextView(borrowed_id[:]) == TextView(source_id[:]), "preserve raw source identity") {
+        Host.CloseBundle(bundle)
+        return null
+    }
+    return bundle
+}
+
 FuelCase :: (test: *NativeTest, path: string, runaway: bool) -> bool {
     bytes := NativeRead(test, path)
-    bundle := Host.OpenBundleBytes(HostedBytes(bytes), cast(u64)bytes.count)
-    if !NativeAssert(test, bundle != null, "verify fuel fixture") { return false }
-    defer Host.CloseBundle(bundle)
+    borrowed := Host.OpenBundleBytes(HostedBytes(bytes), cast(u64)bytes.count)
+    if !NativeAssert(test, borrowed != null, "verify fuel fixture") { return false }
+    defer Host.CloseBundle(borrowed)
+    source_bundle := ifx !runaway then CheckSourceReader(test, bytes, borrowed) else null
+    defer Host.CloseBundle(source_bundle)
+    if !runaway && source_bundle == null { return false }
+    bundle := ifx runaway then borrowed else source_bundle
     config := LoaderConfig.{options = .{1, 200, 0}}
     loader := OpenLoader(*config)
     defer CloseLoader(loader)
@@ -309,7 +401,16 @@ FuelCase :: (test: *NativeTest, path: string, runaway: bool) -> bool {
 
 FuelCases :: (test: *NativeTest, compiler: string) -> bool {
     source := CheckPath(test.work, "fuel.zi")
-    if !NativeWrite(test, source, FuelApp) { return false }
+    // A live literal crosses enough read windows to force a refetch.
+    line: [3072]u8
+    for at: 0..3071 { line[at] = 120 }
+    text: Vec(u8)
+    defer VecFree(text)
+    if !BuilderAppend(text, FuelApp) || !BuilderAppend(text, "\npadding :: #string ZX_PADDING\n") { return false }
+    for row: 0..63 {
+        if !BuilderAppend(text, TextView(line[:])) || !BuilderAppend(text, "\n") { return false }
+    }
+    if !BuilderAppend(text, "ZX_PADDING;\n") || !NativeWrite(test, source, TextView(text[:])) { return false }
     entries := string.["fuel:main", "fuel:runaway"]
     for entry: entries {
         output := CheckPath(test.work, "fuel.zx")

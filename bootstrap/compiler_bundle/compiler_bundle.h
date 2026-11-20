@@ -99,6 +99,9 @@ typedef struct ExecutableAttachment ExecutableAttachment;
 typedef struct ExecutableHeader ExecutableHeader;
 typedef struct ExecutableResult ExecutableResult;
 typedef struct ExecutableLayout ExecutableLayout;
+typedef struct ExecutableReadSource ExecutableReadSource;
+typedef struct ExecutableRange ExecutableRange;
+typedef struct ExecutableFraming ExecutableFraming;
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 typedef struct Codec Codec;
 #endif
@@ -108,6 +111,10 @@ typedef struct ExecutableWriter ExecutableWriter;
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 typedef struct ExecutableCursor ExecutableCursor;
 #endif
+typedef struct ExecutableWindow {
+    void *context;
+    String (*call)(void *, void*, int64_t);
+} ExecutableWindow;
 
 struct Asset {
     String name;
@@ -184,6 +191,35 @@ struct ExecutableLayout {
     String interface;
     String module_linkage;
 };
+
+struct ExecutableReadSource {
+    void* context;
+    ExecutableWindow window;
+    int64_t size;
+};
+
+struct ExecutableRange {
+    int64_t at;
+    int64_t size;
+};
+
+struct ExecutableFraming {
+    ExecutableProblem problem;
+    uint32_t found_version;
+    uint64_t required_features;
+    uint64_t optional_features;
+    int32_t entry;
+    int64_t capabilities;
+    int64_t assets;
+    int64_t optional_sections;
+    ExecutableRange program;
+    ExecutableRange identities;
+    ExecutableRange asset_section;
+    ExecutableRange debug;
+    ExecutableRange source;
+    ExecutableRange interface;
+    ExecutableRange module_linkage;
+};
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 
 struct Codec {
@@ -211,11 +247,15 @@ struct ExecutableCursor {
     int64_t at;
     int64_t end;
     ExecutableProblem problem;
+    ExecutableReadSource* source;
+    String window;
+    int64_t window_at;
 };
 #endif
 uint64_t compiler_bundle_ExecutableRequiredFeatures(bool has_module_linkage);
 bool compiler_bundle_AssetName(String name);
 ExecutableResult compiler_bundle_ExecutableEncode(Slice output, ExecutableHeader header);
+ExecutableFraming compiler_bundle_ExecutableReadFraming(ExecutableReadSource* source);
 ExecutableLayout compiler_bundle_ExecutableDecode(String bytes, Slice assets);
 uint32_t compiler_bundle_ExecutableVersionNumber(void);
 String compiler_bundle_ExecutableMessage(ExecutableProblem problem);

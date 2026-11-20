@@ -135,6 +135,23 @@ BundleOpenOwnedBytes(const unsigned char *data, size_t size, BundleImageRelease 
     return open_bundle(data, size, "<embedded bundle>", release, context);
 }
 
+Bundle *
+BundleOpenReadAt(uint64_t size, BundleReadAt read_at, void *context, int *unsupported)
+{
+    if(unsupported != NULL) *unsupported = 0;
+    Bundle *bundle = calloc(1, sizeof(*bundle));
+    if(bundle == NULL) return NULL;
+    bundle->references = 1;
+    uint64_t started = ProfileStart();
+    bundle->exec = ExecBundleOpenReadAt(size, read_at, context, bundle->digest, unsupported);
+    if(bundle->exec == NULL) {
+        free(bundle);
+        return NULL;
+    }
+    ProfileEnd("zx.bundle.open", started);
+    return bundle;
+}
+
 void
 BundleClose(Bundle *bundle)
 {

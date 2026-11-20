@@ -206,8 +206,9 @@ LirExecPlan :: struct {
     type_sizes: Vec(s64)
     // Integer masks, zero for bool canonicalization, all ones otherwise.
     type_masks: Vec(u64)
-    value_offsets: Vec(s64)
-    value_words: Vec(s64)
+    // A scalar's word index is nonnegative. An aggregate stores the bitwise
+    // complement of its byte offset, so both location kinds can represent zero.
+    value_locations: Vec(s64)
     // One byte per type, as LirHostShapes gives it.
     host_shapes: Vec(u8)
     functions: Vec(LirExecFunctionPlan)
@@ -570,13 +571,21 @@ ExecPlanLayouts :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> Li
     return .None
 }
 
+ExecLocationWord :: (location: s64) -> s64 #inline {
+    return ifx location >= 0 then location else -1
+}
+
+ExecLocationOffset :: (location: s64) -> s64 #inline {
+    return ifx location < 0 then ~location else -1
+}
+
 ExecPlanValuesOverlap :: (plan: *LirExecPlan, base: s64, types: []s32, left: s32, right: s32) -> bool {
-    left_word := plan.value_words[base + left]
-    right_word := plan.value_words[base + right]
-    if (left_word >= 0) != (right_word >= 0) { return false }
-    if left_word >= 0 { return left_word == right_word }
-    left_at := plan.value_offsets[base + left]
-    right_at := plan.value_offsets[base + right]
+    left_location := plan.value_locations[base + left]
+    right_location := plan.value_locations[base + right]
+    if (left_location >= 0) != (right_location >= 0) { return false }
+    if left_location >= 0 { return left_location == right_location }
+    left_at := ~left_location
+    right_at := ~right_location
     left_size := plan.type_sizes[types[left]]
     right_size := plan.type_sizes[types[right]]
     return left_at < right_at + right_size && right_at < left_at + left_size
@@ -584,12 +593,9 @@ ExecPlanValuesOverlap :: (plan: *LirExecPlan, base: s64, types: []s32, left: s32
 
 ExecPlanValuesSameLocation :: (plan: *LirExecPlan, base: s64, types: []s32,
     left: s32, right: s32) -> bool {
-    left_word := plan.value_words[base + left]
-    right_word := plan.value_words[base + right]
-    if (left_word >= 0) != (right_word >= 0) { return false }
-    if left_word >= 0 { return left_word == right_word }
-    return plan.value_offsets[base + left] == plan.value_offsets[base + right] &&
-        plan.type_sizes[types[left]] == plan.type_sizes[types[right]]
+    left_location := plan.value_locations[base + left]
+    if left_location != plan.value_locations[base + right] { return false }
+    return left_location >= 0 || plan.type_sizes[types[left]] == plan.type_sizes[types[right]]
 }
 
 // Edge locations are immutable after plan construction. Prove direct-copy
@@ -829,8 +835,7 @@ ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> 
             }
         }
     }
-    if !VecResizeBounded(plan.value_offsets, values, values) ||
-        !VecResizeBounded(plan.value_words, values, values) ||
+    if !VecResizeBounded(plan.value_locations, values, values) ||
         !VecResizeBounded(plan.functions, program.functions.count, program.functions.count) ||
         !VecResizeBounded(plan.block_edge_bases, blocks, blocks) ||
         !VecResizeBounded(plan.block_instruction_bases, blocks, blocks) ||
@@ -962,15 +967,12 @@ ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> 
                 type.kind == .Pointer || type.kind == .Function
             alias := aliases[value_index]
             if alias != LirNoId {
-                plan.value_offsets[value_at] = plan.value_offsets[base + alias]
-                plan.value_words[value_at] = plan.value_words[base + alias]
+                plan.value_locations[value_at] = plan.value_locations[base + alias]
             } else if scalar {
-                plan.value_offsets[value_at] = -1
-                plan.value_words[value_at] = words
+                plan.value_locations[value_at] = words
                 words += 1
             } else {
-                plan.value_words[value_at] = -1
-                plan.value_offsets[value_at] = offset
+                plan.value_locations[value_at] = ~offset
                 size := plan.type_sizes[value]
                 if size > maximum - offset { return .ValueBytes }
                 offset += size
@@ -1036,7 +1038,7 @@ ExecPlanCodeKind :: enum s32 {
 }
 
 ExecPlanWord :: (plan: *LirExecPlan, base: s64, value: s32) -> s32 {
-    return cast(s32)plan.value_words[base + value]
+    return cast(s32)ExecLocationWord(plan.value_locations[base + value])
 }
 
 ExecPlanMask :: (plan: *LirExecPlan, type: s32) -> u64 #inline {
@@ -1281,8 +1283,8 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64, type
         expected := ifx op == .Extract then 1 else 2
         aggregate := instruction.operands[0]
         aggregate_type := types[aggregate]
-        aggregate_at := plan.value_offsets[base + aggregate]
-        if plan.value_words[base + aggregate] >= 0 || aggregate_at < 0 { return .Slow }
+        aggregate_at := ExecLocationOffset(plan.value_locations[base + aggregate])
+        if aggregate_at < 0 { return .Slow }
         indexed := count == expected + 1
         member_offset: s64
         member_cost: s64
@@ -1290,7 +1292,7 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64, type
             type := program.types[aggregate_type]
             if type.kind != .Array { return .Slow }
             index := instruction.operands[expected]
-            if plan.value_words[base + index] < 0 { return .Slow }
+            if plan.value_locations[base + index] < 0 { return .Slow }
             out.extra = cast(u64)type.count
             out.sign_c = ExecPlanSign(program.types[types[index]])
             out.c = ExecPlanWord(plan, base, index)
@@ -1310,14 +1312,14 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64, type
                 out.immediate = ExecPlanMask(plan, types[result])
             } else {
                 out.handler = ifx indexed then .ExtractBytesIndexed else .ExtractBytes
-                out.y = plan.value_offsets[base + result]
+                out.y = ExecLocationOffset(plan.value_locations[base + result])
             }
             if !indexed { out.x += member_offset }
             return .Fast
         }
         if out.result >= 0 { return .Slow }
         replacement := instruction.operands[1]
-        out.y = plan.value_offsets[base + instruction.result]
+        out.y = ExecLocationOffset(plan.value_locations[base + instruction.result])
         out.size = plan.type_sizes[types[aggregate]]
         out.z = plan.type_sizes[types[replacement]]
         if !indexed { out.immediate = cast(u64)member_offset }
@@ -1326,22 +1328,22 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64, type
             out.handler = ifx indexed then .InsertWordIndexed else .InsertWord
         } else {
             out.handler = ifx indexed then .InsertBytesIndexed else .InsertBytes
-            out.w = plan.value_offsets[base + replacement]
+            out.w = ExecLocationOffset(plan.value_locations[base + replacement])
         }
         return .Fast
     }
     if op == .Aggregate {
         if out.result >= 0 { return .Slow }
-        destination := plan.value_offsets[base + instruction.result]
+        destination := ExecLocationOffset(plan.value_locations[base + instruction.result])
         out.x = plan.moves.count
         out.y = count
         at: s64
         cost: s64 = 1
         for operand: instruction.operands {
             size := plan.type_sizes[types[operand]]
-            word := plan.value_words[base + operand]
-            from := ifx word >= 0 then word else plan.value_offsets[base + operand]
-            if !VecPush(plan.moves, LirExecMove.{.word = word >= 0, .from = from,
+            location := plan.value_locations[base + operand]
+            from := ifx location >= 0 then location else ~location
+            if !VecPush(plan.moves, LirExecMove.{.word = location >= 0, .from = from,
                 .to = destination + at, .size = size}) { return .Slow }
             cost += ExecCopyCost(size)
             at += size
@@ -1358,8 +1360,8 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64, type
         out.size = size
         out.type = types[value]
         <<work = 1 + ExecCopyCost(size)
-        word := plan.value_words[base + value]
-        if word < 0 { out.x = plan.value_offsets[base + value] }
+        location := plan.value_locations[base + value]
+        if location < 0 { out.x = ~location }
         if op == .Load {
             out.handler = .Load
             out.flag = cast(s32)(plan.type_masks[types[value]] == 0)
@@ -1428,7 +1430,7 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64, type
         if count == 1 {
             value := instruction.operands[0]
             if types[value] != pointee || plan.type_sizes[types[value]] != out.size { return .Slow }
-            if out.a < 0 { out.x = plan.value_offsets[base + value] }
+            if out.a < 0 { out.x = ExecLocationOffset(plan.value_locations[base + value]) }
             out.y = ExecCopyCost(out.size)
         }
         // It grows the frame's storage, so it ends its segment: the run loop
@@ -1450,13 +1452,13 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64, type
             source := instruction.operands[index]
             destination := entry.parameters[index]
             size := plan.type_sizes[types[source]]
-            source_word := plan.value_words[base + source]
-            destination_word := plan.value_words[target_plan.value_base + destination]
-            if (source_word >= 0) != (destination_word >= 0) { return .Slow }
-            word := source_word >= 0
+            source_location := plan.value_locations[base + source]
+            destination_location := plan.value_locations[target_plan.value_base + destination]
+            word := source_location >= 0
+            if word != (destination_location >= 0) { return .Slow }
             if !VecPush(plan.moves, LirExecMove.{.word = word, .size = size,
-                .from = ifx word then source_word else plan.value_offsets[base + source],
-                .to = ifx word then destination_word else plan.value_offsets[target_plan.value_base + destination]}) {
+                .from = ifx word then source_location else ~source_location,
+                .to = ifx word then destination_location else ~destination_location}) {
                 return .Slow
             }
             cost += ExecCopyCost(size)
@@ -1475,7 +1477,8 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64, type
         if count == 1 {
             value := instruction.operands[0]
             out.size = plan.type_sizes[types[value]]
-            if plan.value_words[base + value] < 0 { out.x = plan.value_offsets[base + value] }
+            location := plan.value_locations[base + value]
+            if location < 0 { out.x = ~location }
         }
         return .Slow
     }
@@ -1529,13 +1532,13 @@ ExecPlanEdges :: (plan: *LirExecPlan, function: LirFunction, function_plan: LirE
                 size := plan.type_sizes[types[source]]
                 work += 2 * ExecCopyCost(size)
                 if direct && ExecPlanValuesSameLocation(plan, base, types, source, destination) { continue }
-                source_word := plan.value_words[base + source]
-                destination_word := plan.value_words[base + destination]
-                if (source_word >= 0) != (destination_word >= 0) { return false }
-                word := source_word >= 0
+                source_location := plan.value_locations[base + source]
+                destination_location := plan.value_locations[base + destination]
+                word := source_location >= 0
+                if word != (destination_location >= 0) { return false }
                 move := LirExecMove.{.word = word, .size = size,
-                    .from = ifx word then source_word else plan.value_offsets[base + source],
-                    .to = ifx word then destination_word else plan.value_offsets[base + destination],
+                    .from = ifx word then source_location else ~source_location,
+                    .to = ifx word then destination_location else ~destination_location,
                     .scratch = function_plan.scratch_offset + scratch}
                 scratch += size
                 if !VecPush(plan.moves, move) { return false }
@@ -1825,17 +1828,17 @@ ExecCopyCost :: (count: s64) -> s64 {
 
 ExecFrameValueOffset :: (instance: *LirExecInstance, frame_index: s64, value: s32) -> s64 {
     frame := instance.frames[frame_index]
-    return frame.base + instance.plan.value_offsets[frame.value_base + value]
+    return frame.base + ExecLocationOffset(instance.plan.value_locations[frame.value_base + value])
 }
 
 ExecFrameValueWord :: (instance: *LirExecInstance, frame_index: s64, value: s32) -> s64 {
     frame := instance.frames[frame_index]
-    return frame.word_base + instance.plan.value_words[frame.value_base + value]
+    return frame.word_base + ExecLocationWord(instance.plan.value_locations[frame.value_base + value])
 }
 
 ExecValueIsWord :: (instance: *LirExecInstance, frame_index: s64, value: s32) -> bool {
     frame := instance.frames[frame_index]
-    return instance.plan.value_words[frame.value_base + value] >= 0
+    return instance.plan.value_locations[frame.value_base + value] >= 0
 }
 
 ExecValueSize :: (instance: *LirExecInstance, frame_index: s64, value: s32) -> s64 {
@@ -1852,7 +1855,7 @@ ExecValueType :: (instance: *LirExecInstance, value: s32) -> LirType #inline {
 // Values from outside the plan (arguments, host results, global images)
 // are checked where they come in.
 ExecSlotBits :: (instance: *LirExecInstance, value: s32) -> u64 #inline {
-    word := instance.plan.value_words[instance.current_value_base + value]
+    word := instance.plan.value_locations[instance.current_value_base + value]
     if word < 0 {
         unused ExecFail(instance, .Type)
         return 0
@@ -1868,7 +1871,7 @@ ExecIndexBits :: (instance: *LirExecInstance, value: s32) -> u64 {
 }
 
 ExecWriteSlotBits :: (instance: *LirExecInstance, value: s32, bits: u64) #inline {
-    word := instance.plan.value_words[instance.current_value_base + value]
+    word := instance.plan.value_locations[instance.current_value_base + value]
     if word < 0 {
         unused ExecFail(instance, .Type)
         return
@@ -4875,9 +4878,9 @@ ExecFastReturn :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecC
     if code.size != 0 {
         destination := caller.value_base + frame.return_value
         if code.a >= 0 {
-            instance.words[caller.word_base + plan.value_words[destination]] = instance.words[frame.word_base + code.a]
+            instance.words[caller.word_base + ExecLocationWord(plan.value_locations[destination])] = instance.words[frame.word_base + code.a]
         } else {
-            to := caller.base + plan.value_offsets[destination]
+            to := caller.base + ExecLocationOffset(plan.value_locations[destination])
             from := frame.base + code.x
             for byte: cast(s64)0..code.size - 1 { instance.storage[to + byte] = instance.storage[from + byte] }
         }
@@ -5100,8 +5103,7 @@ LirExecPlanFree :: (plan: *LirExecPlan) {
     if plan == null { return }
     VecFree(plan.type_sizes)
     VecFree(plan.type_masks)
-    VecFree(plan.value_offsets)
-    VecFree(plan.value_words)
+    VecFree(plan.value_locations)
     VecFree(plan.host_shapes)
     VecFree(plan.functions)
     VecFree(plan.block_edge_bases)

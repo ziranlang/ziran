@@ -246,9 +246,9 @@ Flow :: () -> bool {
     plan: LirExecPlan
     defer LirExecPlanFree(*plan)
     if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None ||
-        plan.value_words[10] != plan.value_words[3] ||
-        plan.value_words[3] == plan.value_words[0] ||
-        plan.value_words[3] == plan.value_words[4] ||
+        plan.value_locations[3] < 0 || plan.value_locations[10] != plan.value_locations[3] ||
+        plan.value_locations[3] == plan.value_locations[0] ||
+        plan.value_locations[3] == plan.value_locations[4] ||
         plan.block_edge_bases.count != 3 || plan.edge_direct.count != 3 ||
         plan.block_instruction_bases.count != 3 || plan.transient.count != 10 ||
         plan.code.count != 1 || plan.code[0].entries.capacity > plan.transient.count ||
@@ -343,14 +343,49 @@ ArraysAndInsert :: () -> bool {
     defer LirExecPlanFree(*plan)
     if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None ||
         plan.functions[0].word_count != 10 || plan.functions[0].frame_bytes != 12 ||
-        plan.value_words[0] != 0 || plan.value_words[3] != -1 ||
-        plan.value_offsets[3] != plan.value_offsets[5] { return false }
+        plan.value_locations[0] != 0 || plan.value_locations[3] != -1 ||
+        plan.value_locations[3] != plan.value_locations[5] { return false }
     LirExecPlanFree(*plan)
     instructions[7].operands = original[:]
     if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None ||
         plan.functions[0].word_count != 10 || plan.functions[0].frame_bytes != 24 ||
-        plan.value_offsets[3] == plan.value_offsets[5] { return false }
+        plan.value_locations[5] >= 0 || plan.value_locations[3] == plan.value_locations[5] { return false }
     return true
+}
+
+LargeValueLocations :: () -> bool {
+    large_size: s64 = 4294967296
+    types: [4]LirType = .[
+        .{.kind = .Void}, .{.kind = .Integer, .bits = 8},
+        .{.kind = .Array, .element = 1, .count = large_size},
+        .{.kind = .Array, .element = 1, .count = 1}]
+    parameters: [3]s32 = .[2, 3, 1]
+    entry_values: [3]s32 = .[0, 1, 2]
+    result: [1]s32 = .[2]
+    instructions: [1]LirInstruction = .[Instruction(.Return, -1, result[:])]
+    blocks: [1]LirBlock = .[.{.parameters = entry_values[:], .instructions = instructions[:]}]
+    modules: [1]string = .["large_locations"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "locations", .parameters = parameters[:],
+        .result = 1, .values = parameters[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .functions = functions[:], .entry = -1}
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    limits := LirDefaultLimits()
+    // Two aggregate slots and one scalar word, plus the scratch for all arguments.
+    // Building the plan does not allocate the frame described by these sizes.
+    limits.bytes = 2 * large_size + 11
+    for compact: 0..1 {
+        built: LirExecResult
+        if compact == 0 { built = LirExecPlanBuild(program, limits, *plan) }
+        else { built = LirExecPlanBuildCompact(program, limits, *plan) }
+        if built.problem != .None || !plan.ready || plan.value_locations.count != 3 ||
+            plan.value_locations[0] != -1 || plan.value_locations[1] != ~large_size ||
+            plan.value_locations[2] != 0 || plan.functions[0].frame_bytes != limits.bytes - 8 { return false }
+    }
+    limits.bytes -= 1
+    return LirExecPlanBuildCompact(program, limits, *plan).problem == .ValueBytes &&
+        !plan.ready && plan.value_locations.count == 0
 }
 
 DynamicArrayValues :: () -> bool {
@@ -1536,6 +1571,7 @@ Answer :: () -> s32 {
     if !HeapResize() { return 23 }
     if !TypedHostShapes() { return 24 }
     if !CompactCodeChunks() { return 25 }
+    if !LargeValueLocations() { return 26 }
     return 42
 }
 

@@ -29,7 +29,8 @@ LirExecHostCall :: #type (context: *void, function: s32, arguments: []u64, resul
 // (LirExecHostMutableView): it sets `changed` and puts the argument's new
 // image in `bytes`, with the same element count. After the call the engine
 // copies those elements back into the view's storage.
-LirExecArgument :: struct { type: s32; bits: u64; bytes: []u8; changed: bool }
+// Borrowed arguments carry raw read-only bytes for the synchronous callback.
+LirExecArgument :: struct { type: s32; bits: u64; bytes: []u8; changed: bool; borrowed: bool }
 LirExecTypedHostCall :: #type (context: *void, function: s32,
     arguments: []LirExecArgument, result: *LirExecArgument) -> bool;
 // The platform byte-output service `(descriptor: u64, data: *u8, count: u64)`,
@@ -46,6 +47,8 @@ LirExecHostBinding :: struct {
     context: *void
     // Bit p: parameter p is a mutable view.
     views: u64
+    // Bit p: parameter p borrows the bytes of a top-level string.
+    borrowed_strings: u64
 }
 
 LirExecResult :: struct {
@@ -201,12 +204,10 @@ LirExecCodeChunk :: struct { entries: Vec(LirExecCode) }
 LirExecPlan :: struct {
     program: LirProgram
     type_sizes: Vec(s64)
+    // Integer masks, zero for bool canonicalization, all ones otherwise.
+    type_masks: Vec(u64)
     value_offsets: Vec(s64)
     value_words: Vec(s64)
-    value_sizes: Vec(s64)
-    value_types: Vec(s32)
-    value_canonical: Vec(u8)
-    value_masks: Vec(u64)
     // One byte per type, as LirHostShapes gives it.
     host_shapes: Vec(u8)
     functions: Vec(LirExecFunctionPlan)
@@ -285,6 +286,7 @@ LirExecFrame :: struct {
     base: s64
     word_base: s64
     value_base: s64
+    value_types: []s32
     instruction_base: s64
     generation: u64
     // One more than the newest address entry made for this frame's storage.
@@ -353,6 +355,8 @@ LirExecInstance :: struct {
     live_values: s64
     frame_epoch: u64
     current_value_base: s64
+    // Type IDs belong to the verified function and live as long as the plan.
+    current_value_types: []s32
     current_word_base: s64
     work_remaining: s64
     fuel_remaining: s64
@@ -516,10 +520,16 @@ ExecPlanLayouts :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> Li
     next: Vec(s64)
     count := program.types.count
     if !VecResizeBounded(plan.type_sizes, count, count) ||
+        !VecResizeBounded(plan.type_masks, count, count) ||
         !VecResizeBounded(colors, count, count) || !VecResizeBounded(stack, count, count) ||
         !VecResizeBounded(next, count, count) { return .Allocation }
     if count == 0 { return .None }
-    for index: cast(s64)0..count - 1 { plan.type_sizes[index] = -1 }
+    for index: cast(s64)0..count - 1 {
+        type := program.types[index]
+        plan.type_sizes[index] = -1
+        if type.kind == .Integer { plan.type_masks[index] = ExecMask(type.bits) }
+        else if type.kind != .Bool { plan.type_masks[index] = ~cast(u64)0 }
+    }
     for root: cast(s32)0..cast(s32)count - 1 {
         if colors[root] == 2 { continue }
         depth: s64
@@ -560,41 +570,41 @@ ExecPlanLayouts :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> Li
     return .None
 }
 
-ExecPlanValuesOverlap :: (plan: *LirExecPlan, base: s64, left: s32, right: s32) -> bool {
+ExecPlanValuesOverlap :: (plan: *LirExecPlan, base: s64, types: []s32, left: s32, right: s32) -> bool {
     left_word := plan.value_words[base + left]
     right_word := plan.value_words[base + right]
     if (left_word >= 0) != (right_word >= 0) { return false }
     if left_word >= 0 { return left_word == right_word }
     left_at := plan.value_offsets[base + left]
     right_at := plan.value_offsets[base + right]
-    left_size := plan.value_sizes[base + left]
-    right_size := plan.value_sizes[base + right]
+    left_size := plan.type_sizes[types[left]]
+    right_size := plan.type_sizes[types[right]]
     return left_at < right_at + right_size && right_at < left_at + left_size
 }
 
-ExecPlanValuesSameLocation :: (plan: *LirExecPlan, base: s64,
+ExecPlanValuesSameLocation :: (plan: *LirExecPlan, base: s64, types: []s32,
     left: s32, right: s32) -> bool {
     left_word := plan.value_words[base + left]
     right_word := plan.value_words[base + right]
     if (left_word >= 0) != (right_word >= 0) { return false }
     if left_word >= 0 { return left_word == right_word }
     return plan.value_offsets[base + left] == plan.value_offsets[base + right] &&
-        plan.value_sizes[base + left] == plan.value_sizes[base + right]
+        plan.type_sizes[types[left]] == plan.type_sizes[types[right]]
 }
 
 // Edge locations are immutable after plan construction. Prove direct-copy
 // safety once instead of repeating this quadratic overlap check on every loop
 // back-edge. Cycles and destructive aliases retain the scratch path.
-ExecPlanEdgeDirectSafe :: (plan: *LirExecPlan, base: s64,
+ExecPlanEdgeDirectSafe :: (plan: *LirExecPlan, base: s64, types: []s32,
     edge: LirEdge, target: LirBlock) -> bool {
     if edge.arguments.count != target.parameters.count { return false }
     for destination_index: cast(s64)0..target.parameters.count - 1 {
         destination := target.parameters[destination_index]
         for source_index: cast(s64)0..edge.arguments.count - 1 {
             source := edge.arguments[source_index]
-            if !ExecPlanValuesOverlap(plan, base, destination, source) { continue }
+            if !ExecPlanValuesOverlap(plan, base, types, destination, source) { continue }
             if destination_index == source_index &&
-                ExecPlanValuesSameLocation(plan, base, destination, source) { continue }
+                ExecPlanValuesSameLocation(plan, base, types, destination, source) { continue }
             return false
         }
     }
@@ -821,10 +831,6 @@ ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> 
     }
     if !VecResizeBounded(plan.value_offsets, values, values) ||
         !VecResizeBounded(plan.value_words, values, values) ||
-        !VecResizeBounded(plan.value_sizes, values, values) ||
-        !VecResizeBounded(plan.value_types, values, values) ||
-        !VecResizeBounded(plan.value_canonical, values, values) ||
-        !VecResizeBounded(plan.value_masks, values, values) ||
         !VecResizeBounded(plan.functions, program.functions.count, program.functions.count) ||
         !VecResizeBounded(plan.block_edge_bases, blocks, blocks) ||
         !VecResizeBounded(plan.block_instruction_bases, blocks, blocks) ||
@@ -952,13 +958,6 @@ ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> 
         for value_index: cast(s64)0..function.values.count - 1 {
             value := function.values[value_index]
             type := program.types[value]
-            plan.value_sizes[value_at] = plan.type_sizes[value]
-            plan.value_types[value_at] = value
-            if type.kind == .Bool { plan.value_canonical[value_at] = 1; plan.value_masks[value_at] = 1 }
-            else if type.kind == .Integer {
-                plan.value_canonical[value_at] = 2
-                plan.value_masks[value_at] = ExecMask(type.bits)
-            }
             scalar := type.kind == .Bool || type.kind == .Integer || type.kind == .Float ||
                 type.kind == .Pointer || type.kind == .Function
             alias := aliases[value_index]
@@ -1002,7 +1001,7 @@ ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> 
                 for edge: instruction.edges {
                     target := function.blocks[edge.block]
                     plan.edge_direct[edge_at] = cast(u8)ExecPlanEdgeDirectSafe(
-                        plan, function_base, edge, target)
+                        plan, function_base, function.values, edge, target)
                     edge_at += 1
                 }
             }
@@ -1040,9 +1039,13 @@ ExecPlanWord :: (plan: *LirExecPlan, base: s64, value: s32) -> s32 {
     return cast(s32)plan.value_words[base + value]
 }
 
-ExecPlanMask :: (plan: *LirExecPlan, base: s64, value: s32) -> u64 {
-    if plan.value_canonical[base + value] == 2 { return plan.value_masks[base + value] }
-    return ~cast(u64)0
+ExecPlanMask :: (plan: *LirExecPlan, type: s32) -> u64 #inline {
+    mask := plan.type_masks[type]
+    return ifx mask == 0 then ~cast(u64)0 else mask
+}
+
+ExecCanonicalWord :: (mask: u64, bits: u64) -> u64 #inline {
+    return ifx mask == 0 then cast(u64)(bits != 0) else (bits & mask)
 }
 
 // The sign bit an index operand must not have (ExecIndexBits), or 0.
@@ -1055,8 +1058,7 @@ ExecPlanShift :: (size: s64) -> s64 {
     return -1
 }
 
-ExecPlanSign :: (program: LirProgram, plan: *LirExecPlan, base: s64, value: s32) -> u64 {
-    type := program.types[plan.value_types[base + value]]
+ExecPlanSign :: (type: LirType) -> u64 {
     if type.kind != .Integer || !type.is_signed { return 0 }
     return cast(u64)1 << cast(u64)(type.bits - 1)
 }
@@ -1163,7 +1165,7 @@ ExecPlanFused :: (handler: LirExecHandler) -> LirExecHandler {
 
 // Translates one instruction. `work` and `fuel` are what ExecStep charges
 // for it, apart from the copies of a terminator's edge (ExecPlanEdges).
-ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
+ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64, types: []s32,
     instruction: LirInstruction, transient: bool, out: *LirExecCode, work: *s64,
     fuel: *s64, bits: *u64) -> ExecPlanCodeKind {
     op := instruction.op
@@ -1190,10 +1192,7 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
         value: u64
         if op == .Constant { value = program.constants[instruction.symbol].bits }
         if op == .FunctionAddress { value = cast(u64)(instruction.symbol + 1) }
-        canonical := plan.value_canonical[base + instruction.result]
-        if canonical == 1 { value = cast(u64)(value != 0) }
-        else if canonical == 2 { value &= plan.value_masks[base + instruction.result] }
-        <<bits = value
+        <<bits = ExecCanonicalWord(plan.type_masks[types[instruction.result]], value)
         return .Constant
     }
     if op == .Fuel {
@@ -1218,10 +1217,10 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
     code := cast(s32)op
     if op == .Negate || op == .BitNot {
         if out.result < 0 || out.a < 0 { return .Slow }
-        type := program.types[plan.value_types[base + instruction.operands[0]]]
+        type := program.types[types[instruction.operands[0]]]
         if type.kind == .Integer {
             out.handler = ifx op == .Negate then .Negate else .BitNot
-            out.immediate = ExecPlanMask(plan, base, instruction.result)
+            out.immediate = ExecPlanMask(plan, types[instruction.result])
         } else if type.kind == .Float && op == .Negate {
             out.handler = .FloatNegate
             out.immediate = ifx type.bits == 32 then cast(u64)0x80000000 else cast(u64)0x8000000000000000
@@ -1231,16 +1230,16 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
     if code >= cast(s32)LirOp.Add && code <= cast(s32)LirOp.Remainder ||
         code >= cast(s32)LirOp.BitAnd && code <= cast(s32)LirOp.ShiftRight {
         if count != 2 || out.result < 0 || out.a < 0 || out.b < 0 { return .Slow }
-        type := program.types[plan.value_types[base + instruction.operands[0]]]
+        type := program.types[types[instruction.operands[0]]]
         out.handler = ExecPlanBinary(op, type)
         if out.handler == .Slow { return .Slow }
         out.size = type.bits
-        out.immediate = ExecPlanMask(plan, base, instruction.result)
+        out.immediate = ExecPlanMask(plan, types[instruction.result])
         return .Fast
     }
     if code >= cast(s32)LirOp.Equal && code <= cast(s32)LirOp.GreaterEqual {
         if count != 2 || out.result < 0 || out.a < 0 || out.b < 0 { return .Slow }
-        type := program.types[plan.value_types[base + instruction.operands[0]]]
+        type := program.types[types[instruction.operands[0]]]
         out.handler = ExecPlanCompare(op, type)
         out.size = type.bits
         out.extra = cast(u64)code
@@ -1248,11 +1247,11 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
     }
     if op == .Convert || op == .Bitcast {
         if count != 1 || out.result < 0 || out.a < 0 { return .Slow }
-        source := program.types[plan.value_types[base + instruction.operands[0]]]
-        destination := program.types[plan.value_types[base + instruction.result]]
+        source := program.types[types[instruction.operands[0]]]
+        destination := program.types[types[instruction.result]]
         out.size = source.bits
         out.y = destination.bits
-        out.immediate = ExecPlanMask(plan, base, instruction.result)
+        out.immediate = ExecPlanMask(plan, types[instruction.result])
         if op == .Bitcast {
             if destination.kind == .Bool { return .Slow }
             out.handler = .Bitcast
@@ -1281,7 +1280,7 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
     if op == .Extract || op == .Insert {
         expected := ifx op == .Extract then 1 else 2
         aggregate := instruction.operands[0]
-        aggregate_type := plan.value_types[base + aggregate]
+        aggregate_type := types[aggregate]
         aggregate_at := plan.value_offsets[base + aggregate]
         if plan.value_words[base + aggregate] >= 0 || aggregate_at < 0 { return .Slow }
         indexed := count == expected + 1
@@ -1293,7 +1292,7 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
             index := instruction.operands[expected]
             if plan.value_words[base + index] < 0 { return .Slow }
             out.extra = cast(u64)type.count
-            out.sign_c = ExecPlanSign(program, plan, base, index)
+            out.sign_c = ExecPlanSign(program.types[types[index]])
             out.c = ExecPlanWord(plan, base, index)
         } else if count != expected ||
             !ExecPlanMember(program, plan, aggregate_type, instruction.immediate, *member_offset, *member_cost) {
@@ -1302,13 +1301,13 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
         out.x = aggregate_at
         if op == .Extract {
             result := instruction.result
-            size := plan.value_sizes[base + result]
+            size := plan.type_sizes[types[result]]
             out.size = size
             <<work = 1 + member_cost + ExecCopyCost(size)
             if out.result >= 0 {
                 out.handler = ifx indexed then .ExtractWordIndexed else .ExtractWord
-                out.flag = cast(s32)(plan.value_canonical[base + result] == 1)
-                out.immediate = ExecPlanMask(plan, base, result)
+                out.flag = cast(s32)(plan.type_masks[types[result]] == 0)
+                out.immediate = ExecPlanMask(plan, types[result])
             } else {
                 out.handler = ifx indexed then .ExtractBytesIndexed else .ExtractBytes
                 out.y = plan.value_offsets[base + result]
@@ -1319,8 +1318,8 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
         if out.result >= 0 { return .Slow }
         replacement := instruction.operands[1]
         out.y = plan.value_offsets[base + instruction.result]
-        out.size = plan.value_sizes[base + aggregate]
-        out.z = plan.value_sizes[base + replacement]
+        out.size = plan.type_sizes[types[aggregate]]
+        out.z = plan.type_sizes[types[replacement]]
         if !indexed { out.immediate = cast(u64)member_offset }
         <<work = 1 + member_cost + ExecCopyCost(out.size) + ExecCopyCost(out.z)
         if out.b >= 0 {
@@ -1339,7 +1338,7 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
         at: s64
         cost: s64 = 1
         for operand: instruction.operands {
-            size := plan.value_sizes[base + operand]
+            size := plan.type_sizes[types[operand]]
             word := plan.value_words[base + operand]
             from := ifx word >= 0 then word else plan.value_offsets[base + operand]
             if !VecPush(plan.moves, LirExecMove.{.word = word >= 0, .from = from,
@@ -1355,23 +1354,23 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
         if out.a < 0 { return .Slow }
         value := ifx op == .Load then instruction.result else instruction.operands[1]
         if value == LirNoId { return .Slow }
-        size := plan.value_sizes[base + value]
+        size := plan.type_sizes[types[value]]
         out.size = size
-        out.type = plan.value_types[base + value]
+        out.type = types[value]
         <<work = 1 + ExecCopyCost(size)
         word := plan.value_words[base + value]
         if word < 0 { out.x = plan.value_offsets[base + value] }
         if op == .Load {
             out.handler = .Load
-            out.flag = cast(s32)(plan.value_canonical[base + value] == 1)
-            out.immediate = ExecPlanMask(plan, base, value)
+            out.flag = cast(s32)(plan.type_masks[types[value]] == 0)
+            out.immediate = ExecPlanMask(plan, types[value])
         } else { out.handler = .Store }
         return .Fast
     }
     if op == .FieldAddress || op == .ElementAddress {
         if out.result < 0 || out.a < 0 || count > 4 { return .Slow }
-        expected := program.types[plan.value_types[base + instruction.operands[0]]].element
-        target := program.types[plan.value_types[base + instruction.result]].element
+        expected := program.types[types[instruction.operands[0]]].element
+        target := program.types[types[instruction.result]].element
         out.type = expected
         out.target = target
         out.size = plan.type_sizes[target]
@@ -1385,9 +1384,9 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
             out.value = out.c
             out.c = ExecPlanWord(plan, base, instruction.operands[3])
             if expected != target || out.size <= 0 || out.b < 0 || out.c < 0 || out.value < 0 { return .Slow }
-            out.sign_b = ExecPlanSign(program, plan, base, instruction.operands[1])
-            out.extra = ExecPlanSign(program, plan, base, instruction.operands[2])
-            out.sign_c = ExecPlanSign(program, plan, base, instruction.operands[3])
+            out.sign_b = ExecPlanSign(program.types[types[instruction.operands[1]]])
+            out.extra = ExecPlanSign(program.types[types[instruction.operands[2]]])
+            out.sign_c = ExecPlanSign(program.types[types[instruction.operands[3]]])
             out.handler = .ElementSlice
             <<work = 2
             return .Fast
@@ -1403,7 +1402,7 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
             return .Fast
         }
         if out.b < 0 { return .Slow }
-        out.sign_b = ExecPlanSign(program, plan, base, instruction.operands[1])
+        out.sign_b = ExecPlanSign(program.types[types[instruction.operands[1]]])
         if count == 2 {
             parent := program.types[expected]
             if parent.kind != .Array { return .Slow }
@@ -1411,7 +1410,7 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
             out.extra = cast(u64)parent.count
         } else {
             if out.c < 0 { return .Slow }
-            out.sign_c = ExecPlanSign(program, plan, base, instruction.operands[2])
+            out.sign_c = ExecPlanSign(program.types[types[instruction.operands[2]]])
             out.handler = .ElementView
         }
         <<work = 2
@@ -1421,14 +1420,14 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
         // Frame storage and its table entry, with the first value copied in
         // when there is one (ExecAllocate). `y` is that copy's work.
         if out.result < 0 || count > 1 { return .Slow }
-        pointee := program.types[plan.value_types[base + instruction.result]].element
+        pointee := program.types[types[instruction.result]].element
         out.type = pointee
         out.size = plan.type_sizes[pointee]
         out.x = 0
         out.y = 0
         if count == 1 {
             value := instruction.operands[0]
-            if plan.value_types[base + value] != pointee || plan.value_sizes[base + value] != out.size { return .Slow }
+            if types[value] != pointee || plan.type_sizes[types[value]] != out.size { return .Slow }
             if out.a < 0 { out.x = plan.value_offsets[base + value] }
             out.y = ExecCopyCost(out.size)
         }
@@ -1450,7 +1449,7 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
         for index: cast(s64)0..count - 1 {
             source := instruction.operands[index]
             destination := entry.parameters[index]
-            size := plan.value_sizes[base + source]
+            size := plan.type_sizes[types[source]]
             source_word := plan.value_words[base + source]
             destination_word := plan.value_words[target_plan.value_base + destination]
             if (source_word >= 0) != (destination_word >= 0) { return .Slow }
@@ -1475,7 +1474,7 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
         out.x = 0
         if count == 1 {
             value := instruction.operands[0]
-            out.size = plan.value_sizes[base + value]
+            out.size = plan.type_sizes[types[value]]
             if plan.value_words[base + value] < 0 { out.x = plan.value_offsets[base + value] }
         }
         return .Slow
@@ -1513,6 +1512,7 @@ ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64,
 ExecPlanEdges :: (plan: *LirExecPlan, function: LirFunction, function_plan: LirExecFunctionPlan,
     block: LirBlock, edge_at: s64) -> bool {
     base := function_plan.value_base
+    types := function.values
     at := edge_at
     for instruction: block.instructions {
         for edge: instruction.edges {
@@ -1526,9 +1526,9 @@ ExecPlanEdges :: (plan: *LirExecPlan, function: LirFunction, function_plan: LirE
             for index: cast(s64)0..target.parameters.count - 1 {
                 source := edge.arguments[index]
                 destination := target.parameters[index]
-                size := plan.value_sizes[base + source]
+                size := plan.type_sizes[types[source]]
                 work += 2 * ExecCopyCost(size)
-                if direct && ExecPlanValuesSameLocation(plan, base, source, destination) { continue }
+                if direct && ExecPlanValuesSameLocation(plan, base, types, source, destination) { continue }
                 source_word := plan.value_words[base + source]
                 destination_word := plan.value_words[base + destination]
                 if (source_word >= 0) != (destination_word >= 0) { return false }
@@ -1595,7 +1595,7 @@ ExecPlanCode :: (program: LirProgram, plan: *LirExecPlan) -> LirExecProblem {
             edges := plan.block_edge_bases[function_plan.block_base + block_index]
             for index: cast(s64)0..count - 1 {
                 bits: u64
-                kind := ExecPlanInstruction(program, plan, base, block.instructions[index],
+                kind := ExecPlanInstruction(program, plan, base, function.values, block.instructions[index],
                     plan.transient[first + index] != 0, *codes[index], *works[index], *fuels[index], *bits)
                 codes[index].block = block_index
                 codes[index].index = cast(s32)index
@@ -1840,12 +1840,11 @@ ExecValueIsWord :: (instance: *LirExecInstance, frame_index: s64, value: s32) ->
 
 ExecValueSize :: (instance: *LirExecInstance, frame_index: s64, value: s32) -> s64 {
     frame := instance.frames[frame_index]
-    return instance.plan.value_sizes[frame.value_base + value]
+    return instance.plan.type_sizes[frame.value_types[value]]
 }
 
 ExecValueType :: (instance: *LirExecInstance, value: s32) -> LirType #inline {
-    return instance.plan.program.types[
-        instance.plan.value_types[instance.current_value_base + value]]
+    return instance.plan.program.types[instance.current_value_types[value]]
 }
 
 // Values are read without a definedness check: the verifier proves every
@@ -1869,16 +1868,13 @@ ExecIndexBits :: (instance: *LirExecInstance, value: s32) -> u64 {
 }
 
 ExecWriteSlotBits :: (instance: *LirExecInstance, value: s32, bits: u64) #inline {
-    at := instance.current_value_base + value
-    word := instance.plan.value_words[at]
+    word := instance.plan.value_words[instance.current_value_base + value]
     if word < 0 {
         unused ExecFail(instance, .Type)
         return
     }
-    canonical := instance.plan.value_canonical[at]
-    if canonical == 1 { bits = cast(u64)(bits != 0) }
-    else if canonical == 2 { bits &= instance.plan.value_masks[at] }
-    instance.words[instance.current_word_base + word] = bits
+    mask := instance.plan.type_masks[instance.current_value_types[value]]
+    instance.words[instance.current_word_base + word] = ExecCanonicalWord(mask, bits)
 }
 
 ExecCopyStorage :: (instance: *LirExecInstance, source: s64, destination: s64, count: s64) -> bool {
@@ -2357,7 +2353,7 @@ ExecPushFrame :: (instance: *LirExecInstance, function_id: s32, caller: s64,
     instance.frame_epoch += 1
     frame := LirExecFrame.{.function = function_id, .block = function.entry,
         .return_value = return_value, .base = base, .word_base = word_base,
-        .value_base = plan.value_base,
+        .value_base = plan.value_base, .value_types = function.values,
         .instruction_base = instance.plan.block_instruction_bases[plan.block_base + function.entry],
         .generation = instance.frame_epoch}
     if !VecPush(instance.frames, frame) {
@@ -2366,6 +2362,7 @@ ExecPushFrame :: (instance: *LirExecInstance, function_id: s32, caller: s64,
         return false
     }
     instance.current_value_base = frame.value_base
+    instance.current_value_types = function.values
     instance.current_word_base = frame.word_base
     instance.live_values += function.values.count
     frame_index := instance.frames.count - 1
@@ -2411,10 +2408,13 @@ ExecPopFrame :: (instance: *LirExecInstance) {
     unused VecPop(instance.frames)
     if instance.frames.count == 0 {
         instance.current_value_base = 0
+        empty_types: []s32
+        instance.current_value_types = empty_types
         instance.current_word_base = 0
     } else {
         current := instance.frames[instance.frames.count - 1]
         instance.current_value_base = current.value_base
+        instance.current_value_types = current.value_types
         instance.current_word_base = current.word_base
     }
 }
@@ -2723,8 +2723,7 @@ ExecCallInstruction :: (instance: *LirExecInstance, frame_index: s64,
             bits > cast(u64)instance.plan.program.functions.count { return ExecFail(instance, .Calling) }
         target = cast(s32)(bits - 1)
         skip = 1
-        signature := instance.plan.program.types[
-            instance.plan.value_types[instance.current_value_base + instruction.operands[0]]]
+        signature := ExecValueType(instance, instruction.operands[0])
         actual := instance.plan.program.functions[target]
         if signature.result != actual.result || signature.parameters.count != actual.parameters.count {
             return ExecFail(instance, .Calling)
@@ -2837,7 +2836,7 @@ ExecAllocate :: (instance: *LirExecInstance, frame_index: s64,
     address := instance.addresses[index]
     if instruction.operands.count != 0 {
         value := instruction.operands[0]
-        if instance.plan.value_types[instance.current_value_base + value] != pointee {
+        if instance.current_value_types[value] != pointee {
             return ExecFail(instance, .Type)
         }
         if !ExecCopyValueToStorage(instance, frame_index, value, base) { return false }
@@ -3248,8 +3247,7 @@ ExecMemoryInstruction :: (instance: *LirExecInstance, frame_index: s64,
         }
         address := ExecFindAddress(instance, token)
         if address < 0 { return ExecFail(instance, .Pointer) }
-        expected := instance.plan.program.types[instance.plan.value_types[
-            instance.current_value_base + instruction.operands[0]]].element
+        expected := ExecValueType(instance, instruction.operands[0]).element
         if instance.addresses[address].type != expected { return ExecFail(instance, .Type) }
         target := instance.plan.program.types[result_type].element
         member := instruction.immediate
@@ -3282,7 +3280,7 @@ ExecMemoryInstruction :: (instance: *LirExecInstance, frame_index: s64,
         return ExecCopyAddressToValue(instance, address_index, frame_index, instruction.result)
     }
     value := instruction.operands[1]
-    if instance.plan.value_types[instance.current_value_base + value] !=
+    if instance.current_value_types[value] !=
         instance.addresses[address_index].type {
         return ExecFail(instance, .Type)
     }
@@ -3314,10 +3312,8 @@ ExecBytesEqual :: (instance: *LirExecInstance, instruction: *LirInstruction) -> 
         (left_token == 0 && left_count != 0) || (right_token == 0 && right_count != 0) {
         return ExecFail(instance, .Pointer)
     }
-    left_pointer := instance.plan.program.types[instance.plan.value_types[
-        instance.current_value_base + instruction.operands[0]]]
-    right_pointer := instance.plan.program.types[instance.plan.value_types[
-        instance.current_value_base + instruction.operands[2]]]
+    left_pointer := ExecValueType(instance, instruction.operands[0])
+    right_pointer := ExecValueType(instance, instruction.operands[2])
     if (left_address >= 0 && instance.addresses[left_address].type != left_pointer.element) ||
         (right_address >= 0 && instance.addresses[right_address].type != right_pointer.element) {
         return ExecFail(instance, .Type)
@@ -3389,7 +3385,7 @@ ExecValueInstruction :: (instance: *LirExecInstance, frame_index: s64,
     op := instruction.op
     result_type: s32 = LirNoId
     if instruction.result != LirNoId {
-        result_type = instance.plan.value_types[instance.current_value_base + instruction.result]
+        result_type = instance.current_value_types[instruction.result]
     }
     if op == .Constant {
         constant := instance.plan.program.constants[instruction.symbol]
@@ -3470,6 +3466,18 @@ ExecHostAvailable :: (instance: *LirExecInstance) -> s64 {
         instance.words.count * 8 - instance.result_bytes.count - instance.owned.count
 }
 
+ExecHostViewAddress :: (instance: *LirExecInstance, token: u64, count: u64,
+    element: s32, width: s64) -> s32 {
+    found := ExecFindAddress(instance, token)
+    if found < 0 || width <= 0 || count > cast(u64)9223372036854775807 ||
+        instance.addresses[found].type != element || !ExecAddressValid(instance, found) ||
+        count > cast(u64)(instance.addresses[found].extent / width) {
+        unused ExecFail(instance, .Host)
+        return -1
+    }
+    return found
+}
+
 // A host image is the value's own bytes followed by the elements of every
 // view inside it. In the image a view's two words are the byte offset of its
 // first element from the start of the image and its element count; an empty
@@ -3503,10 +3511,8 @@ ExecHostEncode :: (instance: *LirExecInstance, type: s32, source: []u8, from: s6
         }
         element := program.types[value.fields[0]].element
         width := plan.type_sizes[element]
-        found := ExecFindAddress(instance, token)
-        if found < 0 || width <= 0 || count > cast(u64)9223372036854775807 ||
-            instance.addresses[found].type != element || !ExecAddressValid(instance, found) ||
-            count > cast(u64)(instance.addresses[found].extent / width) { return ExecFail(instance, .Host) }
+        found := ExecHostViewAddress(instance, token, count, element, width)
+        if found < 0 { return false }
         bytes := cast(s64)count * width
         at := instance.host_bytes.count
         if bytes > limit - at { return ExecFail(instance, .ValueBytes) }
@@ -3552,8 +3558,42 @@ ExecHostEncode :: (instance: *LirExecInstance, type: s32, source: []u8, from: s6
     return true
 }
 
+ExecHostParameter :: (mask: u64, index: s64) -> bool {
+    return index >= 0 && index < 64 && ((mask >> cast(u64)index) & cast(u64)1) != cast(u64)0
+}
+
+ExecBorrowHostString :: (instance: *LirExecInstance, source: s64, available: s64,
+    argument: *LirExecArgument) -> bool {
+    storage := instance.storage[:]
+    count := ExecReadBits(storage, source + 8, 8)
+    if !ExecSpend(instance, 1) { return false }
+    argument.borrowed = true
+    if count == 0 { return true }
+    program := instance.plan.program
+    view := program.types[argument.type]
+    element := program.types[view.fields[0]].element
+    found := ExecHostViewAddress(instance, ExecReadBits(storage, source, 8), count, element, 1)
+    if found < 0 { return false }
+    size := cast(s64)count
+    if size > available { return ExecFail(instance, .ValueBytes) }
+    at := ExecAddressOffset(instance, found)
+    if instance.failure.problem != .None || !ExecSpend(instance, ExecCopyCost(size)) { return false }
+    entry := instance.addresses[found]
+    local := at
+    capacity := instance.storage.count
+    if entry.owned { capacity = instance.owned.count }
+    else if entry.frame < 0 {
+        local = ExecGlobalOffset(instance, entry.global, at)
+        capacity = ExecGlobalBytes(*instance.globals[entry.global]).count
+    }
+    if local < 0 || size > capacity - local { return ExecFail(instance, .Host) }
+    tail := ExecAddressTail(instance, entry, at)
+    argument.bytes = tail[:size]
+    return true
+}
+
 ExecTypedHostArguments :: (instance: *LirExecInstance, frame_index: s64,
-    instruction: *LirInstruction) -> bool {
+    instruction: *LirInstruction, host: LirExecHostBinding) -> bool {
     program := instance.plan.program
     count := instruction.operands.count
     available := ExecHostAvailable(instance)
@@ -3564,7 +3604,7 @@ ExecTypedHostArguments :: (instance: *LirExecInstance, frame_index: s64,
         !VecResize(instance.host_arguments, count) { return ExecFail(instance, .Allocation) }
     for index: cast(s64)0..count - 1 {
         operand := instruction.operands[index]
-        type := instance.plan.value_types[instance.current_value_base + operand]
+        type := instance.current_value_types[operand]
         value := LirExecArgument.{.type = type}
         if ExecHostBitsType(program, type) {
             value.bits = ExecSlotBits(instance, operand)
@@ -3573,17 +3613,25 @@ ExecTypedHostArguments :: (instance: *LirExecInstance, frame_index: s64,
             size := instance.plan.type_sizes[type]
             at := instance.host_bytes.count
             if size > available - at { return ExecFail(instance, .ValueBytes) }
-            if !VecResizeBounded(instance.host_bytes, at + size, available) { return ExecFail(instance, .Allocation) }
             source := ExecFrameValueOffset(instance, frame_index, operand)
-            if !ExecHostEncode(instance, type, instance.storage[:], source, at, at, available, 0) { return false }
-            // The image is sliced below, once the host bytes have stopped growing.
-            instance.host_arguments[index] = cast(u64)at
-            value.bits = cast(u64)(instance.host_bytes.count - at)
+            if ExecHostParameter(host.borrowed_strings, index) {
+                if !ExecBorrowHostString(instance, source, available - at - size, *value) { return false }
+                // Charge the same logical image size. Borrowed data lives in
+                // guest storage, which argument preparation does not resize.
+                available -= size + value.bytes.count
+            } else {
+                if !VecResizeBounded(instance.host_bytes, at + size, available) { return ExecFail(instance, .Allocation) }
+                if !ExecHostEncode(instance, type, instance.storage[:], source, at, at, available, 0) { return false }
+                // Slice images after the host bytes have stopped growing.
+                instance.host_arguments[index] = cast(u64)at
+                value.bits = cast(u64)(instance.host_bytes.count - at)
+            }
         }
         instance.typed_arguments[index] = value
     }
     for index: cast(s64)0..count - 1 {
-        if ExecHostBitsType(program, instance.typed_arguments[index].type) { continue }
+        if instance.typed_arguments[index].borrowed ||
+            ExecHostBitsType(program, instance.typed_arguments[index].type) { continue }
         start := cast(s64)instance.host_arguments[index]
         end := start + cast(s64)instance.typed_arguments[index].bits
         instance.typed_arguments[index].bits = 0
@@ -3682,10 +3730,6 @@ ExecTypedHostResult :: (instance: *LirExecInstance, frame_index: s64,
     return true
 }
 
-ExecHostViewParameter :: (host: LirExecHostBinding, index: s64) -> bool {
-    return index < 64 && ((host.views >> cast(u64)index) & cast(u64)1) != cast(u64)0
-}
-
 // Where the elements of the view argument `index` lie: their store and byte
 // range. Returns the view's address, or -1 when it is empty. Encoding the
 // argument checked the address.
@@ -3716,13 +3760,13 @@ ExecHostViewsApart :: (instance: *LirExecInstance, frame_index: s64,
         left_store: ExecStore
         left_start: s64
         left_end: s64
-        if !ExecHostViewParameter(host, left) ||
+        if !ExecHostParameter(host.views, left) ||
             ExecViewSpan(instance, frame_index, instruction, left, *left_store, *left_start, *left_end) < 0 { continue }
         for right: left + 1..count - 1 {
             right_store: ExecStore
             right_start: s64
             right_end: s64
-            if !ExecHostViewParameter(host, right) ||
+            if !ExecHostParameter(host.views, right) ||
                 ExecViewSpan(instance, frame_index, instruction, right, *right_store, *right_start, *right_end) < 0 { continue }
             if left_store == right_store && left_start < right_end && right_start < left_end {
                 return ExecFail(instance, .Host)
@@ -3743,7 +3787,7 @@ ExecTypedHostCopyBack :: (instance: *LirExecInstance, frame_index: s64,
     for index: cast(s64)0..instruction.operands.count - 1 {
         argument := instance.typed_arguments[index]
         if !argument.changed { continue }
-        if !ExecHostViewParameter(host, index) { return ExecFail(instance, .Host) }
+        if !ExecHostParameter(host.views, index) { return ExecFail(instance, .Host) }
         source := ExecFrameValueOffset(instance, frame_index, instruction.operands[index])
         count := ExecReadBits(instance.storage[:], source + 8, 8)
         image := argument.bytes
@@ -3857,12 +3901,20 @@ ExecHostCall :: (instance: *LirExecInstance, frame_index: s64, instruction: *Lir
         // collection's worth of new ones has come in.
         if instance.host_since >= 65536 && instance.host_since >= instance.host_scanned &&
             !ExecHostCollect(instance) { return false }
-        if !ExecTypedHostArguments(instance, frame_index, instruction) ||
+        if !ExecTypedHostArguments(instance, frame_index, instruction, host) ||
             !ExecHostViewsApart(instance, frame_index, instruction, host) { return false }
         result := LirExecArgument.{.type = LirNoId}
-        if !host.typed(host.context, instruction.symbol,
-            VecSlice(instance.typed_arguments, 0, count), *result) ||
-            !ExecTypedHostCopyBack(instance, frame_index, instruction, host) ||
+        called := host.typed(host.context, instruction.symbol,
+            VecSlice(instance.typed_arguments, 0, count), *result)
+        if host.borrowed_strings != 0 {
+            for index: cast(s64)0..count - 1 {
+                if ExecHostParameter(host.borrowed_strings, index) {
+                    empty: []u8
+                    instance.typed_arguments[index].bytes = empty
+                }
+            }
+        }
+        if !called || !ExecTypedHostCopyBack(instance, frame_index, instruction, host) ||
             !ExecTypedHostResult(instance, frame_index, instruction, result) {
             if instance.failure.problem == .None { return ExecFail(instance, .Host) }
             return false
@@ -4779,7 +4831,7 @@ ExecFastCall :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecCod
     caller_storage := caller.base
     instance.frame_epoch += 1
     frame := LirExecFrame.{.function = target, .block = function.entry, .return_value = code.result_value,
-        .base = base, .word_base = word_base, .value_base = target_plan.value_base,
+        .base = base, .word_base = word_base, .value_base = target_plan.value_base, .value_types = function.values,
         .instruction_base = plan.block_instruction_bases[target_plan.block_base + function.entry],
         .generation = instance.frame_epoch}
     if !VecPush(instance.frames, frame) {
@@ -4790,6 +4842,7 @@ ExecFastCall :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecCod
     }
     instance.work_remaining -= code.cost
     instance.current_value_base = frame.value_base
+    instance.current_value_types = function.values
     instance.current_word_base = word_base
     instance.live_values += function.values.count
     for at: target_plan.constants..target_plan.constants + target_plan.constant_count - 1 {
@@ -4934,6 +4987,8 @@ ExecResetRun :: (instance: *LirExecInstance) -> bool {
         !VecResize(instance.result_bytes, 0) { return false }
     instance.live_values = 0
     instance.current_value_base = 0
+    empty_types: []s32
+    instance.current_value_types = empty_types
     instance.current_word_base = 0
     instance.result_value = .{.type = LirNoId}
     // Only ExecFail sets a problem, so with none the record is already this.
@@ -5044,12 +5099,9 @@ LirExecHeapLive :: (instance: *LirExecInstance) -> s64 {
 LirExecPlanFree :: (plan: *LirExecPlan) {
     if plan == null { return }
     VecFree(plan.type_sizes)
+    VecFree(plan.type_masks)
     VecFree(plan.value_offsets)
     VecFree(plan.value_words)
-    VecFree(plan.value_sizes)
-    VecFree(plan.value_types)
-    VecFree(plan.value_canonical)
-    VecFree(plan.value_masks)
     VecFree(plan.host_shapes)
     VecFree(plan.functions)
     VecFree(plan.block_edge_bases)
@@ -5103,6 +5155,8 @@ LirExecInstanceClose :: (instance: *LirExecInstance) {
     instance.result_value = .{.type = LirNoId}
     instance.live_values = 0
     instance.current_value_base = 0
+    empty_types: []s32
+    instance.current_value_types = empty_types
     instance.current_word_base = 0
     instance.work_remaining = 0
     instance.fuel_remaining = 0
@@ -5360,8 +5414,27 @@ LirExecHostMutableView :: (instance: *LirExecInstance, function: s32, parameter:
     program := instance.plan.program
     parameters := program.functions[function].parameters
     if parameter < 0 || parameter >= 64 || cast(s64)parameter >= parameters.count ||
+        ExecHostParameter(instance.hosts[binding].borrowed_strings, parameter) ||
         !LirHostView(program, parameters[parameter]) { return .Calling }
     instance.hosts[binding].views |= cast(u64)1 << cast(u64)parameter
+    return .None
+}
+
+// Borrow one immutable byte-view parameter of a verified typed host call.
+LirExecHostBorrowString :: (instance: *LirExecInstance, function: s32, parameter: s32) -> LirExecProblem {
+    if instance == null || !instance.ready || instance.plan == null { return .NotReady }
+    if instance.running { return .Busy }
+    binding := ExecHostBinding(instance, function)
+    if binding < 0 || instance.hosts[binding].typed == null { return .Calling }
+    program := instance.plan.program
+    parameters := program.functions[function].parameters
+    if parameter < 0 || parameter >= 64 || cast(s64)parameter >= parameters.count ||
+        ExecHostParameter(instance.hosts[binding].views, parameter) ||
+        !LirHostView(program, parameters[parameter]) { return .Calling }
+    view := program.types[parameters[parameter]]
+    element := program.types[program.types[view.fields[0]].element]
+    if element.kind != .Integer || element.bits != 8 || element.is_signed { return .Calling }
+    instance.hosts[binding].borrowed_strings |= cast(u64)1 << cast(u64)parameter
     return .None
 }
 

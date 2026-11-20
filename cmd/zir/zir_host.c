@@ -37,25 +37,60 @@ BundleVerifiedExec(const Bundle *bundle)
     return bundle != NULL ? bundle->exec : NULL;
 }
 
+typedef struct BundleImageOwner {
+    BundleImageRelease release;
+    void *context;
+    unsigned char *digest;
+} BundleImageOwner;
+
+static void
+bundle_digest(const unsigned char *bytes, size_t size, unsigned char *digest)
+{
+    Sha256 hash;
+    Sha256Begin(&hash);
+    Sha256Add(&hash, bytes, size);
+    Sha256End(&hash, digest);
+}
+
+static void
+bundle_image_consumed(void *context, const unsigned char *bytes, size_t size)
+{
+    BundleImageOwner *owner = context;
+    bundle_digest(bytes, size, owner->digest);
+    owner->release(owner->context, bytes, size);
+    owner->release = NULL;
+}
+
 static Bundle *
-open_bundle(const unsigned char *bytes, size_t size, const char *name)
+open_bundle(const unsigned char *bytes, size_t size, const char *name,
+            BundleImageRelease release, void *context)
 {
     Bundle *bundle = calloc(1, sizeof(*bundle));
-    if(bundle == NULL)
+    if(bundle == NULL) {
+        if(release != NULL) release(context, bytes, size);
         return NULL;
+    }
     bundle->references = 1;
+    BundleImageOwner owner = {release, context, bundle->digest};
     uint64_t started = ProfileStart();
-    bundle->exec = ExecBundleOpen(bytes, size, name);
+    bundle->exec = ExecBundleOpenWithRelease(bytes, size, name,
+        release != NULL ? bundle_image_consumed : NULL, &owner);
+    if(owner.release != NULL) owner.release(owner.context, bytes, size);
     if(bundle->exec == NULL) {
         free(bundle);
         return NULL;
     }
-    Sha256 hash;
-    Sha256Begin(&hash);
-    Sha256Add(&hash, bytes, size);
-    Sha256End(&hash, bundle->digest);
+    if(release == NULL) bundle_digest(bytes, size, bundle->digest);
     ProfileEnd("zx.bundle.open", started);
     return bundle;
+}
+
+static void
+free_bundle_image(void *context, const unsigned char *bytes, size_t size)
+{
+    (void)context;
+    (void)size;
+    free((void *)bytes);
 }
 
 Bundle *
@@ -78,9 +113,7 @@ BundleOpen(const char *path)
         Diagnostic(Span(path, 1, 1), "zx.input", "cannot open bundle");
         return NULL;
     }
-    Bundle *bundle = open_bundle(bytes, (size_t)size, path);
-    free(bytes);
-    return bundle;
+    return open_bundle(bytes, (size_t)size, path, free_bundle_image, NULL);
 }
 
 Bundle *
@@ -88,7 +121,18 @@ BundleOpenBytes(const unsigned char *data, size_t size)
 {
     if(data == NULL || size == 0)
         return NULL;
-    return open_bundle(data, size, "<embedded bundle>");
+    return open_bundle(data, size, "<embedded bundle>", NULL, NULL);
+}
+
+Bundle *
+BundleOpenOwnedBytes(const unsigned char *data, size_t size, BundleImageRelease release, void *context)
+{
+    if(release == NULL) return NULL;
+    if(data == NULL || size == 0) {
+        release(context, data, size);
+        return NULL;
+    }
+    return open_bundle(data, size, "<embedded bundle>", release, context);
 }
 
 void
@@ -508,6 +552,14 @@ BundleInstanceMatchFieldsByName(BundleInstance *instance, int enabled)
         NativeInstanceMatchFieldsByName(instance->native, enabled);
     else if(instance->exec != NULL)
         ExecInstanceMatchFieldsByName(instance->exec, enabled);
+}
+
+int
+BundleInstanceBorrowHostString(BundleInstance *instance, const char *module,
+                               const char *function, size_t parameter)
+{
+    return instance != NULL && instance->exec != NULL &&
+           ExecInstanceBorrowHostString(instance->exec, module, function, parameter);
 }
 
 void

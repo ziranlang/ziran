@@ -54,8 +54,12 @@ can supply a state migration callback and grant libraries host bindings through
 <a href="https://github.com/ziranlang/ziran/blob/master/include/ziran_zx_module.h"><code>ziran_zx_module.h</code></a>. Module calls are synchronous.</p>
 <p>Embedders with a separate filesystem namespace can pass a
 <code>ZxModuleLoaderConfig</code> to <code>ZxModuleLoaderOpenConfigured</code>. Open the app with
-<code>BundleOpenBytes</code>, then pass it to <code>ZxModuleProgramOpen</code>. For each named
-library the loader asks the configured resolver for <code>ROOT/LOGICAL_NAME.zx</code>
+<code>BundleOpenBytes</code>, then pass it to <code>ZxModuleProgramOpen</code>. If the embedder can
+transfer ownership of the input, use <code>BundleOpenOwnedBytes</code> with a release
+callback that matches its allocator. The callback runs once before return,
+including on failure. On a successful read, the bundle retains the decoded
+program, assets and SHA-256 before releasing the input ahead of planning.</p>
+<p>For each named library the loader asks the configured resolver for <code>ROOT/LOGICAL_NAME.zx</code>
 under each root, including for transitive dependencies. The guest <code>Replace</code>
 service uses the same search. C <code>ZxModuleReplace</code> passes the supplied path
 directly to the resolver.
@@ -75,6 +79,14 @@ policy. With a console callback, a native or Wasm backend selection fails
 before initialization. The loader copies roots and options. Keep callback
 contexts and library grants alive through loader close, and the app bundle
 alive through program close.</p>
+<p>Portable embedders can call <code>ZxModuleProgramBorrowHostString</code> or
+<code>BundleInstanceBorrowHostString</code> after initialization to borrow one granted
+host function's top-level string parameter by zero-based index. The
+callback reads the checked bytes synchronously as <code>HOST_STRING</code>. Keep
+those bytes read-only and within the call, and do not reenter or close the
+instance from the callback. Return values are serialized immediately, so a
+returned string can refer to the input. Nested values and mutable slices use
+the usual host images.</p>
 <h2 id="running-bundles">Running bundles</h2>
 <p>Run source in one command with <code>ziran run hello.zi</code> or <code>zi2zx run hello.zi</code>.
 Both check the file, write the bundle in memory and execute its <code>main</code>.

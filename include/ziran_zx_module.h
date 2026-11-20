@@ -33,12 +33,13 @@ typedef enum ZxModuleResolveResult {
 typedef struct ZxModuleImage {
     const unsigned char *data;
     size_t size;
-    void (*release)(void *context, const unsigned char *data, size_t size);
+    BundleImageRelease release;
 } ZxModuleImage;
 
 /* PATH is borrowed for the call. On FOUND, the immutable bytes stay valid
  * through synchronous verification. If supplied, release is called once
- * with the resolver context, even when the loader rejects the image. */
+ * with the resolver context, even when the loader rejects the image. It
+ * can run before execution planning, as with BundleOpenOwnedBytes. */
 typedef ZxModuleResolveResult (*ZxModuleResolve)(void *context, const char *path,
                                                 ZxModuleImage *image);
 
@@ -71,6 +72,9 @@ int ZxModuleProgramHasExternalHosts(const Bundle *bundle);
 ZxModuleProgram *ZxModuleProgramOpen(ZxModuleLoader *loader, const Bundle *bundle,
                                      const HostBinding *bindings, size_t count);
 int ZxModuleProgramRun(ZxModuleProgram *program, long long *result, int *has_result);
+/* Apply BundleInstanceBorrowHostString to a binding of this app instance. */
+int ZxModuleProgramBorrowHostString(ZxModuleProgram *program, const char *module,
+                                   const char *function, size_t parameter);
 BundleExecutionBackend ZxModuleProgramBackend(const ZxModuleProgram *program);
 void ZxModuleProgramClose(ZxModuleProgram *program);
 

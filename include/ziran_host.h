@@ -132,6 +132,13 @@ Bundle *BundleOpen(const char *path);
 /* Validate an embedded/downloaded bundle without an application pathname.
  * Input bytes are borrowed only during this call. */
 Bundle *BundleOpenBytes(const unsigned char *data, size_t size);
+typedef void (*BundleImageRelease)(void *context, const unsigned char *data, size_t size);
+/* Transfer the image with its matching release callback. The callback runs
+ * once before return, including on failure. After decoding, asset copying
+ * and hashing succeed, it runs before execution planning. A NULL release
+ * callback rejects the call and leaves ownership with the caller. */
+Bundle *BundleOpenOwnedBytes(const unsigned char *data, size_t size,
+                             BundleImageRelease release, void *context);
 void BundleClose(Bundle *bundle);
 /* Required capability names, in program order, are borrowed until
  * BundleClose. */
@@ -213,6 +220,14 @@ void BundleInstanceLimitSteps(BundleInstance *instance, int max_steps);
  * should call this only after an event that it accepts as progress. The next
  * run's settings and the instance's budget mode are unaffected. */
 int BundleHostRenewSteps(void);
+/* Opt in to borrowing one zero-based, top-level string argument of an
+ * already granted typed host function on a portable instruction instance.
+ * Call between runs, after initialization. Returns nonzero on success.
+ * The callback must read the bytes synchronously, never modify or retain
+ * them, and must not reenter or close this instance. A result may refer to
+ * the bytes for immediate serialization by the runtime. */
+int BundleInstanceBorrowHostString(BundleInstance *instance, const char *module,
+                                   const char *function, size_t parameter);
 /* Let records the host returns to this instance omit fields the bundle
  * declares (they take zero values) or carry fields it does not (ignored),
  * so a bundle and its host may be built against different layouts. */

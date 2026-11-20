@@ -21,6 +21,12 @@ using Host :: #import "std/bundle_host"
 hosting :: #system_library "ziran";
 BackendOptions :: struct { backend: s32; max_steps: s32; unbounded: s32 }
 ReleaseImage :: #type (context: *void, data: *u8, size: usize) #c_call;
+OpenOwnedBytes :: (data: *u8, size: usize, release: ReleaseImage, context: *void) -> *void #foreign hosting "BundleOpenOwnedBytes";
+CodeIdentity :: (bundle: *void, digest: *u8) #foreign hosting "BundleCodeIdentity";
+AssetCount :: (bundle: *void) -> usize #foreign hosting "BundleAssetCount";
+AssetName :: (bundle: *void, index: usize) -> *u8 #foreign hosting "BundleAssetName";
+AssetData :: (bundle: *void, index: usize) -> *u8 #foreign hosting "BundleAssetData";
+AssetSize :: (bundle: *void, index: usize) -> usize #foreign hosting "BundleAssetSize";
 Image :: struct { data: *u8; size: usize; release: ReleaseImage }
 ResolveImage :: #type (context: *void, path: *u8, image: *Image) -> s32 #c_call;
 ConsoleWrite :: #type (context: *void, descriptor: s32, data: *u8, size: usize) -> s32 #c_call;
@@ -42,6 +48,8 @@ OpenProgram :: (loader: *void, bundle: *void, bindings: *Host.HostBinding,
     count: usize) -> *void #foreign hosting "ZxModuleProgramOpen";
 ProgramBackend :: (program: *void) -> s32 #foreign hosting "ZxModuleProgramBackend";
 RunProgram :: (program: *void, result: *s64, present: *s32) -> s32 #foreign hosting "ZxModuleProgramRun";
+BorrowProgramString :: (program: *void, module: *u8, function: *u8,
+    parameter: usize) -> s32 #foreign hosting "ZxModuleProgramBorrowHostString";
 CloseProgram :: (program: *void) #foreign hosting "ZxModuleProgramClose";
 RenewSteps :: () -> s32 #foreign hosting "BundleHostRenewSteps";
 
@@ -55,6 +63,32 @@ HostedState :: struct {
 HostedBytes :: (text: string) -> *u8 {
     descriptor := cast(*TextDescriptor)*text
     return descriptor.data
+}
+
+OwnedImage :: struct { bytes: Vec(u8); releases: s32; matched: bool }
+
+#program_export
+FreeOwnedTestImage :: (opaque: *void, data: *u8, size: usize) {
+    image := cast(*OwnedImage)opaque
+    image.releases += 1
+    if image.bytes.count == 0 { return }
+    image.matched = data == *image.bytes[0] && size == cast(usize)image.bytes.count
+    for index: cast(s64)0..image.bytes.count - 1 { image.bytes[index] = 0 }
+    VecFree(image.bytes)
+}
+
+OpenOwnedTestImage :: (test: *NativeTest, bytes: string) -> *void {
+    image: OwnedImage
+    defer VecFree(image.bytes)
+    if !NativeAssert(test, VecResize(image.bytes, bytes.count), "allocate transferred image") { return null }
+    for index: cast(s64)0..bytes.count - 1 { image.bytes[index] = bytes[index] }
+    bundle := OpenOwnedBytes(*image.bytes[0], cast(usize)bytes.count, FreeOwnedTestImage, cast(*void)*image)
+    if !NativeAssert(test, image.releases == 1 && image.matched && image.bytes.count == 0,
+        "release the exact transferred image before returning") {
+        Host.CloseBundle(bundle)
+        return null
+    }
+    return bundle
 }
 
 #program_export
@@ -154,15 +188,30 @@ HostedCases :: (test: *NativeTest, compiler: string, std: string, bridge: string
     provider := CheckPath(test.work, "hosted_counter.zi")
     app_image := CheckPath(test.work, "hosted-app.zx")
     counter_image := CheckPath(test.work, "hosted-counter.zx")
-    if !NativeWrite(test, source, HostedApp) || !NativeWrite(test, provider, HostedCounter) { return false }
+    assets := CheckPath(test.work, "hosted-assets")
+    if !NativeWrite(test, source, HostedApp) || !NativeWrite(test, provider, HostedCounter) ||
+        !CreateDirectory(assets) || !NativeWrite(test, CheckPath(assets, "label.txt"), "embedded label") { return false }
     compile := string.[compiler, "--root", test.work, "--module-path", std, "--entry", "hosted_app:main",
-        "--require-module", "Bridge.v1=demo/bridge", "--import", "hosted_app:Total=Bridge.v1:Total", "-o", app_image, source]
+        "--asset-dir", CheckConcat("assets=", assets), "--require-module", "Bridge.v1=demo/bridge",
+        "--import", "hosted_app:Total=Bridge.v1:Total", "-o", app_image, source]
     library := string.[compiler, "--root", test.work, "--library", "demo/counter", "--export", "hosted_counter:Add", "-o", counter_image, provider]
     if !Build(test, compile[:]) || !Build(test, library[:]) { return false }
     bytes := NativeRead(test, app_image)
-    bundle := Host.OpenBundleBytes(HostedBytes(bytes), cast(u64)bytes.count)
-    if !NativeAssert(test, bundle != null, "open verified app image") { return false }
+    borrowed := Host.OpenBundleBytes(HostedBytes(bytes), cast(u64)bytes.count)
+    defer Host.CloseBundle(borrowed)
+    bundle := OpenOwnedTestImage(test, bytes)
     defer Host.CloseBundle(bundle)
+    invalid := OpenOwnedTestImage(test, "invalid ZX bytes")
+    defer Host.CloseBundle(invalid)
+    if !NativeAssert(test, !test.failed && borrowed != null && bundle != null && invalid == null,
+        "verify both input lifetimes and reject a malformed owned image") { return false }
+    borrowed_id: [32]u8; owned_id: [32]u8
+    CodeIdentity(borrowed, *borrowed_id[0])
+    CodeIdentity(bundle, *owned_id[0])
+    if !NativeAssert(test, TextView(borrowed_id[:]) == TextView(owned_id[:]) && AssetCount(bundle) == 1 &&
+        TextFromCString(AssetName(bundle, 0)) == "assets/label.txt" &&
+        TextView(BytesFromPointer(AssetData(bundle, 0), cast(u64)AssetSize(bundle, 0))) == "embedded label",
+        "preserve exact code identity and assets after releasing the original image") { return false }
     library_grant := GrantContext.{4, 23, 0}
     entry_grant := GrantContext.{3, 19, 0}
     app_binding := Host.HostBinding.{HostedBytes("hosted_app"), HostedBytes("Grant"), HostedGrant, cast(*void)*entry_grant}
@@ -270,6 +319,87 @@ FuelCases :: (test: *NativeTest, compiler: string) -> bool {
     return true
 }
 
+BorrowApp :: #string ZI
+host_api :: #system_library "host_api";
+Nested :: struct { text: string }
+Probe :: (text: string, later: Nested, items: []u8) -> string #foreign host_api;
+main :: () -> s32 {
+    items: [1]u8 = .[1]
+    later := Nested.{"A later argument still serializes its nested bytes even when the first argument is borrowed."}
+    value := Probe("first", later, items[:])
+    saved := Probe(value, later, items[:])
+    empty := Probe("", later, items[:])
+    if value != "first" || saved != "first" || empty != "" { return 1 }
+    return cast(s32)items[0]
+}
+ZI;
+
+BorrowContext :: struct { program: *void; calls: s32 }
+
+#program_export
+HostedBorrowProbe :: (opaque: *void, module: *u8, function: *u8, args: *Host.HostValue,
+    count: s32, result: *Host.HostValue) -> s32 {
+    state := cast(*BorrowContext)opaque
+    if count != 3 || args[0].kind != cast(s32)Host.HostValueKind.HostString ||
+        TextFromCString(args[0].type_name) != "string" ||
+        args[1].kind != cast(s32)Host.HostValueKind.HostRecord || args[1].field_count != 1 ||
+        args[2].kind != cast(s32)Host.HostValueKind.HostSlice || args[2].length != 1 { return 0 }
+    if BorrowProgramString(state.program, module, function, 0) != 0 ||
+        RunProgram(state.program, null, null) != 0 { return 0 }
+    later := args[1].fields[0].value
+    if later.kind != cast(s32)Host.HostValueKind.HostString ||
+        TextView(BytesFromPointer(later.data, cast(u64)later.length)) !=
+        "A later argument still serializes its nested bytes even when the first argument is borrowed." { return 0 }
+    if args[2].elements[0].bits != cast(u64)(state.calls + 1) { return 0 }
+    if state.calls < 2 {
+        if args[0].length != 5 || args[0].data == null ||
+            TextView(BytesFromPointer(args[0].data, 5)) != "first" { return 0 }
+    } else if args[0].data != null || args[0].length != 0 { return 0 }
+    state.calls += 1
+    args[2].elements[0].bits += 1
+    // The adapter must serialize this result while the input bytes are valid.
+    result.kind = args[0].kind
+    result.data = args[0].data
+    result.length = args[0].length
+    return 1
+}
+
+BorrowCase :: (test: *NativeTest, loader: *void, bundle: *void, enable: bool) -> bool {
+    context: BorrowContext
+    module := HostedBytes("borrow_app")
+    function := HostedBytes("Probe")
+    binding := Host.HostBinding.{module, function, HostedBorrowProbe, cast(*void)*context}
+    context.program = OpenProgram(loader, bundle, *binding, 1)
+    defer CloseProgram(context.program)
+    if !NativeAssert(test, context.program != null, "open borrow fixture") { return false }
+    if enable && !NativeAssert(test,
+        BorrowProgramString(context.program, module, HostedBytes("Missing"), 0) == 0 &&
+        BorrowProgramString(context.program, module, function, 1) == 0 &&
+        BorrowProgramString(context.program, module, function, 2) == 0 &&
+        BorrowProgramString(context.program, module, function, 64) == 0 &&
+        BorrowProgramString(context.program, module, function, 0) != 0,
+        "only a granted top-level string can opt in") { return false }
+    result: s64; present: s32
+    return NativeAssert(test, RunProgram(context.program, *result, *present) != 0 &&
+        present == 1 && result == 4 && context.calls == 3,
+        "host string, nested image, mutable copy-back, empty input and borrowed result")
+}
+
+BorrowCases :: (test: *NativeTest, compiler: string) -> bool {
+    source := CheckPath(test.work, "borrow_app.zi")
+    output := CheckPath(test.work, "borrow-app.zx")
+    compile := string.[compiler, "--root", test.work, "--entry", "borrow_app:main", "-o", output, source]
+    if !NativeWrite(test, source, BorrowApp) || !Build(test, compile[:]) { return false }
+    bytes := NativeRead(test, output)
+    bundle := Host.OpenBundleBytes(HostedBytes(bytes), cast(u64)bytes.count)
+    defer Host.CloseBundle(bundle)
+    if !NativeAssert(test, bundle != null, "verify borrow fixture") { return false }
+    config := LoaderConfig.{options = .{1, 200, 0}}
+    loader := OpenLoader(*config)
+    defer CloseLoader(loader)
+    return BorrowCase(test, loader, bundle, false) && BorrowCase(test, loader, bundle, true)
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "zx-module-hosted-")
@@ -278,7 +408,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     compiler := CheckPath(PathParent(test.ziran), "zi2zx")
     std := CheckPath(test.repo, "std")
     bridge := TextFromCString(argv[3])
-    if !HostedCases(*test, compiler, std, bridge) || !FuelCases(*test, compiler) { return 1 }
+    if !HostedCases(*test, compiler, std, bridge) || !FuelCases(*test, compiler) ||
+        !BorrowCases(*test, compiler) { return 1 }
     return 0
 }
 }

@@ -537,8 +537,11 @@ fail:
 static Bundle *
 verify_guest_image(ZxModuleLoader *loader, const ZxModuleImage *image, const char *path)
 {
-    Bundle *bundle = image->size <= MODULE_IMAGE_LIMIT ? BundleOpenBytes(image->data, image->size) : NULL;
-    if(image->release != NULL) image->release(loader->resolve_context, image->data, image->size);
+    Bundle *bundle = NULL;
+    if(image->size <= MODULE_IMAGE_LIMIT) {
+        if(image->release == NULL) bundle = BundleOpenBytes(image->data, image->size);
+        else bundle = BundleOpenOwnedBytes(image->data, image->size, image->release, loader->resolve_context);
+    } else if(image->release != NULL) image->release(loader->resolve_context, image->data, image->size);
     if(bundle == NULL) module_problem(loader, "cannot open verified ZX module from %s", path);
     return bundle;
 }
@@ -1255,6 +1258,14 @@ ZxModuleProgramRun(ZxModuleProgram *program, long long *result, int *has_result)
     int ignored_has_result;
     return BundleInstanceRun(program->scope.instance, result ? result : &ignored_result,
                              has_result ? has_result : &ignored_has_result);
+}
+
+int
+ZxModuleProgramBorrowHostString(ZxModuleProgram *program, const char *module,
+                               const char *function, size_t parameter)
+{
+    return program != NULL &&
+           BundleInstanceBorrowHostString(program->scope.instance, module, function, parameter);
 }
 
 BundleExecutionBackend

@@ -62,8 +62,13 @@ can supply a state migration callback and grant libraries host bindings through
 
 Embedders with a separate filesystem namespace can pass a
 `ZxModuleLoaderConfig` to `ZxModuleLoaderOpenConfigured`. Open the app with
-`BundleOpenBytes`, then pass it to `ZxModuleProgramOpen`. For each named
-library the loader asks the configured resolver for `ROOT/LOGICAL_NAME.zx`
+`BundleOpenBytes`, then pass it to `ZxModuleProgramOpen`. If the embedder can
+transfer ownership of the input, use `BundleOpenOwnedBytes` with a release
+callback that matches its allocator. The callback runs once before return,
+including on failure. On a successful read, the bundle retains the decoded
+program, assets and SHA-256 before releasing the input ahead of planning.
+
+For each named library the loader asks the configured resolver for `ROOT/LOGICAL_NAME.zx`
 under each root, including for transitive dependencies. The guest `Replace`
 service uses the same search. C `ZxModuleReplace` passes the supplied path
 directly to the resolver.
@@ -84,6 +89,15 @@ policy. With a console callback, a native or Wasm backend selection fails
 before initialization. The loader copies roots and options. Keep callback
 contexts and library grants alive through loader close, and the app bundle
 alive through program close.
+
+Portable embedders can call `ZxModuleProgramBorrowHostString` or
+`BundleInstanceBorrowHostString` after initialization to borrow one granted
+host function's top-level string parameter by zero-based index. The
+callback reads the checked bytes synchronously as `HOST_STRING`. Keep
+those bytes read-only and within the call, and do not reenter or close the
+instance from the callback. Return values are serialized immediately, so a
+returned string can refer to the input. Nested values and mutable slices use
+the usual host images.
 
 ## Running bundles
 

@@ -15,10 +15,14 @@ typedef struct ExecBundle ExecBundle;
 typedef struct ExecHosts ExecHosts;
 typedef struct ExecInstance ExecInstance;
 
-/* Reads, verifies and plans a revision-28 executable; NULL after a
- * diagnostic naming `name` when it cannot. The bytes are borrowed only
- * during the call. */
+/* Reads, verifies and plans a revision-28 executable. The input is borrowed
+ * during this call. NULL indicates failure after a diagnostic naming `name`. */
 ExecBundle *ExecBundleOpen(const unsigned char *bytes, size_t size, const char *name);
+/* When present, consumed runs once after a successful read and asset copy,
+ * before planning. It can free the input. The caller remains responsible
+ * for release if it does not run. */
+ExecBundle *ExecBundleOpenWithRelease(const unsigned char *bytes, size_t size, const char *name,
+                                      BundleImageRelease consumed, void *context);
 void ExecBundleClose(ExecBundle *bundle);
 /* The verified program, a `const LirProgram *`. */
 const void *ExecBundleProgram(const ExecBundle *bundle);
@@ -67,6 +71,7 @@ typedef struct ExecHostArgument {
     const unsigned char *bytes;
     size_t size;
     int changed;
+    int borrowed;
 } ExecHostArgument;
 
 /* A value at a native call boundary. Scalars and pointers use `bits`.
@@ -134,6 +139,8 @@ ExecInstance *ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, v
                                long long max_steps, BundleConsoleWrite write, void *console_context);
 /* A failed run leaves the instance unusable. */
 int ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result);
+int ExecInstanceBorrowHostString(ExecInstance *instance, const char *module,
+                                 const char *function, size_t parameter);
 /* Bounds each later run, or all of them on an instance opened with a limit. */
 void ExecInstanceLimitSteps(ExecInstance *instance, long long max_steps);
 void ExecInstanceMatchFieldsByName(ExecInstance *instance, int enabled);

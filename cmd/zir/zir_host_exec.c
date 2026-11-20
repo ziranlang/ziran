@@ -498,8 +498,17 @@ ExecBundleClose(ExecBundle *bundle)
     free(bundle);
 }
 
+static int
+exec_copy_bundle_assets(ExecBundle *bundle, const unsigned char *bytes, size_t size, const char *name)
+{
+    if(exec_read_assets(bundle, bytes, size)) return 1;
+    Diagnostic(Span(name, 1, 1), "zx.input", "cannot read the executable ZX assets");
+    return 0;
+}
+
 ExecBundle *
-ExecBundleOpen(const unsigned char *bytes, size_t size, const char *name)
+ExecBundleOpenWithRelease(const unsigned char *bytes, size_t size, const char *name,
+                          BundleImageRelease consumed, void *context)
 {
     ExecBundle *bundle = calloc(1, sizeof(*bundle));
     if(bundle == NULL) return NULL;
@@ -518,6 +527,10 @@ ExecBundleOpen(const unsigned char *bytes, size_t size, const char *name)
         goto failed;
     }
     bundle->program = compiler_exec_link_ZxExecReadProgram(&bundle->owner);
+    if(consumed != NULL) {
+        if(!exec_copy_bundle_assets(bundle, bytes, size, name)) goto failed;
+        consumed(context, bytes, size);
+    }
 #ifdef ZIRAN_COMPACT_EXEC_PLAN
     LirExecResult planned = compiler_exec_LirExecPlanBuildCompact(bundle->program, compiler_lowered_ir_LirDefaultLimits(), &bundle->plan);
 #else
@@ -529,10 +542,7 @@ ExecBundleOpen(const unsigned char *bytes, size_t size, const char *name)
             (int)problem.length, problem.data);
         goto failed;
     }
-    if(!exec_read_assets(bundle, bytes, size)) {
-        Diagnostic(Span(name, 1, 1), "zx.input", "cannot read the executable ZX assets");
-        goto failed;
-    }
+    if(consumed == NULL && !exec_copy_bundle_assets(bundle, bytes, size, name)) goto failed;
     const LirFunction *functions = bundle->program.functions.data;
     const String *modules = bundle->program.modules.data;
     const LirFunction *entry = &functions[bundle->program.entry];
@@ -1518,7 +1528,13 @@ ExecHostsCall(ExecHosts *hosts, size_t index, ExecHostArgument *arguments, size_
         const ExecNode *node = &bundle->nodes[host->parameters[at]];
         const LirType *type = exec_type(bundle, arguments[at].type);
         arguments[at].changed = 0;
-        if(node->class == NODE_SCALAR) {
+        if(arguments[at].borrowed) {
+            if(node->class != NODE_STRING || (arguments[at].size != 0 && arguments[at].bytes == NULL)) goto done;
+            values[at].kind = HOST_STRING;
+            values[at].type = node->spelling;
+            values[at].data = arguments[at].size ? arguments[at].bytes : NULL;
+            values[at].length = arguments[at].size;
+        } else if(node->class == NODE_SCALAR) {
             if(!exec_scalar_value(node, type, arguments[at].bits, &values[at])) goto done;
         } else if(node->class == NODE_POINTER) {
             if(type->kind != LirTypeKind_Pointer) goto done;
@@ -1862,11 +1878,18 @@ exec_host_call(void *closure, void *context, int32_t function, Slice arguments, 
      * program's own output comes first. */
     if(!ZxConsoleFlush(&instance->console)) return false;
     for(int64_t at = 0; at < arguments.length; at++)
-        instance->arguments[at] = (ExecHostArgument){given[at].type, given[at].bits,
-            given[at].bytes.data, (size_t)given[at].bytes.length, 0};
+        instance->arguments[at] = (ExecHostArgument){.type = given[at].type, .bits = given[at].bits,
+            .bytes = given[at].bytes.data, .size = (size_t)given[at].bytes.length, .borrowed = given[at].borrowed};
     ExecHostArgument returned = {0};
-    if(!ExecHostsCall(instance->hosts, call->host, instance->arguments, (size_t)arguments.length, &returned))
-        return false;
+    int called = ExecHostsCall(instance->hosts, call->host, instance->arguments, (size_t)arguments.length, &returned);
+    for(int64_t at = 0; at < arguments.length; at++) {
+        if(instance->arguments[at].borrowed) instance->arguments[at].bytes = NULL;
+        if(called && instance->arguments[at].changed) {
+            given[at].changed = true;
+            given[at].bytes = (Slice){(void *)instance->arguments[at].bytes, (int64_t)instance->arguments[at].size};
+        }
+    }
+    if(!called) return false;
     if(instance->renew_steps) {
         /* The engine hands typed calls to the slow path before invoking
          * the host, so no precharged segment fuel remains to restore. */
@@ -1875,11 +1898,6 @@ exec_host_call(void *closure, void *context, int32_t function, Slice arguments, 
         instance->run_fuel = instance->active_limit;
         instance->instance.fuel_remaining = instance->run_fuel;
     }
-    for(int64_t at = 0; at < arguments.length; at++)
-        if(instance->arguments[at].changed) {
-            given[at].changed = true;
-            given[at].bytes = (Slice){(void *)instance->arguments[at].bytes, (int64_t)instance->arguments[at].size};
-        }
     result->type = returned.type;
     result->bits = returned.bits;
     result->bytes = (Slice){(void *)returned.bytes, (int64_t)returned.size};
@@ -2027,6 +2045,22 @@ ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, 
 failed:
     ExecInstanceClose(instance);
     return NULL;
+}
+
+int
+ExecInstanceBorrowHostString(ExecInstance *instance, const char *module, const char *function, size_t parameter)
+{
+    if(module == NULL || function == NULL || parameter >= 64 || instance->instance.running) return 0;
+    const ExecBundle *bundle = instance->bundle;
+    for(size_t index = 0; index < bundle->host_count; index++) {
+        const ExecHost *host = &bundle->hosts[index];
+        if(strcmp(host->module, module) || strcmp(host->name, function)) continue;
+        return parameter < (size_t)host->parameter_count &&
+            bundle->nodes[host->parameters[parameter]].class == NODE_STRING &&
+            compiler_exec_LirExecHostBorrowString(&instance->instance, host->function,
+                (int32_t)parameter) == LirExecProblem_None;
+    }
+    return 0;
 }
 
 int
@@ -2231,10 +2265,13 @@ ExecInstanceClose(ExecInstance *instance)
 
 #include "zir_diagnostic.h"
 
-ExecBundle *ExecBundleOpen(const unsigned char *bytes, size_t size, const char *name)
+ExecBundle *ExecBundleOpenWithRelease(const unsigned char *bytes, size_t size, const char *name,
+                                     BundleImageRelease consumed, void *context)
 {
     (void)bytes;
     (void)size;
+    (void)consumed;
+    (void)context;
     Diagnostic(Span(name, 1, 1), "zx.input", "this build has no instruction engine");
     return NULL;
 }
@@ -2337,6 +2374,11 @@ int ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result)
     return 0;
 }
 void ExecInstanceLimitSteps(ExecInstance *instance, long long max_steps) { (void)instance; (void)max_steps; }
+int ExecInstanceBorrowHostString(ExecInstance *instance, const char *module, const char *function, size_t parameter)
+{
+    (void)instance; (void)module; (void)function; (void)parameter;
+    return 0;
+}
 int BundleHostRenewSteps(void) { return 0; }
 void ExecInstanceMatchFieldsByName(ExecInstance *instance, int enabled) { (void)instance; (void)enabled; }
 size_t ExecInstanceLiveBytes(const ExecInstance *instance) { (void)instance; return 0; }
@@ -2355,3 +2397,9 @@ int ExecInstanceStateStore(ExecInstance *instance, const HostValue *const *value
 void ExecInstanceClose(ExecInstance *instance) { (void)instance; }
 
 #endif
+
+ExecBundle *
+ExecBundleOpen(const unsigned char *bytes, size_t size, const char *name)
+{
+    return ExecBundleOpenWithRelease(bytes, size, name, NULL, NULL);
+}

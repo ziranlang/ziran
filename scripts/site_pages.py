@@ -359,6 +359,14 @@ def github_url(remote):
     return f'https://github.com/{match.group(1)}' if match else ''
 
 
+def package_repository(remote):
+    # First-party Gitea repositories are mirrored to the same GitHub path.
+    match = re.fullmatch(r'https://git\.waozi\.xyz/((?:ziranlang|kryonlabs|waozixyz)/[\w.-]+?)(?:\.git)?/?', remote)
+    if match:
+        return f'https://github.com/{match.group(1)}'
+    return github_url(remote) or remote.rstrip('/').removesuffix('.git')
+
+
 def render_markdown(text, link):
     """Markdown to HTML with GitHub-style heading ids; LINK rewrites each
     relative href and returns None to drop the link but keep its text."""
@@ -428,8 +436,8 @@ def package_modules(ziran, directory, manifest, packages):
         if not os.path.isfile(other):
             continue
         origin = published_remote(package_directory)
-        requested_identity = github_url(requested) or requested.rstrip('/').removesuffix('.git')
-        origin_identity = github_url(origin) or origin.rstrip('/').removesuffix('.git')
+        requested_identity = package_repository(requested)
+        origin_identity = package_repository(origin)
         if not origin_identity:
             sys.exit(f'{package_directory}: dependency {name} has no origin remote; cannot verify {requested}')
         if not requested_identity or requested_identity != origin_identity:
@@ -445,7 +453,7 @@ def package_modules(ziran, directory, manifest, packages):
     return modules
 
 
-def read_packages(ziran, packages):
+def read_packages(ziran, packages, *, strict_inventory):
     inventory = json.load(open(PACKAGE_INVENTORY))
     if inventory.get('format') != 1 or not isinstance(inventory.get('packages'), dict):
         sys.exit(f'{PACKAGE_INVENTORY}: invalid package inventory')
@@ -453,18 +461,16 @@ def read_packages(ziran, packages):
     local = {name for name in os.listdir(packages)
              if os.path.isfile(os.path.join(packages, name, 'ziran.toml'))}
     missing = sorted(set(entries) - local)
-    unknown = sorted(local - set(entries))
+    unknown = sorted(local - set(entries)) if strict_inventory else []
     if missing or unknown:
         details = ((f'missing {", ".join(missing)}' if missing else '')
                    + ('; ' if missing and unknown else '')
                    + (f'unclassified {", ".join(unknown)}' if unknown else ''))
         sys.exit(f'{packages}: package inventory mismatch: {details}')
     found, skipped = [], []
-    for name in sorted(os.listdir(packages)):
+    for name in sorted(entries):
         directory = os.path.join(packages, name)
         manifest_path = os.path.join(directory, 'ziran.toml')
-        if not os.path.isfile(manifest_path):
-            continue
         manifest = tomllib.load(open(manifest_path, 'rb'))
         origin = published_remote(directory)
         url = github_url(origin)
@@ -694,7 +700,7 @@ def main():
     parser.add_argument('--module-api', metavar='SOURCE', help='print a module\'s documentation data as JSON')
     parser.add_argument('--module-root', metavar='DIR')
     parser.add_argument('--stdlib-inventory', metavar='REPOSITORY', help='print a repository\'s standard-module release inventory as JSON')
-    parser.add_argument('--packages', default=os.path.join(os.path.dirname(REPO), 'packages'))
+    parser.add_argument('--packages', metavar='DIR')
     parser.add_argument('--site', metavar='DIR', help='read and write site files under DIR instead of site/')
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
@@ -715,9 +721,10 @@ def main():
         summary, entries, uses_host = module_api(ziran, source, root, [])
         print(json.dumps({'summary': summary, 'entries': entries, 'uses_host': uses_host}))
         return
-    with_packages = os.path.isdir(args.packages)
+    packages_directory = args.packages or os.path.join(os.path.dirname(REPO), 'packages')
+    with_packages = os.path.isdir(packages_directory)
     if not with_packages and not args.check:
-        sys.exit(f'{args.packages}: no packages directory; pass --packages DIR')
+        sys.exit(f'{packages_directory}: no packages directory; pass --packages DIR')
 
     examples, example_toc, example_count = example_sections(ziran)
     std, release = std_modules(ziran)
@@ -736,7 +743,9 @@ def main():
         owned['guide'][f'{guide_slug(name)}.html'] = page
     skipped = []
     if with_packages:
-        packages, skipped = read_packages(ziran, args.packages)
+        # The default local check shares a directory with unpublished work.
+        strict_inventory = args.packages is not None or not args.check
+        packages, skipped = read_packages(ziran, packages_directory, strict_inventory=strict_inventory)
         for package in packages:
             owned['packages'][f'{package["name"]}.html'] = package_page(package)
         outputs['modules.html'] = modules_page(std, release, packages)

@@ -86,8 +86,12 @@ Artifacts :: (test: *NativeTest) -> bool {
         !ArtifactCount(test, provider, 1) { return false }
     other := ArtifactBuild(test, app, "windows-x86_64-mingw")
     if !NativeAssert(test, other != first && NativeRead(test, CheckPath(PathParent(other), "resource.txt")) == "windows-x86_64-mingw", "platform did not enter artifact identity") || !ArtifactCount(test, provider, 2) { return false }
-    NativeSet(test, "CFLAGS", "-DARTIFACT_TEST")
-    changed := ArtifactBuild(test, app); NativeUnset(test, "CFLAGS")
+    // Restore the caller's flags so all later cache keys use the baseline.
+    flags := EnvironmentText("CFLAGS")
+    NativeSet(test, "CFLAGS", CheckConcat(flags, " -DARTIFACT_TEST"))
+    changed := ArtifactBuild(test, app)
+    if flags == "" { NativeUnset(test, "CFLAGS") }
+    else { NativeSet(test, "CFLAGS", flags) }
     if !NativeAssert(test, changed != first, "compiler flags did not enter artifact identity") || !ArtifactCount(test, provider, 3) ||
         !NativeWrite(test, app_manifest, CheckConcat(app_original, "[tool.Provider]\nmode = \"different\"\n")) { return false }
     option := ArtifactBuild(test, app)

@@ -1,5 +1,5 @@
-// Independent decimal conversion oracle: Go's standard library supplies
-// binary64 parsing and shortest digits; layout follows Python repr's rules.
+// Independent decimal conversion oracle. Go supplies binary64 parsing and
+// shortest digits. The expected text format follows Python repr's rules.
 package main
 
 import (
@@ -115,22 +115,38 @@ Fixture :: #import "std_float_text"
         return false
     }
     return true
+}
+
+FloatCase :: struct {
+    text: string
+    expected: string
+    bits: u64
+}
+
+CheckGroup :: (cases: []FloatCase, first: s32) -> s32 {
+    for index: 0..cases.count - 1 {
+        sample := cases[index]
+        if !CheckCase(sample.text, sample.expected, sample.bits, first + cast(s32)index) { return 30 }
+    }
+    return 0
 }`)
-	for i, c := range cases {
-		if i%32 == 0 {
-			fmt.Printf("Group%d :: () -> s32 {\n", i/32)
+	// Use bounded tables so all backends compile one checking loop. Small
+	// groups keep the fixture within the portable executor's stack budget.
+	const groupSize = 64
+	for first := 0; first < len(cases); first += groupSize {
+		last := min(first+groupSize, len(cases))
+		fmt.Printf("Group%d :: () -> s32 {\n    cases: [%d]FloatCase = .[\n", first/groupSize, last-first)
+		for _, c := range cases[first:last] {
+			fmt.Printf("        .{%q, %q, cast(u64)%d},\n", c.text, c.expected, c.bits)
 		}
-		fmt.Printf("    if !CheckCase(%q, %q, cast(u64)%d, %d) { return 30 }\n", c.text, c.expected, c.bits, i)
-		if i%32 == 31 || i == len(cases)-1 {
-			fmt.Println("    return 0\n}")
-		}
+		fmt.Printf("    ]\n    return CheckGroup(cases[:], %d)\n}\n", first)
 	}
 	fmt.Println(`#program_export
 NativeMain :: () -> s32 {
     basic := Fixture.SelfTest()
     if basic != 0 { return basic }
     result: s32`)
-	for i := 0; i < (len(cases)+31)/32; i++ {
+	for i := 0; i < (len(cases)+groupSize-1)/groupSize; i++ {
 		fmt.Printf("    result = Group%d()\n    if result != 0 { return result }\n", i)
 	}
 	fmt.Println("    return 0\n}")

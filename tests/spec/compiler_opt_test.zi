@@ -290,7 +290,7 @@ FixtureCases :: () -> s32 {
     if optimized.functions[0].blocks.count != 1 || HasOp(optimized, 0, .Branch) ||
         !HasOp(optimized, 1, .Divide) || !HasOp(optimized, 2, .ShiftLeft) ||
         !HasOp(optimized, 3, .Fuel) || !HasOp(optimized, 4, .Branch) ||
-        !HasOp(optimized, 5, .Aggregate) || !HasOp(optimized, 5, .FunctionAddress) ||
+        HasOp(optimized, 5, .Aggregate) || HasOp(optimized, 5, .FunctionAddress) ||
         !HasOp(optimized, 6, .Convert) || HasOp(optimized, 7, .Bitcast) { return 6 }
     expected_results: [3]u64 = .{1, 1, 0}
     for at: 0..2 {

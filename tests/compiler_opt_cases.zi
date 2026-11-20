@@ -1,6 +1,5 @@
 #import "native_test"
 #import "check_support"
-#import "std/text_tools"
 using IR :: #import "compiler_lowered_ir"
 using Opt :: #import "compiler_opt"
 using Exec :: #import "compiler_exec"
@@ -284,55 +283,45 @@ main :: (argc: s32, argv: **u8) -> s32 {
     NativeSet(*test, "GOSUMDB", "off")
     NativeSet(*test, "GOWORK", "off")
     module := "compiler_opt_test"
-    root := test.work
+    root := CheckPath(test.repo, "tests/spec")
     modules := CheckPath(test.repo, "cmd")
     source := CheckPath(root, CheckConcat(module, ".zi"))
-    // Keep this task's fixture expectation in the assigned suite file: the
-    // optimized build-local copy now expects fresh aggregates to disappear.
-    fixture := NativeRead(*test, CheckPath(test.repo, "tests/spec/compiler_opt_test.zi"))
-    old_expectation := "!HasOp(optimized, 5, .Aggregate) || !HasOp(optimized, 5, .FunctionAddress) ||"
-    new_expectation := "HasOp(optimized, 5, .Aggregate) || HasOp(optimized, 5, .FunctionAddress) ||"
-    updated := TextDetach(TextReplace(fixture, old_expectation, new_expectation))
-    if !NativeAssert(*test, updated != fixture, "update the optimizer fixture expectations") ||
-        !NativeWrite(*test, source, updated) { return 1 }
     saved := CheckPath(test.work, "ir")
     save := string.[test.ziran, "ir", "--root", root, "--module-path", modules,
         "-o", saved, source]
     unused NativeRun(*test, save[:])
     if test.failed { return 1 }
+
     expected := "compiler optimizer: verified bounded passes and differential execution local tests passed\n"
-    bundle_expected := CheckConcat(expected, "0\n")
-    forms: [2]string = .["source", "saved"]
-    for form: forms {
-        input := ifx form == "source" then source else CheckPath(saved, CheckConcat(module, ".zir"))
-        input_root := ifx form == "source" then root else saved
-        bundle := CheckPath(test.work, CheckConcat(form, ".zx"))
-        bundle_command := string.[test.ziran, "bundle", "--root", input_root,
-            "--module-path", modules, "--entry", CheckConcat(module, ":Run"),
-            "-o", bundle, input]
-        // Bundling the whole optimizer takes several minutes in the sanitizer build.
-        unused NativeRun(*test, bundle_command[:], "", 0, 600000)
-        bundle_run := string.[test.ziran, "run", bundle]
-        if test.failed || !NativeExpect(*test, bundle_run[:], bundle_expected) { return 1 }
-        c_output := CheckPath(test.work, CheckConcat(form, "-c"))
-        c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry",
-            CheckConcat(module, ":Run"), "--root", input_root, "--module-path", modules,
-            "-o", c_output, input]
-        unused NativeRun(*test, c_build[:])
-        c_run := string.[CheckPath(c_output, module)]
-        if test.failed || !NativeExpect(*test, c_run[:], expected) { return 1 }
-        go_output := CheckPath(test.work, CheckConcat(form, "-go"))
-        go_build := string.[test.ziran, "build", "--target=go", "--exe", "--pkg", "main",
-            "--entry", CheckConcat(module, ":Run"), "--root", input_root,
-            "--module-path", modules, "-o", go_output, input]
-        unused NativeRun(*test, go_build[:])
-        go_run: Vec(string)
-        VecPush(go_run, "go")
-        VecPush(go_run, "run")
-        go_files := NativeFiles(go_output, ".go")
-        for file: go_files { VecPush(go_run, file) }
-        if test.failed || !NativeExpect(*test, go_run[:], expected) { return 1 }
-    }
-    print("compiler optimizer: source/saved C, Go and bundle local tests passed\n")
+    entry := CheckConcat(module, ":Run")
+    bundle := CheckPath(test.work, "optimizer.zx")
+    bundle_command := string.[test.ziran, "bundle", "--root", root,
+        "--module-path", modules, "--entry", entry, "-o", bundle, source]
+    // Bundling the whole optimizer takes several minutes in the sanitizer build.
+    unused NativeRun(*test, bundle_command[:], "", 0, 600000)
+    bundle_run := string.[test.ziran, "run", bundle]
+    if !NativeExpect(*test, bundle_run[:], CheckConcat(expected, "0\n")) { return 1 }
+
+    // compiler_modules_cases covers source and saved IR on each backend.
+    // Run this larger optimizer workload once per backend, including saved IR on C.
+    input := CheckPath(saved, CheckConcat(module, ".zir"))
+    c_output := CheckPath(test.work, "c")
+    c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry", entry,
+        "--root", saved, "--module-path", modules, "-o", c_output, input]
+    unused NativeRun(*test, c_build[:])
+    c_run := string.[CheckPath(c_output, module)]
+    if !NativeExpect(*test, c_run[:], expected) { return 1 }
+
+    go_output := CheckPath(test.work, "go")
+    go_build := string.[test.ziran, "build", "--target=go", "--exe", "--pkg", "main",
+        "--entry", entry, "--root", root, "--module-path", modules, "-o", go_output, source]
+    unused NativeRun(*test, go_build[:])
+    go_run: Vec(string)
+    VecPush(go_run, "go")
+    VecPush(go_run, "run")
+    go_files := NativeFiles(go_output, ".go")
+    for file: go_files { VecPush(go_run, file) }
+    if !NativeExpect(*test, go_run[:], expected) { return 1 }
+    print("compiler optimizer: saved IR on C, source on Go and bundle local tests passed\n")
     return 0
 }

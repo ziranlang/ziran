@@ -75,7 +75,7 @@ CheckProgram :: struct {
     compiler_library: bool
 }
 
-check_programs: [52]CheckProgram = .[
+check_programs: [53]CheckProgram = .[
     .{name = "module_parameters_cases.zi", cost = 2},
     .{name = "insert_source_cases.zi", cost = 2},
     .{name = "std_environment_cases.zi", cost = 2},
@@ -109,6 +109,7 @@ check_programs: [52]CheckProgram = .[
     .{name = "bundle_runtime_provider", source = "bundle_provider_cases.zi"},
     .{name = "c_foreign_records", source = "c_foreign_records_cases.zi"},
     .{name = "compiler_lowered_verify", source = "lowered_verify_cases.zi", module_path = "cmd"},
+    .{name = "compiler_opt", source = "compiler_opt_cases.zi", module_path = "cmd", cost = 200},
     .{name = "compiler_vectorize", compiler_library = true, source = "compiler_vectorize_cases.zi", module_path = "cmd", cost = 5},
     .{name = "compound_order", source = "compound_order_cases.zi"},
     .{name = "direct_assembly", compiler_library = true, source = "assembly_cases.zi", module_path = "cmd"},

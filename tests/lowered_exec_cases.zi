@@ -1023,14 +1023,15 @@ DynamicElementExtent :: () -> bool {
 // element; 2 uses a pointer into the block the resize ended; 3 names the
 // block with a wrong element count; 4 reads after the block is freed; 5
 // asks for more than the value-byte budget, gets null, and still reads 42
-// through the first block, which stays valid.
+// through the first block, which stays valid. Mode 6 makes a large
+// allocation under a tight ceiling and checks its retained capacity.
 HeapResizeCase :: (mode: s32) -> LirExecResult {
     types: [3]LirType = .[
         .{.kind = .Void}, .{.kind = .Integer, .bits = 64, .is_signed = true},
         .{.kind = .Pointer, .element = 1}]
-    constants: [7]LirConstant = .[.{.type = 1, .bits = 0}, .{.type = 1, .bits = 4},
+    constants: [8]LirConstant = .[.{.type = 1, .bits = 0}, .{.type = 1, .bits = 4},
         .{.type = 1, .bits = 2}, .{.type = 1, .bits = 42}, .{.type = 1, .bits = 8},
-        .{.type = 1, .bits = 6}, .{.type = 1, .bits = 1099511627776}]
+        .{.type = 1, .bits = 6}, .{.type = 1, .bits = 1099511627776}, .{.type = 1, .bits = 178750}]
     empty: [0]s32
     allocate: [3]s32 = .[0, 1, 2]
     first_element: [3]s32 = .[3, 4, 2]
@@ -1040,6 +1041,7 @@ HeapResizeCase :: (mode: s32) -> LirExecResult {
     kept_element: [3]s32 = .[8, 4, 7]
     fresh_element: [3]s32 = .[8, 9, 7]
     free: [3]s32 = .[8, 7, 1]
+    skip_allocation: [3]s32 = .[0, 1, 1]
     load_kept: [1]s32 = .[10]
     load_stale: [1]s32 = .[5]
     returned: [1]s32 = .[12]
@@ -1052,12 +1054,14 @@ HeapResizeCase :: (mode: s32) -> LirExecResult {
     instructions[5] = Instruction(.ElementAddress, 5, first_element[:])
     instructions[6] = Instruction(.Constant, 6, empty[:], 3)
     instructions[7] = Instruction(.Store, -1, store[:]); instructions[7].effect = 2
-    instructions[8] = Instruction(.Constant, 7, empty[:], ifx mode == 5 then 6 else 4)
+    instructions[8] = Instruction(.Constant, 7, empty[:], ifx mode == 5 then 6 else ifx mode == 6 then 7 else 4)
     instructions[9] = Instruction(.Resize, 8, ifx mode == 3 then wrong[:] else grow[:]); instructions[9].effect = 3
     instructions[10] = Instruction(.Constant, 9, empty[:], 5)
     instructions[11] = Instruction(.ElementAddress, 10,
         ifx mode == 1 then fresh_element[:] else ifx mode == 5 then first_element[:] else kept_element[:])
-    instructions[12] = Instruction(.Resize, 11, ifx mode == 4 then free[:] else allocate[:]); instructions[12].effect = 4
+    instructions[12] = Instruction(.Resize, 11,
+        ifx mode == 4 then free[:] else ifx mode == 6 then skip_allocation[:] else allocate[:])
+    instructions[12].effect = 4
     instructions[13] = Instruction(.Load, 12, ifx mode == 2 || mode == 5 then load_stale[:] else load_kept[:]); instructions[13].effect = 5
     instructions[14] = Instruction(.Return, -1, returned[:])
     values: [13]s32 = .[2, 1, 1, 2, 1, 2, 1, 1, 2, 1, 2, 2, 1]
@@ -1067,7 +1071,21 @@ HeapResizeCase :: (mode: s32) -> LirExecResult {
         .values = values[:], .blocks = blocks[:], .origin = -1}]
     program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
         .constants = constants[:], .functions = functions[:], .entry = 0}
-    return Execute(program)
+    if mode != 6 { return Execute(program) }
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
+    if built.problem != .None { return built }
+    limits := LirExecDefaultLimits()
+    limits.value_bytes = 1440000
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    opened := LirExecInstanceOpen(*plan, limits, 19, *instance)
+    if opened.problem != .None { return opened }
+    result := LirExecRun(*instance)
+    if result.problem == .None && (instance.owned.count < 1430000 ||
+        instance.owned.capacity > instance.owned.count + 8) { return .{.problem = .ValueBytes} }
+    return result
 }
 
 HeapResize :: () -> bool {
@@ -1078,7 +1096,64 @@ HeapResize :: () -> bool {
         if HeapResizeCase(mode).problem != .Pointer { return false }
     }
     refused := HeapResizeCase(5)
-    return refused.problem == .None && refused.value.bits == 42
+    large := HeapResizeCase(6)
+    return refused.problem == .None && refused.value.bits == 42 &&
+        large.problem == .None && large.value.bits == 42
+}
+
+// A frame holds a fresh address on each iteration. Reusing the same
+// instance recycles those slots and keeps the backing capacity stable.
+AddressGrowthAndChurn :: () -> bool {
+    count := cast(s64)3500
+    types: [4]LirType = .[.{.kind = .Void}, .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Bool, .bits = 1}, .{.kind = .Pointer, .element = 1}]
+    constants: [3]LirConstant = .[
+        .{.type = 1, .bits = 0}, .{.type = 1, .bits = 1}, .{.type = 1, .bits = cast(u64)count}]
+    empty: [0]s32
+    initial: [1]s32 = .[0]
+    enter_edges: [1]LirEdge = .[.{.block = 1, .arguments = initial[:]}]
+    entry: [4]LirInstruction = .[Instruction(.Constant, 0, empty[:], 0),
+        Instruction(.Constant, 1, empty[:], 1), Instruction(.Constant, 2, empty[:], 2),
+        Instruction(.Jump, -1, empty[:])]
+    entry[3].edges = enter_edges[:]
+    parameter: [1]s32 = .[3]; initialized: [1]s32 = .[1]
+    add: [2]s32 = .[3, 1]; compare: [2]s32 = .[5, 2]; condition: [1]s32 = .[6]
+    next_arguments: [1]s32 = .[5]
+    loop_edges: [2]LirEdge = .[.{.block = 1, .arguments = next_arguments[:]}, .{.block = 2}]
+    loop: [4]LirInstruction = .[Instruction(.Allocate, 4, initialized[:]),
+        Instruction(.Add, 5, add[:]), Instruction(.Less, 6, compare[:]),
+        Instruction(.Branch, -1, condition[:])]
+    loop[0].effect = 1; loop[3].edges = loop_edges[:]
+    pointer: [1]s32 = .[4]; result: [1]s32 = .[7]
+    done: [2]LirInstruction = .[Instruction(.Load, 7, pointer[:]), Instruction(.Return, -1, result[:])]
+    done[0].effect = 1
+    values: [8]s32 = .[1, 1, 1, 1, 3, 1, 2, 1]
+    blocks: [3]LirBlock = .[.{.instructions = entry[:]},
+        .{.parameters = parameter[:], .instructions = loop[:]}, .{.instructions = done[:]}]
+    modules: [1]string = .["address-growth"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "allocate-loop", .result = 1,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None { return false }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    limits := LirExecDefaultLimits()
+    if LirExecInstanceOpen(*plan, limits, 17, *instance).problem != .None { return false }
+    first := LirExecRun(*instance)
+    capacity := instance.addresses.capacity
+    if first.problem != .None || first.value.bits != 1 || instance.addresses.count != count ||
+        capacity < count || capacity > count + count / 8 { return false }
+    for attempt: 1..4 {
+        reused := LirExecRun(*instance)
+        if reused.problem != .None || reused.value.bits != 1 || instance.addresses.count != count ||
+            instance.addresses.capacity != capacity { return false }
+    }
+    limits.addresses = count - 1
+    if LirExecInstanceOpen(*plan, limits, 18, *instance).problem != .None { return false }
+    return LirExecRun(*instance).problem == .AddressLimit && instance.addresses.capacity == limits.addresses
 }
 
 BytesEqualExtent :: () -> bool {
@@ -1572,6 +1647,7 @@ Answer :: () -> s32 {
     if !TypedHostShapes() { return 24 }
     if !CompactCodeChunks() { return 25 }
     if !LargeValueLocations() { return 26 }
+    if !AddressGrowthAndChurn() { return 27 }
     return 42
 }
 

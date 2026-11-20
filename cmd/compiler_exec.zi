@@ -1958,6 +1958,22 @@ ExecMember :: (instance: *LirExecInstance, type_id: s32, member: u64, offset: *s
 ExecAddressSlots :: 2097151
 ExecAddressVersions :: 268435455
 
+// Large VM vectors can stay near their peak for the lifetime of a guest.
+// Leave some geometric headroom for repeated growth, capped at one eighth
+// of the old capacity. The caller has already checked count against maximum.
+ExecGrowthCeiling :: (count: s64, capacity: s64, maximum: s64, small: s64) -> s64 #inline {
+    if count <= capacity || count <= small { return maximum }
+    spare := capacity / 8
+    return count + (ifx spare < maximum - count then spare else maximum - count)
+}
+
+ExecResizeAddresses :: (instance: *LirExecInstance, count: s64, maximum: s64) -> bool {
+    ceiling := ExecGrowthCeiling(count, instance.addresses.capacity, maximum, 1024)
+    if VecResizeBounded(instance.addresses, count, ceiling) { return true }
+    return count > instance.addresses.capacity && count < ceiling &&
+        VecResizeBounded(instance.addresses, count, count)
+}
+
 // A pointer's bits: the instance's identity (its low 16 bits), the slot's
 // version, and one more than the slot. Zero is the null pointer.
 ExecAddressToken :: (identity: u32, index: s64, version: u64 = 0) -> u64 {
@@ -2075,11 +2091,9 @@ ExecNewAddress :: (instance: *LirExecInstance, address: LirExecAddress) -> s64 {
         version = instance.addresses[index].version + 1
     } else {
         index = instance.addresses.count
-        if index >= instance.limits.addresses || index >= ExecAddressSlots {
-            unused ExecFail(instance, .AddressLimit)
-            return -1
-        }
-        if !VecPush(instance.addresses, LirExecAddress.{}) { unused ExecFail(instance, .Allocation); return -1 }
+        maximum := ifx instance.limits.addresses < ExecAddressSlots then instance.limits.addresses else ExecAddressSlots
+        if index >= maximum { unused ExecFail(instance, .AddressLimit); return -1 }
+        if !ExecResizeAddresses(instance, index + 1, maximum) { unused ExecFail(instance, .Allocation); return -1 }
     }
     added := address
     added.version = version
@@ -2139,12 +2153,11 @@ ExecTransient :: (instance: *LirExecInstance, address: LirExecAddress) -> u64 {
     if !ExecSpend(instance, 1) { return 0 }
     if instance.transient_count == 0 {
         base := instance.addresses.count
-        if base + ExecTransientSlots > instance.limits.addresses || base + ExecTransientSlots > ExecAddressSlots {
-            unused ExecFail(instance, .AddressLimit)
+        maximum := ifx instance.limits.addresses < ExecAddressSlots then instance.limits.addresses else ExecAddressSlots
+        if base + ExecTransientSlots > maximum { unused ExecFail(instance, .AddressLimit); return 0 }
+        if !ExecResizeAddresses(instance, base + ExecTransientSlots, maximum) {
+            unused ExecFail(instance, .Allocation)
             return 0
-        }
-        for at: 1..ExecTransientSlots {
-            if !VecPush(instance.addresses, LirExecAddress.{}) { unused ExecFail(instance, .Allocation); return 0 }
         }
         instance.transient_base = base
         instance.transient_count = ExecTransientSlots
@@ -2945,6 +2958,11 @@ ExecHeapRelease :: (instance: *LirExecInstance, index: s64) {
 
 ExecHeapNoRoom :: -2;
 
+ExecResizeOwned :: (instance: *LirExecInstance, count: s64, available: s64) -> bool {
+    ceiling := ExecGrowthCeiling(count, instance.owned.capacity, available, 65536)
+    return ExecResizeFrameBytes(*instance.owned, count, ceiling)
+}
+
 // A range for a program or host allocation. Check the existing holes
 // before growing the owned byte vector, and meter the free-list search.
 ExecHeapTake :: (instance: *LirExecInstance, bytes: s64, available: s64) -> s64 {
@@ -2974,7 +2992,7 @@ ExecHeapTake :: (instance: *LirExecInstance, bytes: s64, available: s64) -> s64 
     index := ExecHeapRecord(instance)
     if index < 0 { return -1 }
     if bytes != 0 {
-        if !VecResizeBounded(instance.owned, base + bytes, available) {
+        if !ExecResizeOwned(instance, base + bytes, available) {
             ExecHeapRecycle(instance, index)
             return -1
         }
@@ -3124,7 +3142,7 @@ ExecHeapResizeInPlace :: (instance: *LirExecInstance, index: s64, bytes: s64, av
     if bytes == block.size { return true }
     if instance.heap_tail == index + 1 {
         if bytes > available - block.offset ||
-            !VecResizeBounded(instance.owned, block.offset + bytes, available) { return false }
+            !ExecResizeOwned(instance, block.offset + bytes, available) { return false }
         instance.heap_blocks[index].size = bytes
         return true
     }

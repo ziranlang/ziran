@@ -205,6 +205,12 @@ argument_flow(TextScope *scope, const ZirModule *module, const ZirFunction *fn,
     if(found != 1 || callee == NULL || owner == NULL || callee->is_extern) {
         /* A `#reads` foreign procedure only reads its strings and bytes
          * during the call. */
+        const ZirImport *qualified_host = NULL;
+        if(field == NULL && found == 0 && (!e->slot_type || !e->slot_type[0]) &&
+           ResolveQualifiedHostImportAt(module, e->name, SpanPath(e->span),
+                                        &owner, &qualified_host) == 1 &&
+           qualified_host->reads_arguments)
+            return FLOW_READ;
         if(field == NULL && found != -1 &&
            reading_foreign(found == 1 && owner ? owner : module,
                            found == 1 && callee ? callee->name : e->name))

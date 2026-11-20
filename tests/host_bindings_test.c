@@ -58,6 +58,7 @@ static void single_binding(const char *path)
     assert(bundle != NULL && BundleCapabilityCount(bundle) == 1);
     unsigned calls = 0;
     HostBinding binding = {"solo", "Only", only_call, &calls}, invalid = binding;
+    assert(BundleInstantiate(bundle, NULL, 0) == NULL);
     invalid.module = "wrong";
     assert(BundleInstantiate(bundle, &invalid, 1) == NULL);
     invalid = binding; invalid.function = "wrong";

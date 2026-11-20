@@ -1239,6 +1239,9 @@ bundle; the provider must have the same signature. `--bind-host MODULE`
 binds every remaining capability to MODULE's exported function of the same
 name, as a C program links a host's symbols by name, so one Ziran host module
 serves `ziran bundle` and the Go target alike.
+For portable output, call public host declarations through a module alias, as
+in `Host.Open(title, width)`. The binding names the declaring module and
+procedure. The runtime grant uses the declaring module and host symbol.
 The portable host ABI copies returned string bytes into engine-managed storage,
 including strings inside records, arrays, slices, and mutable slice updates.
 A host can reuse its result buffers on its next call; saved strings retain

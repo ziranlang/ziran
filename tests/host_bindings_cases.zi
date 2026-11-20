@@ -12,6 +12,48 @@ HostNumber :: (number: s64) -> string {
     return text
 }
 
+QualifiedHostCalls :: (test: *NativeTest) -> bool {
+    source := CheckPath(test.work, "qualified.zi")
+    bundle := CheckPath(test.work, "qualified.zx")
+    prefix := "using Host :: #import \"solo\";\n#program_export\nAnswer :: () -> s64 { return "
+    command: [9]string = .[test.ziran, "bundle", "--root", test.work,
+        "--entry", "qualified:Answer", "-o", bundle, source]
+    if !NativeWrite(test, source, CheckConcat(prefix, "Host.Only(Host.seed) }\n")) { return false }
+    unused NativeRun(test, command[:])
+    run: [2]string = .[CheckPath(test.work, "test"), bundle]
+    unused NativeRun(test, run[:])
+    ir := CheckPath(test.work, "qualified-ir")
+    save: [8]string = .[test.ziran, "ir", "--target=zx", "--root", test.work, "-o", ir, source]
+    unused NativeRun(test, save[:])
+    saved_bundle := CheckPath(test.work, "qualified-saved.zx")
+    from_ir: [9]string = .[test.ziran, "bundle", "--root", ir, "--entry", "qualified:Answer",
+        "-o", saved_bundle, CheckPath(ir, "qualified.zir")]
+    unused NativeRun(test, from_ir[:])
+    if !NativeAssert(test, NativeSameFile(bundle, saved_bundle), "qualified source and saved bundles differ") { return false }
+
+    implementation := CheckPath(test.work, "implementation.zi")
+    if !NativeWrite(test, implementation,
+        "#program_export\nOnly :: (value: s64) -> s64 { return value + 1 }\n") { return false }
+    bound: [12]string = .[test.ziran, "run", "--backend", "engine", "--root", test.work,
+        "--entry", "qualified:Answer", "--bind-host", "implementation", source, implementation]
+    result := NativeRun(test, bound[:])
+    if !NativeAssert(test, result.output == "9\n", "qualified call did not use its Ziran host provider") { return false }
+
+    calls: [3]string = .["Host.Missing()", "Host.Hidden(7)", "Host.Only(\"bad\")"]
+    errors: [3]string = .["unresolved function: Host.Missing", "unresolved function: Host.Hidden", "argument type mismatch"]
+    for call, index: calls {
+        if !NativeWrite(test, source, CheckConcat(prefix, CheckConcat(call, " }\n"))) { return false }
+        rejected := NativeInvoke(test, command[:])
+        if !NativeAssert(test, rejected.code != 0 && TextContains(rejected.error, errors[index]),
+            CheckConcat("unexpected diagnostic for ", CheckConcat(call, CheckConcat("\n", rejected.error)))) { return false }
+    }
+    if !NativeWrite(test, source,
+        "Host :: #import \"solo\";\n#program_export\nAnswer :: () -> s64 { Host.Only(7); return 0 }\n") { return false }
+    discarded := NativeInvoke(test, command[:])
+    return NativeAssert(test, discarded.code != 0 && TextContains(discarded.error, "#must return value is ignored"),
+        CheckConcat("qualified call dropped a required result\n", discarded.error))
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "host-bindings-")
@@ -58,7 +100,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !NativeAssert(*test, NativeSameFile(CheckPath(test.work, "app-source.zx"),
         CheckPath(test.work, "app-saved.zx")), "source/saved host bundles differ") { return 1 }
     solo := CheckPath(test.work, "solo.zi")
-    if !NativeWrite(*test, solo, "host_api :: #system_library \"host_api\";\nOnly :: (value: s64) -> s64 #foreign host_api;\nseed: s64 = Only(7);\n#program_export\nAnswer :: () -> s64 { return Only(seed) }\n") { return 1 }
+    if !NativeWrite(*test, solo, "host_api :: #system_library \"host_api\";\nOnly :: (value: s64) -> s64 #must #foreign host_api;\n#scope_module\nHidden :: (value: s64) -> s64 #foreign host_api;\n#scope_export\nseed: s64 = Only(7);\n#program_export\nAnswer :: () -> s64 { return Only(seed) }\n") { return 1 }
     single_ir := CheckPath(test.work, "single-ir")
     single: [7]string = .[test.ziran, "ir", "--root", test.work, "-o", single_ir, solo]
     unused NativeRun(*test, single[:])
@@ -72,6 +114,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         unused NativeRun(*test, run[:])
     }
     if !NativeAssert(*test, NativeSameFile(CheckPath(test.work, "single-source.zx"), CheckPath(test.work, "single-saved.zx")), "single host bundles differ") { return 1 }
+    if !QualifiedHostCalls(*test) { return 1 }
     // A host result record whose name is longer than eight bytes, as
     // Kryon's ReadBundleInput returns BundleInput: lowering keeps the whole
     // name and resolves the record.
@@ -81,6 +124,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
         "-o", CheckPath(test.work, "records.zx"), records]
     unused NativeRun(*test, record_bundle[:])
     if test.failed { return 1 }
-    print("128 host bindings passed in source and saved bundles; long-named host result records lower\n")
+    print("128 host bindings passed in source and saved bundles; qualified host calls and long-named result records passed\n")
     return 0
 }

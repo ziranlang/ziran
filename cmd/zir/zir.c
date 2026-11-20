@@ -641,6 +641,44 @@ ResolveFunction(const ZirModule *module, const char *name,
                              owner, function);
 }
 
+int
+ResolveQualifiedHostImportAt(const ZirModule *module, const char *name,
+                            const char *source_path, const ZirModule **owner,
+                            const ZirImport **declaration)
+{
+    *owner = NULL;
+    *declaration = NULL;
+    const char *dot = strchr(name, '.');
+    if(dot == NULL || dot == name || dot[1] == '\0' || strchr(dot + 1, '.') != NULL)
+        return 0;
+    size_t alias_length = (size_t)(dot - name);
+    for(int i = 0; i < module->import_count; i++) {
+        const ZirImport *alias = &module->imports[i];
+        const ZirModule *target = alias->resolved_module;
+        if(alias->kind != ZIR_IMPORT_MODULE || target == NULL ||
+           !file_scope_visible_at(source_path, alias->is_file_private, alias->span) ||
+           strlen(alias->name) != alias_length ||
+           strncmp(alias->name, name, alias_length) != 0)
+            continue;
+        for(int j = 0; j < target->import_count; j++) {
+            const ZirImport *candidate = &target->imports[j];
+            if(candidate->kind != ZIR_IMPORT_EXTERN ||
+               candidate->extern_kind != ZIR_EXTERN_HOST ||
+               !candidate->is_public || candidate->is_file_private ||
+               strcmp(candidate->name, dot + 1) != 0)
+                continue;
+            if(*declaration != NULL && *declaration != candidate) {
+                *owner = NULL;
+                *declaration = NULL;
+                return -1;
+            }
+            *owner = target;
+            *declaration = candidate;
+        }
+    }
+    return *declaration != NULL;
+}
+
 static int resolve_global_depth(const ZirModule *module, const char *name,
                      const char *source_path, const ZirModule **owner,
                      const ZirGlobal **global, int depth, SymbolVisit **visits);

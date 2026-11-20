@@ -587,6 +587,21 @@ zir_f_0fe5ce4064831140_ResolveFunctionAt(ZirModule* module, uint8_t* name, uint8
 callee);
 }
 #endif
+#ifndef ZIR_FOREIGN_zir_f_0fe5ce4064831140_ResolveQualifiedHostImportAt_26a49cb9
+#define ZIR_FOREIGN_zir_f_0fe5ce4064831140_ResolveQualifiedHostImportAt_26a49cb9
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_0fe5ce4064831140_ResolveQualifiedHostImportAt(ZirModule* module, uint8_t* name, uint8_t* path, ZirModule** owner, ZirImport** declaration) __asm__("_ResolveQualifiedHostImportAt");
+#else
+int32_t zir_foreign_zir_f_0fe5ce4064831140_ResolveQualifiedHostImportAt(ZirModule* module, uint8_t* name, uint8_t* path, ZirModule** owner, ZirImport** declaration) __asm__("ResolveQualifiedHostImportAt");
+#endif
+static int32_t
+zir_f_0fe5ce4064831140_ResolveQualifiedHostImportAt(ZirModule* module, uint8_t* name, uint8_t* path, ZirModule** owner, ZirImport** declaration)
+{
+    return zir_foreign_zir_f_0fe5ce4064831140_ResolveQualifiedHostImportAt(module, name, path, 
+owner, 
+declaration);
+}
+#endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
 #define ZIRAN_MAYBE_UNUSED __attribute__((unused))
@@ -35094,18 +35109,42 @@ static int32_t
 compiler_zir_lower_HostFunction(AssemblyProgram* program, ZirModule* module, uint8_t* asked, ZirSourceSpan span)
 {
     ZirImport* import = (void *)0;
+    ZirModule* owner = (void *)0;
+    ZirModule* value_0 = module;
+    uint8_t* value_1 = asked;
+    if (zir_f_0fe5ce4064831140_ResolveQualifiedHostImportAt(value_0, value_1, compiler_services_SpanPath(span), &(owner), &(import)) < 0) {
+        AssemblyProgram* value_2 = program;
+        ZirSourceSpan value_3 = span;
+        String value_4 = StringLiteral("ambiguous imported host capability");
+        int32_t value_5 = 0;
+        {
+            AssemblyProgram* program = value_2;
+            ZirSourceSpan span = value_3;
+            String message = value_4;
+            if (program->failed == 0) {
+                compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
+            }
+            int32_t* value_7 = &(program->failed);
+            (*value_7) = 1;
+            value_5 = -1;
+        }
+        return value_5;
+    }
+    if (owner == ((void *)0)) {
+        owner = module;
+    }
     int32_t index = 0;
     while (index < module->import_count && import == ((void *)0)) {
         ZirImport candidate = module->imports[index];
-        bool value_0 = ((ZirImportKind)(candidate.kind)) == ((ZirImportKind)(3)) && ((ZirExternKind)(candidate.extern_kind)) == ((ZirExternKind)(1));
-        bool value_1 = value_0;
-        bool value_2 = value_1;
-        if (value_2) {
-            String value_3 = compiler_ir_CText(&(candidate.name[0]));
-            bool value_4 = StringEqual(value_3, compiler_ir_CText(asked));
-            value_2 = value_4;
+        bool value_8 = ((ZirImportKind)(candidate.kind)) == ((ZirImportKind)(3)) && ((ZirExternKind)(candidate.extern_kind)) == ((ZirExternKind)(1));
+        bool value_9 = value_8;
+        bool value_10 = value_9;
+        if (value_10) {
+            String value_11 = compiler_ir_CText(&(candidate.name[0]));
+            bool value_12 = StringEqual(value_11, compiler_ir_CText(asked));
+            value_10 = value_12;
         }
-        if (value_2) {
+        if (value_10) {
             import = &(module->imports[index]);
         }
         index = (int32_t)((uint32_t)index + 1u);
@@ -35120,8 +35159,8 @@ compiler_zir_lower_HostFunction(AssemblyProgram* program, ZirModule* module, uin
         }
         index = (int32_t)((uint32_t)index + 1u);
     }
-    uint8_t* value_5 = compiler_services_Keep(StringLiteral("ziran:"));
-    if (zir_f_0fe5ce4064831140_memcmp((void*)(&(import->target[0])), (void*)(value_5), 6) == 0) {
+    uint8_t* value_13 = compiler_services_Keep(StringLiteral("ziran:"));
+    if (zir_f_0fe5ce4064831140_memcmp((void*)(&(import->target[0])), (void*)(value_13), 6) == 0) {
         ZirModule* provider_module = (void *)0;
         ZirFunction* provider = (void *)0;
         uint8_t* provider_name = &(import->name[0]);
@@ -35131,28 +35170,28 @@ compiler_zir_lower_HostFunction(AssemblyProgram* program, ZirModule* module, uin
         int32_t module_index = 0;
         while (program->source != ((void *)0) && module_index < program->source->module_count) {
             ZirModule candidate_module = program->source->modules[module_index];
-            String value_6 = compiler_ir_CText(&(candidate_module.name[0]));
-            if (!StringEqual(value_6, compiler_ir_CText((uint8_t*)(((size_t)(&(import->target[0])) + 6))))) {
+            String value_14 = compiler_ir_CText(&(candidate_module.name[0]));
+            if (!StringEqual(value_14, compiler_ir_CText((uint8_t*)(((size_t)(&(import->target[0])) + 6))))) {
                 module_index = (int32_t)((uint32_t)module_index + 1u);
                 continue;
             }
             if (provider_module != ((void *)0)) {
-                AssemblyProgram* value_7 = program;
-                ZirSourceSpan value_8 = span;
-                String value_9 = StringLiteral("bound host provider module is ambiguous");
-                int32_t value_10 = 0;
+                AssemblyProgram* value_15 = program;
+                ZirSourceSpan value_16 = span;
+                String value_17 = StringLiteral("bound host provider module is ambiguous");
+                int32_t value_18 = 0;
                 {
-                    AssemblyProgram* program = value_7;
-                    ZirSourceSpan span = value_8;
-                    String message = value_9;
+                    AssemblyProgram* program = value_15;
+                    ZirSourceSpan span = value_16;
+                    String message = value_17;
                     if (program->failed == 0) {
                         compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                     }
-                    int32_t* value_12 = &(program->failed);
-                    (*value_12) = 1;
-                    value_10 = -1;
+                    int32_t* value_20 = &(program->failed);
+                    (*value_20) = 1;
+                    value_18 = -1;
                 }
-                return value_10;
+                return value_18;
             }
             provider_module = &(program->source->modules[module_index]);
             module_index = (int32_t)((uint32_t)module_index + 1u);
@@ -35160,78 +35199,78 @@ compiler_zir_lower_HostFunction(AssemblyProgram* program, ZirModule* module, uin
         int32_t function_index = 0;
         while (provider_module != ((void *)0) && function_index < provider_module->function_count) {
             ZirFunction candidate_function = provider_module->functions[function_index];
-            bool value_13 = candidate_function.is_extern != 0 || candidate_function.exported == 0;
-            bool value_14 = value_13;
-            if (!value_14) {
-                String value_15 = compiler_ir_CText(&(candidate_function.name[0]));
-                bool value_16 = !StringEqual(value_15, compiler_ir_CText(provider_name));
-                value_14 = value_16;
+            bool value_21 = candidate_function.is_extern != 0 || candidate_function.exported == 0;
+            bool value_22 = value_21;
+            if (!value_22) {
+                String value_23 = compiler_ir_CText(&(candidate_function.name[0]));
+                bool value_24 = !StringEqual(value_23, compiler_ir_CText(provider_name));
+                value_22 = value_24;
             }
-            if (value_14) {
+            if (value_22) {
                 function_index = (int32_t)((uint32_t)function_index + 1u);
                 continue;
             }
             if (provider != ((void *)0)) {
-                AssemblyProgram* value_17 = program;
-                ZirSourceSpan value_18 = span;
-                String value_19 = StringLiteral("bound host provider procedure is ambiguous");
-                int32_t value_20 = 0;
+                AssemblyProgram* value_25 = program;
+                ZirSourceSpan value_26 = span;
+                String value_27 = StringLiteral("bound host provider procedure is ambiguous");
+                int32_t value_28 = 0;
                 {
-                    AssemblyProgram* program = value_17;
-                    ZirSourceSpan span = value_18;
-                    String message = value_19;
+                    AssemblyProgram* program = value_25;
+                    ZirSourceSpan span = value_26;
+                    String message = value_27;
                     if (program->failed == 0) {
                         compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                     }
-                    int32_t* value_22 = &(program->failed);
-                    (*value_22) = 1;
-                    value_20 = -1;
+                    int32_t* value_30 = &(program->failed);
+                    (*value_30) = 1;
+                    value_28 = -1;
                 }
-                return value_20;
+                return value_28;
             }
             provider = &(provider_module->functions[function_index]);
             function_index = (int32_t)((uint32_t)function_index + 1u);
         }
         if (provider == ((void *)0)) {
-            AssemblyProgram* value_23 = program;
-            ZirSourceSpan value_24 = span;
-            String value_25 = StringLiteral("bound host provider procedure is missing");
-            int32_t value_26 = 0;
+            AssemblyProgram* value_31 = program;
+            ZirSourceSpan value_32 = span;
+            String value_33 = StringLiteral("bound host provider procedure is missing");
+            int32_t value_34 = 0;
             {
-                AssemblyProgram* program = value_23;
-                ZirSourceSpan span = value_24;
-                String message = value_25;
+                AssemblyProgram* program = value_31;
+                ZirSourceSpan span = value_32;
+                String message = value_33;
                 if (program->failed == 0) {
                     compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                 }
-                int32_t* value_28 = &(program->failed);
-                (*value_28) = 1;
-                value_26 = -1;
+                int32_t* value_36 = &(program->failed);
+                (*value_36) = 1;
+                value_34 = -1;
             }
-            return value_26;
+            return value_34;
         }
         return compiler_zir_lower_Function(program, provider_module, provider);
     }
     if (import->is_varargs != 0) {
-        AssemblyProgram* value_29 = program;
-        ZirSourceSpan value_30 = span;
-        String value_31 = StringLiteral("variadic host capabilities are not lowered");
-        int32_t value_32 = 0;
+        AssemblyProgram* value_37 = program;
+        ZirSourceSpan value_38 = span;
+        String value_39 = StringLiteral("variadic host capabilities are not lowered");
+        int32_t value_40 = 0;
         {
-            AssemblyProgram* program = value_29;
-            ZirSourceSpan span = value_30;
-            String message = value_31;
+            AssemblyProgram* program = value_37;
+            ZirSourceSpan span = value_38;
+            String message = value_39;
             if (program->failed == 0) {
                 compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
             }
-            int32_t* value_34 = &(program->failed);
-            (*value_34) = 1;
-            value_32 = -1;
+            int32_t* value_42 = &(program->failed);
+            (*value_42) = 1;
+            value_40 = -1;
         }
-        return value_32;
+        return value_40;
     }
-    void* value_35 = compiler_zir_lower_Allocate(program, 1, sizeof(ZirFunction));
-    ZirFunction* signature = (ZirFunction*)(value_35);
+    void* value_43 = compiler_zir_lower_Allocate(program, 1, sizeof(ZirFunction));
+    ZirFunction* signature = (ZirFunction*)(value_43);
     if (signature == ((void *)0)) {
         return -1;
     }
@@ -35241,21 +35280,21 @@ compiler_zir_lower_HostFunction(AssemblyProgram* program, ZirModule* module, uin
     if ((import->extern_symbol)[0] != 0) {
         chosen = &(import->extern_symbol[0]);
     }
-    void* value_36 = (void*)(chosen);
-    zir_f_0fe5ce4064831140_memcpy((void*)(&(signature->extern_symbol)), value_36, zir_f_0fe5ce4064831140_strlen(chosen) + (size_t)(1LL));
-    const char ** value_37 = &(signature->args_text);
-    uint8_t* value_38 = compiler_services_KeepParameters(compiler_zir_lower_Owned(&(import->args[0])));
-    (*value_37) = (const char *)(value_38);
-    int32_t* value_39 = &(signature->is_extern);
-    (*value_39) = 1;
-    ZirExternKind* value_40 = &(signature->extern_kind);
-    (*value_40) = (ZirExternKind)(1);
-    ZirSourceSpan* value_41 = &(signature->span);
-    (*value_41) = import->span;
-    int32_t identity = compiler_zir_lower_Function(program, module, signature);
+    void* value_44 = (void*)(chosen);
+    zir_f_0fe5ce4064831140_memcpy((void*)(&(signature->extern_symbol)), value_44, zir_f_0fe5ce4064831140_strlen(chosen) + (size_t)(1LL));
+    const char ** value_45 = &(signature->args_text);
+    uint8_t* value_46 = compiler_services_KeepParameters(compiler_zir_lower_Owned(&(import->args[0])));
+    (*value_45) = (const char *)(value_46);
+    int32_t* value_47 = &(signature->is_extern);
+    (*value_47) = 1;
+    ZirExternKind* value_48 = &(signature->extern_kind);
+    (*value_48) = (ZirExternKind)(1);
+    ZirSourceSpan* value_49 = &(signature->span);
+    (*value_49) = import->span;
+    int32_t identity = compiler_zir_lower_Function(program, owner, signature);
     if (identity >= 0) {
-        ZirImport** value_42 = &((program->functions.data[identity])->import);
-        (*value_42) = import;
+        ZirImport** value_50 = &((program->functions.data[identity])->import);
+        (*value_50) = import;
     }
     return identity;
 }

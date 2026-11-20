@@ -1452,7 +1452,10 @@ call_must_use(Checker *c, const ZirExpr *call)
            strcmp(import->name, call->name) == 0)
             return import->must_use;
     }
-    return 0;
+    const ZirImport *qualified_host = NULL;
+    return ResolveQualifiedHostImportAt(c->module, call->name, SpanPath(call->span),
+                                        &owner, &qualified_host) == 1 &&
+           qualified_host->must_use;
 }
 
 int

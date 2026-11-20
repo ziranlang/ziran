@@ -157,6 +157,10 @@ int ResolveFunction(const ZirModule *module, const char *name,
 int ResolveFunctionAt(const ZirModule *module, const char *name,
                       const char *source_path, const ZirModule **owner,
                       const ZirFunction **function);
+/* Public host declaration named through a direct module alias. */
+int ResolveQualifiedHostImportAt(const ZirModule *module, const char *name,
+                                const char *source_path, const ZirModule **owner,
+                                const ZirImport **declaration);
 /* 1: unique visible global, 0: absent, -1: ambiguous. */
 int ResolveGlobalAt(const ZirModule *module, const char *name,
                     const char *source_path, const ZirModule **owner,

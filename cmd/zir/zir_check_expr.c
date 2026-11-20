@@ -2542,6 +2542,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
         const char *return_type = slot ? slot->procedure_return_type :
                                   specialized_return[0] ? specialized_return :
                                   callee ? callee->return_type : "";
+        const ZirImport *qualified_host = NULL;
         char (*parts)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parts));
         int actual = 0, expected;
         int varargs = 0;
@@ -2605,6 +2606,23 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                         slot = field_slot;
                         args = field_slot->body;
                         return_type = field_slot->procedure_return_type;
+                    }
+                }
+                ZirTargetBackend target = CompilerTargetFacts().target;
+                if(args == NULL && !*binding && !*base_type && !e->is_this &&
+                   (target == ZIR_TARGET_ZX || target == ZIR_TARGET_WASM)) {
+                    int found = ResolveQualifiedHostImportAt(c->module, e->name,
+                        SpanPath(e->span), &callee_owner, &qualified_host);
+                    if(found < 0) {
+                        error(c, e->span, "ambiguous imported function", e->name);
+                        free(parts);
+                        break;
+                    }
+                    if(found > 0) {
+                        args = qualified_host->args;
+                        return_type = qualified_host->return_type;
+                        varargs = qualified_host->is_varargs;
+                        c->fn->uses_host = 1;
                     }
                 }
             }
@@ -2697,6 +2715,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                                    "argument type mismatch", display_name,
                                    skip_ws(colon + 1), arg_type,
                                    callee ? callee->span : slot ? slot->span :
+                                   qualified_host ? qualified_host->span :
                                    (ZirSourceSpan){0});
                     }
                 }

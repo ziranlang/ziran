@@ -5831,6 +5831,9 @@ ExpressionFor :: (program: *AssemblyProgram, function: *AssemblyFunction,
 
 ResolveFunctionAt :: (module: *IR.ZirModule, name: *u8, path: *u8, owner: **IR.ZirModule,
                       callee: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunctionAt";
+ResolveQualifiedHostImportAt :: (module: *IR.ZirModule, name: *u8, path: *u8,
+                                 owner: **IR.ZirModule,
+                                 declaration: **IR.ZirImport) -> s32 #foreign compiler "ResolveQualifiedHostImportAt";
 
 ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
                     root: s32, depth: s32) -> s32 {
@@ -6970,6 +6973,11 @@ Function :: (program: *AssemblyProgram, module: *IR.ZirModule,
 HostFunction :: (program: *AssemblyProgram, module: *IR.ZirModule, asked: *u8,
                  span: IR.ZirSourceSpan) -> s32 {
     import: *IR.ZirImport = null
+    owner: *IR.ZirModule = null
+    if ResolveQualifiedHostImportAt(module, asked, SVC.SpanPath(span), *owner, *import) < 0 {
+        return Fail(program, span, "ambiguous imported host capability")
+    }
+    if owner == null { owner = module }
     index: s32 = 0
     while index < module.import_count && import == null {
         candidate := module.imports[index]
@@ -7043,7 +7051,7 @@ HostFunction :: (program: *AssemblyProgram, module: *IR.ZirModule, asked: *u8,
     signature.is_extern = 1
     signature.extern_kind = ZirExternKind.HOST
     signature.span = import.span
-    identity := Function(program, module, signature)
+    identity := Function(program, owner, signature)
     if identity >= 0 {
         program.functions.data[identity].import = import
     }

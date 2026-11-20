@@ -1,0 +1,50 @@
+#import "std/vec"
+
+MarkEnds :: (view: []u8, marker: u8) {
+    view[0] = marker
+    view[view.count - 1] = marker
+}
+
+HasEnds :: (view: []u8, marker: u8) -> bool {
+    return view[0] == marker && view[view.count - 1] == marker
+}
+
+// Returning the small allocation keeps it above the scratch allocation
+// when scratch is dropped. The next round still has its predecessor live.
+Sample :: (marker: u8) -> Vec(u8) {
+    scratch: Vec(u8)
+    if !VecResize(scratch, 524288) { return .{} }
+    MarkEnds(VecSlice(scratch, 0, 524288), marker)
+    survivor: Vec(u8)
+    if !VecResize(survivor, 4) { return .{} }
+    MarkEnds(VecSlice(survivor, 0, 4), marker)
+    if !VecResize(scratch, 1048576) || !HasEnds(VecSlice(scratch, 0, 524288), marker) { return .{} }
+    grown := VecSlice(scratch, 524288, 1048576)
+    if grown[0] != 0 || grown[grown.count - 1] != 0 { return .{} }
+    return survivor
+}
+
+#program_export
+main :: () -> s32 {
+    held: Vec(u8)
+    for round: 1..64 {
+        next := Sample(cast(u8)round)
+        if next.count != 4 || !HasEnds(VecSlice(next, 0, 4), cast(u8)round) { return 1 }
+        if round > 1 && (held.count != 4 || !HasEnds(VecSlice(held, 0, 4), cast(u8)(round - 1))) { return 2 }
+        VecFree(held)
+        held = next
+    }
+    return 42
+}
+
+#program_export
+Stale :: () -> s32 {
+    earlier := New(s32)
+    survivor := New(s32)
+    <<survivor = 21
+    stale := earlier
+    free(earlier)
+    replacement := New(s32)
+    <<replacement = 21
+    return <<survivor + <<stale
+}

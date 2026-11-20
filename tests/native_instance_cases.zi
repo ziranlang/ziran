@@ -11,6 +11,9 @@ libc :: #system_library "c";
 OpenBundle :: (path: *u8) -> *void #foreign host "BundleOpen";
 CloseBundle :: (bundle: *void) #foreign host "BundleClose";
 OpenInstance :: (bundle: *void, bindings: *void, count: usize) -> *void #foreign host "BundleInstantiate";
+InstanceOptions :: struct { backend: s32; max_steps: s32; unbounded: s32 }
+OpenInstanceWithOptions :: (bundle: *void, bindings: *void, count: usize,
+    options: *InstanceOptions) -> *void #foreign host "BundleInstantiateWithOptions";
 CloseInstance :: (instance: *void) #foreign host "BundleInstanceClose";
 InstanceBackend :: (instance: *void) -> s32 #foreign host "BundleInstanceBackend";
 RunInstance :: (instance: *void, result: *s64, present: *s32) -> s32 #foreign host "BundleInstanceRun";
@@ -130,13 +133,58 @@ IdleInstances :: (path: *u8) -> s32 {
     return 0
 }
 
+FragmentedArena :: (path: *u8, backend: s32) -> s32 {
+    // Native execution reserves its active frame arena in address space.
+    bytes := cast(usize)(ifx backend == 1 then 33554432 else 805306368)
+    limit := AddressLimit.{current = bytes, maximum = bytes}
+    if SetAddressLimit(9, *limit) != 0 { return 2 }
+    bundle := OpenBundle(path)
+    if bundle == null { return 3 }
+    defer CloseBundle(bundle)
+    options := InstanceOptions.{backend = backend}
+    instance := OpenInstanceWithOptions(bundle, null, 0, *options)
+    if instance == null { return 4 }
+    defer CloseInstance(instance)
+    actual := InstanceBackend(instance)
+    if backend == 1 && actual != 1 || backend == 2 && actual < 3 { return 5 }
+    result: s64
+    present: s32
+    if RunInstance(instance, *result, *present) == 0 || present == 0 || result != 42 {
+        print("fragmented arena returned %\n", result)
+        return 6
+    }
+    return 0
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     if argc == 3 && TextFromCString(argv[1]) == "--idle-instances" { return IdleInstances(argv[2]) }
     if argc == 3 && TextFromCString(argv[1]) == "--reentrant-instances" { return ReentrantInstances(argv[2]) }
+    if argc == 3 && TextFromCString(argv[1]) == "--engine-arena" { return FragmentedArena(argv[2], 1) }
+    if argc == 3 && TextFromCString(argv[1]) == "--native-arena" { return FragmentedArena(argv[2], 2) }
     test := NativeStart(argc, argv, "native-instances-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)
+    fixture_root := CheckPath(test.repo, "tests/spec")
+    arena_source := CheckPath(fixture_root, "heap_arena_reuse.zi")
+    arena := CheckPath(test.work, "arena.zx")
+    compiler := CheckPath(PathParent(test.ziran), "zi2zx")
+    compile_arena := string.[compiler, "--checks", "--root", fixture_root, "--entry",
+        "heap_arena_reuse:main", "-o", arena, arena_source]
+    unused NativeRun(*test, compile_arena[:])
+    modes := string.["--engine-arena", "--native-arena"]
+    for mode: modes {
+        run_arena := string.[TextFromCString(argv[0]), mode, arena]
+        unused NativeRun(*test, run_arena[:])
+    }
+    stale := CheckPath(test.work, "stale.zx")
+    compile_arena[5] = "heap_arena_reuse:Stale"
+    compile_arena[7] = stale
+    unused NativeRun(*test, compile_arena[:])
+    run_stale := string.[compiler, "run", "--backend", "engine", stale]
+    rejected := NativeInvoke(*test, run_stale[:])
+    if !NativeAssert(*test, rejected.code == 1 && TextContains(rejected.error, "problem=pointer"),
+        CheckConcat("expected stale pointer trap after arena reuse: ", rejected.error)) { return 1 }
     source := CheckPath(test.work, "instances.zi")
     if !NativeWrite(*test, source, "slot: s64 = 7;\n#program_export\nmain :: () -> s64 { slot += 1; return slot }\n") { return 1 }
     for checked: 0..1 {

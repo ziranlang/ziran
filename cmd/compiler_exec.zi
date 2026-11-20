@@ -258,9 +258,14 @@ LirExecHeapBlock :: struct {
     count: u64
     generation: u64
     live: bool
-    // One more than the block that ended the owned bytes when this one was
-    // put after it; 0 for none. Freed storage is given back down this chain.
+    // Adjacent ranges of owned bytes, numbered from 1. Empty allocations
+    // have address identities but occupy no range in this chain.
     below: s64
+    above: s64
+    // Links for an interior hole. A record without storage uses next_free
+    // for the separate list of reusable records.
+    previous_free: s64
+    next_free: s64
     // One more than the newest address entry made for this block.
     addresses: s64
     // Holds a value a host returned. The program never frees it; it lives
@@ -326,11 +331,10 @@ LirExecInstance :: struct {
     heap_blocks: Vec(LirExecHeapBlock)
     // One more than the block that ends the owned bytes; 0 for none.
     heap_tail: s64
-    // Records of freed blocks whose bytes were given back, for reuse.
-    heap_free: Vec(s64)
-    // Dead host blocks whose bytes are still in the owned region, for the
-    // next host values to reuse.
-    host_free: Vec(s64)
+    // One more than the first interior hole, or 0.
+    heap_free: s64
+    // One more than the first reusable record without storage, or 0.
+    heap_spare: s64
     heap_epoch: u64
     // Bytes of host blocks made since the last collection, and the bytes
     // that collection scanned: the next one waits until both are passed.
@@ -2826,20 +2830,142 @@ ExecAllocate :: (instance: *LirExecInstance, frame_index: s64,
     return true
 }
 
-// Give back the owned bytes of dead heap blocks that end the owned region.
-ExecHeapTrim :: (instance: *LirExecInstance) -> bool {
-    while instance.heap_tail != 0 {
-        if !ExecSpend(instance, 1) { return false }
-        index := instance.heap_tail - 1
-        block := instance.heap_blocks[index]
-        if block.live { return true }
-        if block.offset + block.size != instance.owned.count { instance.heap_tail = 0; return true }
-        unused VecResize(instance.owned, block.offset)
-        instance.heap_blocks[index].size = 0
-        instance.heap_tail = block.below
-        if !VecPush(instance.heap_free, index) { return ExecFail(instance, .Allocation) }
+// Acquire a record before growing or splitting storage.
+ExecHeapRecord :: (instance: *LirExecInstance) -> s64 {
+    if instance.heap_spare != 0 {
+        index := instance.heap_spare - 1
+        instance.heap_spare = instance.heap_blocks[index].next_free
+        instance.heap_blocks[index] = .{}
+        return index
     }
-    return true
+    index := instance.heap_blocks.count
+    if !VecPush(instance.heap_blocks, LirExecHeapBlock.{}) { return -1 }
+    return index
+}
+
+ExecHeapRecycle :: (instance: *LirExecInstance, index: s64) {
+    instance.heap_blocks[index] = .{.next_free = instance.heap_spare}
+    instance.heap_spare = index + 1
+}
+
+ExecHeapLink :: (instance: *LirExecInstance, index: s64, below: s64, above: s64) {
+    instance.heap_blocks[index].below = below
+    instance.heap_blocks[index].above = above
+    if below != 0 { instance.heap_blocks[below - 1].above = index + 1 }
+    if above != 0 { instance.heap_blocks[above - 1].below = index + 1 }
+    else { instance.heap_tail = index + 1 }
+}
+
+ExecHeapUnlink :: (instance: *LirExecInstance, index: s64) {
+    block := instance.heap_blocks[index]
+    if block.below != 0 { instance.heap_blocks[block.below - 1].above = block.above }
+    if block.above != 0 { instance.heap_blocks[block.above - 1].below = block.below }
+    else { instance.heap_tail = block.below }
+}
+
+ExecHeapListHole :: (instance: *LirExecInstance, index: s64) {
+    head := instance.heap_free
+    instance.heap_blocks[index].previous_free = 0
+    instance.heap_blocks[index].next_free = head
+    if head != 0 { instance.heap_blocks[head - 1].previous_free = index + 1 }
+    instance.heap_free = index + 1
+}
+
+ExecHeapUnlistHole :: (instance: *LirExecInstance, index: s64) {
+    block := instance.heap_blocks[index]
+    if block.previous_free != 0 { instance.heap_blocks[block.previous_free - 1].next_free = block.next_free }
+    else { instance.heap_free = block.next_free }
+    if block.next_free != 0 { instance.heap_blocks[block.next_free - 1].previous_free = block.previous_free }
+    instance.heap_blocks[index].previous_free = 0
+    instance.heap_blocks[index].next_free = 0
+}
+
+// Split a positive range, keeping its first BYTES bytes and giving the
+// remainder a new record. The caller assigns the remainder's lifetime.
+ExecHeapSplit :: (instance: *LirExecInstance, index: s64, bytes: s64) -> s64 {
+    rest := ExecHeapRecord(instance)
+    if rest < 0 { return -1 }
+    block := instance.heap_blocks[index]
+    instance.heap_blocks[rest] = .{.offset = block.offset + bytes, .size = block.size - bytes}
+    instance.heap_blocks[index].size = bytes
+    ExecHeapLink(instance, rest, index + 1, block.above)
+    return rest
+}
+
+// End this block's generation and merge with both adjacent holes. No live
+// range moves. A hole reaching the end of storage is immediately trimmed.
+ExecHeapRelease :: (instance: *LirExecInstance, index: s64) {
+    block := instance.heap_blocks[index]
+    ExecReleaseAddresses(instance, block.addresses)
+    if block.size == 0 { ExecHeapRecycle(instance, index); return }
+    instance.heap_blocks[index].addresses = 0
+    instance.heap_blocks[index].live = false
+    instance.heap_blocks[index].host = false
+    if block.below != 0 && !instance.heap_blocks[block.below - 1].live {
+        below := block.below - 1
+        ExecHeapUnlistHole(instance, below)
+        instance.heap_blocks[index].offset = instance.heap_blocks[below].offset
+        instance.heap_blocks[index].size += instance.heap_blocks[below].size
+        ExecHeapUnlink(instance, below)
+        ExecHeapRecycle(instance, below)
+    }
+    if block.above != 0 && !instance.heap_blocks[block.above - 1].live {
+        above := block.above - 1
+        ExecHeapUnlistHole(instance, above)
+        instance.heap_blocks[index].size += instance.heap_blocks[above].size
+        ExecHeapUnlink(instance, above)
+        ExecHeapRecycle(instance, above)
+    }
+    if instance.heap_tail == index + 1 {
+        unused VecResize(instance.owned, instance.heap_blocks[index].offset)
+        ExecHeapUnlink(instance, index)
+        ExecHeapRecycle(instance, index)
+    } else {
+        ExecHeapListHole(instance, index)
+    }
+}
+
+ExecHeapNoRoom :: -2;
+
+// A range for a program or host allocation. Check the existing holes
+// before growing the owned byte vector, and meter the free-list search.
+ExecHeapTake :: (instance: *LirExecInstance, bytes: s64, available: s64) -> s64 {
+    if available < bytes { return ExecHeapNoRoom }
+    if bytes != 0 {
+        at := instance.heap_free
+        while at != 0 {
+            if !ExecSpend(instance, 1) { return -1 }
+            index := at - 1
+            block := instance.heap_blocks[index]
+            if block.size >= bytes {
+                rest: s64 = -1
+                if block.size > bytes {
+                    rest = ExecHeapSplit(instance, index, bytes)
+                    if rest < 0 { return -1 }
+                }
+                ExecHeapUnlistHole(instance, index)
+                if rest >= 0 { ExecHeapListHole(instance, rest) }
+                instance.heap_blocks[index].live = true
+                return index
+            }
+            at = block.next_free
+        }
+    }
+    base := instance.owned.count
+    if bytes > available - base { return ExecHeapNoRoom }
+    index := ExecHeapRecord(instance)
+    if index < 0 { return -1 }
+    if bytes != 0 {
+        if !VecResizeBounded(instance.owned, base + bytes, available) {
+            ExecHeapRecycle(instance, index)
+            return -1
+        }
+        instance.heap_blocks[index].offset = base
+        instance.heap_blocks[index].size = bytes
+        ExecHeapLink(instance, index, instance.heap_tail, 0)
+    }
+    instance.heap_blocks[index].live = true
+    return index
 }
 
 // A read-only block of BYTES owned bytes for a value a host gave, and the
@@ -2847,50 +2973,20 @@ ExecHeapTrim :: (instance: *LirExecInstance) -> bool {
 ExecHostBlock :: (instance: *LirExecInstance, bytes: s64, element: s32) -> s64 {
     available := instance.limits.value_bytes - instance.globals.count - instance.storage.count -
         instance.words.count * 8 - instance.result_bytes.count
+    record := ExecHeapTake(instance, bytes, available)
+    if record < 0 {
+        unused ExecFail(instance, ifx record == ExecHeapNoRoom then .ValueBytes else .Allocation)
+        return -1
+    }
     instance.host_since += bytes
     instance.heap_epoch += 1
-    // A dead host block of room enough lends its bytes and its place.
-    tries: s64 = 0
-    while tries < 8 && tries < instance.host_free.count {
-        at := instance.host_free.count - 1 - tries
-        record := instance.host_free[at]
-        block := instance.heap_blocks[record]
-        usable := !block.live && block.host && block.size > 0
-        if usable && block.size < bytes { tries += 1; continue }
-        instance.host_free[at] = instance.host_free[instance.host_free.count - 1]
-        unused VecResize(instance.host_free, instance.host_free.count - 1)
-        if !usable { continue }
-        instance.heap_blocks[record].live = true
-        instance.heap_blocks[record].count = cast(u64)bytes
-        instance.heap_blocks[record].generation = instance.heap_epoch
-        return ExecNewAddress(instance, .{.global = -1, .frame = -1, .generation = instance.heap_epoch,
-            .offset = block.offset, .extent = bytes, .type = element, .owned = true, .writable = false,
-            .heap = record + 1})
-    }
-    base := instance.owned.count
-    if bytes > available - base { unused ExecFail(instance, .ValueBytes); return -1 }
-    if !VecResizeBounded(instance.owned, base + bytes, available) { unused ExecFail(instance, .Allocation); return -1 }
-    record: s64
-    if instance.heap_free.count > 0 {
-        record = instance.heap_free[instance.heap_free.count - 1]
-        unused VecResize(instance.heap_free, instance.heap_free.count - 1)
-    } else {
-        record = instance.heap_blocks.count
-        if !VecPush(instance.heap_blocks, LirExecHeapBlock.{}) { unused ExecFail(instance, .Allocation); return -1 }
-    }
-    instance.heap_blocks[record] = .{.offset = base, .size = bytes, .count = cast(u64)bytes,
-        .generation = instance.heap_epoch, .live = true, .below = instance.heap_tail, .host = true}
-    instance.heap_tail = record + 1
+    instance.heap_blocks[record].count = cast(u64)bytes
+    instance.heap_blocks[record].generation = instance.heap_epoch
+    instance.heap_blocks[record].live = true
+    instance.heap_blocks[record].host = true
     return ExecNewAddress(instance, .{.global = -1, .frame = -1, .generation = instance.heap_epoch,
-        .offset = base, .extent = bytes, .type = element, .owned = true, .writable = false,
+        .offset = instance.heap_blocks[record].offset, .extent = bytes, .type = element, .owned = true, .writable = false,
         .heap = record + 1})
-}
-
-ExecHostEnd :: (instance: *LirExecInstance, index: s64) -> bool {
-    instance.heap_blocks[index].live = false
-    ExecReleaseAddresses(instance, instance.heap_blocks[index].addresses)
-    instance.heap_blocks[index].addresses = 0
-    return VecPush(instance.host_free, index) || ExecFail(instance, .Allocation)
 }
 
 // Ends every host block made after EPOCH: a rejected image leaves no
@@ -2898,9 +2994,8 @@ ExecHostEnd :: (instance: *LirExecInstance, index: s64) -> bool {
 ExecHostRollback :: (instance: *LirExecInstance, epoch: u64) {
     for index: cast(s64)0..instance.heap_blocks.count - 1 {
         block := instance.heap_blocks[index]
-        if block.live && block.host && block.generation > epoch { unused ExecHostEnd(instance, index) }
+        if block.live && block.host && block.generation > epoch { ExecHeapRelease(instance, index) }
     }
-    unused ExecHeapTrim(instance)
 }
 
 // Marks the live host block that TOKEN names, if any, to be scanned.
@@ -2933,8 +3028,7 @@ ExecHostMarkBytes :: (instance: *LirExecInstance, bytes: []u8, from: s64, count:
 // heap blocks, and every host block those name. A name is any eight bytes
 // equal to a valid token of a block's address, so a reachable block is
 // never freed; bytes that only look like a token keep a block a little
-// longer. A dead block's addresses end, and its bytes go back down the
-// owned region's chain like a freed heap block's.
+// longer. The allocator reclaims dead host blocks just like program blocks.
 ExecHostCollect :: (instance: *LirExecInstance) -> bool {
     count := instance.heap_blocks.count
     marks: Vec(u8)
@@ -2964,11 +3058,45 @@ ExecHostCollect :: (instance: *LirExecInstance) -> bool {
     }
     for index: cast(s64)0..count - 1 {
         block := instance.heap_blocks[index]
-        if block.live && block.host && marks[index] == 0 && !ExecHostEnd(instance, index) { return false }
+        if block.live && block.host && marks[index] == 0 { ExecHeapRelease(instance, index) }
     }
     instance.host_since = 0
     instance.host_scanned = scanned
-    return ExecHeapTrim(instance)
+    return true
+}
+
+// Grow into the following hole or the end of the arena. Shrinking gives
+// the excess bytes back even if another live block sits above this one.
+ExecHeapResizeInPlace :: (instance: *LirExecInstance, index: s64, bytes: s64, available: s64) -> bool {
+    block := instance.heap_blocks[index]
+    if bytes == block.size { return true }
+    if instance.heap_tail == index + 1 {
+        if bytes > available - block.offset ||
+            !VecResizeBounded(instance.owned, block.offset + bytes, available) { return false }
+        instance.heap_blocks[index].size = bytes
+        return true
+    }
+    if bytes < block.size {
+        rest := ExecHeapSplit(instance, index, bytes)
+        if rest < 0 { return false }
+        ExecHeapRelease(instance, rest)
+        return true
+    }
+    above := block.above - 1
+    if above < 0 || instance.heap_blocks[above].live { return false }
+    extra := bytes - block.size
+    hole := instance.heap_blocks[above]
+    if hole.size < extra { return false }
+    if hole.size == extra {
+        ExecHeapUnlistHole(instance, above)
+        ExecHeapUnlink(instance, above)
+        ExecHeapRecycle(instance, above)
+    } else {
+        instance.heap_blocks[above].offset += extra
+        instance.heap_blocks[above].size -= extra
+    }
+    instance.heap_blocks[index].size = bytes
+    return true
 }
 
 // resize(pointer: *T, old_count, new_count) -> *T. A null pointer with
@@ -2992,18 +3120,14 @@ ExecResize :: (instance: *LirExecInstance, instruction: *LirInstruction, result_
         found := ExecFindAddress(instance, token)
         if found < 0 || !ExecAddressValid(instance, found) { return ExecFail(instance, .Pointer) }
         address := instance.addresses[found]
-        if address.heap == 0 || address.type != element { return ExecFail(instance, .Pointer) }
+        if address.heap == 0 || address.type != element || !address.writable { return ExecFail(instance, .Pointer) }
         previous = address.heap - 1
-        if address.offset != instance.heap_blocks[previous].offset ||
-            old_count != instance.heap_blocks[previous].count { return ExecFail(instance, .Pointer) }
+        block := instance.heap_blocks[previous]
+        if block.host || address.offset != block.offset || address.extent != block.size ||
+            old_count != block.count { return ExecFail(instance, .Pointer) }
     }
     if new_count == 0 {
-        if previous >= 0 {
-            instance.heap_blocks[previous].live = false
-            ExecReleaseAddresses(instance, instance.heap_blocks[previous].addresses)
-            instance.heap_blocks[previous].addresses = 0
-            if !ExecHeapTrim(instance) { return false }
-        }
+        if previous >= 0 { ExecHeapRelease(instance, previous) }
         ExecWriteSlotBits(instance, instruction.result, 0)
         return true
     }
@@ -3016,55 +3140,39 @@ ExecResize :: (instance: *LirExecInstance, instruction: *LirInstruction, result_
     }
     bytes := cast(s64)new_count * size
     if !ExecSpend(instance, ExecCopyCost(bytes)) { return false }
-    base := instance.owned.count
+    record := previous
     kept: s64
+    source: s64
     if previous >= 0 {
-        kept = instance.heap_blocks[previous].size
-        if kept > bytes { kept = bytes }
-        // The last block of the owned bytes grows or shrinks in place.
-        if instance.heap_blocks[previous].offset + instance.heap_blocks[previous].size == instance.owned.count {
-            base = instance.heap_blocks[previous].offset
+        block := instance.heap_blocks[previous]
+        kept = ifx block.size < bytes then block.size else bytes
+        source = block.offset
+    }
+    if previous < 0 || !ExecHeapResizeInPlace(instance, previous, bytes, available) {
+        record = ExecHeapTake(instance, bytes, available)
+        if record < 0 {
+            if instance.failure.problem != .None { return false }
+            ExecWriteSlotBits(instance, instruction.result, 0)
+            return true
         }
     }
-    if base + bytes > available || !VecResizeBounded(instance.owned, base + bytes, available) {
-        ExecWriteSlotBits(instance, instruction.result, 0)
-        return true
-    }
-    if previous >= 0 && base != instance.heap_blocks[previous].offset {
-        source := instance.heap_blocks[previous].offset
+    base := instance.heap_blocks[record].offset
+    if previous >= 0 && record != previous {
         for index: cast(s64)0..kept - 1 { instance.owned[base + index] = instance.owned[source + index] }
-    }
-    for index: kept..bytes - 1 { instance.owned[base + index] = 0 }
-    // The block keeps its record when it grows or shrinks where it is;
-    // otherwise it takes a freed record or a new one, above the old tail.
-    record := previous
-    below := instance.heap_tail
-    // The old block's generation ends here, and its addresses with it.
-    if previous >= 0 {
+        ExecHeapRelease(instance, previous)
+    } else if previous >= 0 {
         ExecReleaseAddresses(instance, instance.heap_blocks[previous].addresses)
         instance.heap_blocks[previous].addresses = 0
     }
-    if previous >= 0 && base == instance.heap_blocks[previous].offset {
-        below = instance.heap_blocks[previous].below
-    } else {
-        if previous >= 0 { instance.heap_blocks[previous].live = false }
-        if instance.heap_free.count > 0 {
-            record = instance.heap_free[instance.heap_free.count - 1]
-            unused VecResize(instance.heap_free, instance.heap_free.count - 1)
-        } else {
-            record = instance.heap_blocks.count
-            if !VecPush(instance.heap_blocks, LirExecHeapBlock.{}) { return ExecFail(instance, .Allocation) }
-        }
-    }
+    for index: kept..bytes - 1 { instance.owned[base + index] = 0 }
     instance.heap_epoch += 1
-    block := LirExecHeapBlock.{.offset = base, .size = bytes, .count = new_count,
-        .generation = instance.heap_epoch, .live = true, .below = below}
-    instance.heap_blocks[record] = block
-    instance.heap_tail = record + 1
-    index := ExecNewAddress(instance, .{.global = -1, .frame = -1, .generation = block.generation,
+    instance.heap_blocks[record].count = new_count
+    instance.heap_blocks[record].generation = instance.heap_epoch
+    instance.heap_blocks[record].live = true
+    index := ExecNewAddress(instance, .{.global = -1, .frame = -1, .generation = instance.heap_epoch,
         .offset = base, .extent = bytes, .type = element, .owned = true, .writable = true,
         .heap = record + 1})
-    if index < 0 { return false }
+    if index < 0 { ExecHeapRelease(instance, record); return false }
     address := instance.addresses[index]
     ExecWriteSlotBits(instance, instruction.result, address.token)
     return true
@@ -4959,8 +5067,8 @@ LirExecInstanceClose :: (instance: *LirExecInstance) {
     VecFree(instance.host_bytes)
     VecFree(instance.owned)
     VecFree(instance.heap_blocks)
-    VecFree(instance.heap_free)
-    VecFree(instance.host_free)
+    instance.heap_free = 0
+    instance.heap_spare = 0
     instance.heap_tail = 0
     instance.heap_epoch = 0
     instance.host_since = 0

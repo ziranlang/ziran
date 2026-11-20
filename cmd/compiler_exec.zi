@@ -212,8 +212,15 @@ LirExecPlan :: struct {
     // One byte per type, as LirHostShapes gives it.
     host_shapes: Vec(u8)
     functions: Vec(LirExecFunctionPlan)
-    block_edge_bases: Vec(s64)
-    block_instruction_bases: Vec(s64)
+    // Indexes into the allocated byte vectors edge_direct and transient.
+    // The portable lowering uses fixed-width integers.
+    #if #defined(ZIRAN_EXEC_NATIVE_PLAN_INDEXES) {
+        block_edge_bases: Vec(usize)
+        block_instruction_bases: Vec(usize)
+    } else {
+        block_edge_bases: Vec(s64)
+        block_instruction_bases: Vec(s64)
+    }
     edge_direct: Vec(u8)
     // 1 for an address derivation that needs no table entry (ExecPlanTransients).
     transient: Vec(u8)
@@ -842,6 +849,8 @@ ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> 
         !VecResizeBounded(plan.edge_direct, edges, edges) ||
         !VecResizeBounded(plan.transient, instructions, instructions) ||
         !VecResizeBounded(plan.global_offsets, program.globals.count, program.globals.count) { return .Allocation }
+    // The successful byte-vector allocations above bound both sets of
+    // offsets by the native allocation size, including on 32-bit hosts.
     value_at: s64
     block_at: s64
     edge_at: s64
@@ -997,8 +1006,13 @@ ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> 
             .scratch_offset = offset, .scratch_bytes = scratch}
         function_block_base := block_at
         for block: function.blocks {
-            plan.block_edge_bases[block_at] = edge_at
-            plan.block_instruction_bases[block_at] = instruction_at
+            #if #defined(ZIRAN_EXEC_NATIVE_PLAN_INDEXES) {
+                plan.block_edge_bases[block_at] = cast(usize)edge_at
+                plan.block_instruction_bases[block_at] = cast(usize)instruction_at
+            } else {
+                plan.block_edge_bases[block_at] = edge_at
+                plan.block_instruction_bases[block_at] = instruction_at
+            }
             for instruction: block.instructions {
                 for edge: instruction.edges {
                     target := function.blocks[edge.block]
@@ -1520,7 +1534,7 @@ ExecPlanEdges :: (plan: *LirExecPlan, function: LirFunction, function_plan: LirE
     for instruction: block.instructions {
         for edge: instruction.edges {
             target := function.blocks[edge.block]
-            target_base := plan.block_instruction_bases[function_plan.block_base + edge.block]
+            target_base := cast(s64)plan.block_instruction_bases[function_plan.block_base + edge.block]
             direct := plan.edge_direct[at] != 0
             first := plan.moves.count
             work: s64
@@ -1591,11 +1605,11 @@ ExecPlanCode :: (program: LirProgram, plan: *LirExecPlan) -> LirExecProblem {
         }
         for block_index: cast(s32)0..cast(s32)function.blocks.count - 1 {
             block := function.blocks[block_index]
-            first := plan.block_instruction_bases[function_plan.block_base + block_index]
+            first := cast(s64)plan.block_instruction_bases[function_plan.block_base + block_index]
             count := block.instructions.count
             if !VecResize(kinds, count) || !VecResize(works, count) || !VecResize(fuels, count) ||
                 !VecResize(codes, count) || !VecResize(entries, count) { return .Allocation }
-            edges := plan.block_edge_bases[function_plan.block_base + block_index]
+            edges := cast(s64)plan.block_edge_bases[function_plan.block_base + block_index]
             for index: cast(s64)0..count - 1 {
                 bits: u64
                 kind := ExecPlanInstruction(program, plan, base, function.values, block.instructions[index],
@@ -1771,7 +1785,7 @@ ExecPlanCode :: (program: LirProgram, plan: *LirExecPlan) -> LirExecProblem {
         for block_index: cast(s64)0..function.blocks.count - 1 {
             block_at := function_plan.block_base + block_index
             if !ExecPlanEdges(plan, function, plan.functions[function_index], function.blocks[block_index],
-                plan.block_edge_bases[block_at]) { return .InvalidProgram }
+                cast(s64)plan.block_edge_bases[block_at]) { return .InvalidProgram }
         }
     }
     return .None
@@ -2244,7 +2258,7 @@ ExecPlanTransients :: (plan: *LirExecPlan, function: LirFunction, block_base: s6
         for between: from + 1..to - 1 {
             if ExecTransientBarrier(block.instructions[between].op) { clear = false; break }
         }
-        if clear { plan.transient[plan.block_instruction_bases[block_base + block_index] + from] = 1 }
+        if clear { plan.transient[cast(s64)plan.block_instruction_bases[block_base + block_index] + from] = 1 }
     }
     return true
 }
@@ -2370,7 +2384,7 @@ ExecPushFrame :: (instance: *LirExecInstance, function_id: s32, caller: s64,
     frame := LirExecFrame.{.function = function_id, .block = function.entry,
         .return_value = return_value, .base = base, .word_base = word_base,
         .value_base = plan.value_base, .value_types = function.values,
-        .instruction_base = instance.plan.block_instruction_bases[plan.block_base + function.entry],
+        .instruction_base = cast(s64)instance.plan.block_instruction_bases[plan.block_base + function.entry],
         .generation = instance.frame_epoch}
     if !VecPush(instance.frames, frame) {
         unused ExecFail(instance, .Allocation)
@@ -2469,7 +2483,7 @@ ExecEdge :: (instance: *LirExecInstance, frame_index: s64,
         instance.frames[frame_index].block = edge.block
         instance.frames[frame_index].instruction = 0
         instance.frames[frame_index].instruction_base =
-            instance.plan.block_instruction_bases[plan.block_base + edge.block]
+            cast(s64)instance.plan.block_instruction_bases[plan.block_base + edge.block]
         return true
     }
     scratch := frame.base + plan.scratch_offset
@@ -2490,7 +2504,7 @@ ExecEdge :: (instance: *LirExecInstance, frame_index: s64,
     instance.frames[frame_index].block = edge.block
     instance.frames[frame_index].instruction = 0
     instance.frames[frame_index].instruction_base =
-        instance.plan.block_instruction_bases[plan.block_base + edge.block]
+        cast(s64)instance.plan.block_instruction_bases[plan.block_base + edge.block]
     return true
 }
 
@@ -3980,7 +3994,7 @@ ExecStep :: (instance: *LirExecInstance) -> bool {
     }
     if op == .Trap { return ExecFail(instance, .Trap, instruction.immediate) }
     if op == .Unreachable { return ExecFail(instance, .Unreachable) }
-    edge_base := instance.plan.block_edge_bases[instance.plan.functions[frame.function].block_base + frame.block]
+    edge_base := cast(s64)instance.plan.block_edge_bases[instance.plan.functions[frame.function].block_base + frame.block]
     if op == .Jump {
         return ExecEdge(instance, frame_index, *instruction.edges[0],
             instance.plan.edge_direct[edge_base] != 0)
@@ -4853,7 +4867,7 @@ ExecFastCall :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecCod
     instance.frame_epoch += 1
     frame := LirExecFrame.{.function = target, .block = function.entry, .return_value = code.result_value,
         .base = base, .word_base = word_base, .value_base = target_plan.value_base, .value_types = function.values,
-        .instruction_base = plan.block_instruction_bases[target_plan.block_base + function.entry],
+        .instruction_base = cast(s64)plan.block_instruction_bases[target_plan.block_base + function.entry],
         .generation = instance.frame_epoch}
     if !VecPush(instance.frames, frame) {
         unused VecResize(instance.words, word_base)

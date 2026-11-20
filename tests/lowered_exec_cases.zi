@@ -254,11 +254,16 @@ Flow :: () -> bool {
         plan.code.count != 1 || plan.code[0].entries.capacity > plan.transient.count ||
         plan.block_instruction_bases[0] != 0 ||
         plan.block_instruction_bases[1] != 4 || plan.block_instruction_bases[2] != 9 ||
-        plan.edge_direct[plan.block_edge_bases[0]] == 0 ||
-        plan.edge_direct[plan.block_edge_bases[1]] != 0 ||
-        plan.edge_direct[plan.block_edge_bases[1] + 1] == 0 { return false }
+        plan.edge_direct[cast(s64)plan.block_edge_bases[0]] == 0 ||
+        plan.edge_direct[cast(s64)plan.block_edge_bases[1]] != 0 ||
+        plan.edge_direct[cast(s64)plan.block_edge_bases[1] + 1] == 0 { return false }
     result := Execute(program)
-    return result.problem == .None && result.value.bits == 2
+    compact: LirExecPlan
+    defer LirExecPlanFree(*compact)
+    return result.problem == .None && result.value.bits == 2 &&
+        LirExecPlanBuildCompact(program, LirDefaultLimits(), *compact).problem == .None &&
+        compact.block_edge_bases[2] == 3 && compact.block_instruction_bases[2] == 9 &&
+        SameResult(result, RunOnce(*compact, LirExecDefaultLimits(), 1, false))
 }
 
 AggregatesAndMemory :: () -> bool {

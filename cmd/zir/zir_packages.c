@@ -244,6 +244,23 @@ int PackageResolve(const ZirPackageMap *map, const char *owner,
     return 0;
 }
 
+int PackageResolveSaved(const ZirPackageMap *map, const char *owner,
+                        const char *identity, char *path, size_t path_size)
+{
+    for(int i = 0; i < map->module_count; i++) {
+        const PackageModule *module = &map->modules[i];
+        if(strcmp(module->identity, identity)) continue;
+        int allowed = !strcmp(module->id, owner) || !strcmp(module->id, "std");
+        for(int j = 0; j < map->dependency_count && !allowed; j++) {
+            const PackageDependency *edge = &map->dependencies[j];
+            allowed = !strcmp(edge->owner, owner) && !strcmp(edge->target, module->id) &&
+                      !strcmp(edge->exported, module->name);
+        }
+        if(allowed) return snprintf(path, path_size, "%s", module->path) < (int)path_size;
+    }
+    return 0;
+}
+
 const char *PackageAmbiguity(const ZirPackageMap *map, const char *owner,
                              const char *visible)
 {

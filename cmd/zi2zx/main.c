@@ -27,7 +27,7 @@ usage(void)
             "       zi2zx --library NAME --export module:function [--export module:function ...] [ZX build options] -o FILE file.zi|file.zir ...\n"
             "       ZX module options: [--require-module INTERFACE=NAME] [--import module:function=INTERFACE:EXPORT]\n"
             "       zi2zx [--emit zx|lir|linkage] -o FILE file.zx\n"
-            "       zi2zx run [--backend native|engine] [--module-root DIR]... file.zx\n"
+            "       zi2zx run [--backend native|engine] [--module-root DIR | --module-image NAME=SHA256=FILE]... file.zx\n"
             "       zi2zx run [--backend native|engine] [--module-root DIR]... [ZX build options] [--root DIR] [--entry module:function] file.zi ...\n"
             "run uses native code on linux-x86_64, linux-aarch64 and linux-armv7 and the portable engine elsewhere; a bundle\n"
             "native code cannot run fails before it starts with a named gap, and nothing falls back to the engine\n");
@@ -714,6 +714,8 @@ run_command(int argc, char **argv)
 {
     const char **roots = NULL;
     size_t root_count = 0;
+    ZxRunModuleImage *images = NULL;
+    size_t image_count = 0;
     Bundle *bundle = NULL;
     int status = 1;
     int dispatch_host = 0;
@@ -744,6 +746,19 @@ run_command(int argc, char **argv)
             roots[root_count++] = argv[1];
             argc--;
             argv++;
+        } else if(!strcmp(argv[0], "--module-image")) {
+            if(argc < 2) goto arguments;
+            if(images == NULL) images = calloc((size_t)argc, sizeof(*images));
+            if(images == NULL) goto done;
+            ZxRunModuleImage *image = &images[image_count];
+            if(!ZxRunModuleImageParse(argv[1], image)) goto arguments;
+            for(size_t i = 0; i < image_count; i++) {
+                if(images[i].name_length == image->name_length &&
+                   !memcmp(images[i].name, image->name, image->name_length)) goto arguments;
+            }
+            image_count++;
+            argc--;
+            argv++;
         } else if(!strcmp(argv[0], "--heap-report")) {
             heap_report = 1;
             debug_engine = 1;
@@ -767,6 +782,7 @@ run_command(int argc, char **argv)
     for(int i = 0; i < argc; i++)
         source |= is_source(argv[i]);
     if(!source && argc != 1) goto arguments;
+    if(image_count != 0 && (source || dispatch_host || debug_engine || root_count != 0)) goto arguments;
     if(debug_engine) {
         if(source || dispatch_host || root_count != 0) goto arguments;
         status = run_debug_image(argv[0], limits, heap_report);
@@ -791,7 +807,7 @@ run_command(int argc, char **argv)
     }
     BundleInstanceOptions options = {backend, 0};
     int ok = ZxExecRunBundle(bundle, source ? NULL : argv[0], roots, root_count,
-                             &options, &result, &has_result);
+                             images, image_count, &options, &result, &has_result);
     if(ok && has_result) {
         if(BundleEntryReturnType(bundle)[0] == 'u')
             printf("%llu\n", (unsigned long long)result);
@@ -802,6 +818,7 @@ run_command(int argc, char **argv)
 done:
     BundleClose(bundle);
     free(roots);
+    free(images);
     return status;
 arguments:
     usage();

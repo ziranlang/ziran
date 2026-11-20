@@ -20,10 +20,20 @@
  * integer result, 0 for void, 125 for a failed run. */
 int ZxExecRunProgram(const LirProgram *program, LirExecLimits limits, int heap_report);
 
-/* Runs a bundle, resolving module dependencies from ROOTS or the bundle's
- * parent directory. A null PATH uses the current directory for source runs. */
+typedef struct ZxRunModuleImage {
+    const char *name;
+    size_t name_length;
+    const char *path;
+    unsigned char sha256[32];
+} ZxRunModuleImage;
+
+int ZxRunModuleImageParse(const char *spec, ZxRunModuleImage *image);
+
+/* Resolve dependencies from the exact image map, or from the ordinary
+ * roots when no map was supplied. A null PATH denotes a source run. */
 int ZxExecRunBundle(const Bundle *bundle, const char *path, const char *const *roots,
-                    size_t root_count, const BundleInstanceOptions *options,
+                    size_t root_count, const ZxRunModuleImage *images, size_t image_count,
+                    const BundleInstanceOptions *options,
                     long long *result, int *has_result);
 
 struct ZirProgram;

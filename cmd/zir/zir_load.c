@@ -372,6 +372,15 @@ add_program_named(LoadContext *context, const char *path, const char *root,
                 return 0;
             }
         }
+    } else if(context->packages != NULL) {
+        const char *mapped = PackageModuleName(context->packages, canonical);
+        if(mapped != NULL && (program->module_count != 1 || strcmp(program->modules[0].name, mapped))) {
+            Diagnostic(Span(path, 1, 1), "package.identity",
+                       "saved package module does not declare its mapped identity %s", mapped);
+            ProgramFree(program);
+            free(canonical);
+            return 0;
+        }
     }
     if(program->module_count == 1)
         standard_module_name(context, canonical, program->modules[0].standard_name,
@@ -772,6 +781,16 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
     int prefer_ir = PathIsIR(owner_source);
     int explicit_path = strncmp(import->signature, "file:", 5) == 0 ||
                         strncmp(import->signature, "dir:", 4) == 0;
+    if(context->packages != NULL && prefer_ir && PackageModuleName(context->packages, owner_source) != NULL) {
+        const char *owner = PackageOwner(context->packages, owner_source);
+        if(owner == NULL || !PackageResolveSaved(context->packages, owner, target,
+                                                  buffers->mapped_path, sizeof(buffers->mapped_path))) {
+            Diagnostic(import->span, "package.not_found",
+                       "saved import %s is outside the dependency scope of %s", target, owner_source);
+            return 0;
+        }
+        return add_program(context, buffers->mapped_path, owner_root);
+    }
     if(context->packages != NULL && !prefer_ir && !explicit_path) {
         if(import->resolved_module != NULL &&
            module_loaded(set, import->target)) return 1;

@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Packages and project imports: the Ziran guide, rendered from docs/PACKAGES.md."><title>Packages and project imports · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/packages"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Packages and project imports</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/PACKAGES.md">docs/PACKAGES.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#starting-a-project">Starting a project</a><a href="#building-and-running-a-program">Building and running a program</a><a href="#adding-a-dependency">Adding a dependency</a><a href="#importing-modules">Importing modules</a><a href="#publishing-a-package">Publishing a package</a><a href="#commands">Commands</a><a href="#project-tools-and-their-options">Project tools and their options</a><a href="#handing-a-project-to-its-tool">Handing a project to its tool</a><a href="#dependency-owned-native-artifacts">Dependency-owned native artifacts</a></aside><div class="article-body">
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#starting-a-project">Starting a project</a><a href="#building-and-running-a-program">Building and running a program</a><a href="#adding-a-dependency">Adding a dependency</a><a href="#importing-modules">Importing modules</a><a href="#publishing-a-package">Publishing a package</a><a href="#commands">Commands</a><a href="#project-tools-and-their-options">Project tools and their options</a><a href="#handing-a-project-to-its-tool">Handing a project to its tool</a><a href="#prebuilt-portable-images">Prebuilt portable images</a><a href="#checked-packages-for-source-imports">Checked packages for source imports</a><a href="#dependency-owned-native-artifacts">Dependency-owned native artifacts</a></aside><div class="article-body">
 <section class="prose"><p>Ziran packages are Git repositories. There is no central registry: a
 dependency is the URL of the repository that holds it, pinned to a full commit
 in a committed <code>ziran.lock</code>. A Ziran application is itself a package with a
@@ -211,6 +211,22 @@ ziran build --project --target=c --entry app:main -o build/c
 <code>ziran update plot</code> refreshes Plot and its transitive dependencies while
 keeping unrelated packages pinned. <code>ziran update ziran</code> refreshes only the
 compiler toolchain.</p>
+<p>To generate a normal lock directly from local Git objects, set
+<code>ZIRAN_LOCK_GIT_OBJECTS</code> for <code>ziran lock</code>:</p>
+<pre><code class="language-sh">ZIRAN_LOCK_GIT_OBJECTS=/repos/plot:/repos/ziran ziran lock
+</code></pre>
+<p>List absolute paths to Git directories or repository roots containing a
+<code>.git</code> directory, separated by colons. For each dependency and the toolchain,
+Ziran verifies the exact commit in the
+first store whose <code>origin</code> matches the declared URL, using the usual HTTPS
+and SSH equivalence. Other sources use existing exact-commit cache entries.
+A branch or tag declaration requires a matching pin in the existing lock.
+Ziran reads package manifests from the pinned commits, ignores
+<code>ziran.local.toml</code>, and leaves the repositories and source cache alone.
+Missing stores, commits, or valid manifests fail the lock command without
+fetching or creating checkouts. The resulting lock uses the usual format and
+can be used with <code>--locked</code> once the project's development overrides are removed.
+Build commands still require their normal locked source checkouts.</p>
 <p><code>--locked</code> requires a matching lock and ignores local development overrides;
 <code>--offline</code> requires cached checkouts. The cache is under
 <code>$XDG_CACHE_HOME/ziran</code> or <code>~/.cache/ziran</code>.
@@ -362,6 +378,119 @@ the tool's <code>install</code> command with <code>ZIRAN_INSTALL_PREFIX</code> (
 <code>--prefix DIR</code> is given) and <code>ZIRAN_INSTALL_BIN</code>; other arguments are passed
 on. The tool decides what else an install includes, such as a desktop entry,
 from its own options.</p>
+<h2 id="prebuilt-portable-images">Prebuilt portable images</h2>
+<p>Build a <code>.zx</code> application or an explicitly exported ZX library once, then
+publish the image to the repository owner's Gitea Generic package registry.
+The repository name, full Git commit and build profile form the download
+address. Give each combination of exports, compiler settings and feature
+defines its own profile. The publishing job should build from the exact
+revision and record its toolchain and dependency locks. <a href="https://docs.gitea.com/usage/packages/generic/">Gitea Generic package registry</a></p>
+<pre><code class="language-sh">zi2zx --library demo/counter --export counter:Add -o counter.zx counter.zi
+repo=https://git.waozi.xyz/example/counter.git
+commit=$(git rev-parse HEAD)
+ziran pkg zx publish &quot;$repo&quot; &quot;$commit&quot; counter counter.zx --netrc &quot;$NETRC_FILE&quot;
+</code></pre>
+<p>The publishing command validates the image and prints its SHA-256. A repeat
+upload succeeds if the registry already holds those exact bytes. The netrc
+file supplies credentials for the HTTPS host and should be readable only by
+the publishing account. Publishing needs Gitea package-write access.</p>
+<p>Pin the repository, commit, profile and printed digest in the consumer's
+build configuration. For a library, pass the declared module name to obtain
+a module root the ZX loader can search. The consumer can build its own app
+and run it with the library source absent. See the typed import example in
+<a href="zx.html#loading-libraries">Loading libraries</a>.</p>
+<pre><code class="language-sh">modules=$(ziran pkg zx fetch &quot;$repo&quot; &quot;$commit&quot; counter &quot;$sha256&quot; --module demo/counter)
+ziran run --backend engine --module-root &quot;$modules&quot; app.zx
+</code></pre>
+<p>For normal builds, put the same pins and typed import mappings in a JSON
+file such as <code>ziran.zx.lock</code>. Use the full commit and SHA-256 from the
+publishing job in place of the example values.</p>
+<pre><code class="language-json">{
+  &quot;format&quot;: 1,
+  &quot;modules&quot;: [
+    {
+      &quot;interface&quot;: &quot;Counter.v1&quot;,
+      &quot;name&quot;: &quot;demo/counter&quot;,
+      &quot;repository&quot;: &quot;https://git.waozi.xyz/example/counter.git&quot;,
+      &quot;commit&quot;: &quot;0123456789abcdef0123456789abcdef01234567&quot;,
+      &quot;profile&quot;: &quot;counter&quot;,
+      &quot;sha256&quot;: &quot;0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef&quot;
+    }
+  ],
+  &quot;imports&quot;: [
+    {&quot;module&quot;: &quot;app&quot;, &quot;function&quot;: &quot;AddExternal&quot;, &quot;interface&quot;: &quot;Counter.v1&quot;, &quot;export&quot;: &quot;Add&quot;}
+  ]
+}
+</code></pre>
+<pre><code class="language-sh">ziran bundle --zx-lock ziran.zx.lock --root . --entry app:main -o app.zx app.zi
+ziran run --backend engine --zx-lock ziran.zx.lock app.zx
+</code></pre>
+<p>The build uses <code>app.zi</code>'s typed foreign declaration and the pin file's
+import mapping. Packaged library bodies are never compiled by the consumer.
+The run command fetches any missing pinned images before opening the app.
+Include any transitive ZX libraries in <code>modules</code>, with unique interface and
+logical names. The runner resolves that exact image map and verifies each
+image's SHA-256 again on the bytes it opens. A locked run uses the local
+runtime and its host bindings. Set <code>ZIRAN_PACKAGE_NETRC</code> for a private registry.</p>
+<p>For an application image, omit <code>--module</code> to get the verified image path.
+<code>--offline</code> requires the exact image to be in the local cache. A failed
+download, digest, image format or module name stops the command. The loader
+still checks typed imports and requires the host grants used by the image.
+This workflow uses ZX runtime interfaces. Checked packages support source
+imports and generics. Platform-native dependencies use native artifacts.</p>
+<h2 id="checked-packages-for-source-imports">Checked packages for source imports</h2>
+<p>A package with manifest exports can distribute its checked Ziran modules as
+a <code>.zir.zip</code> compiler companion. Pack it from the clean provider revision
+using the exact, clean toolchain and dependencies pinned in <code>ziran.lock</code>.
+Each profile names a fixed toolchain and set of feature defines at that
+provider revision. Supply defines with <code>--define NAME</code> when packing.</p>
+<pre><code class="language-sh">repo=https://git.waozi.xyz/example/counter.git
+commit=$(git rev-parse HEAD)
+ziran pkg zx pack-ir &quot;$repo&quot; &quot;$commit&quot; default build/counter.zir.zip --locked
+sha256=$(ziran pkg zx publish-ir &quot;$repo&quot; &quot;$commit&quot; default build/counter.zir.zip --netrc &quot;$NETRC_FILE&quot;)
+ziran pkg zx fetch-ir &quot;$repo&quot; &quot;$commit&quot; default &quot;$sha256&quot;
+</code></pre>
+<p><code>publish-ir</code> uploads the archive, then publishes the matching discovery
+record at the same revision and profile. Either upload can be repeated with
+identical bytes. Keep the archive and record together when operating a registry.</p>
+<p><code>ziran add</code> and <code>ziran lock</code> discover companions on <code>https://git.waozi.xyz</code>
+and save their exact profile, digest and toolchain identity in the package
+entry in <code>ziran.lock</code>. For a different Gitea server, set <code>ZIRAN_ZX_REGISTRY</code>
+to its HTTPS origin. Discovery uses the <code>default</code> profile unless
+<code>ZIRAN_ZX_PROFILE</code> selects another. Set <code>ZIRAN_PACKAGE_NETRC</code>
+for authenticated reads. A missing discovery record for an unpinned package
+allows ordinary source resolution. Invalid metadata, an incompatible
+toolchain, or a missing advertised archive stops resolution. A saved pin
+continues to identify the same exact archive.</p>
+<pre><code class="language-sh">ziran add &quot;$repo&quot; --ref &quot;$commit&quot;
+ziran bundle --project --entry app:main -o app.zx app.zi
+ziran lock --offline
+ziran bundle --project --offline --entry app:main -o app.zx app.zi
+</code></pre>
+<p>You can also supply a companion pin explicitly in <code>ziran.zx.lock</code>, using
+the dependency's <code>id</code> from <code>ziran.lock</code> and the publisher's profile and digest.
+An explicit pin for a package with a discovered pin must agree with it.</p>
+<pre><code class="language-json">{
+  &quot;format&quot;: 1,
+  &quot;packages&quot;: [
+    {
+      &quot;package&quot;: &quot;p0123456789abcdef&quot;,
+      &quot;profile&quot;: &quot;default&quot;,
+      &quot;sha256&quot;: &quot;0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef&quot;
+    }
+  ]
+}
+</code></pre>
+<p><code>ziran bundle --project</code> and <code>ziran build --project --target=zx</code> select the
+pinned checked archives before checking out those dependencies. Existing
+source imports still resolve through the dependency aliases and manifest
+exports. The compiler verifies the checked modules and uses their types,
+bodies and specializations when it lowers the application. This skips
+dependency source checking and keeps shared types and state in one program.
+Each transitive package whose source will be absent needs a pin. <code>--offline</code>
+requires the pinned archives in the local cache. Local source overrides
+still take precedence unless <code>--locked</code> is set. Distribute the final <code>.zx</code>
+with the portable image commands above.</p>
 <h2 id="dependency-owned-native-artifacts">Dependency-owned native artifacts</h2>
 <p>A dependency can declare named artifacts alongside its existing project tool:</p>
 <pre><code class="language-toml">[tool]

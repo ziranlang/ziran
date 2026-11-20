@@ -3,8 +3,10 @@
 #include "compiler_exec_link.h"
 #include "compiler_opt.h"
 #include "compiler_lowered_verify.h"
+#include "zir_command.h"
 #include "zir_diagnostic.h"
 #include "zir_scalar.h"
+#include "zir_sha256.h"
 #include "zir_text.h"
 #include "ziran_zx_module.h"
 
@@ -58,10 +60,76 @@ ZxExecRunProgram(const LirProgram *program, LirExecLimits limits, int heap_repor
     return status;
 }
 
+static int
+hex_digit(char digit)
+{
+    if(digit >= '0' && digit <= '9') return digit - '0';
+    if(digit >= 'a' && digit <= 'f') return digit - 'a' + 10;
+    return -1;
+}
+
+int
+ZxRunModuleImageParse(const char *spec, ZxRunModuleImage *image)
+{
+    const char *name_end = strchr(spec, '=');
+    const char *digest = name_end == NULL ? NULL : name_end + 1;
+    const char *digest_end = digest == NULL ? NULL : strchr(digest, '=');
+    if(name_end == spec || digest_end == NULL || digest_end - digest != 64 || !digest_end[1]) return 0;
+    for(size_t index = 0; index < sizeof(image->sha256); index++) {
+        int high = hex_digit(digest[2 * index]), low = hex_digit(digest[2 * index + 1]);
+        if(high < 0 || low < 0) return 0;
+        image->sha256[index] = (unsigned char)(high * 16 + low);
+    }
+    image->name = spec;
+    image->name_length = (size_t)(name_end - spec);
+    image->path = digest_end + 1;
+    return 1;
+}
+
+typedef struct ZxRunImageMap {
+    const ZxRunModuleImage *images;
+    size_t count;
+} ZxRunImageMap;
+
+static void
+release_image(void *context, const unsigned char *bytes, size_t size)
+{
+    (void)context;
+    (void)size;
+    free((void *)bytes);
+}
+
+static ZxModuleResolveResult
+resolve_mapped_image(void *context, const char *path, ZxModuleImage *image)
+{
+    const ZxRunImageMap *map = context;
+    size_t length = strlen(path);
+    if(length <= 4 || path[0] != '/' || strcmp(path + length - 3, ".zx")) return ZX_MODULE_IMAGE_MISSING;
+    for(size_t index = 0; index < map->count; index++) {
+        const ZxRunModuleImage *pin = &map->images[index];
+        if(pin->name_length != length - 4 || memcmp(pin->name, path + 1, pin->name_length)) continue;
+        size_t size = 0;
+        unsigned char *bytes = CommandReadBounded(pin->path, 268435456, &size);
+        if(bytes == NULL) return ZX_MODULE_IMAGE_ERROR;
+        unsigned char digest[32];
+        Sha256 hash;
+        Sha256Begin(&hash);
+        Sha256Add(&hash, bytes, size);
+        Sha256End(&hash, digest);
+        if(memcmp(digest, pin->sha256, sizeof(digest))) {
+            free(bytes);
+            return ZX_MODULE_IMAGE_ERROR;
+        }
+        *image = (ZxModuleImage){bytes, size, release_image};
+        return ZX_MODULE_IMAGE_FOUND;
+    }
+    return ZX_MODULE_IMAGE_MISSING;
+}
+
 int
 ZxExecRunBundle(const Bundle *bundle, const char *path, const char *const *roots,
-                size_t root_count, const BundleInstanceOptions *options,
-                long long *result, int *has_result)
+                size_t root_count, const ZxRunModuleImage *images, size_t image_count,
+                const BundleInstanceOptions *options, long long *result, int *has_result)
 {
     if(!ZxModuleProgramNeedsLoader(bundle)) {
         BundleInstance *instance = BundleInstantiateWithOptions(bundle, NULL, 0, options);
@@ -72,7 +140,11 @@ ZxExecRunBundle(const Bundle *bundle, const char *path, const char *const *roots
 
     char *directory = NULL;
     const char *default_root = ".";
-    if(root_count == 0) {
+    if(image_count != 0) {
+        default_root = "/";
+        roots = &default_root;
+        root_count = 1;
+    } else if(root_count == 0) {
         const char *slash = path == NULL ? NULL : strrchr(path, '/');
         if(slash != NULL) {
             directory = strndup(path, slash == path ? 1 : (size_t)(slash - path));
@@ -85,7 +157,13 @@ ZxExecRunBundle(const Bundle *bundle, const char *path, const char *const *roots
         roots = &default_root;
         root_count = 1;
     }
-    ZxModuleLoader *loader = ZxModuleLoaderOpen(roots, root_count, options);
+    ZxRunImageMap map = {images, image_count};
+    ZxModuleLoaderConfig config = {.roots = roots, .root_count = root_count, .options = *options};
+    if(image_count != 0) {
+        config.resolve = resolve_mapped_image;
+        config.resolve_context = &map;
+    }
+    ZxModuleLoader *loader = ZxModuleLoaderOpenConfigured(&config);
     free(directory);
     ZxModuleProgram *program = loader == NULL ? NULL : ZxModuleProgramOpen(loader, bundle, NULL, 0);
     int ok = program != NULL && ZxModuleProgramRun(program, result, has_result);

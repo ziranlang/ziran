@@ -1,0 +1,165 @@
+// Compiler artifacts preserve checked modules and the package manifest.
+#import "package_artifact"
+#import "package_common"
+#import "package_lock"
+#import "package_manifest"
+#import "package_map"
+#import "package_script"
+#import "byte_text_linux"
+#import "file_linux"
+#import "mapped_file_linux"
+#import "zip"
+#import "zip_file_linux"
+
+#scope_file
+Metadata :: "checked-package.tsv"
+Manifest :: "ziran.toml"
+MaximumBytes :: 268435456
+
+ArchiveIdentity :: (id: string, tool_url: string, tool_commit: string, profile: string) -> string {
+    tool := PkgLockId(tool_url, tool_commit, false)
+    return PkgJoin3(PkgJoin3("1\t", id, "\t"), PkgJoin3(tool, "\t", profile), "\n")
+}
+
+#scope_export
+// The archive never supplies files whose kind or location is chosen by a ZIP
+// extractor. Only stored module records and the two fixed metadata files are
+// read. When staging, all outputs are regular files below a private directory.
+PkgCheckedArchive :: (path: string, digest: string, stage: string, id: string,
+    tool_url: string, tool_commit: string, profile: string, identity: *string = null) -> bool {
+    mapped := MapPrivate(path)
+    if !mapped.valid { return false }
+    defer UnmapFile(mapped)
+    if mapped.length == 0 || mapped.length > MaximumBytes { return false }
+    bytes := MappedBytes(mapped)
+    if digest != "" && PkgDigest(TextFromBytes(bytes)) != digest { return false }
+
+    scan := OpenZipDirectory(bytes)
+    if !scan.valid || scan.count < 3 || scan.count > 4098 { return false }
+    prior := ""
+    metadata := false
+    manifest := false
+    for index: 0..cast(s32)scan.count - 1 {
+        unused index
+        named := NextZipEntry(bytes, scan)
+        if !named.valid || named.entry.method != 0 || named.entry.size == 0 ||
+            named.name_size > 1024 { return false }
+        scan = named.directory
+        name := TextFromBytes(bytes[named.name_start:named.name_start + named.name_size])
+        if !PkgArtifactPath(name) || (prior != "" && !PkgLexLess(prior, name)) { return false }
+        prior = name
+        data := bytes[named.entry.data_start:named.entry.data_start + named.entry.size]
+        if ZipCRC32(data) != named.entry.crc32 { return false }
+        if name == Metadata {
+            if id != "" && TextFromBytes(data) != ArchiveIdentity(id, tool_url, tool_commit, profile) {
+                return false
+            }
+            if identity != null {
+                if data.count > 512 { return false }
+                <<identity = PkgJoin("", TextFromBytes(data))
+            }
+            metadata = true
+        } else if name == Manifest { manifest = true }
+        else if !PkgEndsWith(name, ".zir") { return false }
+        if stage != "" && name != Metadata {
+            file := PkgJoin3(stage, "/", name)
+            if !PkgMkdirs(ParentDirectory(file)) || !PkgWrite(file, TextFromBytes(data)) { return false }
+        }
+    }
+    return metadata && manifest && scan.cursor == scan.end
+}
+
+PkgCheckedPack :: (root: string, locked: *PkgLock, current: *PkgManifest,
+    compiler: string, repository: string, revision: string, profile: string, output: string,
+    options: []string) -> s32 {
+    id := PkgLockId(repository, revision, false)
+    stage := PkgArtifactStage(PkgJoin(PkgCacheRoot(), "/zx"))
+    if stage == "" { return PkgFail("cannot stage checked package modules") }
+    defer PkgArtifactRemove(stage)
+    ir := PkgJoin(stage, "/ir")
+    if !PkgMkdirs(ir) { return PkgFail("cannot stage checked package modules") }
+    map := PkgWriteMap(root, locked, current, id)
+    if map == "" { return PkgFail("cannot build the checked package import map") }
+    command := PkgStrings(5 + options.count + current.export_count)
+    if command.count == 0 || current.export_count == 0 { return PkgFail("checked packages need manifest exports") }
+    command[0] = compiler
+    command[1] = "--root"
+    command[2] = root
+    command[3] = "-o"
+    command[4] = ir
+    for index: 0..options.count - 1 { command[5 + index] = options[index] }
+    for index: 0..current.export_count - 1 {
+        command[5 + options.count + index] = PkgJoin3(root, "/", current.exports[index].value)
+    }
+    names := string.["ZIRAN_PACKAGE_MAP"]
+    values := string.[map]
+    if PkgRun(command, root, names[:], values[:]) != 0 { return 2 }
+
+    modules := cast(*PkgModuleSet)PkgAllocZero(cast(u64)size_of(PkgModuleSet))
+    if modules == null || !PkgScanModules(root, current, modules) { return PkgFail("cannot find checked package modules") }
+    paths := PkgStrings(modules.count + 2)
+    sources := PkgStrings(modules.count + 2)
+    if paths.count == 0 || sources.count == 0 { return PkgFail("cannot allocate checked package entries") }
+    paths[0] = Manifest
+    sources[0] = PkgJoin3(root, "/", Manifest)
+    paths[1] = Metadata
+    sources[1] = PkgJoin3(stage, "/", Metadata)
+    if !PkgWrite(sources[1], ArchiveIdentity(id, locked.tool_url, locked.tool_commit, profile)) {
+        return PkgFail("cannot write checked package metadata")
+    }
+    count: s32 = 2
+    for item: modules.items[0:modules.count] {
+        file := PkgJoin(PkgJoin3(ir, "/", id), PkgJoin3("_", item.name, ".zir"))
+        if !PathExists(file) { continue }
+        name := PkgJoin(item.path[root.count + 1:], "r")
+        if !PkgArtifactPath(name) { return PkgFail("invalid checked module path") }
+        paths[count] = name
+        sources[count] = file
+        count += 1
+    }
+    if count < 3 { return PkgFail("no checked package modules were produced") }
+    for index: 1..count - 1 {
+        at := index
+        while at > 0 && PkgLexLess(paths[at], paths[at - 1]) {
+            path := paths[at - 1]
+            source := sources[at - 1]
+            paths[at - 1] = paths[at]
+            sources[at - 1] = sources[at]
+            paths[at] = path
+            sources[at] = source
+            at -= 1
+        }
+    }
+    temporary := PkgTemporarySibling(output, ".zir.zip")
+    if temporary == "" { return PkgFail("cannot stage the checked package archive") }
+    defer RemoveFile(temporary)
+    file := OpenExclusivePrivate(temporary)
+    if !file.valid { return PkgFail("cannot create checked package archive") }
+    position: u64 = 0
+    entries := cast(*ZipFileRecord)PkgAlloc(cast(u64)count * cast(u64)size_of(ZipFileRecord))
+    valid := entries != null
+    for index: 0..count - 1 {
+        if !valid { break }
+        mapped := MapPrivate(sources[index])
+        if !mapped.valid || mapped.length == 0 || mapped.length > MaximumBytes - position {
+            unused UnmapFile(mapped)
+            valid = false
+            break
+        }
+        entries[index] = WriteStoredZipFileEntry(file, position, paths[index], MappedBytes(mapped))
+        unused UnmapFile(mapped)
+        position = StoredZipFileNext(entries[index])
+        valid = entries[index].valid && position < MaximumBytes
+    }
+    directory_start := position
+    for index: 0..count - 1 {
+        if !valid { break }
+        position = WriteStoredZipFileDirectoryEntry(file, position, paths[index], entries[index])
+        valid = position != 0 && position < MaximumBytes - 22
+    }
+    if valid { valid = FinishStoredZipFile(file, directory_start, position, cast(u32)count) && SyncFile(file) }
+    valid = CloseFile(file) && valid
+    if !valid || !PkgCheckedArchive(temporary, "", "", id, locked.tool_url, locked.tool_commit, profile) ||
+        !RenamePath(temporary, output) { return PkgFail("cannot finish checked package archive") }
+    return 0
+}

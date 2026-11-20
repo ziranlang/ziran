@@ -1,6 +1,7 @@
 #import "package_common"
 #import "package_manifest"
 #import "package_artifact"
+#import "package_zx"
 #import "package_lock"
 #import "package_map"
 #import "package_add"
@@ -146,7 +147,11 @@ PkgList :: (locked: *PkgLock, current: *PkgManifest, selector: string) -> s32 {
         PkgPrint(PkgJoin3(dependency.alias, "  ", dependency.git), false)
         PkgPrint(PkgJoin3("  ", dependency.ref, "  "), false)
         PkgPrint(item.commit[0:12], false)
-        PkgPrint(PkgJoin3("\n  checkout ", item.path, "\n"), false)
+        if item.checked {
+            PkgPrint("\n  checked package archive\n", false)
+        } else {
+            PkgPrint(PkgJoin3("\n  checkout ", item.path, "\n"), false)
+        }
         if item.source {
             PkgPrint("  source checkout; no Ziran modules\n", false)
             continue
@@ -764,14 +769,14 @@ PkgUsage :: (command: string) -> string {
     if command == "init" {
         return "usage: ziran init [--template SOURCE[:NAME]] [--ref REF] [--name NAME] [--overrides FILE]\n"
     }
-    if command == "lock" { return "usage: ziran lock\n" }
+    if command == "lock" { return "usage: ziran lock [--offline]\n" }
     if command == "update" { return "usage: ziran update [PACKAGE]\n" }
     if command == "fetch" { return "usage: ziran fetch [--locked] [--offline]\n" }
     if command == "add" {
-        return "usage: ziran add URL|OWNER/REPO [--name NAME] [--ref REF] [--source]\n"
+        return "usage: ziran add URL|OWNER/REPO [--name NAME] [--ref REF] [--source] [--offline]\n"
     }
     if command == "pkg" {
-        return "usage: ziran pkg path PACKAGE [--submodules] | ziran pkg paths PACKAGE... [--submodules] | ziran pkg list [PACKAGE] | ziran pkg artifact PACKAGE:ARTIFACT --platform OS-ARCH-ABI [--option Alias:key=value]...\n"
+        return "usage: ziran pkg path PACKAGE [--submodules] | ziran pkg paths PACKAGE... [--submodules] | ziran pkg list [PACKAGE] | ziran pkg zx --help | ziran pkg artifact PACKAGE:ARTIFACT --platform OS-ARCH-ABI [--option Alias:key=value]...\n"
     }
     if command == "tool" { return "usage: ziran tool PACKAGE COMMAND [ARGS]\n" }
     if command == "install" { return "usage: ziran install [--prefix DIR] [--locked] [--offline]\n" }
@@ -785,10 +790,10 @@ PkgUsage :: (command: string) -> string {
         return "usage: ziran build [--target=c|go|wasm|zx] [--exe --entry module:function] [--root DIR] [--module-path DIR] [-o FILE|DIR] [file.zi ...]; in a project: ziran build\n"
     }
     if command == "bundle" {
-        return "usage: ziran bundle --entry module:function [--root DIR] [--module-path DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [-o FILE] [file.zi ...]\n"
+        return "usage: ziran bundle --entry module:function [--zx-lock FILE] [--root DIR] [--module-path DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [-o FILE] [file.zi ...]\n"
     }
     if command == "run" {
-        return "usage: ziran run FILE.zx | ziran run [--target=c [--no-cache]] [--root DIR] [--entry module:function] [FILE.zi [-- ARGS]]; in a project: ziran run [-- ARGS]\n"
+        return "usage: ziran run [--zx-lock FILE] [--offline] FILE.zx | ziran run [--target=c [--no-cache]] [--root DIR] [--entry module:function] [FILE.zi [-- ARGS]]; in a project: ziran run [-- ARGS]\n"
     }
     if command == "fmt" { return "usage: ziran fmt [--check] FILE.zi ...\n" }
     if command == "inspect" {
@@ -843,13 +848,31 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         return 0
     }
     command: string = arguments[0]
+    pack_checked := command == "pkg" && arguments.count >= 3 && arguments[1] == "zx" && arguments[2] == "pack-ir"
+    // A binary-only consumer need not have a project or check out its sources.
+    if !pack_checked && command == "pkg" && arguments.count >= 2 && arguments[1] == "zx" {
+        return PkgZx(launcher, arguments[2:])
+    }
     // Asking for help never runs the command, whatever it would change.
     own_flags: []string = arguments[1:PkgFlagsEnd(command, arguments)]
     if PkgHasArgument(own_flags, "--help") || PkgHasArgument(own_flags, "-h") {
+        if pack_checked {
+            PkgPrint(PkgZxUsage(), false)
+            return 0
+        }
         usage: string = PkgUsage(command)
         if usage.count > 0 {
             PkgPrint(usage, false)
             return 0
+        }
+    }
+    if command == "bundle" || command == "run" {
+        for at: 1..own_flags.count {
+            if arguments[at] == "--zx-lock" {
+                expanded := PkgZxLockedArguments(launcher, arguments, at, own_flags.count + 1)
+                if expanded.count == 0 { return 2 }
+                return PackageMain(launcher, expanded)
+            }
         }
     }
     if command == "new" || command == "init" {
@@ -891,15 +914,16 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         if root.count == 0 { return PkgFail("no ziran.toml found") }
     }
     if command == "lock" {
-        if PkgResolveLock(root, "") { return 0 }
-        return PkgFail("cannot resolve project lock")
+        if arguments.count > 2 || (arguments.count == 2 && arguments[1] != "--offline") {
+            return PkgFail("usage: ziran lock [--offline]")
+        }
+        return PkgResolveZxLock(launcher, root, "", arguments.count == 2)
     }
     if command == "update" {
         if arguments.count > 2 { return PkgFail("usage: ziran update [PACKAGE]") }
         refresh: string = "*"
         if arguments.count == 2 { refresh = arguments[1] }
-        if PkgResolveLock(root, refresh) { return 0 }
-        return PkgFail("cannot update project lock")
+        return PkgResolveZxLock(launcher, root, refresh, false)
     }
     project: bool = PkgHasArgument(flags, "--project") || implied
     locked_mode: bool = PkgHasArgument(flags, "--locked")
@@ -931,6 +955,8 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     }
     locked: *PkgLock = null
     current: *PkgManifest = null
+    checked_pins: PkgCheckedPins
+    defer PkgReleaseCheckedPins(*checked_pins)
     if project || command == "fetch" || command == "pkg" || command == "tool" ||
        command == "install" {
         locked = PkgNewLock()
@@ -939,9 +965,22 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
            !PkgReadLock(PkgJoin(root, "/ziran.lock"), locked) {
             return PkgFail("cannot read ziran.lock; run ziran lock")
         }
-        if !PkgCheckoutGraph(root, locked, offline, locked_mode, current) {
+        selection := PkgCheckedSelection.{call = PkgSelectChecked, context = cast(*void)(*checked_pins)}
+        checked: *PkgCheckedSelection = null
+        if command == "bundle" || (command == "build" && PkgHasArgument(flags, "--target=zx")) ||
+            pack_checked || (command == "pkg" && count >= 1 && filtered[0] == "list") {
+            if !PkgReadCheckedPins(root, launcher, locked, *checked_pins) {
+                return PkgFail("invalid checked packages in ziran.zx.lock")
+            }
+            if checked_pins.count != 0 { checked = *selection }
+        }
+        if !PkgCheckoutGraph(root, locked, offline, locked_mode, current, checked) {
             if pkg_failure_reported { return 2 }
             return PkgFail("cannot fetch locked packages")
+        }
+        if checked_pins.tool_identity != "" &&
+            checked_pins.tool_identity != PkgLockId(locked.tool_url, locked.tool_commit, false) {
+            return PkgFail("toolchain override differs from the checked package toolchain")
         }
         // A project runs with its pinned toolchain's own launcher, so an
         // installed ziran of any age writes the import map the lock expects.
@@ -985,6 +1024,11 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             values[0] = "forwarded"
             return PkgRun(forwarded[0:index + 1], "", names[:], values[:])
         }
+    }
+    if pack_checked {
+        directory := PkgToolDirectory(launcher, locked.tool_path, "zi2zir")
+        if directory == "" { return PkgFail("cannot find the pinned Ziran compiler") }
+        return PkgPackChecked(root, PkgJoin(directory, "/zi2zir"), locked, current, filtered[2:count])
     }
     if command == "fetch" { return 0 }
     if command == "compile-commands" {

@@ -78,8 +78,11 @@ TryDirectories :: (paths: string, suffix: string, bundle: string,
 #scope_export
 PkgRunBundle :: (child: []string, arguments: []string,
     names: []string, values: []string) -> s32 {
+    // An installed provider cannot receive the exact image map through the
+    // host-dispatch protocol. Keep that invocation in the local runtime.
     bundle: string
     for argument: arguments {
+        if argument == "--module-image" { return PkgRun(child, "", names, values) }
         if PkgEndsWith(argument, ".zx") { bundle = argument }
     }
     if bundle == "" { return PkgRun(child, "", names, values) }

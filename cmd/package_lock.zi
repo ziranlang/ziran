@@ -17,6 +17,10 @@ PkgLocked :: struct {
     commit: string
     path: string
     source: bool
+    checked: bool
+    checked_profile: string
+    checked_digest: string
+    checked_tool: string
     edges: [24]PkgNamedValue
     edge_count: s32
     refs: [24]PkgNamedValue
@@ -133,6 +137,14 @@ PkgReadLock :: (path: string, output: *PkgLock) -> bool {
             if MatchLiteral(json, source_at, "true") { locked.source = true }
             else if !MatchLiteral(json, source_at, "false") { return false }
             if locked.source && locked.edge_count > 0 { return false }
+        }
+        artifact := FieldAt(json, item, "checked")
+        if artifact >= 0 {
+            locked.checked_profile = PkgJsonField(json, artifact, "profile")
+            locked.checked_digest = PkgJsonField(json, artifact, "sha256")
+            locked.checked_tool = PkgJsonField(json, artifact, "toolchain")
+            if locked.source || locked.checked_profile == "" || !PkgHex(locked.checked_digest, 64) ||
+                !PkgCheckedIdentity(locked.checked_tool) { return false }
         }
         index += 1
     }
@@ -283,16 +295,22 @@ PkgFindBySource :: (locked: *PkgLock, url: string, ref: string, source: bool) ->
     return -1
 }
 
-PkgValidCommit :: (commit: string) -> bool {
-    if commit.count != 40 { return false }
+PkgHex :: (text: string, length: s64) -> bool {
+    if text.count != length { return false }
     index: s64 = 0
-    while index < 40 {
-        ch: u8 = commit[index]
+    while index < length {
+        ch: u8 = text[index]
         if !((ch >= cast(u8)48 && ch <= cast(u8)57) ||
              (ch >= cast(u8)97 && ch <= cast(u8)102)) { return false }
         index += 1
     }
     return true
+}
+
+PkgValidCommit :: (commit: string) -> bool { return PkgHex(commit, 40) }
+
+PkgCheckedIdentity :: (identity: string) -> bool {
+    return identity.count == 17 && identity[0] == #char "p" && PkgHex(identity[1:], 16)
 }
 
 // Development identities are path-scoped, explicitly uncommitted revisions.
@@ -893,6 +911,15 @@ PkgWriteLock :: (root: string, locked: *PkgLock) -> bool {
         if PkgValidDevelopment(item.commit) { PkgAppend(*builder, "\"development\": ") }
         else { PkgAppend(*builder, "\"commit\": ") }
         PkgAppendJson(*builder, item.commit)
+        if item.checked_profile != "" {
+            PkgAppend(*builder, ",\n      \"checked\": {\"profile\": ")
+            PkgAppendJson(*builder, item.checked_profile)
+            PkgAppend(*builder, ", \"sha256\": ")
+            PkgAppendJson(*builder, item.checked_digest)
+            PkgAppend(*builder, ", \"toolchain\": ")
+            PkgAppendJson(*builder, item.checked_tool)
+            PkgAppend(*builder, "}")
+        }
         PkgAppend(*builder, ",\n      \"dependencies\": ")
         PkgWriteEdges(*builder, *item.edges[0], item.edge_count)
         if item.ref_count > 0 {
@@ -937,7 +964,8 @@ PkgWriteLock :: (root: string, locked: *PkgLock) -> bool {
     return RenamePath(temporary, path)
 }
 
-PkgResolveLock :: (root: string, refresh: string) -> bool {
+PkgResolveLock :: (root: string, refresh: string, offline: bool = false,
+    checked: *PkgCheckedSelection = null) -> bool {
     current: *PkgManifest = PkgNewManifest()
     old: *PkgLock = PkgNewLock()
     resolved: *PkgLock = PkgNewLock()
@@ -948,7 +976,11 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
     objects := ifx refresh == "" then PkgGetenv("ZIRAN_LOCK_GIT_OBJECTS") else ""
     if !PkgParseManifest(PkgJoin(root, "/ziran.toml"), current) ||
        (objects.count == 0 && !PkgParseOverrides(PkgJoin(root, "/ziran.local.toml"), overrides)) { return false }
-    PkgReadLock(PkgJoin(root, "/ziran.lock"), old)
+    lock_path := PkgJoin(root, "/ziran.lock")
+    if PathExists(lock_path) && !PkgReadLock(lock_path, old) {
+        unused PkgFail("invalid ziran.lock")
+        return false
+    }
     targeted: bool = refresh != "" && refresh != "*" && refresh != "ziran"
     if targeted && old.valid && PkgValidDevelopment(old.tool_commit) {
         unused PkgFail("targeted update cannot preserve an unborn toolchain snapshot; run ziran lock or ziran update")
@@ -983,9 +1015,15 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
             PkgFail("cannot resolve Ziran toolchain ref")
             return false
         }
+        tool := PkgLockId(old.tool_url, old.tool_commit, false)
+        for index: 0..old.count - 1 {
+            item := *old.packages[index]
+            if item.checked_tool != "" && item.checked_tool != tool &&
+                (checked == null || !checked.call(checked.context, item, old, offline)) { return false }
+        }
         return PkgWriteLock(root, old)
     }
-    return PkgResolveGraph(root, refresh, false, current, old, overrides, resolved, objects) &&
+    return PkgResolveGraph(root, refresh, offline, current, old, overrides, resolved, objects, checked) &&
         PkgWriteLock(root, resolved)
 }
 
@@ -994,7 +1032,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
 // declarations that ziran.lock does not pin yet.
 PkgResolveGraph :: (root: string, refresh: string, offline: bool,
     current: *PkgManifest, old: *PkgLock, overrides: *PkgOverrides,
-    resolved: *PkgLock, objects: string = "") -> bool {
+    resolved: *PkgLock, objects: string = "", checked: *PkgCheckedSelection = null) -> bool {
     targeted: bool = refresh != "" && refresh != "*" && refresh != "ziran"
     if refresh != "" && refresh != "*" && refresh != "ziran" {
         found: bool = false
@@ -1004,6 +1042,9 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
             index += 1
         }
         if !found { return false }
+    }
+    if !PkgResolveToolchain(root, refresh, offline, current, old, overrides, resolved, objects) {
+        return false
     }
     pending: [256]PkgPending
     pending_count: s32 = 0
@@ -1064,7 +1105,6 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
                     return false
                 }
                 item.commit = old.packages[previous].commit
-                item.path = PkgCheckout(next.url, item.commit, offline)
             } else if override.count > 0 {
                 item.commit = PkgOverrideIdentity(override)
                 item.path = override
@@ -1082,10 +1122,8 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
                 } else {
                     item.commit = PkgRemoteCommit(next.url, next.ref)
                 }
-                item.path = PkgCheckout(next.url, item.commit, offline)
             }
-            if (!PkgValidCommit(item.commit) && !PkgValidDevelopment(item.commit)) ||
-               (git_dir.count == 0 && item.path.count == 0) {
+            if !PkgValidCommit(item.commit) && !PkgValidDevelopment(item.commit) {
                 return false
             }
             // Manifests may name one commit by different refs, a branch in
@@ -1103,6 +1141,21 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
                 // A source package is a pinned checkout for platform builds. It
                 // has no manifest, modules, or dependencies of its own.
                 item.source = next.source
+                item.id = source_id
+                if git_dir == "" && item.path == "" {
+                    if !item.source && checked != null && override == "" {
+                        if previous >= 0 && old.packages[previous].id == item.id {
+                            item.checked_profile = old.packages[previous].checked_profile
+                            item.checked_digest = old.packages[previous].checked_digest
+                            item.checked_tool = old.packages[previous].checked_tool
+                        }
+                        if !checked.call(checked.context, item, resolved, offline) { return false }
+                    }
+                    if item.path == "" {
+                        item.path = PkgCheckout(next.url, item.commit, offline)
+                        if item.path == "" { return false }
+                    }
+                }
                 if item.source {
                     item.name = PkgJoin("", next.alias)
                 } else {
@@ -1112,7 +1165,6 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
                         *item.manifest) { return false }
                     item.name = item.manifest.name
                 }
-                item.id = source_id
                 resolved.count += 1
                 index = 0
                 while index < item.manifest.dependency_count {
@@ -1160,6 +1212,12 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
             parent.edge_count += 1
         }
     }
+    return true
+}
+
+PkgResolveToolchain :: (root: string, refresh: string, offline: bool,
+    current: *PkgManifest, old: *PkgLock, overrides: *PkgOverrides,
+    resolved: *PkgLock, objects: string) -> bool {
     if !PkgGitURL(current.tool_git) { return false }
     resolved.root_name = current.name
     resolved.tool_url = current.tool_git
@@ -1170,7 +1228,8 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
         if !PkgValidCommit(resolved.tool_commit) && old.valid && PkgSameSource(old.tool_url, resolved.tool_url) &&
            old.tool_ref == resolved.tool_ref { resolved.tool_commit = old.tool_commit }
         return PkgObjectStore(objects, resolved.tool_url, resolved.tool_commit).count > 0
-    } else if targeted && old.valid && PkgValidCommit(old.tool_commit) && PkgSameSource(old.tool_url, resolved.tool_url) &&
+    } else if refresh != "" && refresh != "*" && refresh != "ziran" &&
+       old.valid && PkgValidCommit(old.tool_commit) && PkgSameSource(old.tool_url, resolved.tool_url) &&
        old.tool_ref == resolved.tool_ref {
         resolved.tool_commit = old.tool_commit
     } else if tool_override.count > 0 {
@@ -1182,6 +1241,8 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
         old.tool_ref == resolved.tool_ref && refresh != "*" &&
         refresh != "ziran" {
         resolved.tool_commit = old.tool_commit
+    } else if PkgValidCommit(resolved.tool_ref) {
+        resolved.tool_commit = resolved.tool_ref
     } else if offline {
         unused PkgFail("cannot resolve the Ziran toolchain offline; ziran.lock does not pin it")
         return false
@@ -1264,9 +1325,16 @@ PkgLockMismatch :: (item: *PkgLocked, override: string, detail: string) -> bool 
     return false
 }
 
+PkgCheckedPackage :: #type (context: *void, item: *PkgLocked, locked: *PkgLock, offline: bool) -> bool;
+
+PkgCheckedSelection :: struct {
+    call: PkgCheckedPackage
+    context: *void
+}
+
 PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
-    locked_mode: bool, current: *PkgManifest) -> bool {
-    return PkgCheckoutLockedGraph(root, locked, offline, locked_mode, current, true)
+    locked_mode: bool, current: *PkgManifest, checked: *PkgCheckedSelection = null) -> bool {
+    return PkgCheckoutLockedGraph(root, locked, offline, locked_mode, current, true, checked)
 }
 
 // A local override is the developer's working source: when its declared
@@ -1317,7 +1385,7 @@ PkgCheckoutOverrideGraph :: (root: string, locked: *PkgLock, offline: bool,
 }
 
 PkgCheckoutLockedGraph :: (root: string, locked: *PkgLock, offline: bool,
-    locked_mode: bool, current: *PkgManifest, resolve: bool) -> bool {
+    locked_mode: bool, current: *PkgManifest, resolve: bool, checked: *PkgCheckedSelection = null) -> bool {
     overrides: *PkgOverrides = PkgNewOverrides()
     if overrides == null ||
        !PkgParseOverrides(PkgJoin(root, "/ziran.local.toml"), overrides) ||
@@ -1392,6 +1460,8 @@ PkgCheckoutLockedGraph :: (root: string, locked: *PkgLock, offline: bool,
             }
         }
         item.path = override
+        if item.path == "" && !item.source && checked != null &&
+            !checked.call(checked.context, item, locked, offline) { return false }
         if item.path.count == 0 {
             if PkgValidDevelopment(item.commit) {
                 unused PkgFail("development-only package requires an explicit local override; run ziran lock")

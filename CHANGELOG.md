@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Publish and fetch verified `.zx` images and checked compiler companions through Gitea. Package locks can discover and pin compatible checked dependencies for source-free ZX builds.
+
 - C embedders can open seekable ZX app images through `BundleOpenReadAt` without keeping a full input buffer. The callback is needed only during verification, and images with assets, module linkage, or additional attachments use the byte-based API.
 
 - `ziran api --json` exposes optional type-checked, runnable usage examples for public symbols.

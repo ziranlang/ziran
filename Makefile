@@ -539,7 +539,7 @@ $(BIN_DIR):
 	mkdir -p $@
 
 PACKAGE_C := $(BUILD_DIR)/package-c
-PACKAGE_SOURCES := cmd/package_artifact.zi cmd/package.zi cmd/package_entry.zi cmd/package_process.zi cmd/package_script.zi cmd/package_bundle_run.zi cmd/diagnostics.zi \
+PACKAGE_SOURCES := cmd/package_artifact.zi cmd/package_zx.zi cmd/package_checked.zi cmd/package.zi cmd/package_entry.zi cmd/package_process.zi cmd/package_script.zi cmd/package_bundle_run.zi cmd/diagnostics.zi \
     cmd/package_add.zi cmd/package_guide.zi \
     cmd/package_capabilities.zi cmd/package_features.zi cmd/package_explain.zi cmd/package_learn.zi cmd/package_learn_teacher.zi cmd/package_learn_tuning.zi cmd/compiler_learning_tuning.zi cmd/compiler_bundle.zi cmd/compiler_lowered_ir.zi std/sort.zi cmd/compiler_learning_policy.zi cmd/compiler_learning_fixture.zi cmd/package_common.zi cmd/compiler_target.zi \
     cmd/package_manifest.zi cmd/package_source.zi cmd/package_lock.zi cmd/package_map.zi cmd/package_options.zi cmd/package_compile_commands.zi cmd/package_template.zi \

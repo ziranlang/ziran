@@ -25,5 +25,9 @@ int PackageDependencyModule(const ZirPackageMap *map, const char *owner,
 int PackageResolve(const ZirPackageMap *map, const char *owner,
                    const char *visible, char *path, size_t path_size,
                    char *identity, size_t identity_size);
+/* A checked package module records resolved identities. Its saved imports
+ * still have access only to this package, standard modules and its edges. */
+int PackageResolveSaved(const ZirPackageMap *map, const char *owner,
+                        const char *identity, char *path, size_t path_size);
 
 #endif

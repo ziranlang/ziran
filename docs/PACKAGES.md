@@ -470,6 +470,146 @@ the tool's `install` command with `ZIRAN_INSTALL_PREFIX` (`~/.local` unless
 on. The tool decides what else an install includes, such as a desktop entry,
 from its own options.
 
+## Prebuilt portable images
+
+Build a `.zx` application or an explicitly exported ZX library once, then
+publish the image to the repository owner's Gitea Generic package registry.
+The repository name, full Git commit and build profile form the download
+address. Give each combination of exports, compiler settings and feature
+defines its own profile. The publishing job should build from the exact
+revision and record its toolchain and dependency locks. [Gitea Generic package registry](https://docs.gitea.com/usage/packages/generic/)
+
+```sh
+zi2zx --library demo/counter --export counter:Add -o counter.zx counter.zi
+repo=https://git.waozi.xyz/example/counter.git
+commit=$(git rev-parse HEAD)
+ziran pkg zx publish "$repo" "$commit" counter counter.zx --netrc "$NETRC_FILE"
+```
+
+The publishing command validates the image and prints its SHA-256. A repeat
+upload succeeds if the registry already holds those exact bytes. The netrc
+file supplies credentials for the HTTPS host and should be readable only by
+the publishing account. Publishing needs Gitea package-write access.
+
+Pin the repository, commit, profile and printed digest in the consumer's
+build configuration. For a library, pass the declared module name to obtain
+a module root the ZX loader can search. The consumer can build its own app
+and run it with the library source absent. See the typed import example in
+[Loading libraries](ZX.md#loading-libraries).
+
+```sh
+modules=$(ziran pkg zx fetch "$repo" "$commit" counter "$sha256" --module demo/counter)
+ziran run --backend engine --module-root "$modules" app.zx
+```
+
+For normal builds, put the same pins and typed import mappings in a JSON
+file such as `ziran.zx.lock`. Use the full commit and SHA-256 from the
+publishing job in place of the example values.
+
+```json
+{
+  "format": 1,
+  "modules": [
+    {
+      "interface": "Counter.v1",
+      "name": "demo/counter",
+      "repository": "https://git.waozi.xyz/example/counter.git",
+      "commit": "0123456789abcdef0123456789abcdef01234567",
+      "profile": "counter",
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
+  ],
+  "imports": [
+    {"module": "app", "function": "AddExternal", "interface": "Counter.v1", "export": "Add"}
+  ]
+}
+```
+
+```sh
+ziran bundle --zx-lock ziran.zx.lock --root . --entry app:main -o app.zx app.zi
+ziran run --backend engine --zx-lock ziran.zx.lock app.zx
+```
+
+The build uses `app.zi`'s typed foreign declaration and the pin file's
+import mapping. Packaged library bodies are never compiled by the consumer.
+The run command fetches any missing pinned images before opening the app.
+Include any transitive ZX libraries in `modules`, with unique interface and
+logical names. The runner resolves that exact image map and verifies each
+image's SHA-256 again on the bytes it opens. A locked run uses the local
+runtime and its host bindings. Set `ZIRAN_PACKAGE_NETRC` for a private registry.
+
+For an application image, omit `--module` to get the verified image path.
+`--offline` requires the exact image to be in the local cache. A failed
+download, digest, image format or module name stops the command. The loader
+still checks typed imports and requires the host grants used by the image.
+This workflow uses ZX runtime interfaces. Checked packages support source
+imports and generics. Platform-native dependencies use native artifacts.
+
+## Checked packages for source imports
+
+A package with manifest exports can distribute its checked Ziran modules as
+a `.zir.zip` compiler companion. Pack it from the clean provider revision
+using the exact, clean toolchain and dependencies pinned in `ziran.lock`.
+Each profile names a fixed toolchain and set of feature defines at that
+provider revision. Supply defines with `--define NAME` when packing.
+
+```sh
+repo=https://git.waozi.xyz/example/counter.git
+commit=$(git rev-parse HEAD)
+ziran pkg zx pack-ir "$repo" "$commit" default build/counter.zir.zip --locked
+sha256=$(ziran pkg zx publish-ir "$repo" "$commit" default build/counter.zir.zip --netrc "$NETRC_FILE")
+ziran pkg zx fetch-ir "$repo" "$commit" default "$sha256"
+```
+
+`publish-ir` uploads the archive, then publishes the matching discovery
+record at the same revision and profile. Either upload can be repeated with
+identical bytes. Keep the archive and record together when operating a registry.
+
+`ziran add` and `ziran lock` discover companions on `https://git.waozi.xyz`
+and save their exact profile, digest and toolchain identity in the package
+entry in `ziran.lock`. For a different Gitea server, set `ZIRAN_ZX_REGISTRY`
+to its HTTPS origin. Discovery uses the `default` profile unless
+`ZIRAN_ZX_PROFILE` selects another. Set `ZIRAN_PACKAGE_NETRC`
+for authenticated reads. A missing discovery record for an unpinned package
+allows ordinary source resolution. Invalid metadata, an incompatible
+toolchain, or a missing advertised archive stops resolution. A saved pin
+continues to identify the same exact archive.
+
+```sh
+ziran add "$repo" --ref "$commit"
+ziran bundle --project --entry app:main -o app.zx app.zi
+ziran lock --offline
+ziran bundle --project --offline --entry app:main -o app.zx app.zi
+```
+
+You can also supply a companion pin explicitly in `ziran.zx.lock`, using
+the dependency's `id` from `ziran.lock` and the publisher's profile and digest.
+An explicit pin for a package with a discovered pin must agree with it.
+
+```json
+{
+  "format": 1,
+  "packages": [
+    {
+      "package": "p0123456789abcdef",
+      "profile": "default",
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
+  ]
+}
+```
+
+`ziran bundle --project` and `ziran build --project --target=zx` select the
+pinned checked archives before checking out those dependencies. Existing
+source imports still resolve through the dependency aliases and manifest
+exports. The compiler verifies the checked modules and uses their types,
+bodies and specializations when it lowers the application. This skips
+dependency source checking and keeps shared types and state in one program.
+Each transitive package whose source will be absent needs a pin. `--offline`
+requires the pinned archives in the local cache. Local source overrides
+still take precedence unless `--locked` is set. Distribute the final `.zx`
+with the portable image commands above.
+
 ## Dependency-owned native artifacts
 
 A dependency can declare named artifacts alongside its existing project tool:

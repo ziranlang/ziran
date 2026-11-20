@@ -36,13 +36,17 @@ PkgHasModule :: (set: *PkgModuleSet, name: string) -> bool {
 }
 
 PkgScanModules :: (directory: string, manifest: *PkgManifest,
-    output: *PkgModuleSet) -> bool {
+    output: *PkgModuleSet, extension: string = ".zi") -> bool {
     base: string = PkgCanonical(directory)
     if base.count == 0 { return false }
     root_index: s32 = 0
     while root_index < manifest.root_count {
         source_root: string = PkgCanonical(PkgJoin3(base, "/",
             manifest.roots[root_index]))
+        if source_root == "" && extension == ".zir" {
+            root_index += 1
+            continue
+        }
         if source_root.count == 0 ||
             !(source_root == base || (source_root.count > base.count &&
                 source_root[0:cast(s64)base.count] == base &&
@@ -57,7 +61,7 @@ PkgScanModules :: (directory: string, manifest: *PkgManifest,
         args[4] = "-type"
         args[5] = "f"
         args[6] = "-name"
-        args[7] = "*.zi"
+        args[7] = PkgJoin("*", extension)
         result: PkgProcessResult = PkgCapture(args[:], "")
         if result.code != 0 { return false }
         at: s64 = 0
@@ -80,9 +84,9 @@ PkgScanModules :: (directory: string, manifest: *PkgManifest,
                 index += 1
             }
             name: string = ""
-            if slash == -1 && PkgEndsWith(relative, ".zi") {
-                name = relative[0:cast(s64)relative.count - 3]
-            } else if slash > 0 && relative[slash + 1:] == "module.zi" {
+            if slash == -1 && PkgEndsWith(relative, extension) {
+                name = relative[0:cast(s64)relative.count - cast(s64)extension.count]
+            } else if slash > 0 && relative[slash + 1:] == PkgJoin("module", extension) {
                 name = relative[0:slash]
             }
             if name.count == 0 { continue }
@@ -159,6 +163,14 @@ PkgFindExport :: (manifest: *PkgManifest, name: string) -> bool {
     return false
 }
 
+PkgExportPath :: (root: string, path: string, checked: bool) -> string {
+    if checked {
+        if !PkgEndsWith(path, ".zi") { return "" }
+        path = PkgJoin(path, "r")
+    }
+    return PkgCanonical(PkgJoin3(root, "/", path))
+}
+
 PkgShortEdge :: struct {
     name: string
     target: string
@@ -174,9 +186,9 @@ PkgShortEdge :: struct {
 // reports both qualified spellings).
 PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
     graph: *PkgModuleGraph, owner: s32, current: *PkgManifest,
-    root: string) -> bool {
+    root: string, root_id: string) -> bool {
     owner_manifest: *PkgManifest = current
-    owner_id: string = "root"
+    owner_id: string = root_id
     edge_count: s32 = locked.root_edge_count
     if owner >= 0 {
         owner_manifest = *locked.packages[owner].manifest
@@ -186,7 +198,11 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
     // A package's public exports also have its own manifest-qualified
     // spelling. Consumer aliases belong to incoming edges, not this scope.
     owner_root := root
-    if owner >= 0 { owner_root = locked.packages[owner].path }
+    owner_checked := false
+    if owner >= 0 {
+        owner_root = locked.packages[owner].path
+        owner_checked = locked.packages[owner].checked
+    }
     // An existing dependency alias keeps its entire qualified namespace.
     own_prefix_available := true
     dependency: s32 = 0
@@ -200,7 +216,7 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
     while own_prefix_available && own_export < owner_manifest.export_count {
         exported := owner_manifest.exports[own_export]
         own_export += 1
-        source := PkgCanonical(PkgJoin3(owner_root, "/", exported.value))
+        source := PkgExportPath(owner_root, exported.value, owner_checked)
         internal := PkgModuleByPath(*graph.sets[owner + 1], source)
         if internal.count == 0 { return false }
         qualified := PkgJoin3(owner_manifest.name, "/", exported.name)
@@ -239,8 +255,7 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
         while export_index < target_manifest.export_count {
             exported: PkgNamedValue = target_manifest.exports[export_index]
             export_index += 1
-            source: string = PkgCanonical(PkgJoin3(
-                locked.packages[target].path, "/", exported.value))
+            source := PkgExportPath(locked.packages[target].path, exported.value, locked.packages[target].checked)
             internal: string = PkgModuleByPath(*graph.sets[target + 1], source)
             if internal.count == 0 { return false }
             qualified: string = PkgJoin3(dep.alias, "/", exported.name)
@@ -284,7 +299,7 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
     return true
 }
 
-PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest) -> string {
+PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest, root_id: string = "root") -> string {
     root = PkgCanonical(root)
     if root == "" { return "" }
     graph: *PkgModuleGraph = cast(*PkgModuleGraph)(PkgAllocZero(cast(u64)size_of(PkgModuleGraph)))
@@ -295,16 +310,17 @@ PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest) -> string
     builder.valid = true
     if !PkgScanModules(root, current, *graph.sets[0]) { return "" }
     if !PkgAddGeneratedModules(current, *graph.sets[0]) { return "" }
-    PkgAppendModuleSet(*builder, "root", root, *graph.sets[0])
+    PkgAppendModuleSet(*builder, root_id, root, *graph.sets[0])
     // Files in a generated folder belong to the root package wherever the
     // folder is, so their own imports resolve as the project's.
     for folder: current.generated[0:current.generated_count] {
-        PkgAppend(*builder, PkgJoin3("P\troot\t", folder, "\n"))
+        PkgAppend(*builder, PkgJoin3(PkgJoin3("P\t", root_id, "\t"), folder, "\n"))
     }
     index: s32 = 0
     while index < locked.count {
         item: *PkgLocked = *locked.packages[index]
-        if !PkgScanModules(item.path, *item.manifest, *graph.sets[index + 1]) {
+        extension := ifx item.checked then ".zir" else ".zi"
+        if !PkgScanModules(item.path, *item.manifest, *graph.sets[index + 1], extension) {
             return ""
         }
         PkgAppendModuleSet(*builder, item.id, item.path, *graph.sets[index + 1])
@@ -319,10 +335,10 @@ PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest) -> string
     }
     PkgAppendModuleSet(*builder, "std", locked.tool_path,
         *graph.sets[locked.count + 1])
-    if !PkgAddExports(*builder, locked, graph, -1, current, root) { return "" }
+    if !PkgAddExports(*builder, locked, graph, -1, current, root, root_id) { return "" }
     index = 0
     while index < locked.count {
-        if !PkgAddExports(*builder, locked, graph, index, current, root) {
+        if !PkgAddExports(*builder, locked, graph, index, current, root, root_id) {
             return ""
         }
         index += 1
@@ -346,7 +362,7 @@ PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest) -> string
             PkgAppend(*builder, PkgJoin3("D\t", locked.packages[target].id,
                 "\t"))
             PkgAppend(*builder, name)
-            PkgAppend(*builder, "\troot\t")
+            PkgAppend(*builder, PkgJoin3("\t", root_id, "\t"))
             PkgAppend(*builder, name)
             PkgAppend(*builder, "\n")
             direct += 1

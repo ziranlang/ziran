@@ -8,12 +8,20 @@
 
 Source :: #string ZI
 #import "std/math"
+CheckMaximum :: (half: float64, maximum: float64) -> bool {
+    sum := half + half
+    product := half * 2.0
+    scaled := ScaleByPowerOfTwo(1.9999999999999998, 1023)
+    return sum == maximum && product == maximum && scaled == maximum &&
+        Finite64(sum) && Finite64(-product) && Finite64(scaled)
+}
 main :: () {
     zero := 0.0
     wide := float64.[0.0, -0.0, 1.0, -2.5, 1.7976931348623157e308, -1.7976931348623157e308,
         4.9e-324, 1.0 / zero, -1.0 / zero, zero / zero]
     finite64: s32
     for value: wide { if Finite64(value) { finite64 += 1 } }
+    if !CheckMaximum(8.988465674311579e307, 1.7976931348623157e308) { finite64 = -1 }
     narrow := float32.[0.0, 1.5, 3.402823e38, -3.402823e38, 1.0e-45]
     finite32: s32
     for value: narrow { if Finite32(value) { finite32 += 1 } }

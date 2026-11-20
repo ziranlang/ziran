@@ -8,5 +8,7 @@ Finite32 :: (value: float32) -> bool #inline {
 }
 
 Finite64 :: (value: float64) -> bool #inline {
-    return value == value && value <= 1.7976931348623157e308 && value >= -1.7976931348623157e308
+    // Round the bound to binary64 on targets with excess precision.
+    limit: float64 = 1.7976931348623157e308
+    return value == value && value <= limit && value >= -limit
 }

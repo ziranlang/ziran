@@ -8,6 +8,7 @@ ASSEMBLY_MACHINE_SOURCES := cmd/compiler_vector_form.zi cmd/compiler_vectorize.z
     cmd/compiler_arm_bytes.zi \
     cmd/compiler_machine_elf.zi cmd/compiler_machine_pe.zi cmd/compiler_machine_pipeline.zi cmd/compiler_native_cache.zi
 ASSEMBLY_SOURCES := std/math.zi cmd/compiler_bundle.zi cmd/compiler_lowered_ir.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_proven.zi cmd/compiler_zir_lower.zi cmd/compiler_exec_serial.zi cmd/compiler_exec_debug.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi cmd/compiler_opt.zi cmd/compiler_opt_ssa.zi cmd/compiler_opt_rotate.zi cmd/compiler_opt_loop.zi cmd/compiler_opt_licm.zi cmd/compiler_opt_induction.zi cmd/compiler_opt_layout.zi cmd/compiler_opt_inline.zi cmd/compiler_opt_specialize.zi cmd/compiler_opt_thread.zi cmd/compiler_opt_accumulate.zi cmd/compiler_opt_dom.zi cmd/compiler_learning.zi cmd/compiler_learning_policy.zi cmd/compiler_learning_table.zi $(ASSEMBLY_MACHINE_SOURCES)
+ASSEMBLY_SOURCES += std/finite.zi
 
 ifneq ($(BOOTSTRAP),1)
 ifeq ($(NATIVE_HOST_ENABLED),1)

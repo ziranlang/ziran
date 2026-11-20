@@ -8,6 +8,73 @@
 #import "std/text_tools"
 using Vectors :: #import "std/vec"
 
+ObjectPins :: (test: *NativeTest, root: string) -> bool {
+    if !FixtureIsolation(test, root) { return false }
+    app := CheckPath(root, "app"); provider := CheckPath(root, "provider"); leaf := CheckPath(root, "leaf")
+    repos := string.[provider, leaf]
+    for repo: repos {
+        if !FixtureInit(test, repo) { return false }
+        origin := string.["remote", "add", "origin", FixtureUri(repo)]
+        unused FixtureGit(test, repo, origin[:])
+    }
+    if !NativeWrite(test, CheckPath(leaf, "VERSION"), "pinned source\n") { return false }
+    leaf_pin := FixtureCommit(test, leaf, "source payload")
+    provider_manifest := CheckPath(provider, "ziran.toml")
+    if !NativeWrite(test, provider_manifest, "[package\n") { return false }
+    older := FixtureCommit(test, provider, "malformed manifest")
+    dependency := string.["[package]\nname = \"Exact\"\n[dependencies.Leaf]\ngit = ", FixtureQuote(FixtureUri(leaf)),
+        "\nref = ", FixtureQuote(leaf_pin), "\nsource = true\n"]
+    if !NativeWrite(test, provider_manifest, TextJoin(dependency[:], "")) { return false }
+    pin := FixtureCommit(test, provider, "valid committed manifest")
+    move_branch := string.["update-ref", "refs/heads/master", older, pin]
+    unused FixtureGit(test, provider, move_branch[:])
+    if !NativeWrite(test, provider_manifest, "dirty working manifest\n") { return false }
+    status_args := string.["status", "--porcelain"]
+    before := FixtureGit(test, provider, status_args[:])
+    alias := string.["exact"]; target := string.[provider]
+    if !FixtureOverrides(test, app, alias[:], target[:]) { return false }
+    parts := string.["[package]\nname = \"Consumer\"\n[toolchain]\ngit = ", FixtureQuote(FixtureUri(provider)),
+        "\nref = ", FixtureQuote(older), "\n[dependencies.Exact]\ngit = ", FixtureQuote(FixtureUri(provider)),
+        "\nref = ", FixtureQuote(pin), "\n"]
+    manifest := TextDetach(TextJoin(parts[:], "")); manifest_path := CheckPath(app, "ziran.toml")
+    if !NativeWrite(test, manifest_path, manifest) { return false }
+    stores := CheckConcat(provider, CheckConcat(":", CheckPath(leaf, ".git")))
+    NativeSet(test, "ZIRAN_LOCK_GIT_OBJECTS", stores)
+    lock := string.["lock"]; unused PackageCommand(test, app, lock[:])
+    lock_path := CheckPath(app, "ziran.lock"); saved := NativeRead(test, lock_path)
+    document: JsonDocument
+    if !FixtureLock(test, app, *document) { return false }
+    digest := FixtureDigest(test, CheckConcat(FixtureUri(provider), CheckConcat("\n", pin)))
+    if !NativeAssert(test, digest.count == 64, "compute independent Git-object identity") { return false }
+    id := CheckConcat("p", TextDetach(TextCopy(digest[:16])))
+    exact := FixturePackage(*document, "Exact"); raw := FixturePackage(*document, "Leaf")
+    edges := JsonMember(*document, exact, "dependencies")
+    if !NativeAssert(test, CheckField(*document, exact, "id") == id && CheckField(*document, exact, "commit") == pin &&
+        CheckField(*document, raw, "commit") == leaf_pin && CheckField(*document, edges, "Leaf") == CheckField(*document, raw, "id"),
+        "lock lost exact identity or the committed transitive dependency") { return false }
+    unused PackageCommand(test, app, lock[:])
+    if !NativeAssert(test, NativeRead(test, lock_path) == saved, "object lock was not reproducible") { return false }
+    blob_arg := string.["rev-parse", CheckConcat(pin, ":ziran.toml")]
+    blob := FixtureGit(test, provider, blob_arg[:])
+    invalid := string.[older, blob, "ffffffffffffffffffffffffffffffffffffffff", "master", "bad ref"]
+    for wrong: invalid {
+        if !NativeWrite(test, manifest_path, TextReplace(manifest, pin, wrong)) { return false }
+        unused PackageCommand(test, app, lock[:], false)
+        if !NativeAssert(test, NativeRead(test, lock_path) == saved, "failed object lookup replaced the lock") { return false }
+    }
+    if !NativeWrite(test, manifest_path, manifest) { return false }
+    incomplete := string.[leaf, provider]
+    for missing: incomplete {
+        NativeSet(test, "ZIRAN_LOCK_GIT_OBJECTS", missing)
+        unused PackageCommand(test, app, lock[:], false)
+    }
+    NativeUnset(test, "ZIRAN_LOCK_GIT_OBJECTS")
+    head := string.["rev-parse", "HEAD"]
+    return NativeAssert(test, NativeRead(test, lock_path) == saved && !PathExists(CheckPath(root, "cache/ziran/sources")) &&
+        FixtureGit(test, provider, head[:]) == older && FixtureGit(test, provider, status_args[:]) == before &&
+        NativeRead(test, provider_manifest) == "dirty working manifest\n", "object lock changed a repository or populated the cache")
+}
+
 LockedPins :: (test: *NativeTest, root: string) -> bool {
     if !FixtureIsolation(test, root) { return false }
     NativeSet(test, "ZIRAN_PINNED_LAUNCHER", "1")
@@ -139,7 +206,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if test.failed { return 1 }
     defer NativeCleanup(*test)
     local_only := argc > 3 && TextFromCString(argv[3]) == "--local-overrides-only"
-    if !LockedPins(*test, CheckPath(test.work, "locked")) || (!local_only && !SharedCommit(*test, CheckPath(test.work, "shared"))) { return 1 }
-    print("Local package pins: offline immutable validation, atomic batches, false commits and shared branch/pin identities passed\n")
+    if !ObjectPins(*test, CheckPath(test.work, "objects")) || !LockedPins(*test, CheckPath(test.work, "locked")) ||
+        (!local_only && !SharedCommit(*test, CheckPath(test.work, "shared"))) { return 1 }
+    print("Local package pins: exact Git objects, offline immutable validation, atomic batches and false commits passed\n")
     return 0
 }

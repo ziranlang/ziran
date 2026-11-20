@@ -188,6 +188,11 @@ PkgStringList :: (document: *Toml.TomlDocument, node: s32, values: []string) -> 
 }
 
 PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
+    content: PkgReadResult = PkgRead(path)
+    return PkgParseManifestText(content, output)
+}
+
+PkgParseManifestText :: (content: PkgReadResult, output: *PkgManifest) -> bool {
     output.valid = false
     output.name = ""
     output.tool_git = ""
@@ -200,7 +205,6 @@ PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
     output.template_count = 0
     output.dependency_count = 0
     output.export_count = 0
-    content: PkgReadResult = PkgRead(path)
     if !content.valid { return false }
     document: Toml.TomlDocument
     // Package manifests may contain large export maps; callers of the public

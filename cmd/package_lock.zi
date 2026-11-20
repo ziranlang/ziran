@@ -6,6 +6,7 @@ Diagnostics :: #import "diagnostics"
 #import "file_linux"
 #import "byte_text_linux"
 #import "c_string"
+#import "number_text"
 
 #scope_export
 PkgLocked :: struct {
@@ -335,6 +336,110 @@ PkgGitHead :: (directory: string) -> string {
     result: PkgProcessResult = PkgCapture(args[0:6], "")
     if result.code != 0 || !PkgValidCommit(result.text) { return "" }
     return PkgJoin("", result.text)
+}
+
+// A lock assembled from objects must never consult a work tree, replacement
+// refs, or a promisor remote. Use an explicit Git directory for every read.
+PkgObjectCapture :: (directory: string, command: []string, capacity: u64 = 4096) -> PkgProcessResult {
+    names: [24]string
+    values: [24]string
+    count := PkgQuietGitEnv(names[:], values[:])
+    isolated := string.["GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_NAMESPACE", "GIT_CONFIG", "GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS"]
+    for name: isolated {
+        names[count] = name
+        values[count] = ""
+        count += 1
+    }
+    names[count] = "GIT_NO_LAZY_FETCH"
+    values[count] = "1"
+    count += 1
+    names[count] = "GIT_ALLOW_PROTOCOL"
+    values[count] = "none"
+    count += 1
+    arguments := PkgStrings(command.count + 4)
+    if arguments.count == 0 { return .{.code = -1} }
+    arguments[0] = "git"
+    arguments[1] = "--no-replace-objects"
+    arguments[2] = "--git-dir"
+    arguments[3] = directory
+    for index: cast(s64)0..cast(s64)command.count - 1 { arguments[index + 4] = command[index] }
+    return PkgCaptureEnvRaw(arguments, "", names[0:count], values[0:count], capacity)
+}
+
+PkgObjectOrigin :: (directory: string) -> string {
+    origin := string.["config", "--local", "--get-all", "remote.origin.url"]
+    actual := PkgObjectCapture(directory, origin[:])
+    return ifx actual.code == 0 then PkgTrim(actual.text) else ""
+}
+
+PkgObjectStore :: (stores: string, url: string, commit: string) -> string {
+    if PkgValidCommit(commit) {
+        selected: string = ""
+        at: s64 = 0
+        while at <= cast(s64)stores.count {
+            end := at
+            while end < cast(s64)stores.count && stores[end] != cast(u8)58 { end += 1 }
+            path := stores[at:end]
+            if path.count == 0 || path[0] != cast(u8)47 {
+                unused PkgFail("ZIRAN_LOCK_GIT_OBJECTS requires absolute repository paths")
+                return ""
+            }
+            directory := PkgCanonical(path)
+            if directory.count == 0 {
+                unused PkgFail(PkgJoin("cannot open Git object store: ", path))
+                return ""
+            }
+            git_dir := PkgJoin(directory, "/.git")
+            if !DirectoryExists(git_dir) { git_dir = directory }
+            origin := PkgObjectOrigin(git_dir)
+            if !PkgGitURL(origin) {
+                unused PkgFail(PkgJoin("Git object store needs one valid origin URL: ", path))
+                return ""
+            }
+            if PkgSameSource(origin, url) {
+                selected = git_dir
+                break
+            }
+            at = end + 1
+        }
+        // Use the existing cache only for sources without a nominated origin.
+        if selected.count == 0 {
+            cache := PkgJoin3(PkgCacheRoot(), "/sources/", PkgSourceId(PkgSourceKey(url), commit))
+            git_dir := PkgJoin(cache, "/.git")
+            if DirectoryExists(git_dir) && PkgSameSource(PkgObjectOrigin(git_dir), url) { selected = git_dir }
+        }
+        if selected.count > 0 {
+            verify := string.["rev-parse", "--verify", PkgJoin(commit, "^{commit}")]
+            revision := PkgObjectCapture(selected, verify[:])
+            if revision.code == 0 && PkgTrim(revision.text) == commit { return selected }
+        }
+    }
+    unused PkgFail(PkgJoin3("no exact commit in local Git object stores for ", url,
+        PkgJoin(" at ", commit)))
+    return ""
+}
+
+PkgObjectManifest :: (directory: string, commit: string, manifest: *PkgManifest) -> bool {
+    list := string.["ls-tree", commit, "--", "ziran.toml"]
+    tree := PkgObjectCapture(directory, list[:])
+    entry := PkgTrim(tree.text)
+    if tree.code == 0 && entry.count == 63 &&
+       (entry[0:12] == "100644 blob " || entry[0:12] == "100755 blob ") &&
+       entry[52:63] == "\tziran.toml" && PkgValidCommit(entry[12:52]) {
+        size_args := string.["cat-file", "-s", entry[12:52]]
+        size := PkgObjectCapture(directory, size_args[:])
+        size_text := PkgTrim(size.text)
+        bytes, digits := IntegerPrefix(size_text)
+        if size.code == 0 && bytes > 0 && bytes <= 16777216 && digits == cast(s64)size_text.count {
+            read := string.["cat-file", "blob", entry[12:52]]
+            blob := PkgObjectCapture(directory, read[:], cast(u64)bytes + 1)
+            if blob.code == 0 && cast(s64)blob.text.count == bytes &&
+               PkgParseManifestText(.{.text = blob.text, .valid = true}, manifest) { return true }
+        }
+    }
+    unused PkgFail(PkgJoin3("invalid or missing ziran.toml in ", directory, PkgJoin(" at ", commit)))
+    return false
 }
 
 // Only an explicit override may select an unborn checkout. Verify the actual
@@ -840,8 +945,9 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
     if current == null || old == null || resolved == null || overrides == null {
         return false
     }
+    objects := ifx refresh == "" then PkgGetenv("ZIRAN_LOCK_GIT_OBJECTS") else ""
     if !PkgParseManifest(PkgJoin(root, "/ziran.toml"), current) ||
-       !PkgParseOverrides(PkgJoin(root, "/ziran.local.toml"), overrides) { return false }
+       (objects.count == 0 && !PkgParseOverrides(PkgJoin(root, "/ziran.local.toml"), overrides)) { return false }
     PkgReadLock(PkgJoin(root, "/ziran.lock"), old)
     targeted: bool = refresh != "" && refresh != "*" && refresh != "ziran"
     if targeted && old.valid && PkgValidDevelopment(old.tool_commit) {
@@ -879,7 +985,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
         }
         return PkgWriteLock(root, old)
     }
-    return PkgResolveGraph(root, refresh, false, current, old, overrides, resolved) &&
+    return PkgResolveGraph(root, refresh, false, current, old, overrides, resolved, objects) &&
         PkgWriteLock(root, resolved)
 }
 
@@ -888,7 +994,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
 // declarations that ziran.lock does not pin yet.
 PkgResolveGraph :: (root: string, refresh: string, offline: bool,
     current: *PkgManifest, old: *PkgLock, overrides: *PkgOverrides,
-    resolved: *PkgLock) -> bool {
+    resolved: *PkgLock, objects: string = "") -> bool {
     targeted: bool = refresh != "" && refresh != "*" && refresh != "ziran"
     if refresh != "" && refresh != "*" && refresh != "ziran" {
         found: bool = false
@@ -944,9 +1050,15 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
             override: string = PkgSourceOverride(overrides, current, old,
                 next.url, next.alias, root)
             previous: s32 = PkgFindBySource(old, next.url, next.ref, next.source)
+            git_dir: string = ""
             // A targeted update reads an unrelated package's pinned manifest,
             // even when its development override has newer or dirty inputs.
-            if targeted && old.valid && previous >= 0 && !next.refresh {
+            if objects.count > 0 {
+                item.commit = next.ref
+                if !PkgValidCommit(item.commit) && previous >= 0 { item.commit = old.packages[previous].commit }
+                git_dir = PkgObjectStore(objects, next.url, item.commit)
+                if git_dir.count == 0 { return false }
+            } else if targeted && old.valid && previous >= 0 && !next.refresh {
                 if PkgValidDevelopment(old.packages[previous].commit) {
                     unused PkgFail("targeted update cannot preserve an unborn package snapshot; run ziran lock or ziran update")
                     return false
@@ -972,7 +1084,8 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
                 }
                 item.path = PkgCheckout(next.url, item.commit, offline)
             }
-            if (!PkgValidCommit(item.commit) && !PkgValidDevelopment(item.commit)) || item.path.count == 0 {
+            if (!PkgValidCommit(item.commit) && !PkgValidDevelopment(item.commit)) ||
+               (git_dir.count == 0 && item.path.count == 0) {
                 return false
             }
             // Manifests may name one commit by different refs, a branch in
@@ -993,7 +1106,9 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
                 if item.source {
                     item.name = PkgJoin("", next.alias)
                 } else {
-                    if !PkgParseManifest(PkgJoin(item.path, "/ziran.toml"),
+                    if git_dir.count > 0 {
+                        if !PkgObjectManifest(git_dir, item.commit, *item.manifest) { return false }
+                    } else if !PkgParseManifest(PkgJoin(item.path, "/ziran.toml"),
                         *item.manifest) { return false }
                     item.name = item.manifest.name
                 }
@@ -1050,7 +1165,12 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
     resolved.tool_url = current.tool_git
     resolved.tool_ref = current.tool_ref
     tool_override: string = PkgFindOverride(overrides, "ziran", root)
-    if targeted && old.valid && PkgValidCommit(old.tool_commit) && PkgSameSource(old.tool_url, resolved.tool_url) &&
+    if objects.count > 0 {
+        resolved.tool_commit = resolved.tool_ref
+        if !PkgValidCommit(resolved.tool_commit) && old.valid && PkgSameSource(old.tool_url, resolved.tool_url) &&
+           old.tool_ref == resolved.tool_ref { resolved.tool_commit = old.tool_commit }
+        return PkgObjectStore(objects, resolved.tool_url, resolved.tool_commit).count > 0
+    } else if targeted && old.valid && PkgValidCommit(old.tool_commit) && PkgSameSource(old.tool_url, resolved.tool_url) &&
        old.tool_ref == resolved.tool_ref {
         resolved.tool_commit = old.tool_commit
     } else if tool_override.count > 0 {

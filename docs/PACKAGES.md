@@ -266,6 +266,26 @@ ziran build --project --target=c --entry app:main -o build/c
 keeping unrelated packages pinned. `ziran update ziran` refreshes only the
 compiler toolchain.
 
+To generate a normal lock directly from local Git objects, set
+`ZIRAN_LOCK_GIT_OBJECTS` for `ziran lock`:
+
+```sh
+ZIRAN_LOCK_GIT_OBJECTS=/repos/plot:/repos/ziran ziran lock
+```
+
+List absolute paths to Git directories or repository roots containing a
+`.git` directory, separated by colons. For each dependency and the toolchain,
+Ziran verifies the exact commit in the
+first store whose `origin` matches the declared URL, using the usual HTTPS
+and SSH equivalence. Other sources use existing exact-commit cache entries.
+A branch or tag declaration requires a matching pin in the existing lock.
+Ziran reads package manifests from the pinned commits, ignores
+`ziran.local.toml`, and leaves the repositories and source cache alone.
+Missing stores, commits, or valid manifests fail the lock command without
+fetching or creating checkouts. The resulting lock uses the usual format and
+can be used with `--locked` once the project's development overrides are removed.
+Build commands still require their normal locked source checkouts.
+
 `--locked` requires a matching lock and ignores local development overrides;
 `--offline` requires cached checkouts. The cache is under
 `$XDG_CACHE_HOME/ziran` or `~/.cache/ziran`.

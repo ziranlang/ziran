@@ -297,12 +297,19 @@ PkgCaptureRaw :: (arguments: []string, cwd: string) -> PkgProcessResult {
 
 PkgCaptureEnv :: (arguments: []string, cwd: string, names: []string,
     values: []string) -> PkgProcessResult {
+    result := PkgCaptureEnvRaw(arguments, cwd, names, values, 1048576)
+    result.text = PkgTrim(result.text)
+    return result
+}
+
+PkgCaptureEnvRaw :: (arguments: []string, cwd: string, names: []string,
+    values: []string, capacity: u64) -> PkgProcessResult {
     result: PkgProcessResult
-    memory: *u8 = PkgMallocRaw(1048576)
+    memory: *u8 = PkgMallocRaw(capacity)
     if memory == null { result.code = -1; return result }
-    output: []u8 = BytesFromPointer(memory, 1048576)
+    output: []u8 = BytesFromPointer(memory, capacity)
     result.code = RunProcess(arguments, cwd, names, values, output)
-    result.text = PkgTrim(TextFromCString(memory))
+    result.text = TextFromCString(memory)
     return result
 }
 

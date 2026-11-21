@@ -1083,54 +1083,48 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
         pending_count -= 1
         found: s32 = PkgFindBySource(resolved, next.url, next.ref, next.source)
         if found < 0 {
-            if resolved.count >= 64 { return false }
-            found = resolved.count
-            item: *PkgLocked = *resolved.packages[found]
-            item.url = next.url
-            item.ref = next.ref
             override: string = PkgSourceOverride(overrides, current, old,
                 next.url, next.alias, root)
             previous: s32 = PkgFindBySource(old, next.url, next.ref, next.source)
+            commit: string = ""
+            path: string = ""
             git_dir: string = ""
             // A targeted update reads an unrelated package's pinned manifest,
             // even when its development override has newer or dirty inputs.
             if objects.count > 0 {
-                item.commit = next.ref
-                if !PkgValidCommit(item.commit) && previous >= 0 { item.commit = old.packages[previous].commit }
-                git_dir = PkgObjectStore(objects, next.url, item.commit)
+                commit = next.ref
+                if !PkgValidCommit(commit) && previous >= 0 { commit = old.packages[previous].commit }
+                git_dir = PkgObjectStore(objects, next.url, commit)
                 if git_dir.count == 0 { return false }
             } else if targeted && old.valid && previous >= 0 && !next.refresh {
                 if PkgValidDevelopment(old.packages[previous].commit) {
                     unused PkgFail("targeted update cannot preserve an unborn package snapshot; run ziran lock or ziran update")
                     return false
                 }
-                item.commit = old.packages[previous].commit
+                commit = old.packages[previous].commit
             } else if override.count > 0 {
-                item.commit = PkgOverrideIdentity(override)
-                item.path = override
-                if item.commit.count == 0 {
-                    return false
-                }
+                commit = PkgOverrideIdentity(override)
+                path = override
             } else {
                 if previous >= 0 && PkgValidCommit(old.packages[previous].commit) && !next.refresh &&
                     (!PkgValidCommit(next.ref) || old.packages[previous].commit == next.ref) {
-                    item.commit = old.packages[previous].commit
+                    commit = old.packages[previous].commit
                 } else if offline && !PkgValidCommit(next.ref) {
                     unused PkgFail(PkgJoin3("cannot resolve ", next.alias,
                         PkgJoin3(" ", next.ref, " offline; ziran.lock does not pin it")))
                     return false
                 } else {
-                    item.commit = PkgRemoteCommit(next.url, next.ref)
+                    commit = PkgRemoteCommit(next.url, next.ref)
                 }
             }
-            if !PkgValidCommit(item.commit) && !PkgValidDevelopment(item.commit) {
+            if !PkgValidCommit(commit) && !PkgValidDevelopment(commit) {
                 return false
             }
             // Manifests may name one commit by different refs, a branch in
             // one and that branch's commit in another. They are one package:
             // a second copy would give the lock two entries with one id. The
             // entry keeps the branch; pins match it by commit (PkgRefMatches).
-            source_id: string = PkgLockId(item.url, item.commit, next.source)
+            source_id: string = PkgLockId(next.url, commit, next.source)
             same: s32 = PkgFindById(resolved, source_id)
             if same >= 0 {
                 found = same
@@ -1138,6 +1132,14 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
                     resolved.packages[same].ref = next.ref
                 }
             } else {
+                // Only write the next slot once this source needs a new entry.
+                if resolved.count >= 64 { return false }
+                found = resolved.count
+                item: *PkgLocked = *resolved.packages[found]
+                item.url = next.url
+                item.ref = next.ref
+                item.commit = commit
+                item.path = path
                 // A source package is a pinned checkout for platform builds. It
                 // has no manifest, modules, or dependencies of its own.
                 item.source = next.source

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Package locks preserve each dependency's own name and exports when multiple refs select the same local override.
+
 - The portable ZX engine reuses storage for temporary derived addresses across branches, so loops can traverse large buffers without filling the address table.
 
 - Native ZX can run with a smaller temporary frame arena when the host cannot reserve 256 MiB of contiguous address space.

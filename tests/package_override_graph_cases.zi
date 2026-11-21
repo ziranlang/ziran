@@ -41,6 +41,58 @@ GraphReverse :: (document: *JsonDocument) {
     unused JsonSet(document, document.root, "packages", reversed)
 }
 
+OverrideThenPinnedPackage :: (test: *NativeTest, root: string) -> bool {
+    if !FixtureIsolation(test, root) { return false }
+    NativeSet(test, "ZIRAN_PINNED_LAUNCHER", "1")
+    shared := CheckPath(root, "shared")
+    provider := CheckPath(root, "provider")
+    pinned := CheckPath(root, "pinned")
+    app := CheckPath(root, "app")
+    if !FixtureInit(test, shared) || !FixtureInit(test, provider) || !FixtureInit(test, pinned) ||
+        !NativeWrite(test, CheckPath(shared, "ziran.toml"), GraphManifest("Shared")) ||
+        !NativeWrite(test, CheckPath(shared, "src/Value.zi"), "Number :: 2;\n") ||
+        !NativeWrite(test, CheckPath(pinned, "ziran.toml"),
+            "[package]\nname = \"Pinned\"\n[exports]\nAnswer = \"src/Answer.zi\"\n") ||
+        !NativeWrite(test, CheckPath(pinned, "src/Answer.zi"), "Number :: 40;\n") { return false }
+    shared_ref := FixtureCommit(test, shared, "shared fixture")
+    pinned_ref := FixtureCommit(test, pinned, "pinned fixture")
+    parts := string.[GraphManifest("Provider"), "[dependencies.shared]\ngit = ", FixtureQuote(FixtureUri(shared)),
+        "\nref = ", FixtureQuote(shared_ref), "\n[dependencies.pinned]\ngit = ", FixtureQuote(FixtureUri(pinned)),
+        "\nref = ", FixtureQuote(pinned_ref), "\n"]
+    if !NativeWrite(test, CheckPath(provider, "ziran.toml"), TextJoin(parts[:], "")) ||
+        !NativeWrite(test, CheckPath(provider, "src/Value.zi"),
+            "Shared :: #import \"shared/Value\"\nPinned :: #import \"pinned/Answer\"\nAnswer :: () -> s32 { return Shared.Number + Pinned.Number }\n") { return false }
+    unused FixtureCommit(test, provider, "provider fixture")
+    manifest := string.["[package]\nname = \"Consumer\"\n[toolchain]\ngit = ", FixtureQuote(FixtureUri(test.repo)),
+        "\n[dependencies.shared]\ngit = ", FixtureQuote(FixtureUri(shared)),
+        "\n[dependencies.provider]\ngit = ", FixtureQuote(FixtureUri(provider)), "\n"]
+    aliases := string.["ziran", "shared", "provider"]
+    paths := string.[test.repo, shared, provider]
+    if !NativeWrite(test, CheckPath(app, "ziran.toml"), TextJoin(manifest[:], "")) ||
+        !NativeWrite(test, CheckPath(app, "src/main.zi"),
+            "Provider :: #import \"provider/Value\"\n#program_export\nmain :: () -> s32 { return Provider.Answer() - 42 }\n") ||
+        !FixtureOverrides(test, app, aliases[:], paths[:]) { return false }
+
+    lock := string.["lock"]
+    unused PackageCommand(test, app, lock[:])
+    document: JsonDocument
+    if !FixtureLock(test, app, *document) { return false }
+    pinned_item := FixturePackage(*document, FixtureUri(pinned), "url")
+    provider_edges := JsonMember(*document, FixturePackage(*document, "Provider"), "dependencies")
+    if !NativeAssert(test, CheckField(*document, pinned_item, "name") == "Pinned" &&
+        CheckField(*document, pinned_item, "commit") == pinned_ref &&
+        CheckField(*document, provider_edges, "pinned") == CheckField(*document, pinned_item, "id"),
+        "a merged override leaked its checkout into the following pinned package") { return false }
+
+    saved := NativeRead(test, CheckPath(app, "ziran.lock"))
+    offline_lock := string.["lock", "--offline"]
+    unused PackageCommand(test, app, offline_lock[:])
+    run := string.["run", "--project", "--offline", "--target=c", "src/main.zi"]
+    unused PackageCommand(test, app, run[:])
+    return NativeAssert(test, NativeRead(test, CheckPath(app, "ziran.lock")) == saved,
+        "offline resolution changed the pinned package graph") && !test.failed
+}
+
 OverrideGraph :: (test: *NativeTest) -> bool {
     root := test.work
     if !FixtureIsolation(test, root) { return false }
@@ -256,7 +308,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "package-override-graph-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)
-    if !OverrideGraph(*test) { return 1 }
+    if !OverrideThenPinnedPackage(*test, CheckPath(test.work, "pinned-after-override")) || !OverrideGraph(*test) { return 1 }
     print("Local override graphs: divergent pins, source/type identities, manifest drift and dependency inventories passed\n")
     return 0
 }

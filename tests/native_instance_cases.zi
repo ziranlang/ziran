@@ -19,6 +19,8 @@ InstanceBackend :: (instance: *void) -> s32 #foreign host "BundleInstanceBackend
 RunInstance :: (instance: *void, result: *s64, present: *s32) -> s32 #foreign host "BundleInstanceRun";
 AddressLimit :: struct { current: usize; maximum: usize }
 SetAddressLimit :: (resource: s32, limit: *AddressLimit) -> s32 #foreign libc "setrlimit";
+MapAnonymous :: (address: *void, length: usize, protection: s32, flags: s32, fd: s32, offset: s64) -> *void #foreign libc "mmap64";
+Unmap :: (address: *void, length: usize) -> s32 #foreign libc "munmap";
 
 // Public ziran_host.h ABI. Keep the callback and its assertions in Ziran.
 HostValue :: struct {
@@ -72,7 +74,17 @@ LifetimeCallback :: (opaque: *void, module: *u8, function: *u8,
     return 1
 }
 
+CanReserve :: (bytes: usize) -> bool {
+    memory := MapAnonymous(null, bytes, 0, 34, -1, 0)
+    if cast(usize)memory == cast(usize)-1 { return false }
+    return Unmap(memory, bytes) == 0
+}
+
 ReentrantInstances :: (path: *u8) -> s32 {
+    // Even a single preferred 256 MiB reservation cannot fit. The callback
+    // chain needs distinct live arenas for A and B under this limit.
+    limit := AddressLimit.{current = 234881024, maximum = 234881024}
+    if SetAddressLimit(9, *limit) != 0 { return 2 }
     bundle := OpenBundle(path)
     if bundle == null { return 10 }
     defer CloseBundle(bundle)
@@ -91,17 +103,26 @@ ReentrantInstances :: (path: *u8) -> s32 {
     if b == null || InstanceBackend(b) < 3 { return 12 }
     defer CloseInstance(b)
     left.peer = b; right.peer = a
+    // Measure free space with both instances open. Allow a small margin for
+    // persistent allocations while detecting a leaked active reservation.
+    step: usize = 8388608
+    probe := limit.current - step
+    while probe > step && !CanReserve(probe) { probe -= step }
+    probe -= step
+    if probe < 67108864 { return 18 }
     for round: 0..3 {
         answer: s64; present: s32
         if RunInstance(a, *answer, *present) == 0 || present != 1 || answer != 42 { return 13 }
     }
     if calls != 12 || validated != 12 || depth != 0 { return 14 }
+    if !CanReserve(probe) { return 19 }
     // A failed inner host call also unwinds its scratch without freeing the
     // outer callbacks' arguments. Failed instances are closed, never reused.
     fail_leaf = 1
     answer: s64; present: s32
     if RunInstance(a, *answer, *present) != 0 { return 16 }
     if calls != 15 || validated != 15 || depth != 0 { return 17 }
+    if !CanReserve(probe) { return 20 }
     return 0
 }
 
@@ -207,8 +228,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
         if test.failed { return 1 }
         callback := string.[TextFromCString(argv[0]), "--reentrant-instances", lifetime]
         nested := NativeInvoke(*test, callback[:])
+        if nested.code != 0 { print("reentrant child exited with %\n", nested.code) }
         if !NativeAssert(*test, nested.code == 0,
-            CheckConcat("borrowed arguments and returned values across native A -> B -> A callbacks: ", CheckConcat(nested.output, nested.error))) { return 1 }
+            CheckConcat("native A -> B -> A callbacks under a 224 MiB address limit: ", CheckConcat(nested.output, nested.error))) { return 1 }
     }
     return 0
 }

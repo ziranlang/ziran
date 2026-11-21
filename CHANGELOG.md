@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Native ZX can run with a smaller temporary frame arena when the host cannot reserve 256 MiB of contiguous address space.
+
 - Speed up SHA-256 verification on hosts without SHA instructions.
 
 - Package tested native Ziran toolchains in Gitea by exact source revision and Linux host profile.

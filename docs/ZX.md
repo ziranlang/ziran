@@ -116,7 +116,11 @@ The platform makes that choice, never the bundle: a bundle native code cannot
 run fails before it starts with a named gap. `--backend engine` picks the
 engine explicitly. Native code follows manual safety like C: a pointer is its
 address and indexes are raw, and each run of `allocate` gets fresh zeroed
-storage that lasts until its frame returns. A bundle built with `--checks`
+storage that lasts until its frame returns. Each active instance reserves a
+contiguous frame arena for its outer call. The runtime tries smaller arenas
+if the host cannot reserve the preferred 256 MiB. A frame allocation beyond
+the mapped extent traps, and the reservation is released when the call ends.
+A bundle built with `--checks`
 (header flag 1 of its instructions) checks every pointer as the engine does:
 a read through a pointer into a returned frame, a use after `free`, a second
 `free`, a store through read-only bytes and an index out of range all trap.

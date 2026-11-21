@@ -1738,6 +1738,33 @@ native_fuel(const NativeInstance *instance)
     return fuel;
 }
 
+/* Reserve one contiguous extent for the duration of the outer call. Under
+ * address-space pressure a smaller extent can still fit the active frames.
+ * Generated code checks allocations against the end of the actual mapping. */
+static int
+native_reserve_frames(ZirNativeMapping *frames)
+{
+    size_t bytes = MachinePointerArenaBytes;
+    size_t page = 0;
+    for(;;) {
+        if(ZirNativeReserve(bytes, frames)) {
+            if((uintptr_t)frames->address <= UINTPTR_MAX - frames->size)
+                return 1;
+            ZirNativeRelease(frames);
+            errno = ENOMEM;
+        }
+        if(errno != ENOMEM)
+            return 0;
+        if(page == 0)
+            page = ZirNativePageSize();
+        bytes /= 2;
+        if(page == 0 || bytes < page) {
+            errno = ENOMEM;
+            return 0;
+        }
+    }
+}
+
 /* 1 after a return, 0 for an instance a trap already ended or whose steps
  * ran out before it started, -1 for a trap now, which the caller reports. */
 static int
@@ -1759,7 +1786,7 @@ native_call(NativeInstance *instance, void *address, long long *result)
         /* Frame addresses are valid only while their call is active. Keeping
          * this reservation in idle instances exhausts a 32-bit host's address
          * space after a few bundles, even though almost none is resident. */
-        if(!ZirNativeReserve(MachinePointerArenaBytes, &instance->frames)) {
+        if(!native_reserve_frames(&instance->frames)) {
             int error = errno;
             Diagnostic((ZirSourceSpan){0}, "zx.native.pointers",
                 "cannot reserve active frame arena for %s (bytes=%llu errno=%d)",
@@ -1768,10 +1795,10 @@ native_call(NativeInstance *instance, void *address, long long *result)
             instance->terminal = 1;
             return 0;
         }
-        unsigned char *base = instance->frames.address;
-        native_set_header(instance, MachinePointerHeaderArenaTop, (uint64_t)(uintptr_t)base);
+        uintptr_t base = (uintptr_t)instance->frames.address;
+        native_set_header(instance, MachinePointerHeaderArenaTop, (uint64_t)base);
         native_set_header(instance, MachinePointerHeaderArenaLimit,
-            (uint64_t)(uintptr_t)(base + MachinePointerArenaBytes));
+            (uint64_t)(base + instance->frames.size));
         memcpy(instance->data + instance->fuel_offset, &budget, sizeof(budget));
     }
     int called = native_call_entry(instance, address, result);

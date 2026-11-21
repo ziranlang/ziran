@@ -102,7 +102,11 @@ The platform makes that choice, never the bundle: a bundle native code cannot
 run fails before it starts with a named gap. <code>--backend engine</code> picks the
 engine explicitly. Native code follows manual safety like C: a pointer is its
 address and indexes are raw, and each run of <code>allocate</code> gets fresh zeroed
-storage that lasts until its frame returns. A bundle built with <code>--checks</code>
+storage that lasts until its frame returns. Each active instance reserves a
+contiguous frame arena for its outer call. The runtime tries smaller arenas
+if the host cannot reserve the preferred 256 MiB. A frame allocation beyond
+the mapped extent traps, and the reservation is released when the call ends.
+A bundle built with <code>--checks</code>
 (header flag 1 of its instructions) checks every pointer as the engine does:
 a read through a pointer into a returned frame, a use after <code>free</code>, a second
 <code>free</code>, a store through read-only bytes and an index out of range all trap.
@@ -247,6 +251,16 @@ Instantiation copies the binding names and indexes them, so caller order does
 not matter. Separate instances of one bundle may run concurrently; each owns its
 globals, which persist across <code>BundleInstanceRun</code> calls. Global initializers run
 when the instance opens.</p>
+<p>For app images without assets, module linkage or additional attachments,
+<code>BundleOpenReadAt</code> verifies a seekable image without retaining the input
+bytes. Provide the image size (up to 256 MiB) and a callback that fills each
+requested range and returns its exact byte count. The source must stay stable
+until open returns. Verification rejects short reads, read errors, and changed
+bytes on a repeated read. The returned bundle owns its decoded program and
+has the same SHA-256 identity as the byte-based open functions. You can close
+the source and dispose of the callback context as soon as open returns.
+If the optional <code>unsupported</code> output is 1, the source profile cannot verify
+the image. The caller can explicitly retry through <code>BundleOpenOwnedBytes</code>.</p>
 <p>Each host call is translated between the engine's host image and <code>HostValue</code>
 trees by the host interface section. A value's type is the spelling declared at
 its position, and a spelling that starts with <code>u</code> is unsigned; a <code>u64</code> above the

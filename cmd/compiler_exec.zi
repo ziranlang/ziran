@@ -625,16 +625,16 @@ ExecPlanEdgeDirectSafe :: (plan: *LirExecPlan, base: s64, types: []s32,
     return true
 }
 
-// Records and arrays that are never needed at the same time share one frame
-// slot: an Insert's result with its aggregate, and a block parameter with
-// the arguments its edges pass, unless some value of one is live where a
-// value of the other is defined. An in-place Insert and an edge between
-// values of one slot then move no bytes (their work is charged as before).
+// Coalesce Inserts and edge arguments first to avoid copies. A large member
+// can take over a dead aggregate's slot. Other large values of the same type
+// reuse slots when their live ranges do not overlap. Work charges stay fixed.
 // Liveness is exact over the function's blocks. A function with more
 // composite values than ExecCoalesceLimit keeps the local rules alone.
 ExecCoalesceLimit :: 4096
+ExecLargeSlotBytes :: 4096
 
-ExecPlanCoalesce :: (program: LirProgram, function: LirFunction, aliases: *Vec(s32)) -> bool {
+ExecPlanCoalesce :: (program: LirProgram, function: LirFunction, type_sizes: []s64,
+    aliases: *Vec(s32), slot_sizes: *Vec(s64)) -> bool {
     count := function.values.count
     index: Vec(s64)
     values: Vec(s32)
@@ -706,7 +706,7 @@ ExecPlanCoalesce :: (program: LirProgram, function: LirFunction, aliases: *Vec(s
             for instruction: block.instructions {
                 if pass == 0 && instruction.op == .Insert && instruction.result != LirNoId &&
                     instruction.operands.count >= 2 {
-                    ExecCoalescePair(function, index[:], values[:], parent[:], conflicts[:], members[:], words,
+                    ExecCoalescePair(function, index[:], parent[:], conflicts[:], members[:], words,
                         instruction.result, instruction.operands[0])
                 }
                 if pass == 1 {
@@ -714,7 +714,7 @@ ExecPlanCoalesce :: (program: LirProgram, function: LirFunction, aliases: *Vec(s
                         target := function.blocks[edge.block]
                         for at: cast(s64)0..edge.arguments.count - 1 {
                             if at >= target.parameters.count { break }
-                            ExecCoalescePair(function, index[:], values[:], parent[:], conflicts[:], members[:],
+                            ExecCoalescePair(function, index[:], parent[:], conflicts[:], members[:],
                                 words, target.parameters[at], edge.arguments[at])
                         }
                     }
@@ -722,9 +722,37 @@ ExecPlanCoalesce :: (program: LirProgram, function: LirFunction, aliases: *Vec(s
             }
         }
     }
+    shared_projection := false
+    for block: function.blocks {
+        for instruction: block.instructions {
+            if instruction.op != .Extract || index[instruction.result] < 0 ||
+                type_sizes[function.values[instruction.result]] < ExecLargeSlotBytes { continue }
+            // Extract copies from a member at or above the slot base to the
+            // base, so an overlapping copy is safe when the input is dead.
+            source := index[instruction.operands[0]]
+            destination := index[instruction.result]
+            if ExecCoalesceGroups(parent[:], conflicts[:], members[:], words, source, destination) {
+                shared_projection = true
+            }
+        }
+    }
+    for at: cast(s64)0..total - 1 {
+        if parent[at] != at || type_sizes[function.values[values[at]]] < ExecLargeSlotBytes { continue }
+        for slot: cast(s64)0..at - 1 {
+            if parent[slot] != slot { continue }
+            ExecCoalescePair(function, index[:], parent[:], conflicts[:], members[:], words,
+                values[at], values[slot])
+            if parent[at] != at { break }
+        }
+    }
+    if shared_projection && !VecResizeBounded(<<slot_sizes, count, count) { return false }
     for at: cast(s64)0..total - 1 {
         root := ExecCoalesceRoot(parent[:], at)
         (<<aliases)[values[at]] = ifx root == at then LirNoId else values[root]
+        if shared_projection {
+            size := type_sizes[function.values[values[at]]]
+            if size > (<<slot_sizes)[values[root]] { (<<slot_sizes)[values[root]] = size }
+        }
     }
     return true
 }
@@ -742,7 +770,17 @@ ExecLiveBlock :: (block: LirBlock, index: []s64, live: []u64, conflicts: []u64, 
         if instruction.result != LirNoId && index[instruction.result] >= 0 {
             defined := index[instruction.result]
             ExecLiveSet(live, defined, false)
-            if record { ExecLiveConflicts(live, conflicts, words, defined) }
+            if record {
+                ExecLiveConflicts(live, conflicts, words, defined)
+                // An instruction may write its result before it has read all
+                // operands. Insert and Extract support reusing their first one.
+                for operand, position: instruction.operands {
+                    source := index[operand]
+                    if source >= 0 && !(position == 0 && (instruction.op == .Insert || instruction.op == .Extract)) {
+                        ExecConflict(conflicts, words, defined, source)
+                    }
+                }
+            }
         }
         for operand: instruction.operands { ExecLiveSet(live, index[operand], true) }
         at -= 1
@@ -803,23 +841,28 @@ ExecCoalesceRoot :: (parent: []s64, at: s64) -> s64 {
 
 // Puts two values of one type in one slot unless their groups conflict.
 // A group's root is its lowest-numbered value, which is laid out first.
-ExecCoalescePair :: (function: LirFunction, index: []s64, values: []s32, parent: []s64,
+ExecCoalescePair :: (function: LirFunction, index: []s64, parent: []s64,
     conflicts: []u64, members: []u64, words: s64, left: s32, right: s32) {
     if left == LirNoId || right == LirNoId || index[left] < 0 || index[right] < 0 ||
         function.values[left] != function.values[right] { return }
-    a := ExecCoalesceRoot(parent, index[left])
-    b := ExecCoalesceRoot(parent, index[right])
-    if a == b { return }
+    unused ExecCoalesceGroups(parent, conflicts, members, words, index[left], index[right])
+}
+
+ExecCoalesceGroups :: (parent: []s64, conflicts: []u64, members: []u64, words: s64, left: s64, right: s64) -> bool {
+    a := ExecCoalesceRoot(parent, left)
+    b := ExecCoalesceRoot(parent, right)
+    if a == b { return false }
     for word: cast(s64)0..words - 1 {
-        if (conflicts[a * words + word] & members[b * words + word]) != 0 { return }
+        if (conflicts[a * words + word] & members[b * words + word]) != 0 { return false }
     }
-    root := ifx values[a] < values[b] then a else b
+    root := ifx a < b then a else b
     other := ifx root == a then b else a
     for word: cast(s64)0..words - 1 {
         conflicts[root * words + word] |= conflicts[other * words + word]
         members[root * words + word] |= members[other * words + word]
     }
     parent[other] = root
+    return true
 }
 
 ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> LirExecProblem {
@@ -966,7 +1009,9 @@ ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> 
                 }
             }
         }
-        if !ExecPlanCoalesce(program, function, *aliases) { return .Allocation }
+        slot_sizes: Vec(s64)
+        defer VecFree(slot_sizes)
+        if !ExecPlanCoalesce(program, function, plan.type_sizes[:], *aliases, *slot_sizes) { return .Allocation }
         base := value_at
         offset: s64
         words: s64
@@ -983,7 +1028,7 @@ ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> 
                 words += 1
             } else {
                 plan.value_locations[value_at] = ~offset
-                size := plan.type_sizes[value]
+                size := ifx slot_sizes.count == 0 then plan.type_sizes[value] else slot_sizes[value_index]
                 if size > maximum - offset { return .ValueBytes }
                 offset += size
             }

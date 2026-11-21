@@ -358,6 +358,120 @@ ArraysAndInsert :: () -> bool {
     return true
 }
 
+LargeSnapshotSlots :: () -> bool {
+    fields: [2]s32 = .[1, 2]
+    types: [7]LirType = .[.{.kind = .Void}, .{.kind = .Integer, .bits = 32},
+        .{.kind = .Array, .element = 1, .count = 1024}, .{.kind = .Record, .fields = fields[:]},
+        .{.kind = .Pointer, .element = 3}, .{.kind = .Pointer, .element = 1},
+        .{.kind = .Bool, .bits = 1}]
+    constants: [5]LirConstant = .[.{.type = 1, .bits = 19}, .{.type = 1, .bits = 23},
+        .{.type = 1, .bits = 0}, .{.type = 1, .bits = 1}, .{.type = 1, .bits = 2}]
+    globals: [1]LirGlobal = .[.{.module = 0, .name = "current", .type = 3, .constant = -1, .writable = true}]
+    empty: [0]s32
+    record_pointer: [1]s32 = .[0]
+    store_first: [2]s32 = .[1, 2]; store_second: [2]s32 = .[1, 4]
+    first_snapshot: [1]s32 = .[3]; second_snapshot: [1]s32 = .[5]
+    sum: [2]s32 = .[6, 7]
+    initial_count: [1]s32 = .[9]
+    enter: [1]LirEdge = .[.{.block = 1, .arguments = initial_count[:]}]
+    entry: [13]LirInstruction = .[Instruction(.GlobalAddress, 0, empty[:], 0),
+        Instruction(.FieldAddress, 1, record_pointer[:]), Instruction(.Constant, 2, empty[:], 0),
+        Instruction(.Store, -1, store_first[:]), Instruction(.Load, 3, record_pointer[:]),
+        Instruction(.Constant, 4, empty[:], 1), Instruction(.Store, -1, store_second[:]),
+        Instruction(.Load, 5, record_pointer[:]), Instruction(.Call, 6, second_snapshot[:], 1),
+        Instruction(.Extract, 7, first_snapshot[:]), Instruction(.Add, 8, sum[:]),
+        Instruction(.Constant, 9, empty[:], 2), Instruction(.Jump, -1, empty[:])]
+    entry[3].effect = 1; entry[4].effect = 2; entry[6].effect = 3
+    entry[7].effect = 4; entry[8].effect = 5
+    entry[12].edges = enter[:]
+
+    counter: [1]s32 = .[10]; later_snapshot: [1]s32 = .[11]
+    store_count: [2]s32 = .[1, 10]
+    increment: [2]s32 = .[10, 13]; limit: [2]s32 = .[14, 15]
+    next: [1]s32 = .[14]; finished: [1]s32 = .[12]; branch: [1]s32 = .[16]
+    edges: [2]LirEdge = .[.{.block = 1, .arguments = next[:]}, .{.block = 2, .arguments = finished[:]}]
+    loop: [8]LirInstruction = .[Instruction(.Store, -1, store_count[:]), Instruction(.Load, 11, record_pointer[:]),
+        Instruction(.Extract, 12, later_snapshot[:]), Instruction(.Constant, 13, empty[:], 3),
+        Instruction(.Add, 14, increment[:]), Instruction(.Constant, 15, empty[:], 4),
+        Instruction(.Less, 16, limit[:]), Instruction(.Branch, -1, branch[:])]
+    loop[0].effect = 1; loop[1].effect = 2; loop[7].edges = edges[:]
+    last: [1]s32 = .[17]; total: [2]s32 = .[8, 17]; returned: [1]s32 = .[18]
+    done: [2]LirInstruction = .[Instruction(.Add, 18, total[:]), Instruction(.Return, -1, returned[:])]
+    blocks: [3]LirBlock = .[.{.instructions = entry[:]},
+        .{.parameters = counter[:], .instructions = loop[:]}, .{.parameters = last[:], .instructions = done[:]}]
+    values: [19]s32 = .[4, 5, 1, 3, 1, 3, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 6, 1, 1]
+
+    argument_types: [1]s32 = .[3]; argument: [1]s32 = .[0]; extracted: [1]s32 = .[1]
+    callee_values: [2]s32 = .[3, 1]
+    callee_code: [2]LirInstruction = .[Instruction(.Extract, 1, argument[:]), Instruction(.Return, -1, extracted[:])]
+    callee: [1]LirBlock = .[.{.parameters = argument[:], .instructions = callee_code[:]}]
+    modules: [1]string = .["snapshot_slots"]
+    functions: [2]LirFunction = .[.{.module = 0, .name = "snapshots", .result = 1,
+        .values = values[:], .blocks = blocks[:], .origin = -1}, .{.module = 0, .name = "read_snapshot",
+        .parameters = argument_types[:], .result = 1, .values = callee_values[:], .blocks = callee[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+    plan: LirExecPlan
+    compact: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    defer LirExecPlanFree(*compact)
+    if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None ||
+        LirExecPlanBuildCompact(program, LirDefaultLimits(), *compact).problem != .None ||
+        plan.value_locations[3] == plan.value_locations[5] || plan.value_locations[3] != plan.value_locations[11] {
+        return false
+    }
+    limits := LirExecDefaultLimits()
+    result := RunOnce(*plan, limits, 1, false)
+    return result.problem == .None && result.value.bits == 43 &&
+        SameResult(result, RunOnce(*plan, limits, 1, true)) && SameResult(result, RunOnce(*compact, limits, 1, false))
+}
+
+LargeSnapshotProjection :: (keep_parent: bool) -> bool {
+    fields: [2]s32 = .[1, 2]
+    types: [5]LirType = .[.{.kind = .Void}, .{.kind = .Integer, .bits = 8},
+        .{.kind = .Array, .element = 1, .count = 4096}, .{.kind = .Record, .fields = fields[:]},
+        .{.kind = .Pointer, .element = 2}]
+    image: [4096]u8
+    image[0] = 19; image[4095] = 23
+    constants: [2]LirConstant = .[.{.type = 1, .bits = 5}, .{.type = 2, .bytes = image[:]}]
+    globals: [1]LirGlobal = .[.{.module = 0, .name = "image", .type = 2, .constant = 1}]
+    empty: [0]s32
+    image_pointer: [1]s32 = .[1]
+    fields_in: [2]s32 = .[0, 2]; parent: [1]s32 = .[3]; member: [1]s32 = .[4]
+    pair: [2]s32 = .[5, 6]; partial: [1]s32 = .[7]; with_tag: [2]s32 = .[7, 8]; full: [1]s32 = .[9]
+    instructions: [11]LirInstruction = .[Instruction(.Constant, 0, empty[:], 0),
+        Instruction(.GlobalAddress, 1, empty[:], 0), Instruction(.Load, 2, image_pointer[:]),
+        Instruction(.Aggregate, 3, fields_in[:]), Instruction(.Extract, 4, parent[:]),
+        Instruction(.Extract, 5, member[:]), Instruction(.Extract, 6, member[:]), Instruction(.Add, 7, pair[:]),
+        Instruction(.Extract, 8, parent[:]), Instruction(.Add, 9, with_tag[:]), Instruction(.Return, -1, full[:])]
+    instructions[2].effect = 1; instructions[4].immediate = 1; instructions[6].immediate = 4095
+    values: [10]s32 = .[1, 4, 2, 3, 2, 1, 1, 1, 1, 1]
+    code_count := instructions.count
+    value_count := values.count
+    if !keep_parent {
+        instructions[8] = Instruction(.Return, -1, partial[:])
+        code_count = 9
+        value_count = 8
+    }
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:code_count]}]
+    modules: [1]string = .["snapshot_projection"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "project", .result = 1,
+        .values = values[:value_count], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+    plan: LirExecPlan
+    compact: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    defer LirExecPlanFree(*compact)
+    if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None ||
+        LirExecPlanBuildCompact(program, LirDefaultLimits(), *compact).problem != .None ||
+        (plan.value_locations[3] != plan.value_locations[4]) != keep_parent { return false }
+    limits := LirExecDefaultLimits()
+    result := RunOnce(*plan, limits, 1, false)
+    return result.problem == .None && result.value.bits == (ifx keep_parent then cast(u64)47 else cast(u64)42) &&
+        SameResult(result, RunOnce(*plan, limits, 1, true)) && SameResult(result, RunOnce(*compact, limits, 1, false))
+}
+
 LargeValueLocations :: () -> bool {
     large_size: s64 = 4294967296
     types: [4]LirType = .[
@@ -1653,6 +1767,8 @@ Answer :: () -> s32 {
     if !CompactCodeChunks() { return 25 }
     if !LargeValueLocations() { return 26 }
     if !AddressGrowthAndChurn() { return 27 }
+    if !LargeSnapshotSlots() { return 28 }
+    if !LargeSnapshotProjection(false) || !LargeSnapshotProjection(true) { return 29 }
     return 42
 }
 

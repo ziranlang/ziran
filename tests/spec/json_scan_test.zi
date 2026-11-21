@@ -61,7 +61,6 @@ CheckRawStrings :: () -> bool {
     return !ReadString("\"x\"", -1).valid && !ReadString("\"x\"", 3).valid
 }
 
-#program_export
 SelfTest :: () -> s32 {
     body: string = "{\"skip\":[true,{\"quoted\":\"a\\\"b\"}],\"value\":1.25e2}"
     if ValueEnd(body, 0, 0) != cast(s32)body.count { return 1 }
@@ -162,5 +161,4 @@ SelfTest :: () -> s32 {
     return 42
 }
 
-#program_export
 NativeMain :: () -> s32 { return ifx SelfTest() == 42 then 0 else 1 }

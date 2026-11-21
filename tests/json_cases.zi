@@ -1,0 +1,32 @@
+#import "native_test"
+#import "check_support"
+#import "backend_test"
+
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "json-conformance-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    fixture := BackendPrepare(*test, "json_conformance_test")
+    c := BackendEmit(*test, fixture, "c", true)
+    go := BackendEmit(*test, fixture, "go", true)
+    bundle := BackendBundle(*test, fixture, "JsonPortable")
+    portable := string.[test.ziran, "run", bundle]
+    if test.failed || !NativeExpect(*test, portable[:], "42\n") { return 1 }
+    flags := string.["-DZIRAN_BOUNDS_CHECK"]
+    binary := BackendCompileC(*test, c, NativeCompiler(), flags[:], CheckPath(fixture.root, "json_conformance_main.c"), "test-c")
+    run := string.[binary]; unused NativeRun(*test, run[:])
+    // Keep the allocation interceptor and erasure/fault assertions in their
+    // specialized C driver. Both configurations reuse the same emitted tree.
+    wrapped := string.["-DZIRAN_BOUNDS_CHECK", "-Wl,--wrap=malloc", "-Wl,--wrap=calloc", "-Wl,--wrap=realloc", "-Wl,--wrap=free"]
+    lifecycle := BackendCompileC(*test, c, NativeCompiler(), wrapped[:], CheckPath(fixture.root, "json_document_lifetime_alloc.c"), "lifecycle")
+    lifecycle_run := string.[lifecycle]; unused NativeRun(*test, lifecycle_run[:])
+    sanitized := string.["-DLIFETIME_MEMORY_ONLY", "-DZIRAN_BOUNDS_CHECK", "-fsanitize=address,undefined", "-fno-omit-frame-pointer",
+        "-Wl,--wrap=malloc", "-Wl,--wrap=calloc", "-Wl,--wrap=realloc", "-Wl,--wrap=free"]
+    memory := BackendCompileC(*test, c, NativeCompiler(), sanitized[:], CheckPath(fixture.root, "json_document_lifetime_alloc.c"), "lifecycle-sanitized")
+    memory_run := string.[memory]; unused NativeRun(*test, memory_run[:])
+    go_binary := BackendCompileGo(*test, go, CheckPath(fixture.root, "json_conformance_main.go"))
+    go_run := string.[go_binary]; unused NativeRun(*test, go_run[:])
+    if test.failed { return 1 }
+    print("JSON correctness, ownership and fault injection: source/saved C/Go/portable parity passed\n")
+    return 0
+}

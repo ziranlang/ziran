@@ -1,0 +1,100 @@
+// Backend conformance support: emit both forms, prove exact equivalence, then
+// compile one tree per compiler/configuration and reuse that executable.
+#import "native_test"
+#import "check_support"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+BackendFixture :: struct { module: string; root: string; source: string; saved: string; output: string }
+BackendPrepare :: (test: *NativeTest, module: string) -> BackendFixture {
+    fixture := BackendFixture.{module = module, root = CheckPath(test.repo, "tests/spec"), output = CheckPath(test.work, module)}
+    fixture.source = CheckPath(fixture.root, CheckConcat(module, ".zi"))
+    ir := CheckPath(fixture.output, "ir")
+    save := string.[test.ziran, "ir", "--root", fixture.root, "--module-path", CheckPath(test.repo, "std"), "-o", ir, fixture.source]
+    unused NativeRun(test, save[:])
+    fixture.saved = CheckPath(ir, CheckConcat(module, ".zir"))
+    return fixture
+}
+BackendSameTree :: (test: *NativeTest, left: string, right: string) -> bool {
+    files := NativeFiles(left, "", true)
+    others := NativeFiles(right, "", true)
+    if !NativeAssert(test, files.count > 0 && files.count == others.count, "backend output file counts differ") { return false }
+    for file: files {
+        relative := file[left.count + 1:]
+        if !NativeAssert(test, NativeSameFile(file, CheckPath(right, relative)), CheckConcat("source/saved backend differs: ", relative)) { return false }
+    }
+    return true
+}
+BackendEmit :: (test: *NativeTest, fixture: BackendFixture, target: string, checks: bool = false) -> string {
+    output := CheckPath(fixture.output, target)
+    forms := string.["source", "saved"]
+    for form: forms {
+        input := ifx form == "source" then fixture.source else fixture.saved
+        command := string.[test.ziran, "build", CheckConcat("--target=", target), "--root", fixture.root,
+            "--module-path", CheckPath(test.repo, "std"), "-o", CheckPath(output, form)]
+        args: Vec(string)
+        for argument: command { VecPush(args, argument) }
+        if target == "go" { VecPush(args, "--pkg"); VecPush(args, "main") }
+        if checks { VecPush(args, "--checks") }
+        VecPush(args, input)
+        unused NativeRun(test, args[:])
+        if test.failed { return "" }
+    }
+    unused BackendSameTree(test, CheckPath(output, "source"), CheckPath(output, "saved"))
+    return CheckPath(output, "source")
+}
+BackendBundle :: (test: *NativeTest, fixture: BackendFixture, entry: string, checks: bool = false) -> string {
+    paths: [2]string
+    forms := string.["source", "saved"]
+    for index: cast(s64)0..1 {
+        paths[index] = CheckPath(fixture.output, CheckConcat(entry, CheckConcat("-", CheckConcat(forms[index], ".zx"))))
+        input := ifx index == 0 then fixture.source else fixture.saved
+        args: Vec(string)
+        command := string.[test.ziran, "bundle", "--root", fixture.root, "--module-path", CheckPath(test.repo, "std"),
+            "--entry", CheckConcat(fixture.module, CheckConcat(":", entry)), "-o", paths[index]]
+        for argument: command { VecPush(args, argument) }
+        if checks { VecPush(args, "--checks") }
+        VecPush(args, input)
+        unused NativeRun(test, args[:])
+        if test.failed { return "" }
+    }
+    unused NativeAssert(test, NativeSameFile(paths[0], paths[1]), CheckConcat("source/saved bundle differs: ", entry))
+    return paths[0]
+}
+BackendCompileC :: (test: *NativeTest, output: string, compiler: string, flags: []string, driver: string, name: string) -> string {
+    binary := CheckPath(output, name)
+    args: Vec(string)
+    VecPush(args, compiler); VecPush(args, "-std=c11")
+    VecPush(args, CheckConcat("-I", CheckPath(test.repo, "include")))
+    VecPush(args, CheckConcat("-I", output))
+    for flag: flags { VecPush(args, flag) }
+    files := NativeFiles(output, ".c")
+    for file: files { VecPush(args, file) }
+    VecPush(args, driver); VecPush(args, "-lm"); VecPush(args, "-o"); VecPush(args, binary)
+    unused NativeRun(test, args[:])
+    return binary
+}
+BackendCompileGo :: (test: *NativeTest, output: string, driver: string) -> string {
+    unused NativeWrite(test, CheckPath(output, "main.go"), NativeRead(test, driver))
+    NativeSet(test, "GO111MODULE", "off"); NativeSet(test, "GOMAXPROCS", "2"); NativeSet(test, "GOFLAGS", "-p=2")
+    NativeSet(test, "GOTOOLCHAIN", "local"); NativeSet(test, "GOWORK", "off")
+    binary := CheckPath(output, "test-go")
+    args: Vec(string)
+    prefix := string.["go", "build", "-o", binary]
+    for argument: prefix { VecPush(args, argument) }
+    files := NativeFiles(output, ".go")
+    for file: files { VecPush(args, file) }
+    unused NativeRun(test, args[:])
+    return binary
+}
+
+// A bounds trap may terminate by signal (for example C abort, exit 134).
+// Timeouts and interrupted children never establish a successful rejection.
+BackendTrap :: (test: *NativeTest, arguments: []string, diagnostic: string, detail: string = "") -> bool {
+    if test.failed { return false }
+    result := NativeInvoke(test, arguments)
+    output := CheckConcat(result.output, result.error)
+    return NativeAssert(test, result.code != 0 && !result.timed_out && !result.interrupted &&
+        TextContains(output, diagnostic) && TextContains(output, detail),
+        CheckConcat("expected backend trap: ", CheckConcat(diagnostic, CheckConcat(" ", CheckConcat(detail, CheckConcat("\n", output))))))
+}

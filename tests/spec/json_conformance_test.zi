@@ -1,0 +1,27 @@
+// One fixture graph for the JSON backend matrix. The individual modules keep
+// their focused assertions; no backend rebuild is needed per assertion group.
+Scan :: #import "json_scan_test"
+Reuse :: #import "json_array_reuse_test"
+Document :: #import "json_document_cases"
+Lifetime :: #import "json_document_lifetime_test"
+Secure :: #import "json_document_secure_test"
+
+#program_export
+JsonPortable :: () -> s32 {
+    if Scan.SelfTest() != 42 { return 1 }
+    if Reuse.SelfTest() != 42 { return 2 }
+    if Lifetime.Answer() != 42 { return 4 }
+    return 42
+}
+#program_export
+JsonNative :: () -> s32 {
+    if Scan.NativeMain() != 0 { return 1 }
+    if Reuse.NativeMain() != 0 { return 2 }
+    if Document.DocumentCases() != 0 { return 4 }
+    return 0
+}
+#program_export
+JsonOwnership :: () -> s32 {
+    if Lifetime.Answer() != 42 || Lifetime.Memory() != 42 || Secure.Secure() != 42 || Secure.Faults() != 42 { return 1 }
+    return 0
+}

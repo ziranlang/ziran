@@ -48,15 +48,15 @@ Artifacts :: (test: *NativeTest) -> bool {
     provider := CheckPath(test.work, "provider"); tool := CheckPath(test.work, "tool")
     if !FixtureInit(test, provider) || !FixtureInit(test, tool) || !NativeWrite(test, CheckPath(tool, "VERSION"), "fixture\n") { return false }
     unused FixtureCommit(test, tool, "artifact tool fixture")
-    wide: Vec(string); inputs: Vec(u8)
+    inputs: Vec(u8)
     for index: 0..199 {
         name := CheckConcat("inputs/", CheckConcat(CheckNumber(index), ".txt"))
-        VecPush(wide, name)
         if !NativeWrite(test, CheckPath(provider, name), CheckConcat(name, "\n")) { return false }
         BuilderAppend(inputs, ", "); BuilderAppend(inputs, FixtureQuote(name))
     }
+    wide_inputs := TextDetach(BuilderFinish(inputs))
     outputs := "outputs = [\"value.o\", \"resource.txt\", \"options.txt\"]"
-    manifest_parts := string.["[package]\nname = \"Provider\"\n[tool]\nproject = \"build/bin/provider\"\n[options]\nmode = \"string=normal\"\nenabled = \"bool=false\"\n[options.variant.\"*\"]\npath = \"string!\"\n[artifacts.object]\ninputs = [\"src/value.c\", \"tools/provider.zi\", \"Makefile\"", TextDetach(BuilderFinish(inputs)), "]\n", outputs, "\n"]
+    manifest_parts := string.["[package]\nname = \"Provider\"\n[tool]\nproject = \"build/bin/provider\"\n[options]\nmode = \"string=normal\"\nenabled = \"bool=false\"\n[options.variant.\"*\"]\npath = \"string!\"\n[artifacts.object]\ninputs = [\"src/value.c\", \"tools/provider.zi\", \"Makefile\"]\n", outputs, "\n"]
     original := TextDetach(TextJoin(manifest_parts[:], ""))
     zi2c := CheckPath(PathParent(test.ziran), "zi2c")
     make_parts := string.["build/bin/provider: tools/provider.zi\n\t@mkdir -p build/bin\n\t@LDLIBS=-lcrypto ", zi2c,
@@ -193,7 +193,6 @@ Artifacts :: (test: *NativeTest) -> bool {
     support := CheckPath(test.work, "support")
     if !FixtureInit(test, support) { return false }
     extra_files := string.[".gitignore", "Makefile", "tools/provider.zi", "src/value.c"]
-    for relative: wide { if !NativeWrite(test, CheckPath(support, relative), NativeRead(test, CheckPath(provider, relative))) { return false } }
     for relative: extra_files { if !NativeWrite(test, CheckPath(support, relative), NativeRead(test, CheckPath(provider, relative))) { return false } }
     if !NativeWrite(test, CheckPath(support, "ziran.toml"), TextReplace(original, "name = \"Provider\"", "name = \"Support\"")) { return false }
     unused FixtureCommit(test, support, "support prerequisite fixture")
@@ -226,6 +225,14 @@ Artifacts :: (test: *NativeTest) -> bool {
     unused NativeRun(test, compile[:], app)
     NativeUnset(test, "LDLIBS")
     run := string.[CheckPath(client, "build/client"), app]; unused NativeRun(test, run[:], app)
+    wide_recipe := CheckConcat(support_manifest, CheckConcat("\n[artifacts.wide]\ninputs = [\"src/value.c\", \"tools/provider.zi\", \"Makefile\"", CheckConcat(wide_inputs, CheckConcat("]\n", CheckConcat(outputs, "\n")))))
+    if !NativeWrite(test, provider_manifest, wide_recipe) { return false }
+    unused FixtureCommit(test, provider, "wide artifact recipe")
+    unused PackageCommand(test, app, update_provider[:])
+    wide_count := NativeRead(test, CheckPath(provider, "build/count")).count
+    wide_first := ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:wide")
+    if !NativeAssert(test, IsFile(wide_first) && ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:wide") == wide_first,
+        "wide-input artifact did not build or reuse") || !ArtifactCount(test, provider, wide_count + 1) { return false }
     return !test.failed
 }
 

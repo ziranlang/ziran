@@ -1828,7 +1828,7 @@ whose bytes match at the same array index; other values and the array's
 separators are checked normally. Keep the preceding document and ranges alive
 until the call returns, use a separate output slice, and consume offsets only
 after a nonnegative return. Short output buffers still validate every element.
-Run `sh tests/json_array_reuse.sh build/bin/ziran` for source, saved-IR and
+Run `make check CHECK_FILTER=json_conformance` for source, saved-IR and
 cross-target transition checks, including malformed replies and numeric prefixes.
 
 `ReadStringValue(text, at, max_bytes)` decodes a quoted value into owned bytes
@@ -1853,7 +1853,7 @@ Only tokens containing a point or exponent are converted. Integer tokens,
 including arbitrary-precision integers and `-0`, keep their original spelling;
 the stored node text is never changed. Float overflow writes `Infinity` or
 `-Infinity`, as Python's default JSON encoder does. Run
-`sh tests/std_json_document.sh build/bin/ziran` for tree operations and default
+`make check CHECK_FILTER=json_conformance` for tree operations and default
 layout, and `sh tests/std_float_text.sh build/bin/ziran` for canonical floats.
 
 Documents own decoded escape buffers and generated integer text; normal

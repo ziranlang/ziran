@@ -1,0 +1,76 @@
+#import "backend_test"
+#import "check_cache"
+#import "check_support"
+// Compiler/SIMD safety fixtures are independent of JSON document correctness.
+#import "native_test"
+
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "simd-string-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    fixture := BackendPrepare(*test, "json_string_scan_test")
+    c := BackendEmit(*test, fixture, "c", true)
+    go := BackendEmit(*test, fixture, "go", true)
+    bundle := BackendBundle(*test, fixture, "SelfTest")
+    portable := string.[test.ziran, "run", bundle]
+    if test.failed || !NativeExpect(*test, portable[:], "42\n") { return 1 }
+    bounds := string.["InvalidNegative", "InvalidEnd", "InvalidLowEnd", "InvalidWideEnd"]
+    flags := string.["-O2", "-DZIRAN_BOUNDS_CHECK"]
+    compilers := string.[NativeCompiler(), CheckExecutable("clang")]
+    for compiler: compilers {
+        if compiler == "" { continue }
+        binary := BackendCompileC(*test, c, compiler, flags[:], CheckPath(fixture.root, "simd_string_main.c"), "test-c")
+        execute := string.[binary]; unused NativeRun(*test, execute[:])
+        for entry: bounds {
+            reject := string.[binary, entry]
+            if !BackendTrap(*test, reject[:], "SIMD access", "out of bounds") { return 1 }
+        }
+    }
+    scalar_flags := string.["-O2", "-DZIRAN_SIMD_SCALAR", "-DZIRAN_BOUNDS_CHECK", "-fsanitize=address,undefined"]
+    scalar := BackendCompileC(*test, c, NativeCompiler(), scalar_flags[:], CheckPath(fixture.root, "simd_string_main.c"), "test-scalar")
+    scalar_run := string.[scalar]; unused NativeRun(*test, scalar_run[:])
+    go_binary := BackendCompileGo(*test, go, CheckPath(fixture.root, "simd_string_main.go"))
+    go_run := string.[go_binary]; unused NativeRun(*test, go_run[:])
+    for entry: bounds {
+        go_reject := string.[go_binary, entry]
+        if !BackendTrap(*test, go_reject[:], "SIMD access", "out of bounds") { return 1 }
+        failure := BackendBundle(*test, fixture, entry, true)
+        reject := string.[test.ziran, "run", failure]
+        if !BackendTrap(*test, reject[:], "out of bounds") { return 1 }
+    }
+    root := CheckPath(test.repo, "tests/spec")
+    guard := CheckPath(test.work, "guard")
+    command := string.[test.ziran, "build", "--target=c", "--root", root, "--module-path", CheckPath(test.repo, "std"),
+        "--entry", "json_string_guard_test:main", "--exe", "-o", guard, CheckPath(root, "json_string_guard_test.zi")]
+    unused NativeRun(*test, command[:])
+    run := string.[CheckPath(guard, "json_string_guard_test")]; unused NativeRun(*test, run[:])
+    expressions := string.["Simd.Store(text,0,Simd.Zero(u8x16))", "unused Simd.Load(s8x16,text,0)", "unused Simd.Load(u16x8,text,0)"]
+    for expression: expressions {
+        path := CheckPath(test.work, "rejected.zi")
+        unused NativeWrite(*test, path, CheckConcat("Simd :: #import \"simd\"\nmain :: () { text := \"0123456789abcdef\"; ", CheckConcat(expression, " }\n")))
+        reject := string.[test.ziran, "check", "--root", test.work, "--module-path", CheckPath(test.repo, "std"), path]
+        if !NativeReject(*test, reject[:], "invalid SIMD operation:") { return 1 }
+    }
+    // More than 32 reachable modules exercises forked SIMD helper emission
+    // whenever the managed CPU/memory budget permits two workers.
+    parallel := CheckPath(test.work, "parallel")
+    entry := CheckPath(parallel, "entry.zi")
+    imports := "#import \"std/json_bytes\"\n"
+    body := "#program_export\nEntry :: () -> s32 {\nif JsonStringRunEnd(\"01234567890123456789012345678901\",0) != 32 { return 1 }\n"
+    for index: cast(s64)0..39 {
+        name := CheckConcat("m", CheckNumber(index))
+        imports = CheckConcat(imports, CheckConcat("M", CheckConcat(CheckNumber(index), CheckConcat(" :: #import \"", CheckConcat(name, "\"\n")))))
+        unused NativeWrite(*test, CheckPath(parallel, CheckConcat(name, ".zi")),
+            "Simd :: #import \"std/simd\"\nValue :: () -> s32 { value := Simd.Splat(u16x8,7); return cast(s32)Simd.Lane(value,0) }\n")
+        body = CheckConcat(body, CheckConcat("if M", CheckConcat(CheckNumber(index), ".Value() != 7 { return 1 }\n")))
+    }
+    unused NativeWrite(*test, entry, CheckConcat(imports, CheckConcat(body, "return 0\n}\n")))
+    output := CheckPath(test.work, "parallel-c")
+    NativeSet(*test, "ZIRAN_JOBS", "2")
+    build := string.[test.ziran, "build", "--target=c", "--root", parallel, "--entry", "entry:Entry", "--exe", "-o", output, entry]
+    unused NativeRun(*test, build[:])
+    execute := string.[CheckPath(output, "entry")]; unused NativeRun(*test, execute[:])
+    if test.failed { return 1 }
+    print("SIMD string rejection, protected-page bounds and parallel helper emission passed\n")
+    return 0
+}

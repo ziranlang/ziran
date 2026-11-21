@@ -57,5 +57,4 @@ CheckBounds :: () -> bool {
 }
 
 SelfTest :: () -> s64 { if !CheckTransitions() { return 1 }; if !CheckBounds() { return 2 }; return 42 }
-#program_export
 NativeMain :: () -> s32 { return ifx SelfTest() == 42 then 0 else 1 }

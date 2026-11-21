@@ -4,6 +4,7 @@
 #import "check_support"
 #import "check_cache"
 #import "std/byte_text_linux"
+#import "std/environment_linux"
 #import "std/file"
 #import "std/file_tree_linux"
 #import "std/json_document"
@@ -156,9 +157,12 @@ ResolutionExecution :: (fixture: ResolutionFixture) -> bool {
         go_dir := CheckPath(test.work, "go")
         go_build := string.["build", "--project", "--target=go", "--pkg", "main", "--entry", "app:main", "-o", go_dir, CheckPath(app, "src/app.zi")]
         unused PackageCommand(test, app, go_build[:])
-        NativeSet(test, "GO111MODULE", "off"); NativeSet(test, "GOCACHE", CheckPath(test.work, "go-cache"))
+        saved_gocache := EnvironmentText("GOCACHE")
+        NativeSet(test, "GO111MODULE", "off")
+        if saved_gocache == "" { NativeSet(test, "GOCACHE", CheckPath(test.work, "go-cache")) }
         go := string.["go", "test", "."]; unused NativeRun(test, go[:], go_dir)
-        NativeUnset(test, "GO111MODULE"); NativeUnset(test, "GOCACHE")
+        NativeUnset(test, "GO111MODULE")
+        if saved_gocache == "" { NativeUnset(test, "GOCACHE") }
     }
     source_bundle := CheckPath(test.work, "source.zx"); saved_bundle := CheckPath(test.work, "saved.zx")
     source := string.["bundle", "--project", "--entry", "app:main", "-o", source_bundle, CheckPath(app, "src/app.zi")]

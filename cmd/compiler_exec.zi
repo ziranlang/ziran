@@ -222,7 +222,7 @@ LirExecPlan :: struct {
         block_instruction_bases: Vec(s64)
     }
     edge_direct: Vec(u8)
-    // 1 for an address derivation that needs no table entry (ExecPlanTransients).
+    // Address lifetime chosen by ExecPlanTransients. Zero uses the canonical table.
     transient: Vec(u8)
     global_offsets: Vec(s64)
     global_bytes: s64
@@ -254,6 +254,7 @@ LirExecAddress :: struct {
     type: s32
     owned: bool
     writable: bool
+    scoped: bool
     // One more than the heap block this address lies in; 0 for none.
     heap: s64
     // How many times this table slot has been given back and reused. It is
@@ -1182,7 +1183,7 @@ ExecPlanFused :: (handler: LirExecHandler) -> LirExecHandler {
 // Translates one instruction. `work` and `fuel` are what ExecStep charges
 // for it, apart from the copies of a terminator's edge (ExecPlanEdges).
 ExecPlanInstruction :: (program: LirProgram, plan: *LirExecPlan, base: s64, types: []s32,
-    instruction: LirInstruction, transient: bool, out: *LirExecCode, work: *s64,
+    instruction: LirInstruction, transient: u8, out: *LirExecCode, work: *s64,
     fuel: *s64, bits: *u64) -> ExecPlanCodeKind {
     op := instruction.op
     count := instruction.operands.count
@@ -1613,7 +1614,7 @@ ExecPlanCode :: (program: LirProgram, plan: *LirExecPlan) -> LirExecProblem {
             for index: cast(s64)0..count - 1 {
                 bits: u64
                 kind := ExecPlanInstruction(program, plan, base, function.values, block.instructions[index],
-                    plan.transient[first + index] != 0, *codes[index], *works[index], *fuels[index], *bits)
+                    plan.transient[first + index], *codes[index], *works[index], *fuels[index], *bits)
                 codes[index].block = block_index
                 codes[index].index = cast(s32)index
                 codes[index].base = first
@@ -1633,7 +1634,7 @@ ExecPlanCode :: (program: LirProgram, plan: *LirExecPlan) -> LirExecProblem {
                 fused := ExecPlanFusedMemory(codes[index].handler, codes[index + 1].handler)
                 derived := block.instructions[index].result
                 user := block.instructions[index + 1]
-                if fused == .Slow || codes[index].flag == 0 || derived == LirNoId ||
+                if fused == .Slow || codes[index].flag != ExecTransientBlock || derived == LirNoId ||
                     user.operands[0] != derived || uses[derived] != 1 { continue }
                 memory := codes[index + 1]
                 codes[index].handler = fused
@@ -1647,7 +1648,7 @@ ExecPlanCode :: (program: LirProgram, plan: *LirExecPlan) -> LirExecProblem {
             // A FieldAddress used only as the base of the derivation right
             // after it runs inside that derivation's code.
             for index: cast(s64)0..count - 2 {
-                if kinds[index] != .Fast || codes[index].handler != .FieldAddress || codes[index].flag == 0 ||
+                if kinds[index] != .Fast || codes[index].handler != .FieldAddress || codes[index].flag != ExecTransientBlock ||
                     kinds[index + 1] != .Fast || codes[index + 1].prefix != 0 { continue }
                 next := codes[index + 1].handler
                 if !ExecPlanDerivation(next) { continue }
@@ -2041,7 +2042,8 @@ ExecAddressLookup :: (instance: *LirExecInstance, address: LirExecAddress) -> s6
 ExecAddressReindex :: (instance: *LirExecInstance) -> bool {
     live: s64
     for index: cast(s64)0..instance.addresses.count - 1 {
-        if instance.addresses[index].token != 0 && !ExecTransientIndex(instance, index) { live += 1 }
+        if instance.addresses[index].token != 0 && !instance.addresses[index].scoped &&
+            !ExecTransientIndex(instance, index) { live += 1 }
     }
     // The table never shrinks: a rebuild in place only drops removed entries.
     capacity: s64 = 64
@@ -2051,7 +2053,8 @@ ExecAddressReindex :: (instance: *LirExecInstance) -> bool {
     for index: cast(s64)0..capacity - 1 { instance.address_slots[index] = 0 }
     mask := capacity - 1
     for index: cast(s64)0..instance.addresses.count - 1 {
-        if instance.addresses[index].token == 0 || ExecTransientIndex(instance, index) { continue }
+        if instance.addresses[index].token == 0 || instance.addresses[index].scoped ||
+            ExecTransientIndex(instance, index) { continue }
         slot := cast(s64)(ExecAddressHash(instance.addresses[index]) & cast(u64)mask)
         while instance.address_slots[slot] != 0 { slot = (slot + 1) & mask }
         instance.address_slots[slot] = cast(s32)(index + 1)
@@ -2098,7 +2101,7 @@ ExecAddressIndexRemove :: (instance: *LirExecInstance, index: s64) {
 // next version, or a new slot. An address into a frame or a heap block joins
 // that frame's or block's chain and is given back when the frame returns or
 // the block dies. Returns the entry's index, or -1 with the failure recorded.
-ExecNewAddress :: (instance: *LirExecInstance, address: LirExecAddress) -> s64 {
+ExecNewAddress :: (instance: *LirExecInstance, address: LirExecAddress, scope: s64 = -1) -> s64 {
     index: s64
     version: u64
     if instance.address_free.count > 0 {
@@ -2115,7 +2118,11 @@ ExecNewAddress :: (instance: *LirExecInstance, address: LirExecAddress) -> s64 {
     added.version = version
     added.token = ExecAddressToken(instance.identity, index, version)
     added.next = 0
-    if added.frame >= 0 {
+    if scope >= 0 {
+        added.scoped = true
+        added.next = instance.frames[scope].addresses
+        instance.frames[scope].addresses = index + 1
+    } else if added.frame >= 0 {
         added.next = instance.frames[added.frame].addresses
         instance.frames[added.frame].addresses = index + 1
     } else if added.heap != 0 {
@@ -2123,7 +2130,9 @@ ExecNewAddress :: (instance: *LirExecInstance, address: LirExecAddress) -> s64 {
         instance.heap_blocks[added.heap - 1].addresses = index + 1
     }
     instance.addresses[index] = added
-    if !ExecAddressIndexAdd(instance, index) { unused ExecFail(instance, .Allocation); return -1 }
+    if !added.scoped && !ExecAddressIndexAdd(instance, index) {
+        unused ExecFail(instance, .Allocation); return -1
+    }
     return index
 }
 
@@ -2134,7 +2143,7 @@ ExecReleaseAddresses :: (instance: *LirExecInstance, head: s64) {
     while at != 0 {
         index := at - 1
         at = instance.addresses[index].next
-        ExecAddressIndexRemove(instance, index)
+        if !instance.addresses[index].scoped { ExecAddressIndexRemove(instance, index) }
         instance.addresses[index].token = 0
         instance.addresses[index].next = 0
         if instance.addresses[index].version < ExecAddressVersions { unused VecPush(instance.address_free, index) }
@@ -2159,6 +2168,8 @@ ExecInternAddress :: (instance: *LirExecInstance, address: LirExecAddress) -> u6
 // token lives until that entry is taken again. The plan proves the uses come
 // first. Its checks and its work charge are an interned address's.
 ExecTransientSlots :: 256;
+ExecTransientBlock :: 1
+ExecTransientFrame :: 2
 
 ExecTransientIndex :: (instance: *LirExecInstance, index: s64) -> bool {
     return instance.transient_count != 0 && index >= instance.transient_base &&
@@ -2189,8 +2200,35 @@ ExecTransient :: (instance: *LirExecInstance, address: LirExecAddress) -> u64 {
     return entry.token
 }
 
-ExecDeriveToken :: (instance: *LirExecInstance, address: LirExecAddress, transient: bool) -> u64 {
-    if transient { return ExecTransient(instance, address) }
+LirExecAddressUse :: struct { lifetime: u8; frame: s64; previous: u64 }
+
+// A nonescaping derivation owns the sole word containing this token. The
+// next execution of that definition in this frame can replace the address.
+// The address still carries the original storage's bounds and generation.
+ExecReuseScopedAddress :: (instance: *LirExecInstance, previous: u64, address: LirExecAddress) -> u64 {
+    index := ExecFindAddress(instance, previous)
+    if index < 0 || !instance.addresses[index].scoped ||
+        instance.addresses[index].version == ExecAddressVersions { return 0 }
+    entry := *instance.addresses[index]
+    updated := address
+    updated.scoped = true
+    updated.next = entry.next
+    updated.version = entry.version + 1
+    updated.token = ExecAddressToken(instance.identity, index, updated.version)
+    <<entry = updated
+    return updated.token
+}
+
+ExecDeriveToken :: (instance: *LirExecInstance, address: LirExecAddress, usage: LirExecAddressUse) -> u64 {
+    if usage.lifetime == ExecTransientFrame {
+        if !ExecSpend(instance, 1) { return 0 }
+        token := ExecReuseScopedAddress(instance, usage.previous, address)
+        if token != 0 { return token }
+        index := ExecNewAddress(instance, address, usage.frame)
+        if index < 0 { return 0 }
+        return instance.addresses[index].token
+    }
+    if usage.lifetime == ExecTransientBlock { return ExecTransient(instance, address) }
     return ExecInternAddress(instance, address)
 }
 
@@ -2198,8 +2236,11 @@ ExecTransientBarrier :: (op: LirOp) -> bool {
     return op == .Call || op == .CallIndirect || op == .HostCall || op == .Resize
 }
 
-// Marks the derivations whose uses all stay within the defining block and
-// within the lifetime of a transient address slot.
+// An address used only for memory access or an independent derivation
+// cannot escape its SSA definition. The verifier proves dominance across
+// blocks. Without edge forwarding the old token cannot survive another
+// execution of the definition, and its word cannot be coalesced with a
+// block parameter. The usual short-lived addresses share a block ring.
 ExecPlanTransients :: (plan: *LirExecPlan, function: LirFunction, block_base: s64) -> bool {
     count := function.values.count
     defined_in: Vec(s32)
@@ -2221,7 +2262,7 @@ ExecPlanTransients :: (plan: *LirExecPlan, function: LirFunction, block_base: s6
                 defined_in[instruction.result] = block_index
                 defined_at[instruction.result] = index
                 last_use[instruction.result] = index
-                usable[instruction.result] = 1
+                usable[instruction.result] = ExecTransientBlock
             }
         }
     }
@@ -2236,11 +2277,13 @@ ExecPlanTransients :: (plan: *LirExecPlan, function: LirFunction, block_base: s6
                 address_use := operand == 0 && (instruction.op == .Load || instruction.op == .Store ||
                     instruction.op == .FieldAddress ||
                     instruction.op == .ElementAddress && instruction.operands.count != 4)
-                if defined_in[value] != block_index || defined_at[value] >= index || !address_use {
+                if !address_use || defined_in[value] == block_index && defined_at[value] >= index {
                     usable[value] = 0
                     continue
                 }
-                if index > last_use[value] { last_use[value] = index }
+                if defined_in[value] != block_index {
+                    if usable[value] != 0 { usable[value] = ExecTransientFrame }
+                } else if index > last_use[value] { last_use[value] = index }
             }
             for edge: instruction.edges {
                 for value: edge.arguments { if defined_in[value] >= 0 { usable[value] = 0 } }
@@ -2251,22 +2294,27 @@ ExecPlanTransients :: (plan: *LirExecPlan, function: LirFunction, block_base: s6
         if defined_in[value] < 0 || usable[value] == 0 { continue }
         from := defined_at[value]
         to := last_use[value]
-        // Every derivation between takes an entry too; the uses must come
-        // before the entry comes round again.
-        if to - from >= ExecTransientSlots { continue }
         block_index := defined_in[value]
         block := function.blocks[block_index]
-        clear := true
-        for between: from + 1..to - 1 {
-            if ExecTransientBarrier(block.instructions[between].op) { clear = false; break }
+        lifetime := usable[value]
+        if lifetime == ExecTransientBlock {
+            // Each intervening derivation can take a slot from the ring.
+            if to - from >= ExecTransientSlots { lifetime = ExecTransientFrame }
+            else {
+                for between: from + 1..to - 1 {
+                    if ExecTransientBarrier(block.instructions[between].op) { lifetime = ExecTransientFrame; break }
+                }
+            }
         }
-        if clear { plan.transient[cast(s64)plan.block_instruction_bases[block_base + block_index] + from] = 1 }
+        // A slice may return its base token instead of using its own slot.
+        if lifetime == ExecTransientFrame && block.instructions[from].operands.count == 4 { continue }
+        plan.transient[cast(s64)plan.block_instruction_bases[block_base + block_index] + from] = lifetime
     }
     return true
 }
 
 ExecFieldAddress :: (instance: *LirExecInstance, parent: s32, member: u64, target_type: s32,
-    transient: bool) -> u64 {
+    usage: LirExecAddressUse) -> u64 {
     base := instance.addresses[parent]
     member_offset: s64
     member_type: s32
@@ -2292,11 +2340,11 @@ ExecFieldAddress :: (instance: *LirExecInstance, parent: s32, member: u64, targe
     }
     return ExecDeriveToken(instance, .{.global = child_global, .frame = child_frame,
         .generation = child_generation, .offset = offset, .extent = extent, .type = target_type,
-        .owned = base.owned, .writable = base.writable, .heap = base.heap}, transient)
+        .owned = base.owned, .writable = base.writable, .heap = base.heap}, usage)
 }
 
 ExecElementAddress :: (instance: *LirExecInstance, parent: s32, index: u64,
-    count: u64, target_type: s32, transient: bool) -> u64 {
+    count: u64, target_type: s32, usage: LirExecAddressUse) -> u64 {
     base := instance.addresses[parent]
     size := instance.plan.type_sizes[target_type]
     if base.type != target_type || index >= count ||
@@ -2310,11 +2358,11 @@ ExecElementAddress :: (instance: *LirExecInstance, parent: s32, index: u64,
     extent := base.extent - member_offset
     return ExecDeriveToken(instance, .{.global = base.global, .frame = base.frame,
         .generation = base.generation, .offset = offset, .extent = extent, .type = target_type,
-        .owned = base.owned, .writable = base.writable, .heap = base.heap}, transient)
+        .owned = base.owned, .writable = base.writable, .heap = base.heap}, usage)
 }
 
 ExecSliceAddress :: (instance: *LirExecInstance, parent: s32, low: u64,
-    high: u64, count: u64, target_type: s32, transient: bool) -> u64 {
+    high: u64, count: u64, target_type: s32, usage: LirExecAddressUse) -> u64 {
     base := instance.addresses[parent]
     size := instance.plan.type_sizes[target_type]
     if base.type != target_type || low > high || high > count ||
@@ -2324,7 +2372,7 @@ ExecSliceAddress :: (instance: *LirExecInstance, parent: s32, low: u64,
         return 0
     }
     if low == high { return base.token }
-    return ExecElementAddress(instance, parent, low, count, target_type, transient)
+    return ExecElementAddress(instance, parent, low, count, target_type, usage)
 }
 
 ExecResizeFrameBytes :: (storage: *Vec(u8), count: s64, available: s64) -> bool #inline {
@@ -3288,22 +3336,24 @@ ExecMemoryInstruction :: (instance: *LirExecInstance, frame_index: s64,
         if instance.addresses[address].type != expected { return ExecFail(instance, .Type) }
         target := instance.plan.program.types[result_type].element
         member := instruction.immediate
-        transient := instance.plan.transient[instance.frames[frame_index].instruction_base +
-            instance.frames[frame_index].instruction] != 0
+        lifetime := instance.plan.transient[instance.frames[frame_index].instruction_base +
+            instance.frames[frame_index].instruction]
+        usage := LirExecAddressUse.{.lifetime = lifetime, .frame = frame_index}
+        if lifetime == ExecTransientFrame { usage.previous = ExecSlotBits(instance, instruction.result) }
         child: u64
         if instruction.op == .ElementAddress && instruction.operands.count == 4 {
-            child = ExecSliceAddress(instance, address, low, high, count, target, transient)
+            child = ExecSliceAddress(instance, address, low, high, count, target, usage)
         } else if instruction.op == .ElementAddress && instruction.operands.count == 3 {
             index := ExecIndexBits(instance, instruction.operands[1])
             count := ExecIndexBits(instance, instruction.operands[2])
             if instance.failure.problem != .None { return false }
-            child = ExecElementAddress(instance, address, index, count, target, transient)
+            child = ExecElementAddress(instance, address, index, count, target, usage)
         } else {
             if instruction.op == .ElementAddress {
                 member = ExecIndexBits(instance, instruction.operands[1])
                 if instance.failure.problem != .None { return false }
             }
-            child = ExecFieldAddress(instance, address, member, target, transient)
+            child = ExecFieldAddress(instance, address, member, target, usage)
         }
         if instance.failure.problem != .None { return false }
         ExecWriteSlotBits(instance, instruction.result, child)
@@ -4147,7 +4197,11 @@ ExecFastDerive :: (instance: *LirExecInstance, words: []u64, frame_index: s64, c
     }
     derived: LirExecAddress
     if !ExecFastAddress(instance, words, code, word_base, view, indexed, *derived) { return 0 }
-    if code.flag != 0 {
+    if code.flag == ExecTransientFrame {
+        // The reference path creates the slot and reports any allocation error.
+        return ExecReuseScopedAddress(instance, words[word_base + code.result], derived)
+    }
+    if code.flag == ExecTransientBlock {
         if instance.transient_count == 0 { return 0 }
         index := instance.transient_base + instance.transient_next
         instance.transient_next += 1

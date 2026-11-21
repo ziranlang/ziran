@@ -206,6 +206,24 @@ main :: (argc: s32, argv: **u8) -> s32 {
     rejected := NativeInvoke(*test, run_stale[:])
     if !NativeAssert(*test, rejected.code == 1 && TextContains(rejected.error, "problem=pointer"),
         CheckConcat("expected stale pointer trap after arena reuse: ", rejected.error)) { return 1 }
+    crossed := CheckPath(test.work, "crossed.zx")
+    compile_arena[5] = "heap_arena_reuse:CrossBranchAddresses"
+    compile_arena[7] = crossed
+    unused NativeRun(*test, compile_arena[:])
+    for mode: modes {
+        run_crossed := string.[TextFromCString(argv[0]), mode, crossed]
+        unused NativeRun(*test, run_crossed[:])
+    }
+    compile_arena[5] = "heap_arena_reuse:StaleDerivedAddress"
+    compile_arena[7] = stale
+    unused NativeRun(*test, compile_arena[:])
+    backends := string.["engine", "native"]
+    for backend: backends {
+        run_stale[3] = backend
+        rejected = NativeInvoke(*test, run_stale[:])
+        if !NativeAssert(*test, rejected.code == 1 && TextContains(rejected.error, "problem=pointer"),
+            CheckConcat("expected stale derived pointer trap: ", rejected.error)) { return 1 }
+    }
     source := CheckPath(test.work, "instances.zi")
     if !NativeWrite(*test, source, "slot: s64 = 7;\n#program_export\nmain :: () -> s64 { slot += 1; return slot }\n") { return 1 }
     for checked: 0..1 {

@@ -48,3 +48,34 @@ Stale :: () -> s32 {
     <<replacement = 21
     return <<survivor + <<stale
 }
+
+Pixel :: struct { value: u8 }
+pixels: [350000]Pixel;
+
+#program_export
+CrossBranchAddresses :: () -> s32 {
+    kept := *pixels[0]
+    alias := *pixels[0]
+    total: s32
+    for index: 0..349999 {
+        pixel := *pixels[index]
+        if (index & 1) == 0 { pixel.value = 1 }
+        else { pixel.value = 2 }
+        total += cast(s32)pixel.value
+    }
+    if total != 525000 || kept != alias || kept.value != 1 { return 1 }
+    kept.value = 42
+    return cast(s32)alias.value
+}
+
+Pair :: struct { first: Pixel; second: Pixel }
+
+#program_export
+StaleDerivedAddress :: () -> s32 {
+    pair := New(Pair)
+    older := *pair.first
+    free(pair)
+    replacement := New(Pair)
+    replacement.first.value = 42
+    return cast(s32)older.value
+}

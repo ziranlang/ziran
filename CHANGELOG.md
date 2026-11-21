@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Speed up SHA-256 verification on hosts without SHA instructions.
+
 - Package tested native Ziran toolchains in Gitea by exact source revision and Linux host profile.
 - Distribute checked packages as versioned `.zx` libraries for source-free imports in ZX and native builds.
 

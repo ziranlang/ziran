@@ -38,6 +38,18 @@ rotate(uint32_t value, int bits)
     return (value >> bits) | (value << (32 - bits));
 }
 
+static inline void
+portable_round(uint32_t a, uint32_t b, uint32_t c, uint32_t *d,
+               uint32_t e, uint32_t f, uint32_t g, uint32_t *h, uint32_t word)
+{
+    uint32_t t1 = *h + (rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25)) +
+                  (g ^ (e & (f ^ g))) + word;
+    uint32_t t2 = (rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22)) +
+                  ((a & b) | (c & (a | b)));
+    *d += t1;
+    *h = t1 + t2;
+}
+
 static void
 compress_portable(uint32_t state[8], const unsigned char *block, size_t blocks)
 {
@@ -53,13 +65,17 @@ compress_portable(uint32_t state[8], const unsigned char *block, size_t blocks)
         }
         uint32_t a = state[0], b = state[1], c = state[2], d = state[3];
         uint32_t e = state[4], f = state[5], g = state[6], h = state[7];
-        for(int i = 0; i < 64; i++) {
-            uint32_t t1 = h + (rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25)) +
-                          ((e & f) ^ (~e & g)) + round_constants[i] + w[i];
-            uint32_t t2 = (rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22)) +
-                          ((a & b) ^ (a & c) ^ (b & c));
-            h = g; g = f; f = e; e = d + t1;
-            d = c; c = b; b = a; a = t1 + t2;
+        /* Rotate the roles at each call so only two words change per round.
+         * After eight rounds the words are back in state order. */
+        for(int i = 0; i < 64; i += 8) {
+            portable_round(a, b, c, &d, e, f, g, &h, round_constants[i] + w[i]);
+            portable_round(h, a, b, &c, d, e, f, &g, round_constants[i + 1] + w[i + 1]);
+            portable_round(g, h, a, &b, c, d, e, &f, round_constants[i + 2] + w[i + 2]);
+            portable_round(f, g, h, &a, b, c, d, &e, round_constants[i + 3] + w[i + 3]);
+            portable_round(e, f, g, &h, a, b, c, &d, round_constants[i + 4] + w[i + 4]);
+            portable_round(d, e, f, &g, h, a, b, &c, round_constants[i + 5] + w[i + 5]);
+            portable_round(c, d, e, &f, g, h, a, &b, round_constants[i + 6] + w[i + 6]);
+            portable_round(b, c, d, &e, f, g, h, &a, round_constants[i + 7] + w[i + 7]);
         }
         state[0] += a; state[1] += b; state[2] += c; state[3] += d;
         state[4] += e; state[5] += f; state[6] += g; state[7] += h;

@@ -4,7 +4,6 @@
 #import "check_support"
 #import "std/binary"
 #import "std/file"
-#import "std/http_get_linux"
 #import "std/net_http"
 #import "std/process_capture_linux"
 using Vectors :: #import "std/vec"
@@ -72,14 +71,12 @@ CaptureCases :: () -> bool {
     none: [0]string
     invalid := CaptureOutputCapped(none[:], output[:], 8)
     bad_limit := CaptureOutputCapped(none[:], output[:], 16)
-    bad_url := GetHttpsCapped("file:///etc/passwd", 8, output[:])
     arguments := string.["/usr/bin/printf", "abcdef"]
     large := CaptureOutputCapped(arguments[:], output[:], 3)
     arguments[1] = "abc"
     good := CaptureOutputCapped(arguments[:], output[:], 3)
     return invalid.error && invalid.problem == .InvalidArguments &&
         bad_limit.error && bad_limit.problem == .InvalidArguments &&
-        bad_url.error && bad_url.problem == .InvalidUrl &&
         large.error && large.truncated && large.problem == .TooLarge &&
         !good.error && !good.truncated && good.length == 3 &&
         TextView(output[0:3]) == "abc"

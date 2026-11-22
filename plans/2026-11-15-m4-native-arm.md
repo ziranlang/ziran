@@ -4,7 +4,7 @@ Owner: "do teh remaningi tasks", "so implemnet it prorely", "phone is adb
 conneciton dude you can use it", "we alse have a pixle device on thinpkdpa
 delta which you can use as well".
 
-This continues `plans/2026-11-14-native-zx-players.md` sessions 6 to 8 with
+This continues the native ZX player sessions 6 to 8 with
 what the tree actually has.
 
 ## Devices

@@ -45,5 +45,5 @@ the final gate. No alias or compatibility runner survives a step.
   that benchmark, like `bench/results/`.
 - The ELF writer's fixed-base relocation checks and the native loader's
   per-architecture relocation code serve different live paths (AOT ELF and
-  in-process loading); merging them is a refactor for
-  `plans/2026-11-14-native-zx-players.md`, not a deletion.
+  in-process loading); merging them is a refactor for the native image lanes,
+  not a deletion.

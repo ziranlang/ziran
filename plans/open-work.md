@@ -66,7 +66,22 @@ line when the work lands. Keep detail in the referenced plan.
 - Deferred Lean-study proposals: polymorphic-default postponement,
   `using ... in` scopes, zi2c reuse of optimizer facts, bounded translation
   validation, `partial`/`unsafe` tainting, co-located structural laws
-  (conditions in plans/2026-11-18-learn-from-lean.md).
+  (rejected alternatives: see Rejected research below).
+
+## Rejected research (do not adopt)
+
+From the Lean 4 study (2026-11-18), measured-only rule: runtime reference
+counting or RC headers; tagged scalars and boxed value words; closure
+unboxing; Lean's Task thread pool or any permanent background service
+(`std/thread_linux.zi` pthreads with explicit joins suffice); lambda_RC's
+formal borrow calculus as a source contract; Perceus-style reuse checks for
+immutable structures; syntax extension or notation commands; type classes
+and instance-implicit search; coercion class chains; auto-bound implicits;
+dependent types or proof terms in the checked language; mandatory
+proof-carrying indexing; `termination_by` proofs for all procedures;
+invoking Lean or an SMT solver inside `ziran` or `.zx` loaders; trusting
+cached proof bits without re-check; for now multi-process worker isolation,
+intra-command incremental elaboration, and remote artifact caches.
 
 ## Benchmarks
 

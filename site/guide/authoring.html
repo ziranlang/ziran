@@ -1,31 +1,31 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Authoring workflow evidence: the Ziran guide, rendered from docs/AUTHORING.md."><title>Authoring workflow evidence · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/authoring"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Authoring with compiler tools: the Ziran guide, rendered from docs/AUTHORING.md."><title>Authoring with compiler tools · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/authoring"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
-<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Authoring workflow evidence</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/AUTHORING.md">docs/AUTHORING.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Authoring with compiler tools</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/AUTHORING.md">docs/AUTHORING.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
 <div class="article-grid"><aside class="page-toc"><strong>On this page</strong><span>One section</span></aside><div class="article-body">
 <section class="prose"><p>Canonical <code>.zi</code> is the only authoring source. The checked tools around it are:</p>
 <ol>
 <li>Retrieve: <code>ziran api --json --module NAME --symbol NAME|ID --max-bytes N</code>
    (<a href="api-discovery.html">API discovery</a>).</li>
 <li>Diagnose: <code>ziran check --diagnostics=json</code> (<a href="diagnostics.html">diagnostics</a>).</li>
-<li>Edit: <code>ziran edit --root DIR request.json</code> previews a change. <code>--apply</code>
+<li>Edit: <code>ziran edit --root DIR request.json</code> previews a change; <code>--apply</code>
    writes it atomically after the same checker and law gates
    (<a href="semantic-edit.html">checked source edits</a>).</li>
-<li>Optional transport: <code>ziran compact</code>/<code>expand --map</code> (an exact round trip,
-   see the <a href="transport-view.html">compact transport</a>).</li>
-<li>Verify: <code>check</code>, <code>ir</code>, <code>bundle</code>, <code>run</code>, and native C/Go
-   runs where the task asks for portable parity.</li>
+<li>Optional transport: <code>ziran compact</code>/<code>expand --map</code> is an exact round trip
+   (<a href="transport-view.html">compact transport</a>).</li>
+<li>Verify: <code>check</code>, <code>ir</code>, <code>bundle</code>, <code>run</code>, and native C/Go runs when the task
+   asks for portable parity.</li>
 </ol>
-<p>The lean suite checks these production commands directly:</p>
-<pre><code class="language-sh">build-queue -- sh tests/zir_api.sh build/bin/ziran
-build-queue -- sh tests/semantic_edit.sh build/bin/ziran
-build-queue -- sh tests/transport_view.sh build/bin/ziran
-build-queue -- make CHECK_FILTER=tool_diagnostics check
+<p>The retained suite exercises these production commands directly:</p>
+<pre><code class="language-sh">sh tests/zir_api.sh build/bin/ziran
+sh tests/semantic_edit.sh build/bin/ziran
+sh tests/transport_view.sh build/bin/ziran
+make CHECK_FILTER=tool_diagnostics check
 </code></pre>
 <p>API, diagnostic, edit and transport commands share canonical <code>.zi</code> source and
 the same checker. Apply exact edits only against their recorded document hash
-and preimage. Run checking and relevant execution tests after applying an edit.
-The transport view is optional and round-trips to canonical source.</p></section>
+and preimage. Run checking and relevant execution tests after applying an
+edit. The transport view is optional and round-trips to canonical source.</p></section>
 </div></div></main>
 <footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

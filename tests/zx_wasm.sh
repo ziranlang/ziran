@@ -502,8 +502,13 @@ static void scenario(const char *engine, BundleBackendPolicy policy,
     BundleInstanceClose(ring);
     BundleInstanceClose(grown);
 }
+extern int32_t frontend_literals(void);
 int main(int argc, char **argv)
 {
+    if (!frontend_literals()) {
+        fputs("Wasm frontend changed a global or truncated a compile-time literal\n", stderr);
+        return 5;
+    }
     Bundle *typed = argc == 5 ? BundleOpen(argv[1]) : NULL;
     Bundle *state = argc == 5 ? BundleOpen(argv[2]) : NULL;
     Bundle *tree = argc == 5 ? BundleOpen(argv[3]) : NULL;
@@ -532,7 +537,10 @@ int main(int argc, char **argv)
     return 0;
 }
 C
-    "$emcc" -O2 -std=gnu99 -I"$repo/include" -I"$repo/cmd/zir" "$work/tier.c" "$work/lib/libziran.a" \
+    "$(dirname -- "$ziran")/zi2c" --no-main --root "$repo/tests" --module-path "$repo/cmd" \
+        -o "$work/frontend-c" "$repo/tests/zx_wasm_frontend.zi"
+    "$emcc" -O2 -std=gnu99 -I"$repo/include" -I"$repo/cmd/zir" \
+        "$work/tier.c" "$work/frontend-c/zx_wasm_frontend.c" "$work/lib/libziran.a" \
         -o "$work/tier.js" -s ENVIRONMENT=node -s NODERAWFS=1 -s ALLOW_MEMORY_GROWTH=1 -s EXIT_RUNTIME=1
     tier=$("$nodebin" "$work/tier.js" "$work/typed.zx" "$work/state.zx" "$work/tree.zx" "$work/cycle.zx" 2> "$work/tier.err") || {
         cat "$work/tier.err"

@@ -1,8 +1,8 @@
 # Self-hosting Ziran: retiring the hand-written compiler C
 
-Analysis and migration plan, 2026-11-14. This plan follows the row 7 decision in
-[2026-11-13-native-optimizations.md](2026-11-13-native-optimizations.md): owner,
-verbatim, "and wyh arenty ou writing al of ziran in ziran so we can bootstarp it".
+Analysis and migration plan, 2026-11-14. This plan follows the owner's decision
+in row 7 of the November 13 native optimization plan, "and wyh arenty ou writing
+al of ziran in ziran so we can bootstarp it".
 It changes no source. It maps every C file under the compiler directories to a
 Ziran destination and defines session-sized steps. The eventual `bootstrap/`
 state is generated C from the previous compiler plus the small OS/runtime C that
@@ -35,17 +35,16 @@ header. S11 uses the six `compiler_check*` modules for checker setup, value,
 statement, expression, and text passes and their shared records. S12 ports
 function and whole-program checking, generic linking, SIMD rules, and borrow
 analysis. The build links the Ziran checker modules directly, with generated C
-seeds for bootstrapping and prefixed names for private calls. The remaining C
-parser and tool drivers use the public declarations in `zir_check.h`. S13
-ports source parsing, module discovery and compile-time condition selection.
-The parser keeps its C-facing entry points and leaves recovery jumps in the
-host boundary while the remaining declaration, evaluation and typed parser
-code moves in S14.
+seeds for bootstrapping and prefixed names for private calls. The C tool
+drivers use the public declarations in `zir_check.h`. S13 ports source
+parsing, module discovery and compile-time condition selection. S14 ports
+declaration parsing, compile-time and typed evaluation, and IR cleanup. The
+parser keeps its C-facing entry points and its host recovery boundary.
 
-S14–S18 remain open. They cover the remaining parser, frontend services, portable ZX and
-host interfaces, inline assembly and tool drivers, and the stage-0 through
-stage-2 fixed-point proof. The current `check-bootstrap` compares generated
-modules against the checked-in seed.
+S15–S18 remain open. They cover frontend services, portable ZX and host
+interfaces, inline assembly and tool drivers, and the stage-0 through stage-2
+fixed-point proof. The current `check-bootstrap` compares generated modules
+against the checked-in seed.
 
 ## Why staged bootstrap is mandatory
 
@@ -212,7 +211,7 @@ C ABI/storage boundary:
 | `zir_check_statement.c` | statement checking from `:8` | `compiler_check_statement` | S11 |
 | `zir_check_text.c` | fresh-text ownership from `:86` | `compiler_check_expr` | S11 |
 | `zir_check_value.c` | lexical/value lookup from `:5` | `compiler_check_value` | S11 |
-| `zir_cleanup.c` / `.h` | source normalization/lowering prep; loop rules at `:608`, `:641`, `:659`; public API `:6-8` | `compiler_ir_cleanup` | S14 |
+| `zir_cleanup.c` / `.h` | source normalization and loop lowering, with C declarations for retained tests | `compiler_ir_cleanup` | S14 |
 | `zir_command.h` | option parsing and program merge `ReadCommandOptions:80`, `CommandMergePrograms:113` | `compiler_cli` | S17 |
 | `zir_context.c` / `.h` | compiler contexts/storage `CompilerContextSelect:19`, storage `:31` | `compiler_context`; tiny context hooks may remain in runtime | S15 |
 | `zir_diagnostic.c` / `.h` | diagnostics declarations `:26-37`, UTF-8 handling `:15` | `compiler_diagnostic` | S15 |
@@ -228,7 +227,7 @@ C ABI/storage boundary:
 | `zir_emit_value.c` | output/format controls from `:8` | `compiler_c_emit_value` | S5 |
 | `zir_enum.c` | enum snapshot cache; generated arithmetic call `:92`; public `EnumMemberValue:113` | `compiler_frontend_ir` cache | S15 |
 | `zir_exec_console.h` | portable failure text | `compiler_zx_run` | S16 |
-| `zir_expr.h` | C adapters to the Ziran expression IR parser | `compiler_expr_ir` | S14 |
+| `zir_expr.h` | C adapters to the Ziran expression IR parser used by portable linking and retained tests | `compiler_expr_ir` | S16 |
 | `zir_files.c` / `.h` | filesystem/path policy `PathIsAbsolute:19`, status `:7` | `compiler_files` | S15 |
 | `zir_host.c` | embedding API `BundleOpen:46`, instances `:335`, run `:348`, state/components `:653`, `:868` | `compiler_host_api` | S16 |
 | `zir_host_exec.c` / `.h` | executable ZX engine facade; bundle open `ExecBundleOpen:421`, host instances `:1399`; no-engine stubs `:1396` onward | `compiler_zx_exec` | S16 |
@@ -239,14 +238,14 @@ C ABI/storage boundary:
 | `zir_native.c` / `.h` | collision-safe native names `PrepareNativeNames:11` | `compiler_native_names` | S17 |
 | `zir_overlay.c` / `.h` | source overlay `SourceOverlayBegin:9` | `compiler_overlay` | S15 |
 | `zir_packages.c` / `.h` | package manifest resolution from `:48` | `compiler_package_resolve` | S16 |
-| `zir_parse.c` / `.h` | module/global parsing; source helpers `:159`, `:635`; globals `:246` | `compiler_frontend_parse` | S14 |
+| `zir_parse.c` / `.h` | module and global parsing, C API and recovery boundary | `compiler_frontend_parse` plus bootstrap recovery runtime | S14 / S18 |
 | `zir_parse_condition.c` | compile-time conditions and linked compile expressions | `compiler_parse_condition` | S13 |
-| `zir_parse_declaration.c` | declarations/imports/foreigns from `:26`, `:518`, `:575` | `compiler_frontend_parse_declaration` | S14 |
+| `zir_parse_declaration.c` | declarations, imports and foreigns | `compiler_parse_declaration` | S14 |
 | `zir_parse_discover.c` | module discovery, type headers, enum backing and record substitution | `compiler_parse_discover` | S13 |
-| `zir_parse_eval.c` | compile-time evaluation `:6` | `compiler_frontend_parse_eval` | S14 |
-| `zir_parse_internal.h` | parser private ABI | private Ziran records | S14 |
+| `zir_parse_eval.c` | compile-time evaluation | `compiler_parse_eval` | S14 |
+| `zir_parse_internal.h` | private parser records and host recovery bridge | `compiler_parse_s14_types` plus bootstrap recovery runtime | S14 / S18 |
 | `zir_parse_source.c` | source, file and import parsing | `compiler_parse_source` | S13 |
-| `zir_parse_typed.c` | typed expression compilation from `:9`, cache `:1027` | `compiler_frontend_parse_typed` | S14 |
+| `zir_parse_typed.c` | typed expression compilation and caches | `compiler_parse_typed` | S14 |
 | `zir_profile.c` / `.h` | counters/RSS/time from `:35` | `compiler_profile`; OS callbacks may remain | S17 |
 | `zir_proof.h` | proof ABI | covered by `compiler_proof`/`compiler_proof_kernel` | S15 |
 | `zir_scalar.h` | scalar width/mask helpers `:8-41` | `compiler_scalar` | S4 |
@@ -485,18 +484,19 @@ No step commits before its implementation and proof are complete.
 
 ### S14 — declaration/typed parser and IR cleanup
 
-- Add `cmd/compiler_frontend_parse_declaration.zi`,
-  `cmd/compiler_frontend_parse_eval.zi`,
-  `cmd/compiler_frontend_parse_typed.zi`, `cmd/compiler_frontend_parse.zi`,
-  and `cmd/compiler_ir_cleanup.zi`; port
-  `zir_parse_declaration.c`, `zir_parse_eval.c`, `zir_parse_typed.c`,
-  `zir_parse.c`, `zir_cleanup.c`, and their headers/internal ABI.
-- Change tools to the frontend parse API; remove generated parse/check/emit
-  merge rules only when their C parts disappear (defer to S15/S16 if the checker
-  or emitter object remains).
-- Delete all parser files listed in S14 plus `zir_cleanup.c/.h`, `zir_expr.h`,
-  and `zir_parse_internal.h`.
-- Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=compiler_declaration`.
+- `compiler_frontend_parse`, `compiler_parse_declaration`,
+  `compiler_parse_eval`, `compiler_parse_typed`, and `compiler_ir_cleanup`
+  replace the remaining parser and cleanup logic. `compiler_parse_s14_types`
+  defines the shared evaluation state. Both compiler stages link these modules
+  with the rest of the frontend, and `bootstrap/` holds six generated seed pairs.
+- The port removes `zir_parse_declaration.c`, `zir_parse_eval.c`,
+  `zir_parse_typed.c`, and `zir_cleanup.c`. `zir_parse.c` handles recovery
+  jumps, variadic diagnostics, decimal range reporting, and the host's
+  thread-local law flag.
+  The C declarations in `zir_parse.h`, `zir_cleanup.h`, and `zir_expr.h`
+  serve the remaining C tools, portable linking and retained tests.
+- Verify with `env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check JOBS=2 CHECK_JOBS=2`
+  and `env -u DISPLAY -u WAYLAND_DISPLAY make check-bootstrap JOBS=2`.
 
 ### S15 — frontend IR, context and support runtime
 

@@ -1,0 +1,1559 @@
+// Cleanup.
+using IR :: #import "compiler_ir"
+using Parser :: #import "compiler_parse_types"
+using S14 :: #import "compiler_parse_s14_types"
+Statement :: #import "compiler_statement"
+Source :: #import "compiler_source"
+Declaration :: #import "compiler_declaration"
+
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+ZirLawEvaluationAddress :: () -> *s32 #foreign compiler "ZirLawEvaluationAddress";
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+CompilerCalloc :: (count: usize, size: usize) -> *void #foreign compiler "CompilerCalloc";
+CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
+CompilerLexerInit :: (lexer: *IR.ZirLexer, source: *void, path: *void) #foreign compiler "CompilerLexerInit";
+CompilerStructureFunction :: (arg0: *IR.ZirFunction, arg1: *IR.ZirModule) #foreign compiler "CompilerStructureFunction";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, varargs: ..any) #foreign compiler "Diagnostic";
+FunctionAddStmt :: (fn: *IR.ZirFunction, kind: IR.ZirStmtKind, text: *u8, span: IR.ZirSourceSpan) -> *IR.ZirStmt #foreign compiler "FunctionAddStmt";
+KeepText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
+LexerNext :: (lx: *IR.ZirLexer) -> IR.ZirToken #foreign compiler "LexerNext";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+StmtReset :: (stmt: *IR.ZirStmt) #foreign compiler "StmtReset";
+ZirSignedIntegerLiteral :: (text: *u8, value: *u64, negative: *s32) -> s32 #foreign compiler "ZirSignedIntegerLiteral";
+copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+memset :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memset";
+skip_ws :: (s: *u8) -> *u8 #foreign compiler "skip_ws";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+strstr :: (__haystack: *u8, __needle: *u8) -> *u8 #foreign libc "strstr";
+scratch_action_kind: u8;
+scratch_LowerCleanup: u8;
+scratch_lower_named_while: u8;
+scratch_BindJaiLoopControls: u8;
+scratch_lower_one_range: u8;
+scratch_lower_one_collection: u8;
+isspace :: (character: s32) -> s32 #foreign libc "isspace";
+
+#scope_file
+fail :: (st: *IR.ZirStmt, message: *u8) -> s32 {
+    Diagnostic((st).span, ParserCString("check.cleanup"), ParserCString("%s"), message)
+    return 0
+}
+
+#scope_file
+statement_text :: (text: *u8) -> string {
+    return S14String(text, strlen(text))
+}
+
+#scope_file
+statement_copy :: (source: string, output: *u8, capacity: usize) -> s32 {
+    if ((cast(usize)((source).count) < cast(usize)(0)) || (cast(u64)(cast(u64)(cast(usize)((source).count))) >= cast(u64)(capacity))) {
+        return 0
+    }
+    if (cast(usize)((source).count) != 0) {
+        memcpy(cast(*void)(output), cast(*void)(S14StringData(source)), cast(usize)(cast(usize)((source).count)))
+    }
+    (output)[cast(usize)((source).count)] = cast(u8)(0)
+    return 1
+}
+
+#scope_file
+mentions :: (text: *u8, name: *u8) -> s32 {
+    return cast(s32)(Statement.Mentions(statement_text(text), statement_text(name)))
+}
+
+#scope_file
+cleanup_mentions :: (entry: *Cleanup, name: *u8) -> s32 {
+    if (mentions(((entry).statement).text, name) != 0) {
+        return 1
+    }
+    {
+        i: s32 = 0
+        while loop_126 := (i < (entry).body_count) {
+            if (mentions((((entry).body)[i]).text, name) != 0) {
+                return 1
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+defer_block :: (st: *IR.ZirStmt) -> s32 {
+    if ((cast(s32)((st).kind) != cast(s32)(13)) || (strncmp((st).text, ParserCString("defer"), cast(usize)(5)) != 0)) {
+        return 0
+    }
+    body: *u8 = skip_ws(cast(*u8)(cast(usize)((st).text) + cast(usize)(5) * size_of(u8)))
+    return cast(s32)((cast(s32)(cast(s8)((body)[0])) == 123) && (cast(s32)(cast(s8)((skip_ws(cast(*u8)(cast(usize)(body) + cast(usize)(1) * size_of(u8))))[0])) == 0))
+}
+
+#scope_file
+action_kind_with_buffers :: (text: *u8, action: *IR.ZirStmt, buffers: *ActionKindBuffers) -> s32 {
+    lexer: IR.ZirLexer
+    memset(cast(*void)(*((buffers).temporary)), 0, cast(usize)size_of(IR.ZirFunction))
+    valid: s32
+    (action).kind = cast(IR.ZirStmtKind)(5)
+    LexerInit(*(lexer), text, SpanPath((action).span))
+    (buffers).token = LexerNext(*(lexer))
+    if (((((((!(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("return")) != 0) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("break")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("continue")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("goto")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("defer")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("if")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("while")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("for")) != 0)) {
+        return 0
+    }
+    LexerInit(*(lexer), text, SpanPath((action).span))
+    while loop_127 := true {
+        (buffers).token = LexerNext(*(lexer))
+        if ((((((((((!(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("=")) != 0) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("+=")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("-=")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("*=")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("/=")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("%=")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("&=")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("|=")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("^=")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString("<<=")) != 0)) || !(strcmp(cast(*u8)(*(((buffers).token).text)), ParserCString(">>=")) != 0)) {
+            (action).kind = cast(IR.ZirStmtKind)(4)
+        }
+        if !(((buffers).token).kind != 0) { break loop_127 }
+    }
+    (action).text = KeepText(text)
+    if !(append(*((buffers).temporary), action) != 0) {
+        return 0
+    }
+    StructureFunction(*((buffers).temporary), null)
+    valid = cast(s32)((((((buffers).temporary).stmts)[0]).expr_root >= 0) && (cast(s32)(((((buffers).temporary).exprs)[((((buffers).temporary).stmts)[0]).expr_root]).kind) != cast(s32)(0)))
+    CompilerFree(cast(*void)(((buffers).temporary).stmts))
+    CompilerFree(cast(*void)(((buffers).temporary).exprs))
+    return valid
+}
+
+#scope_file
+action_kind :: (text: *u8, action: *IR.ZirStmt) -> s32 {
+    buffers := cast(*ActionKindBuffers)ParserScratchTake(*scratch_action_kind, size_of(ActionKindBuffers))
+    defer ParserScratchRelease(*scratch_action_kind, cast(*void)buffers)
+    return action_kind_with_buffers(text, action, buffers)
+}
+
+#scope_file
+append :: (out: *IR.ZirFunction, st: *IR.ZirStmt) -> s32 {
+    copy: *IR.ZirStmt = FunctionAddStmt(out, (st).kind, (st).text, (st).span)
+    if !(copy != null) {
+        return 0
+    }
+    S14ParserSet22(copy, (st)[0])
+    return 1
+}
+
+#scope_file
+header_opens_block :: (text: *u8) -> s32 {
+    length: usize = strlen(text)
+    while loop_128 := ((length > cast(usize)(0)) && (isspace(cast(s32)(((cast(u8)((text)[(length - cast(usize)(1))]))))) != 0)) {
+        S14ParserPost0(*(length))
+    }
+    return cast(s32)((length > cast(usize)(0)) && (cast(s32)(cast(s8)((text)[(length - cast(usize)(1))])) == 123))
+}
+
+#scope_file
+starts_else :: (text: *u8) -> s32 {
+    return cast(s32)((strncmp(text, ParserCString("else"), cast(usize)(4)) == 0) && ((cast(s32)(cast(s8)((text)[4])) == 0) || (isspace(cast(s32)(((cast(u8)((text)[4]))))) != 0)))
+}
+
+#scope_file
+normalize_block :: (n: *BodyNormalizer, header: *IR.ZirStmt, depth: s32) -> s32 {
+    while loop_129 := (((n).cursor < ((n).source).stmt_count) && (cast(s32)(((((n).source).stmts)[(n).cursor]).kind) != cast(s32)(2))) {
+        if !(normalize_one(n, (depth + 1)) != 0) {
+            return 0
+        }
+    }
+    if ((n).cursor >= ((n).source).stmt_count) {
+        return fail(header, ParserCString("unterminated block body"))
+    }
+    return append(*((n).output), cast(*IR.ZirStmt)(cast(usize)(((n).source).stmts) + cast(usize)(S14ParserPost1(*((n).cursor))) * size_of(IR.ZirStmt)))
+}
+
+#scope_file
+normalize_control_body :: (n: *BodyNormalizer, depth: s32) -> s32 {
+    source: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)(((n).source).stmts) + cast(usize)(S14ParserPost1(*((n).cursor))) * size_of(IR.ZirStmt))
+    header: IR.ZirStmt = (source)[0]
+    explicit_block: s32 = header_opens_block((header).text)
+    separate_block: s32 = cast(s32)((!(explicit_block != 0) && ((n).cursor < ((n).source).stmt_count)) && (cast(s32)(((((n).source).stmts)[(n).cursor]).kind) == cast(s32)(1)))
+    if !(explicit_block != 0) {
+        opened_storage_0 := cast(*ParserArray4096_u8)AllocateOrExit(size_of(ParserArray4096_u8))
+        defer CompilerFree(cast(*void)opened_storage_0)
+        memset(cast(*void)opened_storage_0, 0, size_of(ParserArray4096_u8))
+        if (snprintf(cast(*u8)(*((opened_storage_0[0]).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s {"), (header).text) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) {
+            return fail(source, ParserCString("control header exceeds statement limit"))
+        }
+        (header).text = KeepText(cast(*u8)(*((opened_storage_0[0]).items)))
+    }
+    if !(append(*((n).output), *(header)) != 0) {
+        return 0
+    }
+    if (separate_block != 0) {
+        S14ParserPost1(*((n).cursor))
+    }
+    if ((explicit_block != 0) || (separate_block != 0)) {
+        return normalize_block(n, source, depth)
+    }
+    if ((((n).cursor >= ((n).source).stmt_count) || (cast(s32)(((((n).source).stmts)[(n).cursor]).kind) == cast(s32)(2))) || ((cast(s32)(((((n).source).stmts)[(n).cursor]).kind) == cast(s32)(6)) && (starts_else(((((n).source).stmts)[(n).cursor]).text) != 0))) {
+        return fail(source, ParserCString("control header requires a body"))
+    }
+    if !(normalize_one(n, (depth + 1)) != 0) {
+        return 0
+    }
+    close: IR.ZirStmt
+    StmtReset(*(close))
+    (close).kind = cast(IR.ZirStmtKind)(2)
+    (close).text = KeepText(ParserCString("}"))
+    (close).expr_root = S14ParserSet9(*((close).lhs_root), (-1))
+    (close).span = (source).span
+    return append(*((n).output), *(close))
+}
+
+#scope_file
+normalize_one :: (n: *BodyNormalizer, depth: s32) -> s32 {
+    if ((n).cursor >= ((n).source).stmt_count) {
+        return 0
+    }
+    statement: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)(((n).source).stmts) + cast(usize)((n).cursor) * size_of(IR.ZirStmt))
+    if (depth > 128) {
+        return fail(statement, ParserCString("control nesting exceeds limit"))
+    }
+    if (cast(s32)((statement).kind) == cast(s32)(2)) {
+        return fail(statement, ParserCString("unexpected block close"))
+    }
+    if ((cast(s32)((statement).kind) == cast(s32)(6)) && (starts_else((statement).text) != 0)) {
+        return fail(statement, ParserCString("else without matching if"))
+    }
+    if (((cast(s32)((statement).kind) == cast(s32)(6)) || (cast(s32)((statement).kind) == cast(s32)(7))) || (cast(s32)((statement).kind) == cast(s32)(8))) {
+        kind: IR.ZirStmtKind = (statement).kind
+        if !(normalize_control_body(n, depth) != 0) {
+            return 0
+        }
+        if (cast(s32)(kind) == cast(s32)(6)) {
+            while loop_130 := ((((n).cursor < ((n).source).stmt_count) && (cast(s32)(((((n).source).stmts)[(n).cursor]).kind) == cast(s32)(6))) && (starts_else(((((n).source).stmts)[(n).cursor]).text) != 0)) {
+                if !(normalize_control_body(n, depth) != 0) {
+                    return 0
+                }
+            }
+        }
+        return 1
+    }
+    if ((((cast(s32)((statement).kind) == cast(s32)(1)) || (cast(s32)((statement).kind) == cast(s32)(16))) || ((cast(s32)((statement).kind) == cast(s32)(9)) && (header_opens_block((statement).text) != 0))) || (defer_block(statement) != 0)) {
+        header: *IR.ZirStmt = statement
+        if !(append(*((n).output), header) != 0) {
+            return 0
+        }
+        S14ParserPost1(*((n).cursor))
+        return normalize_block(n, header, depth)
+    }
+    S14ParserPost1(*((n).cursor))
+    return append(*((n).output), statement)
+}
+
+#scope_export
+#program_export "NormalizeJaiBodies"
+NormalizeJaiBodies :: (fn: *IR.ZirFunction) -> s32 {
+    normalizer_storage_0 := cast(*BodyNormalizer)AllocateOrExit(size_of(BodyNormalizer))
+    defer CompilerFree(cast(*void)normalizer_storage_0)
+    memset(cast(*void)normalizer_storage_0, 0, size_of(BodyNormalizer))
+    normalizer_storage_0[0] = .{}
+    (normalizer_storage_0[0]).source = fn
+    while loop_131 := ((normalizer_storage_0[0]).cursor < (fn).stmt_count) {
+        if !(normalize_one(*(normalizer_storage_0[0]), 0) != 0) {
+            CompilerFree(cast(*void)(((normalizer_storage_0[0]).output).stmts))
+            return 0
+        }
+    }
+    CompilerFree(cast(*void)((fn).stmts))
+    (fn).stmts = ((normalizer_storage_0[0]).output).stmts
+    (fn).stmt_count = ((normalizer_storage_0[0]).output).stmt_count
+    (fn).stmt_cap = ((normalizer_storage_0[0]).output).stmt_cap
+    return 1
+}
+
+#scope_file
+emit :: (out: *IR.ZirFunction, entries: *Cleanup, count: s32, minimum: s32) -> s32 {
+    {
+        i: s32 = (count - 1)
+        while loop_132 := ((i >= 0) && (((entries)[i]).depth >= minimum)) {
+            entry: *Cleanup = cast(*Cleanup)(cast(usize)(entries) + cast(usize)(i) * size_of(Cleanup))
+            if ((entry).is_block != 0) {
+                if (FunctionAddStmt(out, cast(IR.ZirStmtKind)(1), ParserCString("{"), ((entry).statement).span) == cast(*IR.ZirStmt)((null))) {
+                    return 0
+                }
+                {
+                    body: s32 = 0
+                    while loop_133 := (body < (entry).body_count) {
+                        if !(append(out, cast(*IR.ZirStmt)(cast(usize)((entry).body) + cast(usize)(body) * size_of(IR.ZirStmt))) != 0) {
+                            return 0
+                        }
+                        S14ParserPost1(*(body))
+                    }
+                }
+                if (FunctionAddStmt(out, cast(IR.ZirStmtKind)(2), ParserCString("}"), ((entry).statement).span) == cast(*IR.ZirStmt)((null))) {
+                    return 0
+                }
+            } else {
+                if !(append(out, *((entry).statement)) != 0) {
+                    return 0
+                }
+            }
+            S14ParserPost16(*(i))
+        }
+    }
+    return 1
+}
+
+#scope_file
+opens :: (kind: IR.ZirStmtKind) -> s32 {
+    return cast(s32)(((((cast(s32)(kind) == cast(s32)(1)) || (cast(s32)(kind) == cast(s32)(6))) || (cast(s32)(kind) == cast(s32)(7))) || (cast(s32)(kind) == cast(s32)(8))) || (cast(s32)(kind) == cast(s32)(16)))
+}
+
+#scope_file
+case_opens_block :: (text: *u8) -> s32 {
+    {
+        p: *u8 = text
+        while loop_134 := ((p)[0] != 0) {
+            if ((cast(s32)(cast(s8)((p)[0])) == 34) || (cast(s32)(cast(s8)((p)[0])) == 39)) {
+                quote: u8 = (p)[0]
+                {
+                    S14ParserPost5(*(p))
+                    while loop_135 := (((p)[0] != 0) && (cast(s32)(cast(s8)((p)[0])) != cast(s32)(cast(s8)(quote)))) {
+                        if ((cast(s32)(cast(s8)((p)[0])) == 92) && ((p)[1] != 0)) {
+                            S14ParserPost5(*(p))
+                        }
+                        S14ParserPost5(*(p))
+                    }
+                }
+                if !((p)[0] != 0) {
+                    return 0
+                }
+            } else {
+                if (cast(s32)(cast(s8)((p)[0])) == 123) {
+                    return 1
+                }
+            }
+            S14ParserPost5(*(p))
+        }
+    }
+    return 0
+}
+
+#scope_file
+opens_stmt :: (st: *IR.ZirStmt) -> s32 {
+    return cast(s32)(((opens((st).kind) != 0) || (defer_block(st) != 0)) || ((cast(s32)((st).kind) == cast(s32)(9)) && (case_opens_block((st).text) != 0)))
+}
+
+#scope_file
+end_block :: (fn: *IR.ZirFunction, start: s32, end: s32) -> s32 {
+    depth: s32 = 1
+    {
+        i: s32 = (start + 1)
+        while loop_136 := (i < end) {
+            if (opens_stmt(cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))) != 0) {
+                S14ParserPost1(*(depth))
+            }
+            if ((cast(s32)((((fn).stmts)[i]).kind) == cast(s32)(2)) && !(S14ParserPre7(*(depth)) != 0)) {
+                return i
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    return end
+}
+
+#scope_file
+falls_through :: (fn: *IR.ZirFunction, start: s32, end: s32) -> s32 {
+    {
+        i: s32 = start
+        while loop_137 := (i < end) {
+            kind: IR.ZirStmtKind = (((fn).stmts)[i]).kind
+            if (defer_block(cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))) != 0) {
+                i = end_block(fn, i, end)
+                S14ParserPost1(*(i))
+                continue loop_137
+            }
+            if (((cast(s32)(kind) == cast(s32)(10)) || (cast(s32)(kind) == cast(s32)(11))) || (cast(s32)(kind) == cast(s32)(12))) {
+                return 0
+            }
+            if (opens_stmt(cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))) != 0) {
+                close: s32 = end_block(fn, i, end)
+                falls: s32 = falls_through(fn, (i + 1), close)
+                if ((cast(s32)(kind) == cast(s32)(1)) && !(falls != 0)) {
+                    return 0
+                }
+                if (cast(s32)(kind) == cast(s32)(6)) {
+                    has_else: s32 = 0
+                    while loop_138 := ((((close + 1) < end) && (cast(s32)((((fn).stmts)[(close + 1)]).kind) == cast(s32)(6))) && (strncmp((((fn).stmts)[(close + 1)]).text, ParserCString("else"), cast(usize)(4)) == 0)) {
+                        next: s32 = (close + 1)
+                        has_else = cast(s32)(strncmp(skip_ws(cast(*u8)(cast(usize)((((fn).stmts)[next]).text) + cast(usize)(4) * size_of(u8))), ParserCString("if"), cast(usize)(2)) != 0)
+                        close = end_block(fn, next, end)
+                        falls |= falls_through(fn, (next + 1), close)
+                    }
+                    if ((has_else != 0) && !(falls != 0)) {
+                        return 0
+                    }
+                }
+                i = close
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    return 1
+}
+
+#scope_file
+LowerCleanup_with_buffers :: (fn: *IR.ZirFunction, buffers: *LowerCleanupBuffers) -> s32 {
+    has_cleanup: s32
+    depth: s32
+    count: s32
+    serial: s32
+    ok: s32
+    entries: *Cleanup
+    scopes: *IR.ZirStmtKind
+    scope_loop_id: *s32
+    scope_start: *s32
+    while goto_done := true {
+        has_cleanup = 0
+        depth = 0
+        count = 0
+        serial = 0
+        ok = 0
+        memset(cast(*void)(*((buffers).out)), 0, cast(usize)size_of(IR.ZirFunction))
+        {
+            i: s32 = 0
+            while loop_139 := (i < (fn).stmt_count) {
+                has_cleanup |= cast(s32)(cast(s32)((((fn).stmts)[i]).kind) == cast(s32)(13))
+                S14ParserPost1(*(i))
+            }
+        }
+        if !(has_cleanup != 0) {
+            return 1
+        }
+        entries = cast(*Cleanup)(CompilerCalloc((cast(usize)((fn).stmt_count) + cast(usize)(1)), cast(usize)size_of(Cleanup)))
+        scopes = cast(*IR.ZirStmtKind)(CompilerCalloc((cast(usize)((fn).stmt_count) + cast(usize)(1)), cast(usize)size_of(IR.ZirStmtKind)))
+        scope_loop_id = cast(*s32)(CompilerCalloc((cast(usize)((fn).stmt_count) + cast(usize)(1)), cast(usize)size_of(s32)))
+        scope_start = cast(*s32)(CompilerCalloc((cast(usize)((fn).stmt_count) + cast(usize)(1)), cast(usize)size_of(s32)))
+        if (((!(entries != null) || !(scopes != null)) || !(scope_loop_id != null)) || !(scope_start != null)) {
+            break goto_done
+        }
+        {
+            i: s32 = 0
+            while loop_140 := (i < (fn).stmt_count) {
+                st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))
+                if (cast(s32)((st).kind) == cast(s32)(9)) {
+                    if ((depth > 0) && (cast(s32)((scopes)[depth]) == cast(s32)(9))) {
+                        if ((falls_through(fn, (scope_start)[depth], i) != 0) && !(emit(*((buffers).out), entries, count, depth) != 0)) {
+                            break goto_done
+                        }
+                        while loop_141 := ((count != 0) && (((entries)[(count - 1)]).depth >= depth)) {
+                            S14ParserPost16(*(count))
+                        }
+                        S14ParserPost16(*(depth))
+                    }
+                    if ((depth == 0) || (cast(s32)((scopes)[depth]) != cast(s32)(16))) {
+                        fail(st, ParserCString("case outside an if-case block"))
+                        break goto_done
+                    }
+                    if !(append(*((buffers).out), st) != 0) {
+                        break goto_done
+                    }
+                    (scopes)[S14ParserPre23(*(depth))] = cast(IR.ZirStmtKind)(9)
+                    (scope_start)[depth] = (i + 1)
+                    S14ParserPost1(*(i))
+                    continue loop_140
+                }
+                if (cast(s32)((st).kind) == cast(s32)(3)) {
+                    lexer: IR.ZirLexer
+                    LexerInit(*(lexer), (st).text, SpanPath((st).span))
+                    (buffers).name = LexerNext(*(lexer))
+                    {
+                        d: s32 = 0
+                        while loop_142 := (d < count) {
+                            if (cleanup_mentions(cast(*Cleanup)(cast(usize)(entries) + cast(usize)(d) * size_of(Cleanup)), cast(*u8)(*(((buffers).name).text))) != 0) {
+                                fail(st, ParserCString("a declaration cannot shadow a name referenced by an active defer"))
+                                break goto_done
+                            }
+                            S14ParserPost1(*(d))
+                        }
+                    }
+                }
+                if (cast(s32)((st).kind) == cast(s32)(8)) {
+                    header: Statement.LoopHeader = for_header(st)
+                    {
+                        d: s32 = 0
+                        while loop_143 := (d < count) {
+                            if (cast(s32)(cast(Statement.LoopKind)((header).kind)) != cast(s32)(0)) {
+                                if !(statement_copy((header).value_name, cast(*u8)(*(((buffers).name).text)), cast(usize)size_of(ParserArray4096_u8)) != 0) {
+                                    break goto_done
+                                }
+                                shadows: s32 = cleanup_mentions(cast(*Cleanup)(cast(usize)(entries) + cast(usize)(d) * size_of(Cleanup)), cast(*u8)(*(((buffers).name).text)))
+                                if (cast(s32)(cast(Statement.LoopKind)((header).kind)) == cast(s32)(2)) {
+                                    if !(statement_copy((header).index_name, cast(*u8)(*(((buffers).name).text)), cast(usize)size_of(ParserArray4096_u8)) != 0) {
+                                        break goto_done
+                                    }
+                                    shadows |= cleanup_mentions(cast(*Cleanup)(cast(usize)(entries) + cast(usize)(d) * size_of(Cleanup)), cast(*u8)(*(((buffers).name).text)))
+                                }
+                                if (shadows != 0) {
+                                    fail(st, ParserCString("a for header cannot reuse a name referenced by an active defer; use a while loop"))
+                                    break goto_done
+                                }
+                                S14ParserPost1(*(d))
+                                continue loop_143
+                            }
+                            lexer: IR.ZirLexer
+                            LexerInit(*(lexer), (st).text, SpanPath((st).span))
+                            while loop_144 := true {
+                                (buffers).token = LexerNext(*(lexer))
+                                if ((((buffers).token).kind == 1) && (cleanup_mentions(cast(*Cleanup)(cast(usize)(entries) + cast(usize)(d) * size_of(Cleanup)), cast(*u8)(*(((buffers).token).text))) != 0)) {
+                                    fail(st, ParserCString("a for header cannot reuse a name referenced by an active defer; use a while loop"))
+                                    break goto_done
+                                }
+                                if !(((buffers).token).kind != 0) { break loop_144 }
+                            }
+                            S14ParserPost1(*(d))
+                        }
+                    }
+                }
+                if (cast(s32)((st).kind) == cast(s32)(13)) {
+                    body: *u8 = skip_ws(cast(*u8)(cast(usize)((st).text) + cast(usize)(5) * size_of(u8)))
+                    entry: *Cleanup = cast(*Cleanup)(cast(usize)(entries) + cast(usize)(count) * size_of(Cleanup))
+                    action: *IR.ZirStmt = *((entry).statement)
+                    if (cast(s32)(cast(s8)((body)[0])) == 123) {
+                        after_open: *u8 = skip_ws(cast(*u8)(cast(usize)(body) + cast(usize)(1) * size_of(u8)))
+                        if ((cast(s32)(cast(s8)((after_open)[0])) == 125) && (cast(s32)(cast(s8)((skip_ws(cast(*u8)(cast(usize)(after_open) + cast(usize)(1) * size_of(u8))))[0])) == 0)) {
+                            S14ParserPost1(*(i))
+                            continue loop_140
+                        }
+                    }
+                    if (defer_block(st) != 0) {
+                        close: s32 = end_block(fn, i, (fn).stmt_count)
+                        if (close >= (fn).stmt_count) {
+                            fail(st, ParserCString("unterminated defer block"))
+                            break goto_done
+                        }
+                        {
+                            body_index: s32 = (i + 1)
+                            while loop_145 := (body_index < close) {
+                                kind: IR.ZirStmtKind = (((fn).stmts)[body_index]).kind
+                                if ((((cast(s32)(kind) == cast(s32)(13)) || (cast(s32)(kind) == cast(s32)(10))) || (cast(s32)(kind) == cast(s32)(11))) || (cast(s32)(kind) == cast(s32)(12))) {
+                                    fail(cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(body_index) * size_of(IR.ZirStmt)), ParserCString("unsupported control flow inside a defer block"))
+                                    break goto_done
+                                }
+                                S14ParserPost1(*(body_index))
+                            }
+                        }
+                        (entry).statement = (st)[0]
+                        (entry).body = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)((i + 1)) * size_of(IR.ZirStmt))
+                        (entry).body_count = ((close - i) - 1)
+                        (entry).is_block = 1
+                        (entry).depth = depth
+                        S14ParserPost1(*(count))
+                        i = close
+                        S14ParserPost1(*(i))
+                        continue loop_140
+                    }
+                    S14ParserSet22(action, (st)[0])
+                    if !(action_kind(body, action) != 0) {
+                        fail(st, ParserCString("defer requires one expression or assignment"))
+                        break goto_done
+                    }
+                    (action).expr_root = (-1)
+                    (action).text = KeepText(body)
+                    (entry).depth = depth
+                    S14ParserPost1(*(count))
+                    S14ParserPost1(*(i))
+                    continue loop_140
+                }
+                if ((cast(s32)((st).kind) == cast(s32)(10)) && (count != 0)) {
+                    result: IR.ZirStmt = (st)[0]
+                    value: *u8 = skip_ws(cast(*u8)(cast(usize)((st).text) + cast(usize)(6) * size_of(u8)))
+                    if (((value)[0] != 0) && (strcmp(value, ParserCString(";")) != 0)) {
+                        name_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+                        defer CompilerFree(cast(*void)name_storage_0)
+                        memset(cast(*void)name_storage_0, 0, size_of(ParserArray128_u8))
+                        collision: s32
+                        while loop_146 := true {
+                            snprintf(cast(*u8)(*((name_storage_0[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("cleanup_return_%d"), S14ParserPost1(*(serial)))
+                            collision = cast(s32)(strstr(FunctionArgs(fn), cast(*u8)(*((name_storage_0[0]).items))) != cast(*u8)((null)))
+                            {
+                                k: s32 = 0
+                                while loop_147 := (k < (fn).stmt_count) {
+                                    collision |= cast(s32)(strstr((((fn).stmts)[k]).text, cast(*u8)(*((name_storage_0[0]).items))) != cast(*u8)((null)))
+                                    S14ParserPost1(*(k))
+                                }
+                            }
+                            if !(collision != 0) { break loop_146 }
+                        }
+                        (result).kind = cast(IR.ZirStmtKind)(3)
+                        (result).expr_root = (st).expr_root
+                        if (snprintf(cast(*u8)(*(((buffers).text).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s: %s = %s"), cast(*u8)(*((name_storage_0[0]).items)), cast(*u8)(*((fn).return_type)), value) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) {
+                            fail(st, ParserCString("return expression exceeds cleanup lowering limit"))
+                            break goto_done
+                        }
+                        (result).text = KeepText(cast(*u8)(*(((buffers).text).items)))
+                        if !(append(*((buffers).out), *(result)) != 0) {
+                            break goto_done
+                        }
+                        (result).kind = cast(IR.ZirStmtKind)(10)
+                        (result).expr_root = (-1)
+                        snprintf(cast(*u8)(*(((buffers).text).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("return %s"), cast(*u8)(*((name_storage_0[0]).items)))
+                        (result).text = KeepText(cast(*u8)(*(((buffers).text).items)))
+                    }
+                    if (!(emit(*((buffers).out), entries, count, 0) != 0) || !(append(*((buffers).out), *(result)) != 0)) {
+                        break goto_done
+                    }
+                    S14ParserPost1(*(i))
+                    continue loop_140
+                }
+                if ((cast(s32)((st).kind) == cast(s32)(11)) || (cast(s32)((st).kind) == cast(s32)(12))) {
+                    target: s32 = depth
+                    while loop_148 := ((target > 0) && ((ifx ((st).target_id != 0) then cast(s32)((scope_loop_id)[target] != (st).target_id) else (cast(s32)((cast(s32)((scopes)[target]) != cast(s32)(8)) && (cast(s32)((scopes)[target]) != cast(s32)(7))))) != 0)) {
+                        S14ParserPost16(*(target))
+                    }
+                    if !(target != 0) {
+                        fail(st, ParserCString("loop control outside a loop"))
+                        break goto_done
+                    }
+                    if !(emit(*((buffers).out), entries, count, target) != 0) {
+                        break goto_done
+                    }
+                }
+                if ((((strcmp((st).text, ParserCString("#through")) == 0) || (strcmp((st).text, ParserCString("#through;")) == 0)) && (depth > 0)) && (cast(s32)((scopes)[depth]) == cast(s32)(9))) {
+                    if !(emit(*((buffers).out), entries, count, depth) != 0) {
+                        break goto_done
+                    }
+                    while loop_149 := ((count != 0) && (((entries)[(count - 1)]).depth >= depth)) {
+                        S14ParserPost16(*(count))
+                    }
+                    (scope_start)[depth] = (i + 1)
+                }
+                if (cast(s32)((st).kind) == cast(s32)(2)) {
+                    if ((depth > 0) && (cast(s32)((scopes)[depth]) == cast(s32)(9))) {
+                        if ((falls_through(fn, (scope_start)[depth], i) != 0) && !(emit(*((buffers).out), entries, count, depth) != 0)) {
+                            break goto_done
+                        }
+                        while loop_150 := ((count != 0) && (((entries)[(count - 1)]).depth >= depth)) {
+                            S14ParserPost16(*(count))
+                        }
+                        S14ParserPost16(*(depth))
+                    }
+                    if !(depth != 0) {
+                        fail(st, ParserCString("unbalanced cleanup scope"))
+                        break goto_done
+                    }
+                    if ((falls_through(fn, (scope_start)[depth], i) != 0) && !(emit(*((buffers).out), entries, count, depth) != 0)) {
+                        break goto_done
+                    }
+                    while loop_151 := ((count != 0) && (((entries)[(count - 1)]).depth >= depth)) {
+                        S14ParserPost16(*(count))
+                    }
+                    S14ParserPost16(*(depth))
+                }
+                if !(append(*((buffers).out), st) != 0) {
+                    break goto_done
+                }
+                if (opens_stmt(st) != 0) {
+                    (scopes)[S14ParserPre23(*(depth))] = (st).kind
+                    (scope_loop_id)[depth] = (st).loop_id
+                    (scope_start)[depth] = (i + 1)
+                }
+                S14ParserPost1(*(i))
+            }
+        }
+        if ((falls_through(fn, 0, (fn).stmt_count) != 0) && !(emit(*((buffers).out), entries, count, 0) != 0)) {
+            break goto_done
+        }
+        CompilerFree(cast(*void)((fn).stmts))
+        (fn).stmts = ((buffers).out).stmts
+        (fn).stmt_count = ((buffers).out).stmt_count
+        (fn).stmt_cap = ((buffers).out).stmt_cap
+        ((buffers).out).stmts = null
+        ok = 1
+        break
+    }
+    CompilerFree(cast(*void)(((buffers).out).stmts))
+    CompilerFree(cast(*void)(entries))
+    CompilerFree(cast(*void)(scopes))
+    CompilerFree(cast(*void)(scope_loop_id))
+    CompilerFree(cast(*void)(scope_start))
+    return ok
+}
+
+#scope_export
+#program_export "LowerCleanup"
+LowerCleanup :: (fn: *IR.ZirFunction) -> s32 {
+    buffers := cast(*LowerCleanupBuffers)ParserScratchTake(*scratch_LowerCleanup, size_of(LowerCleanupBuffers))
+    defer ParserScratchRelease(*scratch_LowerCleanup, cast(*void)buffers)
+    return LowerCleanup_with_buffers(fn, buffers)
+}
+
+#scope_file
+for_header :: (statement: *IR.ZirStmt) -> Statement.LoopHeader {
+    return Statement.ForHeader(statement_text((statement).text), cast(s64)(128), cast(s64)(4096))
+}
+
+#scope_file
+range_header :: (statement: *IR.ZirStmt, name: *u8, start: *u8, end: *u8, reverse: *s32) -> s32 {
+    header: Statement.LoopHeader = for_header(statement)
+    if (cast(s32)(cast(Statement.LoopKind)((header).kind)) != cast(s32)(1)) {
+        return 0
+    }
+    S14ParserSet9(reverse, cast(s32)((header).reverse))
+    return cast(s32)(((statement_copy((header).value_name, name, cast(usize)(128)) != 0) && (statement_copy((header).first, start, cast(usize)(4096)) != 0)) && (statement_copy((header).last, end, cast(usize)(4096)) != 0))
+}
+
+#scope_file
+collection_header :: (statement: *IR.ZirStmt, value_name: *u8, index_name: *u8, collection: *u8, reverse: *s32, pointer: *s32) -> s32 {
+    header: Statement.LoopHeader = for_header(statement)
+    if (cast(s32)(cast(Statement.LoopKind)((header).kind)) != cast(s32)(2)) {
+        return 0
+    }
+    S14ParserSet9(reverse, cast(s32)((header).reverse))
+    S14ParserSet9(pointer, cast(s32)((header).pointer))
+    return cast(s32)(((statement_copy((header).value_name, value_name, cast(usize)(128)) != 0) && (statement_copy((header).index_name, index_name, cast(usize)(128)) != 0)) && (statement_copy((header).collection, collection, cast(usize)(4096)) != 0))
+}
+
+#scope_file
+named_while_header :: (statement: *IR.ZirStmt, name: *u8, condition: *u8) -> s32 {
+    header: Statement.NamedWhile = Statement.WhileHeader(statement_text((statement).text), cast(s64)(128), cast(s64)(4096))
+    return cast(s32)((((header).valid != false) && (statement_copy((header).name, name, cast(usize)(128)) != 0)) && (statement_copy((header).condition, condition, cast(usize)(4096)) != 0))
+}
+
+#scope_file
+control_name :: (statement: *IR.ZirStmt, name: *u8) -> s32 {
+    control: Statement.LoopControl = Statement.ControlTarget(statement_text((statement).text), cast(bool)(cast(s32)(cast(s32)((statement).kind) == cast(s32)(12))), cast(s64)(128))
+    return cast(s32)(((control).valid != false) && (statement_copy((control).name, name, cast(usize)(128)) != 0))
+}
+
+#scope_file
+lower_named_while_with_buffers :: (fn: *IR.ZirFunction, index: s32, name: *u8, condition: *u8, buffers: *LowerNamedWhileBuffers) -> s32 {
+    header: IR.ZirStmt
+    ok: s32
+    while goto_done := true {
+        memset(cast(*void)(*((buffers).output)), 0, cast(usize)size_of(IR.ZirFunction))
+        header = ((fn).stmts)[index]
+        ok = 0
+        if ((snprintf(cast(*u8)(*(((buffers).declaration).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s: bool = %s"), name, condition) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || (snprintf(cast(*u8)(*(((buffers).check).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("if !%s {"), name) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8)))) {
+            return fail(*(header), ParserCString("named while condition exceeds statement limit"))
+        }
+        {
+            i: s32 = 0
+            while loop_152 := (i < index) {
+                if !(append(*((buffers).output), cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))) != 0) {
+                    break goto_done
+                }
+                S14ParserPost1(*(i))
+            }
+        }
+        (header).text = KeepText(ParserCString("while true {"))
+        if ((((!(append(*((buffers).output), *(header)) != 0) || !(range_line(*((buffers).output), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).declaration).items)), (header).span) != 0)) || !(range_line(*((buffers).output), cast(IR.ZirStmtKind)(6), cast(*u8)(*(((buffers).check).items)), (header).span) != 0)) || !(range_line(*((buffers).output), cast(IR.ZirStmtKind)(11), ParserCString("break"), (header).span) != 0)) || !(range_line(*((buffers).output), cast(IR.ZirStmtKind)(2), ParserCString("}"), (header).span) != 0)) {
+            break goto_done
+        }
+        {
+            i: s32 = (index + 1)
+            while loop_153 := (i < (fn).stmt_count) {
+                if !(append(*((buffers).output), cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))) != 0) {
+                    break goto_done
+                }
+                S14ParserPost1(*(i))
+            }
+        }
+        CompilerFree(cast(*void)((fn).stmts))
+        (fn).stmts = ((buffers).output).stmts
+        (fn).stmt_count = ((buffers).output).stmt_count
+        (fn).stmt_cap = ((buffers).output).stmt_cap
+        ((buffers).output).stmts = null
+        ok = 1
+        break
+    }
+    CompilerFree(cast(*void)(((buffers).output).stmts))
+    return ok
+}
+
+#scope_file
+lower_named_while :: (fn: *IR.ZirFunction, index: s32, name: *u8, condition: *u8) -> s32 {
+    buffers := cast(*LowerNamedWhileBuffers)ParserScratchTake(*scratch_lower_named_while, size_of(LowerNamedWhileBuffers))
+    defer ParserScratchRelease(*scratch_lower_named_while, cast(*void)buffers)
+    return lower_named_while_with_buffers(fn, index, name, condition, buffers)
+}
+
+#scope_file
+BindJaiLoopControls_with_buffers :: (fn: *IR.ZirFunction, buffers: *BindJaiLoopControlsBuffers) -> s32 {
+    scopes: *LoopScope
+    depth: s32
+    next_id: s32
+    ok: s32
+    while goto_done := true {
+        scopes = cast(*LoopScope)(CompilerCalloc((cast(usize)((fn).stmt_count) + cast(usize)(1)), cast(usize)size_of(LoopScope)))
+        depth = 0
+        next_id = 1
+        ok = 0
+        if (scopes == cast(*LoopScope)((null))) {
+            return 0
+        }
+        {
+            i: s32 = 0
+            while loop_154 := (i < (fn).stmt_count) {
+                statement: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))
+                if (cast(s32)((statement).kind) == cast(s32)(2)) {
+                    if (depth == 0) {
+                        fail(statement, ParserCString("unexpected block close"))
+                        break goto_done
+                    }
+                    S14ParserPost16(*(depth))
+                    S14ParserPost1(*(i))
+                    continue loop_154
+                }
+                if ((cast(s32)((statement).kind) == cast(s32)(11)) || (cast(s32)((statement).kind) == cast(s32)(12))) {
+                    target_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+                    defer CompilerFree(cast(*void)target_storage_0)
+                    memset(cast(*void)target_storage_0, 0, size_of(ParserArray128_u8))
+                    if !(control_name(statement, cast(*u8)(*((target_storage_0[0]).items))) != 0) {
+                        fail(statement, ParserCString("invalid named loop control"))
+                        break goto_done
+                    }
+                    scope: s32 = (depth - 1)
+                    {
+                        while loop_155 := (scope >= 0) {
+                            if (((cast(s32)(((scopes)[scope]).kind) == cast(s32)(8)) || (cast(s32)(((scopes)[scope]).kind) == cast(s32)(7))) && (!((cast(*u8)(*((target_storage_0[0]).items)))[0] != 0) || !(strcmp(cast(*u8)(*((((scopes)[scope]).name).items)), cast(*u8)(*((target_storage_0[0]).items))) != 0))) {
+                                break loop_155
+                            }
+                            S14ParserPost16(*(scope))
+                        }
+                    }
+                    if (scope < 0) {
+                        fail(statement, (ifx ((cast(*u8)(*((target_storage_0[0]).items)))[0] != 0) then ParserCString("named loop target is not an enclosing loop") else ParserCString("loop control outside a loop")))
+                        break goto_done
+                    }
+                    (statement).target_id = (ifx ((cast(*u8)(*((target_storage_0[0]).items)))[0] != 0) then ((scopes)[scope]).loop_id else 0)
+                }
+                opens_scope: s32 = opens_stmt(statement)
+                if !(opens_scope != 0) {
+                    S14ParserPost1(*(i))
+                    continue loop_154
+                }
+                scope: *LoopScope = cast(*LoopScope)(cast(usize)(scopes) + cast(usize)(S14ParserPost1(*(depth))) * size_of(LoopScope))
+                (scope).kind = (statement).kind
+                if (cast(s32)((statement).kind) == cast(s32)(8)) {
+                    name_storage_1 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+                    defer CompilerFree(cast(*void)name_storage_1)
+                    memset(cast(*void)name_storage_1, 0, size_of(ParserArray128_u8))
+                    second_storage_2 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+                    defer CompilerFree(cast(*void)second_storage_2)
+                    memset(cast(*void)second_storage_2, 0, size_of(ParserArray128_u8))
+                    reverse: s32
+                    pointer: s32
+                    if ((range_header(statement, cast(*u8)(*((name_storage_1[0]).items)), cast(*u8)(*(((buffers).first).items)), cast(*u8)(*(((buffers).last).items)), *(reverse)) != 0) || (collection_header(statement, cast(*u8)(*((name_storage_1[0]).items)), cast(*u8)(*((second_storage_2[0]).items)), cast(*u8)(*(((buffers).first).items)), *(reverse), *(pointer)) != 0)) {
+                        copy_text(cast(*u8)(*(((scope).name).items)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((name_storage_1[0]).items)))
+                        (scope).loop_id = S14ParserSet9(*((statement).loop_id), S14ParserPost1(*(next_id)))
+                    }
+                } else {
+                    if (cast(s32)((statement).kind) == cast(s32)(7)) {
+                        if (named_while_header(statement, cast(*u8)(*(((scope).name).items)), cast(*u8)(*(((buffers).condition).items))) != 0) {
+                            (scope).loop_id = S14ParserSet9(*((statement).loop_id), S14ParserPost1(*(next_id)))
+                        }
+                    }
+                }
+                S14ParserPost1(*(i))
+            }
+        }
+        if (depth != 0) {
+            fail(cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(((fn).stmt_count - 1)) * size_of(IR.ZirStmt)), ParserCString("unterminated loop scope"))
+            break goto_done
+        }
+        {
+            i: s32 = ((fn).stmt_count - 1)
+            while loop_156 := (i >= 0) {
+                name_storage_3 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+                defer CompilerFree(cast(*void)name_storage_3)
+                memset(cast(*void)name_storage_3, 0, size_of(ParserArray128_u8))
+                if (((cast(s32)((((fn).stmts)[i]).kind) == cast(s32)(7)) && (named_while_header(cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt)), cast(*u8)(*((name_storage_3[0]).items)), cast(*u8)(*(((buffers).condition).items))) != 0)) && !(lower_named_while(fn, i, cast(*u8)(*((name_storage_3[0]).items)), cast(*u8)(*(((buffers).condition).items))) != 0)) {
+                    break goto_done
+                }
+                S14ParserPost16(*(i))
+            }
+        }
+        ok = 1
+        break
+    }
+    CompilerFree(cast(*void)(scopes))
+    return ok
+}
+
+#scope_export
+#program_export "BindJaiLoopControls"
+BindJaiLoopControls :: (fn: *IR.ZirFunction) -> s32 {
+    buffers := cast(*BindJaiLoopControlsBuffers)ParserScratchTake(*scratch_BindJaiLoopControls, size_of(BindJaiLoopControlsBuffers))
+    defer ParserScratchRelease(*scratch_BindJaiLoopControls, cast(*void)buffers)
+    return BindJaiLoopControls_with_buffers(fn, buffers)
+}
+
+#scope_file
+range_name_used :: (fn: *IR.ZirFunction, module: *IR.ZirModule, name: *u8) -> s32 {
+    if (mentions(FunctionArgs(fn), name) != 0) {
+        return 1
+    }
+    {
+        i: s32 = 0
+        while loop_157 := (i < (fn).stmt_count) {
+            if (mentions((((fn).stmts)[i]).text, name) != 0) {
+                return 1
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while loop_158 := (i < (module).define_count) {
+            if (strcmp(cast(*u8)(*((((module).defines)[i]).name)), name) == 0) {
+                return 1
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while loop_159 := (i < (module).global_count) {
+            if (strcmp(cast(*u8)(*((((module).globals)[i]).name)), name) == 0) {
+                return 1
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+range_line :: (out: *IR.ZirFunction, kind: IR.ZirStmtKind, line: *u8, span: IR.ZirSourceSpan) -> s32 {
+    return cast(s32)(FunctionAddStmt(out, kind, line, span) != cast(*IR.ZirStmt)((null)))
+}
+
+#scope_file
+range_advance :: (out: *IR.ZirFunction, cursor: *u8, terminal: *u8, reverse: s32, span: IR.ZirSourceSpan, target_id: s32, step_of: s32) -> s32 {
+    line_storage_0 := cast(*ParserArray4096_u8)AllocateOrExit(size_of(ParserArray4096_u8))
+    defer CompilerFree(cast(*void)line_storage_0)
+    memset(cast(*void)line_storage_0, 0, size_of(ParserArray4096_u8))
+    if (((terminal)[0] != 0) && ((((snprintf(cast(*u8)(*((line_storage_0[0]).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("if %s == %s {"), cursor, terminal) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || !(range_line(out, cast(IR.ZirStmtKind)(6), cast(*u8)(*((line_storage_0[0]).items)), span) != 0)) || !(range_line(out, cast(IR.ZirStmtKind)(11), ParserCString("break"), span) != 0)) || !(range_line(out, cast(IR.ZirStmtKind)(2), ParserCString("}"), span) != 0))) {
+        return 0
+    }
+    if ((terminal)[0] != 0) {
+        (((out).stmts)[((out).stmt_count - 2)]).target_id = target_id
+    }
+    if ((snprintf(cast(*u8)(*((line_storage_0[0]).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s %s= 1"), cursor, (ifx (reverse != 0) then ParserCString("-") else ParserCString("+"))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || !(range_line(out, cast(IR.ZirStmtKind)(4), cast(*u8)(*((line_storage_0[0]).items)), span) != 0)) {
+        return 0
+    }
+    (((out).stmts)[((out).stmt_count - 1)]).for_step = step_of
+    return 1
+}
+
+#scope_file
+loop_advance :: (out: *IR.ZirFunction, cursor: *u8, terminal: *u8, reverse: s32, is_range: s32, span: IR.ZirSourceSpan, target_id: s32, step_of: s32) -> s32 {
+    line_storage_0 := cast(*ParserArray4096_u8)AllocateOrExit(size_of(ParserArray4096_u8))
+    defer CompilerFree(cast(*void)line_storage_0)
+    memset(cast(*void)line_storage_0, 0, size_of(ParserArray4096_u8))
+    if (is_range != 0) {
+        return range_advance(out, cursor, terminal, reverse, span, target_id, step_of)
+    }
+    if ((snprintf(cast(*u8)(*((line_storage_0[0]).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s += 1"), cursor) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || !(range_line(out, cast(IR.ZirStmtKind)(4), cast(*u8)(*((line_storage_0[0]).items)), span) != 0)) {
+        return 0
+    }
+    (((out).stmts)[((out).stmt_count - 1)]).for_step = step_of
+    return 1
+}
+
+#scope_file
+copy_loop_body :: (out: *IR.ZirFunction, fn: *IR.ZirFunction, index: s32, close: s32, cursor: *u8, terminal: *u8, reverse: s32, is_range: s32, loop_id: s32, step_of: s32) -> s32 {
+    scopes: *IR.ZirStmtKind = cast(*IR.ZirStmtKind)(CompilerCalloc(cast(usize)((((close - index) + 1))), cast(usize)size_of(IR.ZirStmtKind)))
+    if (scopes == cast(*IR.ZirStmtKind)((null))) {
+        return 0
+    }
+    depth: s32 = 0
+    ok: s32 = 1
+    {
+        i: s32 = (index + 1)
+        while loop_160 := (i < close) {
+            statement: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))
+            if ((cast(s32)((statement).kind) == cast(s32)(2)) && (depth > 0)) {
+                S14ParserPost16(*(depth))
+            }
+            if (cast(s32)((statement).kind) == cast(s32)(12)) {
+                nested_loop: s32 = 0
+                {
+                    scope: s32 = (depth - 1)
+                    while loop_161 := (scope >= 0) {
+                        if ((cast(s32)((scopes)[scope]) == cast(s32)(7)) || (cast(s32)((scopes)[scope]) == cast(s32)(8))) {
+                            nested_loop = 1
+                            break loop_161
+                        }
+                        S14ParserPost16(*(scope))
+                    }
+                }
+                if (((((statement).target_id == loop_id) && (loop_id != 0)) || (((statement).target_id == 0) && !(nested_loop != 0))) && !(loop_advance(out, cursor, terminal, reverse, is_range, (statement).span, (statement).target_id, step_of) != 0)) {
+                    ok = 0
+                    break loop_160
+                }
+            }
+            if !(append(out, statement) != 0) {
+                ok = 0
+                break loop_160
+            }
+            if (opens_stmt(statement) != 0) {
+                (scopes)[S14ParserPost1(*(depth))] = (statement).kind
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    CompilerFree(cast(*void)(scopes))
+    return ok
+}
+
+#scope_file
+body_mentions :: (fn: *IR.ZirFunction, index: s32, close: s32, name: *u8) -> s32 {
+    {
+        i: s32 = (index + 1)
+        while loop_162 := (i < close) {
+            if (mentions((((fn).stmts)[i]).text, name) != 0) {
+                return 1
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+declares :: (st: *IR.ZirStmt, name: *u8) -> s32 {
+    lexer: IR.ZirLexer
+    first_storage_0 := cast(*IR.ZirToken)AllocateOrExit(size_of(IR.ZirToken))
+    defer CompilerFree(cast(*void)first_storage_0)
+    memset(cast(*void)first_storage_0, 0, size_of(IR.ZirToken))
+    if ((cast(s32)((st).kind) != cast(s32)(3)) || ((st).text == cast(*u8)((null)))) {
+        return 0
+    }
+    LexerInit(*(lexer), (st).text, SpanPath((st).span))
+    first_storage_0[0] = LexerNext(*(lexer))
+    return cast(s32)(((first_storage_0[0]).kind == 1) && !(strcmp(cast(*u8)(*((first_storage_0[0]).text)), name) != 0))
+}
+
+#scope_file
+body_shadows :: (fn: *IR.ZirFunction, index: s32, close: s32, name: *u8) -> s32 {
+    depth: s32 = 0
+    found: s32 = 0
+    {
+        i: s32 = (index + 1)
+        while loop_163 := (i < close) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))
+            if (declares(st, name) != 0) {
+                inner: s32 = 0
+                if (depth == 0) {
+                    return 2
+                }
+                {
+                    j: s32 = (i + 1)
+                    while loop_164 := (j < close) {
+                        later: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(j) * size_of(IR.ZirStmt))
+                        if ((cast(s32)((later).kind) == cast(s32)(2)) && (S14ParserPre7(*(inner)) < 0)) {
+                            break loop_164
+                        }
+                        if (opens_stmt(later) != 0) {
+                            S14ParserPost1(*(inner))
+                        }
+                        if (cast(s32)((later).kind) == cast(s32)(12)) {
+                            found = 1
+                        }
+                        S14ParserPost1(*(j))
+                    }
+                }
+            }
+            if ((cast(s32)((st).kind) == cast(s32)(2)) && (depth > 0)) {
+                S14ParserPost16(*(depth))
+            }
+            if (opens_stmt(st) != 0) {
+                S14ParserPost1(*(depth))
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    return found
+}
+
+#scope_file
+body_changes :: (fn: *IR.ZirFunction, index: s32, close: s32, name: *u8) -> s32 {
+    {
+        i: s32 = (index + 1)
+        while loop_165 := (i < close) {
+            if (Statement.Changes(statement_text((((fn).stmts)[i]).text), statement_text(name), cast(bool)(cast(s32)(cast(s32)((((fn).stmts)[i]).kind) == cast(s32)(4)))) != false) {
+                return 1
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+signed_literal :: (text: *u8, value: *s64) -> s32 {
+    digits_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)digits_storage_0)
+    memset(cast(*void)digits_storage_0, 0, size_of(ParserArray128_u8))
+    bits: u64
+    length: usize
+    negative: s32
+    while loop_166 := (cast(s32)(cast(s8)((text)[0])) == 32) {
+        S14ParserPost5(*(text))
+    }
+    length = strlen(text)
+    while loop_167 := ((length > cast(usize)(0)) && (cast(s32)(cast(s8)((text)[(length - cast(usize)(1))])) == 32)) {
+        S14ParserPost0(*(length))
+    }
+    if ((length == cast(usize)(0)) || (length >= cast(usize)size_of(ParserArray128_u8))) {
+        return 0
+    }
+    memcpy(cast(*void)(cast(*u8)(*((digits_storage_0[0]).items))), cast(*void)(text), length)
+    (digits_storage_0[0]).items[length] = cast(u8)(0)
+    if (!(ZirSignedIntegerLiteral(cast(*u8)(*((digits_storage_0[0]).items)), *(bits), *(negative)) != 0) || (!(negative != 0) && (bits > cast(u64)(cast(s64)(9223372036854775807))))) {
+        return 0
+    }
+    S14ParserSet10(value, cast(s64)(bits))
+    return 1
+}
+
+#scope_file
+literal_bound :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *u8, value: *s64) -> s32 {
+    name_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)name_storage_0)
+    memset(cast(*void)name_storage_0, 0, size_of(ParserArray128_u8))
+    length: usize
+    while loop_168 := (cast(s32)(cast(s8)((text)[0])) == 32) {
+        S14ParserPost5(*(text))
+    }
+    if !((text)[0] != 0) {
+        return 0
+    }
+    if (signed_literal(text, value) != 0) {
+        return 1
+    }
+    length = strlen(text)
+    while loop_169 := ((length > cast(usize)(0)) && (cast(s32)(cast(s8)((text)[(length - cast(usize)(1))])) == 32)) {
+        S14ParserPost0(*(length))
+    }
+    if ((length == cast(usize)(0)) || (length >= cast(usize)size_of(ParserArray128_u8))) {
+        return 0
+    }
+    memcpy(cast(*void)(cast(*u8)(*((name_storage_0[0]).items))), cast(*void)(text), length)
+    (name_storage_0[0]).items[length] = cast(u8)(0)
+    if (mentions(FunctionArgs(fn), cast(*u8)(*((name_storage_0[0]).items))) != 0) {
+        return 0
+    }
+    {
+        i: s32 = 0
+        while loop_170 := (i < (fn).stmt_count) {
+            if ((cast(s32)((((fn).stmts)[i]).kind) == cast(s32)(3)) && !(strcmp(((((fn).stmts)[i]).names).name, cast(*u8)(*((name_storage_0[0]).items))) != 0)) {
+                return 0
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while loop_171 := (i < (module).define_count) {
+            if !(strcmp(cast(*u8)(*((((module).defines)[i]).name)), cast(*u8)(*((name_storage_0[0]).items))) != 0) {
+                return signed_literal((((module).defines)[i]).value, value)
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+lower_one_range_with_buffers :: (fn: *IR.ZirFunction, module: *IR.ZirModule, index: s32, buffers: *LowerOneRangeBuffers) -> s32 {
+    header: *IR.ZirStmt
+    close: s32
+    binder_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)binder_storage_0)
+    memset(cast(*void)binder_storage_0, 0, size_of(ParserArray128_u8))
+    first_storage_1 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)first_storage_1)
+    memset(cast(*void)first_storage_1, 0, size_of(ParserArray128_u8))
+    last_storage_2 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)last_storage_2)
+    memset(cast(*void)last_storage_2, 0, size_of(ParserArray128_u8))
+    cursor_storage_3 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)cursor_storage_3)
+    memset(cast(*void)cursor_storage_3, 0, size_of(ParserArray128_u8))
+    reverse: s32
+    low: s64
+    high: s64
+    constant: s32
+    shadows: s32
+    own_cursor: s32
+    wants_index: s32
+    type: *u8
+    span: IR.ZirSourceSpan
+    ok: s32
+    while_at: s32
+    while goto_done := true {
+        header = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(index) * size_of(IR.ZirStmt))
+        close = end_block(fn, index, (fn).stmt_count)
+        if ((close >= (fn).stmt_count) || !(range_header(header, cast(*u8)(*((binder_storage_0[0]).items)), cast(*u8)(*(((buffers).start).items)), cast(*u8)(*(((buffers).end).items)), *(reverse)) != 0)) {
+            return fail(header, ParserCString("for currently supports Jai integer ranges: for index: first..last { ... }"))
+        }
+        if (strcmp(cast(*u8)(*((binder_storage_0[0]).items)), ParserCString("it_index")) == 0) {
+            return fail(header, ParserCString("for range binder cannot be it_index"))
+        }
+        constant = cast(s32)(((literal_bound(fn, module, cast(*u8)(*(((buffers).start).items)), *(low)) != 0) && (literal_bound(fn, module, cast(*u8)(*(((buffers).end).items)), *(high)) != 0)) && ((ifx (reverse != 0) then cast(s32)(low > (((-cast(s64)(9223372036854775807)) - cast(s64)(1)))) else cast(s32)(high < cast(s64)(9223372036854775807))) != 0))
+        shadows = body_shadows(fn, index, close, cast(*u8)(*((binder_storage_0[0]).items)))
+        own_cursor = cast(s32)(!(body_changes(fn, index, close, cast(*u8)(*((binder_storage_0[0]).items))) != 0) && !(shadows != 0))
+        wants_index = body_mentions(fn, index, close, ParserCString("it_index"))
+        if ((header).is_parallel != 0) {
+            constant = 0
+            own_cursor = 0
+            wants_index = 1
+        }
+        {
+            serial: s32 = index
+            while loop_172 := true {
+                snprintf(cast(*u8)(*((first_storage_1[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("range_first_%d"), serial)
+                snprintf(cast(*u8)(*((last_storage_2[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("range_last_%d"), serial)
+                snprintf(cast(*u8)(*((cursor_storage_3[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("range_cursor_%d"), serial)
+                if ((!(range_name_used(fn, module, cast(*u8)(*((first_storage_1[0]).items))) != 0) && !(range_name_used(fn, module, cast(*u8)(*((last_storage_2[0]).items))) != 0)) && !(range_name_used(fn, module, cast(*u8)(*((cursor_storage_3[0]).items))) != 0)) {
+                    break loop_172
+                }
+                S14ParserPost1(*(serial))
+            }
+        }
+        if (constant != 0) {
+            snprintf(cast(*u8)(*((first_storage_1[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s"), cast(*u8)(*(((buffers).start).items)))
+            snprintf(cast(*u8)(*((last_storage_2[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s"), cast(*u8)(*(((buffers).end).items)))
+        }
+        if (own_cursor != 0) {
+            snprintf(cast(*u8)(*((cursor_storage_3[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s"), cast(*u8)(*((binder_storage_0[0]).items)))
+        }
+        type = ParserCString("s64")
+        if (!(constant != 0) && !((header).is_parallel != 0)) {
+            if (snprintf(cast(*u8)(*(((buffers).type).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("type_of((%s) + (%s))"), cast(*u8)(*(((buffers).start).items)), cast(*u8)(*(((buffers).end).items))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) {
+                return fail(header, ParserCString("for range bounds exceed the statement limit"))
+            }
+            type = cast(*u8)(*(((buffers).type).items))
+        }
+        memset(cast(*void)(*((buffers).out)), 0, cast(usize)size_of(IR.ZirFunction))
+        span = (header).span
+        ok = 0
+        {
+            i: s32 = 0
+            while loop_173 := (i < index) {
+                if !(append(*((buffers).out), cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))) != 0) {
+                    break goto_done
+                }
+                S14ParserPost1(*(i))
+            }
+        }
+        if !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(1), ParserCString("{"), span) != 0) {
+            break goto_done
+        }
+        if (!(constant != 0) && ((((snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s: %s = %s"), cast(*u8)(*((first_storage_1[0]).items)), type, cast(*u8)(*(((buffers).start).items))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), span) != 0)) || (snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s: %s = %s"), cast(*u8)(*((last_storage_2[0]).items)), type, cast(*u8)(*(((buffers).end).items))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8)))) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), span) != 0))) {
+            break goto_done
+        }
+        if ((snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s: %s = %s"), cast(*u8)(*((cursor_storage_3[0]).items)), type, (ifx (reverse != 0) then cast(*u8)(*((last_storage_2[0]).items)) else cast(*u8)(*((first_storage_1[0]).items)))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), span) != 0)) {
+            break goto_done
+        }
+        if ((snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("while %s %s %s {"), cast(*u8)(*((cursor_storage_3[0]).items)), (ifx (reverse != 0) then ParserCString(">=") else ParserCString("<=")), (ifx (reverse != 0) then cast(*u8)(*((first_storage_1[0]).items)) else cast(*u8)(*((last_storage_2[0]).items)))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(7), cast(*u8)(*(((buffers).line).items)), span) != 0)) {
+            break goto_done
+        }
+        while_at = (((buffers).out).stmt_count - 1)
+        ((((buffers).out).stmts)[while_at]).loop_id = (header).loop_id
+        ((((buffers).out).stmts)[while_at]).is_parallel = (header).is_parallel
+        ((((buffers).out).stmts)[while_at]).is_gpu = (header).is_gpu
+        if (!(own_cursor != 0) && ((snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s: %s = %s"), cast(*u8)(*((binder_storage_0[0]).items)), type, cast(*u8)(*((cursor_storage_3[0]).items))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), span) != 0))) {
+            break goto_done
+        }
+        if (wants_index != 0) {
+            if (((constant != 0) && !(reverse != 0)) && (low == cast(s64)(0))) {
+                snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("it_index: s64 = %s"), cast(*u8)(*((cursor_storage_3[0]).items)))
+            } else {
+                if (snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), (ifx (type == cast(*u8)(*(((buffers).type).items))) then ParserCString("it_index: s64 = cast(s64) (%s - %s)") else ParserCString("it_index: s64 = %s - %s")), (ifx (reverse != 0) then cast(*u8)(*((last_storage_2[0]).items)) else cast(*u8)(*((cursor_storage_3[0]).items))), (ifx (reverse != 0) then cast(*u8)(*((cursor_storage_3[0]).items)) else cast(*u8)(*((first_storage_1[0]).items)))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) {
+                    break goto_done
+                }
+            }
+            if !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), span) != 0) {
+                break goto_done
+            }
+        }
+        terminal: *u8 = (ifx (constant != 0) then ParserCString("") else (ifx (reverse != 0) then cast(*u8)(*((first_storage_1[0]).items)) else cast(*u8)(*((last_storage_2[0]).items))))
+        step_of: s32 = (ifx ((constant != 0) && (own_cursor != 0)) then (header).loop_id else 0)
+        if (step_of != 0) {
+            ((((buffers).out).stmts)[while_at]).for_form = 1
+        }
+        if ((((shadows == 2) && !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(1), ParserCString("{"), span) != 0)) || !(copy_loop_body(*((buffers).out), fn, index, close, cast(*u8)(*((cursor_storage_3[0]).items)), terminal, reverse, 1, (header).loop_id, step_of) != 0)) || ((shadows == 2) && !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(2), ParserCString("}"), span) != 0))) {
+            break goto_done
+        }
+        if ((!(range_advance(*((buffers).out), cast(*u8)(*((cursor_storage_3[0]).items)), terminal, reverse, span, 0, step_of) != 0) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(2), ParserCString("}"), span) != 0)) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(2), ParserCString("}"), span) != 0)) {
+            break goto_done
+        }
+        {
+            i: s32 = (close + 1)
+            while loop_174 := (i < (fn).stmt_count) {
+                if !(append(*((buffers).out), cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))) != 0) {
+                    break goto_done
+                }
+                S14ParserPost1(*(i))
+            }
+        }
+        CompilerFree(cast(*void)((fn).stmts))
+        (fn).stmts = ((buffers).out).stmts
+        (fn).stmt_count = ((buffers).out).stmt_count
+        (fn).stmt_cap = ((buffers).out).stmt_cap
+        ((buffers).out).stmts = null
+        ok = 1
+        break
+    }
+    CompilerFree(cast(*void)(((buffers).out).stmts))
+    if !(ok != 0) {
+        fail(header, ParserCString("for range lowering exceeds compiler limits"))
+    }
+    return ok
+}
+
+#scope_file
+lower_one_range :: (fn: *IR.ZirFunction, module: *IR.ZirModule, index: s32) -> s32 {
+    buffers := cast(*LowerOneRangeBuffers)ParserScratchTake(*scratch_lower_one_range, size_of(LowerOneRangeBuffers))
+    defer ParserScratchRelease(*scratch_lower_one_range, cast(*void)buffers)
+    return lower_one_range_with_buffers(fn, module, index, buffers)
+}
+
+#scope_file
+literal_collection :: (text: *u8) -> s32 {
+    depth: s32 = 0
+    {
+        p: *u8 = text
+        while loop_175 := ((p)[0] != 0) {
+            if ((cast(s32)(cast(s8)((p)[0])) == 34) || (cast(s32)(cast(s8)((p)[0])) == 39)) {
+                return 0
+            }
+            if (cast(s32)(cast(s8)((p)[0])) == 91) {
+                S14ParserPost1(*(depth))
+            } else {
+                if (cast(s32)(cast(s8)((p)[0])) == 93) {
+                    S14ParserPost16(*(depth))
+                } else {
+                    if ((((depth == 0) && (cast(s32)(cast(s8)((p)[0])) == 46)) && (cast(s32)(cast(s8)((p)[1])) == 91)) && (p > text)) {
+                        {
+                            q: *u8 = cast(*u8)(cast(usize)(p) + cast(usize)(1) * size_of(u8))
+                            while loop_176 := ((q)[0] != 0) {
+                                if ((cast(s32)(cast(s8)((q)[0])) == 34) || (cast(s32)(cast(s8)((q)[0])) == 39)) {
+                                    return 0
+                                }
+                                if (cast(s32)(cast(s8)((q)[0])) == 91) {
+                                    S14ParserPost1(*(depth))
+                                } else {
+                                    if ((cast(s32)(cast(s8)((q)[0])) == 93) && (S14ParserPre7(*(depth)) == 0)) {
+                                        while loop_177 := ((cast(s32)(cast(s8)((S14ParserPre17(*(q)))[0])) == 32) || (cast(s32)(cast(s8)((q)[0])) == 9)) {
+                                        }
+                                        return cast(s32)(cast(s32)(cast(s8)((q)[0])) == 0)
+                                    }
+                                }
+                                S14ParserPost5(*(q))
+                            }
+                        }
+                        return 0
+                    }
+                }
+            }
+            S14ParserPost5(*(p))
+        }
+    }
+    return 0
+}
+
+#scope_file
+lower_one_collection_with_buffers :: (fn: *IR.ZirFunction, module: *IR.ZirModule, index: s32, buffers: *LowerOneCollectionBuffers) -> s32 {
+    header: *IR.ZirStmt
+    close: s32
+    value_name_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)value_name_storage_0)
+    memset(cast(*void)value_name_storage_0, 0, size_of(ParserArray128_u8))
+    index_name_storage_1 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)index_name_storage_1)
+    memset(cast(*void)index_name_storage_1, 0, size_of(ParserArray128_u8))
+    view_storage_2 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)view_storage_2)
+    memset(cast(*void)view_storage_2, 0, size_of(ParserArray128_u8))
+    items_storage_3 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)items_storage_3)
+    memset(cast(*void)items_storage_3, 0, size_of(ParserArray128_u8))
+    count_storage_4 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)count_storage_4)
+    memset(cast(*void)count_storage_4, 0, size_of(ParserArray128_u8))
+    cursor_storage_5 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)cursor_storage_5)
+    memset(cast(*void)cursor_storage_5, 0, size_of(ParserArray128_u8))
+    item_index_storage_6 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)item_index_storage_6)
+    memset(cast(*void)item_index_storage_6, 0, size_of(ParserArray128_u8))
+    reverse: s32
+    pointer: s32
+    shadows_index: s32
+    wrap: s32
+    direct: s32
+    span: IR.ZirSourceSpan
+    ok: s32
+    step_of: s32
+    while goto_done := true {
+        header = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(index) * size_of(IR.ZirStmt))
+        close = end_block(fn, index, (fn).stmt_count)
+        if ((close >= (fn).stmt_count) || !(collection_header(header, cast(*u8)(*((value_name_storage_0[0]).items)), cast(*u8)(*((index_name_storage_1[0]).items)), cast(*u8)(*(((buffers).collection).items)), *(reverse), *(pointer)) != 0)) {
+            return fail(header, ParserCString("for currently supports Jai integer ranges or array and slice iteration"))
+        }
+        {
+            serial: s32 = index
+            while loop_178 := true {
+                snprintf(cast(*u8)(*((view_storage_2[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("loop_view_%d"), serial)
+                snprintf(cast(*u8)(*((count_storage_4[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("loop_count_%d"), serial)
+                snprintf(cast(*u8)(*((cursor_storage_5[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("loop_cursor_%d"), serial)
+                snprintf(cast(*u8)(*((item_index_storage_6[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("loop_index_%d"), serial)
+                snprintf(cast(*u8)(*((items_storage_3[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("loop_items_%d"), serial)
+                if ((((!(range_name_used(fn, module, cast(*u8)(*((view_storage_2[0]).items))) != 0) && !(range_name_used(fn, module, cast(*u8)(*((items_storage_3[0]).items))) != 0)) && !(range_name_used(fn, module, cast(*u8)(*((count_storage_4[0]).items))) != 0)) && !(range_name_used(fn, module, cast(*u8)(*((cursor_storage_5[0]).items))) != 0)) && !(range_name_used(fn, module, cast(*u8)(*((item_index_storage_6[0]).items))) != 0)) {
+                    break loop_178
+                }
+                S14ParserPost1(*(serial))
+            }
+        }
+        shadows_index = body_shadows(fn, index, close, cast(*u8)(*((index_name_storage_1[0]).items)))
+        wrap = cast(s32)((body_shadows(fn, index, close, cast(*u8)(*((value_name_storage_0[0]).items))) == 2) || (shadows_index == 2))
+        direct = cast(s32)((((((!(reverse != 0) && !((header).is_parallel != 0)) && (Statement.PlainName(statement_text(cast(*u8)(*(((buffers).collection).items)))) != false)) && !(body_changes(fn, index, close, cast(*u8)(*(((buffers).collection).items))) != 0)) && !(body_shadows(fn, index, close, cast(*u8)(*(((buffers).collection).items))) != 0)) && !(body_changes(fn, index, close, cast(*u8)(*((index_name_storage_1[0]).items))) != 0)) && !(shadows_index != 0))
+        if (direct != 0) {
+            snprintf(cast(*u8)(*((view_storage_2[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s"), cast(*u8)(*(((buffers).collection).items)))
+            snprintf(cast(*u8)(*((count_storage_4[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s.count"), cast(*u8)(*(((buffers).collection).items)))
+            snprintf(cast(*u8)(*((cursor_storage_5[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s"), cast(*u8)(*((index_name_storage_1[0]).items)))
+            snprintf(cast(*u8)(*((item_index_storage_6[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s"), cast(*u8)(*((index_name_storage_1[0]).items)))
+        }
+        memset(cast(*void)(*((buffers).out)), 0, cast(usize)size_of(IR.ZirFunction))
+        span = (header).span
+        ok = 0
+        {
+            i: s32 = 0
+            while loop_179 := (i < index) {
+                if !(append(*((buffers).out), cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))) != 0) {
+                    break goto_done
+                }
+                S14ParserPost1(*(i))
+            }
+        }
+        if !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(1), ParserCString("{"), span) != 0) {
+            break goto_done
+        }
+        if (literal_collection(cast(*u8)(*(((buffers).collection).items))) != 0) {
+            if ((snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s := %s"), cast(*u8)(*((items_storage_3[0]).items)), cast(*u8)(*(((buffers).collection).items))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), span) != 0)) {
+                break goto_done
+            }
+            copy_text(cast(*u8)(*(((buffers).collection).items)), cast(usize)size_of(ParserArray4096_u8), cast(*u8)(*((items_storage_3[0]).items)))
+        }
+        if (!(direct != 0) && ((((snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s := %s[:]"), cast(*u8)(*((view_storage_2[0]).items)), cast(*u8)(*(((buffers).collection).items))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), span) != 0)) || (snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s: s64 = %s.count"), cast(*u8)(*((count_storage_4[0]).items)), cast(*u8)(*((view_storage_2[0]).items))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8)))) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), span) != 0))) {
+            break goto_done
+        }
+        if ((snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s: s64 = 0"), cast(*u8)(*((cursor_storage_5[0]).items))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), span) != 0)) {
+            break goto_done
+        }
+        if ((snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("while %s < %s {"), cast(*u8)(*((cursor_storage_5[0]).items)), cast(*u8)(*((count_storage_4[0]).items))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(7), cast(*u8)(*(((buffers).line).items)), span) != 0)) {
+            break goto_done
+        }
+        ((((buffers).out).stmts)[(((buffers).out).stmt_count - 1)]).loop_id = (header).loop_id
+        ((((buffers).out).stmts)[(((buffers).out).stmt_count - 1)]).is_parallel = (header).is_parallel
+        ((((buffers).out).stmts)[(((buffers).out).stmt_count - 1)]).is_gpu = (header).is_gpu
+        if (((direct != 0) && ((header).loop_id != 0)) && !(pointer != 0)) {
+            ((((buffers).out).stmts)[(((buffers).out).stmt_count - 1)]).for_form = 2
+        }
+        step_of = (ifx (((direct != 0) && ((header).loop_id != 0)) && !(pointer != 0)) then (header).loop_id else 0)
+        if !(direct != 0) {
+            if (snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s: s64 = %s"), cast(*u8)(*((item_index_storage_6[0]).items)), (ifx (reverse != 0) then ParserCString("0") else cast(*u8)(*((cursor_storage_5[0]).items)))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) {
+                break goto_done
+            }
+            if ((reverse != 0) && (snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s: s64 = %s - %s - 1"), cast(*u8)(*((item_index_storage_6[0]).items)), cast(*u8)(*((count_storage_4[0]).items)), cast(*u8)(*((cursor_storage_5[0]).items))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8)))) {
+                break goto_done
+            }
+            if !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), span) != 0) {
+                break goto_done
+            }
+        }
+        if ((snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s := %s%s[%s]"), cast(*u8)(*((value_name_storage_0[0]).items)), (ifx (pointer != 0) then ParserCString("*") else ParserCString("")), cast(*u8)(*((view_storage_2[0]).items)), cast(*u8)(*((item_index_storage_6[0]).items))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), span) != 0)) {
+            break goto_done
+        }
+        if ((!(direct != 0) && (body_mentions(fn, index, close, cast(*u8)(*((index_name_storage_1[0]).items))) != 0)) && ((snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s: s64 = %s"), cast(*u8)(*((index_name_storage_1[0]).items)), cast(*u8)(*((item_index_storage_6[0]).items))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), span) != 0))) {
+            break goto_done
+        }
+        if (((((((wrap != 0) && !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(1), ParserCString("{"), span) != 0)) || !(copy_loop_body(*((buffers).out), fn, index, close, cast(*u8)(*((cursor_storage_5[0]).items)), ParserCString(""), 0, 0, (header).loop_id, step_of) != 0)) || ((wrap != 0) && !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(2), ParserCString("}"), span) != 0))) || !(loop_advance(*((buffers).out), cast(*u8)(*((cursor_storage_5[0]).items)), ParserCString(""), 0, 0, span, 0, step_of) != 0)) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(2), ParserCString("}"), span) != 0)) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(2), ParserCString("}"), span) != 0)) {
+            break goto_done
+        }
+        {
+            i: s32 = (close + 1)
+            while loop_180 := (i < (fn).stmt_count) {
+                if !(append(*((buffers).out), cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))) != 0) {
+                    break goto_done
+                }
+                S14ParserPost1(*(i))
+            }
+        }
+        CompilerFree(cast(*void)((fn).stmts))
+        (fn).stmts = ((buffers).out).stmts
+        (fn).stmt_count = ((buffers).out).stmt_count
+        (fn).stmt_cap = ((buffers).out).stmt_cap
+        ((buffers).out).stmts = null
+        ok = 1
+        break
+    }
+    CompilerFree(cast(*void)(((buffers).out).stmts))
+    if !(ok != 0) {
+        fail(header, ParserCString("for collection lowering exceeds compiler limits"))
+    }
+    return ok
+}
+
+#scope_file
+lower_one_collection :: (fn: *IR.ZirFunction, module: *IR.ZirModule, index: s32) -> s32 {
+    buffers := cast(*LowerOneCollectionBuffers)ParserScratchTake(*scratch_lower_one_collection, size_of(LowerOneCollectionBuffers))
+    defer ParserScratchRelease(*scratch_lower_one_collection, cast(*void)buffers)
+    return lower_one_collection_with_buffers(fn, module, index, buffers)
+}
+
+#scope_export
+#program_export "LowerJaiFor"
+LowerJaiFor :: (fn: *IR.ZirFunction, module: *IR.ZirModule) -> s32 {
+    {
+        i: s32 = ((fn).stmt_count - 1)
+        while loop_181 := (i >= 0) {
+            if (cast(s32)((((fn).stmts)[i]).kind) != cast(s32)(8)) {
+                S14ParserPost16(*(i))
+                continue loop_181
+            }
+            header: Statement.LoopHeader = for_header(cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt)))
+            if ((header).c_style != false) {
+                return fail(cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt)), ParserCString("C-style for headers are not Jai syntax"))
+            }
+            if (cast(s32)(cast(Statement.LoopKind)((header).kind)) == cast(s32)(1)) {
+                if !(lower_one_range(fn, module, i) != 0) {
+                    return 0
+                }
+            } else {
+                if !(lower_one_collection(fn, module, i) != 0) {
+                    return 0
+                }
+            }
+            S14ParserPost16(*(i))
+        }
+    }
+    return 1
+}
+
+#scope_file
+LexerInit :: (lexer: *IR.ZirLexer, source: *u8, path: *u8) {
+    CompilerLexerInit(lexer, cast(*void)(source), cast(*void)(path))
+}
+
+#scope_file
+StructureFunction :: (fn: *IR.ZirFunction, module: *IR.ZirModule) {
+    CompilerStructureFunction(fn, cast(*IR.ZirModule)(module))
+}
+
+#scope_file
+FunctionArgs :: (fn: *IR.ZirFunction) -> *u8 {
+    return (ifx ((fn).args_text != null) then (fn).args_text else ParserCString(""))
+}

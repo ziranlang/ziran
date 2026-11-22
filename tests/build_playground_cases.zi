@@ -91,7 +91,7 @@ PlaygroundTests :: (test: *NativeTest, self: string) -> bool {
     unused NativeRun(test, header_args[:]); text := NativeRead(test, CheckPath(headers, "wasm-private/parse.h")); header_lines := TextLines(text); private_name := false
     keywords := string.["char", "void", "int", "const"]
     for line: header_lines {
-        private_name = private_name || line == "#define CachedParse private_parse_CachedParse"
+        private_name = private_name || line == "#define ParseCacheEnter private_parse_ParseCacheEnter"
         for keyword: keywords { if !NativeAssert(test, !TextHasPrefix(line, CheckConcat("#define ", CheckConcat(keyword, " "))), "private header remapped a C keyword") { return false } }
     }
     if !NativeAssert(test, !test.failed && private_name, "memory64 build omitted a private C name") || !NativeAssert(test, RemoveFile(log), "reset playground fixture log") { return false }

@@ -93,7 +93,7 @@ ExplainSecondArgument :: (text: string, open: Code.Scan) -> Code.Scan {
 ExplainDiagnosticCode :: (text: string, open: Code.Scan) -> string {
     literal := ExplainSecondArgument(text, open)
     name := text[literal.begin:literal.end]
-    wrapped := literal.kind == .Ident && (name == "CStr" || name == "CheckCString")
+    wrapped := literal.kind == .Ident && (name == "CStr" || name == "CheckCString" || name == "ParserCString")
     if wrapped {
         wrapper := ExplainNextToken(text, literal)
         if text[wrapper.begin:wrapper.end] != "(" { return "" }
@@ -151,7 +151,7 @@ Emit :: (span: IR.ZirSourceSpan) {
         CStr /* code */ ("fixture.wrapped"), CStr("fixture.message"))
     Diagnostic(span, "fixture.literal", "message")
     DiagnosticDetailed(span, CheckCString("fixture.detailed"), details, "message")
-    Warning(span, CheckCString("fixture.warning"), "message")
+    Warning(span, ParserCString("fixture.warning"), "message")
     Diagnostic(span, code, CStr("fixture.computed"))
 }
 ZI

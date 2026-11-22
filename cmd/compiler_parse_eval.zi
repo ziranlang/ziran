@@ -1,0 +1,959 @@
+// Parse eval.
+using IR :: #import "compiler_ir"
+using Parser :: #import "compiler_parse_types"
+using S14 :: #import "compiler_parse_s14_types"
+Statement :: #import "compiler_statement"
+Source :: #import "compiler_source"
+Declaration :: #import "compiler_declaration"
+
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+ZirLawEvaluationAddress :: () -> *s32 #foreign compiler "ZirLawEvaluationAddress";
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+ArrayElementType :: (type: *u8, element: *u8, element_size: usize, capacity: *s32) -> s32 #foreign compiler "ArrayElementType";
+CachedParse :: (module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan, scratch: *IR.ZirFunction, probe: **IR.ZirFunction) -> s32 #foreign compiler "private_parse_CachedParse";
+CachedParseDone :: (probe: *IR.ZirFunction, scratch: *IR.ZirFunction) #foreign compiler "private_parse_CachedParseDone";
+CompilerCalloc :: (count: usize, size: usize) -> *void #foreign compiler "CompilerCalloc";
+CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
+CompilerMalloc :: (size: usize) -> *void #foreign compiler "CompilerMalloc";
+CompilerParseExpr :: (arg0: *IR.ZirFunction, arg1: *IR.ZirModule, arg2: *void, arg3: IR.ZirSourceSpan) -> s32 #foreign compiler "CompilerParseExpr";
+CompilerRealloc :: (pointer: *void, size: usize) -> *void #foreign compiler "CompilerRealloc";
+DecimalPointDot :: (text: *u8) #foreign compiler "DecimalPointDot";
+DecodeStringLiteral :: (source: *u8, out: *u8, capacity: usize, length: *usize) -> s32 #foreign compiler "DecodeStringLiteral";
+FindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+KeepText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
+ScalarStoredZiran :: (bits: u64, type: *void) -> s64 #foreign compiler "ScalarStoredZiran";
+ScalarWidthZiran :: (type: *void) -> u32 #foreign compiler "ScalarWidthZiran";
+Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
+die :: (fmt: *u8, varargs: ..any) #foreign compiler "private_parse_die";
+die_at :: (span: IR.ZirSourceSpan, fmt: *u8, varargs: ..any) #foreign compiler "private_parse_die_at";
+evaluate_typed_expression_in_state :: (evaluation: *EvaluationState, module: *IR.ZirModule, names: *ZirConsts, source: *u8, span: IR.ZirSourceSpan, depth: s32, fuel: *s32, result: *CompileValue) -> s32 #foreign compiler "private_parse_evaluate_typed_expression_in_state";
+evaluate_typed_node_in_state :: (evaluation: *EvaluationState, probe: *IR.ZirFunction, index: s32, module: *IR.ZirModule, path: *u8, depth: s32, fuel: *s32, result: *CompileValue) -> s32 #foreign compiler "private_parse_evaluate_typed_node_in_state";
+is_ident_char :: (c: s32) -> s32 #foreign compiler "is_ident_char";
+memchr :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memchr";
+memcmp :: (__s1: *void, __s2: *void, __n: usize) -> s32 #foreign libc "memcmp";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+memset :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memset";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+strcat :: (__dest: *u8, __src: *u8) -> *u8 #foreign compiler "strcat";
+strchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strchr";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+strpbrk :: (__s: *u8, __accept: *u8) -> *u8 #foreign compiler "strpbrk";
+scratch_compile_compound_member: u8;
+scratch_compile_compound_index: u8;
+isalnum :: (character: s32) -> s32 #foreign libc "isalnum";
+isalpha :: (character: s32) -> s32 #foreign libc "isalpha";
+isspace :: (character: s32) -> s32 #foreign libc "isspace";
+
+#scope_file
+expand_compile_text_depth :: (out: *CompileText, consts: *ZirConsts, src: *u8, lookup_path: *u8, depth: s32, active: **ZirConst) {
+    law_evaluation := ZirLawEvaluationAddress()
+    in_string: s32 = 0
+    escaped: s32 = 0
+    if (depth > 16) {
+        die_at(Span(lookup_path, 1, 1), ParserCString("compile-time constant expansion exceeds 16 levels"))
+        unreachable
+    }
+    {
+        p: *u8 = src
+        while loop_35 := (((p != cast(*u8)((null))) && (cast(s32)(cast(s8)((p)[0])) != 0)) && !((out).failed != 0)) {
+            if (in_string != 0) {
+                compile_text_add(out, p, cast(usize)(1))
+                if (escaped != 0) {
+                    escaped = 0
+                } else {
+                    if (cast(s32)(cast(s8)((p)[0])) == 92) {
+                        escaped = 1
+                    } else {
+                        if (cast(s32)(cast(s8)((p)[0])) == 34) {
+                            in_string = 0
+                        }
+                    }
+                }
+                S14ParserPost5(*(p))
+                continue loop_35
+            }
+            if (cast(s32)(cast(s8)((p)[0])) == 34) {
+                in_string = 1
+                compile_text_add(out, S14ParserPost5(*(p)), cast(usize)(1))
+                continue loop_35
+            }
+            directive: usize = cast(usize)(cast(s32)(cast(s32)(cast(s8)((p)[0])) == 35))
+            if ((strncmp(cast(*u8)(cast(usize)(p) + cast(usize)(directive) * size_of(u8)), ParserCString("defined"), cast(usize)(7)) == 0) && (((directive != 0) || (p == src)) || !(is_ident_char(cast(s32)(cast(u8)((p)[(-1)]))) != 0))) {
+                word_end: *u8 = cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(p) + cast(usize)(directive) * size_of(u8))) + cast(usize)(7) * size_of(u8))
+                if (((cast(s32)(cast(s8)((word_end)[0])) == 0) || (cast(s32)(cast(s8)((word_end)[0])) == 40)) || (isspace(cast(s32)(((cast(u8)((word_end)[0]))))) != 0)) {
+                    compile_text_put(out, ParserCString("defined"))
+                    p = word_end
+                    gap: *u8 = p
+                    while loop_36 := ((cast(s32)(cast(s8)((gap)[0])) == 32) || (cast(s32)(cast(s8)((gap)[0])) == 9)) {
+                        S14ParserPost5(*(gap))
+                    }
+                    if (cast(s32)(cast(s8)((gap)[0])) == 40) {
+                        probe_depth: s32 = 0
+                        start: *u8 = gap
+                        while loop_37 := (cast(s32)(cast(s8)((gap)[0])) != 0) {
+                            if (cast(s32)(cast(s8)((gap)[0])) == 40) {
+                                S14ParserPost1(*(probe_depth))
+                            } else {
+                                if ((cast(s32)(cast(s8)((gap)[0])) == 41) && (S14ParserPre7(*(probe_depth)) == 0)) {
+                                    S14ParserPost5(*(gap))
+                                    break loop_37
+                                }
+                            }
+                            S14ParserPost5(*(gap))
+                        }
+                        compile_text_add(out, p, cast(usize)(((cast(isize)(cast(usize)(start) - cast(usize)(p)) / cast(isize)size_of(u8)))))
+                        compile_text_add(out, start, cast(usize)(((cast(isize)(cast(usize)(gap) - cast(usize)(start)) / cast(isize)size_of(u8)))))
+                        p = gap
+                    }
+                    continue loop_35
+                }
+            }
+            if ((isalpha(cast(s32)(((cast(u8)((p)[0]))))) != 0) || (cast(s32)(cast(s8)((p)[0])) == 95)) {
+                word: *u8 = p
+                found: s32 = 0
+                previous: usize = (out).used
+                while loop_38 := ((previous > cast(usize)(0)) && (isspace(cast(s32)(((cast(u8)(((out).data)[(previous - cast(usize)(1))]))))) != 0)) {
+                    S14ParserPost0(*(previous))
+                }
+                member: s32 = cast(s32)((previous > cast(usize)(0)) && (cast(s32)(cast(s8)(((out).data)[(previous - cast(usize)(1))])) == 46))
+                while loop_39 := ((isalnum(cast(s32)(((cast(u8)((p)[0]))))) != 0) || (cast(s32)(cast(s8)((p)[0])) == 95)) {
+                    S14ParserPost5(*(p))
+                }
+                length: usize = cast(usize)(((cast(isize)(cast(usize)(p) - cast(usize)(word)) / cast(isize)size_of(u8))))
+                {
+                    i: s32 = 0
+                    while loop_40 := (!(member != 0) && (i < (consts).count)) {
+                        constant: *ZirConst = cast(*ZirConst)(cast(usize)((consts).items) + cast(usize)(i) * size_of(ZirConst))
+                        if (((strlen(cast(*u8)(*(((constant).name).items))) == length) && !(strncmp(cast(*u8)(*(((constant).name).items)), word, length) != 0)) && (!((constant).is_file_private != 0) || (strcmp(cast(*u8)(*(((constant).path).items)), lookup_path) == 0))) {
+                            {
+                                ancestor: s32 = 0
+                                while loop_41 := (ancestor < depth) {
+                                    if ((active)[ancestor] == constant) {
+                                        die_at(Span(cast(*u8)(*(((constant).path).items)), (constant).source_line, 1), ParserCString("cyclic compile-time constant: %s"), cast(*u8)(*(((constant).name).items)))
+                                        unreachable
+                                    }
+                                    S14ParserPost1(*(ancestor))
+                                }
+                            }
+                            (active)[depth] = constant
+                            cast_local: s32 = cast(s32)((law_evaluation[0] != 0) && ((ScalarWidth(cast(*u8)(*(((constant).type).items))) != 0) || !(strcmp(cast(*u8)(*(((constant).type).items)), ParserCString("bool")) != 0)))
+                            if (cast_local != 0) {
+                                compile_text_put(out, ParserCString("(cast("))
+                                compile_text_put(out, cast(*u8)(*(((constant).type).items)))
+                                compile_text_put(out, ParserCString(") "))
+                            }
+                            compile_text_put(out, ParserCString("("))
+                            expand_compile_text_depth(out, consts, (constant).expr, cast(*u8)(*(((constant).path).items)), (depth + 1), active)
+                            compile_text_put(out, (ifx (cast_local != 0) then ParserCString("))") else ParserCString(")")))
+                            found = 1
+                            break loop_40
+                        }
+                        S14ParserPost1(*(i))
+                    }
+                }
+                if !(found != 0) {
+                    compile_text_add(out, word, length)
+                }
+                continue loop_35
+            }
+            compile_text_add(out, S14ParserPost5(*(p)), cast(usize)(1))
+        }
+    }
+}
+
+#scope_export
+#program_export "private_parse_expand_compile_text"
+expand_compile_text :: (consts: *ZirConsts, src: *u8, lookup_path: *u8) -> *u8 {
+    active_storage_0 := cast(*ParserArray17__ZirConst)AllocateOrExit(size_of(ParserArray17__ZirConst))
+    defer CompilerFree(cast(*void)active_storage_0)
+    memset(cast(*void)active_storage_0, 0, size_of(ParserArray17__ZirConst))
+    active_storage_0[0] = .{}
+    out_storage_1 := cast(*CompileText)AllocateOrExit(size_of(CompileText))
+    defer CompilerFree(cast(*void)out_storage_1)
+    memset(cast(*void)out_storage_1, 0, size_of(CompileText))
+    out_storage_1[0] = .{}
+    compile_text_add(*(out_storage_1[0]), ParserCString(""), cast(usize)(0))
+    expand_compile_text_depth(*(out_storage_1[0]), consts, src, lookup_path, 0, cast(**ZirConst)(*((active_storage_0[0]).items)))
+    if ((out_storage_1[0]).failed != 0) {
+        CompilerFree(cast(*void)((out_storage_1[0]).data))
+        return null
+    }
+    return (out_storage_1[0]).data
+}
+
+#scope_export
+#program_export "private_parse_expand_compile_expr"
+expand_compile_expr :: (dst: *u8, dst_size: usize, consts: *ZirConsts, src: *u8, lookup_path: *u8) {
+    if (dst_size == cast(usize)(0)) {
+        return
+    }
+    expanded: *u8 = expand_compile_text(consts, src, lookup_path)
+    copy_text(dst, dst_size, (ifx (expanded != cast(*u8)((null))) then expanded else ParserCString("")))
+    CompilerFree(cast(*void)(expanded))
+}
+
+#scope_export
+#program_export "private_parse_eval_integer_type"
+eval_integer_type :: (type: *u8, value: s64) -> s32 {
+    if !(strcmp(type, ParserCString("s8")) != 0) {
+        return cast(s32)((value >= cast(s64)(((-128)))) && (value <= cast(s64)((127))))
+    }
+    if !(strcmp(type, ParserCString("s16")) != 0) {
+        return cast(s32)((value >= cast(s64)((((-32767) - 1)))) && (value <= cast(s64)((32767))))
+    }
+    if !(strcmp(type, ParserCString("s32")) != 0) {
+        return cast(s32)((value >= cast(s64)((((-2147483647) - 1)))) && (value <= cast(s64)((2147483647))))
+    }
+    if !(strcmp(type, ParserCString("u8")) != 0) {
+        return cast(s32)((value >= cast(s64)(0)) && (value <= cast(s64)((255))))
+    }
+    if !(strcmp(type, ParserCString("u16")) != 0) {
+        return cast(s32)((value >= cast(s64)(0)) && (value <= cast(s64)((65535))))
+    }
+    if !(strcmp(type, ParserCString("u32")) != 0) {
+        return cast(s32)((value >= cast(s64)(0)) && (value <= cast(s64)((4294967295))))
+    }
+    if !(strcmp(type, ParserCString("s64")) != 0) {
+        return 1
+    }
+    if !(strcmp(type, ParserCString("bool")) != 0) {
+        return cast(s32)((value == cast(s64)(0)) || (value == cast(s64)(1)))
+    }
+    return 0
+}
+
+#scope_export
+#program_export "private_parse_eval_close"
+eval_close :: (fn: *IR.ZirFunction, opening: s32, stop: s32) -> s32 {
+    depth: s32 = 1
+    {
+        i: s32 = (opening + 1)
+        while loop_42 := (i < stop) {
+            kind: IR.ZirStmtKind = (((fn).stmts)[i]).kind
+            if ((((cast(s32)(kind) == cast(s32)(1)) || (cast(s32)(kind) == cast(s32)(6))) || (cast(s32)(kind) == cast(s32)(7))) || (cast(s32)(kind) == cast(s32)(8))) {
+                S14ParserPost1(*(depth))
+            } else {
+                if ((cast(s32)(kind) == cast(s32)(2)) && (S14ParserPre7(*(depth)) == 0)) {
+                    return i
+                }
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    return (-1)
+}
+
+#scope_file
+find_imported_define :: (module: *IR.ZirModule, lookup_path: *u8, name: *u8, length: usize, owner_out: **IR.ZirModule) -> *IR.ZirDefine {
+    dot: *u8 = cast(*u8)(memchr(cast(*void)(name), 46, length))
+    import_local: *IR.ZirImport = null
+    definition: *IR.ZirDefine = null
+    if (((module == cast(*IR.ZirModule)((null))) || (dot == cast(*u8)((null)))) || (memchr(cast(*void)(cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8))), 46, (length - cast(usize)(((cast(isize)(cast(usize)(cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8))) - cast(usize)(name)) / cast(isize)size_of(u8)))))) != (null))) {
+        return null
+    }
+    alias_length: usize = cast(usize)(((cast(isize)(cast(usize)(dot) - cast(usize)(name)) / cast(isize)size_of(u8))))
+    member_length: usize = ((length - alias_length) - cast(usize)(1))
+    if ((((alias_length == cast(usize)(0)) || (alias_length >= cast(usize)(128))) || (member_length == cast(usize)(0))) || (member_length >= cast(usize)(128))) {
+        return null
+    }
+    {
+        i: s32 = 0
+        while loop_43 := (i < (module).import_count) {
+            candidate: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
+            if ((((cast(s32)((candidate).kind) != cast(s32)(2)) || (((candidate).is_file_private != 0) && (strcmp(SpanPath((candidate).span), lookup_path) != 0))) || (strlen(cast(*u8)(*((candidate).name))) != alias_length)) || (strncmp(cast(*u8)(*((candidate).name)), name, alias_length) != 0)) {
+                S14ParserPost1(*(i))
+                continue loop_43
+            }
+            if ((import_local != cast(*IR.ZirImport)((null))) && (import_local != candidate)) {
+                return null
+            }
+            import_local = candidate
+            S14ParserPost1(*(i))
+        }
+    }
+    if ((import_local == cast(*IR.ZirImport)((null))) || ((import_local).resolved_module == cast(*IR.ZirModule)((null)))) {
+        return null
+    }
+    owner: *IR.ZirModule = (import_local).resolved_module
+    {
+        i: s32 = 0
+        while loop_44 := (i < (owner).define_count) {
+            candidate: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((owner).defines) + cast(usize)(i) * size_of(IR.ZirDefine))
+            if (((!((candidate).is_public != 0) || ((candidate).is_file_private != 0)) || (strlen(cast(*u8)(*((candidate).name))) != member_length)) || (strncmp(cast(*u8)(*((candidate).name)), cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8)), member_length) != 0)) {
+                S14ParserPost1(*(i))
+                continue loop_44
+            }
+            if (definition != cast(*IR.ZirDefine)((null))) {
+                return null
+            }
+            definition = candidate
+            S14ParserPost1(*(i))
+        }
+    }
+    if (definition != cast(*IR.ZirDefine)((null))) {
+        S14ParserSet8(owner_out, owner)
+    }
+    return definition
+}
+
+#scope_export
+#program_export "compile_set_literal"
+compile_set_literal :: (value: *CompileValue, text: *u8) {
+    length: usize = strlen(text)
+    if (length < cast(usize)size_of(ParserArray64_u8)) {
+        memcpy(cast(*void)(cast(*u8)(*(((value).spelling).items))), cast(*void)(text), (length + cast(usize)(1)))
+        (value).kept = null
+    } else {
+        (value).kept = KeepText(text)
+        ((value).spelling).items[0] = cast(u8)(0)
+    }
+}
+
+#scope_export
+#program_export "compile_text_add"
+compile_text_add :: (text: *CompileText, bytes: *u8, length: usize) {
+    if ((text).failed != 0) {
+        return
+    }
+    if ((((text).used + length) + cast(usize)(1)) > (text).capacity) {
+        capacity: usize = (ifx ((text).capacity != 0) then (text).capacity else cast(usize)(256))
+        while loop_45 := (capacity < (((text).used + length) + cast(usize)(1))) {
+            if (capacity > ((cast(usize)(cast(u64)18446744073709551615)) / cast(usize)(2))) {
+                (text).failed = 1
+                return
+            }
+            capacity *= cast(usize)(2)
+        }
+        data: *u8 = cast(*u8)(CompilerRealloc(cast(*void)((text).data), capacity))
+        if (data == cast(*u8)((null))) {
+            (text).failed = 1
+            return
+        }
+        (text).data = data
+        (text).capacity = capacity
+    }
+    memcpy(cast(*void)(cast(*u8)(cast(usize)((text).data) + cast(usize)((text).used) * size_of(u8))), cast(*void)(bytes), length)
+    (text).used += length
+    ((text).data)[(text).used] = cast(u8)(0)
+}
+
+#scope_export
+#program_export "compile_text_put"
+compile_text_put :: (text: *CompileText, piece: *u8) {
+    compile_text_add(text, piece, strlen(piece))
+}
+
+#scope_export
+#program_export "compile_text_string"
+compile_text_string :: (text: *CompileText, bytes: *u8, length: usize) {
+    hex_storage_0 := cast(*ParserArray17_u8)AllocateOrExit(size_of(ParserArray17_u8))
+    defer CompilerFree(cast(*void)hex_storage_0)
+    memset(cast(*void)hex_storage_0, 0, size_of(ParserArray17_u8))
+    copy_text(cast(*u8)hex_storage_0, size_of(ParserArray17_u8), ParserCString("0123456789abcdef"))
+    compile_text_add(text, ParserCString("\""), cast(usize)(1))
+    {
+        i: usize = cast(usize)(0)
+        while loop_46 := (i < length) {
+            byte: u8 = (bytes)[i]
+            escaped_storage_1 := cast(*ParserArray4_u8)AllocateOrExit(size_of(ParserArray4_u8))
+            defer CompilerFree(cast(*void)escaped_storage_1)
+            memset(cast(*void)escaped_storage_1, 0, size_of(ParserArray4_u8))
+            escaped_storage_1[0] = .{items = .{cast(u8)(92), cast(u8)(0), cast(u8)(0), cast(u8)(0)}}
+            used: usize = cast(usize)(2)
+            if ((cast(s32)(byte) == 34) || (cast(s32)(byte) == 92)) {
+                (escaped_storage_1[0]).items[1] = cast(u8)(byte)
+            } else {
+                if (cast(s32)(byte) == 10) {
+                    (escaped_storage_1[0]).items[1] = cast(u8)(110)
+                } else {
+                    if (cast(s32)(byte) == 9) {
+                        (escaped_storage_1[0]).items[1] = cast(u8)(116)
+                    } else {
+                        if (cast(s32)(byte) == 13) {
+                            (escaped_storage_1[0]).items[1] = cast(u8)(114)
+                        } else {
+                            if ((cast(s32)(byte) < 32) || (cast(s32)(byte) == 127)) {
+                                (escaped_storage_1[0]).items[1] = cast(u8)(120)
+                                (escaped_storage_1[0]).items[2] = (hex_storage_0[0]).items[(cast(s32)(byte) >> 4)]
+                                (escaped_storage_1[0]).items[3] = (hex_storage_0[0]).items[(cast(s32)(byte) & 15)]
+                                used = cast(usize)(4)
+                            } else {
+                                (escaped_storage_1[0]).items[0] = cast(u8)(byte)
+                                used = cast(usize)(1)
+                            }
+                        }
+                    }
+                }
+            }
+            compile_text_add(text, cast(*u8)(*((escaped_storage_1[0]).items)), used)
+            S14ParserPost2(*(i))
+        }
+    }
+    compile_text_add(text, ParserCString("\""), cast(usize)(1))
+}
+
+#scope_export
+#program_export "private_parse_compile_value_literal"
+compile_value_literal :: (value: *CompileValue) -> s32 {
+    if (cast(u32)((value).kind) == cast(u32)(1)) {
+        negative: s32 = cast(s32)((strcmp(cast(*u8)(*(((value).type).items)), ParserCString("u64")) != 0) && ((value).integer < cast(s64)(0)))
+        bits := cast(u64)value.integer
+        magnitude := ifx negative != 0 then cast(u64)(0) - bits else bits
+        digits_storage_0 := cast(*ParserArray24_u8)AllocateOrExit(size_of(ParserArray24_u8))
+        defer CompilerFree(cast(*void)digits_storage_0)
+        memset(cast(*void)digits_storage_0, 0, size_of(ParserArray24_u8))
+        count: s32 = 0
+        while loop_47 := true {
+            (digits_storage_0[0]).items[S14ParserPost1(*(count))] = cast(u8)(((cast(u64)(48) + (magnitude % cast(u64)(10)))))
+            magnitude /= cast(u64)(10)
+            if !(magnitude != cast(u64)(0)) { break loop_47 }
+        }
+        out: *u8 = cast(*u8)(*(((value).spelling).items))
+        if (negative != 0) {
+            S14ParserSet3(S14ParserPost5(*(out)), cast(u8)(45))
+        }
+        while loop_48 := (count > 0) {
+            S14ParserSet3(S14ParserPost5(*(out)), (digits_storage_0[0]).items[S14ParserPre7(*(count))])
+        }
+        S14ParserSet3(out, cast(u8)(0))
+        (value).kept = null
+        return 1
+    }
+    if (cast(u32)((value).kind) == cast(u32)(2)) {
+        written: s32 = snprintf(cast(*u8)(*(((value).spelling).items)), cast(usize)size_of(ParserArray64_u8), ParserCString("%.17g"), (value).real)
+        if ((written < 0) || (cast(usize)(written) >= cast(usize)size_of(ParserArray64_u8))) {
+            return 0
+        }
+        (value).kept = null
+        DecimalPointDot(cast(*u8)(*(((value).spelling).items)))
+        if (strpbrk(cast(*u8)(*(((value).spelling).items)), ParserCString(".eE")) == cast(*u8)((null))) {
+            if ((cast(usize)(written) + cast(usize)(2)) >= cast(usize)size_of(ParserArray64_u8)) {
+                return 0
+            }
+            strcat(cast(*u8)(*(((value).spelling).items)), ParserCString(".0"))
+        }
+    }
+    return cast(s32)(cast(u32)((value).kind) != cast(u32)(0))
+}
+
+#scope_export
+#program_export "private_parse_compile_truth"
+compile_truth :: (value: *CompileValue, truth: *s32) -> s32 {
+    if (cast(u32)((value).kind) == cast(u32)(1)) {
+        S14ParserSet9(truth, cast(s32)((value).integer != cast(s64)(0)))
+    } else {
+        if (cast(u32)((value).kind) == cast(u32)(2)) {
+            S14ParserSet9(truth, cast(s32)((value).real != 0))
+        } else {
+            return 0
+        }
+    }
+    return 1
+}
+
+#scope_export
+#program_export "private_parse_compile_type_value"
+compile_type_value :: (type: *u8, value: *CompileValue) -> s32 {
+    if (cast(u32)((value).kind) == cast(u32)(5)) {
+        return cast(s32)(!(strcmp(type, ParserCString("Vec(u8)")) != 0) || !(strcmp(type, ParserCString("*Vec(u8)")) != 0))
+    }
+    if (cast(u32)((value).kind) == cast(u32)(6)) {
+        return cast(s32)((cast(s32)(cast(s8)((type)[0])) == 42) || !(strncmp(type, ParserCString("[]"), cast(usize)(2)) != 0))
+    }
+    if !(strcmp(type, ParserCString("u64")) != 0) {
+        if ((cast(u32)((value).kind) != cast(u32)(1)) || (((value).integer < cast(s64)(0)) && (strcmp(cast(*u8)(*(((value).type).items)), ParserCString("u64")) != 0))) {
+            return 0
+        }
+        copy_text(cast(*u8)(*(((value).type).items)), cast(usize)size_of(ParserArray128_u8), type)
+        return compile_value_literal(value)
+    }
+    if (eval_integer_type(type, cast(s64)(0)) != 0) {
+        if ((cast(u32)((value).kind) != cast(u32)(1)) || !(eval_integer_type(type, (value).integer) != 0)) {
+            return 0
+        }
+        copy_text(cast(*u8)(*(((value).type).items)), cast(usize)size_of(ParserArray128_u8), type)
+        return compile_value_literal(value)
+    }
+    if (!(strcmp(type, ParserCString("float32")) != 0) || !(strcmp(type, ParserCString("float64")) != 0)) {
+        if (cast(u32)((value).kind) == cast(u32)(1)) {
+            (value).real = cast(float64)((value).integer)
+            (value).kind = 2
+        }
+        if (cast(u32)((value).kind) != cast(u32)(2)) {
+            return 0
+        }
+        if !(strcmp(type, ParserCString("float32")) != 0) {
+            (value).real = cast(float64)(cast(float32)((value).real))
+        }
+        copy_text(cast(*u8)(*(((value).type).items)), cast(usize)size_of(ParserArray128_u8), type)
+        return cast(s32)((S14Finite((value).real) != 0) && (compile_value_literal(value) != 0))
+    }
+    if !(strcmp(type, ParserCString("string")) != 0) {
+        return cast(s32)(cast(u32)((value).kind) == cast(u32)(3))
+    }
+    if !(strcmp(type, ParserCString("bool")) != 0) {
+        if (cast(u32)((value).kind) != cast(u32)(1)) {
+            return 0
+        }
+        copy_text(cast(*u8)(*(((value).type).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("bool"))
+        return 1
+    }
+    if (cast(u32)((value).kind) == cast(u32)(1)) {
+        return 1
+    }
+    if ((cast(u32)((value).kind) == cast(u32)(4)) && !(strcmp(cast(*u8)(*(((value).type).items)), type) != 0)) {
+        return 1
+    }
+    return 0
+}
+
+#scope_export
+#program_export "private_parse_wrap_compile_integer"
+wrap_compile_integer :: (type: *u8, value: *s64) -> s32 {
+    if !(ScalarWidth(type) != 0) {
+        return 0
+    }
+    S14ParserSet10(value, ScalarStored(cast(u64)((value)[0]), type))
+    return 1
+}
+
+#scope_export
+#program_export "compile_law_exact_double"
+compile_law_exact_double :: (value: *CompileValue) -> s32 {
+    if value.kind == 2 { return 1 }
+    if value.kind != 1 { return 0 }
+    limit: s64 = 9007199254740992
+    if strcmp(ParserCString("u64"), cast(*u8)*value.type.items) == 0 { return cast(s32)(cast(u64)value.integer <= cast(u64)limit) }
+    return cast(s32)(value.integer >= -limit && value.integer <= limit)
+}
+
+#scope_export
+#program_export "compile_string_bytes"
+compile_string_bytes :: (value: *CompileValue, length: *usize) -> *u8 {
+    literal: *u8 = compile_literal(value)
+    capacity: usize = (strlen(literal) + cast(usize)(1))
+    bytes: *u8 = cast(*u8)(CompilerMalloc(capacity))
+    if ((bytes != cast(*u8)((null))) && !(DecodeStringLiteral(literal, bytes, capacity, length) != 0)) {
+        CompilerFree(cast(*void)(bytes))
+        bytes = null
+    }
+    return bytes
+}
+
+#scope_export
+#program_export "private_parse_compile_values_equal"
+compile_values_equal :: (left: *CompileValue, right: *CompileValue, equal: *s32) -> s32 {
+    law_evaluation := ZirLawEvaluationAddress()
+    if ((cast(u32)((left).kind) == cast(u32)(3)) && (cast(u32)((right).kind) == cast(u32)(3))) {
+        an: usize = cast(usize)(0)
+        bn: usize = cast(usize)(0)
+        a: *u8 = compile_string_bytes(left, *(an))
+        b: *u8 = (ifx (a != cast(*u8)((null))) then compile_string_bytes(right, *(bn)) else null)
+        if (b != cast(*u8)((null))) {
+            S14ParserSet9(equal, cast(s32)((an == bn) && (memcmp(cast(*void)(a), cast(*void)(b), an) == 0)))
+        }
+        CompilerFree(cast(*void)(a))
+        CompilerFree(cast(*void)(b))
+        return cast(s32)(b != cast(*u8)((null)))
+    }
+    if ((cast(u32)((left).kind) == cast(u32)(1)) && (cast(u32)((right).kind) == cast(u32)(1))) {
+        S14ParserSet9(equal, cast(s32)((left).integer == (right).integer))
+        return 1
+    }
+    if (((cast(u32)((left).kind) == cast(u32)(4)) && (cast(u32)((right).kind) == cast(u32)(4))) && !(strcmp(cast(*u8)(*(((left).type).items)), cast(*u8)(*(((right).type).items))) != 0)) {
+        S14ParserSet9(equal, cast(s32)(!(strcmp(compile_literal(left), compile_literal(right)) != 0)))
+        return 1
+    }
+    if (((cast(u32)((left).kind) == cast(u32)(2)) || (cast(u32)((left).kind) == cast(u32)(1))) && ((cast(u32)((right).kind) == cast(u32)(2)) || (cast(u32)((right).kind) == cast(u32)(1)))) {
+        if ((law_evaluation[0] != 0) && (!(compile_law_exact_double(left) != 0) || !(compile_law_exact_double(right) != 0))) {
+            return 0
+        }
+        a: float64 = (ifx (cast(u32)((left).kind) == cast(u32)(2)) then (left).real else cast(float64)((left).integer))
+        b: float64 = (ifx (cast(u32)((right).kind) == cast(u32)(2)) then (right).real else cast(float64)((right).integer))
+        S14ParserSet9(equal, cast(s32)(a == b))
+        return 1
+    }
+    return 0
+}
+
+#scope_export
+#program_export "private_parse_compile_compound_value_in_state"
+compile_compound_value_in_state :: (evaluation: *EvaluationState, probe: *IR.ZirFunction, expression: *IR.ZirExpr, module: *IR.ZirModule, path: *u8, depth: s32, fuel: *s32, result: *CompileValue) -> s32 {
+    element_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)element_storage_0)
+    memset(cast(*void)element_storage_0, 0, size_of(ParserArray128_u8))
+    capacity: s32
+    array: s32
+    record: *IR.ZirType
+    text_storage_1 := cast(*CompileText)AllocateOrExit(size_of(CompileText))
+    defer CompilerFree(cast(*void)text_storage_1)
+    memset(cast(*void)text_storage_1, 0, size_of(CompileText))
+    ordinal: s32
+    mode: s32
+    ok: s32
+    while goto_done := true {
+        copy_text(cast(*u8)element_storage_0, size_of(ParserArray128_u8), ParserCString(""))
+        capacity = 0
+        array = ArrayElementType((expression).name, cast(*u8)(*((element_storage_0[0]).items)), cast(usize)size_of(ParserArray128_u8), *(capacity))
+        record = (ifx (array != 0) then null else FindType(module, (expression).name, null))
+        if (((array != 0) && (capacity < 0)) || (!(array != 0) && ((((record == cast(*IR.ZirType)((null))) || ((record).is_enum != 0)) || ((record).is_procedure_type != 0)) || ((record).is_record_template != 0)))) {
+            return 0
+        }
+        text_storage_1[0] = .{}
+        compile_text_put(*(text_storage_1[0]), (ifx (array != 0) then cast(*u8)(*((element_storage_0[0]).items)) else (expression).name))
+        compile_text_put(*(text_storage_1[0]), (ifx (array != 0) then ParserCString(".[") else ParserCString(".{")))
+        ordinal = 0
+        mode = (-1)
+        ok = 0
+        {
+            child: s32 = (expression).first_child
+            while loop_49 := (child >= 0) {
+                entry: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((probe).exprs) + cast(usize)(child) * size_of(IR.ZirExpr))
+                value_storage_2 := cast(*CompileValue)AllocateOrExit(size_of(CompileValue))
+                defer CompilerFree(cast(*void)value_storage_2)
+                memset(cast(*void)value_storage_2, 0, size_of(CompileValue))
+                compile_value_clear(*(value_storage_2[0]))
+                field_type_storage_3 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+                defer CompilerFree(cast(*void)field_type_storage_3)
+                memset(cast(*void)field_type_storage_3, 0, size_of(ParserArray128_u8))
+                field_name_storage_4 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+                defer CompilerFree(cast(*void)field_name_storage_4)
+                memset(cast(*void)field_name_storage_4, 0, size_of(ParserArray128_u8))
+                copy_text(cast(*u8)field_name_storage_4, size_of(ParserArray128_u8), ParserCString(""))
+                named: s32 = cast(s32)(!(strcmp(cast(*u8)(*((entry).op)), ParserCString("=")) != 0))
+                if (array != 0) {
+                    if ((named != 0) || (ordinal >= capacity)) {
+                        break goto_done
+                    }
+                    copy_text(cast(*u8)(*((field_type_storage_3[0]).items)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((element_storage_0[0]).items)))
+                } else {
+                    field: IR.ZirTypeField
+                    offset: usize = cast(usize)(0)
+                    position: s32 = 0
+                    found: s32 = 0
+                    if ((mode >= 0) && (mode != named)) {
+                        break goto_done
+                    }
+                    mode = named
+                    while loop_50 := (TypeNextField(record, *(offset), *(field)) == 1) {
+                        if ((ifx (named != 0) then cast(s32)(!(strcmp(cast(*u8)(*((field).name)), (entry).name) != 0)) else cast(s32)(position == ordinal)) != 0) {
+                            copy_text(cast(*u8)(*((field_type_storage_3[0]).items)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((field).type)))
+                            copy_text(cast(*u8)(*((field_name_storage_4[0]).items)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((field).name)))
+                            found = 1
+                            break loop_50
+                        }
+                        S14ParserPost1(*(position))
+                    }
+                    if !(found != 0) {
+                        break goto_done
+                    }
+                    {
+                        previous: s32 = (expression).first_child
+                        while loop_51 := (previous != child) {
+                            if ((named != 0) && !(strcmp((((probe).exprs)[previous]).name, cast(*u8)(*((field_name_storage_4[0]).items))) != 0)) {
+                                break goto_done
+                            }
+                            previous = (((probe).exprs)[previous]).next_sibling
+                        }
+                    }
+                }
+                if (!(evaluate_typed_node_in_state(evaluation, probe, (entry).right, module, path, (depth + 1), fuel, *(value_storage_2[0])) != 0) || !(compile_type_value(cast(*u8)(*((field_type_storage_3[0]).items)), *(value_storage_2[0])) != 0)) {
+                    break goto_done
+                }
+                if (ordinal != 0) {
+                    compile_text_put(*(text_storage_1[0]), ParserCString(", "))
+                }
+                if !(array != 0) {
+                    compile_text_put(*(text_storage_1[0]), ParserCString("."))
+                    compile_text_put(*(text_storage_1[0]), cast(*u8)(*((field_name_storage_4[0]).items)))
+                    compile_text_put(*(text_storage_1[0]), ParserCString(" = "))
+                }
+                compile_text_put(*(text_storage_1[0]), compile_literal(*(value_storage_2[0])))
+                S14ParserPost1(*(ordinal))
+                child = (((probe).exprs)[child]).next_sibling
+            }
+        }
+        if ((array != 0) && (ordinal != capacity)) {
+            break goto_done
+        }
+        compile_text_put(*(text_storage_1[0]), (ifx (array != 0) then ParserCString("]") else ParserCString("}")))
+        if ((text_storage_1[0]).failed != 0) {
+            break goto_done
+        }
+        compile_set_literal(result, (text_storage_1[0]).data)
+        (result).kind = 4
+        copy_text(cast(*u8)(*(((result).type).items)), cast(usize)size_of(ParserArray128_u8), (expression).name)
+        (result).type_owner = module
+        ok = 1
+        break
+    }
+    CompilerFree(cast(*void)((text_storage_1[0]).data))
+    return ok
+}
+
+#scope_export
+#program_export "private_parse_compile_compound_value"
+compile_compound_value :: (probe: *IR.ZirFunction, expression: *IR.ZirExpr, module: *IR.ZirModule, path: *u8, depth: s32, fuel: *s32, result: *CompileValue) -> s32 {
+    evaluation: EvaluationState
+    return compile_compound_value_in_state(*evaluation, probe, expression, module, path, depth, fuel, result)
+}
+
+#scope_file
+compile_compound_member_with_buffers_in_state :: (evaluation: *EvaluationState, compound: *CompileValue, member: *u8, module: *IR.ZirModule, path: *u8, depth: s32, fuel: *s32, result: *CompileValue, buffers: *CompileCompoundMemberBuffers) -> s32 {
+    if ((compound).type_owner != cast(*IR.ZirModule)((null))) {
+        module = (compound).type_owner
+    }
+    memset(cast(*void)(*((buffers).probe)), 0, cast(usize)size_of(IR.ZirFunction))
+    root: s32 = ParseExpr(*((buffers).probe), module, compile_literal(compound), Span(path, 1, 1))
+    found: s32 = 0
+    if ((root >= 0) && (cast(s32)(((((buffers).probe).exprs)[root]).kind) == cast(s32)(12))) {
+        record: *IR.ZirType = FindType(module, cast(*u8)(*(((compound).type).items)), null)
+        {
+            child: s32 = ((((buffers).probe).exprs)[root]).first_child
+            while loop_52 := (child >= 0) {
+                entry: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)(((buffers).probe).exprs) + cast(usize)(child) * size_of(IR.ZirExpr))
+                if !(strcmp((entry).name, member) != 0) {
+                    field: IR.ZirTypeField
+                    offset: usize = cast(usize)(0)
+                    while loop_53 := ((record != cast(*IR.ZirType)((null))) && (TypeNextField(record, *(offset), *(field)) == 1)) {
+                        if !(strcmp(cast(*u8)(*((field).name)), member) != 0) {
+                            found = cast(s32)((evaluate_typed_node_in_state(evaluation, *((buffers).probe), (entry).right, module, path, (depth + 1), fuel, result) != 0) && (compile_type_value(cast(*u8)(*((field).type)), result) != 0))
+                            break loop_53
+                        }
+                    }
+                    break loop_52
+                }
+                child = ((((buffers).probe).exprs)[child]).next_sibling
+            }
+        }
+    }
+    CompilerFree(cast(*void)(((buffers).probe).exprs))
+    return found
+}
+
+#scope_export
+#program_export "private_parse_compile_compound_member_in_state"
+compile_compound_member_in_state :: (evaluation: *EvaluationState, compound: *CompileValue, member: *u8, module: *IR.ZirModule, path: *u8, depth: s32, fuel: *s32, result: *CompileValue) -> s32 {
+    buffers := cast(*CompileCompoundMemberBuffers)ParserScratchTake(*scratch_compile_compound_member, size_of(CompileCompoundMemberBuffers))
+    defer ParserScratchRelease(*scratch_compile_compound_member, cast(*void)buffers)
+    return compile_compound_member_with_buffers_in_state(evaluation, compound, member, module, path, depth, fuel, result, buffers)
+}
+
+#scope_export
+#program_export "private_parse_compile_compound_member"
+compile_compound_member :: (compound: *CompileValue, member: *u8, module: *IR.ZirModule, path: *u8, depth: s32, fuel: *s32, result: *CompileValue) -> s32 {
+    evaluation: EvaluationState
+    return compile_compound_member_in_state(*evaluation, compound, member, module, path, depth, fuel, result)
+}
+
+#scope_file
+compile_compound_index_with_buffers_in_state :: (evaluation: *EvaluationState, compound: *CompileValue, index: s64, module: *IR.ZirModule, path: *u8, depth: s32, fuel: *s32, result: *CompileValue, buffers: *CompileCompoundIndexBuffers) -> s32 {
+    if ((compound).type_owner != cast(*IR.ZirModule)((null))) {
+        module = (compound).type_owner
+    }
+    element_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)element_storage_0)
+    memset(cast(*void)element_storage_0, 0, size_of(ParserArray128_u8))
+    capacity: s32 = 0
+    if ((!(ArrayElementType(cast(*u8)(*(((compound).type).items)), cast(*u8)(*((element_storage_0[0]).items)), cast(usize)size_of(ParserArray128_u8), *(capacity)) != 0) || (index < cast(s64)(0))) || (index >= cast(s64)(capacity))) {
+        return 0
+    }
+    probe: *IR.ZirFunction
+    root: s32 = CachedParse(module, compile_literal(compound), Span(path, 1, 1), *((buffers).probe), *(probe))
+    found: s32 = 0
+    ordinal: s32 = 0
+    if ((root >= 0) && (cast(s32)((((probe).exprs)[root]).kind) == cast(s32)(12))) {
+        {
+            child: s32 = (((probe).exprs)[root]).first_child
+            while loop_54 := (child >= 0) {
+                if (cast(s64)(ordinal) == index) {
+                    found = cast(s32)((evaluate_typed_node_in_state(evaluation, probe, (((probe).exprs)[child]).right, module, path, (depth + 1), fuel, result) != 0) && (compile_type_value(cast(*u8)(*((element_storage_0[0]).items)), result) != 0))
+                    break loop_54
+                }
+                child = (((probe).exprs)[child]).next_sibling
+                S14ParserPost1(*(ordinal))
+            }
+        }
+    }
+    CachedParseDone(probe, *((buffers).probe))
+    return found
+}
+
+#scope_export
+#program_export "private_parse_compile_compound_index_in_state"
+compile_compound_index_in_state :: (evaluation: *EvaluationState, compound: *CompileValue, index: s64, module: *IR.ZirModule, path: *u8, depth: s32, fuel: *s32, result: *CompileValue) -> s32 {
+    buffers := cast(*CompileCompoundIndexBuffers)ParserScratchTake(*scratch_compile_compound_index, size_of(CompileCompoundIndexBuffers))
+    defer ParserScratchRelease(*scratch_compile_compound_index, cast(*void)buffers)
+    return compile_compound_index_with_buffers_in_state(evaluation, compound, index, module, path, depth, fuel, result, buffers)
+}
+
+#scope_export
+#program_export "private_parse_compile_compound_index"
+compile_compound_index :: (compound: *CompileValue, index: s64, module: *IR.ZirModule, path: *u8, depth: s32, fuel: *s32, result: *CompileValue) -> s32 {
+    evaluation: EvaluationState
+    return compile_compound_index_in_state(*evaluation, compound, index, module, path, depth, fuel, result)
+}
+
+#scope_file
+local_value_name_visible :: (module: *IR.ZirModule, path: *u8, name: *u8) -> s32 {
+    {
+        i: s32 = 0
+        while loop_55 := (i < (module).define_count) {
+            if (!(strcmp(cast(*u8)(*((((module).defines)[i]).name)), name) != 0) && (!((((module).defines)[i]).is_file_private != 0) || !(strcmp(SpanPath((((module).defines)[i]).span), path) != 0))) {
+                return 1
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while loop_56 := (i < (module).global_count) {
+            if (!(strcmp(cast(*u8)(*((((module).globals)[i]).name)), name) != 0) && (!((((module).globals)[i]).is_file_private != 0) || !(strcmp(SpanPath((((module).globals)[i]).span), path) != 0))) {
+                return 1
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while loop_57 := (i < (module).type_count) {
+            if (!(strcmp(cast(*u8)(*((((module).types)[i]).name)), name) != 0) && (!((((module).types)[i]).is_file_private != 0) || !(strcmp(SpanPath((((module).types)[i]).span), path) != 0))) {
+                return 1
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while loop_58 := (i < (module).function_count) {
+            if (!(strcmp(cast(*u8)(*((((module).functions)[i]).name)), name) != 0) && (!((((module).functions)[i]).is_file_private != 0) || !(strcmp(SpanPath((((module).functions)[i]).span), path) != 0))) {
+                return 1
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+find_open_imported_define :: (module: *IR.ZirModule, path: *u8, name: *u8, owner_out: **IR.ZirModule) -> *IR.ZirDefine {
+    definition: *IR.ZirDefine = null
+    if (local_value_name_visible(module, path, name) != 0) {
+        return null
+    }
+    {
+        i: s32 = 0
+        while loop_59 := (i < (module).import_count) {
+            import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
+            if ((((cast(s32)((import_local).kind) != cast(s32)(1)) && !((cast(s32)((import_local).kind) == cast(s32)(2)) && ((import_local).is_using != 0))) || (((import_local).is_file_private != 0) && (strcmp(SpanPath((import_local).span), path) != 0))) || ((import_local).resolved_module == cast(*IR.ZirModule)((null)))) {
+                S14ParserPost1(*(i))
+                continue loop_59
+            }
+            owner: *IR.ZirModule = (import_local).resolved_module
+            {
+                j: s32 = 0
+                while loop_60 := (j < (owner).define_count) {
+                    candidate: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((owner).defines) + cast(usize)(j) * size_of(IR.ZirDefine))
+                    if ((!((candidate).is_public != 0) || ((candidate).is_file_private != 0)) || (strcmp(cast(*u8)(*((candidate).name)), name) != 0)) {
+                        S14ParserPost1(*(j))
+                        continue loop_60
+                    }
+                    if ((definition != cast(*IR.ZirDefine)((null))) && (definition != candidate)) {
+                        return null
+                    }
+                    definition = candidate
+                    S14ParserSet8(owner_out, owner)
+                    S14ParserPost1(*(j))
+                }
+            }
+            S14ParserPost1(*(i))
+        }
+    }
+    return definition
+}
+
+#scope_export
+#program_export "private_parse_evaluate_imported_typed_define_in_state"
+evaluate_imported_typed_define_in_state :: (evaluation: *EvaluationState, module: *IR.ZirModule, path: *u8, name: *u8, depth: s32, fuel: *s32, result: *CompileValue) -> s32 {
+    law_evaluation := ZirLawEvaluationAddress()
+    owner: *IR.ZirModule = null
+    definition: *IR.ZirDefine = (ifx (strchr(name, 46) != cast(*u8)((null))) then find_imported_define(module, path, name, strlen(name), *(owner)) else find_open_imported_define(module, path, name, *(owner)))
+    names_storage_0 := cast(*ZirConsts)AllocateOrExit(size_of(ZirConsts))
+    defer CompilerFree(cast(*void)names_storage_0)
+    memset(cast(*void)names_storage_0, 0, size_of(ZirConsts))
+    names_storage_0[0] = .{}
+    ok: s32
+    if ((definition == cast(*IR.ZirDefine)((null))) || (depth >= 32)) {
+        return 0
+    }
+    if (law_evaluation[0] != 0) {
+        return evaluate_typed_expression_in_state(evaluation, owner, *(names_storage_0[0]), (definition).value, (definition).span, (depth + 1), fuel, result)
+    }
+    (names_storage_0[0]).count = (owner).define_count
+    (names_storage_0[0]).items = cast(*ZirConst)(CompilerCalloc((cast(usize)((names_storage_0[0]).count) + cast(usize)(1)), cast(usize)size_of(ZirConst)))
+    if ((names_storage_0[0]).items == cast(*ZirConst)((null))) {
+        die(ParserCString("out of memory evaluating imported constant"))
+        unreachable
+    }
+    {
+        i: s32 = 0
+        while loop_61 := (i < (names_storage_0[0]).count) {
+            source: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((owner).defines) + cast(usize)(i) * size_of(IR.ZirDefine))
+            constant: *ZirConst = cast(*ZirConst)(cast(usize)((names_storage_0[0]).items) + cast(usize)(i) * size_of(ZirConst))
+            copy_text(cast(*u8)(*(((constant).name).items)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((source).name)))
+            (constant).expr = KeepText((source).value)
+            copy_text(cast(*u8)(*(((constant).path).items)), cast(usize)size_of(ParserArray1024_u8), SpanPath((source).span))
+            (constant).is_file_private = (source).is_file_private
+            (constant).source_line = ((source).span).line
+            S14ParserPost1(*(i))
+        }
+    }
+    ok = evaluate_typed_expression_in_state(evaluation, owner, *(names_storage_0[0]), (definition).value, (definition).span, (depth + 1), fuel, result)
+    CompilerFree(cast(*void)((names_storage_0[0]).items))
+    return ok
+}
+
+#scope_export
+#program_export "private_parse_evaluate_imported_typed_define"
+evaluate_imported_typed_define :: (module: *IR.ZirModule, path: *u8, name: *u8, depth: s32, fuel: *s32, result: *CompileValue) -> s32 {
+    evaluation: EvaluationState
+    return evaluate_imported_typed_define_in_state(*evaluation, module, path, name, depth, fuel, result)
+}
+
+#scope_file
+ScalarWidth :: (type: *u8) -> u32 {
+    return ScalarWidthZiran(cast(*void)(type))
+}
+
+#scope_file
+ScalarStored :: (bits: u64, type: *u8) -> s64 {
+    return ScalarStoredZiran(bits, cast(*void)(type))
+}
+
+#scope_file
+compile_literal :: (value: *CompileValue) -> *u8 {
+    return (ifx ((value).kept != cast(*u8)((null))) then (value).kept else cast(*u8)(*(((value).spelling).items)))
+}
+
+#scope_file
+compile_value_clear :: (value: *CompileValue) {
+    (value).kind = 0
+    (value).integer = cast(s64)(0)
+    (value).real = cast(float64)(0)
+    ((value).type).items[0] = cast(u8)(0)
+    (value).kept = null
+    ((value).spelling).items[0] = cast(u8)(0)
+    (value).type_owner = null
+}
+
+#scope_file
+ParseExpr :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan) -> s32 {
+    return CompilerParseExpr(fn, cast(*IR.ZirModule)(module), cast(*void)(text), span)
+}

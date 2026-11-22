@@ -1,0 +1,687 @@
+// Shared source and declaration helpers for the frontend.
+using IR :: #import "compiler_ir"
+using Parser :: #import "compiler_parse_types"
+Source :: #import "compiler_source"
+
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+
+die :: (format: *u8, args: ..any) #foreign compiler "private_parse_die";
+die_at :: (span: IR.ZirSourceSpan, format: *u8, args: ..any) #foreign compiler "private_parse_die_at";
+Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
+CompilerMalloc :: (size: usize) -> *void #foreign compiler "CompilerMalloc";
+CompilerRealloc :: (memory: *void, size: usize) -> *void #foreign compiler "CompilerRealloc";
+CompilerFree :: (memory: *void) #foreign compiler "CompilerFree";
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+RawTextRegister :: (body: *u8, length: usize) -> s32 #foreign compiler "RawTextRegister";
+DocumentMarkRewritten :: (path: *u8) #foreign compiler "DocumentMarkRewritten";
+ArrayElementType :: (type: *u8, element: *u8, size: usize, capacity: *s32) -> s32 #foreign compiler "ArrayElementType";
+ModuleAddGlobal :: (module: *IR.ZirModule, name: *u8, type: *u8, value: *u8, span: IR.ZirSourceSpan) #foreign compiler "ModuleAddGlobal";
+ModuleAddStatic :: (module: *IR.ZirModule, name: *u8, type: *u8, value: *u8, span: IR.ZirSourceSpan) #foreign compiler "ModuleAddStatic";
+GoForeignCallParts :: (target: *u8, package: *u8, package_size: usize, receiver: *u8, receiver_size: usize, symbol: *u8, symbol_size: usize) -> s32 #foreign compiler "GoForeignCallParts";
+skip_ws :: (text: *u8) -> *u8 #foreign compiler "skip_ws";
+copy_text :: (output: *u8, capacity: usize, text: *u8) #foreign compiler "copy_text";
+trim_in_place :: (text: *u8) -> *u8 #foreign compiler "trim_in_place";
+split_top_level :: (text: *u8, parts: *u8, maximum: s32, part_size: usize) -> s32 #foreign compiler "split_top_level";
+strlen :: (text: *u8) -> usize #foreign libc "strlen";
+strcmp :: (a: *u8, b: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (a: *u8, b: *u8, length: usize) -> s32 #foreign libc "strncmp";
+strchr :: (text: *u8, byte: s32) -> *u8 #foreign libc "strchr";
+strrchr :: (text: *u8, byte: s32) -> *u8 #foreign libc "strrchr";
+strstr :: (text: *u8, part: *u8) -> *u8 #foreign libc "strstr";
+memchr :: (memory: *void, byte: s32, length: usize) -> *void #foreign libc "memchr";
+memcpy :: (destination: *void, source: *void, length: usize) -> *void #foreign libc "memcpy";
+memmove :: (destination: *void, source: *void, length: usize) -> *void #foreign libc "memmove";
+isalnum :: (byte: s32) -> s32 #foreign libc "isalnum";
+isspace :: (byte: s32) -> s32 #foreign libc "isspace";
+snprintf :: (output: *u8, capacity: usize, format: *u8, args: ..any) -> s32 #foreign libc "snprintf";
+
+PHYSICAL_LINE_LIMIT :: 4095
+LOGICAL_LINE_LIMIT :: 16384
+LONG_LITERAL_MIN :: 2048
+
+byte_at :: (text: *u8, index: usize) -> *u8 { return cast(*u8)(cast(usize)text + index) }
+distance :: (start: *u8, end: *u8) -> usize { return cast(usize)end - cast(usize)start }
+
+view_bytes :: (text: *u8, length: usize) -> string {
+    view: string
+    descriptor := cast(*ParserText)*view
+    descriptor.data = text
+    descriptor.length = length
+    return view
+}
+
+source_view :: (text: *u8) -> string {
+    if text == null { return "" }
+    return view_bytes(text, strlen(text))
+}
+
+ident_byte :: (byte: u8) -> bool { return byte == #char "_" || isalnum(cast(s32)byte) != 0 }
+horizontal_space :: (byte: u8) -> bool { return byte == #char " " || byte == #char "\t" }
+space_byte :: (byte: u8) -> bool { return isspace(cast(s32)byte) != 0 }
+
+// The physical limit applies before lowering raw strings so diagnostics retain
+// the original line number and position.
+check_physical_lines :: (source: *u8, path: *u8) {
+    if source == null { return }
+    start := source
+    line: s32 = 1
+    while start[0] != 0 {
+        end := strchr(start, #char "\n")
+        length := ifx end == null then strlen(start) else distance(start, end)
+        if length > 0 && start[length - 1] == #char "\r" { length -= 1 }
+        if length > PHYSICAL_LINE_LIMIT {
+            die_at(Span(path, line, PHYSICAL_LINE_LIMIT + 1), ParserCString("source line exceeds %d characters"), cast(s32)PHYSICAL_LINE_LIMIT)
+            unreachable
+        }
+        if end == null { break }
+        start = byte_at(end, 1)
+        line += 1
+    }
+}
+
+// Keep long single-line literals in the raw-text table until KeepText consumes
+// their marker. Preserve multiline literals to retain all physical line breaks.
+shorten_long_literals :: (source: *u8) -> *u8 {
+    length := strlen(source)
+    output: *u8
+    used: usize
+    comment_depth: s32
+    at: usize
+    while at < length {
+        byte := source[at]
+        next := source[at + 1]
+        if comment_depth == 0 && byte == #char "/" && next == #char "/" {
+            end := at
+            while end < length && source[end] != #char "\n" { end += 1 }
+            if output != null {
+                memcpy(cast(*void)byte_at(output, used), cast(*void)byte_at(source, at), end - at)
+                used += end - at
+            }
+            at = end
+            continue
+        }
+        if byte == #char "/" && next == #char "*" { comment_depth += 1 }
+        else if comment_depth > 0 && byte == #char "*" && next == #char "/" {
+            if output != null {
+                output[used] = byte
+                output[used + 1] = next
+                used += 2
+            }
+            at += 2
+            comment_depth -= 1
+            continue
+        }
+        if comment_depth == 0 && (byte == #char "\"" || byte == #char "'") {
+            end := at + 1
+            while end < length && source[end] != byte {
+                if source[end] == #char "\\" && end + 1 < length { end += 1 }
+                end += 1
+            }
+            body_length := end - at - 1
+            body := byte_at(source, at + 1)
+            if byte == #char "\"" && end < length && body_length >= LONG_LITERAL_MIN &&
+                memchr(cast(*void)body, #char "\n", body_length) == null {
+                if output == null {
+                    output = cast(*u8)CompilerMalloc(length + 1)
+                    if output == null {
+                        die(ParserCString("out of memory reading source"))
+                        unreachable
+                    }
+                    memcpy(cast(*void)output, cast(*void)source, at)
+                    used = at
+                }
+                index := RawTextRegister(body, body_length)
+                marker := ParserCString("\"\x1fR%d\x1f\"")
+                used += cast(usize)snprintf(byte_at(output, used), length + 1 - used, marker, index)
+                at = end + 1
+                continue
+            }
+            stop := ifx end < length then end + 1 else length
+            if output != null {
+                memcpy(cast(*void)byte_at(output, used), cast(*void)byte_at(source, at), stop - at)
+                used += stop - at
+            }
+            at = stop
+            continue
+        }
+        if output != null { output[used] = byte; used += 1 }
+        at += 1
+    }
+    if output == null { return source }
+    output[used] = 0
+    CompilerFree(cast(*void)source)
+    return output
+}
+
+#scope_export
+#program_export "private_parse_source_append"
+source_append :: (buffer: *SourceBuffer, byte: u8) {
+    required := buffer.length + 2
+    if required < buffer.length {
+        die(ParserCString("source exceeds available memory"))
+        unreachable
+    }
+    if required > buffer.capacity {
+        capacity := ifx buffer.capacity != 0 then buffer.capacity * 2 else cast(usize)8192
+        if capacity < buffer.capacity || capacity < required {
+            die(ParserCString("source exceeds available memory"))
+            unreachable
+        }
+        next := cast(*u8)CompilerRealloc(cast(*void)buffer.text, capacity)
+        if next == null {
+            die(ParserCString("out of memory reading source"))
+            unreachable
+        }
+        buffer.text = next
+        buffer.capacity = capacity
+    }
+    buffer.text[buffer.length] = byte
+    buffer.length += 1
+    buffer.text[buffer.length] = 0
+}
+
+#program_export "private_parse_lower_jai_multiline_strings"
+lower_jai_multiline_strings :: (source: *u8, path: *u8) -> *u8 {
+    check_physical_lines(source, path)
+    input := source_view(source)
+    result := Source.RewriteRawStrings(input, IR.CBuffer(null, 0), IR.ZIR_NAME_MAX)
+    span := Span(path, result.line, result.column)
+    if result.error == Source.SourceError.Delimiter {
+        die_at(span, ParserCString("#string requires an identifier delimiter"))
+        unreachable
+    }
+    if result.error == Source.SourceError.DelimiterLine {
+        die_at(span, ParserCString("#string delimiter must end its line"))
+        unreachable
+    }
+    if result.error == Source.SourceError.Unterminated {
+        die_at(span, ParserCString("unterminated #string delimiter: %.*s"),
+            cast(s32)(result.marker_end - result.marker_begin), byte_at(source, cast(usize)result.marker_begin))
+        unreachable
+    }
+    length := cast(usize)result.count
+    if result.count < 0 || cast(u64)result.count != cast(u64)length || length + 1 == 0 {
+        die(ParserCString("source exceeds available memory"))
+        unreachable
+    }
+    output := cast(*u8)CompilerMalloc(length + 1)
+    if output == null {
+        die(ParserCString("out of memory reading source"))
+        unreachable
+    }
+    Source.RewriteRawStrings(input, IR.CBuffer(output, length), IR.ZIR_NAME_MAX)
+    output[length] = 0
+    output = shorten_long_literals(output)
+    if strcmp(source, output) != 0 { DocumentMarkRewritten(path) }
+    return output
+}
+
+#program_export "private_parse_starts_word"
+starts_word :: (text: *u8, word: *u8) -> s32 {
+    return cast(s32)Source.StartsWord(source_view(text), source_view(word))
+}
+
+#program_export "private_parse_looks_like_non_jai_control"
+looks_like_non_jai_control :: (text: *u8, word: *u8) -> s32 {
+    return cast(s32)Source.NonJaiControl(source_view(text), source_view(word))
+}
+
+#program_export "private_parse_is_identifier_text"
+is_identifier_text :: (text: *u8) -> s32 { return cast(s32)Source.IdentifierText(source_view(text), false) }
+
+#program_export "private_parse_is_member_path_text"
+is_member_path_text :: (text: *u8) -> s32 { return cast(s32)Source.IdentifierText(source_view(text), true) }
+
+#program_export "TemplateParameterIndex"
+TemplateParameterIndex :: (list: *u8, name: *u8, length: usize) -> s32 {
+    index: s32 = 0
+    part := list
+    while part[0] != 0 {
+        end := strchr(part, #char ",")
+        part_length := ifx end == null then strlen(part) else distance(part, end)
+        if part_length == length && strncmp(part, name, length) == 0 { return index }
+        if end == null { break }
+        part = byte_at(end, 1)
+        index += 1
+    }
+    return -1
+}
+
+#program_export "TemplateBinderPrefix"
+TemplateBinderPrefix :: (type: *u8) -> s32 {
+    prefix: usize = 0
+    if type[0] == #char "*" { prefix = 1 }
+    else if type[0] == #char "[" {
+        if type[1] == #char "]" { prefix = 2 }
+        else {
+            close := strchr(type, #char "]")
+            if close == null || ArrayElementType(type, null, 0, null) == 0 ||
+                memchr(cast(*void)type, #char "$", distance(type, close)) != null { return -1 }
+            prefix = distance(type, skip_ws(byte_at(close, 1)))
+        }
+    }
+    return ifx type[prefix] == #char "$" then cast(s32)prefix else -1
+}
+
+#program_export "private_parse_contains_source_directive"
+contains_source_directive :: (source: *u8, directive: *u8) -> s32 {
+    return cast(s32)Source.ContainsDirective(source_view(source), source_view(directive))
+}
+
+#program_export "private_parse_source_column_for_trimmed"
+source_column_for_trimmed :: (line: *u8, trimmed: *u8) -> s32 {
+    if line == null || trimmed == null || cast(usize)trimmed < cast(usize)line { return 1 }
+    return cast(s32)distance(line, trimmed) + 1
+}
+
+#program_export "private_parse_source_end_column_for_trimmed"
+source_end_column_for_trimmed :: (line: *u8, trimmed: *u8) -> s32 {
+    return source_column_for_trimmed(line, trimmed) + cast(s32)strlen(trimmed)
+}
+
+#scope_file
+file_global_scratch: u8;
+abi_incomplete_scratch: u8;
+type_this_scratch: u8;
+
+trim_declaration_end :: (text: *u8, length: usize) -> usize {
+    while length > 0 && (space_byte(text[length - 1]) || text[length - 1] == #char ";") { length -= 1 }
+    return length
+}
+
+#scope_export
+#program_export "private_parse_parse_file_global"
+parse_file_global :: (module: *IR.ZirModule, declaration: *u8, span: IR.ZirSourceSpan,
+                      scope_public: s32, scope_file: s32, name_out: *u8, name_size: usize) {
+    length := strlen(declaration)
+    colon := strchr(declaration, #char ":")
+    if colon == null || length == 0 || declaration[length - 1] != #char ";" {
+        die_at(span, ParserCString("file-scope variable declaration needs ';'"))
+        unreachable
+    }
+    name: [IR.ZIR_NAME_MAX]u8
+    name_length := distance(declaration, colon)
+    i: usize
+    while i < name_length {
+        if !ident_byte(declaration[i]) {
+            die_at(span, ParserCString("invalid file-scope variable name"))
+            unreachable
+        }
+        if i + 1 >= IR.ZIR_NAME_MAX {
+            die_at(span, ParserCString("file-scope variable name is too long"))
+            unreachable
+        }
+        name[i] = declaration[i]
+        i += 1
+    }
+    name[name_length] = 0
+    name_text := cast(*u8)*name
+    if is_member_path_text(name_text) == 0 || strchr(name_text, #char ".") != null {
+        die_at(span, ParserCString("invalid file-scope variable name"))
+        unreachable
+    }
+
+    value := byte_at(colon, 1)
+    equal := strchr(value, #char "=")
+    type_end := ifx equal == null then byte_at(declaration, length) else equal
+    value = skip_ws(value)
+    if cast(usize)value > cast(usize)type_end || distance(value, type_end) >= IR.ZIR_TEXT_MAX {
+        die_at(span, ParserCString("file-scope variable type is too long"))
+        unreachable
+    }
+    buffer := cast(*ParserArray4096_u8)ParserScratchTake(*file_global_scratch, size_of(ParserArray4096_u8))
+    defer ParserScratchRelease(*file_global_scratch, cast(*void)buffer)
+    type_text := cast(*u8)*buffer.items
+    type_length := trim_declaration_end(value, distance(value, type_end))
+    if type_length == 0 {
+        die_at(span, ParserCString("file-scope variable needs a type"))
+        unreachable
+    }
+    memcpy(cast(*void)type_text, cast(*void)value, type_length)
+    type_text[type_length] = 0
+
+    // A table initializer can exceed the type buffer and is kept as text.
+    init := ParserCString("")
+    trimmed: *u8
+    if equal != null {
+        value = skip_ws(byte_at(equal, 1))
+        value_length := trim_declaration_end(value, strlen(value))
+        if value_length == 0 {
+            die_at(span, ParserCString("file-scope variable initializer is empty"))
+            unreachable
+        }
+        trimmed = cast(*u8)AllocateOrExit(value_length + 1)
+        memcpy(cast(*void)trimmed, cast(*void)value, value_length)
+        trimmed[value_length] = 0
+        init = trimmed
+    }
+    if scope_public != 0 { ModuleAddGlobal(module, name_text, type_text, init, span) }
+    else { ModuleAddStatic(module, name_text, type_text, init, span) }
+    CompilerFree(cast(*void)trimmed)
+    if module.global_count > 0 { module.globals[module.global_count - 1].is_file_private = scope_file }
+    if name_out != null { copy_text(name_out, name_size, name_text) }
+}
+
+#program_export "private_parse_parse_symbol_before_colons"
+parse_symbol_before_colons :: (text: *u8, output: *u8, capacity: usize) -> s32 {
+    output[0] = 0
+    delimiter := strstr(text, ParserCString("::"))
+    if delimiter == null { return 0 }
+    limit := distance(text, delimiter)
+    at: usize
+    used: usize
+    while at < limit && horizontal_space(text[at]) { at += 1 }
+    while at < limit && ident_byte(text[at]) && used + 1 < capacity {
+        output[used] = text[at]
+        used += 1
+        at += 1
+    }
+    output[used] = 0
+    while at < limit && horizontal_space(text[at]) { at += 1 }
+    return cast(s32)(used != 0 && at == limit)
+}
+
+// Record constructors put parameters after the type keyword. The checker
+// keeps the comma-separated names for substitution.
+#program_export "private_parse_parse_type_parameters"
+parse_type_parameters :: (after: *u8, keyword: *u8, names: *u8, capacity: usize) -> s32 {
+    names[0] = 0
+    open := skip_ws(byte_at(after, strlen(keyword)))
+    if open[0] != #char "(" { return 1 }
+    start := byte_at(open, 1)
+    length: usize
+    depth: s32 = 1
+    while start[length] != 0 {
+        if start[length] == #char "(" { depth += 1 }
+        else if start[length] == #char ")" { depth -= 1 }
+        if depth == 0 { break }
+        length += 1
+    }
+    if depth != 0 || length == 0 || length >= IR.ZIR_TEXT_MAX ||
+        skip_ws(byte_at(start, length + 1))[0] != #char "{" { return 0 }
+
+    source: [IR.ZIR_TEXT_MAX]u8
+    parts: [16][IR.ZIR_NAME_MAX]u8
+    memcpy(cast(*void)*source, cast(*void)start, length)
+    source[length] = 0
+    count := split_top_level(cast(*u8)*source, cast(*u8)*parts, 16, IR.ZIR_NAME_MAX)
+    if count < 1 || count >= 16 { return 0 }
+    used: usize
+    for i: 0..count - 1 {
+        part := cast(*u8)*parts[i]
+        if part[0] == #char "$" { part = byte_at(part, 1) }
+        colon := strchr(part, #char ":")
+        if colon == null { return 0 }
+        part_length := distance(part, colon)
+        while part_length > 0 && space_byte(part[part_length - 1]) { part_length -= 1 }
+        if part_length == 0 || part_length >= IR.ZIR_NAME_MAX ||
+            strcmp(skip_ws(byte_at(colon, 1)), ParserCString("Type")) != 0 { return 0 }
+        name: [IR.ZIR_NAME_MAX]u8
+        memcpy(cast(*void)*name, cast(*void)part, part_length)
+        name[part_length] = 0
+        separator := ifx i > 0 then cast(usize)1 else cast(usize)0
+        if is_identifier_text(cast(*u8)*name) == 0 || used + part_length + separator >= capacity { return 0 }
+        if i > 0 { names[used] = #char ","; used += 1 }
+        memcpy(cast(*void)byte_at(names, used), cast(*void)*name, part_length)
+        used += part_length
+        names[used] = 0
+    }
+    return 1
+}
+
+#scope_file
+abi_horizontal :: (byte: u8) -> bool { return horizontal_space(byte) || byte == #char "\r" }
+
+#scope_export
+#program_export "private_parse_line_is_abi_incomplete"
+line_is_abi_incomplete :: (line: *u8, length: usize) -> s32 {
+    first: usize
+    while first < length && abi_horizontal(line[first]) { first += 1 }
+    while length > first && abi_horizontal(line[length - 1]) { length -= 1 }
+    if length > first && line[length - 1] == #char ";" { length -= 1 }
+    while length > first && abi_horizontal(line[length - 1]) { length -= 1 }
+    return cast(s32)(view_bytes(byte_at(line, first), length - first) == "#abi_incomplete")
+}
+
+// An anonymous Go record still uses ordinary checked Ziran fields. Strip the
+// annotation in place before discovering those fields.
+#program_export "private_parse_take_go_anonymous"
+take_go_anonymous :: (type: *IR.ZirType) -> s32 {
+    line := cast(*u8)*type.body
+    output := line
+    found := type.is_go_anonymous
+    while line[0] != 0 {
+        newline := strchr(line, #char "\n")
+        length := ifx newline == null then strlen(line) else distance(line, newline) + 1
+        if Source.ContainsDirective(view_bytes(line, length), "#go_anonymous") {
+            first: usize
+            last := length
+            while first < last && space_byte(line[first]) { first += 1 }
+            while last > first && space_byte(line[last - 1]) { last -= 1 }
+            if last > first && line[last - 1] == #char ";" { last -= 1 }
+            while last > first && space_byte(line[last - 1]) { last -= 1 }
+            if found != 0 || view_bytes(byte_at(line, first), last - first) != "#go_anonymous" ||
+                type.is_enum != 0 || type.is_union != 0 || type.is_extern != 0 ||
+                type.is_abi_incomplete != 0 || type.is_map != 0 || type.is_owned_vec != 0 { return 0 }
+            found = 1
+        } else {
+            memmove(cast(*void)output, cast(*void)line, length)
+            output = byte_at(output, length)
+        }
+        line = byte_at(line, length)
+    }
+    output[0] = 0
+    type.is_go_anonymous = found
+    return 1
+}
+
+#program_export "private_parse_normalize_record_separators"
+normalize_record_separators :: (body: *u8, split_commas: s32) {
+    Source.NormalizeRecordSeparators(IR.CBuffer(body, strlen(body)), split_commas != 0)
+}
+
+#program_export "private_parse_take_abi_incomplete"
+take_abi_incomplete :: (type: *IR.ZirType) -> s32 {
+    buffer := cast(*ParserArray8192_u8)ParserScratchTake(*abi_incomplete_scratch, size_of(ParserArray8192_u8))
+    defer ParserScratchRelease(*abi_incomplete_scratch, cast(*void)buffer)
+    body := cast(*u8)*type.body
+    line := body
+    output := cast(*u8)*buffer.items
+    used: usize
+    found := type.is_abi_incomplete != 0
+    while line[0] != 0 {
+        newline := strchr(line, #char "\n")
+        length := ifx newline == null then strlen(line) else distance(line, newline) + 1
+        if Source.FindUnquoted(source_view(line), "#abi_incomplete", false) >= 0 {
+            if found || line_is_abi_incomplete(line, length) == 0 { return 0 }
+            found = true
+        } else {
+            if used + length >= size_of(ParserArray8192_u8) { return 0 }
+            memcpy(cast(*void)byte_at(output, used), cast(*void)line, length)
+            used += length
+        }
+        line = byte_at(line, length)
+    }
+    output[used] = 0
+    copy_text(body, size_of(ParserArray8192_u8), output)
+    type.is_abi_incomplete = cast(s32)found
+    return 1
+}
+
+// Resolve the scope-relative type constant before field spellings enter IR.
+#program_export "private_parse_expand_type_this"
+expand_type_this :: (type: *IR.ZirType) -> s32 {
+    replacement: [IR.ZIR_NAME_MAX]u8
+    params := cast(*u8)*type.template_params
+    open := ParserCString(ifx params[0] != 0 then "(" else "")
+    close := ParserCString(ifx params[0] != 0 then ")" else "")
+    replacement_text := cast(*u8)*replacement
+    name := cast(*u8)*type.name
+    written := snprintf(replacement_text, IR.ZIR_NAME_MAX, ParserCString("%s%s%s%s"), name, open, params, close)
+    if written < 0 || written >= IR.ZIR_NAME_MAX { return 0 }
+
+    buffer := cast(*ParserArray8192_u8)ParserScratchTake(*type_this_scratch, size_of(ParserArray8192_u8))
+    defer ParserScratchRelease(*type_this_scratch, cast(*void)buffer)
+    output := cast(*u8)*buffer.items
+    body := cast(*u8)*type.body
+    cursor := body
+    used: usize
+    quote: u8
+    while cursor[0] != 0 {
+        byte := cursor[0]
+        if quote == 0 && strncmp(cursor, ParserCString("#this"), 5) == 0 && !ident_byte(cursor[5]) {
+            length := cast(usize)written
+            if used + length >= size_of(ParserArray8192_u8) { return 0 }
+            memcpy(cast(*void)byte_at(output, used), cast(*void)replacement_text, length)
+            used += length
+            cursor = byte_at(cursor, 5)
+            continue
+        }
+        if used + 1 >= size_of(ParserArray8192_u8) { return 0 }
+        if quote != 0 && byte == #char "\\" && cursor[1] != 0 {
+            if used + 2 >= size_of(ParserArray8192_u8) { return 0 }
+            output[used] = byte
+            output[used + 1] = cursor[1]
+            used += 2
+            cursor = byte_at(cursor, 2)
+            continue
+        }
+        if byte == #char "\"" || byte == #char "'" {
+            if quote == 0 { quote = byte }
+            else if quote == byte { quote = 0 }
+        }
+        output[used] = byte
+        used += 1
+        cursor = byte_at(cursor, 1)
+    }
+    output[used] = 0
+    copy_text(body, size_of(ParserArray8192_u8), output)
+    return 1
+}
+
+#program_export "private_parse_relative_path"
+relative_path :: (root: *u8, path: *u8) -> *u8 {
+    if root == null || root[0] == 0 { return path }
+    length := strlen(root)
+    if strncmp(path, root, length) != 0 { return path }
+    if path[length] == #char "/" { return byte_at(path, length + 1) }
+    if path[length] == 0 { return byte_at(path, length) }
+    return path
+}
+
+#program_export "private_parse_is_c_ident"
+is_c_ident :: (text: *u8) -> s32 { return is_identifier_text(text) }
+
+#program_export "private_parse_classify_extern_target"
+classify_extern_target :: (target: *u8, symbol: *u8, capacity: usize,
+                           path: *u8, line: s32) -> IR.ZirExternKind {
+    symbol[0] = 0
+    if target == null || target[0] == 0 { return IR.ZirExternKind.HOST }
+    if strncmp(target, ParserCString("c."), 2) == 0 {
+        name := byte_at(target, 2)
+        if is_c_ident(name) == 0 {
+            die_at(Span(path, line, 1), ParserCString("C extern target must be c.<symbol>"))
+            unreachable
+        }
+        snprintf(symbol, capacity, ParserCString("%s"), name)
+        return IR.ZirExternKind.C
+    }
+    if strncmp(target, ParserCString("go:"), 3) == 0 {
+        if GoForeignCallParts(target, null, 0, null, 0, null, 0) == 0 {
+            die_at(Span(path, line, 1), ParserCString("Go extern target requires a package path and valid symbol"))
+            unreachable
+        }
+        return IR.ZirExternKind.GO
+    }
+    dot := strrchr(target, #char ".")
+    slash := strrchr(target, #char "/")
+    if dot != null && slash != null && cast(usize)slash < cast(usize)dot { return IR.ZirExternKind.GO }
+    return IR.ZirExternKind.HOST
+}
+
+#program_export "private_parse_net_block_braces"
+net_block_braces :: (text: *u8) -> s32 { return Source.NetBlockBraces(source_view(text)) }
+
+#program_export "private_parse_looks_like_label"
+looks_like_label :: (text: *u8) -> s32 { return cast(s32)Source.LooksLikeLabel(source_view(text)) }
+
+#program_export "private_parse_classify_stmt"
+classify_stmt :: (text: *u8) -> IR.ZirStmtKind {
+    return cast(IR.ZirStmtKind)cast(s32)Source.ClassifyStatement(source_view(text))
+}
+
+#program_export "private_parse_parse_block_call_header"
+parse_block_call_header :: (text: *u8, callee: *u8, callee_size: usize, name: *u8, name_size: usize) -> s32 {
+    at: usize
+    while horizontal_space(text[at]) { at += 1 }
+    start := at
+    while ident_byte(text[at]) { at += 1 }
+    callee_length := at - start
+    if callee_length == 0 || callee_length >= callee_size { return 0 }
+    memcpy(cast(*void)callee, cast(*void)byte_at(text, start), callee_length)
+    callee[callee_length] = 0
+    if strcmp(callee, ParserCString("case")) == 0 { return 0 }
+    while horizontal_space(text[at]) { at += 1 }
+    start = at
+    while ident_byte(text[at]) {
+        if at - start + 1 < name_size { name[at - start] = text[at] }
+        at += 1
+    }
+    if at - start >= name_size { return 0 }
+    name[at - start] = 0
+    while horizontal_space(text[at]) { at += 1 }
+    if text[at] != #char ":" { return 0 }
+    at += 1
+    while horizontal_space(text[at]) { at += 1 }
+    return cast(s32)(text[at] == #char "{" && text[at + 1] == 0)
+}
+
+#program_export "private_parse_statement_separator"
+statement_separator :: (line: *u8) -> *u8 {
+    at := Source.StatementSeparator(source_view(line))
+    return ifx at < 0 then null else byte_at(line, cast(usize)at)
+}
+
+#program_export "private_parse_prepend_logical_line"
+prepend_logical_line :: (queue: *ParserArray32768_u8, count: *s32, line: *u8, span: IR.ZirSourceSpan) {
+    if count[0] >= 16 {
+        die_at(span, ParserCString("too many statements on one source line"))
+        unreachable
+    }
+    // Queued parts go through the parser's physical line buffer again.
+    if strlen(line) >= LOGICAL_LINE_LIMIT {
+        die_at(span, ParserCString("statement after ';', in a one-line block or in a local procedure exceeds %d bytes; start it on its own line at procedure or file scope"),
+            cast(s32)(LOGICAL_LINE_LIMIT - 1))
+        unreachable
+    }
+    stride := cast(usize)size_of(ParserArray32768_u8)
+    memmove(cast(*void)*queue[1], cast(*void)*queue[0], cast(usize)count[0] * stride)
+    copy_text(cast(*u8)*queue[0], stride, line)
+    count[0] += 1
+}
+
+#program_export "private_parse_split_oneline_block"
+split_oneline_block :: (text: *u8, head: *u8, head_size: usize, body: *u8, body_size: usize,
+                        tail: *u8, tail_size: usize) -> s32 {
+    input := source_view(text)
+    block := Source.SplitControlBlock(input)
+    body_length := block.body_end - block.body_begin
+    if !block.valid || cast(u64)block.head_end >= cast(u64)head_size ||
+        cast(u64)body_length >= cast(u64)body_size ||
+        cast(u64)(input.count - block.tail_begin) >= cast(u64)tail_size { return 0 }
+    memcpy(cast(*void)head, cast(*void)text, cast(usize)block.head_end)
+    head[block.head_end] = 0
+    memcpy(cast(*void)body, cast(*void)byte_at(text, cast(usize)block.body_begin), cast(usize)body_length)
+    body[body_length] = 0
+    trim_in_place(body)
+    copy_text(tail, tail_size, byte_at(text, cast(usize)block.tail_begin))
+    return ifx block.open then 2 else 1
+}
+
+#program_export "private_parse_closing_parenthesis"
+closing_parenthesis :: (open: *u8) -> *u8 {
+    at := Source.ClosingParenthesis(source_view(open))
+    return ifx at < 0 then null else byte_at(open, cast(usize)at)
+}

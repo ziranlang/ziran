@@ -57,6 +57,7 @@ done
 # output path.
 mkdir -p "$work/linked"
 cat > "$work/linked/lib.zi" <<'ZI'
+#import "std/text"
 Pair :: struct {
     left: s32
     right: s32
@@ -75,6 +76,12 @@ Sum :: () -> s64 {
     result: s64 = 0
     for i: 1..4 { result += i }
     return result
+}
+Join :: (first: string, second: string) -> string {
+    out: Vec(u8)
+    BuilderPrint(*out, "%", first)
+    BuilderPrint(*out, "%", second)
+    return BuilderFinish(out)
 }
 ZI
 cat > "$work/linked/app.zi" <<'ZI'
@@ -103,10 +110,12 @@ VALUE :: #run Choose(4);
 SUM :: #run Lib.Sum();
 SMALL :: #run Lib.Small(41);
 WIDTH :: #run size_of(Lib.Pair);
+JOINED :: #run Lib.Join("forty", "two");
 #assert VALUE == 42
 #assert SUM == 10
 #assert SMALL == 42
 #assert WIDTH == 8
+#assert JOINED == "fortytwo"
 SIZED :: #ifx size_of(Lib.Pair) == 8 then 0 else Missing();
 #program_export
 Answer :: () -> s64 {

@@ -1,0 +1,35 @@
+IR :: #import "compiler_ir"
+
+#scope_file
+compiler :: #system_library "ziran";
+ParseSource :: (path: *u8, source: *u8) -> *IR.ZirProgram #foreign compiler "parse_source_text";
+ProgramFree :: (program: *IR.ZirProgram) #foreign compiler "ProgramFree";
+EvaluateLiteral :: (module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan, executing: s32,
+    literal: **u8, owner: **IR.ZirModule) -> s32 #foreign compiler "EvaluateCompileLiteral";
+
+#scope_export
+#program_export "frontend_literals"
+FrontendLiterals :: () -> s32 {
+    path: [16]u8
+    source: [256]u8
+    unused IR.CopyText(path[:], "literals.zi")
+    unused IR.CopyText(source[:], "#scope_export\nPublicValue: s64 = 1;\nAnswer :: () -> s32 { return 42 }\n#scope_file\nprivate_value: s64 = 2;\n")
+    program := ParseSource(*path[0], *source[0])
+    if program == null { return 0 }
+    defer ProgramFree(program)
+    if program.module_count != 1 { return 0 }
+    module := program.modules
+    if module.global_count != 2 || module.function_count != 1 { return 0 }
+    if module.globals[0].is_static != 0 || module.globals[1].is_static == 0 { return 0 }
+
+    expressions: [5]string = .["4294967297", "-4294967297", "-9223372036854775808",
+        "18446744073709551615", "cast(s64)(4294967297.0)"]
+    expected: [5]string = .["4294967297", "-4294967297", "-9223372036854775808", "18446744073709551615", "4294967297"]
+    for expression, i: expressions {
+        unused IR.CopyText(source[:], expression)
+        literal: *u8
+        if EvaluateLiteral(module, *source[0], module.functions[0].span, 0, *literal, null) == 0 ||
+            IR.CText(literal) != expected[i] { return 0 }
+    }
+    return 1
+}

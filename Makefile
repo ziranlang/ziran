@@ -271,7 +271,9 @@ GO_PORT_MODULES := go_backend go_asm go_asm_x64
 CHECK_CORE_MODULES := check check_value check_statement check_expr check_text
 CHECK_PROGRAM_MODULES := check_function check_program check_link check_simd borrow
 CHECK_PORT_MODULES := check_types $(CHECK_CORE_MODULES) check_s12_types $(CHECK_PROGRAM_MODULES)
-PARSE_PORT_MODULES := parse_types parse_condition parse_discover parse_source
+S14_PARSE_MODULES := parse_declaration parse_eval parse_typed ir_cleanup
+PARSE_PORT_MODULES := parse_types parse_condition parse_discover parse_source \
+    frontend_parse parse_s14_types $(S14_PARSE_MODULES)
 compiler-port-dir = $(if $(filter 1,$(BOOTSTRAP)),bootstrap/compiler_$(1),$(BUILD_DIR)/compiler-$(subst _,-,$(1)))
 compiler-port-seed = $(addprefix bootstrap/compiler_$(1)/compiler_$(1).,c h)
 compiler-port-ready = $(if $(filter 1,$(BOOTSTRAP)),$(call compiler-port-seed,$(1)),$(call compiler-port-dir,$(1))/.generated)
@@ -307,7 +309,6 @@ RANGE_MODULES := compiler_c_range compiler_c_range_facts compiler_c_range_values
 RANGE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/c-range/%.o,$(RANGE_MODULES))
 override CFLAGS += -I$(RANGE_C)
 FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c cmd/zir/zir_sha256.c cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
-    cmd/zir/zir_cleanup.c \
     cmd/zir/zir_law.c \
     cmd/zir/zir_serial.c cmd/zir/zir_load.c \
     cmd/zir/zir_packages.c \
@@ -456,12 +457,11 @@ $(TEXT_OBJECT): $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(TEXT_C)/compiler_text.c
 
-$(call obj,cmd/zir/zir_parse.c cmd/zir/zir_parse_declaration.c): $(SOURCE_READY)
+$(call obj,cmd/zir/zir_parse.c): $(SOURCE_READY)
 $(SOURCE_OBJECT): $(SOURCE_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SOURCE_C)/compiler_source.c
 
-$(call obj,cmd/zir/zir_parse_declaration.c): $(DECLARATION_READY) $(STATEMENT_READY)
 $(DECLARATION_OBJECT): $(DECLARATION_READY) $(TEXT_READY) $(SOURCE_READY) $(SCANNER_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(DECLARATION_C)/compiler_declaration.c
@@ -483,7 +483,6 @@ $(PARSE_OBJECT): $(PARSE_READY) $(EXPRESSION_READY) $(IR_READY) $(SERVICES_READY
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(PARSE_C)/compiler_parse.c
 
-$(call obj,cmd/zir/zir_cleanup.c): $(STATEMENT_READY)
 $(STATEMENT_OBJECT): $(STATEMENT_READY) $(SCANNER_READY) $(SOURCE_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(STATEMENT_C)/compiler_statement.c
@@ -579,14 +578,15 @@ $(NATIVE_NAMES_OBJECT): $(NATIVE_NAMES_C)/compiler_native_names.c \
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
 
-PARSE_PARTS := $(addprefix cmd/zir/zir_parse,.c _declaration.c _eval.c _typed.c)
+PARSE_PARTS := cmd/zir/zir_parse.c
 
 # The C and Ziran parser parts agree on the names of their shared private
 # calls. Keep the prefix on Wasm, where objcopy cannot localize them.
 ifneq ($(findstring wasm,$(TARGET_MACHINE)),)
 WASM_PRIVATE_HEADERS ?= $(BUILD_DIR)/wasm-private
 else
-PARSE_LOCALIZE := --wildcard --localize-symbol='private_parse_*' --localize-symbol='compiler_parse_*'
+PARSE_LOCALIZE := --wildcard --localize-symbol='private_parse_*' --localize-symbol='compiler_parse_*' \
+    --localize-symbol='compiler_frontend_parse_*' --localize-symbol='compiler_ir_cleanup_*'
 endif
 PARSE_PRIVATE_HEADERS := $(or $(WASM_PRIVATE_HEADERS),$(BUILD_DIR)/private-symbols)
 $(PARSE_PRIVATE_HEADERS)/%.h: cmd/zir/zir_%_internal.h scripts/private-symbols.py
@@ -868,6 +868,14 @@ $(eval $(call compiler-port-rules,parse_types,$(IR_READY),cmd/compiler_ir.zi))
 $(eval $(call compiler-port-rules,parse_condition,$(PARSE_PORT_HEADERS) $(SOURCE_READY) $(TEXT_READY),$(PARSE_PORT_IMPORTS) cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_scan.zi))
 $(eval $(call compiler-port-rules,parse_discover,$(PARSE_PORT_HEADERS) $(TYPE_READY),$(PARSE_PORT_IMPORTS) cmd/compiler_type.zi cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_scan.zi))
 $(eval $(call compiler-port-rules,parse_source,$(PARSE_PORT_HEADERS),$(PARSE_PORT_IMPORTS)))
+$(eval $(call compiler-port-rules,frontend_parse,$(PARSE_PORT_HEADERS) $(SOURCE_READY),$(PARSE_PORT_IMPORTS) cmd/compiler_source.zi cmd/compiler_scan.zi))
+S14_PARSE_IMPORTS := $(PARSE_PORT_IMPORTS) cmd/compiler_statement.zi cmd/compiler_declaration.zi \
+    cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_scan.zi
+S14_PARSE_HEADERS := $(PARSE_PORT_HEADERS) $(STATEMENT_READY) $(DECLARATION_READY) \
+    $(SOURCE_READY) $(TEXT_READY) $(SCANNER_READY)
+$(eval $(call compiler-port-rules,parse_s14_types,$(S14_PARSE_HEADERS),$(S14_PARSE_IMPORTS)))
+$(foreach module,$(S14_PARSE_MODULES),\
+    $(eval $(call compiler-port-rules,$(module),$(S14_PARSE_HEADERS) $(call compiler-port-ready,parse_s14_types),$(S14_PARSE_IMPORTS) cmd/compiler_parse_s14_types.zi)))
 $(eval $(call compiler-port-rules,go_asm_x64,$(IR_READY) $(NATIVE_NAMES_READY),$(GO_PORT_IMPORTS)))
 $(eval $(call compiler-port-rules,go_asm,$(IR_READY) $(NATIVE_NAMES_READY) $(call compiler-port-ready,go_asm_x64),$(GO_PORT_IMPORTS) cmd/compiler_go_asm_x64.zi))
 $(eval $(call compiler-port-rules,go_backend,$(IR_READY) $(NATIVE_NAMES_READY) $(call compiler-port-ready,go_asm) $(call compiler-port-ready,go_asm_x64),$(GO_PORT_IMPORTS) cmd/compiler_go_asm.zi cmd/compiler_go_asm_x64.zi))

@@ -23,7 +23,8 @@ typedef enum HostValueKind {
     HOST_RECORD,
     HOST_SLICE,
     HOST_POINTER,
-    HOST_ARRAY
+    HOST_ARRAY,
+    HOST_BORROWED_SLICE
 } HostValueKind;
 
 typedef struct HostField HostField;
@@ -251,6 +252,19 @@ int BundleHostRenewSteps(void);
  * the bytes for immediate serialization by the runtime. */
 int BundleInstanceBorrowHostString(BundleInstance *instance, const char *module,
                                    const char *function, size_t parameter);
+/* Opt in to a read-only, top-level slice of built-in fixed-width integers or floats on
+ * an already granted portable instruction-engine host callback. The declared
+ * function must use #reads. Register after initialization and between runs.
+ * The callback receives HOST_BORROWED_SLICE, the declared slice type, length
+ * in elements, and data containing contiguous little-endian scalar bytes.
+ * Data can be unaligned and is NULL when length is zero. All other fields are
+ * zero. Read with byte accesses or memcpy, using the declared element width.
+ * The view is input-only and valid until the callback returns. The callback
+ * must never write, save or return it, or reenter or close this instance.
+ * Returns zero for an unsupported parameter, binding or execution backend.
+ * An ordinary HOST_SLICE binding can still be used without opting in. */
+int BundleInstanceBorrowHostSlice(BundleInstance *instance, const char *module,
+                                  const char *function, size_t parameter);
 /* Let records the host returns to this instance omit fields the bundle
  * declares (they take zero values) or carry fields it does not (ignored),
  * so a bundle and its host may be built against different layouts. */

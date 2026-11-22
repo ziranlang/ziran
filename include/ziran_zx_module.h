@@ -75,6 +75,9 @@ int ZxModuleProgramRun(ZxModuleProgram *program, long long *result, int *has_res
 /* Apply BundleInstanceBorrowHostString to a binding of this app instance. */
 int ZxModuleProgramBorrowHostString(ZxModuleProgram *program, const char *module,
                                    const char *function, size_t parameter);
+/* Apply BundleInstanceBorrowHostSlice to a binding of this app instance. */
+int ZxModuleProgramBorrowHostSlice(ZxModuleProgram *program, const char *module,
+                                  const char *function, size_t parameter);
 BundleExecutionBackend ZxModuleProgramBackend(const ZxModuleProgram *program);
 void ZxModuleProgramClose(ZxModuleProgram *program);
 

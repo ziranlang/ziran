@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- Compile hot packed ZX integer instruction runs on Linux i386 with bounded executable storage and the interpreter's work, fuel and failure locations.
+
+- Speed up large record and array loads in the ZX instruction engine.
+
+- Check public API declarations and examples for a selected backend and platform with `ziran api`.
+
+- Reduce portable ZX integer execution overhead by reusing canonical operands and looking up edge metadata only at branches and jumps.
+
+- Allow instruction-engine hosts to borrow packed read-only scalar slices for synchronous callbacks.
+
 - Hosted ZX applications can open from a read callback with a smaller instruction store when running on the portable engine.
 
 - Pack checked ZX libraries for explicit OS and CPU targets with `ziran pkg zx pack-ir --locked`.

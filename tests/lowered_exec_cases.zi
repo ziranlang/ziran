@@ -139,6 +139,14 @@ ScalarCases :: () -> bool {
         Scalar(2, .Remainder, 128, 255).value.bits != 0 { return false }
     if Scalar(2, .Divide, 42, 0).problem != .DivideByZero ||
         Scalar(2, .Remainder, 42, 0).problem != .DivideByZero { return false }
+    if Scalar(4, .Divide, 0x80000000, 0xffffffff).value.bits != 0x80000000 ||
+        Scalar(4, .Remainder, 0x80000000, 0xffffffff).value.bits != 0 ||
+        Scalar(4, .Divide, 0xfffffff9, 3).value.bits != 0xfffffffe ||
+        Scalar(4, .Remainder, 0xfffffff9, 3).value.bits != 0xffffffff ||
+        Scalar(5, .Divide, 0xffffffff, 255).value.bits != 0x01010101 ||
+        Scalar(5, .Remainder, 0xffffffff, 256).value.bits != 255 ||
+        Scalar(5, .Divide, 42, 0).problem != .DivideByZero ||
+        Scalar(4, .Remainder, 42, 0).problem != .DivideByZero { return false }
     if Scalar(2, .Less, 255, 0, 1).value.bits != 1 ||
         Scalar(3, .Greater, 255, 0, 1).value.bits != 1 ||
         Scalar(3, .Equal, 42, 42, 1).value.bits != 1 ||
@@ -1754,7 +1762,52 @@ TypedHostBoundary :: () -> bool {
 
 #scope_export
 
+UnalignedScalarMemory :: () -> bool {
+    for mode: 0..9 {
+        width: s32 = 8
+        if mode >= 2 { width = 16 }
+        if mode >= 4 { width = 32 }
+        if mode >= 6 { width = 64 }
+        floating := mode >= 8
+        if mode == 8 { width = 32 }
+        scalar := LirType.{.kind = ifx floating then .Float else .Integer,
+            .bits = width, .is_signed = mode % 2 != 0 && !floating}
+        fields: [2]s32 = .[1, 2]
+        types: [6]LirType = .[.{.kind = .Void}, .{.kind = .Integer, .bits = 8}, scalar,
+            .{.kind = .Record, .fields = fields[:]}, .{.kind = .Pointer, .element = 3},
+            .{.kind = .Pointer, .element = 2}]
+        bits := ifx width == 64 then 0xfedcba9876543210 else (cast(u64)1 << cast(u64)width) - cast(u64)3
+        constants: [2]LirConstant = .[.{.type = 1, .bits = 17}, .{.type = 2, .bits = bits}]
+        empty: [0]s32
+        pair: [2]s32 = .[0, 1]
+        aggregate: [1]s32 = .[2]
+        base: [1]s32 = .[3]
+        pointer: [1]s32 = .[4]
+        store: [2]s32 = .[4, 5]
+        returned: [1]s32 = .[6]
+        values: [7]s32 = .[1, 2, 3, 4, 5, 2, 2]
+        instructions: [9]LirInstruction = .[
+            Instruction(.Constant, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1),
+            Instruction(.Aggregate, 2, pair[:]), Instruction(.Allocate, 3, aggregate[:]),
+            Instruction(.FieldAddress, 4, base[:]), Instruction(.Load, 5, pointer[:]),
+            Instruction(.Store, -1, store[:]), Instruction(.Load, 6, pointer[:]),
+            Instruction(.Return, -1, returned[:])]
+        instructions[3].effect = 1; instructions[4].immediate = 1
+        instructions[5].effect = 2; instructions[6].effect = 3; instructions[7].effect = 4
+        blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+        functions: [1]LirFunction = .[.{.module = 0, .name = "unaligned", .result = 2,
+            .values = values[:], .blocks = blocks[:], .origin = -1}]
+        modules: [1]string = .["unaligned"]
+        program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+            .constants = constants[:], .functions = functions[:], .entry = 0}
+        result := Execute(program)
+        if result.problem != .None || result.value.bits != bits { return false }
+    }
+    return true
+}
+
 Answer :: () -> s32 {
+    if !UnalignedScalarMemory() { return 40 }
     if !ScalarCases() { return 1 }
     if !Flow() { return 2 }
     if !AggregatesAndMemory() { return 3 }

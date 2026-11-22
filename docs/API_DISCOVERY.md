@@ -10,6 +10,16 @@ Without `--json`, the command prints concise text signatures with source
 locations. A failed load or check exits nonzero and does not print an API
 object.
 
+Use `--target c`, `--target go`, or `--target zx` to select and check the
+API for a specific backend. `--target-os OS` and `--target-cpu CPU` set the
+same conditional source facts as `ziran check`. Without an explicit
+target, queries keep the portable ZX source configuration.
+
+Projects use their pinned compiler by default. `ziran api --project --locked
+--current-toolchain --target c --json` checks the locked source graph with
+the API tool beside the current launcher. This allows documentation builds
+to use the current API query options for packages with older toolchain pins.
+
 The JSON object has `schema_version: 1` and a `modules` array. Each module has
 `name`, `source`, `imports`, `constants`, `globals`, `types`, and `functions`.
 Imports include their kind, alias/name, target, foreign target and symbol when
@@ -81,8 +91,8 @@ the original UTF-8 source bytes.
 An absent or null `examples` field means no example was returned for that
 symbol. Text, saved IR and `--imports-only` queries do not discover sidecars.
 Ziran checks selected example sources with the query's module paths, package
-map and defines, using the normal source ownership rules. It checks the entry
-and its imports and does not run `main` or assert target-specific availability.
+map, target and defines, using the normal source ownership rules. It checks
+the entry and its imports without running `main`.
 To run the original source, pass `entry` to `ziran run --entry` and keep the
 same project or import settings.
 

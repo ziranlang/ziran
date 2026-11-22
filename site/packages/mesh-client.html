@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Native clients can import meshclient/cryptonative for bounded byte-slice SHA-256, streaming digests, HMAC-SHA-256, XChaCha20-Poly1305, secure random bytes, clearing buffers and compatible Argon2id exports."><title>Mesh Client · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/mesh-client"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>Mesh Client</h1><p>Native clients can import meshclient/cryptonative for bounded byte-slice SHA-256, streaming digests, HMAC-SHA-256, XChaCha20-Poly1305, secure random bytes, clearing buffers and compatible Argon2id exports. Link libsodium for this optional provider; it uses the same 24-byte nonces and appended authentication tags as existing encrypted content. Applications retain their account and content keys, authenticated schema context, storage, and node policy. keys.ValidateIdentity verifies an existing binary ML-DSA-44 account and private-key proof without creating or replacing keys.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/mesh-client">Repository ↗</a></p></div>
-<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-authorization">authorization</a><a href="#module-authorization_owner">authorization_owner</a><a href="#module-delegated">delegated</a><a href="#module-async_delegated">async_delegated</a><a href="#module-envelope">envelope</a><a href="#module-account">account</a><a href="#module-async_account">async_account</a><a href="#module-async_client">async_client</a><a href="#module-async_sync">async_sync</a><a href="#module-sync_flow">sync_flow</a><a href="#module-auth">auth</a><a href="#module-client">client</a><a href="#module-crypto">crypto</a><a href="#module-crypto_native">crypto_native</a><a href="#module-events">events</a><a href="#module-keys">keys</a><a href="#module-record">record</a><a href="#module-record_codec">record_codec</a><a href="#module-release">release</a><a href="#module-entity">entity</a><a href="#module-social">social</a><a href="#module-rewards">rewards</a><a href="#module-sync">sync</a><a href="#module-transaction">transaction</a><a href="#module-url">url</a><a href="#module-wire">wire</a></aside><div class="article-body api-body">
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-authorization">authorization</a><a href="#module-authorization_owner">authorization_owner</a><a href="#module-delegated">delegated</a><a href="#module-async_delegated">async_delegated</a><a href="#module-envelope">envelope</a><a href="#module-account">account</a><a href="#module-async_account">async_account</a><a href="#module-async_client">async_client</a><a href="#module-async_sync">async_sync</a><a href="#module-sync_flow">sync_flow</a><a href="#module-auth">auth</a><a href="#module-client">client</a><a href="#module-crypto">crypto</a><a href="#module-crypto_native">crypto_native</a><a href="#module-events">events</a><a href="#module-keys">keys</a><a href="#module-keys_native">keys_native</a><a href="#module-record">record</a><a href="#module-record_v2">record_v2</a><a href="#module-record_codec">record_codec</a><a href="#module-release">release</a><a href="#module-seed">seed</a><a href="#module-entity">entity</a><a href="#module-entity_native">entity_native</a><a href="#module-social">social</a><a href="#module-rewards">rewards</a><a href="#module-sync">sync</a><a href="#module-transaction">transaction</a><a href="#module-url">url</a><a href="#module-wire">wire</a></aside><div class="article-body api-body">
 <section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.mesh_client]
 git = "https://github.com/ziranlang/mesh-client.git"
 ref = "master"</code></pre></section>
@@ -156,9 +156,9 @@ The host still owns transport, pinned-node policy, session/key storage and
 remote acknowledgment handling.</p></section>
 <section id="module-authorization"><p class="eyebrow">mesh-client/authorization.zi</p><h2>authorization</h2><p>Legacy daochi-* protocol constants below are released bytes; keep them unchanged. Owner-signed authorization wire values. Apps own storage and approval UI.</p><p>Import with <code>#import "mesh_client/authorization"</code>.</p><div class="api-list">
 <div><code>GrantScope :: struct { collection: string; visibility: string; read: bool; write: bool; key_id: string; key_envelope: string; }</code></div>
-<div><code>Grant :: struct { version: s32; account_id: string; grant_id: string; request_id: string; app_id: string; client_id: string; node_id: string; audience: string; signing_key: string; encryption_key: string; issued_at: s64; not_before: s64; expires_at: s64; nonce: string; bot_id: s64; telegram_id: s64; scopes: []GrantScope; signature: string; }</code></div>
+<div><code>Grant :: struct { version: s32; account_id: string; grant_id: string; request_id: string; app_id: string; client_id: string; node_id: string; audience: string; signing_key: string; encryption_key: string; issued_at: s64; not_before: s64; expires_at: s64; nonce: string; bot_id: s64; telegram_id: s64; telegram_stars: bool; scopes: []GrantScope; signature: string; }</code></div>
 <div><code>ScopeStorage :: struct { collection: [65]u8; visibility: [8]u8; read: bool; write: bool; key_id: [129]u8; key_envelope: [16385]u8; }</code></div>
-<div><code>GrantStorage :: struct { version: s32; account_id: [65]u8; grant_id: [33]u8; request_id: [33]u8; app_id: [65]u8; client_id: [65]u8; node_id: [65]u8; audience: [513]u8; signing_key: [65]u8; encryption_key: [2369]u8; issued_at: s64; not_before: s64; expires_at: s64; nonce: [33]u8; bot_id: s64; telegram_id: s64; scope_count: s32; scopes: [16]ScopeStorage; signature: [4841]u8; }</code></div>
+<div><code>GrantStorage :: struct { version: s32; account_id: [65]u8; grant_id: [33]u8; request_id: [33]u8; app_id: [65]u8; client_id: [65]u8; node_id: [65]u8; audience: [513]u8; signing_key: [65]u8; encryption_key: [2369]u8; issued_at: s64; not_before: s64; expires_at: s64; nonce: [33]u8; bot_id: s64; telegram_id: s64; telegram_stars: bool; scope_count: s32; scopes: [16]ScopeStorage; signature: [4841]u8; }</code></div>
 <div><code>RequestedScope :: struct { collection: string; read: bool; write: bool; }</code></div>
 <div><code>SessionChallenge :: struct { grant_id: [33]u8; challenge: [33]u8; node_id: [65]u8; audience: [513]u8; expires_at: s64; }</code></div>
 <div><code>DelegateSession :: struct { session_id: [33]u8; grant_id: [33]u8; challenge: [33]u8; expires_at: s64; }</code></div>
@@ -218,6 +218,12 @@ remote acknowledgment handling.</p></section>
 <div><code>PrepareSessionBody :: (client: DelegateClient, challenge: *SessionChallenge, now: s64, output: []u8) -&gt; bool</code></div>
 <div><code>AcceptSessionAnswer :: (client: DelegateClient, status: s32, json: string, now: s64, session: *DelegateSession) -&gt; AuthResult</code></div>
 <div><code>RequestRoute :: (method: string, path: string, query: string) -&gt; bool</code></div>
+<div><code>TelegramDelegateLaunchPath :: "/api/v1/telegram/launch"</code></div>
+<div><code>TelegramDelegateCatalogPath :: "/api/v1/tokens/purchases/telegram/catalog"</code></div>
+<div><code>TelegramDelegateBalancePath :: "/api/v1/tokens/purchases/telegram/balance"</code></div>
+<div><code>TelegramDelegateInvoicesPath :: "/api/v1/tokens/purchases/telegram/invoices"</code></div>
+<div><code>TelegramDelegateRequestValid :: (client: DelegateClient, method: string, path: string, query: string, body: string) -&gt; bool</code></div>
+<div><code>DelegateTelegramStarsAllowed :: (client: DelegateClient) -&gt; bool</code></div>
 <div><code>BuildProofMessage :: (proof: RequestProof, output: []u8) -&gt; bool</code></div>
 <div><code>BuildProofHeader :: (proof: RequestProof, signature: string, output: []u8) -&gt; bool</code></div>
 <div><code>ScopeIndex :: (client: DelegateClient, collection: string, write: bool) -&gt; s32</code></div>
@@ -227,18 +233,22 @@ remote acknowledgment handling.</p></section>
 <div><code>ReadDelegatedSyncResponse :: (client: DelegateClient, body: string, expected_collection: string, output: *DelegatedResponseInfo) -&gt; bool</code></div>
 <div><code>ResponseMatchesRequest :: (client: DelegateClient, request_body: string, response: string) -&gt; bool</code></div>
 <div><code>PrepareDelegateHeaders :: (client: DelegateClient, session: *DelegateSession, now: s64, method: string, path: string, query: string, body: string, proof_header: []u8, credential: []u8) -&gt; AuthResult</code></div>
+<div><code>PrepareTelegramDelegateHeaders :: (client: DelegateClient, session: *DelegateSession, method: string, path: string, query: string, body: string, proof_header: []u8, credential: []u8) -&gt; AuthResult</code></div>
 <div><code>RenewDelegateSession :: (client: DelegateClient, session: *DelegateSession, now: s64, response: []u8) -&gt; AuthResult</code></div>
 <div><code>DelegateRequest :: (client: DelegateClient, session: *DelegateSession, now: s64, body: string, output: []u8, status: *s32) -&gt; AuthResult</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/delegated.zi">Source ↗</a></p></section>
 <section id="module-async_delegated"><p class="eyebrow">mesh-client/async_delegated.zi</p><h2>async_delegated</h2><p>Poll-driven counterpart of delegated session renewal and scoped requests.</p><p>Import with <code>#import "mesh_client/async_delegated"</code>.</p><div class="api-list">
-<div><code>PendingDelegate :: struct { client: DelegateClient; session: *DelegateSession; transport: AsyncTransport; now: s64; body: string; output: []u8; session_only: bool; address: [768]u8; session_body: [512]u8; challenge_json: [2048]u8; proof: [4096]u8; credential: [46]u8; headers: [2]HttpHeader; stage: s32; waiting: bool; done: bool; result: AuthResult; status: s32; }</code></div>
+<div><code>TelegramDelegateOperation :: enum { Unspecified = 0; Launch = 1; Catalog = 2; Balance = 3; CreateInvoice = 4; InvoiceStatus = 5; CancelInvoice = 6; }</code></div>
+<div><code>PendingDelegate :: struct { client: DelegateClient; session: *DelegateSession; transport: AsyncTransport; now: s64; body: string; output: []u8; session_only: bool; telegram: bool; method: string; path: [105]u8; query: [72]u8; address: [768]u8; session_body: [512]u8; challenge_json: [2048]u8; proof: [4096]u8; credential: [46]u8; headers: [2]HttpHeader; stage: s32; waiting: bool; done: bool; result: AuthResult; status: s32; }</code></div>
 <div><code>FinishDelegate :: (pending: *PendingDelegate, result: AuthResult)</code></div>
-<div><code>StartDelegateTransfer :: (pending: *PendingDelegate, path: string, body: string, output: []u8, stage: s32, headers: []HttpHeader)</code></div>
+<div><code>StartDelegateTransfer :: (pending: *PendingDelegate, path: string, body: string, output: []u8, stage: s32, headers: []HttpHeader, method: string, query: string)</code></div>
 <div><code>StartDelegateChallenge :: (pending: *PendingDelegate)</code></div>
-<div><code>StartDelegateSync :: (pending: *PendingDelegate)</code></div>
-<div><code>InitializeDelegate :: (pending: *PendingDelegate, client: DelegateClient, session: *DelegateSession, now: s64, transport: AsyncTransport, output: []u8, session_only: bool, body: string) -&gt; bool</code></div>
+<div><code>StartDelegateRequest :: (pending: *PendingDelegate)</code></div>
+<div><code>ConfigureTelegramRequest :: (pending: *PendingDelegate, operation: TelegramDelegateOperation, invoice_id: string) -&gt; bool</code></div>
+<div><code>InitializeDelegate :: (pending: *PendingDelegate, client: DelegateClient, session: *DelegateSession, now: s64, transport: AsyncTransport, output: []u8, session_only: bool, body: string, operation: TelegramDelegateOperation, invoice_id: string) -&gt; bool</code></div>
 <div><code>BeginDelegateSession :: (pending: *PendingDelegate, client: DelegateClient, session: *DelegateSession, now: s64, transport: AsyncTransport, output: []u8) -&gt; bool</code></div>
 <div><code>BeginDelegateRequest :: (pending: *PendingDelegate, client: DelegateClient, session: *DelegateSession, now: s64, transport: AsyncTransport, body: string, output: []u8) -&gt; bool</code></div>
+<div><code>BeginTelegramDelegateRequest :: (pending: *PendingDelegate, client: DelegateClient, session: *DelegateSession, transport: AsyncTransport, operation: TelegramDelegateOperation, invoice_id: string, body: string, output: []u8) -&gt; bool</code></div>
 <div><code>PollDelegate :: (pending: *PendingDelegate) -&gt; bool</code></div>
 <div><code>CancelDelegate :: (pending: *PendingDelegate)</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/async_delegated.zi">Source ↗</a></p></section>
@@ -339,42 +349,23 @@ remote acknowledgment handling.</p></section>
 <div><code>BearerRequestWithHeaders :: (client: Client, session: *Session, now: s64, method: string, path: string, body: string, output: []u8, status: *s32, extra_headers: []HttpHeader) -&gt; AuthResult</code><p>A 401 invalidates the bearer token, then performs exactly one fresh login and retries the original request. The caller persists the resulting session.</p></div>
 <div><code>BearerRequest :: (client: Client, session: *Session, now: s64, method: string, path: string, body: string, output: []u8, status: *s32) -&gt; AuthResult</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/client.zi">Source ↗</a></p></section>
-<section id="module-crypto"><p class="eyebrow">mesh-client/crypto.zi</p><h2>crypto</h2><p>Account and record cryptography for Mesh apps: SHA-256, HMAC-SHA-256 and hex encoding from the crypto package, the account key files' PBKDF2-HMAC-SHA-256, RFC 8439 ChaCha20-Poly1305 and its 24-byte nonce form XChaCha20-Poly1305. All of it is plain Ziran; the signatures themselves come from the Oqs package. The functions take byte pointers and lengths and return 1 on success, 0 on invalid input.</p><p>Import with <code>#import "mesh_client/crypto"</code>.</p><div class="api-list">
+<section id="module-crypto"><p class="eyebrow">mesh-client/crypto.zi</p><h2>crypto</h2><p>Account and record cryptography for Mesh apps: re-exports SHA-256, HMAC-SHA-256, PBKDF2-HMAC-SHA-256, ChaCha20-Poly1305, XChaCha20-Poly1305, and secure wiping from the reusable Ziran crypto package.</p><p>Import with <code>#import "mesh_client/crypto"</code>.</p><div class="api-list">
 <div><code>Sha256 :: (data: *u8, length: s64, output: *u8)</code></div>
 <div><code>BytesToHex :: (bytes: *u8, length: s64, output: *u8, output_size: s64) -&gt; s32</code></div>
 <div><code>HexToBytes :: (hex: string, output: *u8, output_size: s64) -&gt; s32</code></div>
 <div><code>Sha256Hex :: (data: *u8, length: s64, output: *u8)</code></div>
 <div><code>HmacSha256 :: (key: *u8, key_length: s64, data: *u8, data_length: s64, output: *u8) -&gt; s32</code></div>
 <div><code>HmacSha256Text :: (key: *u8, key_length: s64, data: string, output: *u8) -&gt; s32</code></div>
-<div><code>Pbkdf2Hmac :: (password: *u8, password_length: s64, password_text: string, use_text: bool, data: *u8, data_length: s64, output: *u8) -&gt; s32</code><p>PBKDF2 keeps the account key-file derivation format: historical exports included at most 32 salt bytes.</p></div>
-<div><code>Pbkdf2Input :: (password: *u8, password_length: s64, password_text: string, use_text: bool, salt: *u8, salt_length: s64, iterations: u64, output: *u8) -&gt; s32</code></div>
+<div><code>Pbkdf2Legacy :: (password: *u8, password_length: s64, password_text: string, use_text: bool, salt: *u8, salt_length: s64, iterations: u64, output: *u8) -&gt; s32</code><p>Legacy PBKDF2-HMAC-SHA-256 for ksync-account-key-v2 compatibility: historical v2 exports truncated salt inputs to 32 bytes. Uses the fast precomputed-midstate implementation from crypto/kdf.</p></div>
 <div><code>Pbkdf2Sha256 :: (password: *u8, password_length: s64, salt: *u8, salt_length: s64, iterations: u64, output: *u8) -&gt; s32</code></div>
 <div><code>Pbkdf2Sha256Text :: (password: string, salt: *u8, salt_length: s64, iterations: u64, output: *u8) -&gt; s32</code></div>
-<div><code>Poly1305State :: struct { r: [5]u64; scaled: [4]u64; h: [5]u64; }</code></div>
-<div><code>Poly1305Load32 :: (bytes: *u8) -&gt; u32</code></div>
-<div><code>Poly1305Store32 :: (bytes: *u8, value: u32)</code></div>
-<div><code>Poly1305Initialize :: (state: *Poly1305State, key: *u8)</code></div>
-<div><code>Poly1305Block :: (state: *Poly1305State, message: *u8, length: s32)</code></div>
-<div><code>Poly1305AeadPadded :: (state: *Poly1305State, data: *u8, length: s64)</code></div>
-<div><code>Poly1305Finish :: (state: *Poly1305State, key: *u8, tag: *u8)</code></div>
-<div><code>Poly1305AeadTag :: (key: *u8, aad: *u8, aad_length: s64, ciphertext: *u8, ciphertext_length: s64, tag: *u8)</code></div>
-<div><code>ChaChaBlockBytes :: 64</code><p>RFC 8439 ChaCha20-Poly1305 for encrypted records and key files.</p></div>
-<div><code>ChaChaTagBytes :: 16</code></div>
-<div><code>ChaChaLengthValid :: (length: s64) -&gt; bool</code></div>
-<div><code>ChaChaRotateLeft :: (value: u32, bits: u32) -&gt; u32</code></div>
-<div><code>ChaChaQuarterRound :: (state: *u32, a: s32, b: s32, c: s32, d: s32)</code></div>
-<div><code>ChaChaBlock :: (key: *u8, nonce: *u8, counter: u32, output: *u8)</code></div>
-<div><code>ChaChaXor :: (key: *u8, nonce: *u8, input: *u8, length: s64, output: *u8)</code></div>
-<div><code>ChaChaMacKey :: (key: *u8, nonce: *u8, output: *u8)</code></div>
+<div><code>Pbkdf2Sha256TextFull :: (password: string, salt: []u8, iterations: u64, output: []u8) -&gt; bool</code><p>Full-salt PBKDF2-HMAC-SHA-256 (no 32-byte truncation) for v3 key files.</p></div>
 <div><code>ChaCha20Poly1305Seal :: (key: *u8, nonce: *u8, plain: *u8, plain_length: s64, aad: *u8, aad_length: s64, output: *u8, output_capacity: s64) -&gt; s32</code></div>
 <div><code>ChaCha20Poly1305Open :: (key: *u8, nonce: *u8, sealed: *u8, sealed_length: s64, aad: *u8, aad_length: s64, plain: *u8, plain_capacity: s64) -&gt; s32</code></div>
-<div><code>HChaCha20 :: (key: *u8, nonce: *u8, output: *u8)</code><p>HChaCha20 (draft-irtf-cfrg-xchacha): the ChaCha20 rounds over the key and a 16-byte nonce, without the final addition; words 0-3 and 12-15 are the 32-byte subkey.</p></div>
-<div><code>XChaChaSubkey :: (key: *u8, nonce: *u8, subkey: *u8, short_nonce: *u8)</code><p>The subkey and 12-byte nonce that XChaCha20-Poly1305 hands to ChaCha20-Poly1305: four zero bytes, then the last 8 nonce bytes.</p></div>
-<div><code>XChaChaWipe :: (bytes: *u8, length: s32)</code></div>
-<div><code>XChaCha20Poly1305Seal :: (key: *u8, nonce: *u8, plain: *u8, plain_length: s64, aad: *u8, aad_length: s64, output: *u8, output_capacity: s64) -&gt; s32</code><p>XChaCha20-Poly1305 with a 24-byte nonce, the same construction as libsodium's crypto_aead_xchacha20poly1305_ietf and Monocypher's AEAD: output receives the ciphertext and its 16-byte tag.</p></div>
+<div><code>XChaCha20Poly1305Seal :: (key: *u8, nonce: *u8, plain: *u8, plain_length: s64, aad: *u8, aad_length: s64, output: *u8, output_capacity: s64) -&gt; s32</code></div>
 <div><code>XChaCha20Poly1305Open :: (key: *u8, nonce: *u8, sealed: *u8, sealed_length: s64, aad: *u8, aad_length: s64, plain: *u8, plain_capacity: s64) -&gt; s32</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/crypto.zi">Source ↗</a></p></section>
-<section id="module-crypto_native"><p class="eyebrow">mesh-client/crypto_native.zi</p><h2>crypto_native</h2><p>Native provider for existing Mesh client content encryption. The account, content key, nonce and authenticated context are supplied by the caller; this module never creates identities, persists keys or sends requests. Libsodium supplies the same XChaCha20-Poly1305 bytes used by existing blobs.</p><p>Import with <code>#import "mesh_client/crypto_native"</code>.</p><div class="api-list">
+<section id="module-crypto_native"><p class="eyebrow">mesh-client/crypto_native.zi</p><h2>crypto_native</h2><p>Native SIMD-accelerated provider for Mesh client content encryption, backed by the reusable crypto/native (libsodium) package.</p><p>Import with <code>#import "mesh_client/crypto_native"</code>.</p><div class="api-list">
 <div><code>Initialize :: () -&gt; bool</code></div>
 <div><code>Clear :: (bytes: []u8)</code></div>
 <div><code>RandomBytes :: (bytes: []u8) -&gt; bool</code></div>
@@ -382,13 +373,16 @@ remote acknowledgment handling.</p></section>
 <div><code>HmacSha256 :: (input: []u8, key: []u8, output: []u8) -&gt; bool</code></div>
 <div><code>Seal :: (input: []u8, aad: []u8, key: []u8, nonce: []u8, output: []u8) -&gt; s64</code></div>
 <div><code>Open :: (sealed: []u8, aad: []u8, key: []u8, nonce: []u8, output: []u8) -&gt; s64</code></div>
+<div><code>SealChaCha :: (input: []u8, aad: []u8, key: []u8, nonce: []u8, output: []u8) -&gt; s64</code></div>
+<div><code>OpenChaCha :: (sealed: []u8, aad: []u8, key: []u8, nonce: []u8, output: []u8) -&gt; s64</code></div>
 <div><code>DigestStateBytes :: () -&gt; usize</code></div>
 <div><code>DigestStart :: (state: []u8) -&gt; bool</code></div>
 <div><code>DigestUpdate :: (state: []u8, input: []u8) -&gt; bool</code></div>
 <div><code>DigestFinish :: (state: []u8, output: []u8) -&gt; bool</code></div>
-<div><code>DerivePassword :: (password: []u8, salt: []u8, output: []u8, operations: u64, memory: usize) -&gt; bool</code><p>Compatibility KDF for existing Argon2id-protected exports. The caller owns the container format and supplies its fixed, trusted work factors.</p></div>
+<div><code>DerivePassword :: (password: []u8, salt: []u8, output: []u8, operations: u64, memory: usize) -&gt; bool</code></div>
 <div><code>DevicePublic :: (seed: []u8, output: []u8) -&gt; bool</code></div>
 <div><code>SignDevice :: (seed: []u8, input: []u8, output: []u8) -&gt; bool</code></div>
+<div><code>VerifyDevice :: (public_key: []u8, input: []u8, signature: []u8) -&gt; bool</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/crypto_native.zi">Source ↗</a></p></section>
 <section id="module-events"><p class="eyebrow">mesh-client/events.zi</p><h2>events</h2><p>Remote sync events are transport independent. Hosts open the WebSocket and return one bounded JSON event through ReceiveEvent.</p><p>Import with <code>#import "mesh_client/events"</code>.</p><div class="api-list">
 <div><code>EventKind :: enum { EVENT_INVALID = 0; EVENT_READY = 1; EVENT_CHANGED = 2; }</code></div>
@@ -431,17 +425,26 @@ remote acknowledgment handling.</p></section>
 <div><code>ValidateAccountKeys :: (account: *AccountKeys) -&gt; s32</code></div>
 <div><code>ParseAccountKeys :: (body: string, account: *AccountKeys) -&gt; s32</code></div>
 <div><code>AccountEncryptedHeader :: "ksync-account-key-v2"</code></div>
+<div><code>AccountEncryptedV3Header :: "mesh-account-key-v3"</code></div>
 <div><code>AccountEncryptedSaltBytes :: 16</code></div>
 <div><code>AccountEncryptedNonceBytes :: 12</code></div>
+<div><code>AccountEncryptedV3NonceBytes :: 24</code></div>
 <div><code>AccountEncryptedTagBytes :: 16</code></div>
 <div><code>AccountDerivePassphraseKey :: (passphrase: string, salt: *u8, output: *u8, iterations: u64) -&gt; bool</code></div>
 <div><code>AccountAppendHex :: (output: *u8, capacity: s64, cursor: *s64, bytes: *u8, byte_length: s64) -&gt; bool</code></div>
 <div><code>AccountEncryptedLineValue :: (body: string, prefix: string) -&gt; string</code></div>
 <div><code>AccountParseIterations :: (text: string) -&gt; u64</code></div>
 <div><code>AccountKeysEncryptedText :: (account: *AccountKeys, passphrase: string, output: *u8, output_capacity: s64) -&gt; s32</code></div>
+<div><code>AccountDerivePassphraseKeyV3 :: (passphrase: string, salt: *u8, output: *u8, iterations: u64) -&gt; bool</code><p>v3 encrypted account key export: full 16-byte salt (no truncation), XChaCha20-Poly1305 (24-byte nonce), and authenticated header AAD.</p></div>
+<div><code>AccountKeysEncryptedV3Text :: (account: *AccountKeys, passphrase: string, output: *u8, output_capacity: s64) -&gt; s32</code></div>
+<div><code>ParseEncryptedAccountKeysV3 :: (body: string, passphrase: string, account: *AccountKeys) -&gt; s32</code></div>
 <div><code>ParseEncryptedAccountKeys :: (body: string, passphrase: string, account: *AccountKeys) -&gt; s32</code></div>
 <div><code>AccountCopyText :: (value: string, output: []u8) -&gt; bool</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/keys.zi">Source ↗</a></p></section>
+<section id="module-keys_native"><p class="eyebrow">mesh-client/keys_native.zi</p><h2>keys_native</h2><p>Native memory-hard (Argon2id) account key file export/import for mesh-account-key-v3, backed by crypto/native (libsodium). Uses Argon2id (64 MiB RAM, 3 iterations by default), full 16-byte random salt, XChaCha20-Poly1305 (24-byte random nonce), and full header AAD. Link libsodium when importing this module.</p><p>Import with <code>#import "mesh_client/keys_native"</code>.</p><div class="api-list">
+<div><code>AccountKeysEncryptedArgon2idText :: (account: *Keys.AccountKeys, passphrase: string, output: *u8, output_capacity: s64, operations: u64, memory: usize) -&gt; s32</code><p>Exports an account key file in mesh-account-key-v3 format using Argon2id (memory-hard KDF), full 16-byte salt, XChaCha20-Poly1305 (24-byte nonce), and full authenticated header AAD.</p></div>
+<div><code>ParseEncryptedAccountKeysNative :: (body: string, passphrase: string, account: *Keys.AccountKeys) -&gt; s32</code><p>Parses mesh-account-key-v3 (Argon2id or PBKDF2-SHA256) and legacy ksync-account-key-v2.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/keys_native.zi">Source ↗</a></p></section>
 <section id="module-record"><p class="eyebrow">mesh-client/record.zi</p><h2>record</h2><p>Legacy daochi-* protocol constants below are released bytes; keep them unchanged. Mesh encrypted record profile v1 ("daochi-record-v1"). The caller supplies the content key and the authoritative routing metadata; this module only seals. Keys and plaintext never leave the caller's buffers.</p><p>Import with <code>#import "mesh_client/record"</code>.</p><div class="api-list">
 <div><code>RecordMetadata :: struct { account_id: string; app_id: string; collection: string; id: string; schema: string; }</code></div>
 <div><code>RecordNonceBytes :: 24</code></div>
@@ -452,6 +455,11 @@ remote acknowledgment handling.</p></section>
 <div><code>SealRecord :: (metadata: RecordMetadata, key_id: string, key: []u8, plaintext: []u8, nonce: []u8, output: []u8) -&gt; s64</code><p>Seal with a fresh random nonce into the profile's sorted-key JSON envelope: {"aad":{…},"alg":"xchacha20poly1305","ciphertext":"…","key_id":"…", "nonce":"…","profile":"daochi-record-v1"}, base64url without padding. The nonce is also returned because record stores repeat it. Returns the envelope length without its NUL, or -1 with every output cleared.</p></div>
 <div><code>RecordBase64 :: (input: []u8, output: []u8) -&gt; s64</code><p>Base64url without padding, as the profile encodes nonces and ciphertext. Returns the length without its NUL, or -1 when output is too small.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/record.zi">Source ↗</a></p></section>
+<section id="module-record_v2"><p class="eyebrow">mesh-client/record_v2.zi</p><h2>record_v2</h2><p>Compact single-encoded Mesh record envelope v2 ("MRV2"). Eliminates the 1.78x double-Base64url overhead of JSON-in-Base64 v1 envelopes (~25% smaller wire/SQLite payload, ~2x faster encode/decode).  Binary layout before single Base64url encoding: [0..4)    ASCII "MRV2" [4..28)   24-byte random XChaCha20-Poly1305 nonce [28]      key_id length (1..128) [29..29+K) key_id ASCII bytes [29+K]    schema length (1..128) [30+K..30+K+S) schema ASCII bytes [30+K+S..) XChaCha20-Poly1305(plaintext, aad) || 16-byte Poly1305 tag  AAD binds: "mesh-record-v2\n" + account_id + "\n" + app_id + "\n" + collection + "\n" + id + "\n" + key_id + "\n" + schema</p><p>Import with <code>#import "mesh_client/record_v2"</code>.</p><div class="api-list">
+<div><code>RecordV2Header :: struct { account_id: string; app_id: string; collection: string; id: string; key_id: string; schema: string; }</code></div>
+<div><code>SealRecordV2 :: (header: RecordV2Header, key: []u8, nonce: []u8, plaintext: []u8, scratch: []u8, output: []u8) -&gt; s64</code><p>Seals plaintext into a compact single-Base64url mesh-record-v2 payload. scratch must be at least 30 + key_id.count + schema.count + plaintext.count + 16 bytes.</p></div>
+<div><code>OpenRecordV2 :: (account_id: string, app_id: string, collection: string, id: string, key: []u8, encoded: string, scratch: []u8, key_id_out: []u8, key_id_len: *s64, schema_out: []u8, schema_len: *s64, plain_out: []u8) -&gt; s64</code><p>Opens a single-Base64url mesh-record-v2 payload, verifying AAD and returning plaintext length (or -1 on error with output wiped).</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/record_v2.zi">Source ↗</a></p></section>
 <section id="module-record_codec"><p class="eyebrow">mesh-client/record_codec.zi</p><h2>record_codec</h2><p>Optional packed JSON record payloads. Hosts seal both the released JSON and this frame with independent nonces. Nodes serve the packed copy only to a reader that requests gzip-v1; older readers retain the released plaintext.</p><p>Import with <code>#import "mesh_client/record_codec"</code>.</p><div class="api-list">
 <div><code>RecordPayloadMaximum :: 8388608</code></div>
 <div><code>RecordPackingHeader :: 12</code></div>
@@ -479,6 +487,12 @@ remote acknowledgment handling.</p></section>
 <div><code>ReleaseCopy :: (value: string, output: []u8)</code></div>
 <div><code>MeshParseRelease :: (json: string, public_hex: string, maximum_size: s64, verify: MeshReleaseVerify) -&gt; MeshRelease</code><p>Parses json and checks its signature under public_hex, the app key's 64 hex digits. Each artifact and dependency is at least 8 bytes and at most maximum_size. The result is valid only when everything checks out.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/release.zi">Source ↗</a></p></section>
+<section id="module-seed"><p class="eyebrow">mesh-client/seed.zi</p><h2>seed</h2><p>Master-seed HKDF-SHA-256 key separation for Mesh apps. Derives isolated 32-byte subkeys from a 32-byte account master seed so individual apps never need access to the raw ML-DSA-44 account signing key.</p><p>Import with <code>#import "mesh_client/seed"</code>.</p><div class="api-list">
+<div><code>DeriveEntityMasterKey :: (master_seed: []u8, output: []u8) -&gt; bool</code><p>Derives the 32-byte Entity Master Key from the 32-byte account master seed.</p></div>
+<div><code>DeriveEntityRecordKeyFromMaster :: (entity_master: []u8, kind: string, output: []u8) -&gt; bool</code><p>Derives a per-kind entity record key from the Entity Master Key (without requiring the account's ML-DSA-44 signing key).</p></div>
+<div><code>DeriveAppKey :: (master_seed: []u8, app_id: string, purpose: string, output: []u8) -&gt; bool</code><p>Derives an app-isolated 32-byte key for (app_id, purpose). Compromising one app key cannot derive another app's keys or the account master seed.</p></div>
+<div><code>DeriveDeviceSeed :: (master_seed: []u8, device_id: string, output: []u8) -&gt; bool</code><p>Derives a 32-byte deterministic device seed for a given device_id.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/seed.zi">Source ↗</a></p></section>
 <section id="module-entity"><p class="eyebrow">mesh-client/entity.zi</p><h2>entity</h2><p>Legacy daochi-* protocol constants below are released bytes; keep them unchanged. Entity data: the account's own photos, levels and other things, kept once and shared by every app of the account (Mesh docs/entity-data.md). All keys come from the account private key bytes, so every app derives the same ones. Keys and plaintext never leave the caller's buffers.</p><p>Import with <code>#import "mesh_client/entity"</code>.</p><div class="api-list">
 <div><code>ENTITY_KEY_BYTES :: 32</code></div>
 <div><code>ENTITY_RECORD_KEY_ID :: "entity-v1"</code></div>
@@ -507,6 +521,10 @@ remote acknowledgment handling.</p></section>
 <div><code>EntityRecordEnvelope :: (text: string, output: []u8) -&gt; s64</code><p>The envelope JSON of a record's sync ciphertext text, decoded into output (3/4 of text.count); its length, or -1.</p></div>
 <div><code>OpenEntityRecord :: (private_key: []u8, metadata: EntityRecordMetadata, envelope: string, schema: []u8, output: []u8) -&gt; s64</code><p>Opens a record's envelope (EntityRecordEnvelope): it must name this account, the entity app, the kind's collection and the record id of metadata (whose schema is ignored), key entity-v1, and authenticate under the kind's record key. The record's schema goes into schema and its plain text into output, which needs room for the sealed bytes (16 more than the plain text); returns the plain length, or -1 with output cleared.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/entity.zi">Source ↗</a></p></section>
+<section id="module-entity_native"><p class="eyebrow">mesh-client/entity_native.zi</p><h2>entity_native</h2><p>SIMD-accelerated native entity chunk sealing and opening, backed by crypto/native (libsodium). Produces byte-for-byte identical output to mesh_client/entity's SealEntityChunk / OpenEntityChunk at ~2.5x the speed on 8 MiB chunks. Link libsodium when importing this module.</p><p>Import with <code>#import "mesh_client/entity_native"</code>.</p><div class="api-list">
+<div><code>SealEntityChunkNative :: (private_key: []u8, kind: string, hash: string, index: s64, plain: []u8, output: []u8) -&gt; s64</code><p>SIMD-accelerated version of SealEntityChunk. Verifies SHA-256(plain) == hash on single-chunk files so a caller bug can never trigger zero-nonce reuse.</p></div>
+<div><code>OpenEntityChunkNative :: (private_key: []u8, kind: string, hash: string, index: s64, sealed: []u8, output: []u8) -&gt; s64</code><p>SIMD-accelerated version of OpenEntityChunk.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/entity_native.zi">Source ↗</a></p></section>
 <section id="module-social"><p class="eyebrow">mesh-client/social.zi</p><h2>social</h2><p>Account and friend operations shared by every Mesh application.</p><p>Import with <code>#import "mesh_client/social"</code>.</p><div class="api-list">
 <div><code>SpaceByte :: (byte: u8) -&gt; bool</code></div>
 <div><code>LowerByte :: (byte: u8) -&gt; u8</code></div>

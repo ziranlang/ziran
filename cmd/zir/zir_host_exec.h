@@ -142,8 +142,8 @@ ExecInstance *ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, v
                                long long max_steps, BundleConsoleWrite write, void *console_context);
 /* A failed run leaves the instance unusable. */
 int ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result);
-int ExecInstanceBorrowHostString(ExecInstance *instance, const char *module,
-                                 const char *function, size_t parameter);
+int ExecInstanceBorrowHostView(ExecInstance *instance, const char *module,
+                              const char *function, size_t parameter, int string_view);
 /* Bounds each later run, or all of them on an instance opened with a limit. */
 void ExecInstanceLimitSteps(ExecInstance *instance, long long max_steps);
 void ExecInstanceMatchFieldsByName(ExecInstance *instance, int enabled);

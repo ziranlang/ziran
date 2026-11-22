@@ -1268,6 +1268,14 @@ ZxModuleProgramBorrowHostString(ZxModuleProgram *program, const char *module,
            BundleInstanceBorrowHostString(program->scope.instance, module, function, parameter);
 }
 
+int
+ZxModuleProgramBorrowHostSlice(ZxModuleProgram *program, const char *module,
+                              const char *function, size_t parameter)
+{
+    return program != NULL &&
+           BundleInstanceBorrowHostSlice(program->scope.instance, module, function, parameter);
+}
+
 BundleExecutionBackend
 ZxModuleProgramBackend(const ZxModuleProgram *program)
 {

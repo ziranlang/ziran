@@ -1,0 +1,95 @@
+using IR :: #import "compiler_lowered_ir"
+using Exec :: #import "compiler_exec"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+#scope_file
+
+RowPixels :: 256
+RowRuns :: 1000
+
+Instruction :: (op: LirOp, result: s32, operands: []s32, symbol: s32 = -1) -> LirInstruction {
+    return .{.op = op, .result = result, .operands = operands, .symbol = symbol, .origin = -1}
+}
+
+ComposeRow :: (pixels: []u32, color: u32) -> u32 {
+    for pixel: cast(s64)0..pixels.count - 1 { pixels[pixel] ^= color }
+    return pixels[pixels.count - 1]
+}
+
+#scope_export
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    types: [6]LirType = .[.{.kind = .Void}, .{.kind = .Integer, .bits = 32},
+        .{.kind = .Integer, .bits = 64}, .{.kind = .Array, .element = 1, .count = RowPixels},
+        .{.kind = .Pointer, .element = 3}, .{.kind = .Pointer, .element = 1}]
+    constants: [RowPixels + 1]LirConstant
+    constants[0] = .{.type = 1, .bits = 0x7f234567}
+    values: [2 + RowPixels * 4]s32
+    operands: [RowPixels * 8 + 1]s32
+    instructions: [3 + RowPixels * 5]LirInstruction
+    empty: [0]s32
+    values[0] = 4; values[1] = 1
+    instructions[0] = Instruction(.GlobalAddress, 0, empty[:], 0)
+    instructions[1] = Instruction(.Constant, 1, empty[:], 0)
+    for pixel: cast(s32)0..RowPixels - 1 {
+        value := 2 + pixel * 4
+        at := pixel * 8
+        instruction := 2 + pixel * 5
+        constants[pixel + 1] = .{.type = 2, .bits = cast(u64)pixel}
+        values[value] = 2; values[value + 1] = 5; values[value + 2] = 1; values[value + 3] = 1
+        operands[at] = 0; operands[at + 1] = value
+        operands[at + 2] = value + 1
+        operands[at + 3] = value + 2; operands[at + 4] = 1
+        operands[at + 5] = value + 1; operands[at + 6] = value + 3
+        instructions[instruction] = Instruction(.Constant, value, empty[:], pixel + 1)
+        instructions[instruction + 1] = Instruction(.ElementAddress, value + 1, operands[at:at + 2])
+        instructions[instruction + 2] = Instruction(.Load, value + 2, operands[at + 2:at + 3])
+        instructions[instruction + 2].effect = pixel * 2 + 1
+        instructions[instruction + 3] = Instruction(.BitXor, value + 3, operands[at + 3:at + 5])
+        instructions[instruction + 4] = Instruction(.Store, -1, operands[at + 5:at + 7])
+        instructions[instruction + 4].effect = pixel * 2 + 2
+    }
+    operands[RowPixels * 8] = cast(s32)values.count - 1
+    instructions[instructions.count - 1] = Instruction(.Return, -1, operands[RowPixels * 8:])
+    globals: [1]LirGlobal = .[.{.module = 0, .name = "row", .type = 3, .constant = -1, .writable = true}]
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "compose", .result = 1,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    modules: [1]string = .["row"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    built: LirExecResult
+    if argc > 1 { built = LirExecPlanBuild(program, LirDefaultLimits(), *plan) }
+    else { built = LirExecPlanBuildCompact(program, LirDefaultLimits(), *plan) }
+    if built.problem != .None { print("plan failure %\n", built.problem); return 1 }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    if LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 1, *instance).problem != .None { return 2 }
+    for sample: 0..10 {
+        start := MonotonicNanoseconds()
+        for row: 0..RowRuns - 1 {
+            result := LirExecRun(*instance)
+            expected: u64 = ifx row % 2 == 0 then 0x7f234567 else 0
+            if result.problem != .None || result.value.bits != expected { print("run failure % %\n", result.problem, result.value.bits); return 3 }
+        }
+        elapsed := MonotonicNanoseconds() - start
+        print("{\"target\":\"%\",\"sample\":%,\"nanoseconds\":%,\"rows\":%,\"pixels\":%}\n",
+            ifx argc > 1 then "full-plan" else "compact", sample, elapsed, RowRuns, RowPixels)
+    }
+    pixels: [RowPixels]u32
+    for sample: 0..10 {
+        start := MonotonicNanoseconds()
+        for row: 0..RowRuns - 1 {
+            result := ComposeRow(pixels[:], 0x7f234567)
+            expected: u32 = ifx row % 2 == 0 then 0x7f234567 else 0
+            if result != expected { return 4 }
+        }
+        elapsed := MonotonicNanoseconds() - start
+        print("{\"target\":\"c-export\",\"sample\":%,\"nanoseconds\":%,\"rows\":%,\"pixels\":%}\n",
+            sample, elapsed, RowRuns, RowPixels)
+    }
+    return 0
+}

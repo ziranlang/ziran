@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="The crypto package for Ziran."><title>crypto · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/crypto"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>crypto</h1><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/crypto">Repository ↗</a></p></div>
-<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#module-crypto">crypto</a><a href="#module-sha256">sha256</a><a href="#module-sha1">sha1</a><a href="#module-aes">aes</a><a href="#module-bigint">bigint</a><a href="#module-sha512">sha512</a></aside><div class="article-body api-body">
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#module-crypto">crypto</a><a href="#module-sha256">sha256</a><a href="#module-sha1">sha1</a><a href="#module-aes">aes</a><a href="#module-bigint">bigint</a><a href="#module-sha512">sha512</a><a href="#module-wipe">wipe</a><a href="#module-kdf">kdf</a><a href="#module-chacha20">chacha20</a><a href="#module-native">native</a><a href="#module-base64">base64</a><a href="#module-blake2b">blake2b</a></aside><div class="article-body api-body">
 <section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.crypto]
 git = "https://github.com/ziranlang/crypto.git"
 ref = "master"</code></pre></section>
@@ -12,13 +12,13 @@ ref = "master"</code></pre></section>
 <div><code>Wipe :: (bytes: []u8)</code></div>
 <div><code>Pbkdf2 :: (password: []u8, salt: []u8, iterations: s32, output: []u8) -&gt; bool</code><p>Arbitrary salt length and output length; no silent truncation.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/crypto.zi">Source ↗</a></p></section>
-<section id="module-sha256"><p class="eyebrow">crypto/src/sha256.zi</p><h2>sha256</h2><p>Ordinary library procedures retain package-qualified native symbols. A consuming executable owns any explicit C ABI it chooses to export. SHA-256 and HMAC-SHA-256, extracted from Waozi’s Daochi implementation. Portable Ziran; no foreign cryptographic implementation.</p><p>Import with <code>#import "crypto/sha256"</code>.</p><div class="api-list">
+<section id="module-sha256"><p class="eyebrow">crypto/src/sha256.zi</p><h2>sha256</h2><p>Ordinary library procedures retain package-qualified native symbols. A consuming executable owns any explicit C ABI it chooses to export. SHA-256 and HMAC-SHA-256, extracted from Waozi’s Mesh implementation. Portable Ziran; no foreign cryptographic implementation.</p><p>Import with <code>#import "crypto/sha256"</code>.</p><div class="api-list">
 <div><code>Sha256Context :: struct { state: [8]u32; bit_length: u64; block: [64]u8; block_length: s32; words: [64]u32; }</code></div>
 <div><code>Sha256RoundConstants: [64]u32</code></div>
 <div><code>Sha256RotateRight :: (value: u32, bits: u32) -&gt; u32</code></div>
 <div><code>Sha256Transform :: (context: *Sha256Context)</code><p>The buffered block. Each loader reads the block's 16 big-endian words where it lies; Sha256Rounds hashes them.</p></div>
 <div><code>Sha256TransformBlock :: (context: *Sha256Context, block: []u8)</code><p>One 64-byte block from a slice, so portable bundles can hash too.</p></div>
-<div><code>Sha256TransformAt :: (context: *Sha256Context, block: *u8)</code><p>One 64-byte block read in place at BLOCK, for the pointer forms. Without a bounds check per byte, a package hashes as fast on phones, which build at -Oz, as it did with Daochi Client's own SHA-256.</p></div>
+<div><code>Sha256TransformAt :: (context: *Sha256Context, block: *u8)</code><p>One 64-byte block read in place at BLOCK, for the pointer forms. Without a bounds check per byte, a package hashes as fast on phones, which build at -Oz, as it did with Mesh Client's own SHA-256.</p></div>
 <div><code>Sha256Rounds :: (context: *Sha256Context)</code><p>The message schedule from the block's first 16 words, then the 64 rounds.</p></div>
 <div><code>Sha256Initialize :: (context: *Sha256Context)</code></div>
 <div><code>Sha256Update :: (context: *Sha256Context, data: *u8, length: s64)</code></div>
@@ -39,6 +39,12 @@ ref = "master"</code></pre></section>
 <div><code>HmacSha256Text :: (key: *u8, key_length: s64, data: string, output: *u8) -&gt; s32</code></div>
 <div><code>Sha256Of :: (data: string) -&gt; [32]u8</code><p>String forms, by value, for callers that hash text: a string's digest, HMAC-SHA-256 under a string key, and PBKDF2-HMAC-SHA-256's first block, such as a vault key. Each matches the byte forms above.</p></div>
 <div><code>HmacSha256Of :: (key: string, message: string) -&gt; [32]u8</code></div>
+<div><code>HmacSha256State :: struct { inner: Sha256Context; outer: Sha256Context; }</code></div>
+<div><code>HmacSha256Prepare :: (state: *HmacSha256State, key: *u8, key_length: s64)</code></div>
+<div><code>HmacSha256PrepareText :: (state: *HmacSha256State, key: string)</code></div>
+<div><code>HmacSha256Compute :: (state: *HmacSha256State, data: *u8, data_length: s64, output: *u8)</code></div>
+<div><code>HmacSha256ComputeBytes :: (state: *HmacSha256State, data: []u8, output: []u8)</code></div>
+<div><code>HmacSha256Wipe :: (state: *HmacSha256State)</code></div>
 <div><code>Pbkdf2Sha256 :: (password: string, salt: string, iterations: s32) -&gt; [32]u8</code></div>
 <div><code>HmacSha256TextKey :: (key: string, data: *u8, data_length: s64, output: *u8) -&gt; s32</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/sha256.zi">Source ↗</a></p></section>
@@ -93,5 +99,63 @@ ref = "master"</code></pre></section>
 <div><code>Hmac :: (key: []u8, input: []u8, output: []u8) -&gt; bool</code></div>
 <div><code>Pbkdf2 :: (password: []u8, salt: []u8, iterations: s32, output: []u8) -&gt; bool</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/sha512.zi">Source ↗</a></p></section>
+<section id="module-wipe"><p class="eyebrow">crypto/src/wipe.zi</p><h2>wipe</h2><p>Constant-time comparison and compiler-safe secret zeroization. On C/Linux targets, explicit_bzero prevents dead-store elimination.</p><p>Import with <code>#import "crypto/wipe"</code>.</p><div class="api-list">
+<div><code>ConstantTimeEqual :: (a: []u8, b: []u8) -&gt; bool</code></div>
+<div><code>SecureWipePointer :: (data: *u8, length: s64)</code></div>
+<div><code>SecureWipe :: (bytes: []u8)</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/wipe.zi">Source ↗</a></p></section>
+<section id="module-kdf"><p class="eyebrow">crypto/src/kdf.zi</p><h2>kdf</h2><p>Key derivation functions: PBKDF2-HMAC-SHA-256 (with precomputed HMAC midstates, no silent salt truncation) and RFC 5869 HKDF-SHA-256. Portable Ziran; wipes intermediate secrets before returning.</p><p>Import with <code>#import "crypto/kdf"</code>.</p><div class="api-list">
+<div><code>Pbkdf2Sha256 :: (password: []u8, salt: []u8, iterations: u64, output: []u8) -&gt; bool</code><p>PBKDF2-HMAC-SHA-256 with arbitrary salt length (up to 1024 bytes) and arbitrary output length (up to 1024 bytes). Uses precomputed HMAC-SHA-256 ipad/opad midstates (~2x faster than recomputing the key block per round).</p></div>
+<div><code>Pbkdf2Sha256Pointer :: (password: *u8, password_length: s64, salt: *u8, salt_length: s64, iterations: u64, output: *u8) -&gt; s32</code><p>Pointer form of PBKDF2-HMAC-SHA-256 producing one 32-byte key. Supports salts up to 1024 bytes without silent truncation.</p></div>
+<div><code>HkdfExtract :: (salt: []u8, ikm: []u8, prk: []u8) -&gt; bool</code><p>RFC 5869 HKDF-Extract(salt, IKM) -&gt; PRK (32 bytes). An empty salt uses 32 zero bytes as specified by RFC 5869 Section 2.2.</p></div>
+<div><code>HkdfExpand :: (prk: []u8, info: []u8, okm: []u8) -&gt; bool</code><p>RFC 5869 HKDF-Expand(PRK, info, L) -&gt; OKM (up to 255 * 32 = 8160 bytes).</p></div>
+<div><code>HkdfSha256 :: (salt: []u8, ikm: []u8, info: []u8, okm: []u8) -&gt; bool</code><p>RFC 5869 one-shot HKDF-SHA-256(salt, IKM, info) -&gt; OKM.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/kdf.zi">Source ↗</a></p></section>
+<section id="module-chacha20"><p class="eyebrow">crypto/src/chacha20.zi</p><h2>chacha20</h2><p>RFC 8439 ChaCha20-Poly1305 and draft-irtf-cfrg-xchacha XChaCha20-Poly1305. Portable Ziran implementation; wipes temporary keys and keystream blocks.</p><p>Import with <code>#import "crypto/chacha20"</code>.</p><div class="api-list">
+<div><code>ChaCha20Poly1305Seal :: (key: *u8, nonce: *u8, plain: *u8, plain_length: s64, aad: *u8, aad_length: s64, output: *u8, output_capacity: s64) -&gt; s32</code></div>
+<div><code>ChaCha20Poly1305Open :: (key: *u8, nonce: *u8, sealed: *u8, sealed_length: s64, aad: *u8, aad_length: s64, plain: *u8, plain_capacity: s64) -&gt; s32</code></div>
+<div><code>HChaCha20 :: (key: *u8, nonce: *u8, output: *u8)</code></div>
+<div><code>XChaCha20Poly1305Seal :: (key: *u8, nonce: *u8, plain: *u8, plain_length: s64, aad: *u8, aad_length: s64, output: *u8, output_capacity: s64) -&gt; s32</code></div>
+<div><code>XChaCha20Poly1305Open :: (key: *u8, nonce: *u8, sealed: *u8, sealed_length: s64, aad: *u8, aad_length: s64, plain: *u8, plain_capacity: s64) -&gt; s32</code></div>
+<div><code>ChaCha20Poly1305SealBytes :: (key: []u8, nonce: []u8, plain: []u8, aad: []u8, output: []u8) -&gt; s64</code><p>Slice wrappers for ergonomic Ziran callers.</p></div>
+<div><code>ChaCha20Poly1305OpenBytes :: (key: []u8, nonce: []u8, sealed: []u8, aad: []u8, output: []u8) -&gt; s64</code></div>
+<div><code>XChaCha20Poly1305SealBytes :: (key: []u8, nonce: []u8, plain: []u8, aad: []u8, output: []u8) -&gt; s64</code></div>
+<div><code>XChaCha20Poly1305OpenBytes :: (key: []u8, nonce: []u8, sealed: []u8, aad: []u8, output: []u8) -&gt; s64</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/chacha20.zi">Source ↗</a></p></section>
+<section id="module-native"><p class="eyebrow">crypto/src/native.zi</p><h2>native</h2><p>Optional SIMD-accelerated native cryptography backed by libsodium. Native targets that import this module link -lsodium (or -l:libsodium.so.23).</p><p>Import with <code>#import "crypto/native"</code>.</p><div class="api-list">
+<div><code>Initialize :: () -&gt; bool</code></div>
+<div><code>Clear :: (bytes: []u8)</code></div>
+<div><code>RandomBytes :: (bytes: []u8) -&gt; bool</code></div>
+<div><code>Sha256 :: (input: []u8, output: []u8) -&gt; bool</code></div>
+<div><code>HmacSha256 :: (input: []u8, key: []u8, output: []u8) -&gt; bool</code></div>
+<div><code>ChaCha20Poly1305Seal :: (input: []u8, aad: []u8, key: []u8, nonce: []u8, output: []u8) -&gt; s64</code></div>
+<div><code>ChaCha20Poly1305Open :: (sealed: []u8, aad: []u8, key: []u8, nonce: []u8, output: []u8) -&gt; s64</code></div>
+<div><code>XChaCha20Poly1305Seal :: (input: []u8, aad: []u8, key: []u8, nonce: []u8, output: []u8) -&gt; s64</code></div>
+<div><code>XChaCha20Poly1305Open :: (sealed: []u8, aad: []u8, key: []u8, nonce: []u8, output: []u8) -&gt; s64</code></div>
+<div><code>DigestStateBytes :: () -&gt; usize</code></div>
+<div><code>DigestStart :: (state: []u8) -&gt; bool</code></div>
+<div><code>DigestUpdate :: (state: []u8, input: []u8) -&gt; bool</code></div>
+<div><code>DigestFinish :: (state: []u8, output: []u8) -&gt; bool</code></div>
+<div><code>Argon2id :: (password: []u8, salt: []u8, output: []u8, operations: u64, memory: usize) -&gt; bool</code></div>
+<div><code>Ed25519Public :: (seed: []u8, output: []u8) -&gt; bool</code></div>
+<div><code>Ed25519Sign :: (seed: []u8, input: []u8, output: []u8) -&gt; bool</code></div>
+<div><code>Ed25519Verify :: (public_key: []u8, input: []u8, signature: []u8) -&gt; bool</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/native.zi">Source ↗</a></p></section>
+<section id="module-base64"><p class="eyebrow">crypto/src/base64.zi</p><h2>base64</h2><p>Fast canonical RFC 4648 Base64 and Base64url encoder/decoder. Uses a 256-entry decode table and rejects non-canonical trailing bits.</p><p>Import with <code>#import "crypto/base64"</code>.</p><div class="api-list">
+<div><code>EncodedSize :: (input_len: s64, padded: bool) -&gt; s64</code></div>
+<div><code>DecodedSize :: (encoded_len: s64) -&gt; s64</code></div>
+<div><code>Encode :: (input: []u8, output: []u8, url_safe: bool, padded: bool) -&gt; s64</code></div>
+<div><code>Decode :: (text: string, output: []u8, url_safe: bool, allow_padding: bool) -&gt; s64</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/base64.zi">Source ↗</a></p></section>
+<section id="module-blake2b"><p class="eyebrow">crypto/src/blake2b.zi</p><h2>blake2b</h2><p>RFC 7693 BLAKE2b cryptographic hash and keyed MAC (256-bit and 512-bit). Portable 64-bit ARX Ziran implementation; wipes internal state on finish.</p><p>Import with <code>#import "crypto/blake2b"</code>.</p><div class="api-list">
+<div><code>Blake2bState :: struct { h: [8]u64; t0: u64; t1: u64; buf: [128]u8; buf_len: s64; out_len: s64; }</code></div>
+<div><code>Blake2bInit :: (state: *Blake2bState, out_len: s64, key: []u8) -&gt; bool</code></div>
+<div><code>Blake2bUpdate :: (state: *Blake2bState, data: []u8)</code></div>
+<div><code>Blake2bFinish :: (state: *Blake2bState, output: []u8) -&gt; bool</code></div>
+<div><code>Blake2bKeyed :: (data: []u8, key: []u8, output: []u8) -&gt; bool</code></div>
+<div><code>Blake2b :: (data: []u8, output: []u8) -&gt; bool</code></div>
+<div><code>Blake2b256 :: (data: []u8, output: []u8) -&gt; bool</code></div>
+<div><code>Blake2b512 :: (data: []u8, output: []u8) -&gt; bool</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/blake2b.zi">Source ↗</a></p></section>
 </div></div></main>
 <footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

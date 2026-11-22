@@ -47,8 +47,8 @@ LirExecHostBinding :: struct {
     context: *void
     // Bit p: parameter p is a mutable view.
     views: u64
-    // Bit p: parameter p borrows the bytes of a top-level string.
-    borrowed_strings: u64
+    // Bit p: parameter p borrows a top-level string or scalar slice.
+    borrowed_views: u64
 }
 
 LirExecResult :: struct {
@@ -382,6 +382,14 @@ LirExecInstance :: struct {
     running: bool
     // Run every instruction through ExecStep (LirExecRunReference).
     reference: bool
+}
+
+// Optional host-side execution within a verified packed block. The callback
+// leaves the frame at its first unfinished instruction. It returns the next
+// instruction to try in the block, or -1 to wait for a new block entry.
+#if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+    LirExecPackedBlockRun :: #type (context: *void, instance: *LirExecInstance, frame: *LirExecFrame) -> s32 #c_call;
+    LirExecPackedBlocks :: struct { run: LirExecPackedBlockRun; context: *void }
 }
 
 #scope_file
@@ -2572,19 +2580,6 @@ ExecPopFrame :: (instance: *LirExecInstance) {
     }
 }
 
-ExecValuesSameLocation :: (instance: *LirExecInstance, frame_index: s64,
-    left: s32, right: s32) -> bool {
-    left_word := ExecValueIsWord(instance, frame_index, left)
-    if left_word != ExecValueIsWord(instance, frame_index, right) { return false }
-    if left_word {
-        return ExecFrameValueWord(instance, frame_index, left) ==
-            ExecFrameValueWord(instance, frame_index, right)
-    }
-    return ExecFrameValueOffset(instance, frame_index, left) ==
-        ExecFrameValueOffset(instance, frame_index, right) &&
-        ExecValueSize(instance, frame_index, left) == ExecValueSize(instance, frame_index, right)
-}
-
 ExecEdge :: (instance: *LirExecInstance, frame_index: s64,
     edge: *LirEdge, direct_safe: bool) -> bool {
     frame := *instance.frames[frame_index]
@@ -2593,20 +2588,25 @@ ExecEdge :: (instance: *LirExecInstance, frame_index: s64,
     if direct_safe {
         for index: cast(s64)0..target.parameters.count - 1 {
             source := edge.arguments[index]
-            destination := target.parameters[index]
-            size := ExecValueSize(instance, frame_index, source)
-            // Preserve the canonical two-copy work charge even though the
-            // proven-safe implementation moves the value only once.
-            if ExecValuesSameLocation(instance, frame_index, source, destination) {
-                if !ExecSpend(instance, ExecCopyCost(size)) ||
-                    !ExecSpend(instance, ExecCopyCost(size)) { return false }
-            } else if !ExecSpend(instance, ExecCopyCost(size)) ||
-                !ExecCopyValue(instance, frame_index, source, frame_index, destination) { return false }
+            from := ExecValueLocation(instance.plan, frame.value_base + source)
+            to := ExecValueLocation(instance.plan, frame.value_base + target.parameters[index])
+            size := instance.plan.type_sizes[frame.value_types[source]]
+            cost := ExecCopyCost(size)
+            // Spend for both copies in order. A limit can stop between them,
+            // even when the argument already occupies the parameter's slot.
+            if !ExecSpend(instance, cost) { return false }
+            if (from >= 0) != (to >= 0) { return ExecFail(instance, .Type) }
+            if from >= 0 {
+                if !ExecSpend(instance, cost) { return false }
+                if from != to {
+                    instance.words[frame.word_base + to] = instance.words[frame.word_base + from]
+                }
+            } else if !ExecCopyStorage(instance, frame.base + ~from, frame.base + ~to, size) {
+                return false
+            }
         }
-        instance.frames[frame_index].block = edge.block
-        instance.frames[frame_index].instruction = 0
-        instance.frames[frame_index].instruction_base =
-            cast(s64)instance.plan.block_instruction_bases[plan.block_base + edge.block]
+        ExecSetPosition(instance, frame_index, edge.block, 0,
+            cast(s64)instance.plan.block_instruction_bases[plan.block_base + edge.block])
         return true
     }
     scratch := frame.base + plan.scratch_offset
@@ -2624,10 +2624,8 @@ ExecEdge :: (instance: *LirExecInstance, frame_index: s64,
         if !ExecCopyStorageToValue(instance, scratch + at, frame_index, destination) { return false }
         at += size
     }
-    instance.frames[frame_index].block = edge.block
-    instance.frames[frame_index].instruction = 0
-    instance.frames[frame_index].instruction_base =
-        cast(s64)instance.plan.block_instruction_bases[plan.block_base + edge.block]
+    ExecSetPosition(instance, frame_index, edge.block, 0,
+        cast(s64)instance.plan.block_instruction_bases[plan.block_base + edge.block])
     return true
 }
 
@@ -2668,42 +2666,42 @@ ExecInstructionEdge :: (instruction: *LirExecPackedInstruction, index: s64) -> *
 }
 }
 
-ExecIntegerBinary :: (instance: *LirExecInstance, frame_index: s64,
-    instruction: *$I, type: LirType) -> bool {
-    left := ExecSlotBits(instance, ExecOperand(instruction, 0)) & ExecMask(type.bits)
+// Verified integer operands are already canonical frame words. Every entry
+// to a word (constants, memory, host values and arithmetic) either checks
+// or canonicalizes its bits before other instructions can read it.
+ExecIntegerBinary :: (instance: *LirExecInstance, instruction: *$I,
+    op: LirOp, left_id: s32, type: *LirType) -> bool {
+    left := ExecSlotBits(instance, left_id)
     right := ExecSlotBits(instance, ExecOperand(instruction, 1))
     if instance.failure.problem != .None { return false }
-    if instruction.op == .ShiftLeft || instruction.op == .ShiftRight {
-        count_type := ExecValueType(instance, ExecOperand(instruction, 1))
-        right &= ExecMask(count_type.bits)
-    } else { right &= ExecMask(type.bits) }
     result: u64
-    if instruction.op == .Add { result = left + right }
-    else if instruction.op == .Subtract { result = left - right }
-    else if instruction.op == .Multiply { result = left * right }
-    else if instruction.op == .BitAnd { result = left & right }
-    else if instruction.op == .BitOr { result = left | right }
-    else if instruction.op == .BitXor { result = left ^ right }
-    else if instruction.op == .Divide || instruction.op == .Remainder {
+    if op == .Add { result = left + right }
+    else if op == .Subtract { result = left - right }
+    else if op == .Multiply { result = left * right }
+    else if op == .BitAnd { result = left & right }
+    else if op == .BitOr { result = left | right }
+    else if op == .BitXor { result = left ^ right }
+    else if op == .Divide || op == .Remainder {
         if right == 0 { return ExecFail(instance, .DivideByZero) }
         if type.is_signed {
             signed_left := ExecSigned(left, type.bits)
             signed_right := ExecSigned(right, type.bits)
             minimum := cast(u64)1 << cast(u64)(type.bits - 1)
             if left == minimum && signed_right == -1 {
-                result = ifx instruction.op == .Divide then minimum else 0
-            } else if instruction.op == .Divide { result = cast(u64)(signed_left / signed_right) }
+                result = ifx op == .Divide then minimum else 0
+            } else if op == .Divide { result = cast(u64)(signed_left / signed_right) }
             else { result = cast(u64)(signed_left % signed_right) }
-        } else if instruction.op == .Divide { result = left / right }
+        } else if op == .Divide { result = left / right }
         else { result = left % right }
-    } else if instruction.op == .ShiftLeft || instruction.op == .ShiftRight {
+    } else if op == .ShiftLeft || op == .ShiftRight {
         count := right
         if count >= cast(u64)type.bits { return ExecFail(instance, .InvalidShift) }
-        if instruction.op == .ShiftLeft { result = left << count }
+        if op == .ShiftLeft { result = left << count }
         else {
             result = left >> count
             if type.is_signed && count != 0 && (left & (cast(u64)1 << cast(u64)(type.bits - 1))) != 0 {
-                result |= ExecMask(type.bits) ^ (ExecMask(type.bits) >> count)
+                mask := instance.plan.type_masks[instance.current_value_types[left_id]]
+                result |= mask ^ (mask >> count)
             }
         }
     } else { return ExecFail(instance, .Unsupported) }
@@ -2711,13 +2709,12 @@ ExecIntegerBinary :: (instance: *LirExecInstance, frame_index: s64,
     return true
 }
 
-ExecFloatBinary :: (instance: *LirExecInstance, frame_index: s64,
-    instruction: *$I, type: LirType) -> bool {
-    left := ExecFloat(instance.plan, type, ExecSlotBits(instance, ExecOperand(instruction, 0)))
-    right := ExecFloat(instance.plan, type, ExecSlotBits(instance, ExecOperand(instruction, 1)))
+ExecFloatBinary :: (instance: *LirExecInstance, instruction: *$I, single: bool) -> bool {
+    left := ExecBitsFloat(instance.plan, ExecSlotBits(instance, ExecOperand(instruction, 0)), single)
+    right := ExecBitsFloat(instance.plan, ExecSlotBits(instance, ExecOperand(instruction, 1)), single)
     if instance.failure.problem != .None { return false }
     bits: u64
-    if type.bits == 32 {
+    if single {
         a := cast(float32)left
         b := cast(float32)right
         value: float32
@@ -2740,15 +2737,15 @@ ExecFloatBinary :: (instance: *LirExecInstance, frame_index: s64,
     return true
 }
 
-ExecCompare :: (instance: *LirExecInstance, frame_index: s64,
-    instruction: *$I, type: LirType) -> bool {
+ExecCompare :: (instance: *LirExecInstance, instruction: *$I, type: *LirType) -> bool {
     left := ExecSlotBits(instance, ExecOperand(instruction, 0))
     right := ExecSlotBits(instance, ExecOperand(instruction, 1))
     if instance.failure.problem != .None { return false }
     answer: bool
     if type.kind == .Float {
-        a := ExecFloat(instance.plan, type, left)
-        b := ExecFloat(instance.plan, type, right)
+        single := type.bits == 32
+        a := ExecBitsFloat(instance.plan, left, single)
+        b := ExecBitsFloat(instance.plan, right, single)
         if instruction.op == .Equal { answer = a == b }
         if instruction.op == .NotEqual { answer = a != b }
         if instruction.op == .Less { answer = a < b }
@@ -2777,8 +2774,8 @@ ExecCompare :: (instance: *LirExecInstance, frame_index: s64,
     return true
 }
 
-ExecConvert :: (instance: *LirExecInstance, frame_index: s64, instruction: *$I,
-    source: LirType, destination: LirType) -> bool {
+ExecConvert :: (instance: *LirExecInstance, instruction: *$I,
+    source: *LirType, destination: *LirType) -> bool {
     bits := ExecSlotBits(instance, ExecOperand(instruction, 0))
     if instance.failure.problem != .None { return false }
     if instruction.op == .Bitcast {
@@ -2802,10 +2799,10 @@ ExecConvert :: (instance: *LirExecInstance, frame_index: s64, instruction: *$I,
             result = ExecFloat64Bits(value)
         }
     } else if source.kind == .Float && destination.kind == .Float {
-        value := ExecFloat(instance.plan, source, bits)
+        value := ExecBitsFloat(instance.plan, bits, source.bits == 32)
         result = ifx destination.bits == 32 then ExecFloat32Bits(cast(float32)value) else ExecFloat64Bits(value)
     } else if source.kind == .Float && destination.kind == .Integer {
-        value := ExecFloat(instance.plan, source, bits)
+        value := ExecBitsFloat(instance.plan, bits, source.bits == 32)
         if !Finite64(value) { return ExecFail(instance, .InvalidConversion) }
         if destination.is_signed {
             bound := ScaleByPowerOfTwo(1.0, destination.bits - 1)
@@ -2972,6 +2969,11 @@ ExecAddressTail :: (instance: *LirExecInstance, address: LirExecAddress, at: s64
     return bytes[local:]
 }
 
+#if TARGET == .C {
+    ExecLibC :: #system_library "libc";
+    ExecCopyDisjointBytes :: (destination: *void, source: *void, count: usize) -> *void #foreign ExecLibC "memcpy";
+}
+
 ExecCopyAddressToValue :: (instance: *LirExecInstance, address_index: s64,
     frame_index: s64, destination: s32) -> bool {
     source := ExecAddressOffset(instance, address_index)
@@ -2988,6 +2990,17 @@ ExecCopyAddressToValue :: (instance: *LirExecInstance, address_index: s64,
     destination_at := ExecFrameValueOffset(instance, frame_index, destination)
     bytes := ExecAddressTail(instance, address, source)
     storage := instance.storage[:]
+    #if TARGET == .C {
+        // Owned and global bytes have separate backing storage. For a frame
+        // address, the ranges must be disjoint before handing them to memcpy.
+        if size >= 32 && size <= bytes.count && size <= storage.count - destination_at &&
+            (address.owned || address.frame < 0 ||
+                source <= destination_at - size || destination_at <= source - size) {
+            unused ExecCopyDisjointBytes(cast(*void)*storage[destination_at],
+                cast(*void)*bytes[0], cast(usize)size)
+            return true
+        }
+    }
     for index: cast(s64)0..size - 1 { storage[destination_at + index] = bytes[index] }
     return true
 }
@@ -3309,11 +3322,53 @@ ExecHostCollect :: (instance: *LirExecInstance) -> bool {
     return true
 }
 
+// Use the previous hole when growing forward would require a new arena
+// allocation. Only the block being resized moves, and its old aliases are
+// retired by ExecResize before it returns.
+ExecHeapGrowIntoPrevious :: (instance: *LirExecInstance, index: s64, bytes: s64, available: s64) -> bool {
+    block := instance.heap_blocks[index]
+    below := block.below - 1
+    if below < 0 || instance.heap_blocks[below].live { return false }
+    above := block.above - 1
+    forward: s64
+    if above < 0 {
+        end := instance.owned.count
+        capacity := instance.owned.capacity
+        if capacity > available { capacity = available }
+        if capacity > end { forward = capacity - end }
+    } else if !instance.heap_blocks[above].live {
+        forward = instance.heap_blocks[above].size
+    }
+    back := bytes - block.size - forward
+    hole := *instance.heap_blocks[below]
+    if back <= 0 || back > hole.size { return false }
+    if above < 0 && forward != 0 &&
+       !VecResize(instance.owned, instance.owned.count + forward) { return false }
+
+    // Move downwards in increasing byte order, allowing overlap.
+    base := block.offset - back
+    for at: cast(s64)0..block.size - 1 { instance.owned[base + at] = instance.owned[block.offset + at] }
+    if back == hole.size {
+        ExecHeapUnlistHole(instance, below)
+        ExecHeapUnlink(instance, below)
+        ExecHeapRecycle(instance, below)
+    } else { hole.size -= back }
+    if above >= 0 && forward != 0 {
+        ExecHeapUnlistHole(instance, above)
+        ExecHeapUnlink(instance, above)
+        ExecHeapRecycle(instance, above)
+    }
+    instance.heap_blocks[index].offset = base
+    instance.heap_blocks[index].size = bytes
+    return true
+}
+
 // Grow into the following hole or the end of the arena. Shrinking gives
 // the excess bytes back even if another live block sits above this one.
 ExecHeapResizeInPlace :: (instance: *LirExecInstance, index: s64, bytes: s64, available: s64) -> bool {
     block := instance.heap_blocks[index]
     if bytes == block.size { return true }
+    if bytes > block.size && ExecHeapGrowIntoPrevious(instance, index, bytes, available) { return true }
     if instance.heap_tail == index + 1 {
         if bytes > available - block.offset ||
             !ExecResizeOwned(instance, block.offset + bytes, available) { return false }
@@ -3555,24 +3610,25 @@ ExecUnaryInstruction :: (instance: *LirExecInstance, frame_index: s64,
     return true
 }
 
-ExecNumericInstruction :: (instance: *LirExecInstance, frame_index: s64,
-    instruction: *$I, result_type: s32) -> bool {
+ExecNumericInstruction :: (instance: *LirExecInstance, instruction: *$I) -> bool {
     op := instruction.op
     opcode := cast(s32)op
+    left := ExecOperand(instruction, 0)
+    // The plan owns immutable type records. Scalar operations only read
+    // their kind, width and signedness.
+    types := instance.plan.program.types
+    source := *types[instance.current_value_types[left]]
     if opcode >= cast(s32)LirOp.Add && opcode <= cast(s32)LirOp.Remainder ||
         opcode >= cast(s32)LirOp.BitAnd && opcode <= cast(s32)LirOp.ShiftRight {
-        type := ExecValueType(instance, ExecOperand(instruction, 0))
-        if type.kind == .Integer { return ExecIntegerBinary(instance, frame_index, instruction, type) }
-        return ExecFloatBinary(instance, frame_index, instruction, type)
+        if source.kind == .Integer { return ExecIntegerBinary(instance, instruction, op, left, source) }
+        return ExecFloatBinary(instance, instruction, source.bits == 32)
     }
     if opcode >= cast(s32)LirOp.Equal && opcode <= cast(s32)LirOp.GreaterEqual {
-        type := ExecValueType(instance, ExecOperand(instruction, 0))
-        return ExecCompare(instance, frame_index, instruction, type)
+        return ExecCompare(instance, instruction, source)
     }
     if op == .Convert || op == .Bitcast {
-        source := ExecValueType(instance, ExecOperand(instruction, 0))
-        destination := instance.plan.program.types[result_type]
-        return ExecConvert(instance, frame_index, instruction, source, destination)
+        destination := *types[instance.current_value_types[instruction.result]]
+        return ExecConvert(instance, instruction, source, destination)
     }
     return ExecFail(instance, .Unsupported)
 }
@@ -3580,6 +3636,14 @@ ExecNumericInstruction :: (instance: *LirExecInstance, frame_index: s64,
 ExecValueInstruction :: (instance: *LirExecInstance, frame_index: s64,
     instruction: *$I) -> bool {
     op := instruction.op
+    // Numeric instructions are contiguous except for the two unary ops.
+    // They do not need to pass through the aggregate and address dispatch.
+    if cast(u32)op >= cast(u32)LirOp.Add && cast(u32)op <= cast(u32)LirOp.Bitcast &&
+        op != .Negate && op != .BitNot {
+        if !ExecNumericInstruction(instance, instruction) { return false }
+        instance.frames[frame_index].instruction += 1
+        return true
+    }
     result_type: s32 = LirNoId
     if instruction.result != LirNoId {
         result_type = instance.current_value_types[instruction.result]
@@ -3606,7 +3670,7 @@ ExecValueInstruction :: (instance: *LirExecInstance, frame_index: s64,
         if !ExecResize(instance, instruction, result_type) { return false }
     } else if op == .Negate || op == .BitNot || op == .SquareRoot {
         if !ExecUnaryInstruction(instance, frame_index, instruction) { return false }
-    } else if !ExecNumericInstruction(instance, frame_index, instruction, result_type) { return false }
+    } else { return ExecFail(instance, .Unsupported) }
     instance.frames[frame_index].instruction += 1
     return true
 }
@@ -3759,7 +3823,7 @@ ExecHostParameter :: (mask: u64, index: s64) -> bool {
     return index >= 0 && index < 64 && ((mask >> cast(u64)index) & cast(u64)1) != cast(u64)0
 }
 
-ExecBorrowHostString :: (instance: *LirExecInstance, source: s64, available: s64,
+ExecBorrowHostView :: (instance: *LirExecInstance, source: s64, available: s64,
     argument: *LirExecArgument) -> bool {
     storage := instance.storage[:]
     count := ExecReadBits(storage, source + 8, 8)
@@ -3769,9 +3833,10 @@ ExecBorrowHostString :: (instance: *LirExecInstance, source: s64, available: s64
     program := instance.plan.program
     view := program.types[argument.type]
     element := program.types[view.fields[0]].element
-    found := ExecHostViewAddress(instance, ExecReadBits(storage, source, 8), count, element, 1)
+    width := instance.plan.type_sizes[element]
+    found := ExecHostViewAddress(instance, ExecReadBits(storage, source, 8), count, element, width)
     if found < 0 { return false }
-    size := cast(s64)count
+    size := cast(s64)count * width
     if size > available { return ExecFail(instance, .ValueBytes) }
     at := ExecAddressOffset(instance, found)
     if instance.failure.problem != .None || !ExecSpend(instance, ExecCopyCost(size)) { return false }
@@ -3811,8 +3876,8 @@ ExecTypedHostArguments :: (instance: *LirExecInstance, frame_index: s64,
             at := instance.host_bytes.count
             if size > available - at { return ExecFail(instance, .ValueBytes) }
             source := ExecFrameValueOffset(instance, frame_index, operand)
-            if ExecHostParameter(host.borrowed_strings, index) {
-                if !ExecBorrowHostString(instance, source, available - at - size, *value) { return false }
+            if ExecHostParameter(host.borrowed_views, index) {
+                if !ExecBorrowHostView(instance, source, available - at - size, *value) { return false }
                 // Charge the same logical image size. Borrowed data lives in
                 // guest storage, which argument preparation does not resize.
                 available -= size + value.bytes.count
@@ -4103,9 +4168,9 @@ ExecHostCall :: (instance: *LirExecInstance, frame_index: s64, instruction: *$I)
         result := LirExecArgument.{.type = LirNoId}
         called := host.typed(host.context, instruction.symbol,
             VecSlice(instance.typed_arguments, 0, count), *result)
-        if host.borrowed_strings != 0 {
+        if host.borrowed_views != 0 {
             for index: cast(s64)0..count - 1 {
-                if ExecHostParameter(host.borrowed_strings, index) {
+                if ExecHostParameter(host.borrowed_views, index) {
                     empty: []u8
                     instance.typed_arguments[index].bytes = empty
                 }
@@ -4170,15 +4235,13 @@ ExecStepInstruction :: (instance: *LirExecInstance, frame_index: s64, frame: *Li
     }
     if op == .Trap { return ExecFail(instance, .Trap, instruction.immediate) }
     if op == .Unreachable { return ExecFail(instance, .Unreachable) }
-    edge_base := cast(s64)instance.plan.block_edge_bases[instance.plan.functions[frame.function].block_base + frame.block]
-    if op == .Jump {
-        return ExecEdge(instance, frame_index, ExecInstructionEdge(instruction, 0),
-            instance.plan.edge_direct[edge_base] != 0)
-    }
-    if op == .Branch {
-        condition := ExecSlotBits(instance, ExecOperand(instruction, 0)) != 0
-        if instance.failure.problem != .None { return false }
-        edge_index: s64 = ifx condition then 0 else 1
+    if op == .Jump || op == .Branch {
+        edge_index: s64
+        if op == .Branch {
+            edge_index = cast(s64)(ExecSlotBits(instance, ExecOperand(instruction, 0)) == 0)
+            if instance.failure.problem != .None { return false }
+        }
+        edge_base := cast(s64)instance.plan.block_edge_bases[instance.plan.functions[frame.function].block_base + frame.block]
         return ExecEdge(instance, frame_index, ExecInstructionEdge(instruction, edge_index),
             instance.plan.edge_direct[edge_base + edge_index] != 0)
     }
@@ -5213,11 +5276,26 @@ ExecResetRun :: (instance: *LirExecInstance) -> bool {
     return true
 }
 
-ExecRunRoot :: (instance: *LirExecInstance, function: s32, arguments: []LirExecArgument) -> bool {
+ExecRunRoot :: (instance: *LirExecInstance, function: s32, arguments: []LirExecArgument,
+    packed_blocks: *void = null) -> bool {
     no_operands: [0]s32
     if !ExecPushFrame(instance, function, -1, no_operands[:], LirNoId, arguments) { return false }
     #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
         if instance.plan.packed_instructions.count != 0 {
+            blocks := cast(*LirExecPackedBlocks)packed_blocks
+            if blocks != null && blocks.run != null {
+                next: s32 = -1
+                while instance.frames.count != 0 && instance.failure.problem == .None {
+                    frame_index := instance.frames.count - 1
+                    frame := *instance.frames[frame_index]
+                    at := frame.instruction
+                    // The hook only changes this frame's instruction and scalar words.
+                    if at == 0 || at == next { next = blocks.run(blocks.context, instance, frame) }
+                    instruction := *instance.plan.packed_instructions[frame.instruction_base + frame.instruction]
+                    if !ExecStepInstruction(instance, frame_index, frame, instruction) { break }
+                }
+                return instance.failure.problem == .None
+            }
             while instance.frames.count != 0 && instance.failure.problem == .None {
                 if !ExecStepPacked(instance) { break }
             }
@@ -5529,6 +5607,11 @@ LirExecRun :: (instance: *LirExecInstance) -> LirExecResult {
 // instance.fuel_remaining; false with the result LirExecRun gives in
 // `failed`. The first run takes LirExecRun's own path.
 LirExecRunEntry :: (instance: *LirExecInstance, failed: *LirExecResult) -> bool {
+    return LirExecRunEntryWithPackedBlocks(instance, failed, null)
+}
+
+LirExecRunEntryWithPackedBlocks :: (instance: *LirExecInstance, failed: *LirExecResult,
+    blocks: *void) -> bool {
     if instance != null && instance.ready && instance.initialized && instance.hosts_bound &&
         !instance.running && instance.plan != null && instance.plan.ready {
         entry := instance.plan.program.entry
@@ -5539,7 +5622,7 @@ LirExecRunEntry :: (instance: *LirExecInstance, failed: *LirExecResult) -> bool 
             }
             instance.running = true
             no_arguments: [0]LirExecArgument
-            unused ExecRunRoot(instance, entry, no_arguments[:])
+            unused ExecRunRoot(instance, entry, no_arguments[:], blocks)
             if ExecEndRun(instance) { return true }
             <<failed = instance.failure
             return false
@@ -5653,14 +5736,16 @@ LirExecHostMutableView :: (instance: *LirExecInstance, function: s32, parameter:
     program := instance.plan.program
     parameters := program.functions[function].parameters
     if parameter < 0 || parameter >= 64 || cast(s64)parameter >= parameters.count ||
-        ExecHostParameter(instance.hosts[binding].borrowed_strings, parameter) ||
+        ExecHostParameter(instance.hosts[binding].borrowed_views, parameter) ||
         !LirHostView(program, parameters[parameter]) { return .Calling }
     instance.hosts[binding].views |= cast(u64)1 << cast(u64)parameter
     return .None
 }
 
-// Borrow one immutable byte-view parameter of a verified typed host call.
-LirExecHostBorrowString :: (instance: *LirExecInstance, function: s32, parameter: s32) -> LirExecProblem {
+// Borrow one verified top-level string or scalar slice parameter of a typed
+// host call. For a read-only slice, replace the host adapter's mutable view.
+LirExecHostBorrowView :: (instance: *LirExecInstance, function: s32, parameter: s32,
+    string_view: bool) -> LirExecProblem {
     if instance == null || !instance.ready || instance.plan == null { return .NotReady }
     if instance.running { return .Busy }
     binding := ExecHostBinding(instance, function)
@@ -5668,12 +5753,18 @@ LirExecHostBorrowString :: (instance: *LirExecInstance, function: s32, parameter
     program := instance.plan.program
     parameters := program.functions[function].parameters
     if parameter < 0 || parameter >= 64 || cast(s64)parameter >= parameters.count ||
-        ExecHostParameter(instance.hosts[binding].views, parameter) ||
         !LirHostView(program, parameters[parameter]) { return .Calling }
     view := program.types[parameters[parameter]]
     element := program.types[program.types[view.fields[0]].element]
-    if element.kind != .Integer || element.bits != 8 || element.is_signed { return .Calling }
-    instance.hosts[binding].borrowed_strings |= cast(u64)1 << cast(u64)parameter
+    if string_view {
+        if element.kind != .Integer || element.bits != 8 || element.is_signed ||
+            ExecHostParameter(instance.hosts[binding].views, parameter) { return .Calling }
+    } else if !(element.kind == .Integer &&
+        (element.bits == 8 || element.bits == 16 || element.bits == 32 || element.bits == 64) ||
+        element.kind == .Float && (element.bits == 32 || element.bits == 64)) { return .Calling }
+    mask := cast(u64)1 << cast(u64)parameter
+    instance.hosts[binding].views &= ~mask
+    instance.hosts[binding].borrowed_views |= mask
     return .None
 }
 

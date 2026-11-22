@@ -51,7 +51,7 @@ static struct {
     ExampleSource sources[EXAMPLE_LIMIT];
     ExampleAttachment attachments[EXAMPLE_LIMIT];
     int source_count, attachment_count, failed;
-    const char *root;
+    const char *root, *target;
     const char *const *module_paths, *const *defines;
     int module_path_count, define_count;
 } examples;
@@ -236,6 +236,17 @@ static int example_imports(const ZirModule *entry, const ZirModule *owner)
     return 0;
 }
 
+static int check_api_programs(const ProgramSet *set, const char *target)
+{
+    if(!CheckCanonicalPrograms(set->programs, set->count, (const char *const *)set->paths))
+        return 0;
+    if(target)
+        for(int i = 0; i < set->count; i++)
+            if(!CheckTargetCapabilities(set->programs[i], target))
+                return 0;
+    return 1;
+}
+
 static int check_example(ExampleSource *source)
 {
     const char *owner_path = document_path(source->module->document);
@@ -258,7 +269,7 @@ static int check_example(ExampleSource *source)
         ProgramSet set = {0};
         ok = ProgramsLoadWithDefines(&set, examples.root, examples.module_paths, examples.module_path_count,
                                      examples.defines, examples.define_count, inputs, 1) &&
-             CheckCanonicalPrograms(set.programs, set.count, (const char *const *)set.paths);
+             check_api_programs(&set, examples.target);
         SourceOverlayEnd();
         if(ok) {
             const ZirModule *entry = &set.programs[0]->modules[0];
@@ -309,6 +320,7 @@ usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
           "usage: ziran api [--json] [--diagnostics=text|json] "
+          "[--target c|go|zx] [--target-os OS] [--target-cpu CPU] "
           "[--module NAME] [--symbol NAME|ID] [--imports-only] [--max-symbols N] [--max-bytes N] [--module-path DIR] [--define NAME] --root DIR file.zi|file.zir ...");
 }
 
@@ -844,9 +856,13 @@ main(int argc, char **argv)
 
     api_output = stdout;
     const char *max_symbols = NULL, *max_bytes = NULL;
+    const char *target = NULL, *target_os_name = NULL, *target_cpu_name = NULL;
     SetDiagnosticFormatFromArguments(argc, argv);
     const CommandOption options[] = {
         COMMAND_FLAG("--json", json),
+        COMMAND_TEXT("--target", target),
+        COMMAND_TEXT("--target-os", target_os_name),
+        COMMAND_TEXT("--target-cpu", target_cpu_name),
         COMMAND_TEXT("--module", filter_module),
         COMMAND_TEXT("--symbol", filter_symbol),
         COMMAND_FLAG("--imports-only", imports_only),
@@ -875,13 +891,23 @@ main(int argc, char **argv)
     if(max_bytes && !positive_bound(max_bytes, 1024, 1048576, &byte_limit)) {
         usage(); return 2;
     }
+    if(target && !TargetNameKnown(target)) {
+        Diagnostic(Span("<command>", 1, 1), "command.arguments", "unknown API target: %s", target);
+        return 2;
+    }
+    ZirTargetBackend backend = target == NULL || !strcmp(target, "zx") ?
+        ZIR_TARGET_ZX : !strcmp(target, "go") ? ZIR_TARGET_GO : ZIR_TARGET_C;
+    ZirTargetOS target_os;
+    if(!CommandConfigureTarget(backend, target_os_name, target_cpu_name, &target_os)) {
+        usage();
+        return 2;
+    }
     if(!ProgramsLoadWithDefines(&set, root, module_paths, module_path_count,
                                 defines, define_count,
                                 (const char *const *)(argv + first_file),
                                 argc - first_file))
         goto done;
-    if(!CheckCanonicalPrograms(set.programs, set.count,
-                               (const char *const *)set.paths))
+    if(!check_api_programs(&set, target))
         goto done;
     int module_count = 0;
     for(int i = 0; i < set.count; i++) module_count += set.programs[i]->module_count;
@@ -892,6 +918,7 @@ main(int argc, char **argv)
         for(int m = 0; m < set.programs[i]->module_count; m++) modules[index++] = &set.programs[i]->modules[m];
     qsort(modules, (size_t)module_count, sizeof(*modules), module_order);
     examples.root = root;
+    examples.target = target;
     examples.module_paths = module_paths;
     examples.module_path_count = module_path_count;
     examples.defines = defines;

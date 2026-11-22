@@ -60,6 +60,8 @@ ProgramBackend :: (program: *void) -> s32 #foreign hosting "ZxModuleProgramBacke
 RunProgram :: (program: *void, result: *s64, present: *s32) -> s32 #foreign hosting "ZxModuleProgramRun";
 BorrowProgramString :: (program: *void, module: *u8, function: *u8,
     parameter: usize) -> s32 #foreign hosting "ZxModuleProgramBorrowHostString";
+BorrowProgramSlice :: (program: *void, module: *u8, function: *u8,
+    parameter: usize) -> s32 #foreign hosting "ZxModuleProgramBorrowHostSlice";
 CloseProgram :: (program: *void) #foreign hosting "ZxModuleProgramClose";
 RenewSteps :: () -> s32 #foreign hosting "BundleHostRenewSteps";
 
@@ -561,6 +563,292 @@ BorrowCases :: (test: *NativeTest, compiler: string) -> bool {
     return true
 }
 
+ScalarSliceApp :: #string ZI
+host_api :: #system_library "host_api";
+Pair :: struct { first: [1]u32; pad: u8; second: [1]u32 }
+Read :: (first: []u32, second: []u32, other: []string) -> s32 #reads #foreign host_api;
+Update :: (values: []u32) -> void #foreign host_api;
+
+main :: () -> s32 {
+    pair: Pair
+    pair.first[0] = 0x78563412
+    pair.second[0] = 0x21436587
+    other: [0]string
+    if Read(pair.first[:], pair.second[:], other[:]) != 17 { return 1 }
+    if Read(pair.first[0:0], pair.second[0:0], other[:]) != 17 { return 2 }
+    if pair.first[0] != 0x78563412 || pair.second[0] != 0x21436587 { return 3 }
+    Update(pair.first[:])
+    return cast(s32)pair.first[0]
+}
+
+bounds :: () -> s32 {
+    pair: Pair
+    other: [0]string
+    size: s64 = 2
+    return Read(pair.first[:size], pair.second[:], other[:])
+}
+ZI;
+
+ScalarSliceContext :: struct {
+    program: *void
+    borrowed: bool
+    fail: bool
+    reads: s32
+    updates: s32
+}
+
+SliceWord :: (arg: Host.HostValue, borrowed: bool, populated: bool, expected: u64) -> bool {
+    if TextFromCString(arg.type_name) != "[]u32" || arg.length != cast(usize)populated { return false }
+    if !borrowed {
+        return arg.kind == cast(s32)Host.HostValueKind.HostSlice &&
+            (!populated || arg.elements[0].bits == expected)
+    }
+    if arg.kind != cast(s32)Host.HostValueKind.HostBorrowedSlice || arg.elements != null { return false }
+    if !populated { return arg.data == null }
+    return arg.data != null && arg.data[0] == cast(u8)expected &&
+        arg.data[1] == cast(u8)(expected >> 8) && arg.data[2] == cast(u8)(expected >> 16) &&
+        arg.data[3] == cast(u8)(expected >> 24)
+}
+
+#program_export
+HostedScalarRead :: (opaque: *void, module: *u8, function: *u8, args: *Host.HostValue,
+    count: s32, result: *Host.HostValue) -> s32 {
+    state := cast(*ScalarSliceContext)opaque
+    full := state.reads == 0
+    if count != 3 || !SliceWord(args[0], state.borrowed, full, 0x78563412) ||
+        !SliceWord(args[1], state.borrowed, full, 0x21436587) ||
+        args[2].kind != cast(s32)Host.HostValueKind.HostSlice || args[2].length != 0 { return 0 }
+    if state.borrowed {
+        // A packed record places the two u32 values five bytes apart. The
+        // callback must read an unaligned one correctly and keep it through
+        // a rejected reentrant run.
+        if full && (cast(usize)args[1].data - cast(usize)args[0].data) != 5 { return 0 }
+        if BorrowProgramSlice(state.program, module, function, 0) != 0 ||
+            RunProgram(state.program, null, null) != 0 ||
+            !SliceWord(args[0], true, full, 0x78563412) { return 0 }
+    }
+    state.reads += 1
+    if state.fail { return 0 }
+    result.kind = cast(s32)Host.HostValueKind.HostInteger
+    result.integer = 17
+    return 1
+}
+
+#program_export
+HostedScalarUpdate :: (opaque: *void, module: *u8, function: *u8, args: *Host.HostValue,
+    count: s32, result: *Host.HostValue) -> s32 {
+    if count != 1 || !SliceWord(args[0], false, true, 0x78563412) { return 0 }
+    state := cast(*ScalarSliceContext)opaque
+    state.updates += 1
+    args[0].elements[0].bits = 23
+    return 1
+}
+
+ScalarSliceCase :: (test: *NativeTest, bundle: *void, backend: s32, borrow: bool,
+    fail: bool = false, bounds: bool = false, mismatched_type: bool = false) -> bool {
+    config := LoaderConfig.{options = .{backend, 2000, 0}}
+    loader := OpenLoader(*config)
+    defer CloseLoader(loader)
+    context := ScalarSliceContext.{borrowed = borrow, fail = fail}
+    module := HostedBytes("scalar_slice_app")
+    read := HostedBytes("Read")
+    update := HostedBytes("Update")
+    bindings := Host.HostBinding.[.{module, read, HostedScalarRead, cast(*void)*context},
+        .{module, update, HostedScalarUpdate, cast(*void)*context}]
+    context.program = OpenProgram(loader, bundle, *bindings[0], cast(usize)bindings.count)
+    defer CloseProgram(context.program)
+    if !NativeAssert(test, context.program != null, "open scalar slice host fixture") { return false }
+    if mismatched_type {
+        return NativeAssert(test, BorrowProgramSlice(context.program, module, read, 0) == 0,
+            "reject borrowed slice with an interface width different from the checked scalar width")
+    }
+    if !NativeAssert(test, BorrowProgramSlice(context.program, module, read, 2) == 0 &&
+        BorrowProgramSlice(context.program, module, read, 64) == 0 &&
+        BorrowProgramSlice(context.program, module, HostedBytes("Missing"), 0) == 0 &&
+        BorrowProgramSlice(context.program, module, update, 0) == 0,
+        "reject unsupported, absent and potentially mutable parameters") { return false }
+    if borrow || backend == 2 {
+        if !NativeAssert(test,
+            (BorrowProgramSlice(context.program, module, read, 0) != 0) == borrow &&
+            (BorrowProgramSlice(context.program, module, read, 1) != 0) == borrow,
+            "borrow fixed-width scalar slices only on the instruction engine") { return false }
+    }
+    result: s64; present: s32
+    ran := RunProgram(context.program, *result, *present) != 0
+    if bounds { return NativeAssert(test, !ran && context.reads == 0, "reject invalid extent before callback") }
+    if fail { return NativeAssert(test, !ran && context.reads == 1 && context.updates == 0, "propagate host failure") }
+    return NativeAssert(test, ran && present == 1 && result == 23 && context.reads == 2 && context.updates == 1,
+        "read nonempty and empty slices, and preserve ordinary mutable copy-back")
+}
+
+ScalarSliceCases :: (test: *NativeTest, compiler: string) -> bool {
+    source := CheckPath(test.work, "scalar_slice_app.zi")
+    output := CheckPath(test.work, "scalar-slice.zx")
+    if !NativeWrite(test, source, ScalarSliceApp) { return false }
+    entries := string.["main", "bounds"]
+    for entry: entries {
+        compile := string.[compiler, "--root", test.work, "--entry", CheckConcat("scalar_slice_app:", entry), "-o", output, source]
+        if !Build(test, compile[:]) { return false }
+        bytes := NativeRead(test, output)
+        ordinary := Host.OpenBundleBytes(HostedBytes(bytes), cast(u64)bytes.count)
+        defer Host.CloseBundle(ordinary)
+        source_input := SourceFixture.{bytes = bytes}
+        packed := OpenEngineReadAt(cast(u64)bytes.count, ReadSourceFixture, cast(*void)*source_input, null, ReallocFixture)
+        defer Host.CloseBundle(packed)
+        if !NativeAssert(test, ordinary != null && packed != null, "open scalar slice image with both readers") { return false }
+        bounds := entry == "bounds"
+        bundles: [2]*void = .[ordinary, packed]
+        for bundle: bundles {
+            if !ScalarSliceCase(test, bundle, 1, false, bounds = bounds) ||
+                !ScalarSliceCase(test, bundle, 1, true, bounds = bounds) { return false }
+            if !bounds && !ScalarSliceCase(test, bundle, 1, true, fail = true) { return false }
+        }
+        if Host.GetBundleNativeProblem(ordinary) == "" &&
+            !ScalarSliceCase(test, ordinary, 2, false, bounds = bounds) { return false }
+    }
+    return true
+}
+
+PackedArithmeticApp :: #string ZI
+host_api :: #system_library "host_api";
+Mode :: () -> s32 #foreign host_api;
+Observe :: (index: s32, value: s32) -> void #foreign host_api;
+
+Mix :: (value: s32, divisor: s32, shift: s32) -> s32 {
+    narrow := cast(s8)value
+    multiplied := value * 13 + 2147483647
+    shifted := (-multiplied) >> shift
+    return (shifted / divisor) ^ (multiplied % divisor) ^ (cast(s32)narrow * 589)
+}
+
+main :: () -> s32 {
+    mode := Mode()
+    words: [2]s32
+    words[0] = 92372101
+    for index: cast(s32)0..11 {
+        divisor: s32 = 19
+        shift: s32 = 5
+        slot: s64 = 0
+        if index == 7 {
+            if mode == 1 { divisor = 0 }
+            if mode == 2 { shift = 32 }
+            if mode == 4 { slot = 2 }
+            if mode == 0 { divisor = -1 }
+        }
+        value := Mix(words[0], divisor, shift)
+        wider := cast(s64)value + 4294967296
+        if (wider & 256) != 0 { value ^= 32767 }
+        view := words[:]
+        view[slot] = value
+        Observe(index, words[0])
+    }
+    return words[0]
+}
+ZI;
+
+PackedArithmeticState :: struct { mode: s32; calls: s32; checksum: u64; inspect: bool; executable: s64 }
+PackedArithmeticResult :: struct { ran: bool; present: s32; value: s64; calls: s32; checksum: u64 }
+
+AnonymousExecutableMappings :: () -> s64 {
+    maps, read := ReadEntireFile("/proc/self/maps")
+    if !read { return -1 }
+    lines := TextLines(maps)
+    defer VecFree(lines)
+    count: s64 = 0
+    for line: lines {
+        permissions := TextFind(line, " ")
+        if permissions < 0 { continue }
+        fields := line[permissions + 1:]
+        if !TextHasPrefix(fields, "r-xp ") { continue }
+        inode := TextFind(fields, " 00:00 0")
+        if inode >= 0 && TextTrim(fields[inode + 8:]) == "" { count += 1 }
+    }
+    return count
+}
+
+#program_export
+PackedArithmeticMode :: (opaque: *void, module: *u8, name: *u8, args: *Host.HostValue,
+    count: s32, result: *Host.HostValue) -> s32 {
+    if count != 0 { return 0 }
+    state := cast(*PackedArithmeticState)opaque
+    result.kind = cast(s32)Host.HostValueKind.HostInteger
+    result.integer = state.mode
+    return 1
+}
+
+#program_export
+PackedArithmeticObserve :: (opaque: *void, module: *u8, name: *u8, args: *Host.HostValue,
+    count: s32, result: *Host.HostValue) -> s32 {
+    state := cast(*PackedArithmeticState)opaque
+    if count != 2 || args[0].integer != cast(s64)state.calls { return 0 }
+    state.checksum = state.checksum * 16777619 ^ args[1].bits
+    state.calls += 1
+    if state.inspect && state.calls == 7 { state.executable = AnonymousExecutableMappings() }
+    return cast(s32)(state.mode != 3 || state.calls != 8)
+}
+
+RunPackedArithmetic :: (test: *NativeTest, bundle: *void, mode: s32, steps: s32,
+    backend: s32 = 1, inspect: bool = false) -> PackedArithmeticResult {
+    config := LoaderConfig.{options = .{backend, steps, 0}}
+    loader := OpenLoader(*config)
+    defer CloseLoader(loader)
+    state := PackedArithmeticState.{mode = mode, inspect = inspect}
+    module := HostedBytes("packed_arithmetic")
+    bindings := Host.HostBinding.[.{module, HostedBytes("Mode"), PackedArithmeticMode, cast(*void)*state},
+        .{module, HostedBytes("Observe"), PackedArithmeticObserve, cast(*void)*state}]
+    program := OpenProgram(loader, bundle, *bindings[0], cast(usize)bindings.count)
+    output: PackedArithmeticResult
+    if !NativeAssert(test, program != null, "open packed arithmetic instance") { return output }
+    before := ifx inspect then AnonymousExecutableMappings() else -1
+    output.ran = RunProgram(program, *output.value, *output.present) != 0
+    output.calls = state.calls
+    output.checksum = state.checksum
+    CloseProgram(program)
+    if inspect {
+        unused NativeAssert(test, before >= 0 && state.executable > before &&
+            AnonymousExecutableMappings() == before, "hot packed code is executable and released after close")
+    }
+    return output
+}
+
+SamePackedArithmetic :: (left: PackedArithmeticResult, right: PackedArithmeticResult) -> bool {
+    return left.ran == right.ran && left.present == right.present && left.value == right.value &&
+        left.calls == right.calls && left.checksum == right.checksum
+}
+
+PackedArithmeticCases :: (test: *NativeTest, compiler: string) -> bool {
+    source := CheckPath(test.work, "packed_arithmetic.zi")
+    output := CheckPath(test.work, "packed-arithmetic.zx")
+    if !NativeWrite(test, source, PackedArithmeticApp) { return false }
+    compile := string.[compiler, "--root", test.work, "--entry", "packed_arithmetic:main", "-o", output, source]
+    if !Build(test, compile[:]) { return false }
+    bytes := NativeRead(test, output)
+    ordinary := Host.OpenBundleBytes(HostedBytes(bytes), cast(u64)bytes.count)
+    defer Host.CloseBundle(ordinary)
+    input := SourceFixture.{bytes = bytes}
+    packed := OpenEngineReadAt(cast(u64)bytes.count, ReadSourceFixture, cast(*void)*input, null, ReallocFixture)
+    defer Host.CloseBundle(packed)
+    if !NativeAssert(test, ordinary != null && packed != null, "open packed arithmetic fixture") { return false }
+    expected_calls := s32.[12, 7, 7, 8, 7]
+    inspect := EnvironmentText("ZIRAN_TEST_I386_BLOCKS") == "1"
+    for mode: cast(s32)0..4 {
+        expected := RunPackedArithmetic(test, ordinary, mode, 6000)
+        actual := RunPackedArithmetic(test, packed, mode, 6000, inspect = inspect && mode == 0)
+        if !NativeAssert(test, expected.ran == (mode == 0) && expected.calls == expected_calls[mode] &&
+            SamePackedArithmetic(expected, actual), "packed arithmetic, checked failure and host-effect parity") { return false }
+        if mode == 0 && Host.GetBundleNativeProblem(ordinary) == "" {
+            native := RunPackedArithmetic(test, ordinary, mode, 6000, backend = 2)
+            if !NativeAssert(test, SamePackedArithmetic(expected, native), "native arithmetic and host-effect parity") { return false }
+        }
+    }
+    for steps: s32.[8, 25, 60, 120, 200, 300, 500, 1000] {
+        expected := RunPackedArithmetic(test, ordinary, 0, steps)
+        actual := RunPackedArithmetic(test, packed, 0, steps)
+        if !NativeAssert(test, SamePackedArithmetic(expected, actual), "packed arithmetic fuel boundary parity") { return false }
+    }
+    return !test.failed
+}
+
 PackedSourceCase :: (test: *NativeTest, compiler: string) -> bool {
     source := CheckPath(test.work, "packed_source.zi")
     output := CheckPath(test.work, "packed-source.zx")
@@ -607,13 +895,22 @@ PackedSourceCase :: (test: *NativeTest, compiler: string) -> bool {
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "zx-module-hosted-")
-    if test.failed || argc != 4 { return 1 }
+    if test.failed || (argc != 4 && argc != 5) { return 1 }
     defer NativeCleanup(*test)
+    if argc == 5 {
+        bytes := NativeRead(*test, TextFromCString(argv[4]))
+        bundle := Host.OpenBundleBytes(HostedBytes(bytes), cast(u64)bytes.count)
+        defer Host.CloseBundle(bundle)
+        if !NativeAssert(*test, bundle != null, "open verified slice declaration fixture") ||
+            !ScalarSliceCase(*test, bundle, 1, false, mismatched_type = true) { return 1 }
+        return 0
+    }
     compiler := CheckPath(PathParent(test.ziran), "zi2zx")
     std := CheckPath(test.repo, "std")
     bridge := TextFromCString(argv[3])
     if !HostedCases(*test, compiler, std, bridge) || !FuelCases(*test, compiler) ||
-        !BorrowCases(*test, compiler) || !PackedSourceCase(*test, compiler) { return 1 }
+        !BorrowCases(*test, compiler) || !ScalarSliceCases(*test, compiler) ||
+        !PackedArithmeticCases(*test, compiler) || !PackedSourceCase(*test, compiler) { return 1 }
     return 0
 }
 }
@@ -635,7 +932,7 @@ Reject :: (test: *NativeTest, command: []string, expected: string) -> bool {
         CheckConcat(expected, CheckConcat("\n", CheckConcat(result.output, result.error))))
 }
 
-Reframe :: (test: *NativeTest, source: string, output: string, linkage: string) -> bool {
+Reframe :: (test: *NativeTest, source: string, output: string, linkage: string, rename_scalar: bool = false) -> bool {
     data, found := ReadEntireFile(source)
     if !NativeAssert(test, found, "read verified ZX fixture") { return false }
     no_assets: []Bundle.Asset
@@ -646,11 +943,16 @@ Reframe :: (test: *NativeTest, source: string, output: string, linkage: string) 
     read := Link.ZxExecRead(*owner, data, Lir.LirDefaultLimits())
     if !NativeAssert(test, read.problem == .None && layout.problem == .None, "decode fixture for linkage rewrite") { return false }
     program := Link.ZxExecReadProgram(*owner)
-    measured := Link.ZxExecWriteModule(program, no_assets, empty, layout.interface, false, linkage)
+    interface := layout.interface
+    if rename_scalar {
+        if !NativeAssert(test, TextContains(interface, "[]u32"), "fixture declares a u32 slice") { return false }
+        interface = TextDetach(TextReplace(interface, "u32", "u64"))
+    }
+    measured := Link.ZxExecWriteModule(program, no_assets, empty, interface, false, linkage)
     bytes: Vec(u8)
     defer VecFree(bytes)
     if !NativeAssert(test, measured.problem == .None && VecResize(bytes, measured.size), "measure new linkage") { return false }
-    written := Link.ZxExecWriteModule(program, no_assets, bytes[:], layout.interface, false, linkage)
+    written := Link.ZxExecWriteModule(program, no_assets, bytes[:], interface, false, linkage)
     return NativeAssert(test, written.problem == .None, "encode new linkage with valid identity") &&
         NativeWrite(test, output, TextView(bytes[:]))
 }
@@ -744,6 +1046,10 @@ main :: (argc: s32, argv: **u8) -> s32 {
     guest := string.[CheckPath(hosted_build, "zx_module_runtime_cases"), test.ziran, CheckPath(test.work, "hosted"),
         CheckPath(test.work, "demo/bridge.zx")]
     if !Build(*test, hosted[:]) || !Build(*test, guest[:]) { return 1 }
+    wrong_slice := CheckPath(test.work, "wrong-slice.zx")
+    wrong_slice_run := string.[guest[0], guest[1], guest[2], guest[3], wrong_slice]
+    if !Reframe(*test, CheckPath(test.work, "hosted/scalar-slice.zx"), wrong_slice, "", rename_scalar = true) ||
+        !Build(*test, wrong_slice_run[:]) { return 1 }
 
     stale := CheckPath(test.work, "stale.zx")
     stale_build := string.[compiler, "--root", fixtures, "--module-path", std, "--entry", "application:stale",

@@ -1102,6 +1102,27 @@ exec_view_element(const ExecBundle *bundle, int32_t type)
     return pointer->kind == LirTypeKind_Pointer ? pointer->element : -1;
 }
 
+/* Unlike a HostValue tree, the byte view relies on its declared element
+ * spelling to tell the callback how many bytes to read. Verify that both
+ * interface names agree with the element type in the checked program. */
+static int
+exec_borrowable_slice(const ExecBundle *bundle, const ExecNode *node, int32_t type)
+{
+    if(node->class != NODE_SLICE || strncmp(node->spelling, "[]", 2) != 0) return 0;
+    const ExecNode *child = &bundle->nodes[node->child];
+    int32_t item = exec_view_element(bundle, type);
+    if(child->class != NODE_SCALAR || item < 0) return 0;
+    const LirType *element = exec_type(bundle, item);
+    if(element->native_width) return 0;
+    const char *prefix;
+    if(element->kind == LirTypeKind_Integer) prefix = element->is_signed ? "s" : "u";
+    else if(element->kind == LirTypeKind_Float) prefix = "float";
+    else return 0;
+    char spelling[16];
+    snprintf(spelling, sizeof(spelling), "%s%d", prefix, element->bits);
+    return !strcmp(child->spelling, spelling) && !strcmp(node->spelling + 2, spelling);
+}
+
 typedef struct ModuleType {
     const ExecBundle *bundle;
     int node;
@@ -1797,11 +1818,15 @@ ExecHostsCall(ExecHosts *hosts, size_t index, ExecHostArgument *arguments, size_
         const LirType *type = exec_type(bundle, arguments[at].type);
         arguments[at].changed = 0;
         if(arguments[at].borrowed) {
-            if(node->class != NODE_STRING || (arguments[at].size != 0 && arguments[at].bytes == NULL)) goto done;
-            values[at].kind = HOST_STRING;
+            if(node->class != NODE_STRING && node->class != NODE_SLICE) goto done;
+            int32_t element = exec_view_element(bundle, arguments[at].type);
+            int64_t width = element >= 0 ? exec_size(bundle, element) : 0;
+            if(width <= 0 || arguments[at].size % (size_t)width != 0 ||
+               (arguments[at].size != 0 && arguments[at].bytes == NULL)) goto done;
+            values[at].kind = node->class == NODE_STRING ? HOST_STRING : HOST_BORROWED_SLICE;
             values[at].type = node->spelling;
             values[at].data = arguments[at].size ? arguments[at].bytes : NULL;
-            values[at].length = arguments[at].size;
+            values[at].length = arguments[at].size / (size_t)width;
         } else if(node->class == NODE_SCALAR) {
             if(!exec_scalar_value(node, type, arguments[at].bits, &values[at])) goto done;
         } else if(node->class == NODE_POINTER) {
@@ -1825,7 +1850,7 @@ ExecHostsCall(ExecHosts *hosts, size_t index, ExecHostArgument *arguments, size_
     if(!called) goto done;
     hosts->back.length = 0;
     for(size_t at = 0; at < count; at++)
-        if(bundle->nodes[host->parameters[at]].class == NODE_SLICE) {
+        if(!arguments[at].borrowed && bundle->nodes[host->parameters[at]].class == NODE_SLICE) {
             if(!exec_copy_back(hosts, host->parameters[at], &arguments[at], &values[at], &backs[at])) goto done;
             /* Reading a slice does not change its elements. In particular,
              * a view inside an element needs no copy-back when the host kept
@@ -2103,6 +2128,11 @@ ExecHostsClose(ExecHosts *hosts)
 
 /* ---- Instances ---------------------------------------------------------- */
 
+#if defined(__linux__) && defined(__i386__) && !defined(__ANDROID__) && !defined(ZIRAN_EXEC_NO_I386_BLOCKS)
+#define ZIRAN_EXEC_I386_BLOCKS 1
+#include "zir_exec_i386.inc"
+#endif
+
 typedef struct ExecCall {
     ExecInstance *owner;
     size_t host;
@@ -2122,6 +2152,9 @@ struct ExecInstance {
     int cumulative;
     int failed;
     ZxConsole console;
+#ifdef ZIRAN_EXEC_I386_BLOCKS
+    ExecI386Cache *i386;
+#endif
 };
 
 int
@@ -2199,7 +2232,12 @@ exec_run(ExecInstance *instance, int initialize, LirExecResult *ran)
         ok = ran->problem == LirExecProblem_None;
         remaining = ran->fuel_remaining;
     } else {
+#ifdef ZIRAN_EXEC_I386_BLOCKS
+        LirExecPackedBlocks blocks = {.run = i386_run_block, .context = instance->i386};
+        ok = compiler_exec_LirExecRunEntryWithPackedBlocks(&instance->instance, ran, instance->i386 ? &blocks : NULL);
+#else
         ok = compiler_exec_LirExecRunEntry(&instance->instance, ran);
+#endif
         remaining = ok ? instance->instance.fuel_remaining : ran->fuel_remaining;
     }
     instance->active_limit = 0;
@@ -2309,6 +2347,9 @@ ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, 
     /* Globals are initialized now, within the budget, as on the semantic VM. */
     LirExecResult initialized;
     if(!exec_run(instance, 1, &initialized)) goto failed;
+#ifdef ZIRAN_EXEC_I386_BLOCKS
+    instance->i386 = i386_open(&instance->instance);
+#endif
     return instance;
 failed:
     ExecInstanceClose(instance);
@@ -2316,17 +2357,24 @@ failed:
 }
 
 int
-ExecInstanceBorrowHostString(ExecInstance *instance, const char *module, const char *function, size_t parameter)
+ExecInstanceBorrowHostView(ExecInstance *instance, const char *module, const char *function,
+                           size_t parameter, int string_view)
 {
     if(module == NULL || function == NULL || parameter >= 64 || instance->instance.running) return 0;
     const ExecBundle *bundle = instance->bundle;
     for(size_t index = 0; index < bundle->host_count; index++) {
         const ExecHost *host = &bundle->hosts[index];
         if(strcmp(host->module, module) || strcmp(host->name, function)) continue;
-        return parameter < (size_t)host->parameter_count &&
-            bundle->nodes[host->parameters[parameter]].class == NODE_STRING &&
-            compiler_exec_LirExecHostBorrowString(&instance->instance, host->function,
-                (int32_t)parameter) == LirExecProblem_None;
+        if(parameter >= (size_t)host->parameter_count) return 0;
+        const ExecNode *node = &bundle->nodes[host->parameters[parameter]];
+        if(string_view) {
+            if(node->class != NODE_STRING) return 0;
+        } else if(!host->reads ||
+                  !exec_borrowable_slice(bundle, node, ExecBundleCapabilityParameterTypeId(bundle, index, parameter))) {
+            return 0;
+        }
+        return compiler_exec_LirExecHostBorrowView(&instance->instance, host->function,
+            (int32_t)parameter, string_view != 0) == LirExecProblem_None;
     }
     return 0;
 }
@@ -2522,6 +2570,9 @@ ExecInstanceClose(ExecInstance *instance)
     /* What the instance wrote is out by the time it closes. */
     ZxConsoleFlush(&instance->console);
     if(instance->console.write == NULL) fflush(stdout);
+#ifdef ZIRAN_EXEC_I386_BLOCKS
+    i386_close(instance->i386);
+#endif
     compiler_exec_LirExecInstanceClose(&instance->instance);
     ExecHostsClose(instance->hosts);
     free(instance->calls);
@@ -2655,9 +2706,10 @@ int ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result)
     return 0;
 }
 void ExecInstanceLimitSteps(ExecInstance *instance, long long max_steps) { (void)instance; (void)max_steps; }
-int ExecInstanceBorrowHostString(ExecInstance *instance, const char *module, const char *function, size_t parameter)
+int ExecInstanceBorrowHostView(ExecInstance *instance, const char *module, const char *function,
+                               size_t parameter, int string_view)
 {
-    (void)instance; (void)module; (void)function; (void)parameter;
+    (void)instance; (void)module; (void)function; (void)parameter; (void)string_view;
     return 0;
 }
 int BundleHostRenewSteps(void) { return 0; }

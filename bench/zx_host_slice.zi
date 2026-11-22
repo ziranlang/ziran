@@ -1,0 +1,16 @@
+host_api :: #system_library "host_api";
+Consume :: (words: []u32) -> u32 #reads #foreign host_api;
+
+Payload: [32768]u32;
+
+Small :: () -> u32 {
+    Payload[0] = 0x12345678
+    Payload[1023] = 0x11223344
+    return Consume(Payload[:1024])
+}
+
+Large :: () -> u32 {
+    Payload[0] = 0x12345678
+    Payload[32767] = 0x11223344
+    return Consume(Payload[:])
+}

@@ -1,0 +1,156 @@
+{
+  "host": "alpha",
+  "virtualization": "none",
+  "date": "2026-11-21",
+  "status": "preliminary; scalar-loop ratios are not reproduced by the warmed portable blend kernel; no emu/end-to-end speedup established",
+  "workload": "256-pixel row load/xor/store; 1000 rows/sample; output checked on every invocation; planning excluded",
+  "compiler": "Alpha cc -O2 (GCC 15); i386 uses transferred host32 sysroot",
+  "statistics": "symmetric 1.5*IQR, inclusive interpolated quartiles; zero-based exclusions",
+  "measurements": {
+    "x86_64_before": {
+      "raw_nanoseconds": [
+        49841367,
+        44436117,
+        42354455,
+        42488163,
+        45930413,
+        48826117,
+        51603050,
+        56053381,
+        55560614,
+        55313019,
+        55482175
+      ],
+      "excluded_indices": [],
+      "lower_fence": 29861767.0,
+      "upper_fence": 70719095.0,
+      "median_nanoseconds": 49841367
+    },
+    "x86_64_after": {
+      "raw_nanoseconds": [
+        46663387,
+        45880898,
+        45355193,
+        45712303,
+        46456108,
+        46819872,
+        45531577,
+        46437075,
+        47425163,
+        42588029,
+        40073381
+      ],
+      "excluded_indices": [
+        9,
+        10
+      ],
+      "lower_fence": 43768841.25,
+      "upper_fence": 48234291.25,
+      "median_nanoseconds": 46437075
+    },
+    "i386_before": {
+      "raw_nanoseconds": [
+        96231392,
+        96536416,
+        80423383,
+        76222006,
+        67221829,
+        65607180,
+        83401061,
+        76370599,
+        82935086,
+        75299541,
+        79671226
+      ],
+      "excluded_indices": [
+        0,
+        1
+      ],
+      "lower_fence": 64649823.5,
+      "upper_fence": 94279023.5,
+      "median_nanoseconds": 76370599
+    },
+    "i386_after": {
+      "raw_nanoseconds": [
+        103775848,
+        110871173,
+        103615912,
+        83797848,
+        66192245,
+        65608163,
+        67539790,
+        68172957,
+        68292718,
+        63875653,
+        54814769
+      ],
+      "excluded_indices": [],
+      "lower_fence": 24190190.0,
+      "upper_fence": 135416894.0,
+      "median_nanoseconds": 68172957
+    }
+  },
+  "i386_speedup": 1.1202477105401194,
+  "x86_64_speedup": 1.073309785338547,
+  "sha256": {
+    "bench/rill_compact.zi": "08705a188d9ec79ce202c54041b3cb3cff392ee27ee8e0ed1c73d7a6f1c603f4",
+    "backup/rill-compact-before-c/compiler_exec.c": "1fcd7ceba27fbdfd8216397267bf4216b121b83d4da5e7f289cdc360b92d901c",
+    "build/rill-compact-c/compiler_exec.c": "62c12d7f2de4e48efabb7d70dc20eda088f25d29aaf73bfd49751887ffa98559",
+    "cmd/compiler_exec.zi": "2c3784f1e93b8ea13660448418d560ae20d32b709bb85c12bb1a84fea9717b19"
+  },
+  "portable_row": {
+    "before": {
+      "raw": {
+        "result": "0",
+        "batches": 2,
+        "load_ms": 0.841747999,
+        "warmup_ms": 154.229223996,
+        "warmup_count": 16,
+        "batch_samples_ms": [
+          19.64373,
+          20.064096,
+          21.055795,
+          20.740127,
+          20.922014,
+          20.299566,
+          19.988896,
+          20.214841,
+          20.447649,
+          20.400071,
+          20.528377
+        ]
+      },
+      "median_ms": 10.2000355,
+      "excluded_indices": [],
+      "lower_fence_ms": 9.698646624999999,
+      "upper_fence_ms": 10.688213625
+    },
+    "after": {
+      "raw": {
+        "result": "0",
+        "batches": 1,
+        "load_ms": 0.847323,
+        "warmup_ms": 151.207264006,
+        "warmup_count": 14,
+        "batch_samples_ms": [
+          10.718624,
+          10.729561,
+          10.87083,
+          10.409323,
+          10.304669,
+          10.261611,
+          10.356734,
+          10.31709,
+          10.201597,
+          11.314635,
+          10.266138
+        ]
+      },
+      "median_ms": 10.356734,
+      "excluded_indices": [],
+      "lower_fence_ms": 9.62737,
+      "upper_fence_ms": 11.382126000000001
+    }
+  },
+  "portable_row_speedup": 0.9848698923811311
+}

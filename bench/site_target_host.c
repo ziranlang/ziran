@@ -22,11 +22,67 @@ static int64_t invoke(void) {
 #include "ziran_host.h"
 static Bundle *bundle;
 static BundleInstance *instance;
+#if defined(MATRIX_ZX_HOST_SLICE)
+/* A weak reference lets the identical driver link the archive from before the
+ * new API. A borrowed run must register successfully. */
+extern int BundleInstanceBorrowHostSlice(BundleInstance *, const char *,
+                                         const char *, size_t) __attribute__((weak));
+static int borrow_slice;
+static int consume_words(void *context, const char *module, const char *function,
+                         const HostValue *args, int count, HostValue *result) {
+    (void)context;
+    (void)module;
+    (void)function;
+    if(count != 1 || strcmp(args[0].type, "[]u32") ||
+       (args[0].length != 1024 && args[0].length != 32768)) return 0;
+    uint32_t sum = 0;
+    if(borrow_slice) {
+        if(args[0].kind != HOST_BORROWED_SLICE || !args[0].data || args[0].elements) return 0;
+        const unsigned char *p = args[0].data;
+        for(size_t i = 0; i < args[0].length; i++, p += 4)
+            sum += (uint32_t)p[0] | (uint32_t)p[1] << 8 |
+                   (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
+    } else {
+        if(args[0].kind != HOST_SLICE || !args[0].elements) return 0;
+        for(size_t i = 0; i < args[0].length; i++) sum += (uint32_t)args[0].elements[i].bits;
+    }
+    result->kind = HOST_UNSIGNED;
+    result->bits = sum;
+    return 1;
+}
+#endif
+#if defined(MATRIX_ZX_COMPACT)
+static size_t read_bundle(void *context, uint64_t offset, void *output, size_t size) {
+    FILE *file = context;
+    if(offset > INT64_MAX || fseeko(file, (off_t)offset, SEEK_SET)) return 0;
+    return fread(output, 1, size, file);
+}
+#endif
 static int open_program(const char *path) {
+#if defined(MATRIX_ZX_COMPACT)
+    FILE *file = fopen(path, "rb");
+    if(!file) return 0;
+    if(fseeko(file, 0, SEEK_END)) { fclose(file); return 0; }
+    off_t size = ftello(file);
+    bundle = size > 0 ? BundleOpenEngineReadAt((uint64_t)size, read_bundle, file, NULL, NULL) : NULL;
+    fclose(file);
+    if(!bundle) return 0;
+    BundleInstanceOptions options = {.backend = BUNDLE_BACKEND_ENGINE};
+#if defined(MATRIX_ZX_HOST_SLICE)
+    HostBinding binding = {"zx_host_slice", "Consume", consume_words, NULL};
+    instance = BundleInstantiateWithOptions(bundle, &binding, 1, &options);
+    borrow_slice = getenv("MATRIX_BORROW_SLICE") != NULL;
+    if(borrow_slice && (BundleInstanceBorrowHostSlice == NULL ||
+       !BundleInstanceBorrowHostSlice(instance, binding.module, binding.function, 0))) return 0;
+#else
+    instance = BundleInstantiateWithOptions(bundle, NULL, 0, &options);
+#endif
+#else
     bundle = BundleOpen(path);
     if(!bundle) return 0;
     /* No Wasm provider is installed here, so the instruction engine runs it. */
     instance = BundleInstantiate(bundle, NULL, 0);
+#endif
     return instance != NULL;
 }
 static int64_t invoke(void) {

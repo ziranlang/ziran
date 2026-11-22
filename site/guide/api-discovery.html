@@ -13,6 +13,14 @@ can use <code>ziran api --project --locked --json</code> to query its entry and 
 Without <code>--json</code>, the command prints concise text signatures with source
 locations. A failed load or check exits nonzero and does not print an API
 object.</p>
+<p>Use <code>--target c</code>, <code>--target go</code>, or <code>--target zx</code> to select and check the
+API for a specific backend. <code>--target-os OS</code> and <code>--target-cpu CPU</code> set the
+same conditional source facts as <code>ziran check</code>. Without an explicit
+target, queries keep the portable ZX source configuration.</p>
+<p>Projects use their pinned compiler by default. <code>ziran api --project --locked
+--current-toolchain --target c --json</code> checks the locked source graph with
+the API tool beside the current launcher. This allows documentation builds
+to use the current API query options for packages with older toolchain pins.</p>
 <p>The JSON object has <code>schema_version: 1</code> and a <code>modules</code> array. Each module has
 <code>name</code>, <code>source</code>, <code>imports</code>, <code>constants</code>, <code>globals</code>, <code>types</code>, and <code>functions</code>.
 Imports include their kind, alias/name, target, foreign target and symbol when
@@ -69,8 +77,8 @@ the original UTF-8 source bytes.</p>
 <p>An absent or null <code>examples</code> field means no example was returned for that
 symbol. Text, saved IR and <code>--imports-only</code> queries do not discover sidecars.
 Ziran checks selected example sources with the query's module paths, package
-map and defines, using the normal source ownership rules. It checks the entry
-and its imports and does not run <code>main</code> or assert target-specific availability.
+map, target and defines, using the normal source ownership rules. It checks
+the entry and its imports without running <code>main</code>.
 To run the original source, pass <code>entry</code> to <code>ziran run --entry</code> and keep the
 same project or import settings.</p>
 <p>Version 1 allows up to 64 attachment rows per query and up to 16 KiB per

@@ -12,10 +12,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if test.failed { return 1 }
     defer NativeCleanup(*test)
     script := CheckPath(test.repo, "scripts/site_pages.py")
-    // This is the real production generator, including its public freshness
-    // check. Test orchestration and assertions stay in this Ziran program.
-    check := string.["python3", script, "--ziran", test.ziran, "--check"]
-    unused NativeRun(*test, check[:])
     source := CheckPath(test.work, "src")
     loader := CheckPath(source, "loader.zi")
     if !NativeWrite(*test, loader, "// Loader module.\n\n#load \"part.zi\";\n") ||
@@ -30,6 +26,23 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !NativeAssert(*test, CheckField(*document, root, "summary") == "Loader module." && JsonCount(*document, entries) == 1 &&
         JsonString(*document, JsonElement(*document, entry, 1)) == "Double :: (n: s32) -> s32" &&
         JsonString(*document, JsonElement(*document, entry, 2)) == "Doubles a number.", "loaded declaration documentation came from the wrong file or line") { return 1 }
+    native_api := CheckPath(source, "native_api.zi")
+    if !NativeWrite(*test, CheckPath(source, "provider.zi"),
+        "#if TARGET == .C {\nNativeValue :: () -> s32 { return 42 }\n}\n") ||
+        !NativeWrite(*test, native_api,
+        "Provider :: #import \"provider\";\nRead :: () -> s32 { return Provider.NativeValue() }\n") { return 1 }
+    default_api := string.[test.ziran, "api", "--json", "--root", source, native_api]
+    default_result := NativeRun(*test, default_api[:], expected = 1)
+    if !NativeAssert(*test, default_result.output == "" &&
+        TextContains(default_result.error, "Provider.NativeValue"), "default API query must check the portable import graph") { return 1 }
+    native_query := string.["python3", script, "--ziran", test.ziran, "--module-api", native_api, "--module-target", "c"]
+    native_result := NativeRun(*test, native_query[:])
+    if !NativeAssert(*test, TextContains(native_result.output, "Read :: () -> s32"),
+        "native site API query did not check the target-conditional provider") { return 1 }
+    unknown_api := string.[test.ziran, "api", "--json", "--target", "unknown", "--root", source, native_api]
+    unknown_result := NativeRun(*test, unknown_api[:], expected = 2)
+    if !NativeAssert(*test, unknown_result.output == "" &&
+        TextContains(unknown_result.error, "unknown API target: unknown"), "invalid API target must be rejected") { return 1 }
     hello := NativeRead(*test, CheckPath(test.repo, "examples/hello.zi"))
     if !NativeWrite(*test, CheckPath(test.work, "hello.zi"), hello) { return 1 }
     run := string.[test.ziran, "run", "hello.zi"]
@@ -55,6 +68,10 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !NativeAssert(*test, !TextContains(webp, "legacy_compare.sh") &&
         !TextContains(webp, "original Kryon decoder") && TextContains(api, "revision 28") &&
         !TextContains(api, "version 24"), "public references retained an obsolete pipeline or format") { return 1 }
+    // Check the live site after the fixtures so stale generated pages do not
+    // hide failures in the module API checks.
+    check := string.["python3", script, "--ziran", test.ziran, "--check"]
+    unused NativeRun(*test, check[:])
     if test.failed { return 1 }
     print("Local site tests: generated pages, loaded-file documentation and one-line examples passed\n")
     return 0

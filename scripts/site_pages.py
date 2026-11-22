@@ -20,7 +20,8 @@ Packages are read from --packages (default: the ziranlang/packages directory
 next to this repository). A package whose GitHub repository is private is
 left out. The standard-library release inventory records shipped modules, including in
 source archives and shallow checkouts. Package status follows each package's
-v* release tags; modules added between releases remain in progress.
+v* release tags; modules added between releases remain in progress. An
+inventory entry can declare an ``api_target`` to check exports under that target.
 
     python3 scripts/site_pages.py --ziran build/bin/ziran [--site DIR] [--check]
 
@@ -202,11 +203,17 @@ def doc_comment(lines, line, top):
     return ' '.join(block)
 
 
-def module_api(ziran, path, root, module_paths, project=None):
+def module_api(ziran, path, root, module_paths, project=None, target=None):
     """The module summary and public declarations of PATH, in source order.
     PROJECT, a package directory, resolves imports through its manifest."""
     name = os.path.basename(path)[:-3]
     where = ['--project'] if project else (['--root', root] + [arg for p in module_paths for arg in ('--module-path', p)])
+    if target is not None:
+        where += ['--target', target]
+        if project:
+            # Older toolchain pins may predate target options. Keep the
+            # project's normal lock and local override handling.
+            where += ['--current-toolchain']
     data = json.loads(run([ziran, 'api', '--json', '--module', name] + API_LIMITS + where + [path],
                           cwd=project or REPO))
     if not data['truncation']['complete']:
@@ -414,7 +421,7 @@ def readme_parts(text):
     return title, strip_markdown(paragraphs[first]), '\n\n'.join(paragraphs[:first] + paragraphs[first + 1:])
 
 
-def package_modules(ziran, directory, manifest, packages):
+def package_modules(ziran, directory, manifest, packages, target):
     roots = [os.path.join(directory, r) for r in manifest['package'].get('module_roots', ['.'])]
     paths = list(roots)
     # Exported modules that import each other by the package's own name are
@@ -448,7 +455,7 @@ def package_modules(ziran, directory, manifest, packages):
     for export, file in manifest.get('exports', {}).items():
         path = os.path.join(directory, file)
         root = next((r for r in roots if path.startswith(r + os.sep)), roots[0])
-        summary, entries, _ = module_api(ziran, path, root, paths, project)
+        summary, entries, _ = module_api(ziran, path, root, paths, project, target)
         modules.append({'name': export, 'file': file, 'summary': summary, 'entries': entries})
     return modules
 
@@ -479,6 +486,9 @@ def read_packages(ziran, packages, *, strict_inventory):
                 not isinstance(expected.get('url'), str) or
                 not isinstance(expected.get('public'), bool)):
             sys.exit(f'{PACKAGE_INVENTORY}: invalid entry for {name}')
+        target = expected.get('api_target')
+        if target is not None and target not in ('c', 'go', 'zx'):
+            sys.exit(f'{PACKAGE_INVENTORY}: invalid API target for {name}: {target!r}')
         if not url or url != expected['url']:
             sys.exit(f'{directory}: origin {origin or "<missing>"} does not match {expected["url"]}')
         if not expected['public']:
@@ -503,7 +513,7 @@ def read_packages(ziran, packages, *, strict_inventory):
                       'url': url, 'docs': docs, 'release': release,
                       'status': 'stable' if release else 'in-progress',
                       'dependency': name.replace('-', '_'),
-                      'modules': package_modules(ziran, directory, manifest, packages)})
+                      'modules': package_modules(ziran, directory, manifest, packages, target)})
     return found, skipped
 
 
@@ -699,6 +709,7 @@ def main():
     parser.add_argument('--ziran', required=True)
     parser.add_argument('--module-api', metavar='SOURCE', help='print a module\'s documentation data as JSON')
     parser.add_argument('--module-root', metavar='DIR')
+    parser.add_argument('--module-target', choices=('c', 'go', 'zx'), help='check --module-api for a specific target')
     parser.add_argument('--stdlib-inventory', metavar='REPOSITORY', help='print a repository\'s standard-module release inventory as JSON')
     parser.add_argument('--packages', metavar='DIR')
     parser.add_argument('--site', metavar='DIR', help='read and write site files under DIR instead of site/')
@@ -718,7 +729,7 @@ def main():
     if args.module_api:
         source = os.path.abspath(args.module_api)
         root = os.path.abspath(args.module_root) if args.module_root else os.path.dirname(source)
-        summary, entries, uses_host = module_api(ziran, source, root, [])
+        summary, entries, uses_host = module_api(ziran, source, root, [], target=args.module_target)
         print(json.dumps({'summary': summary, 'entries': entries, 'uses_host': uses_host}))
         return
     packages_directory = args.packages or os.path.join(os.path.dirname(REPO), 'packages')

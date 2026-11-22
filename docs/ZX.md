@@ -99,6 +99,16 @@ instance from the callback. Return values are serialized immediately, so a
 returned string can refer to the input. Nested values and mutable slices use
 the usual host images.
 
+`ZxModuleProgramBorrowHostSlice` and `BundleInstanceBorrowHostSlice` opt in
+to an input-only slice of fixed-width integers or floats on a `#reads`
+capability. On success the instruction-engine callback receives
+`HOST_BORROWED_SLICE`, the declared type, an element count in `length`, and
+packed little-endian bytes in `data`. Use byte reads or `memcpy` because
+the storage may be unaligned. The bytes are valid only until the callback
+returns. The host must leave them unmodified and cannot reenter or close
+the instance while it uses them. The usual `HOST_SLICE` interface remains
+available without opting in, including on the native and Wasm backends.
+
 ## Running bundles
 
 Run source in one command with `ziran run hello.zi` or `zi2zx run hello.zi`.
@@ -114,7 +124,14 @@ bundle as native code compiled from its verified instructions; in a browser
 it runs on the Wasm tier and on other CPUs on the portable instruction engine.
 The platform makes that choice, never the bundle: a bundle native code cannot
 run fails before it starts with a named gap. `--backend engine` picks the
-engine explicitly. Native code follows manual safety like C: a pointer is its
+engine explicitly. The Linux i386 packed engine can compile short runs of
+scalar integer instructions once a block becomes hot. It uses a bounded
+cache of executable pages. The interpreter handles memory, calls, control
+flow and checked failures. Both paths apply the same instruction work and
+fuel charges. See the [i386 execution plan](../plans/2026-11-21-i386-execution.md)
+for measurements and remaining work.
+
+Native code follows manual safety like C: a pointer is its
 address and indexes are raw, and each run of `allocate` gets fresh zeroed
 storage that lasts until its frame returns. Each active instance reserves a
 contiguous frame arena for its outer call. The runtime tries smaller arenas

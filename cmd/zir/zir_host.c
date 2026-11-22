@@ -598,7 +598,15 @@ BundleInstanceBorrowHostString(BundleInstance *instance, const char *module,
                                const char *function, size_t parameter)
 {
     return instance != NULL && instance->exec != NULL &&
-           ExecInstanceBorrowHostString(instance->exec, module, function, parameter);
+           ExecInstanceBorrowHostView(instance->exec, module, function, parameter, 1);
+}
+
+int
+BundleInstanceBorrowHostSlice(BundleInstance *instance, const char *module,
+                              const char *function, size_t parameter)
+{
+    return instance != NULL && instance->exec != NULL &&
+           ExecInstanceBorrowHostView(instance->exec, module, function, parameter, 0);
 }
 
 void

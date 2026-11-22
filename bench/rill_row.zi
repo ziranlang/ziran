@@ -1,0 +1,26 @@
+#scope_file
+
+Blend :: (destination: u32, source: u32, alpha: u32) -> u32 {
+    inverse := cast(u32)255 - alpha
+    red := (((destination >> cast(u32)16) & cast(u32)255) * inverse +
+        ((source >> cast(u32)16) & cast(u32)255) * alpha + cast(u32)127) / cast(u32)255
+    green := (((destination >> cast(u32)8) & cast(u32)255) * inverse +
+        ((source >> cast(u32)8) & cast(u32)255) * alpha + cast(u32)127) / cast(u32)255
+    blue := ((destination & cast(u32)255) * inverse +
+        (source & cast(u32)255) * alpha + cast(u32)127) / cast(u32)255
+    return cast(u32)0xff000000 | (red << cast(u32)16) | (green << cast(u32)8) | blue
+}
+
+#scope_export
+#program_export
+main :: () -> s32 {
+    row: [256]u32
+    for pixel: 0..255 { row[pixel] = cast(u32)pixel * cast(u32)0x010101 }
+    for layer: 0..15 {
+        color := cast(u32)layer * cast(u32)0x11070d
+        for pixel: 0..255 { row[pixel] = Blend(row[pixel], color, cast(u32)127) }
+    }
+    checksum: u32 = 2166136261
+    for pixel: 0..255 { checksum = (checksum ^ row[pixel]) * cast(u32)16777619 }
+    return cast(s32)(checksum & cast(u32)0x7fffffff)
+}

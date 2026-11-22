@@ -1,0 +1,22 @@
+#scope_file
+
+PayloadBytes :: 32768
+Payload: [PayloadBytes]u8;
+
+Sample :: (snapshot: [PayloadBytes]u8) -> s32 {
+    return cast(s32)snapshot[0] + cast(s32)snapshot[PayloadBytes - 1]
+}
+
+#program_export
+main :: () -> s32 {
+    sum: s32
+    for index: 0..1999 {
+        Payload[0] = cast(u8)index
+        Payload[PayloadBytes - 1] = cast(u8)(index >> 3)
+        snapshot := Payload
+        // The snapshot must retain its first byte after the source changes.
+        Payload[0] = 0
+        sum += Sample(snapshot)
+    }
+    return sum
+}

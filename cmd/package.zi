@@ -220,7 +220,8 @@ PkgPaths :: (locked: *PkgLock, selectors: []string, submodules: bool,
 
 PkgDispatch :: (command: string, arguments: []string, project: bool,
     root: string, locked: *PkgLock, current: *PkgManifest,
-    launcher: string, extra_names: []string, extra_values: []string) -> s32 {
+    launcher: string, extra_names: []string, extra_values: []string,
+    current_toolchain: bool = false) -> s32 {
     executable: string = ""
     check: bool = command == "check"
     bundle: bool = command == "bundle" || command == "run"
@@ -254,7 +255,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     }
     if executable.count == 0 { return PkgFail("unknown Ziran command") }
     tool_directory: string = PkgLauncherDirectory(launcher)
-    if project { tool_directory = PkgToolDirectory(launcher, locked.tool_path, executable) }
+    if project && !current_toolchain { tool_directory = PkgToolDirectory(launcher, locked.tool_path, executable) }
     if tool_directory.count == 0 { return PkgFail("cannot find Ziran binaries") }
     binary: string = PkgJoin3(tool_directory, "/", executable)
     names: [8]string
@@ -273,6 +274,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     }
     if project {
         if !PathExists(binary) {
+            if current_toolchain { return PkgFail("cannot find zi-api beside the current Ziran launcher") }
             make_args: [5]string
             make_args[0] = "make"
             make_args[1] = "-C"
@@ -761,7 +763,7 @@ PkgUsage :: (command: string) -> string {
     if command == "explain" { return "usage: ziran explain CODE [--json] | ziran explain --list [--json]\n" }
     if command == "learn" { return LearnUsage() }
     if command == "api" {
-        return "usage: ziran api [--json] [--diagnostics=text|json] [--module NAME] [--symbol NAME|ID] [--imports-only] [--max-symbols N] [--max-bytes N] [--module-path DIR] [--define NAME] --root DIR file.zi|file.zir ...\n"
+        return "usage: ziran api [--json] [--diagnostics=text|json] [--target c|go|zx] [--target-os OS] [--target-cpu CPU] [--module NAME] [--symbol NAME|ID] [--imports-only] [--max-symbols N] [--max-bytes N] [--module-path DIR] [--define NAME] [--project [--current-toolchain] | --root DIR] file.zi|file.zir ...\n"
     }
     if command == "new" {
         return "usage: ziran new DIR [--template SOURCE[:NAME]] [--ref REF] [--name NAME] [--overrides FILE]\n"
@@ -928,6 +930,10 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         return PkgResolveZxLock(launcher, root, refresh, false)
     }
     project: bool = PkgHasArgument(flags, "--project") || implied
+    current_toolchain: bool = PkgHasArgument(flags, "--current-toolchain")
+    if current_toolchain && (command != "api" || !project) {
+        return PkgFail("--current-toolchain requires ziran api --project")
+    }
     locked_mode: bool = PkgHasArgument(flags, "--locked")
     offline: bool = PkgHasArgument(flags, "--offline")
     if pack_dev && locked_mode { return PkgFail("pack-dev cannot be used with --locked") }
@@ -950,7 +956,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             continue
         }
         if index >= separator ||
-           (part != "--project" && part != "--locked" && part != "--offline") {
+           (part != "--project" && part != "--locked" && part != "--offline" && part != "--current-toolchain") {
             filtered[count] = part
             count += 1
         }
@@ -1009,7 +1015,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         own: string = PkgCanonical(launcher)
         inside: bool = tool_root.count > 1 && own.count > tool_root.count &&
             own[0:tool_root.count] == tool_root
-        if PkgGetenv("ZIRAN_PINNED_LAUNCHER") != "1" && !inside &&
+        if !current_toolchain && PkgGetenv("ZIRAN_PINNED_LAUNCHER") != "1" && !inside &&
            own != PkgCanonical(pinned) {
             if !PathExists(pinned) {
                 make_args: [5]string
@@ -1256,7 +1262,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             search[0:searches], map, libraries, PkgCacheRoot())
     }
     return PkgDispatch(command, filtered[0:count], project, root, locked,
-        current, launcher, empty[:], empty[:])
+        current, launcher, empty[:], empty[:], current_toolchain)
 }
 
 // Native platform and ABI are independent of the compiler's c/go backend.

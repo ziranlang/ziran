@@ -1,0 +1,14 @@
+#scope_file
+
+// A stateful integer workload with the same observable result on every tier.
+#program_export
+main :: () -> s32 {
+    state: u32 = 2166136261
+    for index: cast(u32)1..40000 {
+        state ^= index * cast(u32)1664525 + cast(u32)1013904223
+        left := (state << cast(u32)13) ^ state
+        right := (left >> cast(u32)17) ^ left
+        state = (right << cast(u32)5) ^ right ^ (state / ((index & cast(u32)255) + cast(u32)1))
+    }
+    return cast(s32)(state & cast(u32)0x7fffffff)
+}

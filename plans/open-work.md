@@ -1,0 +1,107 @@
+# Open work
+
+One line per undone item, with its location and how to test it. Delete the
+line when the work lands. Keep detail in the referenced plan.
+
+## Native assembly target (ASSEMBLY/)
+
+- M4 ARM rows: ARMv7 unchecked encoder forms, linear image relocations on
+  ARM, and standalone AArch64/ARMv7 ELFs (`zx2native --target`); test with
+  `make android-parity` on the Moto (armv7) and Pixel 4a (aarch64). Detail:
+  plans/2026-11-15-m4-native-arm.md, rows 5-7.
+- M5 objects and linking: x64 unwind data (`.pdata`/`.xdata`), Mach-O and
+  archives, the external C ABI with foreign libraries, a console line mode,
+  files and clock platform services, a real Windows host run, and an
+  in-process loader; test with `tests/zx_windows_parity.sh` plus per-row
+  tests. Landed slice: `zx2native --platform windows` writes PE32+.
+- Optional, owner-deferred: the loader refuses an unchecked `.zx` bundle the
+  user marks untrusted (`cmd/compiler_exec_link.zi`); test with a
+  marked-bundle load case.
+- M6 inspection and cutover: unwind, debug and profiler mapping, then the
+  owner's full before/after ZX comparison on Alpha's physical host.
+- Native code quality: warm native ZX remains slower than the M0 TinyCC tier
+  and the engine on some kernels. Active work: plans/2026-11-15-native-speed.md,
+  measured against `bench/results/` receipts.
+- Explicit gaps kept as named diagnostics: resizable-collection ownership,
+  reentrant callbacks, general native string and arbitrary-host instructions
+  (ASSEMBLY/gap-policy.md).
+- Deferred metaprogramming until self-hosting reaches S5: `#modify` notes,
+  `type_info`, the compiler message loop, build-as-Ziran-program,
+  `#bake_arguments`, SOA layout.
+
+## Compiler and tools
+
+- Self-hosting S5-S18: port the remaining `cmd/zir` C (checker, parser,
+  emitters, host API, Go backend) to Ziran; gate every step with
+  `make check-bootstrap`. Detail: plans/2026-11-14-self-hosting.md (active
+  lane).
+- Digest-keyed frontend check cache: reuse parse and check results keyed by
+  toolchain format version, module and import digests, and defines, reusing
+  only at module/declaration boundaries; precedents
+  `cmd/compiler_backend_cache.zi` and `cmd/compiler_native_cache.zi`;
+  validate identical diagnostics and IR with and without the cache.
+- `ziran test` driver plus unused-name lints (locals and imports,
+  warnings-only): dispatch in `cmd/package.zi`, checks in
+  `cmd/zir/zir_check_program.c`; validate with formatter-style cases and run
+  the lints over `cmd/` before enabling.
+- Vec growth reuses storage when nothing borrows it: clear stale-alias host
+  twins and keep the Vectors checksum 94905000 green; measure Vectors on
+  Alpha before and after.
+- Unique-use Insert-in-place and borrowed call arguments shared across the
+  engine, Wasm, zi2c and machine IR; measure the Records kernel against C
+  (receipt wasm-tier-alpha-2026-11-15-native.json).
+- Proof-carried bounds elision under `--checks`: extend `LirProvenBuild`
+  (`cmd/compiler_lowered_proven.zi`) with dominance-scoped slice and heap
+  facts plus multi-variable index guards through `ProofKernel::DecideOrder`;
+  `MachineVerify::DirectProven` stays conservative; test with
+  `tests/proven_pointer_cases.zi`, `tests/guarded_index_ranges.sh`,
+  `tests/trust_boundary_cases.zi`.
+- Language quick wins: reserve the `zi_` generated-name prefix, add
+  statement-level parse recovery with a per-region error cap, and list
+  ambiguity candidates in `module.ambiguous`/`package.ambiguous`; new codes
+  enter the explain registry and `tests/explain.sh` must pass; clean-file
+  `.zir` output stays byte-identical.
+- Owner-gated: a persistent `ziran serve` session (owner-started, explicit
+  Exit, never a daemon), only after the check cache lands.
+- Deferred Lean-study proposals: polymorphic-default postponement,
+  `using ... in` scopes, zi2c reuse of optimizer facts, bounded translation
+  validation, `partial`/`unsafe` tainting, co-located structural laws
+  (conditions in plans/2026-11-18-learn-from-lean.md).
+
+## Benchmarks
+
+- Publish the Kryon visual-workload table (mean and p95 per scene and
+  resolution) once a clean pushed Kryon revision is measured; validate frame
+  hashes, sample counts and the Ziran pin; entry point
+  `bench/bench.zi -- wasm-tier --standard --host-gate --samples 11`.
+- Trace the k-nucleotide 128 KiB fixed-array value-copy loop in the native
+  and Wasm lowerings before changing the benchmark source; preserve value
+  semantics for arrays that may escape or alias.
+- `arrays.zi` and `loops.zi` example programs trail the Wasm tier by 25-40%;
+  profile each print-heavy loop before optimizing.
+
+## Learn
+
+- Record more real builds, instruction-window search on CPU, a learned cost
+  model, Alpha GPU experiments, and learned compiler decisions
+  (plans/2026-11-15-learning-compiler.md); measure each on Alpha through
+  `bench/bench.zi`.
+
+## Proof and semantics
+
+- Law-model induction over arbitrary sequences and sorting (docs/LAWS.md,
+  proofs/); test with `make proof-model` on the pinned toolchain.
+- Precise alias representation for owned values through globals and defined
+  allocation-failure behavior (docs/OWNED_VALUES.md); extend the borrow and
+  owned-field tests when landed.
+
+## Environment
+
+- `zstd_go` needs Go 1.25; Omega defaults to 1.24.4, so that check fails
+  locally until the toolchain updates.
+
+## Unstarted design (awaiting owner decision)
+
+- Shared canonical Ziran/Kryon checkouts with a cross-project
+  content-addressed output cache, leases, telemetry and a Projects manifest
+  index (plans/2026-11-12-shared-ziran-kryon-builds.md).

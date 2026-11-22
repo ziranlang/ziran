@@ -1,8 +1,7 @@
 # Native ZX players and phone support — implementation plan (2026-11-14)
 
 Status: plan only. This file makes no source change and records no platform as
-implemented. It continues [the 2026-11-13 native optimization plan](2026-11-13-native-optimizations.md#next-native-players-phones-and-a-faster-pipeline),
-items 2–4, and the M2–M4 gates in
+implemented. It continues items 2-4 of the 2026-11-13 native optimization work and the M2-M4 gates in
 [`ASSEMBLY/milestones.md`](../ASSEMBLY/milestones.md#milestones).
 
 ## Scope and invariants
@@ -116,8 +115,7 @@ USB Moto e6 on Omega, serial `ZE2223BQZT`; do not disable Wireless Debugging.
 ### Benchmarks and historical controls
 
 - The retained old-VM/TinyCC M0 and current engine measurements are described
-  at `ASSEMBLY/milestones.md:85-93,135-144` and
-  `plans/2026-11-13-native-optimizations.md:397-398,484-492,532-547`.
+  at `ASSEMBLY/milestones.md:85-93,135-144` and `bench/zx_compare.md`.
   Raw benchmark material belongs under `bench/results/`; it is historical input,
   not something to regenerate from removed TinyCC code.
 - Platform policy requires physical Alpha for timings and distinguishes
@@ -569,9 +567,8 @@ Add/change:
   tool/ZX identities, CPU governor/features, warmup, sample count, medians and
   dispersion under `bench/results/`. Never reconstruct or relabel old TinyCC
   samples.
-- Update `ASSEMBLY/milestones.md`, target/runtime documents, and the linked
-  2026-11-13 plan only through their owning tasks; this plan must remain the
-  implementation checklist.
+- Update `ASSEMBLY/milestones.md` and target/runtime documents only through
+  their owning tasks; this plan must remain the implementation checklist.
 
 Delete: cache entries from obsolete machine/runtime ABI revisions through the
 bounded cleanup rule; no source deletion beyond the duplicate encoder already

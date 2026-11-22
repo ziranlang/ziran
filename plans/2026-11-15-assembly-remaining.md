@@ -32,7 +32,7 @@ milestone order:
    with `#modify`, `type_info`, the compiler message loop,
    build-as-Ziran-program, `#bake_arguments` and SOA layout. `#placeholder` is
    dropped. Unchecked is the default; checks are opt-in with `#checks`
-   (`plans/2026-11-15-manual-safety.md`), so `#no_abc` is not needed.
+   so `#no_abc` is not needed.
 8. **Known language gaps** that stay explicit Gap diagnostics: ownership of
    resizable collections, reentrant callbacks, and general native
    string/arbitrary-host instructions.

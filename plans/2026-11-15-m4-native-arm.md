@@ -43,8 +43,7 @@ what the tree actually has.
 Each row is committed and pushed once its focused tests and the full suite
 pass, from a private index on origin/master.
 
-5. **ARMv7 unchecked forms.** With checks off by default
-   (`plans/2026-11-15-manual-safety.md`), ARMv7 lowering still keeps checked
+5. **ARMv7 unchecked forms.** With checks off by default, ARMv7 lowering still keeps checked
    pointers until its encoder has the forms AArch64 has: arena-only frames,
    raw Resize, the immediate element form and the nonzero member bound.
    Then the Moto parity reruns on default bundles.

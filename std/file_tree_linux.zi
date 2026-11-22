@@ -96,6 +96,76 @@ ReadLinkRaw :: (path: *u8, output: *u8, capacity: usize) -> isize #foreign libc 
     WRITE_TRUNCATE :: 1537;
     WRITE_APPEND :: 521;
     CLOSE_ON_EXEC :: 16777216;
+} else #if OS == .ANDROID {
+    // Bionic exports statx only from API 30 and names errno __errno. StatxRaw
+    // fills the same statx record from fstatat, which every API level has;
+    // struct stat's offsets depend on the ABI and are read little-endian.
+    FstatatRaw :: (directory: s32, path: *u8, output: *AndroidStatRecord, flags: s32) -> s32 #foreign libc "fstatat";
+    ErrnoRaw :: () -> *s32 #foreign libc "__errno";
+    StatxRecord :: struct { words: [32]u64 }
+    AndroidStatRecord :: struct { bytes: [160]u8 }
+    #if #defined(__aarch64__) {
+        STAT_INODE :: 8; STAT_MODE :: 16; STAT_LINKS :: 20; STAT_OWNER :: 24; STAT_GROUP :: 28;
+        STAT_SIZE :: 48; STAT_BLOCKS :: 64; STAT_ACCESSED :: 72; STAT_MODIFIED :: 88; STAT_CHANGED :: 104;
+        STAT_TIME_WIDTH :: 8;
+    }
+    #if #defined(__x86_64__) {
+        STAT_INODE :: 8; STAT_MODE :: 24; STAT_LINKS :: 16; STAT_OWNER :: 28; STAT_GROUP :: 32;
+        STAT_SIZE :: 48; STAT_BLOCKS :: 64; STAT_ACCESSED :: 72; STAT_MODIFIED :: 88; STAT_CHANGED :: 104;
+        STAT_TIME_WIDTH :: 8;
+    }
+    #if #defined(__arm__) {
+        STAT_INODE :: 96; STAT_MODE :: 16; STAT_LINKS :: 20; STAT_OWNER :: 24; STAT_GROUP :: 28;
+        STAT_SIZE :: 48; STAT_BLOCKS :: 64; STAT_ACCESSED :: 72; STAT_MODIFIED :: 80; STAT_CHANGED :: 88;
+        STAT_TIME_WIDTH :: 4;
+    }
+    #if #defined(__i386__) {
+        STAT_INODE :: 88; STAT_MODE :: 16; STAT_LINKS :: 20; STAT_OWNER :: 24; STAT_GROUP :: 28;
+        STAT_SIZE :: 44; STAT_BLOCKS :: 56; STAT_ACCESSED :: 64; STAT_MODIFIED :: 72; STAT_CHANGED :: 80;
+        STAT_TIME_WIDTH :: 4;
+    }
+    AndroidStatLoad :: (record: *AndroidStatRecord, at: s64, width: s64) -> u64 {
+        value: u64
+        for index: 0..width - 1 { value |= cast(u64)record.bytes[at + index] << cast(u64)(8 * index) }
+        return value
+    }
+    // A signed seconds field, widened from 32 bits on 32-bit ABIs.
+    AndroidStatSeconds :: (record: *AndroidStatRecord, at: s64) -> u64 {
+        value := AndroidStatLoad(record, at, STAT_TIME_WIDTH)
+        if STAT_TIME_WIDTH == 4 { return cast(u64)cast(s64)cast(s32)cast(u32)value }
+        return value
+    }
+    StatxRaw :: (directory: s32, path: *u8, flags: s32, mask: u32, output: *StatxRecord) -> s32 {
+        record: AndroidStatRecord
+        if FstatatRaw(directory, path, *record, flags) != 0 { return -1 }
+        device := AndroidStatLoad(*record, 0, 8)
+        // dev_t packs major bits 8-19 and 32-63, minor bits 0-7 and 12-31 and up.
+        high := device >> 32
+        low := device >> 12
+        major := ((device >> 8) & 4095) | (high - (high & 4095))
+        minor := (device & 255) | (low - (low & 255))
+        <<output = .{}
+        output.words[0] = cast(u64)BASIC_STATS
+        output.words[2] = AndroidStatLoad(*record, STAT_LINKS, 4) | (AndroidStatLoad(*record, STAT_OWNER, 4) << 32)
+        output.words[3] = AndroidStatLoad(*record, STAT_GROUP, 4) | ((AndroidStatLoad(*record, STAT_MODE, 4) & 65535) << 32)
+        output.words[4] = AndroidStatLoad(*record, STAT_INODE, 8)
+        output.words[5] = AndroidStatLoad(*record, STAT_SIZE, 8)
+        output.words[6] = AndroidStatLoad(*record, STAT_BLOCKS, 8)
+        output.words[8] = AndroidStatSeconds(*record, STAT_ACCESSED)
+        output.words[9] = AndroidStatLoad(*record, STAT_ACCESSED + STAT_TIME_WIDTH, 4)
+        output.words[12] = AndroidStatSeconds(*record, STAT_CHANGED)
+        output.words[13] = AndroidStatLoad(*record, STAT_CHANGED + STAT_TIME_WIDTH, 4)
+        output.words[14] = AndroidStatSeconds(*record, STAT_MODIFIED)
+        output.words[15] = AndroidStatLoad(*record, STAT_MODIFIED + STAT_TIME_WIDTH, 4)
+        output.words[17] = (major & 4294967295) | ((minor & 4294967295) << 32)
+        return 0
+    }
+    CURRENT_DIRECTORY :: -100;
+    NO_FOLLOW :: 256;
+    BASIC_STATS :: 2047;
+    WRITE_TRUNCATE :: 577;
+    WRITE_APPEND :: 1089;
+    CLOSE_ON_EXEC :: 524288;
 } else {
     StatxRaw :: (directory: s32, path: *u8, flags: s32, mask: u32, output: *StatxRecord) -> s32 #foreign libc "statx";
     ErrnoRaw :: () -> *s32 #foreign libc "__errno_location";

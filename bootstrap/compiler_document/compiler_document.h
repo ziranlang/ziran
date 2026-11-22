@@ -16,6 +16,7 @@ extern "C" {
 #endif
 void DocumentDigest(void* bytes, size_t count, uint8_t* hex);
 ZirDocument* DocumentFind(uint8_t* path);
+ZirDocument* DocumentWithSuffix(uint8_t* path);
 ZirDocument* DocumentForSpan(ZirModule* module, ZirSourceSpan span);
 void DocumentMarkRewritten(uint8_t* path);
 ZirDocument* DocumentRecord(uint8_t* path, uint8_t* bytes, size_t count);

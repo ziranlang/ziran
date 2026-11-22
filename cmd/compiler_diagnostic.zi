@@ -31,6 +31,11 @@ strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
 strlen :: (__s: *u8) -> usize #foreign libc "strlen";
 strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
 CompilerStandardError :: () -> *void #foreign compiler "CompilerStandardError";
+fopen :: (__filename: *u8, __modes: *u8) -> *void #foreign libc "fopen";
+fgets :: (__s: *u8, __n: s32, __stream: *void) -> *u8 #foreign libc "fgets";
+fclose :: (__stream: *void) -> s32 #foreign libc "fclose";
+strstr :: (__haystack: *u8, __needle: *u8) -> *u8 #foreign libc "strstr";
+DocumentWithSuffix :: (path: *u8) -> *Check.ZirDocument #foreign compiler "DocumentWithSuffix";
 diagnostic_diagnostic_json: s32 = ((-1));
 diagnostic_diagnostic_lock: u8 = 0;
 diagnostic_diagnostic_errors: s32 = (0);
@@ -270,6 +275,88 @@ alloc_buffers :: () -> *DiagnosticVBuffers {
 }
 
 #scope_file
+SourceLine :: struct { text: [1024]u8; caret: [1100]u8; }
+
+// Text mode, under the message: the source line with a caret under the
+// span, the expected and actual types when the message does not already
+// name them, and the suggested fix. JSON carries the same facts as fields.
+source_excerpt :: (span: IR.ZirSourceSpan, details: *Check.DiagnosticDetails, message: *u8) {
+    stream := CompilerStandardError()
+    path := SpanPath(span)
+    document: *Check.ZirDocument = ifx details != null then (details).document else null
+    if document == null { document = DocumentWithSuffix(path) }
+    if document != null && (document).rewritten == 0 {
+        // Documents are keyed by the root-joined path, which opens from any directory.
+        whole := IR.ZirSourceSpan.{cast(*u8)(document).context, (document).file, 0, 0, 0, 0}
+        if SpanPath(whole)[0] != 0 { path = SpanPath(whole) }
+    }
+    if (document == null || (document).rewritten == 0) && span.line > 0 && span.column > 0 && path[0] != 0 {
+        line := cast(*SourceLine)malloc(size_of(SourceLine))
+        if line != null {
+            if read_source_line(path, span.line, cast(*u8)*(line).text, 1024) {
+                print_caret(stream, span, line)
+            }
+            free(cast(*void)line)
+        }
+    }
+    if details == null { return }
+    if (details).expected_type != null && (details).actual_type != null && strstr(message, ParserCString("expected ")) == null {
+        fprintf(stream, ParserCString("  expected %s, found %s\n"), (details).expected_type, (details).actual_type)
+    }
+    if (details).replacement != null && (details).original != null {
+        fprintf(stream, ParserCString("  fix: replace %s with %s\n"), (details).original, (details).replacement)
+    }
+}
+
+// Line NUMBER of the file at PATH into TEXT without its newline; false when
+// the file cannot be read or the line is longer than TEXT holds.
+read_source_line :: (path: *u8, number: s32, text: *u8, size: s32) -> bool {
+    file := fopen(path, ParserCString("rb"))
+    if file == null { return false }
+    current: s32 = 0
+    found := false
+    while fgets(text, size, file) != null {
+        length := strlen(text)
+        whole := length > 0 && text[length - 1] == 10
+        if !whole && length + 1 >= cast(usize)size {
+            // Longer than TEXT holds: skip the rest of the line.
+            while !whole && fgets(text, size, file) != null {
+                length = strlen(text)
+                whole = length > 0 && text[length - 1] == 10
+            }
+            current += 1
+            if current == number || !whole { break }
+            continue
+        }
+        current += 1
+        if current == number {
+            if whole { text[length - 1] = 0 }
+            if whole && length > 1 && text[length - 2] == 13 { text[length - 2] = 0 }
+            found = true
+            break
+        }
+    }
+    fclose(file)
+    return found
+}
+
+print_caret :: (stream: *void, span: IR.ZirSourceSpan, line: *SourceLine) {
+    text := cast(*u8)*(line).text
+    length := cast(s32)strlen(text)
+    if span.column > length + 1 { return }
+    caret := cast(*u8)*(line).caret
+    at: s32 = 0
+    // Keep tabs so the caret lines up under tab-indented code.
+    for i: 0..span.column - 2 { caret[at] = ifx text[i] == 9 then cast(u8)9 else cast(u8)32; at += 1 }
+    width: s32 = ifx span.end_line == span.line && span.end_column > span.column then span.end_column - span.column else 1
+    if span.column - 1 + width > length { width = length - (span.column - 1) }
+    if width < 1 { width = 1 }
+    for 1..width { caret[at] = 94; at += 1 }
+    caret[at] = 0
+    fprintf(stream, ParserCString("    %s\n    %s\n"), text, caret)
+}
+
+#scope_file
 report :: (span: IR.ZirSourceSpan, severity: *u8, code: *u8, details: *Check.DiagnosticDetails, message: *u8, message_length: s32, buffers: *DiagnosticVBuffers) {
     snprintf(cast(*u8)(*(((buffers).message).items)), cast(usize)size_of(Parser.ParserArray8192_u8), ParserCString("%s"), message)
     json: s32 = DiagnosticJsonEnabled()
@@ -416,6 +503,7 @@ report :: (span: IR.ZirSourceSpan, severity: *u8, code: *u8, details: *Check.Dia
             fprintf(CompilerStandardError(), ParserCString("ziran: %s%s\n"), (ifx (warning != 0) then ParserCString("warning: ") else ParserCString("")), cast(*u8)(*(((buffers).message).items)))
         }
     }
+    if !(json != 0) { source_excerpt(span, details, cast(*u8)(*(((buffers).message).items))) }
     if (((!(json != 0) && (details != null)) && ((details).related_message != null)) && (((details).related_span).line > 0)) {
         fprintf(CompilerStandardError(), ParserCString("%s:%d:%d: note: %s\n"), SpanPath((details).related_span), ((details).related_span).line, ((details).related_span).column, (details).related_message)
     }

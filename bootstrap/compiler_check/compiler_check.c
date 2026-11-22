@@ -2441,36 +2441,40 @@ private_check_type_error(Checker* c, ZirSourceSpan span, uint8_t* message, uint8
     TypeDisplayName actual_name = {0};
     uint8_t* shown_expected = compiler_check_display_type(c->module, expected, &(expected_name));
     uint8_t* shown_actual = compiler_check_display_type(c->module, actual, &(actual_name));
+    uint8_t** value_10 = &((details_storage_2[0]).expected_type);
+    (*value_10) = shown_expected;
+    uint8_t** value_11 = &((details_storage_2[0]).actual_type);
+    (*value_11) = shown_actual;
     uint8_t* hint = compiler_check_types_CheckCString(StringLiteral(""));
-    bool value_10 = expected != (uint8_t*)(((void *)0)) && actual != (uint8_t*)(((void *)0));
-    bool value_11 = value_10;
-    if (value_11) {
-        uint8_t* value_12 = expected;
-        bool value_13 = zir_f_db75f2f733e13c03_strcmp(value_12, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
-        value_11 = !value_13;
+    bool value_12 = expected != (uint8_t*)(((void *)0)) && actual != (uint8_t*)(((void *)0));
+    bool value_13 = value_12;
+    if (value_13) {
+        uint8_t* value_14 = expected;
+        bool value_15 = zir_f_db75f2f733e13c03_strcmp(value_14, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
+        value_13 = !value_15;
     }
-    bool value_14 = value_11;
-    if (value_14 && zir_f_db75f2f733e13c03_OwnedTextType(c->module, actual) != 0) {
+    bool value_16 = value_13;
+    if (value_16 && zir_f_db75f2f733e13c03_OwnedTextType(c->module, actual) != 0) {
         hint = compiler_check_types_CheckCString(StringLiteral("; owned Text is not a string: borrow it with TextView(text) while the Text lives, or keep the Text as the type"));
     } else {
-        bool value_15 = expected != (uint8_t*)(((void *)0)) && actual != (uint8_t*)(((void *)0));
-        bool value_16 = value_15;
-        if (value_16) {
-            uint8_t* value_17 = actual;
-            bool value_18 = zir_f_db75f2f733e13c03_strcmp(value_17, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
-            value_16 = !value_18;
+        bool value_17 = expected != (uint8_t*)(((void *)0)) && actual != (uint8_t*)(((void *)0));
+        bool value_18 = value_17;
+        if (value_18) {
+            uint8_t* value_19 = actual;
+            bool value_20 = zir_f_db75f2f733e13c03_strcmp(value_19, compiler_check_types_CheckCString(StringLiteral("string"))) != 0;
+            value_18 = !value_20;
         }
-        bool value_19 = value_16;
-        if (value_19 && zir_f_db75f2f733e13c03_OwnedTextType(c->module, expected) != 0) {
+        bool value_21 = value_18;
+        if (value_21 && zir_f_db75f2f733e13c03_OwnedTextType(c->module, expected) != 0) {
             hint = compiler_check_types_CheckCString(StringLiteral("; a string does not own its bytes: copy it with TextCopy(text), or use .{} for empty text"));
         }
     }
-    ZirSourceSpan value_20 = span;
-    uint8_t* value_21 = compiler_check_types_CheckCString(StringLiteral("check.type"));
-    uint8_t* value_22 = compiler_check_types_CheckCString(StringLiteral("%s: %s%s"));
-    uint8_t* value_23 = message;
-    uint8_t* value_24 = zir_f_db75f2f733e13c03_mismatch_detail((uint8_t*)(&((detail_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray4096_u8))), subject, shown_expected, shown_actual);
-    zir_f_db75f2f733e13c03_DiagnosticDetailed(value_20, value_21, &(details_storage_2[0]), value_22, value_23, value_24, hint);
+    ZirSourceSpan value_22 = span;
+    uint8_t* value_23 = compiler_check_types_CheckCString(StringLiteral("check.type"));
+    uint8_t* value_24 = compiler_check_types_CheckCString(StringLiteral("%s: %s%s"));
+    uint8_t* value_25 = message;
+    uint8_t* value_26 = zir_f_db75f2f733e13c03_mismatch_detail((uint8_t*)(&((detail_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray4096_u8))), subject, shown_expected, shown_actual);
+    zir_f_db75f2f733e13c03_DiagnosticDetailed(value_22, value_23, &(details_storage_2[0]), value_24, value_25, value_26, hint);
     zir_f_db75f2f733e13c03_CompilerFree((void*)(details_storage_2));
     zir_f_db75f2f733e13c03_CompilerFree((void*)(id_storage_1));
     zir_f_db75f2f733e13c03_CompilerFree((void*)(detail_storage_0));

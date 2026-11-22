@@ -91,6 +91,28 @@ DocumentFind :: (path: *u8) -> *Check.ZirDocument {
     unreachable
 }
 
+// The one document whose path ends in "/PATH", for a diagnostic span that
+// names a root-relative file; null when none or several match.
+#scope_export
+#program_export "DocumentWithSuffix"
+DocumentWithSuffix :: (path: *u8) -> *Check.ZirDocument {
+    if path == null || path[0] == 0 || path[0] == 47 { return null }
+    wanted := IR.CText(path)
+    found: *Check.ZirDocument = null
+    item: *Check.ZirDocument = (documents()).head
+    while item != null {
+        source: IR.ZirSourceSpan = .{cast(*u8)(cast(*CompilerContext)((item).context)), (item).file, 0, 0, 0, 0}
+        whole := IR.CText(SpanPath(source))
+        if whole.count > wanted.count && whole[whole.count - wanted.count - 1] == 47 &&
+            whole[whole.count - wanted.count:] == wanted {
+            if found != null { return null }
+            found = item
+        }
+        item = (item).next
+    }
+    return found
+}
+
 #scope_export
 #program_export "DocumentForSpan"
 DocumentForSpan :: (module: *IR.ZirModule, span: IR.ZirSourceSpan) -> *Check.ZirDocument {

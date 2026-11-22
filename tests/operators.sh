@@ -67,7 +67,8 @@ reject() {
         exit 1
     fi
     grep -Fq "$message" "$work/$name.err" || { cat "$work/$name.err" >&2; exit 1; }
-    test "$(wc -l < "$work/$name.err")" = 1 || { cat "$work/$name.err" >&2; exit 1; }
+    # One diagnostic: its source excerpt lines are indented.
+    test "$(grep -c '^[^ ]' "$work/$name.err")" = 1 || { cat "$work/$name.err" >&2; exit 1; }
 }
 reject missing 'record operation needs an operator procedure' <<'ZI'
 P :: struct { x: s32; }

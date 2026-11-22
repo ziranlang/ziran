@@ -22,6 +22,7 @@ cat > "$work/test.c" <<'C'
 #include <stdlib.h>
 #include <string.h>
 const ZirDocument *DocumentFind(const char *path) { (void)path; return NULL; }
+const ZirDocument *DocumentWithSuffix(const char *path) { (void)path; return NULL; }
 int DocumentOffset(const ZirDocument *doc, int line, int column, size_t *offset) { (void)doc; (void)line; (void)column; (void)offset; return 0; }
 static int calls;
 static char message[1024];

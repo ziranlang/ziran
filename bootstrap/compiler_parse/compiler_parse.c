@@ -214,6 +214,7 @@ static void compiler_parse_QueueOwner(int32_t* owners, int32_t* pending, int32_t
 static uint8_t* compiler_parse_ExprCString(String text) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_parse_ByteIndex(String text, uint8_t wanted) ZIRAN_MAYBE_UNUSED;
 static bool compiler_parse_HasPrefix(String text, String prefix) ZIRAN_MAYBE_UNUSED;
+static ZirSourceSpan compiler_parse_PartSpan(String text, String part, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_TrimExpression(String text) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_parse_ExprName(String text) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_parse_ParseSourceExpr(ZirFunction* fn, ZirModule* module, String text, ZirSourceSpan span, String expected, int32_t stmt_index, int32_t default_depth) ZIRAN_MAYBE_UNUSED;
@@ -736,21 +737,29 @@ CompilerStructureFunction(ZirFunction* fn, ZirModule* module)
                 Slice value_39 = {statement->assignment_op, 4};
                 compiler_ir_CopyText(value_39, parts.assignment);
                 int32_t* value_40 = &(statement->lhs_root);
-                int32_t value_41 = compiler_parse_ParseSourceExpr(fn, module, parts.lhs, statement->span, StringLiteral(""), i, 0);
-                (*value_40) = value_41;
+                ZirFunction* value_41 = fn;
+                ZirModule* value_42 = module;
+                String value_43 = parts.lhs;
+                ZirSourceSpan value_44 = compiler_parse_PartSpan(text, parts.lhs, statement->span);
+                int32_t value_45 = compiler_parse_ParseSourceExpr(value_41, value_42, value_43, value_44, StringLiteral(""), i, 0);
+                (*value_40) = value_45;
             }
             if (parts.has_value) {
-                String value_42 = StringView(NULL, 0);
+                String value_46 = StringView(NULL, 0);
                 if (((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(3))) {
-                    String value_43 = compiler_ir_CText((uint8_t*)statement->type);
-                    value_42 = value_43;
+                    String value_47 = compiler_ir_CText((uint8_t*)statement->type);
+                    value_46 = value_47;
                 } else {
-                    value_42 = StringLiteral("");
+                    value_46 = StringLiteral("");
                 }
-                String expected = value_42;
-                int32_t* value_44 = &(statement->expr_root);
-                int32_t value_45 = compiler_parse_ParseSourceExpr(fn, module, parts.value, statement->span, expected, i, 0);
-                (*value_44) = value_45;
+                String expected = value_46;
+                int32_t* value_48 = &(statement->expr_root);
+                ZirFunction* value_49 = fn;
+                ZirModule* value_50 = module;
+                String value_51 = parts.value;
+                ZirSourceSpan value_52 = compiler_parse_PartSpan(text, parts.value, statement->span);
+                int32_t value_53 = compiler_parse_ParseSourceExpr(value_49, value_50, value_51, value_52, expected, i, 0);
+                (*value_48) = value_53;
             }
             if (i == range_last_4) {
                 break;
@@ -951,6 +960,51 @@ static bool
 compiler_parse_HasPrefix(String text, String prefix)
 {
     return (int64_t)(text).length >= (int64_t)(prefix).length && StringEqual(StringRangeAt(text, (int64_t)0LL, (int64_t)(int64_t)(prefix).length), prefix);
+}
+
+static ZirSourceSpan
+compiler_parse_PartSpan(String text, String part, ZirSourceSpan span)
+{
+    if ((int64_t)(part).length == 0LL || span.line <= 0 || span.column <= 0) {
+        return span;
+    }
+    uint8_t* value_0 = (void *)0;
+    {
+        String text = part;
+        value_0 = ((ExprText*)(&(text)))->data;
+    }
+    String value_2 = text;
+    uint8_t* value_3 = (void *)0;
+    {
+        String text = value_2;
+        value_3 = ((ExprText*)(&(text)))->data;
+    }
+    int64_t offset = (int64_t)(((size_t)(value_0) - (size_t)(value_3)));
+    if (offset <= 0LL || offset > (int64_t)(text).length) {
+        return span;
+    }
+    ZirSourceSpan result = span;
+    {
+        int64_t range_first_8 = 0LL;
+        int64_t range_last_8 = (int64_t)((uint64_t)offset - UINT64_C(1));
+        int64_t i = range_first_8;
+        if (i <= range_last_8) for (;;) {
+            if ((uint8_t)text.data[i] == 10) {
+                int32_t* value_5 = &(result.line);
+                (*value_5) = (int32_t)((uint32_t)((*value_5)) + 1u);
+                int32_t* value_6 = &(result.column);
+                (*value_6) = 1;
+            } else {
+                int32_t* value_7 = &(result.column);
+                (*value_7) = (int32_t)((uint32_t)((*value_7)) + 1u);
+            }
+            if (i == range_last_8) {
+                break;
+            }
+            i = (int64_t)((uint64_t)i + UINT64_C(1));
+        }
+    }
+    return result;
 }
 
 static String

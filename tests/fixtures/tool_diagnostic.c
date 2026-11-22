@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdlib.h>
 const ZirDocument *DocumentFind(const char *path) { (void)path; return NULL; }
+const ZirDocument *DocumentWithSuffix(const char *path) { (void)path; return NULL; }
 int DocumentOffset(const ZirDocument *doc, int line, int column, size_t *offset) { (void)doc; (void)line; (void)column; (void)offset; return 0; }
 static int prohibit_allocation;
 void *AllocateOrExit(size_t size) { assert(!prohibit_allocation); return malloc(size); }

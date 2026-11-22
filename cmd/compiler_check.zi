@@ -803,6 +803,8 @@ type_error :: (c: *Checker, span: IR.ZirSourceSpan, message: *u8, subject: *u8, 
     actual_name: TypeDisplayName
     shown_expected := display_type((c).module, expected, *expected_name)
     shown_actual := display_type((c).module, actual, *actual_name)
+    (details_storage_2[0]).expected_type = shown_expected
+    (details_storage_2[0]).actual_type = shown_actual
     hint: *u8 = CheckCString("")
     if ((((expected != cast(*u8)((null))) && (actual != cast(*u8)((null)))) && !(strcmp(expected, CheckCString("string")) != 0)) && (OwnedTextType((c).module, actual) != 0)) {
         hint = CheckCString("; owned Text is not a string: borrow it with TextView(text) while the Text lives, or keep the Text as the type")

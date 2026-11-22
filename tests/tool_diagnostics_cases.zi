@@ -91,7 +91,9 @@ ToolAuthoringHints :: (test: *NativeTest) -> bool {
         result := NativeInvoke(test, command[:])
         lines := TextLines(result.error)
         errors: s64 = 0
-        for line: lines { if line != "" && !TextContains(line, ": note: ") { errors += 1 } }
+        // Each error starts a "hint.zi:LINE:COLUMN:" line; the source line,
+        // caret, expected and fix lines below it are part of that error.
+        for line: lines { if TextHasPrefix(line, "hint.zi:") { errors += 1 } }
         if !NativeAssert(test, result.code == 1 && errors == 1 && TextContains(result.error, hint.message),
             CheckConcat(CheckConcat("authoring hint is missing or cascades for:\n", hint.source), result.error)) { return false }
     }
@@ -114,6 +116,39 @@ ToolAuthoringHints :: (test: *NativeTest) -> bool {
     linted := NativeInvoke(test, lint[:])
     return NativeAssert(test, linted.code == 0 && TextContains(linted.error, "dividing by -1 overflows") &&
         TextContains(linted.error, "% -1 is always 0"), CheckConcat("--lint missed a -1 divisor:\n", linted.error))
+}
+
+// Text mode shows the source line, a caret under the span and the fix; JSON
+// keeps only its fields.
+SourceGolden :: struct { source: string; text: string; }
+
+ToolSourceExcerpts :: (test: *NativeTest) -> bool {
+    goldens := SourceGolden.[
+        .{"#import \"std/text_tools\"\nmain :: () -> s32 {\n    t := TextLins(\"a b\")\n    return 0\n}\n",
+            "golden.zi:3:10: unresolved function: TextLins (did you mean TextLines?)\n        t := TextLins(\"a b\")\n             ^^^^^^^^\n  fix: replace TextLins with TextLines\n"},
+        .{"main :: () -> s32 {\n    let x = 1\n    return 0\n}\n",
+            "golden.zi:2:5: let is not Ziran syntax; declare a local with name := value or name: Type = value, a constant with NAME :: value;\n        let x = 1\n        ^\n"},
+        .{"#import \"std/text_tools\"\nmain :: () -> s32 {\n\tt := TextLins(\"a b\")\n\treturn 0\n}\n",
+            "golden.zi:3:7: unresolved function: TextLins (did you mean TextLines?)\n    \tt := TextLins(\"a b\")\n    \t     ^^^^^^^^\n  fix: replace TextLins with TextLines\n"},
+    ]
+    source := CheckPath(test.work, "golden.zi")
+    for golden: goldens {
+        if !NativeWrite(test, source, golden.source) { return false }
+        text := string.[test.ziran, "check", "--root", test.work, source]
+        result := NativeInvoke(test, text[:])
+        if !NativeAssert(test, result.code == 1 && result.error == golden.text,
+            CheckConcat(CheckConcat("text diagnostic changed; expected:\n", golden.text), CheckConcat("found:\n", result.error))) { return false }
+        json := string.[test.ziran, "check", "--diagnostics=json", "--root", test.work, source]
+        records := NativeInvoke(test, json[:])
+        if !NativeAssert(test, !TextContains(records.error, "    ^") && !TextContains(records.error, "  fix: "),
+            "JSON diagnostics gained the text-mode excerpt") { return false }
+    }
+    // A column inside a declaration's value counts from the line start.
+    if !NativeWrite(test, source, "#import \"std/text_tools\"\nmain :: () -> s32 {\n    t := TextTrim(42)\n    return 0\n}\n") { return false }
+    shifted := string.[test.ziran, "check", "--root", test.work, source]
+    argument := NativeInvoke(test, shifted[:])
+    return NativeAssert(test, TextHasPrefix(argument.error, "golden.zi:3:19: argument type mismatch"),
+        CheckConcat("argument span does not start at the argument:\n", argument.error))
 }
 
 // ziran std --list names every standard module; ziran api lists the Vec
@@ -142,7 +177,7 @@ ToolDiscovery :: (test: *NativeTest) -> bool {
 
 ToolCases :: (test: *NativeTest) -> bool {
     if !ToolDeclarationNames(test) { return false }
-    if !ToolAuthoringHints(test) || !ToolDiscovery(test) { return false }
+    if !ToolAuthoringHints(test) || !ToolSourceExcerpts(test) || !ToolDiscovery(test) { return false }
     binary := PathParent(test.ziran); tools := string.["zi2c", "zi2go", "zi2zir", "zi2zx", "zi-api", "zi-inspect", "zi-fmt", "zi-edit"]
     for tool: tools { command := string.[CheckPath(binary, tool), "--unknown", "--diagnostics=json"]; unused ToolDiagnostics(test, command[:], "command.arguments"); if test.failed { return false } }
     unknown := string.[test.ziran, "build", "--target=unknown", "--diagnostics=json"]; unused ToolDiagnostics(test, unknown[:], "package.command")
@@ -236,6 +271,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if test.failed { return 1 }
     defer NativeCleanup(*test)
     if !ToolCases(*test) { return 1 }
-    print("Native tool diagnostics: authoring hints, lint, std and builtin discovery, arguments, inputs, byte paths, forked C emission, bounded compiler output, silent failures and allocation-free OOM local tests passed\n")
+    print("Native tool diagnostics: authoring hints, source excerpts, lint, std and builtin discovery, arguments, inputs, byte paths, forked C emission, bounded compiler output, silent failures and allocation-free OOM local tests passed\n")
     return 0
 }

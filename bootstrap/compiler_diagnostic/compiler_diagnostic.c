@@ -2,7 +2,9 @@
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include <string.h>
+#define ZIRAN_COMPILER_DIAGNOSTIC_H_PRIVATE 1
 #include "compiler_diagnostic.h"
+#undef ZIRAN_COMPILER_DIAGNOSTIC_H_PRIVATE
 #ifndef ZIR_FOREIGN_zir_f_489b2bb91408caf2_Diagnostic_78ef33bb
 #define ZIR_FOREIGN_zir_f_489b2bb91408caf2_Diagnostic_78ef33bb
 #ifdef __APPLE__
@@ -290,6 +292,71 @@ zir_f_489b2bb91408caf2_CompilerStandardError(void)
     return zir_foreign_zir_f_489b2bb91408caf2_CompilerStandardError();
 }
 #endif
+#ifndef ZIR_FOREIGN_zir_f_489b2bb91408caf2_fopen_e9f9057d
+#define ZIR_FOREIGN_zir_f_489b2bb91408caf2_fopen_e9f9057d
+#ifdef __APPLE__
+void* zir_foreign_zir_f_489b2bb91408caf2_fopen(uint8_t* ziran_keyword___filename_0, uint8_t* ziran_keyword___modes_0) __asm__("_fopen");
+#else
+void* zir_foreign_zir_f_489b2bb91408caf2_fopen(uint8_t* ziran_keyword___filename_0, uint8_t* ziran_keyword___modes_0) __asm__("fopen");
+#endif
+static void*
+zir_f_489b2bb91408caf2_fopen(uint8_t* ziran_keyword___filename_0, uint8_t* ziran_keyword___modes_0)
+{
+    return zir_foreign_zir_f_489b2bb91408caf2_fopen(ziran_keyword___filename_0, ziran_keyword___modes_0);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_489b2bb91408caf2_fgets_3da780c0
+#define ZIR_FOREIGN_zir_f_489b2bb91408caf2_fgets_3da780c0
+#ifdef __APPLE__
+uint8_t* zir_foreign_zir_f_489b2bb91408caf2_fgets(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___n_0, void* ziran_keyword___stream_0) __asm__("_fgets");
+#else
+uint8_t* zir_foreign_zir_f_489b2bb91408caf2_fgets(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___n_0, void* ziran_keyword___stream_0) __asm__("fgets");
+#endif
+static uint8_t*
+zir_f_489b2bb91408caf2_fgets(uint8_t* ziran_keyword___s_0, int32_t ziran_keyword___n_0, void* ziran_keyword___stream_0)
+{
+    return zir_foreign_zir_f_489b2bb91408caf2_fgets(ziran_keyword___s_0, ziran_keyword___n_0, ziran_keyword___stream_0);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_489b2bb91408caf2_fclose_2bb6893f
+#define ZIR_FOREIGN_zir_f_489b2bb91408caf2_fclose_2bb6893f
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_489b2bb91408caf2_fclose(void* ziran_keyword___stream_0) __asm__("_fclose");
+#else
+int32_t zir_foreign_zir_f_489b2bb91408caf2_fclose(void* ziran_keyword___stream_0) __asm__("fclose");
+#endif
+static int32_t
+zir_f_489b2bb91408caf2_fclose(void* ziran_keyword___stream_0)
+{
+    return zir_foreign_zir_f_489b2bb91408caf2_fclose(ziran_keyword___stream_0);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_489b2bb91408caf2_strstr_ae26e2fa
+#define ZIR_FOREIGN_zir_f_489b2bb91408caf2_strstr_ae26e2fa
+#ifdef __APPLE__
+uint8_t* zir_foreign_zir_f_489b2bb91408caf2_strstr(uint8_t* ziran_keyword___haystack_0, uint8_t* ziran_keyword___needle_0) __asm__("_strstr");
+#else
+uint8_t* zir_foreign_zir_f_489b2bb91408caf2_strstr(uint8_t* ziran_keyword___haystack_0, uint8_t* ziran_keyword___needle_0) __asm__("strstr");
+#endif
+static uint8_t*
+zir_f_489b2bb91408caf2_strstr(uint8_t* ziran_keyword___haystack_0, uint8_t* ziran_keyword___needle_0)
+{
+    return zir_foreign_zir_f_489b2bb91408caf2_strstr(ziran_keyword___haystack_0, ziran_keyword___needle_0);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_489b2bb91408caf2_DocumentWithSuffix_0938ae73
+#define ZIR_FOREIGN_zir_f_489b2bb91408caf2_DocumentWithSuffix_0938ae73
+#ifdef __APPLE__
+ZirDocument* zir_foreign_zir_f_489b2bb91408caf2_DocumentWithSuffix(uint8_t* path) __asm__("_DocumentWithSuffix");
+#else
+ZirDocument* zir_foreign_zir_f_489b2bb91408caf2_DocumentWithSuffix(uint8_t* path) __asm__("DocumentWithSuffix");
+#endif
+static ZirDocument*
+zir_f_489b2bb91408caf2_DocumentWithSuffix(uint8_t* path)
+{
+    return zir_foreign_zir_f_489b2bb91408caf2_DocumentWithSuffix(path);
+}
+#endif
 #ifndef ZIR_FOREIGN_zir_f_489b2bb91408caf2_S15PlatformDiagnosticLog_2e06253c
 #define ZIR_FOREIGN_zir_f_489b2bb91408caf2_S15PlatformDiagnosticLog_2e06253c
 #ifdef __APPLE__
@@ -319,6 +386,9 @@ static void compiler_diagnostic_nullable(JsonBuffer* out, uint8_t* value) ZIRAN_
 static void compiler_diagnostic_json_span(JsonBuffer* out, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_diagnostic_keep_optional(JsonBuffer* out, size_t checkpoint) ZIRAN_MAYBE_UNUSED;
 static DiagnosticVBuffers* compiler_diagnostic_alloc_buffers(void) ZIRAN_MAYBE_UNUSED;
+static void compiler_diagnostic_source_excerpt(ZirSourceSpan span, DiagnosticDetails* details, uint8_t* message) ZIRAN_MAYBE_UNUSED;
+static bool compiler_diagnostic_read_source_line(uint8_t* path, int32_t number, uint8_t* text, int32_t size) ZIRAN_MAYBE_UNUSED;
+static void compiler_diagnostic_print_caret(void* stream, ZirSourceSpan span, SourceLine* line) ZIRAN_MAYBE_UNUSED;
 static void compiler_diagnostic_report(ZirSourceSpan span, uint8_t* severity, uint8_t* code, DiagnosticDetails* details, uint8_t* message, int32_t message_length, DiagnosticVBuffers* buffers) ZIRAN_MAYBE_UNUSED;
 static int32_t diagnostic_diagnostic_json = -1;
 static uint8_t diagnostic_diagnostic_lock = 0;
@@ -709,6 +779,174 @@ compiler_diagnostic_alloc_buffers(void)
         zir_f_489b2bb91408caf2_exit(1);
     }
     return buffers;
+}
+
+static void
+compiler_diagnostic_source_excerpt(ZirSourceSpan span, DiagnosticDetails* details, uint8_t* message)
+{
+    void* stream = zir_f_489b2bb91408caf2_CompilerStandardError();
+    uint8_t* path = zir_f_489b2bb91408caf2_SpanPath(span);
+    ZirDocument* value_0 = (void *)0;
+    if (details != ((void *)0)) {
+        value_0 = details->document;
+    } else {
+        value_0 = (void *)0;
+    }
+    ZirDocument* document = value_0;
+    if (document == ((void *)0)) {
+        document = zir_f_489b2bb91408caf2_DocumentWithSuffix(path);
+    }
+    if (document != ((void *)0) && document->rewritten == 0) {
+        ZirSourceSpan whole = {.context = (struct CompilerContext *)((uint8_t*)(document->context)), .file = document->file, .line = 0, .column = 0, .end_line = 0, .end_column = 0};
+        uint8_t* value_1 = zir_f_489b2bb91408caf2_SpanPath(whole);
+        if (value_1[0] != 0) {
+            path = zir_f_489b2bb91408caf2_SpanPath(whole);
+        }
+    }
+    if ((document == ((void *)0) || document->rewritten == 0) && span.line > 0 && span.column > 0 && path[0] != 0) {
+        void* value_2 = zir_f_489b2bb91408caf2_malloc(sizeof(SourceLine));
+        SourceLine* line = (SourceLine*)(value_2);
+        if (line != ((void *)0)) {
+            if (compiler_diagnostic_read_source_line(path, span.line, (uint8_t*)(&(line->text)), 1024)) {
+                compiler_diagnostic_print_caret(stream, span, line);
+            }
+            zir_f_489b2bb91408caf2_free((void*)(line));
+        }
+    }
+    if (details == ((void *)0)) {
+        return;
+    }
+    bool value_3 = details->expected_type != ((void *)0) && details->actual_type != ((void *)0);
+    bool value_4 = value_3;
+    if (value_4) {
+        uint8_t* value_5 = message;
+        uint8_t* value_6 = zir_f_489b2bb91408caf2_strstr(value_5, compiler_parse_types_ParserCString(StringLiteral("expected ")));
+        value_4 = (value_6 == ((void *)0));
+    }
+    if (value_4) {
+        void* value_7 = stream;
+        uint8_t* value_8 = compiler_parse_types_ParserCString(StringLiteral("  expected %s, found %s\n"));
+        zir_f_489b2bb91408caf2_fprintf(value_7, value_8, details->expected_type, details->actual_type);
+    }
+    if (details->replacement != ((void *)0) && details->original != ((void *)0)) {
+        void* value_9 = stream;
+        uint8_t* value_10 = compiler_parse_types_ParserCString(StringLiteral("  fix: replace %s with %s\n"));
+        zir_f_489b2bb91408caf2_fprintf(value_9, value_10, details->original, details->replacement);
+    }
+}
+
+static bool
+compiler_diagnostic_read_source_line(uint8_t* path, int32_t number, uint8_t* text, int32_t size)
+{
+    void* file = zir_f_489b2bb91408caf2_fopen(path, compiler_parse_types_ParserCString(StringLiteral("rb")));
+    if (file == ((void *)0)) {
+        return false;
+    }
+    int32_t current = 0;
+    bool found = false;
+    while (true) {
+        uint8_t* value_0 = zir_f_489b2bb91408caf2_fgets(text, size, file);
+        if (!(value_0 != ((void *)0))) { break; }
+        size_t length = zir_f_489b2bb91408caf2_strlen(text);
+        bool whole = length > 0 && text[(length - 1)] == 10;
+        if (!whole && length + 1 >= (size_t)(size)) {
+            while (true) {
+                bool value_1 = !whole;
+                if (value_1) {
+                    uint8_t* value_2 = zir_f_489b2bb91408caf2_fgets(text, size, file);
+                    value_1 = (value_2 != ((void *)0));
+                }
+                if (!value_1) { break; }
+                length = zir_f_489b2bb91408caf2_strlen(text);
+                whole = length > 0 && text[(length - 1)] == 10;
+            }
+            current = (int32_t)((uint32_t)current + 1u);
+            if (current == number || !whole) {
+                break;
+            }
+            continue;
+        }
+        current = (int32_t)((uint32_t)current + 1u);
+        if (current == number) {
+            if (whole) {
+                uint8_t* value_3 = &(text[(length - 1)]);
+                (*value_3) = 0;
+            }
+            if (whole && length > 1 && text[(length - 2)] == 13) {
+                uint8_t* value_4 = &(text[(length - 2)]);
+                (*value_4) = 0;
+            }
+            found = true;
+            break;
+        }
+    }
+    zir_f_489b2bb91408caf2_fclose(file);
+    return found;
+}
+
+static void
+compiler_diagnostic_print_caret(void* stream, ZirSourceSpan span, SourceLine* line)
+{
+    uint8_t* text = (uint8_t*)(&(line->text));
+    size_t value_0 = zir_f_489b2bb91408caf2_strlen(text);
+    int32_t length = (int32_t)(value_0);
+    if (span.column > (int32_t)((uint32_t)length + 1u)) {
+        return;
+    }
+    uint8_t* caret = (uint8_t*)(&(line->caret));
+    int32_t at = 0;
+    {
+        int32_t range_first_7 = 0;
+        int32_t range_last_7 = (int32_t)((uint32_t)(span.column) - 2u);
+        int32_t i = range_first_7;
+        if (i <= range_last_7) for (;;) {
+            uint8_t* value_1 = &(caret[at]);
+            uint8_t value_2 = 0;
+            if (text[i] == 9) {
+                value_2 = 9;
+            } else {
+                value_2 = 32;
+            }
+            (*value_1) = value_2;
+            at = (int32_t)((uint32_t)at + 1u);
+            if (i == range_last_7) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
+    int32_t value_3 = 0;
+    if (span.end_line == span.line && span.end_column > span.column) {
+        value_3 = (int32_t)((uint32_t)(span.end_column) - (uint32_t)(span.column));
+    } else {
+        value_3 = 1;
+    }
+    int32_t width = value_3;
+    if ((int32_t)(((uint32_t)(span.column) - 1u) + (uint32_t)width) > length) {
+        width = (int32_t)((uint32_t)length - ((uint32_t)(span.column) - 1u));
+    }
+    if (width < 1) {
+        width = 1;
+    }
+    {
+        int32_t range_first_18 = 1;
+        int32_t range_last_18 = width;
+        int32_t it = range_first_18;
+        if (it <= range_last_18) for (;;) {
+            uint8_t* value_4 = &(caret[at]);
+            (*value_4) = 94;
+            at = (int32_t)((uint32_t)at + 1u);
+            if (it == range_last_18) {
+                break;
+            }
+            it = (int32_t)((uint32_t)it + 1u);
+        }
+    }
+    uint8_t* value_5 = &(caret[at]);
+    (*value_5) = 0;
+    void* value_6 = stream;
+    uint8_t* value_7 = compiler_parse_types_ParserCString(StringLiteral("    %s\n    %s\n"));
+    zir_f_489b2bb91408caf2_fprintf(value_6, value_7, text, caret);
 }
 
 static void
@@ -1135,6 +1373,9 @@ compiler_diagnostic_report(ZirSourceSpan span, uint8_t* severity, uint8_t* code,
             }
             zir_f_489b2bb91408caf2_fprintf(value_143, value_144, value_145, (uint8_t*)(&(buffers->message.items)));
         }
+    }
+    if (!(json != 0)) {
+        compiler_diagnostic_source_excerpt(span, details, (uint8_t*)(&(buffers->message.items)));
     }
     if (!(json != 0) && details != ((void *)0) && details->related_message != ((void *)0) && details->related_span.line > 0) {
         void* value_148 = zir_f_489b2bb91408caf2_CompilerStandardError();

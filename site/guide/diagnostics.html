@@ -51,6 +51,12 @@ known. Facts are omitted only with explicit metadata truncation.</p>
 type requirement has primary node 0, declaration node 1, and a <code>requires_type</code>
 edge; other relations may be null when the checker has only a related location.
 Empty graphs mean no related fact is available.</p>
+<p>Text mode prints each error as <code>path:line:column: message</code>, then the source
+line indented by four spaces with a caret under the span, an <code>expected X,
+found Y</code> line when the message does not already name both types, and
+<code>fix: replace OLD with NEW</code> when the diagnostic carries a name edit. These
+lines are indented, so a tool that wants only the messages reads unindented
+lines. JSON output is unchanged and carries the same facts as fields.</p>
 <p>Habits from other languages get one message naming the Ziran spelling
 before they cascade: <code>let</code>/<code>var</code>/<code>const</code> declarations, <code>fn</code>/<code>func</code>/<code>def</code>/
 <code>function</code>/<code>pub</code>, <code>for i in a..b</code>, C <code>for (;;)</code>, <code>*p = value</code>, <code>switch</code>,

@@ -61,6 +61,13 @@ type requirement has primary node 0, declaration node 1, and a `requires_type`
 edge; other relations may be null when the checker has only a related location.
 Empty graphs mean no related fact is available.
 
+Text mode prints each error as `path:line:column: message`, then the source
+line indented by four spaces with a caret under the span, an `expected X,
+found Y` line when the message does not already name both types, and
+`fix: replace OLD with NEW` when the diagnostic carries a name edit. These
+lines are indented, so a tool that wants only the messages reads unindented
+lines. JSON output is unchanged and carries the same facts as fields.
+
 Habits from other languages get one message naming the Ziran spelling
 before they cascade: `let`/`var`/`const` declarations, `fn`/`func`/`def`/
 `function`/`pub`, `for i in a..b`, C `for (;;)`, `*p = value`, `switch`,

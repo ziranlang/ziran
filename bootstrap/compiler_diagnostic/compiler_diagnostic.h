@@ -13,6 +13,16 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#ifdef ZIRAN_COMPILER_DIAGNOSTIC_H_PRIVATE
+typedef struct SourceLine SourceLine;
+#endif
+#ifdef ZIRAN_COMPILER_DIAGNOSTIC_H_PRIVATE
+
+struct SourceLine {
+    uint8_t text[1024];
+    uint8_t caret[1100];
+};
+#endif
 int32_t SetDiagnosticFormat(uint8_t* format);
 void SetDiagnosticFormatFromArguments(int32_t argc, uint8_t** argv);
 int32_t DiagnosticJsonEnabled(void);

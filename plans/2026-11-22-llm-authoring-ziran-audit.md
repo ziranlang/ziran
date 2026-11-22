@@ -208,12 +208,6 @@ Everything else in the original list has landed; what remains open:
    Found while landing gap 3: a file-scope initializer whose string literal
    contains `::` is misread as a declaration ("invalid file-scope constant");
    tests/tool_diagnostics_cases.zi keeps its hint table local for that reason.
-6. Text-mode diagnostics show no source line, caret, expected/actual or fix
-   (JSON carries them). To be added in cmd/compiler_diagnostic.zi once the
-   self-host lane lands it on master, replacing cmd/zir/zir_diagnostic.c:
-   the first "path:line:col: message" line stays, followed by the source
-   line, a caret under the span, "expected X, found Y" and "fix: ...";
-   JSON output unchanged; goldens in tests/diagnostic_format.sh.
 9. `TextInteger` still accepts at most 18 digits, so not the whole s64 range
    (docs/REFERENCE.md section 16 says so). `S64_MIN` already prints correctly
    on C, the engine and native (tests/spec/std_number_text.zi); `--lint` now

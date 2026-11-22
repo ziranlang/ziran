@@ -55,8 +55,61 @@ ToolDeclarationNames :: (test: *NativeTest) -> bool {
     return true
 }
 
+// Habits from other languages: each gives exactly one error naming the
+// Ziran spelling, with no cascade through names the compiler generated.
+AuthoringHint :: struct { source: string; message: string; }
+
+
+ToolAuthoringHints :: (test: *NativeTest) -> bool {
+    // A local table: a file-scope string holding "::" is misread today.
+    hints := AuthoringHint.[
+        .{"let x = 1;\nmain :: () -> s32 { return 0 }\n", "let is not Ziran syntax; declare a local with name := value"},
+        .{"fn main() { }\n", "fn is not Ziran syntax; declare a procedure with Name :: (a: s32) -> s32"},
+        .{"func main() { }\n", "func is not Ziran syntax"},
+        .{"def main():\n    return 0\n", "def is not Ziran syntax"},
+        .{"function main() { return 0; }\n", "function is not Ziran syntax"},
+        .{"const LIMIT = 3;\nmain :: () -> s32 { return 0 }\n", "const is not Ziran syntax; declare a constant with NAME"},
+        .{"main :: () -> s32 {\n    var y = 1\n    return 0\n}\n", "var is not Ziran syntax"},
+        .{"main :: () -> s32 { n := 3; for i in 0..n { print(\"%\", i) } return 0 }\n", "for ... in is not Ziran syntax; write for i: first..last"},
+        .{"main :: () -> s32 { x := 0; for (i := 0; i < 3; i += 1) { x += i } return 0 }\n", "C-style for (;;) is not Ziran syntax"},
+        .{"main :: () -> s32 { x: s64 = 1; p := *x; *p = 6; return 0 }\n", "store through a pointer with <<p = value"},
+        .{"main :: () -> s32 { x := 1; switch x { case 1: return 1 } return 0 }\n", "use if value == { case ... }"},
+        .{"main :: () -> s32 { s := \"hello\"; n := s.len(); return 0 }\n", "have .count, and Ziran has no methods"},
+        .{"main :: () -> s32 { v: Vec(s64); n := v.len(); return 0 }\n", "have .count, and Ziran has no methods"},
+        .{"main :: () -> s32 { print(\"%s\\n\", \"x\"); return 0 }\n", "print format uses a C or Go conversion such as %d or %s"},
+        .{"main :: () -> s32 { out: Vec(u8); BuilderPrint(*out, \"%d items\\n\", 7); return 0 }\n", "BuilderPrint format uses a C or Go conversion"},
+        .{"#import \"std/text_tools\"\nmain :: () -> s32 { for TextLines(\"a b\") { } return 0 }\n", "a Vec returned by a call must be bound to a local"},
+        .{"#import \"std/text_tools\"\nmain :: () -> s32 { t := TextLins(\"a b\"); return 0 }\n", "unresolved function: TextLins (did you mean TextLines?)"},
+        .{"main :: () -> s32 { parts := TextSplit(\"a,b\", \",\"); return cast(s32)parts.count }\n", "add #import \"std/text_tools\""},
+    ]
+    source := CheckPath(test.work, "hint.zi")
+    for hint: hints {
+        if !NativeWrite(test, source, hint.source) { return false }
+        command := string.[test.ziran, "check", "--root", test.work, source]
+        result := NativeInvoke(test, command[:])
+        lines := TextLines(result.error)
+        errors: s64 = 0
+        for line: lines { if line != "" && !TextContains(line, ": note: ") { errors += 1 } }
+        if !NativeAssert(test, result.code == 1 && errors == 1 && TextContains(result.error, hint.message),
+            CheckConcat(CheckConcat("authoring hint is missing or cascades for:\n", hint.source), result.error)) { return false }
+    }
+    // The JSON form carries the suggestion as an edit.
+    if !NativeWrite(test, source, "#import \"std/text_tools\"\nmain :: () -> s32 { t := TextLins(\"a b\"); return 0 }\n") { return false }
+    json := string.[test.ziran, "check", "--diagnostics=json", "--root", test.work, source]
+    records := ToolDiagnostics(test, json[:], "check.type")
+    if test.failed || !NativeAssert(test, CheckField(*records, JsonElement(*records, records.root, 0), "suggested_name") == "TextLines",
+        "an imported procedure was not suggested for a misspelled call") { return false }
+    // Ziran spellings that look similar stay valid.
+    valid := "main :: () -> s32 {\n    fn := 3\n    total := 0\n    for i: 0..fn { total += i }\n    print(\"100%% %days\\n\", total)\n    print(\"% (%s%)\\n\", 1, 2, 3)\n    print(\"v%.4s %x%\\n\", 1, 2, 3)\n    return 0\n}\n"
+    if !NativeWrite(test, source, valid) { return false }
+    check := string.[test.ziran, "check", "--root", test.work, source]
+    unused NativeRun(test, check[:])
+    return !test.failed
+}
+
 ToolCases :: (test: *NativeTest) -> bool {
     if !ToolDeclarationNames(test) { return false }
+    if !ToolAuthoringHints(test) { return false }
     binary := PathParent(test.ziran); tools := string.["zi2c", "zi2go", "zi2zir", "zi2zx", "zi-api", "zi-inspect", "zi-fmt", "zi-edit"]
     for tool: tools { command := string.[CheckPath(binary, tool), "--unknown", "--diagnostics=json"]; unused ToolDiagnostics(test, command[:], "command.arguments"); if test.failed { return false } }
     unknown := string.[test.ziran, "build", "--target=unknown", "--diagnostics=json"]; unused ToolDiagnostics(test, unknown[:], "package.command")
@@ -138,6 +191,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if test.failed { return 1 }
     defer NativeCleanup(*test)
     if !ToolCases(*test) { return 1 }
-    print("Native tool diagnostics: arguments, inputs, byte paths, forked C emission, bounded compiler output, silent failures and allocation-free OOM local tests passed\n")
+    print("Native tool diagnostics: authoring hints, arguments, inputs, byte paths, forked C emission, bounded compiler output, silent failures and allocation-free OOM local tests passed\n")
     return 0
 }

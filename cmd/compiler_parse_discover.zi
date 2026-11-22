@@ -401,9 +401,98 @@ normalize_jai_source_tokens_with_buffers :: (line: *u8, path: *u8, physical_path
     return cast(s32)(cast(s32)(cast(s8)(quote)) == 34)
 }
 
+// A line that starts the way C, Go, Rust, Python or JavaScript would gets
+// one message naming the Ziran spelling, before its tokens cascade.
+// The Ziran spelling for a declaration keyword of another language, or "".
+ForeignWordHint :: (word: string) -> string {
+    if word == "let" { return "let is not Ziran syntax; declare a local with name := value or name: Type = value, a constant with NAME :: value;" }
+    if word == "var" { return "var is not Ziran syntax; declare a local with name := value or name: Type = value, a file-scope variable with name: Type = value;" }
+    if word == "const" { return "const is not Ziran syntax; declare a constant with NAME :: value;" }
+    if word == "fn" { return "fn is not Ziran syntax; declare a procedure with Name :: (a: s32) -> s32 { ... }" }
+    if word == "func" { return "func is not Ziran syntax; declare a procedure with Name :: (a: s32) -> s32 { ... }" }
+    if word == "def" { return "def is not Ziran syntax; declare a procedure with Name :: (a: s32) -> s32 { ... }" }
+    if word == "function" { return "function is not Ziran syntax; declare a procedure with Name :: (a: s32) -> s32 { ... }" }
+    if word == "pub" { return "pub is not Ziran syntax; declarations are public unless they follow #scope_file" }
+    return ""
+}
+
+FOR_IN_HINT :: "for ... in is not Ziran syntax; write for i: first..last { } (last is included) or for value: values { }";
+C_FOR_HINT :: "C-style for (;;) is not Ziran syntax; write for i: 0..count - 1 { } or a while loop";
+POINTER_STORE_HINT :: "*p = value is not Ziran syntax; *p takes an address, so store through a pointer with <<p = value";
+
+IsWordStart :: (byte: u8) -> bool {
+    return (byte >= #char "a" && byte <= #char "z") || (byte >= #char "A" && byte <= #char "Z") || byte == #char "_"
+}
+
+IsWordByte :: (byte: u8) -> bool { return IsWordStart(byte) || (byte >= #char "0" && byte <= #char "9") }
+
+SkipBlanks :: (text: string, at: s64) -> s64 {
+    next := at
+    while next < text.count && (text[next] == #char " " || text[next] == #char "\t") { next += 1 }
+    return next
+}
+
+WordEnd :: (text: string, at: s64) -> s64 {
+    next := at
+    while next < text.count && IsWordByte(text[next]) { next += 1 }
+    return next
+}
+
+// The message for a foreign line and the zero-based column it names, or "".
+ForeignSyntaxHint :: (text: string) -> (message: string, column: s64) {
+    start := SkipBlanks(text, 0)
+    if start < text.count && text[start] == #char "*" {
+        name_end := WordEnd(text, start + 1)
+        equals := SkipBlanks(text, name_end)
+        if name_end > start + 1 && IsWordStart(text[start + 1]) && equals < text.count && text[equals] == #char "=" &&
+            (equals + 1 == text.count || text[equals + 1] != #char "=") { return POINTER_STORE_HINT, start }
+        return "", 0
+    }
+    if start == text.count || !IsWordStart(text[start]) { return "", 0 }
+    word_end := WordEnd(text, start)
+    word := text[start:word_end]
+    after := SkipBlanks(text, word_end)
+    if after == word_end || after == text.count { return "", 0 }
+    if word == "for" {
+        if text[after] == #char "(" && TextHas(text[after:], #char ";") { return C_FOR_HINT, start }
+        name_end := WordEnd(text, after)
+        keyword := SkipBlanks(text, name_end)
+        if name_end > after && keyword + 2 < text.count && text[keyword] == #char "i" && text[keyword + 1] == #char "n" &&
+            (text[keyword + 2] == #char " " || text[keyword + 2] == #char "\t") { return FOR_IN_HINT, start }
+        return "", 0
+    }
+    if !IsWordStart(text[after]) { return "", 0 }
+    hint := ForeignWordHint(word)
+    return hint, ifx hint == "" then 0 else start
+}
+
+TextHas :: (text: string, byte: u8) -> bool {
+    for text { if it == byte { return true } }
+    return false
+}
+
+#scope_export
+// The hint for one source line or statement, with its one-based column, or null.
+#program_export "private_parse_foreign_syntax_hint"
+foreign_syntax_hint :: (line: *u8, column: *s32) -> *u8 {
+    view := ParserText.{data = line, length = strlen(line)}
+    hint, at := ForeignSyntaxHint((cast(*string)*view)[0])
+    if hint == "" { return null }
+    column[0] = cast(s32)at + 1
+    return ParserCString(hint)
+}
+
 #scope_export
 #program_export "private_parse_normalize_jai_source_line"
 normalize_jai_source_line :: (line: *u8, path: *u8, physical_path: *u8, line_no: s32, in_string: s32, uses_resizable_arrays: *s32) -> s32 {
+    if !(in_string != 0) {
+        column: s32
+        hint := foreign_syntax_hint(line, *column)
+        if hint != null {
+            die_at(Span(path, line_no, column), hint)
+            unreachable
+        }
+    }
     start: *u8 = cast(*u8)(skip_inline_ws(line))
     if ((!(in_string != 0) && (strncmp(start, ParserCString("operator"), cast(usize)(8)) == 0)) && !(is_ident_char(cast(s32)(cast(u8)((start)[8]))) != 0)) {
         op: *u8 = skip_inline_ws(cast(*u8)(cast(usize)(start) + cast(usize)(8) * size_of(u8)))

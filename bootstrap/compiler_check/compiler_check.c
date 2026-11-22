@@ -3,7 +3,9 @@
 #include "zir_string_types.h"
 #include <stdlib.h>
 #include <string.h>
+#define ZIRAN_COMPILER_CHECK_H_PRIVATE 1
 #include "compiler_check.h"
+#undef ZIRAN_COMPILER_CHECK_H_PRIVATE
 #ifndef ZIRAN_HELPER_ZiShrU32
 #define ZIRAN_HELPER_ZiShrU32
 #if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
@@ -834,6 +836,7 @@ static int32_t compiler_check_file_scope_symbol_visible(ZirModule* module, uint8
 static int32_t compiler_check_LowerFileScopeUsing_with_buffers(ZirModule* module, uint8_t* source, size_t capacity, ZirSourceSpan span, LowerFileScopeUsingBuffers* buffers) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_align_size(size_t value, size_t alignment, size_t* rounded) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_layout_type_with_buffers(ZirModule* module, uint8_t* source, int32_t depth, size_t* size, size_t* alignment, LayoutTypeBuffers* buffers) ZIRAN_MAYBE_UNUSED;
+static uint8_t* compiler_check_display_type(ZirModule* module, uint8_t* name, TypeDisplayName* storage) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_check_apply_using_filter(uint8_t* filter, uint8_t* name, uint8_t* buffer, size_t size) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_opened_file_record(Checker* scope, uint8_t* name, ZirSourceSpan span, uint8_t* path, size_t capacity) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_lower_file_record_using_with_buffers(ZirModule* module, uint8_t* source, size_t capacity, ZirSourceSpan span, LowerFileRecordUsingBuffers* buffers) ZIRAN_MAYBE_UNUSED;
@@ -2433,6 +2436,10 @@ private_check_type_error(Checker* c, ZirSourceSpan span, uint8_t* message, uint8
     value_4.related_message = value_9;
     (*value_3) = value_4;
     compiler_check_types_CheckPost0(&(c->errors));
+    TypeDisplayName expected_name = {0};
+    TypeDisplayName actual_name = {0};
+    uint8_t* shown_expected = compiler_check_display_type(c->module, expected, &(expected_name));
+    uint8_t* shown_actual = compiler_check_display_type(c->module, actual, &(actual_name));
     uint8_t* hint = compiler_check_types_CheckCString(StringLiteral(""));
     bool value_10 = expected != (uint8_t*)(((void *)0)) && actual != (uint8_t*)(((void *)0));
     bool value_11 = value_10;
@@ -2461,11 +2468,42 @@ private_check_type_error(Checker* c, ZirSourceSpan span, uint8_t* message, uint8
     uint8_t* value_21 = compiler_check_types_CheckCString(StringLiteral("check.type"));
     uint8_t* value_22 = compiler_check_types_CheckCString(StringLiteral("%s: %s%s"));
     uint8_t* value_23 = message;
-    uint8_t* value_24 = zir_f_db75f2f733e13c03_mismatch_detail((uint8_t*)(&((detail_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray4096_u8))), subject, expected, actual);
+    uint8_t* value_24 = zir_f_db75f2f733e13c03_mismatch_detail((uint8_t*)(&((detail_storage_0[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray4096_u8))), subject, shown_expected, shown_actual);
     zir_f_db75f2f733e13c03_DiagnosticDetailed(value_20, value_21, &(details_storage_2[0]), value_22, value_23, value_24, hint);
     zir_f_db75f2f733e13c03_CompilerFree((void*)(details_storage_2));
     zir_f_db75f2f733e13c03_CompilerFree((void*)(id_storage_1));
     zir_f_db75f2f733e13c03_CompilerFree((void*)(detail_storage_0));
+}
+
+static uint8_t*
+compiler_check_display_type(ZirModule* module, uint8_t* name, TypeDisplayName* storage)
+{
+    bool value_0 = name == ((void *)0);
+    bool value_1 = value_0;
+    if (!value_1) {
+        uint8_t* value_2 = name;
+        bool value_3 = zir_f_db75f2f733e13c03_strncmp(value_2, compiler_check_types_CheckCString(StringLiteral("__type_")), 7) != 0;
+        value_1 = value_3;
+    }
+    if (value_1) {
+        return name;
+    }
+    ZirType* type = zir_f_db75f2f733e13c03_FindType(module, name, (void *)0);
+    if (type == ((void *)0) || (type->template_name)[0] == 0) {
+        return name;
+    }
+    uint8_t* arguments = (uint8_t*)(&(type->template_args));
+    uint8_t* value_4 = arguments;
+    if (zir_f_db75f2f733e13c03_strncmp(value_4, compiler_check_types_CheckCString(StringLiteral("__type_")), 7) == 0) {
+        ZirType* inner = zir_f_db75f2f733e13c03_FindType(module, arguments, (void *)0);
+        if (inner != ((void *)0) && (inner->template_name)[0] != 0) {
+            zir_f_db75f2f733e13c03_snprintf((uint8_t*)(&(storage->inner)), 256, compiler_check_types_CheckCString(StringLiteral("%s(%s)")), (uint8_t*)(&(inner->template_name)), (uint8_t*)(&(inner->template_args)));
+            arguments = (uint8_t*)(&(storage->inner));
+        }
+    }
+    uint8_t* value_5 = compiler_check_types_CheckCString(StringLiteral("%s(%s)"));
+    zir_f_db75f2f733e13c03_snprintf((uint8_t*)(&(storage->text)), 512, value_5, (uint8_t*)(&(type->template_name)), arguments);
+    return (uint8_t*)(&(storage->text));
 }
 
 void

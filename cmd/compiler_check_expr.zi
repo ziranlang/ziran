@@ -42,6 +42,7 @@ NameDistance :: (a: *u8, b: *u8, limit: s32) -> s32 #foreign compiler "NameDista
 OperatorProcedureName :: (op: *u8) -> *u8 #foreign compiler "OperatorProcedureName";
 OwnedTextType :: (module: *IR.ZirModule, type: *u8) -> s32 #foreign compiler "OwnedTextType";
 PrintFormatPieces :: (format: *u8, pieces: *PrintPiece, capacity: s32) -> s32 #foreign compiler "PrintFormatPieces";
+FormatPrintfSpelling :: (format: *u8, loose: s32) -> s32 #foreign compiler "FormatPrintfSpelling";
 RecordFieldPathType :: (owner: *IR.ZirModule, record: *IR.ZirType, path: *u8, type: *u8, type_size: usize) -> s32 #foreign compiler "RecordFieldPathType";
 ResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunction";
 ResolveFunctionAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunctionAt";
@@ -79,6 +80,7 @@ fill_late_type_instances :: (module: *IR.ZirModule, span: IR.ZirSourceSpan) -> s
 flags_type :: (c: *Checker, name: *u8) -> *IR.ZirType #foreign compiler "private_check_flags_type";
 fread :: (__ptr: *void, __size: usize, __n: usize, __stream: *void) -> usize #foreign compiler "fread";
 CompilerFileSize :: (stream: *void) -> s64 #foreign compiler "CompilerFileSize";
+ToolchainStandardDirectory :: () -> *u8 #foreign compiler "ToolchainStandardDirectory";
 function :: (c: *Checker, name: *u8, span: IR.ZirSourceSpan) -> *IR.ZirFunction #foreign compiler "private_check_function";
 global_binding :: (c: *Checker, name: *u8) -> *IR.ZirGlobal #foreign compiler "private_check_global_binding";
 global_owned_place :: (c: *Checker, index: s32) -> s32 #foreign compiler "private_check_global_owned_place";
@@ -1480,11 +1482,32 @@ unresolved_detail :: (c: *Checker, name: *u8, procedures: s32, out: *u8, size: u
             CheckPost0(*(i))
         }
     }
+    // Public procedures and values of modules imported without a name.
+    for import_index: 0..(module).import_count - 1 {
+        imported: *IR.ZirImport = *((module).imports[import_index])
+        other: *IR.ZirModule = (imported).resolved_module
+        unqualified := cast(s32)((imported).kind) == 1 || (cast(s32)((imported).kind) == 2 && (imported).is_using != 0)
+        if other == null || !unqualified || in_lookup_file(module, (imported).is_file_private, (imported).span) == 0 { continue }
+        for f: 0..(other).function_count - 1 {
+            candidate: *IR.ZirFunction = *((other).functions[f])
+            if (candidate).is_public != 0 && (candidate).is_specialization == 0 && (candidate).is_global_initializer == 0 {
+                consider_name(name, cast(*u8)*((candidate).name), *(best), *(choice))
+            }
+        }
+        for g: 0..(other).global_count - 1 {
+            if procedures == 0 { consider_name(name, cast(*u8)*((other).globals[g].name), *(best), *(choice)) }
+        }
+    }
     if (((choice == cast(*u8)((null))) && ((c).fn != cast(*IR.ZirFunction)((null)))) && !(strncmp(cast(*u8)(*(((c).fn).name)), CheckCString("zi_local_"), cast(usize)(cast(u64)(9))) != 0)) {
         snprintf(out, size, CheckCString("%s (a local procedure cannot use the locals of the procedure around it)"), name)
         return out
     }
     if (choice == cast(*u8)((null))) {
+        standard := standard_module_declaring(name)
+        if standard != "" {
+            snprintf(out, size, CheckCString("%s (declared in std/%s; add #import \"std/%s\")"), name, CheckCString(standard), CheckCString(standard))
+            return out
+        }
         return name
     }
     CheckSet12(replacement, choice)
@@ -1555,7 +1578,82 @@ name_edit_span :: (c: *Checker, expression: *IR.ZirExpr, span: *IR.ZirSourceSpan
 }
 
 #scope_file
+// The common standard module that declares NAME, for a missing #import, or "".
+// Only an error reaches this, so reading these sources costs nothing else.
+standard_module_declaring :: (name: *u8) -> string {
+    directory := ToolchainStandardDirectory()
+    if directory == null { return "" }
+    modules := string.["text_tools", "hash_map", "file", "format", "sort", "option", "result", "unicode",
+        "json_document", "json_scan", "stdio_linux", "byte_text_linux", "file_linux", "file_tree_linux",
+        "environment_linux", "process_run_linux", "number_text", "float_text", "math", "path", "temp",
+        "utf8", "text", "string_range", "date_time_linux", "thread_linux", "random", "base64", "queue"]
+    wanted: [256]u8
+    wanted_length := snprintf(cast(*u8)*wanted, 256, CheckCString("\n%s :: "), name)
+    if wanted_length <= 3 || wanted_length >= 256 { return "" }
+    for module_name: modules {
+        path: [4096]u8
+        length := snprintf(cast(*u8)*path, 4096, CheckCString("%s/%s.zi"), directory, CheckCString(module_name))
+        if length <= 0 || length >= 4096 { continue }
+        if file_declares(cast(*u8)*path, wanted[:wanted_length]) { return module_name }
+    }
+    return ""
+}
+
+// Whether the file at PATH has a line starting with DECLARATION's text after
+// its leading newline.
+file_declares :: (path: *u8, declaration: []u8) -> bool {
+    file := CompilerFopen(path, CheckCString("rb"))
+    if file == null { return false }
+    bytes := CompilerFileSize(file)
+    if bytes <= 0 || bytes > 16 * 1024 * 1024 { CompilerFclose(file); return false }
+    text := cast(*u8)CompilerMalloc(cast(usize)bytes + 1)
+    if text == null { CompilerFclose(file); return false }
+    defer CompilerFree(cast(*void)text)
+    read := cast(s64)fread(cast(*void)text, 1, cast(usize)bytes, file)
+    CompilerFclose(file)
+    // A declaration on the first line matches as if a newline preceded it.
+    at: s64 = -1
+    while at + declaration.count <= read {
+        matched := true
+        for index: 0..declaration.count - 1 {
+            byte := ifx at + index < 0 then cast(u8)10 else text[at + index]
+            if byte != declaration[index] { matched = false; break }
+        }
+        if matched { return true }
+        at += 1
+    }
+    return false
+}
+
+#scope_file
+declared_in_function :: (fn: *IR.ZirFunction, name: *u8) -> bool {
+    for i: 0..(fn).stmt_count - 1 {
+        statement: *IR.ZirStmt = *((fn).stmts[i])
+        if cast(s32)(statement).kind == 3 && (statement).name != null && strcmp((statement).name, name) == 0 { return true }
+    }
+    return false
+}
+
+// Names the parser makes for lowered loops; an error about one only repeats
+// the error that broke the loop.
+is_generated_name :: (name: *u8) -> bool {
+    prefixes := string.["loop_view_", "loop_index_", "range_first_", "range_last_"]
+    for prefix: prefixes { if strncmp(name, CheckCString(prefix), cast(usize)prefix.count) == 0 { return true } }
+    return false
+}
+
+// Length spellings from other languages; Ziran has .count.
+is_length_spelling :: (name: *u8) -> bool {
+    spellings := string.["len", "length", "size", "Len", "Length", "Size", "count()"]
+    for spelling: spellings { if strcmp(name, CheckCString(spelling)) == 0 { return true } }
+    return false
+}
+
+#scope_file
 unresolved_error :: (c: *Checker, expression: *IR.ZirExpr, procedures: s32) {
+    if (((expression).name)[0] == 0 || is_generated_name((expression).name)) && ((c).errors > 0) { return }
+    // A local whose own declaration already failed is not reported again.
+    if procedures == 0 && (c).errors > 0 && (c).fn != null && declared_in_function((c).fn, (expression).name) { return }
     message_storage_0 := cast(*CheckArray4096_u8)AllocateOrExit(size_of(CheckArray4096_u8))
     defer CompilerFree(cast(*void)message_storage_0)
     memset(cast(*void)message_storage_0, 0, size_of(CheckArray4096_u8))
@@ -1991,7 +2089,11 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                 break check_switch_243
             }
             if (((VecElementType((c).module, cast(*u8)(*((record_name_storage_9[0]).items)), null, cast(usize)(0)) != 0) && (strcmp((e).name, CheckCString("count")) != 0)) && (strcmp((e).name, CheckCString("capacity")) != 0)) {
-                error(c, (e).span, CheckCString("Vec storage is private"), (e).name)
+                if is_length_spelling((e).name) {
+                    error(c, (e).span, CheckCString("strings, slices, arrays and Vecs have .count, and Ziran has no methods; write value.count"), (e).name)
+                } else {
+                    error(c, (e).span, CheckCString("Vec storage is private"), (e).name)
+                }
                 break check_switch_243
             }
             if ((record != cast(*IR.ZirType)((null))) && !((record).is_enum != 0)) {
@@ -2020,7 +2122,11 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                 }
             }
             if !((cast(*u8)(*((member_type_storage_0[0]).items)))[0] != 0) {
-                error(c, (e).span, CheckCString("unknown record field"), (e).name)
+                if is_length_spelling((e).name) {
+                    error(c, (e).span, CheckCString("strings, slices, arrays and Vecs have .count, and Ziran has no methods; write value.count"), (e).name)
+                } else if (left)[0] != 0 || (c).errors == 0 {
+                    error(c, (e).span, CheckCString("unknown record field"), (e).name)
+                }
             }
             type = cast(*u8)(*((member_type_storage_0[0]).items))
             check_moved_path_use(c, index)
@@ -2086,7 +2192,9 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                     }
                 } else {
                     if ((!(ArrayElementType(left, cast(*u8)(*((element_storage_13[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), null) != 0) && !(SliceElementType(left, cast(*u8)(*((element_storage_13[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0)) && !(VecElementType((c).module, left, cast(*u8)(*((element_storage_13[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0)) {
-                        error(c, (e).span, CheckCString("index requires an array, slice, pointer, or string"), (e).text)
+                        if (left)[0] != 0 || (c).errors == 0 {
+                            error(c, (e).span, CheckCString("index requires an array, slice, pointer, or string"), (e).text)
+                        }
                         copy_text(cast(*u8)(*((element_storage_13[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("s32"))
                     } else {
                         if !(integer_type(right) != 0) {
@@ -2418,6 +2526,9 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                 if ((first < 0) || (cast(s32)(((((c).fn).exprs)[first]).kind) != 4)) {
                     error(c, (e).span, CheckCString("print requires a string literal format"), (e).name)
                 } else {
+                    if FormatPrintfSpelling(((((c).fn).exprs)[first]).text, 0) != 0 {
+                        error(c, ((((c).fn).exprs)[first]).span, CheckCString("print format uses a C or Go conversion such as %d or %s; write a bare % for each argument of any type (%% is one percent sign)"), null)
+                    } else {
                     if ((CheckSet7(*(count), PrintFormatPieces(((((c).fn).exprs)[first]).text, pieces, 64))) < 0) {
                         error(c, ((((c).fn).exprs)[first]).span, CheckCString("print format is invalid or too long"), (e).name)
                     } else {
@@ -2433,9 +2544,14 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                             defer CompilerFree(cast(*void)detail_storage_19)
                             memset(cast(*void)detail_storage_19, 0, size_of(CheckArray64_u8))
                             snprintf(cast(*u8)(*((detail_storage_19[0]).items)), cast(usize)(cast(u64)size_of(CheckArray64_u8)), CheckCString("%d %% for %d argument%s"), placeholders, arguments, (ifx (arguments == 1) then CheckCString("") else CheckCString("s")))
-                            error(c, (e).span, CheckCString("print format placeholders do not match arguments"), cast(*u8)(*((detail_storage_19[0]).items)))
+                            if FormatPrintfSpelling(((((c).fn).exprs)[first]).text, 1) != 0 {
+                                error(c, ((((c).fn).exprs)[first]).span, CheckCString("print format uses a C or Go conversion such as %d or %s; write a bare % for each argument of any type (%% is one percent sign)"), null)
+                            } else {
+                                error(c, (e).span, CheckCString("print format placeholders do not match arguments"), cast(*u8)(*((detail_storage_19[0]).items)))
+                            }
                         }
                     }
+                }
                 }
                 CompilerFree(cast(*void)(pieces))
                 if (((((expanded != 0) && ((c).errors == errors_before)) && !(print_through_procedure(c, index) != 0)) && !((c).inference_only != 0)) && ((c).errors == errors_before)) {

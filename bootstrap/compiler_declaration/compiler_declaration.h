@@ -37,6 +37,9 @@ typedef struct StatementOutput StatementOutput;
 #ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
 typedef struct QuotedText QuotedText;
 #endif
+#ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
+typedef struct CText CText;
+#endif
 
 enum {
     DeclarationError_None = 0,
@@ -96,24 +99,25 @@ enum {
     DeclarationError_BuilderArguments = 54,
     DeclarationError_BuilderPieces = 55,
     DeclarationError_BuilderArgumentCount = 56,
-    DeclarationError_GoMethodQuote = 57,
-    DeclarationError_GoMethodDuplicate = 58,
-    DeclarationError_GoMethodResults = 59,
-    DeclarationError_GoMethodForeign = 60,
-    DeclarationError_ProcedureTypeCount = 61,
-    DeclarationError_ProcedureTypeName = 62,
-    DeclarationError_ProcedureTypeType = 63,
-    DeclarationError_ProcedureTypeDefault = 64,
-    DeclarationError_ImportParameterList = 65,
-    DeclarationError_ImportParameterMode = 66,
-    DeclarationError_ParameterListSyntax = 67,
-    DeclarationError_ParameterName = 68,
-    DeclarationError_ParameterValue = 69,
-    DeclarationError_ParameterDuplicate = 70,
-    DeclarationError_ParameterType = 71,
-    DeclarationError_ParameterDefault = 72,
-    DeclarationError_ParameterFit = 73,
-    DeclarationError_InsertSyntax = 74,
+    DeclarationError_BuilderPrintf = 57,
+    DeclarationError_GoMethodQuote = 58,
+    DeclarationError_GoMethodDuplicate = 59,
+    DeclarationError_GoMethodResults = 60,
+    DeclarationError_GoMethodForeign = 61,
+    DeclarationError_ProcedureTypeCount = 62,
+    DeclarationError_ProcedureTypeName = 63,
+    DeclarationError_ProcedureTypeType = 64,
+    DeclarationError_ProcedureTypeDefault = 65,
+    DeclarationError_ImportParameterList = 66,
+    DeclarationError_ImportParameterMode = 67,
+    DeclarationError_ParameterListSyntax = 68,
+    DeclarationError_ParameterName = 69,
+    DeclarationError_ParameterValue = 70,
+    DeclarationError_ParameterDuplicate = 71,
+    DeclarationError_ParameterType = 72,
+    DeclarationError_ParameterDefault = 73,
+    DeclarationError_ParameterFit = 74,
+    DeclarationError_InsertSyntax = 75,
 };
 
 struct GoMethodDeclaration {
@@ -277,6 +281,13 @@ struct QuotedText {
     int64_t end;
 };
 #endif
+#ifdef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
+
+struct CText {
+    uint8_t* data;
+    int64_t count;
+};
+#endif
 String compiler_declaration_ErrorText(DeclarationError error);
 GoMethodDeclaration compiler_declaration_ParseGoMethod(String source, int64_t name_limit);
 UsingFilter compiler_declaration_UsingModifierClause(String source, Slice output, int64_t name_limit);
@@ -307,6 +318,8 @@ bool compiler_declaration_DefaultScopeIndependent(String source, int64_t token_l
 TextRewrite compiler_declaration_RewriteProcedureName(String source, String name, Slice output);
 TextRewrite compiler_declaration_RewriteLocalNames(String source, Slice names, Slice output);
 SymmetricRewrite compiler_declaration_RewriteSymmetric(String source, Slice header_output, Slice wrapper_output, int64_t name_limit);
+bool compiler_declaration_PrintfSpelling(String format, bool loose);
+int32_t FormatPrintfSpelling(uint8_t* format, int32_t loose);
 PrintRewrite compiler_declaration_BuilderPrintPieces(String source, Slice output, int32_t maximum);
 
 /* Small procedures other modules inline; compiler_declaration.c defines them. */

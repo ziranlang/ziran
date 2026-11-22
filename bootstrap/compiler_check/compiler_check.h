@@ -10,6 +10,16 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#ifdef ZIRAN_COMPILER_CHECK_H_PRIVATE
+typedef struct TypeDisplayName TypeDisplayName;
+#endif
+#ifdef ZIRAN_COMPILER_CHECK_H_PRIVATE
+
+struct TypeDisplayName {
+    uint8_t text[512];
+    uint8_t inner[256];
+};
+#endif
 void private_check_select_lookup_file(ZirModule* module, ZirSourceSpan span);
 int32_t private_check_in_lookup_file(ZirModule* module, int32_t is_file_private, ZirSourceSpan span);
 int32_t private_check_check_file_private_expression(ZirModule* module, uint8_t* source, ZirSourceSpan span);

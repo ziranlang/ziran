@@ -61,8 +61,19 @@ type requirement has primary node 0, declaration node 1, and a `requires_type`
 edge; other relations may be null when the checker has only a related location.
 Empty graphs mean no related fact is available.
 
+Habits from other languages get one message naming the Ziran spelling
+before they cascade: `let`/`var`/`const` declarations, `fn`/`func`/`def`/
+`function`/`pub`, `for i in a..b`, C `for (;;)`, `*p = value`, `switch`,
+`match`, `.len()`/`.length`/`.size`, printf conversions such as `%d` or `%s`
+in a `print` or `BuilderPrint` format, and a loop or slice over a Vec that a
+call returned. Errors about names the compiler generated for a broken loop,
+and about a local whose own declaration already failed, are not repeated.
+Type mismatches print specializations as written, such as `Vec(string)`.
+
 Missing-name diagnostics include `suggested_name` when a close visible name
-exists. `alternatives` groups independent repairs, each with an ID, message,
+exists, including public procedures of unqualified imports. A name that a
+common standard module declares but the file does not import names the
+`#import` to add. `alternatives` groups independent repairs, each with an ID, message,
 and an array of exact, non-overlapping `edits`. The current checker offers at
 most one `replace_name` alternative. Each edit supplies zero-based half-open
 UTF-8 byte offsets, one-based line/byte columns, `document_sha256`, `original`,

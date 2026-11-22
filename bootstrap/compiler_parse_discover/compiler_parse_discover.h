@@ -2,8 +2,7 @@
 #ifndef ZIRAN_COMPILER_PARSE_DISCOVER_H
 #define ZIRAN_COMPILER_PARSE_DISCOVER_H
 
-#include <stdint.h>
-#include <stddef.h>
+#include "zir_string_types.h"
 #include "compiler_ir.h"
 #include "compiler_parse_types.h"
 #include "compiler_type.h"
@@ -11,6 +10,22 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#ifdef ZIRAN_COMPILER_PARSE_DISCOVER_H_PRIVATE
+#define FOR_IN_HINT "for ... in is not Ziran syntax; write for i: first..last { } (last is included) or for value: values { }"
+#endif
+#ifdef ZIRAN_COMPILER_PARSE_DISCOVER_H_PRIVATE
+#define C_FOR_HINT "C-style for (;;) is not Ziran syntax; write for i: 0..count - 1 { } or a while loop"
+#endif
+#ifdef ZIRAN_COMPILER_PARSE_DISCOVER_H_PRIVATE
+#define POINTER_STORE_HINT "*p = value is not Ziran syntax; *p takes an address, so store through a pointer with <<p = value"
+#endif
+typedef struct Results__string__s64 Results__string__s64;
+
+struct Results__string__s64 {
+    String value_0;
+    int64_t value_1;
+};
+uint8_t* private_parse_foreign_syntax_hint(uint8_t* line, int32_t* column);
 int32_t private_parse_normalize_jai_source_line(uint8_t* line, uint8_t* path, uint8_t* physical_path, int32_t line_no, int32_t in_string, int32_t* uses_resizable_arrays);
 void private_parse_normalize_jai_source_tokens(uint8_t* line, uint8_t* path, uint8_t* physical_path, int32_t line_no, int32_t* uses_resizable_arrays);
 uint8_t* private_parse_read_source_line(uint8_t* line, size_t size, uint8_t** source, uint8_t* path, int32_t line_no);

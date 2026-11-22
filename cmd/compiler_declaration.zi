@@ -18,7 +18,7 @@ DeclarationError :: enum s32 {
     ForeignGoDefer; ForeignGoVariadic;
     ResultCount; ResultName; ResultType; ResultParameters; ReturnCount;
     SymmetricParameters; SymmetricModifier; ProcedureNameArguments;
-    BuilderFormat; BuilderPercent; BuilderArguments; BuilderPieces; BuilderArgumentCount;
+    BuilderFormat; BuilderPercent; BuilderArguments; BuilderPieces; BuilderArgumentCount; BuilderPrintf;
     GoMethodQuote; GoMethodDuplicate; GoMethodResults; GoMethodForeign;
     ProcedureTypeCount; ProcedureTypeName; ProcedureTypeType; ProcedureTypeDefault;
     ImportParameterList; ImportParameterMode; ParameterListSyntax; ParameterName;
@@ -265,6 +265,7 @@ ErrorText :: (error: DeclarationError) -> string {
     if error == .BuilderFormat { return "BuilderPrint needs a builder and a literal format" }
     if error == .BuilderPercent { return "BuilderPrint format has more % than arguments" }
     if error == .BuilderArguments { return "BuilderPrint has more arguments than % in its format" }
+    if error == .BuilderPrintf { return "BuilderPrint format uses a C or Go conversion such as %d or %s; write a bare % for each argument of any type (%% is one percent sign)" }
     if error == .BuilderPieces { return "BuilderPrint has too many pieces" }
     if error == .BuilderArgumentCount { return "BuilderPrint has too many arguments" }
     if error == .GoMethodQuote { return "#go_method requires a quoted method identifier" }
@@ -1334,6 +1335,58 @@ RewriteSymmetric :: (source: string, header_output: []u8, wrapper_output: []u8,
     return result
 }
 
+// Whether a % format is written as C or Go would: every % (other than %%)
+// starts a conversion such as %d, %s, %5d, %lld or %.2f. Ziran takes a bare %
+// for every argument, so such a format prints the argument followed by the
+// conversion's letters. Loose matching also counts %x, %c, %e and friends,
+// and is used only to explain a format that is already wrong.
+PrintfSpelling :: (format: string, loose: bool = false) -> bool {
+    found := false
+    at: s64 = 0
+    while at < format.count {
+        if format[at] == #char "\\" { at += 2; continue }
+        if format[at] != #char "%" { at += 1; continue }
+        if at + 1 < format.count && format[at + 1] == #char "%" { at += 2; continue }
+        next := at + 1
+        precision := false
+        while next < format.count && IsPrintfFlag(format[next]) { precision = precision || format[next] == #char "."; next += 1 }
+        while next < format.count && (format[next] == #char "l" || format[next] == #char "h" || format[next] == #char "z") { next += 1 }
+        conversion := next < format.count && (next + 1 == format.count || !IsAsciiLetter(format[next + 1]))
+        if conversion {
+            byte := format[next]
+            strict := byte == #char "d" || byte == #char "i" || byte == #char "u" || byte == #char "v" ||
+                byte == #char "f" || (byte == #char "s" && !precision)
+            conversion = strict || (loose && IsPrintfConversion(byte))
+        }
+        if conversion { found = true } else if !loose { return false }
+        at = next + 1
+    }
+    return found
+}
+
+#scope_export
+#program_export "FormatPrintfSpelling"
+FormatPrintfSpelling :: (format: *u8, loose: s32) -> s32 {
+    view := CText.{data = format}
+    while format[view.count] != 0 { view.count += 1 }
+    return ifx PrintfSpelling((cast(*string)*view)[0], loose != 0) then 1 else 0
+}
+
+#scope_file
+CText :: struct { data: *u8; count: s64; }
+
+IsAsciiLetter :: (byte: u8) -> bool { return (byte >= #char "a" && byte <= #char "z") || (byte >= #char "A" && byte <= #char "Z") }
+
+IsPrintfFlag :: (byte: u8) -> bool {
+    return byte == #char "-" || byte == #char "+" || byte == #char "#" || byte == #char "." || (byte >= #char "0" && byte <= #char "9")
+}
+
+IsPrintfConversion :: (byte: u8) -> bool {
+    for conversion: "diuxXocsfFeEgGpvqtb" { if byte == conversion { return true } }
+    return false
+}
+
+#scope_export
 // Each output slot receives its bounded statement prefix. Missing slots still
 // get measured, so callers can size storage without retaining native buffers.
 BuilderPrintPieces :: (source: string, output: []StatementOutput, maximum: s32 = 64) -> PrintRewrite {
@@ -1364,6 +1417,7 @@ BuilderPrintPieces :: (source: string, output: []StatementOutput, maximum: s32 =
         return result
     }
     format = format[1:format.count - 1]
+    if PrintfSpelling(format) { result.error = .BuilderPrintf; return result }
     argument: s32 = 2
     begin: s64 = 0
     at = 0
@@ -1372,7 +1426,7 @@ BuilderPrintPieces :: (source: string, output: []StatementOutput, maximum: s32 =
         if byte == #char "\\" && at + 1 < format.count { at += 2; continue }
         if byte == #char "%" && at + 1 < format.count && format[at + 1] == #char "%" { at += 2; continue }
         if byte != #char "%" { at += 1; continue }
-        if argument == count { result.error = .BuilderPercent; return result }
+        if argument == count { result.error = ifx PrintfSpelling(format, true) then .BuilderPrintf else .BuilderPercent; return result }
         if at > begin { AddPrintPiece(*result, output, maximum, parts[0], format[begin:at], true) }
         if result.error != .None { return result }
         AddPrintPiece(*result, output, maximum, parts[0], parts[argument], false)
@@ -1381,7 +1435,7 @@ BuilderPrintPieces :: (source: string, output: []StatementOutput, maximum: s32 =
         at += 1
         begin = at
     }
-    if argument != count { result.error = .BuilderArguments; return result }
+    if argument != count { result.error = ifx PrintfSpelling(format, true) then .BuilderPrintf else .BuilderArguments; return result }
     if at > begin { AddPrintPiece(*result, output, maximum, parts[0], format[begin:at], true) }
     return result
 }

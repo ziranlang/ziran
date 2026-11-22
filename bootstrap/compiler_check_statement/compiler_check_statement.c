@@ -934,6 +934,8 @@ static uint8_t ScratchKey_declared_application_valid = {0};
 static uint8_t ScratchKey_check_type_declarations = {0};
 static uint8_t ScratchKey_normalize_record_arrays = {0};
 static uint8_t ScratchKey_lower_if_case = {0};
+static ZirFunction* reported_call_slice_function = {0};
+static int32_t reported_call_slice = -1;
 
 static int32_t
 compiler_check_statement_record_declaration_error(ZirType* record, uint8_t* message, uint8_t* field)
@@ -5395,25 +5397,38 @@ private_check_slice_vec_place(Checker* c, int32_t index, uint8_t* vector)
     }
     bool value_3 = compiler_check_statement_vec_place_path(fn, (fn->exprs[index]).left) != 0;
     if (!value_3) {
-        ZirSourceSpan value_4 = (fn->exprs[index]).span;
-        uint8_t* value_5 = compiler_check_types_CheckCString(StringLiteral("a Vec slice views a named Vec place"));
-        zir_f_cc4938222caf8951_error(c, value_4, value_5, (uint8_t*)(fn->exprs[index]).text);
-        uint8_t* cleanup_return_1 = compiler_check_types_CheckCString(StringLiteral(""));
-        zir_f_cc4938222caf8951_CompilerFree((void*)(slice_storage_1));
-        zir_f_cc4938222caf8951_CompilerFree((void*)(element_storage_0));
-        return cleanup_return_1;
-    }
-    if (c->inference_only != 0) {
-        uint8_t* cleanup_return_2 = zir_f_cc4938222caf8951_KeepName((uint8_t*)(&((slice_storage_1[0]).items)));
+        int32_t left = (fn->exprs[index]).left;
+        if (left >= 0 && (int32_t)(((ZirExprKind)((fn->exprs[left]).kind))) == 5) {
+            ZirSourceSpan value_4 = (fn->exprs[left]).span;
+            String value_5 = StringLiteral("a Vec returned by a call must be bound to a local before it is looped over or sliced; write values := Call(...), then for values { }");
+            uint8_t* value_6 = compiler_check_types_CheckCString(value_5);
+            zir_f_cc4938222caf8951_error(c, value_4, value_6, (uint8_t*)(fn->exprs[left]).name);
+            reported_call_slice_function = fn;
+            reported_call_slice = left;
+            uint8_t* cleanup_return_1 = compiler_check_types_CheckCString(StringLiteral(""));
+            zir_f_cc4938222caf8951_CompilerFree((void*)(slice_storage_1));
+            zir_f_cc4938222caf8951_CompilerFree((void*)(element_storage_0));
+            return cleanup_return_1;
+        }
+        ZirSourceSpan value_7 = (fn->exprs[index]).span;
+        uint8_t* value_8 = compiler_check_types_CheckCString(StringLiteral("a Vec slice views a named Vec place"));
+        zir_f_cc4938222caf8951_error(c, value_7, value_8, (uint8_t*)(fn->exprs[index]).text);
+        uint8_t* cleanup_return_2 = compiler_check_types_CheckCString(StringLiteral(""));
         zir_f_cc4938222caf8951_CompilerFree((void*)(slice_storage_1));
         zir_f_cc4938222caf8951_CompilerFree((void*)(element_storage_0));
         return cleanup_return_2;
     }
+    if (c->inference_only != 0) {
+        uint8_t* cleanup_return_3 = zir_f_cc4938222caf8951_KeepName((uint8_t*)(&((slice_storage_1[0]).items)));
+        zir_f_cc4938222caf8951_CompilerFree((void*)(slice_storage_1));
+        zir_f_cc4938222caf8951_CompilerFree((void*)(element_storage_0));
+        return cleanup_return_3;
+    }
     ZirExpr* e = (ZirExpr*)(((size_t)(fn->exprs) + ((size_t)(index) * sizeof(ZirExpr))));
-    uint8_t* cleanup_return_3 = compiler_check_statement_vec_slice_call(c, index, e->left, e->right, e->third);
+    uint8_t* cleanup_return_4 = compiler_check_statement_vec_slice_call(c, index, e->left, e->right, e->third);
     zir_f_cc4938222caf8951_CompilerFree((void*)(slice_storage_1));
     zir_f_cc4938222caf8951_CompilerFree((void*)(element_storage_0));
-    return cleanup_return_3;
+    return cleanup_return_4;
 }
 
 static uint8_t*
@@ -6352,9 +6367,10 @@ private_check_check_vec_call_results(Checker* c, int32_t index, int32_t transfer
         return;
     }
     ZirExpr* expr = (ZirExpr*)(((size_t)(c->fn->exprs) + ((size_t)(index) * sizeof(ZirExpr))));
+    bool already_reported = reported_call_slice_function == c->fn && reported_call_slice == index;
     bool value_0 = (int32_t)(((ZirExprKind)(expr->kind))) == 5;
     bool value_1 = value_0 && zir_f_cc4938222caf8951_contains_vec(c->module, (uint8_t*)expr->type, 0) != 0;
-    if (value_1 && !(transferred != 0) && !(discarded != 0)) {
+    if (value_1 && !(transferred != 0) && !(discarded != 0) && !already_reported) {
         ZirSourceSpan value_2 = expr->span;
         uint8_t* value_3 = compiler_check_types_CheckCString(StringLiteral("temporary owned result must be bound or passed to an owning call"));
         zir_f_cc4938222caf8951_error(c, value_2, value_3, (uint8_t*)expr->name);

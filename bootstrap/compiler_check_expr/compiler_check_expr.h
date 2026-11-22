@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "zir_slice.h"
 #include "compiler_ir.h"
 #include "compiler_check_types.h"
 

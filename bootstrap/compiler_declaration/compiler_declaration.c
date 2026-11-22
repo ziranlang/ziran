@@ -39,6 +39,9 @@ static bool compiler_declaration_ParameterIn(String source, String parameter) ZI
 static String compiler_declaration_StatementValue(String source) ZIRAN_MAYBE_UNUSED;
 static void compiler_declaration_PutByte(Slice output, int64_t* used, uint8_t byte) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_declaration_AfterComment(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
+static bool compiler_declaration_IsAsciiLetter(uint8_t byte) ZIRAN_MAYBE_UNUSED;
+static bool compiler_declaration_IsPrintfFlag(uint8_t byte) ZIRAN_MAYBE_UNUSED;
+static bool compiler_declaration_IsPrintfConversion(uint8_t byte) ZIRAN_MAYBE_UNUSED;
 static void compiler_declaration_AddPrintPiece(PrintRewrite* result, Slice output, int32_t maximum, String builder, String value, bool literal) ZIRAN_MAYBE_UNUSED;
 
 static int64_t
@@ -478,6 +481,9 @@ compiler_declaration_ErrorText(DeclarationError error)
     }
     if (error == DeclarationError_BuilderArguments) {
         return StringLiteral("BuilderPrint has more arguments than % in its format");
+    }
+    if (error == DeclarationError_BuilderPrintf) {
+        return StringLiteral("BuilderPrint format uses a C or Go conversion such as %d or %s; write a bare % for each argument of any type (%% is one percent sign)");
     }
     if (error == DeclarationError_BuilderPieces) {
         return StringLiteral("BuilderPrint has too many pieces");
@@ -3505,6 +3511,124 @@ compiler_declaration_RewriteSymmetric(String source, Slice header_output, Slice 
     return result;
 }
 
+bool
+compiler_declaration_PrintfSpelling(String format, bool loose)
+{
+    bool found = false;
+    int64_t at = 0LL;
+    while (at < (int64_t)(format).length) {
+        if ((uint8_t)format.data[at] == 92) {
+            at = (int64_t)((uint64_t)at + UINT64_C(2));
+            continue;
+        }
+        if ((uint8_t)format.data[at] != 37) {
+            at = (int64_t)((uint64_t)at + UINT64_C(1));
+            continue;
+        }
+        if ((int64_t)((uint64_t)at + UINT64_C(1)) < (int64_t)(format).length && (uint8_t)format.data[((int64_t)((uint64_t)at + UINT64_C(1)))] == 37) {
+            at = (int64_t)((uint64_t)at + UINT64_C(2));
+            continue;
+        }
+        int64_t next = (int64_t)((uint64_t)at + UINT64_C(1));
+        bool precision = false;
+        while (true) {
+            bool value_0 = next < (int64_t)(format).length;
+            if (value_0) {
+                uint8_t value_1 = (uint8_t)format.data[next];
+                bool value_2 = false;
+                {
+                    uint8_t byte = value_1;
+                    value_2 = byte == 45 || byte == 43 || byte == 35 || byte == 46 || (byte >= 48 && byte <= 57);
+                }
+                value_0 = value_2;
+            }
+            if (!value_0) { break; }
+            precision = precision || (uint8_t)format.data[next] == 46;
+            next = (int64_t)((uint64_t)next + UINT64_C(1));
+        }
+        while (next < (int64_t)(format).length && ((uint8_t)format.data[next] == 108 || (uint8_t)format.data[next] == 104 || (uint8_t)format.data[next] == 122)) {
+            next = (int64_t)((uint64_t)next + UINT64_C(1));
+        }
+        bool value_4 = next < (int64_t)(format).length;
+        if (value_4) {
+            bool value_5 = (int64_t)((uint64_t)next + UINT64_C(1)) == (int64_t)(format).length;
+            if (!value_5) {
+                uint8_t value_6 = (uint8_t)format.data[((int64_t)((uint64_t)next + UINT64_C(1)))];
+                bool value_7 = false;
+                {
+                    uint8_t byte = value_6;
+                    value_7 = (byte >= 97 && byte <= 122) || (byte >= 65 && byte <= 90);
+                }
+                value_5 = !value_7;
+            }
+            value_4 = value_5;
+        }
+        bool conversion = value_4;
+        if (conversion) {
+            uint8_t byte = (uint8_t)format.data[next];
+            bool strict = byte == 100 || byte == 105 || byte == 117 || byte == 118 || byte == 102 || (byte == 115 && !precision);
+            conversion = strict || (loose && compiler_declaration_IsPrintfConversion(byte));
+        }
+        if (conversion) {
+            found = true;
+        } else if (!loose) {
+            return false;
+        }
+        at = (int64_t)((uint64_t)next + UINT64_C(1));
+    }
+    return found;
+}
+
+int32_t
+FormatPrintfSpelling(uint8_t* format, int32_t loose)
+{
+    CText view = {.data = format};
+    while (format[view.count] != 0) {
+        int64_t* value_0 = &(view.count);
+        (*value_0) = (int64_t)((uint64_t)((*value_0)) + UINT64_C(1));
+    }
+    bool value_1 = compiler_declaration_PrintfSpelling(((String*)(&(view)))[0], loose != 0);
+    int32_t value_2 = 0;
+    if (value_1) {
+        value_2 = 1;
+    } else {
+        value_2 = 0;
+    }
+    return value_2;
+}
+
+static bool
+compiler_declaration_IsAsciiLetter(uint8_t byte)
+{
+    return (byte >= 97 && byte <= 122) || (byte >= 65 && byte <= 90);
+}
+
+static bool
+compiler_declaration_IsPrintfFlag(uint8_t byte)
+{
+    return byte == 45 || byte == 43 || byte == 35 || byte == 46 || (byte >= 48 && byte <= 57);
+}
+
+static bool
+compiler_declaration_IsPrintfConversion(uint8_t byte)
+{
+    {
+        String value_0 = StringLiteral("diuxXocsfFeEgGpvqtb");
+        String loop_view_0 = StringRangeAt(value_0, (int64_t)0, (int64_t)value_0.length);
+        int64_t loop_count_0 = (int64_t)(loop_view_0).length;
+        int64_t loop_cursor_0 = 0LL;
+        while (loop_cursor_0 < loop_count_0) {
+            int64_t loop_index_0 = loop_cursor_0;
+            uint8_t conversion = (uint8_t)loop_view_0.data[loop_index_0];
+            if (byte == conversion) {
+                return true;
+            }
+            loop_cursor_0 = (int64_t)((uint64_t)loop_cursor_0 + UINT64_C(1));
+        }
+    }
+    return false;
+}
+
 PrintRewrite
 compiler_declaration_BuilderPrintPieces(String source, Slice output, int32_t maximum)
 {
@@ -3571,6 +3695,11 @@ compiler_declaration_BuilderPrintPieces(String source, Slice output, int32_t max
         return result;
     }
     format = StringRangeAt(format, (int64_t)1LL, (int64_t)((int64_t)((uint64_t)((int64_t)(format).length) - UINT64_C(1))));
+    if (compiler_declaration_PrintfSpelling(format, false)) {
+        DeclarationError* value_13 = &(result.error);
+        (*value_13) = DeclarationError_BuilderPrintf;
+        return result;
+    }
     int32_t argument = 2;
     int64_t begin = 0LL;
     at = 0LL;
@@ -3589,8 +3718,15 @@ compiler_declaration_BuilderPrintPieces(String source, Slice output, int32_t max
             continue;
         }
         if (argument == count) {
-            DeclarationError* value_13 = &(result.error);
-            (*value_13) = DeclarationError_BuilderPercent;
+            DeclarationError* value_14 = &(result.error);
+            bool value_15 = compiler_declaration_PrintfSpelling(format, true);
+            DeclarationError value_16 = (DeclarationError)(0);
+            if (value_15) {
+                value_16 = DeclarationError_BuilderPrintf;
+            } else {
+                value_16 = DeclarationError_BuilderPercent;
+            }
+            (*value_14) = value_16;
             return result;
         }
         if (at > begin) {
@@ -3608,8 +3744,15 @@ compiler_declaration_BuilderPrintPieces(String source, Slice output, int32_t max
         begin = at;
     }
     if (argument != count) {
-        DeclarationError* value_14 = &(result.error);
-        (*value_14) = DeclarationError_BuilderArguments;
+        DeclarationError* value_17 = &(result.error);
+        bool value_18 = compiler_declaration_PrintfSpelling(format, true);
+        DeclarationError value_19 = (DeclarationError)(0);
+        if (value_18) {
+            value_19 = DeclarationError_BuilderPrintf;
+        } else {
+            value_19 = DeclarationError_BuilderArguments;
+        }
+        (*value_17) = value_19;
         return result;
     }
     if (at > begin) {

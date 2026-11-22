@@ -2030,6 +2030,12 @@ vec_slice_call :: (c: *Checker, index: s32, place: s32, low: s32, high: s32) -> 
     return expression_type(c, index)
 }
 
+#scope_file
+// The call whose loop or slice was already reported, so its owned-result
+// check does not report it again.
+reported_call_slice_function: *IR.ZirFunction;
+reported_call_slice: s32 = -1;
+
 #scope_export
 #program_export "private_check_slice_vec_place"
 slice_vec_place :: (c: *Checker, index: s32, vector: *u8) -> *u8 {
@@ -2044,6 +2050,15 @@ slice_vec_place :: (c: *Checker, index: s32, vector: *u8) -> *u8 {
         return CheckCString("")
     }
     if !(vec_place_path(fn, (((fn).exprs)[index]).left) != 0) {
+        left: s32 = (((fn).exprs)[index]).left
+        if left >= 0 && cast(s32)((((fn).exprs)[left]).kind) == 5 {
+            // One message for a loop or slice over a call: the temporary
+            // owned result check below would only repeat it.
+            error(c, (((fn).exprs)[left]).span, CheckCString("a Vec returned by a call must be bound to a local before it is looped over or sliced; write values := Call(...), then for values { }"), (((fn).exprs)[left]).name)
+            reported_call_slice_function = fn
+            reported_call_slice = left
+            return CheckCString("")
+        }
         error(c, (((fn).exprs)[index]).span, CheckCString("a Vec slice views a named Vec place"), (((fn).exprs)[index]).text)
         return CheckCString("")
     }
@@ -2482,7 +2497,8 @@ check_vec_call_results :: (c: *Checker, index: s32, transferred: s32, discarded:
         return
     }
     expr: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)(((c).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
-    if ((((cast(s32)((expr).kind) == 5) && (contains_vec((c).module, (expr).type, 0) != 0)) && !(transferred != 0)) && !(discarded != 0)) {
+    already_reported := reported_call_slice_function == (c).fn && reported_call_slice == index
+    if ((((cast(s32)((expr).kind) == 5) && (contains_vec((c).module, (expr).type, 0) != 0)) && !(transferred != 0)) && !(discarded != 0)) && !already_reported {
         error(c, (expr).span, CheckCString("temporary owned result must be bound or passed to an owning call"), (expr).name)
     }
     {

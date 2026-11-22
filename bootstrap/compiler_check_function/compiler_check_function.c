@@ -2275,7 +2275,7 @@ compiler_check_function_check_function_with_buffers(Checker* c, ZirFunction* fn,
                                 if (value_187) {
                                     resolvable = 1;
                                 }
-                                if (!(resolvable != 0)) {
+                                if (!(resolvable != 0) && (st->type[0] != 0 || c->errors == 0)) {
                                     Checker* value_189 = c;
                                     ZirSourceSpan value_190 = st->span;
                                     uint8_t* value_191 = compiler_check_types_CheckCString(StringLiteral("unknown declaration type"));

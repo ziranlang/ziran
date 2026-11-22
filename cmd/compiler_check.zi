@@ -798,6 +798,11 @@ type_error :: (c: *Checker, span: IR.ZirSourceSpan, message: *u8, subject: *u8, 
     memset(cast(*void)details_storage_2, 0, size_of(DiagnosticDetails))
     details_storage_2[0] = .{(ifx ((c).fn != null) then cast(*u8)(*((id_storage_1[0]).items)) else null), CheckCString("type_mismatch"), subject, DocumentForSpan((c).module, span), CheckCString("requires_type"), expected, actual, declaration, CheckCString("The required type is declared here")}
     CheckPost0(*((c).errors))
+    // Specializations print as written, Vec(string), not as __type_<hash>.
+    expected_name: TypeDisplayName
+    actual_name: TypeDisplayName
+    shown_expected := display_type((c).module, expected, *expected_name)
+    shown_actual := display_type((c).module, actual, *actual_name)
     hint: *u8 = CheckCString("")
     if ((((expected != cast(*u8)((null))) && (actual != cast(*u8)((null)))) && !(strcmp(expected, CheckCString("string")) != 0)) && (OwnedTextType((c).module, actual) != 0)) {
         hint = CheckCString("; owned Text is not a string: borrow it with TextView(text) while the Text lives, or keep the Text as the type")
@@ -806,8 +811,30 @@ type_error :: (c: *Checker, span: IR.ZirSourceSpan, message: *u8, subject: *u8, 
             hint = CheckCString("; a string does not own its bytes: copy it with TextCopy(text), or use .{} for empty text")
         }
     }
-    DiagnosticDetailed(span, CheckCString("check.type"), *(details_storage_2[0]), CheckCString("%s: %s%s"), message, mismatch_detail(cast(*u8)(*((detail_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), subject, expected, actual), hint)
+    DiagnosticDetailed(span, CheckCString("check.type"), *(details_storage_2[0]), CheckCString("%s: %s%s"), message, mismatch_detail(cast(*u8)(*((detail_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), subject, shown_expected, shown_actual), hint)
 }
+
+#scope_file
+TypeDisplayName :: struct { text: [512]u8; inner: [256]u8; }
+
+// The written spelling of a checked type name: a specialization such as
+// __type_c53c2d7c4913dc02 becomes Vec(string), one nested level included.
+display_type :: (module: *IR.ZirModule, name: *u8, storage: *TypeDisplayName) -> *u8 {
+    if name == null || strncmp(name, CheckCString("__type_"), 7) != 0 { return name }
+    type := FindType(module, name, null)
+    if type == null || (type).template_name[0] == 0 { return name }
+    arguments: *u8 = cast(*u8)*((type).template_args)
+    if strncmp(arguments, CheckCString("__type_"), 7) == 0 {
+        inner := FindType(module, arguments, null)
+        if inner != null && (inner).template_name[0] != 0 {
+            snprintf(cast(*u8)*((storage).inner), 256, CheckCString("%s(%s)"), cast(*u8)*((inner).template_name), cast(*u8)*((inner).template_args))
+            arguments = cast(*u8)*((storage).inner)
+        }
+    }
+    snprintf(cast(*u8)*((storage).text), 512, CheckCString("%s(%s)"), cast(*u8)*((type).template_name), arguments)
+    return cast(*u8)*((storage).text)
+}
+
 
 #scope_export
 #program_export "private_check_signature_error"

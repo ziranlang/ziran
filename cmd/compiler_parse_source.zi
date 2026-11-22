@@ -84,6 +84,7 @@ line_starts_compile_condition :: (line: *u8) -> s32 #foreign compiler "private_p
 looks_like_function_header :: (line: *u8) -> s32 #foreign compiler "private_parse_looks_like_function_header";
 looks_like_label :: (s: *u8) -> s32 #foreign compiler "private_parse_looks_like_label";
 looks_like_non_jai_control :: (text: *u8, word: *u8) -> s32 #foreign compiler "private_parse_looks_like_non_jai_control";
+foreign_syntax_hint :: (line: *u8, column: *s32) -> *u8 #foreign compiler "private_parse_foreign_syntax_hint";
 lower_compile_ifx_function :: (fn: *IR.ZirFunction, module: *IR.ZirModule, consts: *ZirConsts, allow_deferred: s32) -> s32 #foreign compiler "private_parse_lower_compile_ifx_function";
 lower_compile_ifx_value :: (value: *u8, capacity: usize, module: *IR.ZirModule, consts: *ZirConsts, span: IR.ZirSourceSpan, allow_deferred: s32) -> s32 #foreign compiler "private_parse_lower_compile_ifx_value";
 lower_enum_values :: (type: *IR.ZirType) #foreign compiler "private_parse_lower_enum_values";
@@ -1816,6 +1817,12 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                                                                                                                                             unreachable
                                                                                                                                                         }
                                                                                                                                                         using_binding = 1
+                                                                                                                                                    }
+                                                                                                                                                    foreign_column: s32
+                                                                                                                                                    foreign_hint: *u8 = foreign_syntax_hint(t, *foreign_column)
+                                                                                                                                                    if foreign_hint != null {
+                                                                                                                                                        die_at(Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), foreign_hint)
+                                                                                                                                                        unreachable
                                                                                                                                                     }
                                                                                                                                                     if (starts_word(t, ParserCString("match")) != 0) {
                                                                                                                                                         after_match: *u8 = skip_ws(cast(*u8)(cast(usize)(t) + cast(usize)(5) * size_of(u8)))

@@ -636,7 +636,8 @@ check_function_with_buffers :: (c: *State.Checker, fn: *IR.ZirFunction, buffers:
                         if (((cast(*u8)(TargetTypeZiran(cast(*void)((base)), 0))) != cast(*u8)((null))) || (FindType((c).module, base, null) != cast(*IR.ZirType)((null)))) {
                             resolvable = 1
                         }
-                        if !(resolvable != 0) {
+                        // An inferred type is empty after its initializer already failed.
+                        if !(resolvable != 0) && (((st).type)[0] != 0 || (c).errors == 0) {
                             error(c, (st).span, CheckCString("unknown declaration type"), (st).type)
                         }
                     }

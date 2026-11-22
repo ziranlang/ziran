@@ -242,11 +242,13 @@ The rules that trip newcomers most. All are checked at compile time.
    point into storage. Until the block holding the view ends, the owner
    cannot grow, move or free ("cannot mutate a Vec with a live borrowed
    view"); put a short-lived view in its own `{ }` block.
-4. **Bind temporaries first.** `for TextLines(x) { }` is rejected; write
-   `lines := TextLines(x)` then `for lines { }`.
-5. **Declare owned results with their type.** `input: Text = ReadStandardInput()`
-   or `name: Text = Name()`; then `TextView(input)` works. `name := Name()`
-   detaches into a `string` and `TextView(name)` is rejected.
+4. **Loop over a call directly; bind it to slice it.** `for TextLines(x) { }`
+   binds the result for the loop and frees it when the loop ends. A slice of
+   a call result, `TextLines(x)[0:2]`, needs `lines := TextLines(x)` first.
+5. **Owned results: `:=` keeps a string, `: Text` keeps ownership.**
+   `name := Name()` holds the bytes as a `string` for the rest of the
+   program; `name: Text = Name()` frees them with `name`. `TextView` works
+   on either.
 6. **Never return a view of a local.** `return TextView(local_text)` is
    "returned text view borrows local or temporary storage": return the `Text`.
 7. **Owned elements stay in place.** For a `Vec` of records that own Vecs,
@@ -267,8 +269,7 @@ main :: () -> s32 {
     items: Vec(s64)
     Grow(*items, 1)                      // pointer: items stays usable
     Grow(*items, 2)
-    lines := TextLines("a\nb")           // bind the owned result, then loop
-    for lines { print("%\n", it) }
+    for TextLines("a\nb") { print("%\n", it) }   // freed when the loop ends
     name: Text = Name()                  // typed: stays owned, freed at scope exit
     print("%\n", TextView(name))
     groups: Vec(Group)
@@ -514,8 +515,8 @@ uses the portable engine, which has no `std/*_linux` modules: use
 - Arithmetic is C's: division by zero traps; `S64_MIN / -1` and `S64_MIN % -1`
   wrap. Check the divisor yourself; `ziran check --lint` warns on a constant `-1`.
 - `TextInteger` accepts at most 18 digits; parse longer numbers yourself.
-- Constants are untyped literals: `LIMIT :: 9223372036854775807;`, not
-  `LIMIT :: cast(s64)...` ("invalid or ambiguous constant").
+- A constant may name its type with a cast, `LIMIT :: cast(s64)9223372036854775807;`;
+  a value the type cannot hold is "invalid or ambiguous constant".
 - `VecSlice` and `v[a:b]` need the Vec variable or a field of one, not
   `<<pointer`: take a slice parameter (`Rest(items[:])`) instead.
 - A call cannot move a global Vec (it would empty the global): pass `*items`

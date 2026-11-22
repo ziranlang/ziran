@@ -40,6 +40,18 @@ static inline uint64_t ZiDivU64(uint64_t a, uint64_t b) {
 }
 #endif
 #endif
+
+#ifndef ZIRAN_HELPER_ZiShl64
+#define ZIRAN_HELPER_ZiShl64
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
+#define ZiShl64(a, s, w) __extension__ ({ uint64_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); (uint64_t)(__zi_a << __zi_s); })
+#else
+static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
+    if(s >= (uint64_t)w) abort();
+    return (uint64_t)(a << s);
+}
+#endif
+#endif
 #ifndef ZIR_FOREIGN_zir_f_6d0830be4da0a0ed_AllocateOrExit_5810995e
 #define ZIR_FOREIGN_zir_f_6d0830be4da0a0ed_AllocateOrExit_5810995e
 #ifdef __APPLE__
@@ -676,6 +688,7 @@ static void compiler_check_value_append_compound_text(CompoundText* out, uint8_t
 static int32_t compiler_check_value_render_compound_at_use(ZirFunction* expression, int32_t index, CompoundText* out, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static void compiler_check_value_normalize_array_at(ZirModule* module, uint8_t* type, size_t size, int32_t depth, uint8_t* parameters) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_value_pointer_type(uint8_t* type) ZIRAN_MAYBE_UNUSED;
+static bool compiler_check_value_integer_fits(uint8_t* type, int64_t value) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_value_integer_bits(uint8_t* type, int32_t* is_signed, int32_t as_target) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_check_value_find_unquoted_expression(uint8_t* source, uint8_t* needle) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_value_replace_checked_text(uint8_t* source, size_t capacity, uint8_t* needle, uint8_t* replacement) ZIRAN_MAYBE_UNUSED;
@@ -1559,11 +1572,57 @@ compiler_check_value_integer_expression(ZirModule* module, ZirFunction* expressi
         zir_f_6d0830be4da0a0ed_CompilerFree((void*)(qualified_storage_0));
         return cleanup_return_1;
     }
+    if ((int32_t)(((ZirExprKind)(node->kind))) == 11) {
+        int32_t status = compiler_check_value_integer_expression(module, expression, node->right, (int32_t)((uint32_t)depth + 1u), value, wide);
+        if (status != 1) {
+            return status;
+        }
+        uint8_t* value_5 = (uint8_t*)node->name;
+        int64_t value_6 = value[0];
+        bool value_7 = false;
+        {
+            uint8_t* type = value_5;
+            int64_t value = value_6;
+            int32_t is_signed = 0;
+            int32_t bits = compiler_check_value_integer_bits(type, &(is_signed), 0);
+            if (bits <= 0 || bits > 64) {
+                value_7 = false;
+                goto value_8;
+            }
+            if (is_signed != 0) {
+                if (bits == 64) {
+                    value_7 = true;
+                    goto value_8;
+                }
+                int64_t limit = (int64_t)ZiShl64(1LL, (uint64_t)((int64_t)(((int32_t)((uint32_t)bits - 1u)))), 64);
+                value_7 = value >= ((int64_t)(UINT64_C(0) - (uint64_t)limit)) && value < limit;
+                goto value_8;
+            }
+            if (value < 0LL) {
+                value_7 = false;
+                goto value_8;
+            }
+            bool value_9 = bits == 64;
+            if (!value_9) {
+                int64_t value_10 = (int64_t)ZiShl64(1LL, (uint64_t)((int64_t)(bits)), 64);
+                value_9 = (value < value_10);
+            }
+            value_7 = value_9;
+        value_8: ;
+        }
+        int32_t value_11 = 0;
+        if (value_7) {
+            value_11 = 1;
+        } else {
+            value_11 = -1;
+        }
+        return value_11;
+    }
     if ((int32_t)(((ZirExprKind)(node->kind))) == 13) {
         size_t size = 0;
         size_t alignment = 0;
-        bool value_5 = zir_f_6d0830be4da0a0ed_layout_type(module, (uint8_t*)node->name, (int32_t)((uint32_t)depth + 1u), &(size), &(alignment)) != 0;
-        if (!value_5 || size > (size_t)(2147483647LL)) {
+        bool value_12 = zir_f_6d0830be4da0a0ed_layout_type(module, (uint8_t*)node->name, (int32_t)((uint32_t)depth + 1u), &(size), &(alignment)) != 0;
+        if (!value_12 || size > (size_t)(2147483647LL)) {
             return -1;
         }
         compiler_check_types_CheckSet1(value, (int64_t)(size));
@@ -1571,8 +1630,8 @@ compiler_check_value_integer_expression(ZirModule* module, ZirFunction* expressi
     }
     if ((int32_t)(((ZirExprKind)(node->kind))) == 2) {
         uint64_t bits = 0;
-        bool value_6 = zir_f_6d0830be4da0a0ed_ZirIntegerLiteral((uint8_t*)node->text, &(bits)) != 0;
-        if (!value_6 || bits > 9223372036854775807ULL || (!(wide != 0) && bits > 2147483647ULL)) {
+        bool value_13 = zir_f_6d0830be4da0a0ed_ZirIntegerLiteral((uint8_t*)node->text, &(bits)) != 0;
+        if (!value_13 || bits > 9223372036854775807ULL || (!(wide != 0) && bits > 2147483647ULL)) {
             return -1;
         }
         compiler_check_types_CheckSet1(value, (int64_t)(bits));
@@ -1585,12 +1644,12 @@ compiler_check_value_integer_expression(ZirModule* module, ZirFunction* expressi
         if (status != 1) {
             return status;
         }
-        bool value_7 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("+"))) != 0;
-        if (!value_7) {
+        bool value_14 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("+"))) != 0;
+        if (!value_14) {
             compiler_check_types_CheckSet1(value, right);
         } else {
-            bool value_8 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("-"))) != 0;
-            if (!value_8 && right != (-9223372036854775807LL - 1)) {
+            bool value_15 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("-"))) != 0;
+            if (!value_15 && right != (-9223372036854775807LL - 1)) {
                 compiler_check_types_CheckSet1(value, (int64_t)(UINT64_C(0) - (uint64_t)right));
             } else {
                 return -1;
@@ -1606,47 +1665,47 @@ compiler_check_value_integer_expression(ZirModule* module, ZirFunction* expressi
             if (status != 1) {
                 return status;
             }
-            bool value_9 = (left == (-2147483648LL) || left == (-9223372036854775807LL - 1)) && right == (-1LL);
-            bool value_10 = value_9;
-            if (value_10) {
-                bool value_11 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("/"))) != 0;
-                bool value_12 = !value_11;
-                if (!value_12) {
-                    bool value_13 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("%"))) != 0;
-                    value_12 = !value_13;
+            bool value_16 = (left == (-2147483648LL) || left == (-9223372036854775807LL - 1)) && right == (-1LL);
+            bool value_17 = value_16;
+            if (value_17) {
+                bool value_18 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("/"))) != 0;
+                bool value_19 = !value_18;
+                if (!value_19) {
+                    bool value_20 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("%"))) != 0;
+                    value_19 = !value_20;
                 }
-                value_10 = value_12;
+                value_17 = value_19;
             }
-            if (value_10) {
+            if (value_17) {
                 return -1;
             }
-            bool value_14 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("+"))) != 0;
-            if (!value_14) {
-                bool value_15 = compiler_check_types___builtin_add_overflow(left, right, value);
-                if (value_15 != false) {
+            bool value_21 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("+"))) != 0;
+            if (!value_21) {
+                bool value_22 = compiler_check_types___builtin_add_overflow(left, right, value);
+                if (value_22 != false) {
                     return -1;
                 }
             } else {
-                bool value_16 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("-"))) != 0;
-                if (!value_16) {
-                    bool value_17 = compiler_check_types___builtin_sub_overflow(left, right, value);
-                    if (value_17 != false) {
+                bool value_23 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("-"))) != 0;
+                if (!value_23) {
+                    bool value_24 = compiler_check_types___builtin_sub_overflow(left, right, value);
+                    if (value_24 != false) {
                         return -1;
                     }
                 } else {
-                    bool value_18 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("*"))) != 0;
-                    if (!value_18) {
-                        bool value_19 = compiler_check_types___builtin_mul_overflow(left, right, value);
-                        if (value_19 != false) {
+                    bool value_25 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("*"))) != 0;
+                    if (!value_25) {
+                        bool value_26 = compiler_check_types___builtin_mul_overflow(left, right, value);
+                        if (value_26 != false) {
                             return -1;
                         }
                     } else {
-                        bool value_20 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("/"))) != 0;
-                        if (!value_20 && right != 0LL) {
+                        bool value_27 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("/"))) != 0;
+                        if (!value_27 && right != 0LL) {
                             compiler_check_types_CheckSet1(value, ZiDivS64(left, right, INT64_MIN));
                         } else {
-                            bool value_21 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("%"))) != 0;
-                            if (!value_21 && right != 0LL) {
+                            bool value_28 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(node->op)), compiler_check_types_CheckCString(StringLiteral("%"))) != 0;
+                            if (!value_28 && right != 0LL) {
                                 compiler_check_types_CheckSet1(value, ZiRemS64(left, right));
                             } else {
                                 return -1;
@@ -1662,19 +1721,19 @@ compiler_check_value_integer_expression(ZirModule* module, ZirFunction* expressi
     if (wide != 0) {
         return 1;
     }
-    int64_t value_22 = value[0];
-    bool value_23 = value_22 >= (-2147483648LL);
-    if (value_23) {
-        int64_t value_24 = value[0];
-        value_23 = (value_24 <= 2147483647LL);
+    int64_t value_29 = value[0];
+    bool value_30 = value_29 >= (-2147483648LL);
+    if (value_30) {
+        int64_t value_31 = value[0];
+        value_30 = (value_31 <= 2147483647LL);
     }
-    int32_t value_25 = 0;
-    if (value_23) {
-        value_25 = 1;
+    int32_t value_32 = 0;
+    if (value_30) {
+        value_32 = 1;
     } else {
-        value_25 = -1;
+        value_32 = -1;
     }
-    return value_25;
+    return value_32;
 }
 
 int32_t
@@ -2819,6 +2878,32 @@ compiler_check_value_pointer_type(uint8_t* type)
         value_3 = 1;
     }
     return value_3;
+}
+
+static bool
+compiler_check_value_integer_fits(uint8_t* type, int64_t value)
+{
+    int32_t is_signed = 0;
+    int32_t bits = compiler_check_value_integer_bits(type, &(is_signed), 0);
+    if (bits <= 0 || bits > 64) {
+        return false;
+    }
+    if (is_signed != 0) {
+        if (bits == 64) {
+            return true;
+        }
+        int64_t limit = (int64_t)ZiShl64(1LL, (uint64_t)((int64_t)(((int32_t)((uint32_t)bits - 1u)))), 64);
+        return value >= ((int64_t)(UINT64_C(0) - (uint64_t)limit)) && value < limit;
+    }
+    if (value < 0LL) {
+        return false;
+    }
+    bool value_0 = bits == 64;
+    if (!value_0) {
+        int64_t value_1 = (int64_t)ZiShl64(1LL, (uint64_t)((int64_t)(bits)), 64);
+        value_0 = (value < value_1);
+    }
+    return value_0;
 }
 
 static int32_t

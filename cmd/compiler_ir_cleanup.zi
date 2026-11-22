@@ -1321,6 +1321,42 @@ lower_one_range :: (fn: *IR.ZirFunction, module: *IR.ZirModule, index: s32) -> s
 }
 
 #scope_file
+// Whether TEXT is one call, NAME(...) or Module.NAME(...), with nothing
+// around it: `TextLines(s)` but not `a + F()` or `F()[1:]`.
+call_collection :: (text: *u8) -> bool {
+    value := IR.CText(text)
+    end := value.count
+    while end > 0 && (value[end - 1] == 32 || value[end - 1] == 9) { end -= 1 }
+    start: s64 = 0
+    while start < end && (value[start] == 32 || value[start] == 9) { start += 1 }
+    if end - start < 3 || value[end - 1] != #char ")" || !name_start(value[start]) { return false }
+    name_end := start
+    while name_end < end && (name_start(value[name_end]) || (value[name_end] >= #char "0" && value[name_end] <= #char "9") || value[name_end] == #char ".") { name_end += 1 }
+    if name_end >= end || value[name_end] != #char "(" { return false }
+    // The parenthesis after the name closes at the very end.
+    depth: s32 = 0
+    at := name_end
+    while at < end {
+        byte := value[at]
+        if byte == #char "\"" {
+            at += 1
+            while at < end && value[at] != #char "\"" { at += ifx value[at] == #char "\\" then 2 else 1 }
+        } else if byte == #char "(" {
+            depth += 1
+        } else if byte == #char ")" {
+            depth -= 1
+            if depth == 0 && at != end - 1 { return false }
+        }
+        at += 1
+    }
+    return depth == 0
+}
+
+name_start :: (byte: u8) -> bool {
+    return (byte >= #char "a" && byte <= #char "z") || (byte >= #char "A" && byte <= #char "Z") || byte == #char "_"
+}
+
+#scope_file
 literal_collection :: (text: *u8) -> s32 {
     depth: s32 = 0
     {
@@ -1441,7 +1477,10 @@ lower_one_collection_with_buffers :: (fn: *IR.ZirFunction, module: *IR.ZirModule
         if !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(1), ParserCString("{"), span) != 0) {
             break goto_done
         }
-        if (literal_collection(cast(*u8)(*(((buffers).collection).items))) != 0) {
+        // A literal or a call result is bound to loop_items_N inside the
+        // loop's block, so an owned result such as TextLines(s) drops when
+        // the loop ends, as the two-line form `lines := TextLines(s)` would.
+        if (literal_collection(cast(*u8)(*(((buffers).collection).items))) != 0) || call_collection(cast(*u8)(*(((buffers).collection).items))) {
             if ((snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s := %s"), cast(*u8)(*((items_storage_3[0]).items)), cast(*u8)(*(((buffers).collection).items))) >= cast(s32)(cast(usize)size_of(ParserArray4096_u8))) || !(range_line(*((buffers).out), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), span) != 0)) {
                 break goto_done
             }

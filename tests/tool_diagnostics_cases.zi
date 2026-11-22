@@ -78,7 +78,7 @@ ToolAuthoringHints :: (test: *NativeTest) -> bool {
         .{"main :: () -> s32 { v: Vec(s64); n := v.len(); return 0 }\n", "have .count, and Ziran has no methods"},
         .{"main :: () -> s32 { print(\"%s\\n\", \"x\"); return 0 }\n", "print format uses a C or Go conversion such as %d or %s"},
         .{"main :: () -> s32 { out: Vec(u8); BuilderPrint(*out, \"%d items\\n\", 7); return 0 }\n", "BuilderPrint format uses a C or Go conversion"},
-        .{"#import \"std/text_tools\"\nmain :: () -> s32 { for TextLines(\"a b\") { } return 0 }\n", "a Vec returned by a call must be bound to a local"},
+        .{"#import \"std/text_tools\"\nmain :: () -> s32 { s := TextLines(\"a b\")[0:1]; return cast(s32)s.count }\n", "a Vec returned by a call must be bound to a local before it is sliced"},
         .{"#import \"std/text_tools\"\nmain :: () -> s32 { t := TextLins(\"a b\"); return 0 }\n", "unresolved function: TextLins (did you mean TextLines?)"},
         .{"main :: () -> s32 { parts := TextSplit(\"a,b\", \",\"); return cast(s32)parts.count }\n", "add #import \"std/text_tools\""},
         .{"#import \"std/text_tools\"\nmain :: () -> s32 { f := TextFind(\"abc\"); return 0 }\n", "it takes (text: string, needle: string, from: s64 = 0)"},
@@ -104,7 +104,7 @@ ToolAuthoringHints :: (test: *NativeTest) -> bool {
     if test.failed || !NativeAssert(test, CheckField(*records, JsonElement(*records, records.root, 0), "suggested_name") == "TextLines",
         "an imported procedure was not suggested for a misspelled call") { return false }
     // Ziran spellings that look similar stay valid.
-    valid := "main :: () -> s32 {\n    fn := 3\n    total := 0\n    for i: 0..fn { total += i }\n    print(\"100%% %days\\n\", total)\n    print(\"% (%s%)\\n\", 1, 2, 3)\n    print(\"v%.4s %x%\\n\", 1, 2, 3)\n    return 0\n}\n"
+    valid := "#import \"std/text_tools\"\nmain :: () -> s32 {\n    fn := 3\n    total := 0\n    for i: 0..fn { total += i }\n    for TextLines(\"a\\nb\") { total += it.count }\n    for word, at: TextSplit(\"x y\", \" \") { total += word.count + at }\n    print(\"100%% %days\\n\", total)\n    print(\"% (%s%)\\n\", 1, 2, 3)\n    print(\"v%.4s %x%\\n\", 1, 2, 3)\n    return 0\n}\n"
     if !NativeWrite(test, source, valid) { return false }
     // One file without --root checks with its folder as the root.
     check := string.[test.ziran, "check", source]
@@ -155,6 +155,9 @@ ToolCheckBuildAgree :: (test: *NativeTest) -> bool {
     cases := BuildCase.[
         .{"empty_init", "Point :: struct { x: s32; y: s32; }\nHolder :: struct { values: [4]s32; p: Point; }\norigin: Point = .{};\nheld: Holder = .{};\nmain :: () -> s32 {\n    p: Point = .{}\n    a: [3]s32 = .{}\n    return p.x + a[0] + origin.x + held.p.y + 7\n}\n", 7},
         .{"const_length", "MONTHS :: 12;\ndays: [MONTHS]s32 = .[31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];\nSecond :: (table: [12]s32) -> s32 { return table[1] }\nmain :: () -> s32 {\n    local: [MONTHS]s32 = days\n    return Second(local)\n}\n", 28},
+        .{"for_call", "#import \"std/text_tools\"\nmain :: () -> s32 {\n    total: s64 = 0\n    for line: TextLines(\"ab\\ncde\") { total += line.count }\n    for < TextSplit(\"x,yz\", \",\") { total += it.count + it_index }\n    return cast(s32)total\n}\n", 9},
+        .{"cast_constant", "LIMIT :: cast(s64)9223372036854775807;\nSMALL :: cast(u8)200;\nmain :: () -> s32 {\n    big: s64 = LIMIT\n    small: u8 = SMALL\n    return ifx big > 0 then cast(s32)small - 190 else 1\n}\n", 10},
+        .{"owned_view", "Name :: () -> Text { return TextCopy(\"ada\") }\nmain :: () -> s32 {\n    name := Name()\n    view := TextView(name)\n    return cast(s32)view.count\n}\n", 3},
         .{"c_names", "Flags :: struct { bool: s32; signed: s32; unsigned: s32; true: s32; }\nmain :: () -> s32 {\n    f: Flags\n    f.bool = 1\n    f.unsigned = 2\n    linux := 3\n    unix := 4\n    return f.bool + f.signed + f.unsigned + cast(s32)(linux + unix)\n}\n", 10},
     ]
     for build: cases {

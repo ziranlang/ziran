@@ -5400,7 +5400,7 @@ private_check_slice_vec_place(Checker* c, int32_t index, uint8_t* vector)
         int32_t left = (fn->exprs[index]).left;
         if (left >= 0 && (int32_t)(((ZirExprKind)((fn->exprs[left]).kind))) == 5) {
             ZirSourceSpan value_4 = (fn->exprs[left]).span;
-            String value_5 = StringLiteral("a Vec returned by a call must be bound to a local before it is looped over or sliced; write values := Call(...), then for values { }");
+            String value_5 = StringLiteral("a Vec returned by a call must be bound to a local before it is sliced; write values := Call(...), then values[low:high]");
             uint8_t* value_6 = compiler_check_types_CheckCString(value_5);
             zir_f_cc4938222caf8951_error(c, value_4, value_6, (uint8_t*)(fn->exprs[left]).name);
             reported_call_slice_function = fn;

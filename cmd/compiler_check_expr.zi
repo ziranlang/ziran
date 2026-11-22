@@ -2458,6 +2458,17 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                     argument = expression_type(c, first)
                     e = cast(*IR.ZirExpr)(cast(usize)(((c).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
                 }
+                if strcmp(argument, CheckCString("string")) == 0 && first >= 0 && ((((c).fn).exprs)[first]).next_sibling < 0 {
+                    // A string is already a view: `x := OwnedCall()` detached
+                    // the Text into a string that keeps its bytes, so
+                    // TextView(x) is x itself.
+                    sibling: s32 = (e).next_sibling
+                    (((c).fn).exprs)[index] = (((c).fn).exprs)[first]
+                    ((((c).fn).exprs)[index]).next_sibling = sibling
+                    (c).conversions_applied = 1
+                    type = CheckCString("string")
+                    break check_switch_243
+                }
                 owned: s32 = OwnedTextType((c).module, argument)
                 if (!(owned != 0) && (strcmp(argument, CheckCString("[]u8")) != 0)) {
                     error(c, (e).span, CheckCString("TextView requires one []u8 or Text argument"), (e).name)

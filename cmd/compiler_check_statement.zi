@@ -2052,9 +2052,9 @@ slice_vec_place :: (c: *Checker, index: s32, vector: *u8) -> *u8 {
     if !(vec_place_path(fn, (((fn).exprs)[index]).left) != 0) {
         left: s32 = (((fn).exprs)[index]).left
         if left >= 0 && cast(s32)((((fn).exprs)[left]).kind) == 5 {
-            // One message for a loop or slice over a call: the temporary
-            // owned result check below would only repeat it.
-            error(c, (((fn).exprs)[left]).span, CheckCString("a Vec returned by a call must be bound to a local before it is looped over or sliced; write values := Call(...), then for values { }"), (((fn).exprs)[left]).name)
+            // One message for a slice of a call: the temporary owned
+            // result check below would only repeat it.
+            error(c, (((fn).exprs)[left]).span, CheckCString("a Vec returned by a call must be bound to a local before it is sliced; write values := Call(...), then values[low:high]"), (((fn).exprs)[left]).name)
             reported_call_slice_function = fn
             reported_call_slice = left
             return CheckCString("")

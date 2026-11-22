@@ -522,6 +522,13 @@ integer_expression :: (module: *IR.ZirModule, expression: *IR.ZirFunction, index
         }
         return constant_value(module, cast(*u8)(*((qualified_storage_0[0]).items)), (depth + 1), value, wide)
     }
+    // `LIMIT :: cast(s64)9223372036854775807;`: a cast of an integer
+    // constant to an integer type is that constant when the type holds it.
+    if cast(s32)((node).kind) == 11 {
+        status := integer_expression(module, expression, (node).right, depth + 1, value, wide)
+        if status != 1 { return status }
+        return ifx integer_fits((node).name, value[0]) then 1 else -1
+    }
     if (cast(s32)((node).kind) == 13) {
         size: usize
         alignment: usize
@@ -1282,6 +1289,21 @@ normalized_array :: (module: *IR.ZirModule, type: *u8) -> *u8 {
 #scope_file
 pointer_type :: (type: *u8) -> s32 {
     return cast(s32)((cast(s32)(cast(s8)((type)[0])) != 91) && (strchr(type, 42) != cast(*u8)((null))))
+}
+
+#scope_file
+// Whether the integer type TYPE holds VALUE; false for any other type.
+integer_fits :: (type: *u8, value: s64) -> bool {
+    is_signed: s32 = 0
+    bits := integer_bits(type, *is_signed, 0)
+    if bits <= 0 || bits > 64 { return false }
+    if is_signed != 0 {
+        if bits == 64 { return true }
+        limit := cast(s64)1 << cast(s64)(bits - 1)
+        return value >= -limit && value < limit
+    }
+    if value < 0 { return false }
+    return bits == 64 || value < (cast(s64)1 << cast(s64)bits)
 }
 
 #scope_file

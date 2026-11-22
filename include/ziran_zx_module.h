@@ -72,6 +72,18 @@ int ZxModuleProgramHasExternalHosts(const Bundle *bundle);
 ZxModuleProgram *ZxModuleProgramOpen(ZxModuleLoader *loader, const Bundle *bundle,
                                      const HostBinding *bindings, size_t count);
 int ZxModuleProgramRun(ZxModuleProgram *program, long long *result, int *has_result);
+/* With a non-null control, the loader must select BUNDLE_BACKEND_ENGINE.
+ * Both calls borrow the control until return, including while guest-loaded
+ * libraries initialize and run. Each program and its loader stay owned by
+ * the calling thread. A supervisor uses only the control, and must arrange
+ * for a blocked host callback to return. Open returns NULL on cancellation
+ * and reports ZX_RUN_CANCELLED through the optional status pointer. Run
+ * follows the lifetime and result rules of BundleInstanceRunControlled. */
+ZxModuleProgram *ZxModuleProgramOpenControlled(
+    ZxModuleLoader *loader, const Bundle *bundle, const HostBinding *bindings,
+    size_t binding_count, const ZxRunControl *control, ZxRunStatus *status);
+ZxRunStatus ZxModuleProgramRunControlled(ZxModuleProgram *program, long long *result,
+                                        int *has_result, const ZxRunControl *control);
 /* Apply BundleInstanceBorrowHostString to a binding of this app instance. */
 int ZxModuleProgramBorrowHostString(ZxModuleProgram *program, const char *module,
                                    const char *function, size_t parameter);

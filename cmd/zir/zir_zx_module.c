@@ -108,6 +108,8 @@ struct ZxModuleLoader {
     void *resolve_context;
     BundleConsoleWrite write;
     void *console_context;
+    /* Only installed on the calling thread, for a synchronous operation. */
+    const ZxRunControl *control;
     unsigned depth;
     char error[512];
 };
@@ -500,6 +502,7 @@ resolve_host_path(ZxModuleLoader *loader, const char *name)
     char *selected = NULL;
     struct stat selected_info = {0};
     for(size_t i = 0; i < loader->root_count; i++) {
+        if(ZxRunControlRequested(loader->control)) goto fail;
         char *path = candidate_path(loader, i, name);
         if(path == NULL) goto fail;
         struct stat info;
@@ -538,6 +541,10 @@ static Bundle *
 verify_guest_image(ZxModuleLoader *loader, const ZxModuleImage *image, const char *path)
 {
     Bundle *bundle = NULL;
+    if(ZxRunControlRequested(loader->control)) {
+        if(image->release != NULL) image->release(loader->resolve_context, image->data, image->size);
+        return NULL;
+    }
     if(image->size <= MODULE_IMAGE_LIMIT) {
         if(image->release == NULL) bundle = BundleOpenBytes(image->data, image->size);
         else bundle = BundleOpenOwnedBytes(image->data, image->size, image->release, loader->resolve_context);
@@ -551,6 +558,7 @@ resolve_guest_bundle(ZxModuleLoader *loader, const char *name, char **selected_p
 {
     Bundle *selected = NULL;
     for(size_t i = 0; i < loader->root_count; i++) {
+        if(ZxRunControlRequested(loader->control)) goto failed;
         char *path = candidate_path(loader, i, name);
         if(path == NULL) goto failed;
         if(*selected_path != NULL && strcmp(*selected_path, path) == 0) {
@@ -714,6 +722,7 @@ verify_graph(ZxModuleLoader *loader, ModuleImage *root)
     stack[count++] = root;
     root->mark = VISITING;
     while(count != 0) {
+        if(ZxRunControlRequested(loader->control)) break;
         ModuleImage *image = stack[count - 1];
         if(image->next_requirement == image->require_count) {
             if(!verify_imports(loader, image)) break;
@@ -780,10 +789,12 @@ scope_open(ModuleScope *scope, const HostBinding *external, size_t external_coun
             BundleCapabilityFunction(image->bundle, i), bind_call, &scope->hosts[i]};
     }
     ZxModuleLoader *loader = scope->loader;
-    scope->instance = BundleInstantiateWithOptionsAndConsole(image->bundle, bindings, used, &loader->options,
-                                                             loader->write, loader->console_context);
+    ZxRunStatus status;
+    scope->instance = BundleInstantiateControlled(image->bundle, bindings, used, &loader->options,
+                                                  loader->write, loader->console_context,
+                                                  loader->control, &status);
     free(bindings);
-    if(scope->instance == NULL && *ZxModuleLoaderError(scope->loader) == 0)
+    if(status == ZX_RUN_ERROR && *ZxModuleLoaderError(scope->loader) == 0)
         module_problem(scope->loader, "ZX module initialization failed: %s",
                        image->name ? image->name : BundleEntryModuleName(image->bundle));
     return scope->instance != NULL;
@@ -900,12 +911,13 @@ call_slot(ModuleSlot *slot, size_t ordinal, const HostValue *args, size_t count,
     loader->depth++;
     long long ignored;
     int has_result;
-    int ok = BundleInstanceRun(scope->instance, &ignored, &has_result);
+    ZxRunStatus status = BundleInstanceRunControlled(scope->instance, &ignored, &has_result,
+                                                     loader->control);
     loader->depth--;
     scope->frame = NULL;
     BundleFreeHostValue(&previous);
-    if(!ok || has_result || !frame.returned) {
-        if(*ZxModuleLoaderError(loader) == 0)
+    if(status != ZX_RUN_OK || has_result || !frame.returned) {
+        if(status != ZX_RUN_CANCELLED && *ZxModuleLoaderError(loader) == 0)
             module_problem(loader, "ZX module call failed: %s:%s", scope->image->name,
                            scope->image->exports[ordinal].name);
         return 0;
@@ -1220,11 +1232,9 @@ ZxModuleProgramHasExternalHosts(const Bundle *bundle)
     return external;
 }
 
-ZxModuleProgram *
-ZxModuleProgramOpen(ZxModuleLoader *loader, const Bundle *bundle, const HostBinding *bindings, size_t count)
+static ZxModuleProgram *
+program_open(ZxModuleLoader *loader, const Bundle *bundle, const HostBinding *bindings, size_t count)
 {
-    if(loader == NULL || bundle == NULL) return NULL;
-    *loader->error = 0;
     ZxModuleProgram *program = calloc(1, sizeof(*program));
     if(program == NULL) {
         memory_problem(loader);
@@ -1237,7 +1247,7 @@ ZxModuleProgramOpen(ZxModuleLoader *loader, const Bundle *bundle, const HostBind
         goto failed;
     }
     ModuleImage *previous = loader->cache;
-    if(!verify_graph(loader, &program->image)) {
+    if(!verify_graph(loader, &program->image) || ZxRunControlRequested(loader->control)) {
         rewind_cache(loader, previous);
         goto failed;
     }
@@ -1248,16 +1258,66 @@ failed:
     return NULL;
 }
 
+ZxModuleProgram *
+ZxModuleProgramOpen(ZxModuleLoader *loader, const Bundle *bundle, const HostBinding *bindings, size_t count)
+{
+    return ZxModuleProgramOpenControlled(loader, bundle, bindings, count, NULL, NULL);
+}
+
+ZxModuleProgram *
+ZxModuleProgramOpenControlled(ZxModuleLoader *loader, const Bundle *bundle, const HostBinding *bindings,
+                              size_t count, const ZxRunControl *control, ZxRunStatus *status)
+{
+    if(status != NULL) *status = ZX_RUN_ERROR;
+    if(loader == NULL || bundle == NULL) return NULL;
+    *loader->error = 0;
+    const ZxRunControl *previous = loader->control;
+    if(control == NULL) control = previous;
+    if(control != NULL && loader->options.backend != BUNDLE_BACKEND_ENGINE) {
+        module_problem(loader, "ZX run cancellation requires the instruction engine");
+        return NULL;
+    }
+    loader->control = control;
+    ZxModuleProgram *program = ZxRunControlRequested(control) ? NULL : program_open(loader, bundle, bindings, count);
+    if(ZxRunControlRequested(control)) {
+        ZxModuleProgramClose(program);
+        program = NULL;
+        *loader->error = 0;
+        if(status != NULL) *status = ZX_RUN_CANCELLED;
+    } else if(program != NULL && status != NULL) {
+        *status = ZX_RUN_OK;
+    }
+    loader->control = previous;
+    return program;
+}
+
 int
 ZxModuleProgramRun(ZxModuleProgram *program, long long *result, int *has_result)
 {
-    if(program == NULL) return 0;
+    return ZxModuleProgramRunControlled(program, result, has_result, NULL) == ZX_RUN_OK;
+}
+
+ZxRunStatus
+ZxModuleProgramRunControlled(ZxModuleProgram *program, long long *result, int *has_result,
+                             const ZxRunControl *control)
+{
+    if(program == NULL) return ZX_RUN_ERROR;
     ZxModuleLoader *loader = program->scope.loader;
     *loader->error = 0;
+    const ZxRunControl *previous = loader->control;
+    if(control == NULL) control = previous;
+    if(control != NULL && loader->options.backend != BUNDLE_BACKEND_ENGINE) {
+        module_problem(loader, "ZX run cancellation requires the instruction engine");
+        return ZX_RUN_ERROR;
+    }
+    loader->control = control;
     long long ignored_result;
     int ignored_has_result;
-    return BundleInstanceRun(program->scope.instance, result ? result : &ignored_result,
-                             has_result ? has_result : &ignored_has_result);
+    ZxRunStatus status = BundleInstanceRunControlled(program->scope.instance, result ? result : &ignored_result,
+                                                     has_result ? has_result : &ignored_has_result, control);
+    loader->control = previous;
+    if(status == ZX_RUN_CANCELLED) *loader->error = 0;
+    return status;
 }
 
 int

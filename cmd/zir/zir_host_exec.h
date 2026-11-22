@@ -139,9 +139,11 @@ void ExecHostsClose(ExecHosts *hosts);
  * missing or initialization fails. With max_steps > 0 initialization and all
  * runs together have that many steps. */
 ExecInstance *ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context,
-                               long long max_steps, BundleConsoleWrite write, void *console_context);
+                               long long max_steps, BundleConsoleWrite write, void *console_context,
+                               const ZxRunControl *control, ZxRunStatus *status);
 /* A failed run leaves the instance unusable. */
-int ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result);
+ZxRunStatus ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result,
+                            const ZxRunControl *control);
 int ExecInstanceBorrowHostView(ExecInstance *instance, const char *module,
                               const char *function, size_t parameter, int string_view);
 /* Bounds each later run, or all of them on an instance opened with a limit. */

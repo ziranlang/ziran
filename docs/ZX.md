@@ -90,6 +90,29 @@ before initialization. The loader copies roots and options. Keep callback
 contexts and library grants alive through loader close, and the app bundle
 alive through program close.
 
+Use the instruction engine to run a module that a supervisor can stop.
+Create a `ZxRunControl` before starting the guest and pass it to
+`ZxModuleProgramOpenControlled` and `ZxModuleProgramRunControlled`. The control
+also applies to initializers and calls in libraries the guest loads. The
+equivalent APIs for a plain bundle are `BundleInstantiateControlled` and
+`BundleInstanceRunControlled`. Select `BUNDLE_BACKEND_ENGINE` explicitly for
+controlled initialization. The engine checks the request at execution
+checkpoints, including in its packed instruction tier.
+
+A supervisor can call `ZxRunControlRequest` and `ZxRunControlRequested` from
+another thread. The guest thread retains ownership of the loader and its
+instances. Only the caller can wake a blocked resolver or host I/O callback.
+Keep the control alive until the guest calls and all supervisor accesses have
+returned. A request stays set, so create a fresh control for a later
+independent run. These calls borrow the control for the duration of the call.
+
+Open returns `NULL` and sets the optional status to `ZX_RUN_CANCELLED` on a
+stop. Run returns `ZX_RUN_CANCELLED` and leaves its result outputs untouched.
+A request observed before entry skips the run and leaves the instance usable.
+A request observed during execution retires the instance, which the caller
+can then close. `ZX_RUN_ERROR` covers other runtime failures, including
+exhausting the configured step budget. `ZX_RUN_OK` reports normal completion.
+
 Portable embedders can call `ZxModuleProgramBorrowHostString` or
 `BundleInstanceBorrowHostString` after initialization to borrow one granted
 host function's top-level string parameter by zero-based index. The

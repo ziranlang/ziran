@@ -16,6 +16,9 @@ Build :: (test: *NativeTest, command: []string) -> bool {
 // The host test links the runtime without also emitting its compiler modules.
 #if #defined(ZX_MODULE_HOSTED_TEST) {
 using Host :: #import "std/bundle_host"
+Mutex :: #import "std/mutex_linux";
+Threads :: #import "std/thread_linux";
+#import "std/timer_linux"
 
 // Public C ABI from ziran_zx_module.h and ziran_host.h.
 hosting :: #system_library "ziran";
@@ -64,6 +67,15 @@ BorrowProgramSlice :: (program: *void, module: *u8, function: *u8,
     parameter: usize) -> s32 #foreign hosting "ZxModuleProgramBorrowHostSlice";
 CloseProgram :: (program: *void) #foreign hosting "ZxModuleProgramClose";
 RenewSteps :: () -> s32 #foreign hosting "BundleHostRenewSteps";
+RunStatus :: enum s32 { Error; Ok; Cancelled }
+CreateRunControl :: () -> *void #foreign hosting "ZxRunControlCreate";
+RequestRunStop :: (control: *void) #foreign hosting "ZxRunControlRequest";
+RunStopRequested :: (control: *void) -> s32 #foreign hosting "ZxRunControlRequested";
+FreeRunControl :: (control: *void) #foreign hosting "ZxRunControlFree";
+OpenControlled :: (loader: *void, bundle: *void, bindings: *Host.HostBinding, count: usize,
+    control: *void, status: *RunStatus) -> *void #foreign hosting "ZxModuleProgramOpenControlled";
+RunControlled :: (program: *void, result: *s64, present: *s32,
+    control: *void) -> RunStatus #foreign hosting "ZxModuleProgramRunControlled";
 
 HostedState :: struct {
     bridge: string
@@ -413,17 +425,25 @@ FuelCase :: (test: *NativeTest, path: string, runaway: bool, engine: bool) -> bo
     defer CloseLoader(loader)
     pulse: PulseContext
     binding := Host.HostBinding.{HostedBytes("fuel"), HostedBytes("Pulse"), HostedPulse, cast(*void)*pulse}
-    program := OpenProgram(loader, bundle, *binding, 1)
+    control := CreateRunControl()
+    defer FreeRunControl(control)
+    if !NativeAssert(test, control != null, "allocate clear control for finite fuel") { return false }
+    // A clear control leaves finite fuel unchanged; the plain calls cover uncontrolled callers.
+    status := RunStatus.Ok
+    program: *void
+    if engine { program = OpenControlled(loader, bundle, *binding, 1, control, *status) }
+    else { program = OpenProgram(loader, bundle, *binding, 1) }
     defer CloseProgram(program)
-    if !NativeAssert(test, program != null && pulse.calls == 1 && pulse.renewals == 0 && RenewSteps() == 0,
+    if !NativeAssert(test, program != null && status == .Ok && pulse.calls == 1 && pulse.renewals == 0 && RenewSteps() == 0,
         "fuel renewal requires an active entry callback") { return false }
     result: s64; present: s32
-    completed := RunProgram(program, *result, *present) != 0
+    if engine { status = RunControlled(program, *result, *present, control) }
+    else { status = cast(RunStatus)RunProgram(program, *result, *present) }
     if runaway {
-        return NativeAssert(test, !completed && pulse.calls == 2 && pulse.renewals == 1 &&
+        return NativeAssert(test, status == .Error && pulse.calls == 2 && pulse.renewals == 1 &&
             RunProgram(program, *result, *present) == 0, "runaway after one renewal exhausts the fresh budget")
     }
-    return NativeAssert(test, completed && result == 17 && present == 1 && pulse.calls == 1001 && pulse.renewals == 1000,
+    return NativeAssert(test, status == .Ok && result == 17 && present == 1 && pulse.calls == 1001 && pulse.renewals == 1000,
         "one bounded invocation handles 1000 recurring checkpoints")
 }
 
@@ -449,6 +469,181 @@ FuelCases :: (test: *NativeTest, compiler: string) -> bool {
         }
     }
     return true
+}
+
+CancellationGuest :: #string ZI
+Modules :: #import "std/zx_module";
+
+host_api :: #system_library "host_api";
+Ready :: () #foreign host_api;
+Apply :: (handle: u64) -> s32 #foreign host_api;
+
+spin :: () -> s32 {
+    Ready()
+    counter: u32
+    while true { counter += 1 }
+    return cast(s32)counter
+}
+
+#if #defined(CANCEL_INITIALIZER) {
+    seed: s32 = spin();
+} else {
+    seed: s32;
+}
+
+value :: () -> s32 { return seed + 42 }
+blocked :: () -> s32 { Ready(); return 42 }
+call_library :: () -> s32 {
+    handle := Modules.Load("Cancel.v1")
+    if handle == 0 { return 1 }
+    return Apply(handle)
+}
+ZI;
+
+CancellationState :: struct {
+    gate: Mutex.Mutex
+    control: *void
+    entered: bool
+    stop_after_entry: bool
+    wait_in_callback: bool
+}
+
+#program_export
+CancellationReady :: (opaque: *void, module: *u8, function: *u8, args: *Host.HostValue,
+    count: s32, result: *Host.HostValue) -> s32 {
+    unused module; unused function; unused args; unused result
+    state := cast(*CancellationState)opaque
+    if count != 0 || !Mutex.Lock(*state.gate) { return 0 }
+    state.entered = true
+    unused Mutex.Unlock(*state.gate)
+    if !state.wait_in_callback { return 1 }
+    deadline := MonotonicMilliseconds() + 3000
+    while RunStopRequested(state.control) == 0 && MonotonicMilliseconds() < deadline {
+        unused SleepMilliseconds(1)
+    }
+    // A device wakeup can return a host error. The caller must see Cancelled.
+    return 0
+}
+
+RequestAfterEntry :: (opaque: *void) {
+    state := cast(*CancellationState)opaque
+    deadline := MonotonicMilliseconds() + 3000
+    while MonotonicMilliseconds() < deadline {
+        if !Mutex.Lock(*state.gate) { break }
+        entered := state.entered
+        unused Mutex.Unlock(*state.gate)
+        if entered {
+            state.stop_after_entry = true
+            // Let the guest return from Ready into its CPU loop.
+            unused SleepMilliseconds(25)
+            break
+        }
+        unused SleepMilliseconds(1)
+    }
+    RequestRunStop(state.control)
+}
+
+CancellationTrial :: (test: *NativeTest, loader: *void, bundle: *void, binding: *Host.HostBinding,
+    state: *CancellationState, entry: string, initialize: bool) -> bool {
+    state.control = CreateRunControl()
+    defer FreeRunControl(state.control)
+    state.entered = false
+    state.stop_after_entry = false
+    state.wait_in_callback = entry == "blocked"
+    if !NativeAssert(test, state.control != null && RunStopRequested(state.control) == 0,
+        "allocate an initially clear run control") { return false }
+    program: *void
+    defer CloseProgram(program)
+    status: RunStatus
+    count: usize = ifx binding != null then 1 else 0
+    if !initialize {
+        program = OpenControlled(loader, bundle, binding, count, state.control, *status)
+        if !NativeAssert(test, program != null && status == .Ok, "open cancellable entry") { return false }
+    }
+    supervisor: Threads.Thread
+    stop: Threads.ThreadProcedure = RequestAfterEntry
+    if !NativeAssert(test, Threads.ThreadStart(*supervisor, stop, cast(*void)state), "start stop requester") {
+        return false
+    }
+    result: s64 = 123
+    present: s32 = 17
+    if initialize { program = OpenControlled(loader, bundle, binding, count, state.control, *status) }
+    else { status = RunControlled(program, *result, *present, state.control) }
+    Threads.ThreadWait(*supervisor)
+    return NativeAssert(test, status == .Cancelled && state.stop_after_entry &&
+        RunStopRequested(state.control) != 0 && result == 123 && present == 17 &&
+        (ifx initialize then program == null else RunProgram(program, null, null) == 0), entry)
+}
+
+CancellationCases :: (test: *NativeTest, compiler: string, std: string) -> bool {
+    source := CheckPath(test.work, "cancel_guest.zi")
+    if !NativeWrite(test, source, CancellationGuest) { return false }
+    state: CancellationState
+    if !NativeAssert(test, Mutex.Open(*state.gate), "open cancellation test gate") { return false }
+    defer { unused Mutex.Close(*state.gate) }
+    binding := Host.HostBinding.{HostedBytes("cancel_guest"), HostedBytes("Ready"),
+        CancellationReady, cast(*void)*state}
+    root := HostedBytes(test.work)
+    config := LoaderConfig.{roots = *root, root_count = 1, options = .{1, 0, 0},
+        library_bindings = *binding, library_binding_count = 1}
+    loader := OpenLoader(*config)
+    defer CloseLoader(loader)
+    if !NativeAssert(test, loader != null, "open cancellation test loader") { return false }
+    ordinary := CheckPath(test.work, "cancel_normal.zx")
+    normal_compile := string.[compiler, "--root", test.work, "--entry", "cancel_guest:value", "-o", ordinary, source]
+    if !Build(test, normal_compile[:]) { return false }
+    bytes := NativeRead(test, ordinary)
+    normal := Host.OpenBundleBytes(HostedBytes(bytes), cast(u64)bytes.count)
+    defer Host.CloseBundle(normal)
+    other := OpenProgram(loader, normal, null, 0)
+    defer CloseProgram(other)
+    if !NativeAssert(test, other != null, "open independent app before cancellation") { return false }
+
+    kinds := string.["spin", "initialize", "call_library", "load_library", "blocked"]
+    for kind: kinds {
+        output := CheckPath(test.work, "cancel_test.zx")
+        initialize := kind == "initialize"
+        library_call := kind == "call_library" || kind == "load_library"
+        if library_call {
+            library := ifx kind == "load_library" then "idle-provider" else "spin-provider"
+            provider := CheckPath(test.work, CheckConcat(library, ".zx"))
+            symbol := ifx kind == "load_library" then "value" else "spin"
+            define := ifx kind == "load_library" then "CANCEL_INITIALIZER" else "NO_INIT"
+            build_library := string.[compiler, "--root", test.work, "--library", library, "--define", define,
+                "--export", CheckConcat("cancel_guest:", symbol), "-o", provider, source]
+            import_function := CheckConcat("cancel_guest:Apply=Cancel.v1:", symbol)
+            build_app := string.[compiler, "--root", test.work, "--module-path", std, "--entry", "cancel_guest:call_library",
+                "--require-module", CheckConcat("Cancel.v1=", library), "--import", import_function, "-o", output, source]
+            if !Build(test, build_library[:]) || !Build(test, build_app[:]) { return false }
+        } else {
+            entry := ifx initialize then "cancel_guest:value" else CheckConcat("cancel_guest:", kind)
+            define := ifx initialize then "CANCEL_INITIALIZER" else "NO_INIT"
+            build_app := string.[compiler, "--root", test.work, "--entry", entry, "--define", define, "-o", output, source]
+            if !Build(test, build_app[:]) { return false }
+        }
+        bytes := NativeRead(test, output)
+        bundle := Host.OpenBundleBytes(HostedBytes(bytes), cast(u64)bytes.count)
+        defer Host.CloseBundle(bundle)
+        app_binding := ifx library_call then null else *binding
+        if !NativeAssert(test, bundle != null, kind) ||
+            !CancellationTrial(test, loader, bundle, app_binding, *state, kind, initialize) { return false }
+    }
+
+    control := CreateRunControl()
+    defer FreeRunControl(control)
+    if !NativeAssert(test, control != null, "allocate the independent run control") { return false }
+    RequestRunStop(control)
+    RequestRunStop(control)
+    status: RunStatus
+    skipped := OpenControlled(loader, normal, null, 0, control, *status)
+    defer CloseProgram(skipped)
+    result: s64 = 123
+    present: s32 = 17
+    if !NativeAssert(test, skipped == null && status == .Cancelled &&
+        RunControlled(other, *result, *present, control) == .Cancelled && result == 123 && present == 17,
+        "a pre-requested control skips open and run") { return false }
+    return NativeAssert(test, RunProgram(other, *result, *present) != 0 && result == 42 && present == 1,
+        "later independent runs still work after skipping a request")
 }
 
 BorrowApp :: #string ZI
@@ -909,6 +1104,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     std := CheckPath(test.repo, "std")
     bridge := TextFromCString(argv[3])
     if !HostedCases(*test, compiler, std, bridge) || !FuelCases(*test, compiler) ||
+        !CancellationCases(*test, compiler, std) ||
         !BorrowCases(*test, compiler) || !ScalarSliceCases(*test, compiler) ||
         !PackedArithmeticCases(*test, compiler) || !PackedSourceCase(*test, compiler) { return 1 }
     return 0

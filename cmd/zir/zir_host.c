@@ -14,6 +14,7 @@
 #include "zir_zx_wasm.h"
 #include "zir_zx_wasm_platform.h"
 #include "zir_zx_module_internal.h"
+#include <stdatomic.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -318,6 +319,36 @@ struct BundleInstance {
     NativeInstance *native;
 };
 
+struct ZxRunControl {
+    atomic_bool requested;
+};
+
+ZxRunControl *
+ZxRunControlCreate(void)
+{
+    ZxRunControl *control = malloc(sizeof(*control));
+    if(control != NULL) atomic_init(&control->requested, 0);
+    return control;
+}
+
+void
+ZxRunControlRequest(ZxRunControl *control)
+{
+    if(control != NULL) atomic_store_explicit(&control->requested, 1, memory_order_relaxed);
+}
+
+int
+ZxRunControlRequested(const ZxRunControl *control)
+{
+    return control != NULL && atomic_load_explicit(&control->requested, memory_order_relaxed);
+}
+
+void
+ZxRunControlFree(ZxRunControl *control)
+{
+    free(control);
+}
+
 /* The native backend this build carries; elsewhere native code is a named
  * gap from the loader. */
 #if defined(__aarch64__) && defined(__linux__)
@@ -402,8 +433,18 @@ static BundleInstance *
 instantiate_bundle_with_policy(const Bundle *bundle, const HostBinding *bindings,
                                size_t binding_count, int max_steps,
                                BundleBackendPolicy policy, int unbounded,
-                               BundleConsoleWrite write, void *console_context)
+                               BundleConsoleWrite write, void *console_context,
+                               const ZxRunControl *control, ZxRunStatus *status)
 {
+    if(status != NULL) *status = ZX_RUN_ERROR;
+    if(control != NULL && policy != BUNDLE_BACKEND_ENGINE) {
+        Diagnostic(Span("<host>", 1, 1), "zx.capability", "run cancellation requires the instruction engine");
+        return NULL;
+    }
+    if(ZxRunControlRequested(control)) {
+        if(status != NULL) *status = ZX_RUN_CANCELLED;
+        return NULL;
+    }
     if(bundle == NULL || (binding_count != 0 && bindings == NULL) || (unbounded && max_steps > 0) ||
        binding_count > SIZE_MAX / sizeof(HostBinding) ||
        (policy != BUNDLE_BACKEND_AUTO && policy != BUNDLE_BACKEND_ENGINE &&
@@ -485,13 +526,14 @@ instantiate_bundle_with_policy(const Bundle *bundle, const HostBinding *bindings
         instance->backend = NATIVE_PLATFORM_BACKEND;
     } else {
         instance->exec = ExecInstanceOpen(bundle->exec, find_binding, &instance->set,
-                                          max_steps, write, console_context);
+                                          max_steps, write, console_context, control, status);
         instance->backend = BUNDLE_EXECUTION_ENGINE;
     }
     if(instance->exec == NULL && instance->wasm == NULL && instance->native == NULL) {
         BundleInstanceClose(instance);
         return NULL;
     }
+    if(status != NULL) *status = ZX_RUN_OK;
     return instance;
 }
 
@@ -500,7 +542,7 @@ instantiate_bundle(const Bundle *bundle, const HostBinding *bindings,
                    size_t binding_count, int max_steps)
 {
     return instantiate_bundle_with_policy(bundle, bindings, binding_count,
-                                          max_steps, BUNDLE_BACKEND_AUTO, 0, NULL, NULL);
+                                          max_steps, BUNDLE_BACKEND_AUTO, 0, NULL, NULL, NULL, NULL);
 }
 
 BundleInstance *
@@ -528,10 +570,23 @@ BundleInstantiateWithOptionsAndConsole(const Bundle *bundle, const HostBinding *
                                        size_t binding_count, const BundleInstanceOptions *options,
                                        BundleConsoleWrite write, void *context)
 {
-    if(options == NULL || options->max_steps < 0)
+    return BundleInstantiateControlled(bundle, bindings, binding_count, options,
+                                       write, context, NULL, NULL);
+}
+
+BundleInstance *
+BundleInstantiateControlled(const Bundle *bundle, const HostBinding *bindings,
+                            size_t binding_count, const BundleInstanceOptions *options,
+                            BundleConsoleWrite write, void *context,
+                            const ZxRunControl *control, ZxRunStatus *status)
+{
+    if(options == NULL || options->max_steps < 0) {
+        if(status != NULL) *status = ZX_RUN_ERROR;
         return NULL;
+    }
     return instantiate_bundle_with_policy(bundle, bindings, binding_count,
-                                          options->max_steps, options->backend, options->unbounded, write, context);
+                                          options->max_steps, options->backend, options->unbounded,
+                                          write, context, control, status);
 }
 
 BundleInstance *
@@ -561,13 +616,22 @@ BundleNativeProblem(const Bundle *bundle)
 int
 BundleInstanceRun(BundleInstance *instance, long long *result, int *has_result)
 {
+    return BundleInstanceRunControlled(instance, result, has_result, NULL) == ZX_RUN_OK;
+}
+
+ZxRunStatus
+BundleInstanceRunControlled(BundleInstance *instance, long long *result, int *has_result,
+                            const ZxRunControl *control)
+{
     if(instance == NULL)
-        return 0;
+        return ZX_RUN_ERROR;
+    if(instance->exec != NULL)
+        return ExecInstanceRun(instance->exec, result, has_result, control);
+    if(control != NULL)
+        return ZX_RUN_ERROR;
     if(instance->wasm != NULL)
-        return ZxWasmRun(instance->wasm, result, has_result);
-    if(instance->native != NULL)
-        return NativeInstanceRun(instance->native, result, has_result);
-    return ExecInstanceRun(instance->exec, result, has_result);
+        return ZxWasmRun(instance->wasm, result, has_result) ? ZX_RUN_OK : ZX_RUN_ERROR;
+    return NativeInstanceRun(instance->native, result, has_result) ? ZX_RUN_OK : ZX_RUN_ERROR;
 }
 
 void

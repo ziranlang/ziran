@@ -2190,7 +2190,7 @@ exec_host_call(void *closure, void *context, int32_t function, Slice arguments, 
             given[at].bytes = (Slice){(void *)instance->arguments[at].bytes, (int64_t)instance->arguments[at].size};
         }
     }
-    if(!called) return false;
+    if(!called || ZxRunControlRequested(instance->instance.cancel_context)) return false;
     if(instance->renew_steps) {
         /* The engine hands typed calls to the slow path before invoking
          * the host, so no precharged segment fuel remains to restore. */
@@ -2205,24 +2205,37 @@ exec_host_call(void *closure, void *context, int32_t function, Slice arguments, 
     return true;
 }
 
+static bool
+exec_cancel_requested(void *closure, void *context)
+{
+    (void)closure;
+    return ZxRunControlRequested(context) != 0;
+}
+
 /* Runs the entry, or only the global initializers, within the step budget. */
-static int
-exec_run(ExecInstance *instance, int initialize, LirExecResult *ran)
+static ZxRunStatus
+exec_run(ExecInstance *instance, int initialize, LirExecResult *ran,
+         const ZxRunControl *control)
 {
     const ExecBundle *bundle = instance->bundle;
     long long limit = instance->limit;
     long long fuel = INT64_MAX;
     if(limit > 0) fuel = instance->cumulative ? limit - instance->used : limit;
-    if(instance->failed || instance->instance.running) return 0;
+    if(instance->failed || instance->instance.running) return ZX_RUN_ERROR;
+    if(ZxRunControlRequested(control)) return ZX_RUN_CANCELLED;
     if(fuel <= 0) {
         Diagnostic((ZirSourceSpan){0}, "zx.runtime", "portable execution failed: stopped after %lld steps",
             limit);
         instance->failed = 1;
-        return 0;
+        return ZX_RUN_ERROR;
     }
     instance->instance.limits.fuel = fuel;
     instance->active_limit = initialize ? 0 : limit;
     instance->run_fuel = fuel;
+    if(control != NULL) {
+        instance->instance.cancel_check = (LirExecCancelCheck){NULL, exec_cancel_requested};
+        instance->instance.cancel_context = (void *)control;
+    }
     /* A run that succeeds leaves its result and remaining fuel in the
      * instance; only a failure fills `ran`. */
     int ok;
@@ -2242,12 +2255,19 @@ exec_run(ExecInstance *instance, int initialize, LirExecResult *ran)
     }
     instance->active_limit = 0;
     instance->renew_steps = 0;
+    instance->instance.cancel_check = (LirExecCancelCheck){0};
+    instance->instance.cancel_context = NULL;
     if(instance->cumulative) instance->used += instance->run_fuel - remaining;
     /* A run that ends normally leaves its output to the stream's own
      * buffering, as a C program's does; a failed run's output comes out
      * before its diagnostic. */
     ZxConsoleFlush(&instance->console);
-    if(ok) return 1;
+    if((!ok && ran->problem == LirExecProblem_Cancelled) ||
+       ((ok || ran->problem == LirExecProblem_Host) && ZxRunControlRequested(control))) {
+        instance->failed = 1;
+        return ZX_RUN_CANCELLED;
+    }
+    if(ok) return ZX_RUN_OK;
     if(instance->console.write == NULL) fflush(stdout);
     instance->failed = 1;
     if(ran->problem == LirExecProblem_FuelLimit && limit > 0)
@@ -2261,7 +2281,7 @@ exec_run(ExecInstance *instance, int initialize, LirExecResult *ran)
             initialize ? "global initialization" : bundle->entry_function, text != NULL ? text : "failed",
             (int)problem.length, problem.data, ran->function, ran->block, ran->instruction);
     }
-    return 0;
+    return ZX_RUN_ERROR;
 }
 
 #if defined(ZIRAN_EXEC_FRAME_RESERVE_BYTES) != defined(ZIRAN_EXEC_FRAME_RESERVE_MIN)
@@ -2296,7 +2316,8 @@ exec_reserve_frame_storage(LirExecInstance *instance)
 
 ExecInstance *
 ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, long long max_steps,
-                 BundleConsoleWrite write, void *console_context)
+                 BundleConsoleWrite write, void *console_context, const ZxRunControl *control,
+                 ZxRunStatus *status)
 {
     static atomic_uint identities;
     ExecInstance *instance = calloc(1, sizeof(*instance));
@@ -2346,7 +2367,9 @@ ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, 
     }
     /* Globals are initialized now, within the budget, as on the semantic VM. */
     LirExecResult initialized;
-    if(!exec_run(instance, 1, &initialized)) goto failed;
+    ZxRunStatus outcome = exec_run(instance, 1, &initialized, control);
+    if(status != NULL) *status = outcome;
+    if(outcome != ZX_RUN_OK) goto failed;
 #ifdef ZIRAN_EXEC_I386_BLOCKS
     instance->i386 = i386_open(&instance->instance);
 #endif
@@ -2379,12 +2402,14 @@ ExecInstanceBorrowHostView(ExecInstance *instance, const char *module, const cha
     return 0;
 }
 
-int
-ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result)
+ZxRunStatus
+ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result,
+                const ZxRunControl *control)
 {
     const ExecBundle *bundle = instance->bundle;
     LirExecResult ran;
-    if(!exec_run(instance, 0, &ran)) return 0;
+    ZxRunStatus status = exec_run(instance, 0, &ran, control);
+    if(status != ZX_RUN_OK) return status;
     const LirFunction *entry = &((const LirFunction *)bundle->program.functions.data)[bundle->program.entry];
     const LirType *type = exec_type(bundle, entry->result);
     int returns = type->kind != LirTypeKind_Void;
@@ -2395,7 +2420,7 @@ ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result)
             bits |= ~((UINT64_C(1) << type->bits) - 1);
         *result = returns ? (long long)bits : 0;
     }
-    return 1;
+    return ZX_RUN_OK;
 }
 
 void
@@ -2694,16 +2719,18 @@ int ExecHostsStateImage(ExecHosts *hosts, size_t index, const HostValue *value, 
 
 void ExecHostsClose(ExecHosts *hosts) { (void)hosts; }
 ExecInstance *ExecInstanceOpen(const ExecBundle *bundle, ExecFindBinding find, void *context, long long max_steps,
-                               BundleConsoleWrite write, void *console_context)
+                               BundleConsoleWrite write, void *console_context, const ZxRunControl *control,
+                               ZxRunStatus *status)
 {
     (void)bundle; (void)find; (void)context; (void)max_steps;
-    (void)write; (void)console_context;
+    (void)write; (void)console_context; (void)control; (void)status;
     return NULL;
 }
-int ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result)
+ZxRunStatus ExecInstanceRun(ExecInstance *instance, long long *result, int *has_result,
+                            const ZxRunControl *control)
 {
-    (void)instance; (void)result; (void)has_result;
-    return 0;
+    (void)instance; (void)result; (void)has_result; (void)control;
+    return ZX_RUN_ERROR;
 }
 void ExecInstanceLimitSteps(ExecInstance *instance, long long max_steps) { (void)instance; (void)max_steps; }
 int ExecInstanceBorrowHostView(ExecInstance *instance, const char *module, const char *function,

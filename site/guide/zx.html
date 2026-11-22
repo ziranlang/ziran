@@ -79,6 +79,26 @@ policy. With a console callback, a native or Wasm backend selection fails
 before initialization. The loader copies roots and options. Keep callback
 contexts and library grants alive through loader close, and the app bundle
 alive through program close.</p>
+<p>Use the instruction engine to run a module that a supervisor can stop.
+Create a <code>ZxRunControl</code> before starting the guest and pass it to
+<code>ZxModuleProgramOpenControlled</code> and <code>ZxModuleProgramRunControlled</code>. The control
+also applies to initializers and calls in libraries the guest loads. The
+equivalent APIs for a plain bundle are <code>BundleInstantiateControlled</code> and
+<code>BundleInstanceRunControlled</code>. Select <code>BUNDLE_BACKEND_ENGINE</code> explicitly for
+controlled initialization. The engine checks the request at execution
+checkpoints, including in its packed instruction tier.</p>
+<p>A supervisor can call <code>ZxRunControlRequest</code> and <code>ZxRunControlRequested</code> from
+another thread. The guest thread retains ownership of the loader and its
+instances. Only the caller can wake a blocked resolver or host I/O callback.
+Keep the control alive until the guest calls and all supervisor accesses have
+returned. A request stays set, so create a fresh control for a later
+independent run. These calls borrow the control for the duration of the call.</p>
+<p>Open returns <code>NULL</code> and sets the optional status to <code>ZX_RUN_CANCELLED</code> on a
+stop. Run returns <code>ZX_RUN_CANCELLED</code> and leaves its result outputs untouched.
+A request observed before entry skips the run and leaves the instance usable.
+A request observed during execution retires the instance, which the caller
+can then close. <code>ZX_RUN_ERROR</code> covers other runtime failures, including
+exhausting the configured step budget. <code>ZX_RUN_OK</code> reports normal completion.</p>
 <p>Portable embedders can call <code>ZxModuleProgramBorrowHostString</code> or
 <code>BundleInstanceBorrowHostString</code> after initialization to borrow one granted
 host function's top-level string parameter by zero-based index. The

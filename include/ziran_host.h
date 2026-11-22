@@ -104,6 +104,23 @@ typedef struct BundleInstanceOptions {
     int unbounded;
 } BundleInstanceOptions;
 
+typedef struct ZxRunControl ZxRunControl;
+typedef enum ZxRunStatus {
+    ZX_RUN_ERROR = 0,
+    ZX_RUN_OK = 1,
+    ZX_RUN_CANCELLED = 2
+} ZxRunStatus;
+
+/* An independent, initially clear control. Request is sticky and idempotent.
+ * Only Request and Requested may run concurrently. Keep the control alive
+ * until every operation using it and every supervisory access have finished.
+ * Reuse a clear control across calls or create a fresh one after a request.
+ * A null control means no cancellation. */
+ZxRunControl *ZxRunControlCreate(void);
+void ZxRunControlRequest(ZxRunControl *control);
+int ZxRunControlRequested(const ZxRunControl *control);
+void ZxRunControlFree(ZxRunControl *control);
+
 typedef struct BundleStateValue {
     const char *module;
     const char *name;
@@ -227,6 +244,14 @@ BundleInstance *BundleInstantiateWithConsole(
 BundleInstance *BundleInstantiateWithOptionsAndConsole(
     const Bundle *bundle, const HostBinding *bindings, size_t binding_count,
     const BundleInstanceOptions *options, BundleConsoleWrite write, void *context);
+/* With a non-null control, select BUNDLE_BACKEND_ENGINE explicitly.
+ * The instance borrows the control only while this call runs initialization.
+ * On cancellation it returns NULL and sets status to ZX_RUN_CANCELLED.
+ * status is optional. Host callbacks manage their own blocking I/O. */
+BundleInstance *BundleInstantiateControlled(
+    const Bundle *bundle, const HostBinding *bindings, size_t binding_count,
+    const BundleInstanceOptions *options, BundleConsoleWrite write, void *context,
+    const ZxRunControl *control, ZxRunStatus *status);
 BundleExecutionBackend BundleInstanceBackend(const BundleInstance *instance);
 /* Native preflight: compiles the bundle for this host on first use, sharing
  * code with any open bundle of the same content. An empty string when it
@@ -234,6 +259,12 @@ BundleExecutionBackend BundleInstanceBackend(const BundleInstance *instance);
 const char *BundleNativeProblem(const Bundle *bundle);
 int BundleInstanceRun(BundleInstance *instance, long long *result,
                       int *has_result);
+/* With a non-null control, the instance must use the instruction engine.
+ * The control is borrowed until return. A request observed before entry
+ * skips the run. A request observed during execution retires the instance,
+ * as a trap does. Results are written only on ZX_RUN_OK. */
+ZxRunStatus BundleInstanceRunControlled(BundleInstance *instance, long long *result,
+                                       int *has_result, const ZxRunControl *control);
 /* Bound each subsequent run to max_steps steps (function calls and loop
  * iterations), so a runaway bundle stops with an error. Zero is unbounded. */
 void BundleInstanceLimitSteps(BundleInstance *instance, int max_steps);

@@ -9,7 +9,7 @@ LirExecProblem :: enum s32 {
     None; InvalidProgram; NotReady; Busy; Allocation
     WorkLimit; FuelLimit; FrameLimit; ValueLimit; AddressLimit; ValueBytes
     Type; Pointer; Calling; DivideByZero; InvalidShift; InvalidConversion
-    Trap; Unreachable; Unsupported; Host
+    Trap; Unreachable; Unsupported; Host; Cancelled
 }
 
 LirExecLimits :: struct {
@@ -39,6 +39,8 @@ LirExecTypedHostCall :: #type (context: *void, function: s32,
 // which stay valid for the duration of the call.
 // A write callback reads bytes for the duration of the call.
 LirExecPlatformWrite :: #type (context: *void, descriptor: u64, bytes: []u8) -> bool;
+// Polled at execution checkpoints; true stops the run with .Cancelled.
+LirExecCancelCheck :: #type (context: *void) -> bool;
 LirExecHostBinding :: struct {
     function: s32
     call: LirExecHostCall
@@ -380,6 +382,8 @@ LirExecInstance :: struct {
     initializer_failed: bool
     ready: bool
     running: bool
+    cancel_check: LirExecCancelCheck
+    cancel_context: *void
     // Run every instruction through ExecStep (LirExecRunReference).
     reference: bool
 }
@@ -1908,6 +1912,13 @@ ExecInitialLocation :: (instance: *LirExecInstance, function_id: s32) {
     block_at := instance.plan.functions[function_id].block_base + function.entry
     instance.failure.origin = ExecInstructionOrigin(instance, .{function = function_id,
         block = function.entry, instruction_base = cast(s64)instance.plan.block_instruction_bases[block_at]})
+}
+
+ExecCanContinue :: (instance: *LirExecInstance) -> bool #inline {
+    if instance.cancel_check != null && instance.cancel_check(instance.cancel_context) {
+        return ExecFail(instance, .Cancelled)
+    }
+    return true
 }
 
 ExecSpend :: (instance: *LirExecInstance, count: s64) -> bool #inline {
@@ -4231,6 +4242,7 @@ ExecStepInstruction :: (instance: *LirExecInstance, frame_index: s64, frame: *Li
     op := instruction.op
     if op == .Fuel {
         amount := cast(s64)instruction.immediate
+        if !ExecCanContinue(instance) { return false }
         if amount > instance.fuel_remaining { return ExecFail(instance, .FuelLimit) }
         instance.fuel_remaining -= amount
         instance.frames[frame_index].instruction += 1
@@ -4239,6 +4251,7 @@ ExecStepInstruction :: (instance: *LirExecInstance, frame_index: s64, frame: *Li
     if op == .Trap { return ExecFail(instance, .Trap, instruction.immediate) }
     if op == .Unreachable { return ExecFail(instance, .Unreachable) }
     if op == .Jump || op == .Branch {
+        if !ExecCanContinue(instance) { return false }
         edge_index: s64
         if op == .Branch {
             edge_index = cast(s64)(ExecSlotBits(instance, ExecOperand(instruction, 0)) == 0)
@@ -4249,8 +4262,11 @@ ExecStepInstruction :: (instance: *LirExecInstance, frame_index: s64, frame: *Li
             instance.plan.edge_direct[edge_base + edge_index] != 0)
     }
     if op == .Return { return ExecFinishFrame(instance, frame_index, instruction) }
-    if op == .HostCall { return ExecHostCall(instance, frame_index, instruction) }
+    if op == .HostCall {
+        return ExecCanContinue(instance) && ExecHostCall(instance, frame_index, instruction)
+    }
     if op == .Call || op == .CallIndirect {
+        if !ExecCanContinue(instance) { return false }
         return ExecCallInstruction(instance, frame_index, instruction)
     }
     return ExecValueInstruction(instance, frame_index, frame, instruction)
@@ -4486,6 +4502,7 @@ ExecFastIntern :: (instance: *LirExecInstance, frame_index: s64, code: *LirExecC
 // copies do not fit and the terminator goes to ExecStep.
 ExecFastEdge :: (instance: *LirExecInstance, words: []u64, storage: []u8, frame_index: s64,
     edge: s64, word_base: s64, storage_base: s64) -> s64 #inline {
+    if !ExecCanContinue(instance) { return ExecFailed }
     plan := instance.plan
     target := *plan.edge_plans[edge]
     if target.work > instance.work_remaining { return ExecBail }
@@ -5227,6 +5244,7 @@ ExecFastRootReturn :: (instance: *LirExecInstance, code: *LirExecCode) -> bool {
 ExecRunFast :: (instance: *LirExecInstance) -> bool {
     plan := instance.plan
     while instance.frames.count != 0 {
+        if !ExecCanContinue(instance) { return false }
         frame_index := instance.frames.count - 1
         position := instance.frames[frame_index].instruction_base + instance.frames[frame_index].instruction
         pc := plan.segment_code[position]
@@ -5288,6 +5306,7 @@ ExecRunPacked :: (instance: *LirExecInstance, blocks: *LirExecPackedBlocks) -> b
         frame_index := instance.frames.count - 1
         frame := *instance.frames[frame_index]
         if native && (frame.instruction == 0 || frame.instruction == next) {
+            if !ExecCanContinue(instance) { return false }
             // The hook only changes this frame's instruction and scalar words.
             next = blocks.run(blocks.context, instance, frame)
         }
@@ -5823,5 +5842,6 @@ LirExecProblemName :: (problem: LirExecProblem) -> string {
     if problem == .Trap { return "trap" }
     if problem == .Unreachable { return "unreachable" }
     if problem == .Host { return "host" }
+    if problem == .Cancelled { return "cancelled" }
     return "unsupported"
 }

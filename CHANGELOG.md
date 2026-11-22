@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- ZX embedders can request an active guest stop from another thread, including during initialization and library calls.
+
 - ZX supports indexing typed pointers. The engine and checked native backends use the backing allocation to reject invalid indices.
 
 - Add optional bounded progress and cancellation callbacks to PNG/JPEG decoding while preserving the ordinary image readers.

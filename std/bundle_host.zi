@@ -15,6 +15,7 @@ HostValueKind :: enum {
     HostSlice :: 6
     HostPointer :: 7
     HostArray :: 8
+    HostBorrowedSlice :: 9
 }
 
 HostValue :: struct {

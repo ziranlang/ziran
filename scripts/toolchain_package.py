@@ -62,6 +62,60 @@ def hash_stream(stream):
     return checksum.hexdigest()
 
 
+def build_tree_files(build):
+    def raise_error(error):
+        raise error
+
+    files = {}
+    for current, directories, names in os.walk(build, onerror=raise_error):
+        for name in directories:
+            path = Path(current, name)
+            if not stat.S_ISDIR(path.lstat().st_mode):
+                raise ValueError(f'unexpected build directory entry: {path}')
+        for name in names:
+            path = Path(current, name)
+            if path == build / '.ziran-cache.json':
+                continue
+            mode = path.lstat().st_mode
+            if not stat.S_ISREG(mode) or mode & (stat.S_ISUID | stat.S_ISGID):
+                raise ValueError(f'unexpected build file: {path}')
+            files[path.relative_to(build).as_posix()] = [mode & 0o111, digest(path)]
+    for name in ('bin/ziran', 'libziran.a', 'obj/cmd/zir/zir_load.o'):
+        if name not in files or (build / name).stat().st_size == 0:
+            raise ValueError(f'missing or empty build output: {build / name}')
+    if not os.access(build / 'bin/ziran', os.X_OK):
+        raise ValueError('cached ziran is not executable')
+    return files
+
+
+def cache_tree(build, key, write):
+    if not stat.S_ISDIR(build.lstat().st_mode):
+        raise ValueError('the cached build root must be a directory')
+    manifest = build / '.ziran-cache.json'
+    if not write:
+        if not stat.S_ISREG(manifest.lstat().st_mode):
+            raise ValueError('the cache manifest must be a regular file')
+        with manifest.open('rb') as stream:
+            data = stream.read(8 * 1024 * 1024 + 1)
+        if len(data) > 8 * 1024 * 1024:
+            raise ValueError('cache manifest exceeds 8 MiB')
+        expected = json.loads(data)
+        if expected['key'] != key:
+            raise ValueError('cache manifest does not match the exact requested key')
+    actual = build_tree_files(build)
+    if write:
+        descriptor, staged_path = tempfile.mkstemp(dir=build)
+        staging = Path(staged_path)
+        try:
+            with os.fdopen(descriptor, 'w') as stream:
+                json.dump({'key': key, 'files': actual}, stream, sort_keys=True)
+            staging.replace(manifest)
+        finally:
+            staging.unlink(missing_ok=True)
+    elif actual != expected['files']:
+        raise ValueError('cached build files differ from the verified inventory')
+
+
 def write_archive(archive, files):
     with gzip.GzipFile(filename='', fileobj=archive, mode='wb', mtime=0) as compressed:
         with tarfile.open(fileobj=compressed, mode='w|', format=tarfile.PAX_FORMAT) as tar:
@@ -181,12 +235,18 @@ def main():
         artifact = subcommands.add_parser(command)
         artifact.add_argument('commit')
         artifact.add_argument('descriptor', type=Path)
+    for command in ('cache-write', 'cache-verify'):
+        cache = subcommands.add_parser(command)
+        cache.add_argument('key')
+        cache.add_argument('build', type=Path)
     try:
         args = parser.parse_args()
         if args.command == 'pack':
             pack(args.commit, args.output)
         elif args.command == 'publish':
             publish(args.descriptor, args.commit)
+        elif args.command.startswith('cache-'):
+            cache_tree(args.build, args.key, args.command == 'cache-write')
         else:
             print(verify(args.descriptor, args.commit))
     except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError,

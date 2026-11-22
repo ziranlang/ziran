@@ -74,7 +74,11 @@ NativeStart :: (argc: s32, argv: **u8, prefix: string) -> NativeTest {
         result.work = TextDetach(CreateTemporaryDirectory(parent, prefix))
     } else if !CreateDirectories(result.work) { result.failed = true; return result }
     result.work = TextDetach(ResolvePath(result.work))
-    if result.ziran == "" || result.work == "" || !TextHasPrefix(result.work, CheckPath(result.repo, "build/")) {
+    // Outputs stay in a build directory of this repository: build/, or the
+    // BUILD_DIR whose bin/ holds the compiler under test, such as work/NAME.
+    build := TextDetach(TextCopy(PathParent(PathParent(result.ziran))))
+    private_build := TextHasPrefix(build, CheckConcat(result.repo, "/")) && TextHasPrefix(result.work, CheckConcat(build, "/"))
+    if result.ziran == "" || result.work == "" || !(TextHasPrefix(result.work, CheckPath(result.repo, "build/")) || private_build) {
         print("test outputs must stay inside this repository's build directory\n")
         result.failed = true
         return result

@@ -57,80 +57,55 @@ Order :: (function: LirFunction, order: []s32, position: []s32,
     return true
 }
 
-Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64,
-    order: []s32, position: []s32, limits: LirLimits, budget: *LirSsaBudget) -> LirCodecResult {
-    function := program.functions[fi]
-    count: s64
-    edge_count: s64
-    for block: function.blocks {
-        if !LirSsaSpend(budget, block.instructions.count + 1) { return .{} }
-        count += block.instructions.count
-        for instruction: block.instructions { edge_count += instruction.edges.count }
-    }
-    if !LirSsaReserve(budget, count, 112) || !LirSsaReserve(budget, edge_count, 24) ||
-        !LirSsaReserve(budget, function.blocks.count, 32) ||
-        !LirSsaReserve(budget, program.functions.count, 112) { return .{} }
-    instructions: Vec(LirInstruction)
-    edges: Vec(LirEdge)
-    blocks: Vec(LirBlock)
-    functions: Vec(LirFunction)
-    defer VecFree(instructions)
-    defer VecFree(edges)
-    defer VecFree(blocks)
-    defer VecFree(functions)
-    if !VecResizeBounded(instructions, count, count) || !VecResizeBounded(edges, edge_count, edge_count) ||
-        !VecResizeBounded(blocks, function.blocks.count, function.blocks.count) ||
-        !VecResizeBounded(functions, program.functions.count, program.functions.count) {
-        budget.problem = .Allocation
-        return .{}
-    }
-    ip: s64
-    ep: s64
-    for at: 0..order.count - 1 {
-        block := function.blocks[order[at]]
-        begin := ip
-        for instruction: block.instructions {
-            if !LirSsaSpend(budget, instruction.edges.count + 1) { return .{} }
-            edge_begin := ep
-            for edge: instruction.edges {
-                edge.block = position[edge.block]
-                edges[ep] = edge
-                ep += 1
-            }
-            instruction.edges = edges[edge_begin:ep]
-            instructions[ip] = instruction
-            ip += 1
-        }
-        blocks[at] = .{parameters = block.parameters, instructions = instructions[begin:ip]}
-    }
-    for at: 0..functions.count - 1 { functions[at] = program.functions[at] }
-    function.blocks = blocks[:]
-    function.entry = position[function.entry]
-    functions[fi] = function
-    program.functions = functions[:]
-    empty: []u8
-    measured := LirWrite(program, empty)
-    if measured.problem != .None { return measured }
-    if !LirSsaReserve(budget, measured.size, 1) { return .{} }
-    encoded: Vec(u8)
-    defer VecFree(encoded)
-    if !VecResizeBounded(encoded, measured.size, measured.size) { budget.problem = .Allocation; return .{} }
-    written := LirWrite(program, encoded[:])
-    if written.problem != .None { return written }
-    // No borrowed owner slice is used after the replacement.
-    return LirRead(storage, TextView(encoded[:]), limits)
-}
-
 #scope_export
 // Reorder blocks and remap edge targets together. Parameters, instructions,
 // effects, branch polarity and origins are unchanged. Verified input only.
 LirLayout :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirLayoutResult {
     result: LirLayoutResult
     budget := LirSsaBudget.{work = work, bytes = limits.bytes}
-    count := LirReadProgram(storage).functions.count
+    program := LirReadProgram(storage)
+    count := program.functions.count
+    total_blocks: s64
+    total_insts: s64
+    total_edges: s64
+    for function: program.functions {
+        total_blocks += function.blocks.count
+        for block: function.blocks {
+            total_insts += block.instructions.count
+            for instruction: block.instructions { total_edges += instruction.edges.count }
+        }
+    }
+    out_functions: Vec(LirFunction)
+    out_blocks: Vec(LirBlock)
+    out_instructions: Vec(LirInstruction)
+    out_edges: Vec(LirEdge)
+    defer VecFree(out_functions)
+    defer VecFree(out_blocks)
+    defer VecFree(out_instructions)
+    defer VecFree(out_edges)
+    if !LirSsaReserve(*budget, count, 112) ||
+        !LirSsaReserve(*budget, total_blocks, 32) ||
+        !LirSsaReserve(*budget, total_insts, 112) ||
+        !LirSsaReserve(*budget, total_edges, 24) {
+        result.problem = budget.problem
+        result.work = budget.used
+        return result
+    }
+    if !VecResizeBounded(out_functions, count, count) ||
+        !VecResizeBounded(out_blocks, total_blocks, total_blocks) ||
+        !VecResizeBounded(out_instructions, total_insts, total_insts) ||
+        !VecResizeBounded(out_edges, total_edges, total_edges) {
+        result.problem = .Allocation
+        result.work = budget.used
+        return result
+    }
+    for fi: 0..count - 1 { out_functions[fi] = program.functions[fi] }
+    base_reserved := budget.reserved
+    bp: s64
+    ip: s64
+    ep: s64
     for fi: 0..count - 1 {
-        budget.reserved = 0
-        program := LirReadProgram(storage)
+        budget.reserved = base_reserved
         function := program.functions[fi]
         if !LirSsaSpend(*budget, 1) { break }
         if function.external || function.blocks.count < 2 { continue }
@@ -145,15 +120,47 @@ LirLayout :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirLayout
             changed := false
             for at: 0..blocks - 1 { if order[at] != at { changed = true } }
             if changed {
-                result.codec = Rebuild(storage, program, fi, order[:], position[:], limits, *budget)
-                if budget.problem == .None && result.codec.problem == .None { result.functions += 1; result.blocks += blocks }
+                b_begin := bp
+                for at: 0..order.count - 1 {
+                    block := function.blocks[order[at]]
+                    i_begin := ip
+                    for instruction: block.instructions {
+                        if !LirSsaSpend(*budget, instruction.edges.count + 1) { break }
+                        e_begin := ep
+                        for edge: instruction.edges {
+                            edge.block = position[edge.block]
+                            out_edges[ep] = edge
+                            ep += 1
+                        }
+                        instruction.edges = out_edges[e_begin:ep]
+                        out_instructions[ip] = instruction
+                        ip += 1
+                    }
+                    if budget.problem != .None { break }
+                    out_blocks[bp] = .{parameters = block.parameters, instructions = out_instructions[i_begin:ip]}
+                    bp += 1
+                }
+                if budget.problem == .None {
+                    function.blocks = out_blocks[b_begin:bp]
+                    function.entry = position[function.entry]
+                    out_functions[fi] = function
+                    result.functions += 1
+                    result.blocks += blocks
+                }
             }
         }
         VecFree(order)
         VecFree(position)
         VecFree(costs)
         if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
-        if budget.problem != .None || result.codec.problem != .None { break }
+        if budget.problem != .None { break }
+    }
+    if result.functions > 0 && budget.problem == .None {
+        budget.reserved = base_reserved
+        updated := program
+        updated.functions = out_functions[:]
+        result.codec = LirSsaSerialize(storage, updated, limits, *budget)
+        if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
     }
     result.problem = budget.problem
     result.work = budget.used

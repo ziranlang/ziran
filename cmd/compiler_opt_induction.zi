@@ -190,16 +190,7 @@ Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64, plan: *LirLoop
     }
     functions[fi] = function
     program.functions = functions[:]
-    empty: []u8
-    measured := LirWrite(program, empty)
-    if measured.problem != .None { return measured }
-    if !LirSsaReserve(budget, measured.size, 1) { return .{} }
-    encoded: Vec(u8)
-    defer VecFree(encoded)
-    if !VecResizeBounded(encoded, measured.size, measured.size) { budget.problem = .Allocation; return .{} }
-    written := LirWrite(program, encoded[:])
-    if written.problem != .None { return written }
-    return LirRead(storage, TextView(encoded[:]), limits)
+    return LirSsaSerialize(storage, program, limits, budget)
 }
 
 #scope_export

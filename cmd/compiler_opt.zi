@@ -336,18 +336,22 @@ SharedPassResult :: (state: *OptState, problem: LirSsaProblem,
 }
 
 CloneProgram :: (state: *OptState, program: LirProgram, limits: LirLimits,
-    owner: *LirReadOwner) -> bool {
+    owner: *LirReadOwner, verify: bool = true) -> bool {
+    if verify {
+        diagnostic := LirVerify(program, limits)
+        if diagnostic.problem != .None { return CodecFailure(state, .{problem = .Verify, diagnostic = diagnostic}) }
+    }
     empty: []u8
-    measured := LirWrite(program, empty)
+    measured := LirWriteUnverified(program, empty)
     if measured.problem != .None { return CodecFailure(state, measured) }
     if !Scratch(state, measured.size, 1) { return false }
     defer ScratchRelease(state, measured.size)
     encoded: Vec(u8)
     defer VecFree(encoded)
     if !VecResizeBounded(encoded, measured.size, measured.size) { return Fail(state, .Allocation) }
-    written := LirWrite(program, encoded[:])
+    written := LirWriteUnverified(program, encoded[:])
     if written.problem != .None || written.size != measured.size { return CodecFailure(state, written) }
-    read := LirRead(owner, TextView(encoded[:]), limits)
+    read := LirReadUnverified(owner, TextView(encoded[:]), limits)
     if read.problem != .None { return CodecFailure(state, read) }
     return true
 }
@@ -2142,7 +2146,7 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         LirOptFree(owner)
         return Result(state)
     }
-    if !CloneProgram(*state, program, limits, *owner.storage) {
+    if !CloneProgram(*state, program, limits, *owner.storage, false) {
         LirOptFree(owner)
         return Result(state)
     }
@@ -2157,7 +2161,7 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         }
         state.counters.inline_leaf.runs += 1
         state.counters.inline_leaf.instructions += inlined.calls
-        if !VerifyPass(*state, LirReadProgram(*owner.storage), limits) { LirOptFree(owner); return Result(state) }
+        if inlined.calls > 0 && !VerifyPass(*state, LirReadProgram(*owner.storage), limits) { LirOptFree(owner); return Result(state) }
     }
     inlined: s64
     // Callees are measured for inlining as they will be after cleanup.
@@ -2246,13 +2250,15 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         hoisted := LirLicm(*owner.storage, limits, state.remaining)
         state.counters.licm.runs += 1
         state.counters.licm.instructions += hoisted.instructions
-        if !SharedPassResult(*state, hoisted.problem, hoisted.codec, hoisted.work, hoisted.scratch_bytes) ||
-            !VerifyPass(*state, LirReadProgram(*owner.storage), limits) { LirOptFree(owner); return Result(state) }
+        if !SharedPassResult(*state, hoisted.problem, hoisted.codec, hoisted.work, hoisted.scratch_bytes) {
+            LirOptFree(owner); return Result(state)
+        }
         strength := LirInduction(*owner.storage, limits, state.remaining)
         state.counters.induction.runs += 1
         state.counters.induction.instructions += strength.products
-        if !SharedPassResult(*state, strength.problem, strength.codec, strength.work, strength.scratch_bytes) ||
-            !VerifyPass(*state, LirReadProgram(*owner.storage), limits) { LirOptFree(owner); return Result(state) }
+        if !SharedPassResult(*state, strength.problem, strength.codec, strength.work, strength.scratch_bytes) {
+            LirOptFree(owner); return Result(state)
+        }
         optimized = LirReadProgram(*owner.storage)
         if options.propagate_copies && !CopyPass(*state, optimized, limits) { LirOptFree(owner); return Result(state) }
         rotated := LirRotate(*owner.storage, limits, state.remaining)
@@ -2272,7 +2278,6 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         if options.propagate_copies && !CopyPass(*state, optimized, limits) {
             LirOptFree(owner); return Result(state)
         }
-        if !VerifyPass(*state, optimized, limits) { LirOptFree(owner); return Result(state) }
         ordered := LirLayout(*owner.storage, limits, state.remaining)
         state.counters.layout.runs += 1
         state.counters.layout.blocks += ordered.blocks
@@ -2280,7 +2285,6 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
             LirOptFree(owner); return Result(state)
         }
         optimized = LirReadProgram(*owner.storage)
-        if !VerifyPass(*state, optimized, limits) { LirOptFree(owner); return Result(state) }
     }
     ScratchReset(*state)
     if options.eliminate_dead && !DeadPass(*state, optimized, limits) {

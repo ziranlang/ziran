@@ -1099,16 +1099,20 @@ LirReadReplace :: (owner: *LirReadOwner, replacement: *LirReadOwner) {
 // and blobs, rejects noncanonical framing/trailing bytes, then calls LirVerify.
 // OWNER is empty after any failure. INPUT must not alias OWNER's old storage.
 LirRead :: (owner: *LirReadOwner, input: string, limits: LirLimits) -> LirCodecResult {
-    return LirReadInternal(owner, input, null, input.count, limits, false)
+    return LirReadInternal(owner, input, null, input.count, limits, false, true)
+}
+
+LirReadUnverified :: (owner: *LirReadOwner, input: string, limits: LirLimits) -> LirCodecResult {
+    return LirReadInternal(owner, input, null, input.count, limits, false, false)
 }
 
 LirReadFromSource :: (owner: *LirReadOwner, source: *LirReadSource, limits: LirLimits) -> LirCodecResult {
-    return LirReadInternal(owner, "", source, source.size, limits, false)
+    return LirReadInternal(owner, "", source, source.size, limits, false, true)
 }
 
 #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
 LirReadCompactSource :: (owner: *LirReadOwner, source: *LirReadSource, limits: LirLimits) -> LirCodecResult {
-    return LirReadInternal(owner, "", source, source.size, limits, true)
+    return LirReadInternal(owner, "", source, source.size, limits, true, true)
 }
 
 LirReleaseFunctionBodies :: (owner: *LirReadOwner) {
@@ -1160,7 +1164,7 @@ ReadCompactFunctionBody :: (context: *void, id: s32, function: *LirFunction) -> 
 }
 
 LirReadInternal :: (owner: *LirReadOwner, input: string, source: *LirReadSource,
-    size: s64, limits: LirLimits, compact: bool) -> LirCodecResult {
+    size: s64, limits: LirLimits, compact: bool, verify: bool) -> LirCodecResult {
     if owner == null { return .{problem = .Owner} }
     LirReadFree(owner)
     layout, framing := ReadLayout(input, source, size)
@@ -1193,10 +1197,12 @@ LirReadInternal :: (owner: *LirReadOwner, input: string, source: *LirReadSource,
         functions = owner.functions[:], origins = owner.origins[:],
         initializers = owner.initializers[:], entry = owner.entry, checks = layout.checks}
     program := OwnedProgram(owner)
-    diagnostic := LirVerifyWithBodies(program, limits, LirReadFunctionBodies(owner))
-    if diagnostic.problem != .None {
-        LirReadFree(owner)
-        return .{problem = .Verify, diagnostic = diagnostic, size = size}
+    if verify {
+        diagnostic := LirVerifyWithBodies(program, limits, LirReadFunctionBodies(owner))
+        if diagnostic.problem != .None {
+            LirReadFree(owner)
+            return .{problem = .Verify, diagnostic = diagnostic, size = size}
+        }
     }
     owner.valid = true
     return .{size = size}

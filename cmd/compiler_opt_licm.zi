@@ -85,61 +85,26 @@ Select :: (program: LirProgram, function: LirFunction, plan: *LirLoopPlan,
     return kept
 }
 
-Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64,
-    plan: *LirLoopPlan, selected: []u8, hoisted: []LirInstruction,
-    limits: LirLimits, budget: *LirSsaBudget) -> LirCodecResult {
-    function := program.functions[fi]
-    count: s64
-    for block: function.blocks {
-        if !LirSsaSpend(budget, 1) { return .{} }
-        count += block.instructions.count
-    }
-    if !LirSsaReserve(budget, count, 112) || !LirSsaReserve(budget, function.blocks.count, 32) ||
-        !LirSsaReserve(budget, program.functions.count, 112) { return .{} }
-    instructions: Vec(LirInstruction)
-    blocks: Vec(LirBlock)
-    functions: Vec(LirFunction)
-    defer VecFree(instructions)
-    defer VecFree(blocks)
-    defer VecFree(functions)
-    if !VecResizeBounded(instructions, count, count) || !VecResizeBounded(blocks, function.blocks.count, function.blocks.count) ||
-        !VecResizeBounded(functions, program.functions.count, program.functions.count) {
-        budget.problem = .Allocation
-        return .{}
-    }
+HoistFunction :: (function: LirFunction, plan: *LirLoopPlan,
+    selected: []u8, hoisted: []LirInstruction,
+    out_instructions: []LirInstruction, out_blocks: []LirBlock,
+    budget: *LirSsaBudget) -> bool {
     at: s64
     for block, b: function.blocks {
         begin := at
         for instruction, i: block.instructions {
-            if !LirSsaSpend(budget, 1) { return .{} }
+            if !LirSsaSpend(budget, 1) { return false }
             if b == plan.preheader && i == block.instructions.count - 1 {
-                if !LirSsaSpend(budget, hoisted.count) { return .{} }
-                for moved: hoisted { instructions[at] = moved; at += 1 }
+                if !LirSsaSpend(budget, hoisted.count) { return false }
+                for moved: hoisted { out_instructions[at] = moved; at += 1 }
             }
             if plan.members[b] != 0 && instruction.result >= 0 && selected[instruction.result] != 0 { continue }
-            instructions[at] = instruction
+            out_instructions[at] = instruction
             at += 1
         }
-        blocks[b] = .{parameters = block.parameters, instructions = instructions[begin:at]}
+        out_blocks[b] = .{parameters = block.parameters, instructions = out_instructions[begin:at]}
     }
-    for f: 0..functions.count - 1 {
-        if !LirSsaSpend(budget, 1) { return .{} }
-        functions[f] = program.functions[f]
-    }
-    function.blocks = blocks[:]
-    functions[fi] = function
-    program.functions = functions[:]
-    empty: []u8
-    measured := LirWrite(program, empty)
-    if measured.problem != .None { return measured }
-    if !LirSsaReserve(budget, measured.size, 1) { return .{} }
-    encoded: Vec(u8)
-    defer VecFree(encoded)
-    if !VecResizeBounded(encoded, measured.size, measured.size) { budget.problem = .Allocation; return .{} }
-    written := LirWrite(program, encoded[:])
-    if written.problem != .None { return written }
-    // Borrowed program slices are no longer used after replacing the owner.
-    return LirRead(storage, TextView(encoded[:]), limits)
+    return true
 }
 
 #scope_export
@@ -148,29 +113,70 @@ Rebuild :: (storage: *LirReadOwner, program: LirProgram, fi: s64,
 LirLicm :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirLicmResult {
     result: LirLicmResult
     budget := LirSsaBudget.{work = work, bytes = limits.bytes}
-    functions := LirReadProgram(storage).functions.count
+    program := LirReadProgram(storage)
+    function_count := program.functions.count
     // Only a block some edge leads back to can head a loop, so the loop
     // finder, which walks the whole function, runs for those alone.
     headers: Vec(u8)
     defer VecFree(headers)
     widest: s64
-    for function: LirReadProgram(storage).functions {
+    max_insts: s64
+    total_blocks: s64
+    total_insts: s64
+    for function: program.functions {
         if function.blocks.count > widest { widest = function.blocks.count }
+        total_blocks += function.blocks.count
+        fn_insts: s64
+        for block: function.blocks { fn_insts += block.instructions.count }
+        if fn_insts > max_insts { max_insts = fn_insts }
+        total_insts += fn_insts
     }
-    for fi: 0..functions - 1 {
-        first := LirReadProgram(storage).functions[fi]
-        if first.external || first.blocks.count == 0 { continue }
-        blocks := first.blocks.count
-        budget.reserved = 0
+    out_functions: Vec(LirFunction)
+    out_blocks: Vec(LirBlock)
+    out_instructions: Vec(LirInstruction)
+    scratch_a: Vec(LirInstruction)
+    scratch_b: Vec(LirInstruction)
+    scratch_blocks: Vec(LirBlock)
+    defer VecFree(out_functions)
+    defer VecFree(out_blocks)
+    defer VecFree(out_instructions)
+    defer VecFree(scratch_a)
+    defer VecFree(scratch_b)
+    defer VecFree(scratch_blocks)
+    if !LirSsaReserve(*budget, function_count, 112) ||
+        !LirSsaReserve(*budget, total_blocks, 32) ||
+        !LirSsaReserve(*budget, total_insts, 112) {
+        result.problem = budget.problem
+        result.work = budget.used
+        return result
+    }
+    if !VecResizeBounded(out_functions, function_count, function_count) ||
+        !VecResizeBounded(out_blocks, total_blocks, total_blocks) ||
+        !VecResizeBounded(out_instructions, total_insts, total_insts) {
+        result.problem = .Allocation
+        result.work = budget.used
+        return result
+    }
+    for fi: 0..function_count - 1 { out_functions[fi] = program.functions[fi] }
+    base_reserved := budget.reserved
+    block_cursor: s64
+    inst_cursor: s64
+    for fi: 0..function_count - 1 {
+        function := program.functions[fi]
+        if function.external || function.blocks.count == 0 { continue }
+        blocks := function.blocks.count
+        fn_insts: s64
+        for block: function.blocks { fn_insts += block.instructions.count }
+        budget.reserved = base_reserved
         if !VecResizeBounded(headers, blocks, widest) { budget.problem = .Allocation; break }
-        if !LirLoopHeaders(first, headers[:], *budget) { break }
+        if !LirLoopHeaders(function, headers[:], *budget) { break }
+        fn_changed := false
+        use_a := true
         stale := false
         for header: 0..blocks - 1 {
             if stale { break }
             if headers[header] == 0 { continue }
-            budget.reserved = 0
-            program := LirReadProgram(storage)
-            function := program.functions[fi]
+            budget.reserved = base_reserved
             if !LirSsaSpend(*budget, 1) { break }
             plan: LirLoopPlan
             homes: Vec(s32)
@@ -184,15 +190,20 @@ LirLicm :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirLicmResu
                 if budget.problem == .None && LirLoopDefinitions(function, homes[:], *budget) {
                     count := Select(program, function, *plan, homes[:], selected[:], hoisted[:], *budget)
                     if count > 0 {
-                        result.codec = Rebuild(storage, program, fi, *plan, selected[:], hoisted[:count], limits, *budget)
-                        if budget.problem == .None && result.codec.problem == .None {
-                            result.loops += 1
-                            result.instructions += count
-                            // Hoisting moved instructions; find the headers again,
-                            // and leave a function whose blocks changed as it is.
-                            changed := LirReadProgram(storage).functions[fi]
-                            if changed.blocks.count != blocks { stale = true }
-                            else { unused LirLoopHeaders(changed, headers[:], *budget) }
+                        if !VecResizeBounded(scratch_blocks, blocks, widest) ||
+                            !VecResizeBounded(scratch_a, fn_insts, max_insts) ||
+                            !VecResizeBounded(scratch_b, fn_insts, max_insts) {
+                            budget.problem = .Allocation
+                        } else {
+                            dest_insts := ifx use_a then scratch_a[:fn_insts] else scratch_b[:fn_insts]
+                            if HoistFunction(function, *plan, selected[:], hoisted[:count], dest_insts, scratch_blocks[:blocks], *budget) {
+                                function.blocks = scratch_blocks[:blocks]
+                                use_a = !use_a
+                                fn_changed = true
+                                result.loops += 1
+                                result.instructions += count
+                                unused LirLoopHeaders(function, headers[:], *budget)
+                            }
                         }
                     }
                 }
@@ -202,9 +213,30 @@ LirLicm :: (storage: *LirReadOwner, limits: LirLimits, work: s64) -> LirLicmResu
             VecFree(selected)
             VecFree(hoisted)
             if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
-            if budget.problem != .None || result.codec.problem != .None { break }
+            if budget.problem != .None { break }
         }
-        if budget.problem != .None || result.codec.problem != .None { break }
+        if fn_changed && budget.problem == .None {
+            b_begin := block_cursor
+            for block, b: function.blocks {
+                i_begin := inst_cursor
+                for instruction: block.instructions {
+                    out_instructions[inst_cursor] = instruction
+                    inst_cursor += 1
+                }
+                out_blocks[block_cursor] = .{parameters = block.parameters, instructions = out_instructions[i_begin:inst_cursor]}
+                block_cursor += 1
+            }
+            function.blocks = out_blocks[b_begin:block_cursor]
+            out_functions[fi] = function
+        }
+        if budget.problem != .None { break }
+    }
+    if result.loops > 0 && budget.problem == .None {
+        budget.reserved = base_reserved
+        updated := program
+        updated.functions = out_functions[:]
+        result.codec = LirSsaSerialize(storage, updated, limits, *budget)
+        if budget.reserved > result.scratch_bytes { result.scratch_bytes = budget.reserved }
     }
     result.problem = budget.problem
     result.work = budget.used

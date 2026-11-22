@@ -1,0 +1,727 @@
+{
+  "host": "alpha",
+  "physical": true,
+  "order": [
+    "candidate",
+    "baseline",
+    "baseline",
+    "candidate"
+  ],
+  "emulator_link_host": "Alpha",
+  "benchmark_execution_host": "Alpha",
+  "manifest_sha256": "9d5558b9fcec736e0733f498ab907a9587e276a04f193bc49f47f66126769fee",
+  "manifest": "manifest.json",
+  "clock_test": true,
+  "probe_sha256": "6316b4c9a8cc8e098dd1dfa5ec65979f714f792cf61e20d92977dcea61cdcc1d",
+  "cgroup": "0::/user.slice/user-1000.slice/user@1000.service/harmony.slice/harmony-agents.slice/rill-alpha-frame-bulk-resume.scope",
+  "cpu_count": 12,
+  "cpu_affinity": [
+    3
+  ],
+  "summary": {
+    "candidate": {
+      "startup_ms": {
+        "n": 2,
+        "min": 2657.7,
+        "median": 2679.6,
+        "max": 2701.5,
+        "raw": [
+          2701.5,
+          2657.7
+        ],
+        "p95_nearest_rank": 2701.5
+      },
+      "idle_cpu_percent": {
+        "n": 2,
+        "min": 0.167,
+        "median": 0.41700000000000004,
+        "max": 0.667,
+        "raw": [
+          0.667,
+          0.167
+        ],
+        "p95_nearest_rank": 0.667
+      },
+      "mouse_ms_upper_bound": {
+        "n": 14,
+        "min": 385.8,
+        "median": 417.45,
+        "max": 785.5,
+        "raw": [
+          747.1,
+          392.1,
+          392.8,
+          385.8,
+          396.5,
+          401.0,
+          386.8,
+          785.5,
+          414.4,
+          435.5,
+          424.2,
+          470.0,
+          420.5,
+          428.7
+        ],
+        "p95_nearest_rank": 785.5
+      },
+      "escape_ms_upper_bound": {
+        "n": 14,
+        "min": 224.3,
+        "median": 233.65,
+        "max": 290.2,
+        "raw": [
+          225.0,
+          224.3,
+          229.9,
+          231.6,
+          224.4,
+          227.3,
+          232.3,
+          235.0,
+          250.2,
+          247.0,
+          253.1,
+          246.2,
+          246.1,
+          290.2
+        ],
+        "p95_nearest_rank": 290.2
+      },
+      "clock_ms_upper_bound": {
+        "n": 2,
+        "min": 143.8,
+        "median": 148.25,
+        "max": 152.7,
+        "raw": [
+          143.8,
+          152.7
+        ],
+        "p95_nearest_rank": 152.7
+      }
+    },
+    "baseline": {
+      "startup_ms": {
+        "n": 2,
+        "min": 2658.5,
+        "median": 2717.7,
+        "max": 2776.9,
+        "raw": [
+          2776.9,
+          2658.5
+        ],
+        "p95_nearest_rank": 2776.9
+      },
+      "idle_cpu_percent": {
+        "n": 2,
+        "min": 0.667,
+        "median": 0.7335,
+        "max": 0.8,
+        "raw": [
+          0.667,
+          0.8
+        ],
+        "p95_nearest_rank": 0.8
+      },
+      "mouse_ms_upper_bound": {
+        "n": 14,
+        "min": 391.1,
+        "median": 430.75,
+        "max": 798.7,
+        "raw": [
+          785.4,
+          398.9,
+          406.4,
+          400.3,
+          391.1,
+          424.1,
+          430.5,
+          798.7,
+          429.2,
+          431.0,
+          436.1,
+          436.9,
+          434.3,
+          432.6
+        ],
+        "p95_nearest_rank": 798.7
+      },
+      "escape_ms_upper_bound": {
+        "n": 14,
+        "min": 225.6,
+        "median": 242.3,
+        "max": 279.8,
+        "raw": [
+          232.6,
+          243.1,
+          236.6,
+          231.1,
+          255.3,
+          241.5,
+          279.8,
+          263.9,
+          240.5,
+          273.5,
+          270.7,
+          239.8,
+          274.9,
+          225.6
+        ],
+        "p95_nearest_rank": 279.8
+      },
+      "clock_ms_upper_bound": {
+        "n": 2,
+        "min": 154.1,
+        "median": 172.35,
+        "max": 190.6,
+        "raw": [
+          154.1,
+          190.6
+        ],
+        "p95_nearest_rank": 190.6
+      }
+    }
+  },
+  "runs": [
+    {
+      "variant": "candidate",
+      "data": {
+        "first_frame_composed_ms": 2701.5,
+        "idle_seconds": 30.0,
+        "first_panel_visible_ms_upper_bound": 2715.5,
+        "mouse_visible_samples_ms_upper_bound": [
+          747.1,
+          392.1,
+          392.8,
+          385.8,
+          396.5,
+          401.0,
+          386.8
+        ],
+        "key_visible_samples_ms_upper_bound": [
+          225.0,
+          224.3,
+          229.9,
+          231.6,
+          224.4,
+          227.3,
+          232.3
+        ],
+        "capture_backend": "persistent XGetImage, 2ms polling, private display",
+        "cpu_ticks": 20,
+        "ticks_per_second": 100,
+        "idle_cpu_samples_percent": [
+          0.2,
+          0.4,
+          0.0,
+          3.4,
+          0.0,
+          0.0
+        ],
+        "settle_seconds": 20.0,
+        "cpu_percent_one_core": 0.667,
+        "mouse_visible_ms_upper_bound": 392.8,
+        "key_visible_ms_upper_bound": 227.3,
+        "idle_minute_clock_updated": true,
+        "minute_clock_visible_ms_upper_bound": 143.8,
+        "pool": "128M",
+        "resolution": "1024x768",
+        "pid": 1726252,
+        "emulator_sha256": "7e73dbbe65993fbb4c4e084251d7042270a5fcc35f167a8ec5bbf01774431462",
+        "bundle_sha256": "cc5fbefee7e834656f25dfa3f127da603b34d1f6928716f380c72664291f2c0c",
+        "zxrun_sha256": "a4e7894ec176eeb288db7086f1fd761ef85954f5128382f76f4d966467ce8b6f",
+        "loader_sha256": "140f0e12b338962e0fca518bdb399e7ca8654a9166b96929eb57b77d475c9434",
+        "running_executable_sha256_at_start": null,
+        "proc_executable_identity_error": "[Errno 2] No such file or directory: '/proc/1726252/exe'",
+        "executed_command": [
+          "/home/wao/Projects/ziranlang/ziran/backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/whole-guest/host-libs/ld-linux.so.2",
+          "--library-path",
+          "/home/wao/Projects/ziranlang/ziran/backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/whole-guest/host-libs",
+          "/home/wao/Projects/ziranlang/ziran/backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/whole-guest/bin/candidate-emu"
+        ],
+        "menu_point": [
+          50,
+          20
+        ],
+        "clock_bounds": [
+          782,
+          12,
+          38,
+          16
+        ],
+        "click_hold_ms": 120.0,
+        "start_monotonic_seconds": 147878.330114412,
+        "idle_start_monotonic_seconds": 147901.080705367,
+        "input_events": [
+          {
+            "start_monotonic_seconds": 147979.691020158,
+            "end_monotonic_seconds": 147980.438078116
+          },
+          {
+            "start_monotonic_seconds": 147981.517531527,
+            "end_monotonic_seconds": 147981.742560929
+          },
+          {
+            "start_monotonic_seconds": 147982.620081991,
+            "end_monotonic_seconds": 147983.01221938
+          },
+          {
+            "start_monotonic_seconds": 147983.938715662,
+            "end_monotonic_seconds": 147984.16306317
+          },
+          {
+            "start_monotonic_seconds": 147985.041313863,
+            "end_monotonic_seconds": 147985.434115747
+          },
+          {
+            "start_monotonic_seconds": 147986.359573646,
+            "end_monotonic_seconds": 147986.589439507
+          },
+          {
+            "start_monotonic_seconds": 147987.465475124,
+            "end_monotonic_seconds": 147987.85128058
+          },
+          {
+            "start_monotonic_seconds": 147988.776538873,
+            "end_monotonic_seconds": 147989.008104613
+          },
+          {
+            "start_monotonic_seconds": 147989.883611445,
+            "end_monotonic_seconds": 147990.280072015
+          },
+          {
+            "start_monotonic_seconds": 147991.207056918,
+            "end_monotonic_seconds": 147991.431446353
+          },
+          {
+            "start_monotonic_seconds": 147992.305204835,
+            "end_monotonic_seconds": 147992.706211417
+          },
+          {
+            "start_monotonic_seconds": 147993.635847937,
+            "end_monotonic_seconds": 147993.863108443
+          },
+          {
+            "start_monotonic_seconds": 147994.735249356,
+            "end_monotonic_seconds": 147995.122094052
+          },
+          {
+            "start_monotonic_seconds": 147996.050758782,
+            "end_monotonic_seconds": 147996.283064814
+          }
+        ],
+        "host": "alpha",
+        "load_average": [
+          3.3115234375,
+          3.029296875,
+          3.1015625
+        ]
+      }
+    },
+    {
+      "variant": "baseline",
+      "data": {
+        "first_frame_composed_ms": 2776.9,
+        "idle_seconds": 30.0,
+        "first_panel_visible_ms_upper_bound": 2790.9,
+        "mouse_visible_samples_ms_upper_bound": [
+          785.4,
+          398.9,
+          406.4,
+          400.3,
+          391.1,
+          424.1,
+          430.5
+        ],
+        "key_visible_samples_ms_upper_bound": [
+          232.6,
+          243.1,
+          236.6,
+          231.1,
+          255.3,
+          241.5,
+          279.8
+        ],
+        "capture_backend": "persistent XGetImage, 2ms polling, private display",
+        "cpu_ticks": 20,
+        "ticks_per_second": 100,
+        "idle_cpu_samples_percent": [
+          0.2,
+          0.0,
+          0.2,
+          3.6,
+          0.0,
+          0.0
+        ],
+        "settle_seconds": 20.0,
+        "cpu_percent_one_core": 0.667,
+        "mouse_visible_ms_upper_bound": 406.4,
+        "key_visible_ms_upper_bound": 241.5,
+        "idle_minute_clock_updated": true,
+        "minute_clock_visible_ms_upper_bound": 154.1,
+        "pool": "128M",
+        "resolution": "1024x768",
+        "pid": 1729675,
+        "emulator_sha256": "456bfbcf465427a0551c96231cf57301b502cb2cf5cdeb1503a1521e5486ec3c",
+        "bundle_sha256": "cc5fbefee7e834656f25dfa3f127da603b34d1f6928716f380c72664291f2c0c",
+        "zxrun_sha256": "a4e7894ec176eeb288db7086f1fd761ef85954f5128382f76f4d966467ce8b6f",
+        "loader_sha256": "140f0e12b338962e0fca518bdb399e7ca8654a9166b96929eb57b77d475c9434",
+        "running_executable_sha256_at_start": null,
+        "proc_executable_identity_error": "[Errno 2] No such file or directory: '/proc/1729675/exe'",
+        "executed_command": [
+          "/home/wao/Projects/ziranlang/ziran/backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/whole-guest/host-libs/ld-linux.so.2",
+          "--library-path",
+          "/home/wao/Projects/ziranlang/ziran/backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/whole-guest/host-libs",
+          "/home/wao/Projects/ziranlang/ziran/backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/whole-guest/bin/baseline-emu"
+        ],
+        "menu_point": [
+          50,
+          20
+        ],
+        "clock_bounds": [
+          782,
+          12,
+          38,
+          16
+        ],
+        "click_hold_ms": 120.0,
+        "start_monotonic_seconds": 147997.386160593,
+        "idle_start_monotonic_seconds": 148020.211528509,
+        "input_events": [
+          {
+            "start_monotonic_seconds": 148099.708787236,
+            "end_monotonic_seconds": 148100.494193455
+          },
+          {
+            "start_monotonic_seconds": 148101.578909109,
+            "end_monotonic_seconds": 148101.811498672
+          },
+          {
+            "start_monotonic_seconds": 148102.687637296,
+            "end_monotonic_seconds": 148103.086512412
+          },
+          {
+            "start_monotonic_seconds": 148104.072965553,
+            "end_monotonic_seconds": 148104.316091723
+          },
+          {
+            "start_monotonic_seconds": 148105.190707565,
+            "end_monotonic_seconds": 148105.597081885
+          },
+          {
+            "start_monotonic_seconds": 148106.518349324,
+            "end_monotonic_seconds": 148106.754952665
+          },
+          {
+            "start_monotonic_seconds": 148107.629955118,
+            "end_monotonic_seconds": 148108.030267195
+          },
+          {
+            "start_monotonic_seconds": 148108.958360186,
+            "end_monotonic_seconds": 148109.189447753
+          },
+          {
+            "start_monotonic_seconds": 148110.071990727,
+            "end_monotonic_seconds": 148110.463046189
+          },
+          {
+            "start_monotonic_seconds": 148111.421838032,
+            "end_monotonic_seconds": 148111.677160566
+          },
+          {
+            "start_monotonic_seconds": 148112.57471123,
+            "end_monotonic_seconds": 148112.99885855
+          },
+          {
+            "start_monotonic_seconds": 148113.953998113,
+            "end_monotonic_seconds": 148114.195510918
+          },
+          {
+            "start_monotonic_seconds": 148115.092100372,
+            "end_monotonic_seconds": 148115.522576981
+          },
+          {
+            "start_monotonic_seconds": 148116.469290525,
+            "end_monotonic_seconds": 148116.749105598
+          }
+        ],
+        "host": "alpha",
+        "load_average": [
+          3.61865234375,
+          3.1640625,
+          3.13427734375
+        ]
+      }
+    },
+    {
+      "variant": "baseline",
+      "data": {
+        "first_frame_composed_ms": 2658.5,
+        "idle_seconds": 30.001,
+        "first_panel_visible_ms_upper_bound": 2671.3,
+        "mouse_visible_samples_ms_upper_bound": [
+          798.7,
+          429.2,
+          431.0,
+          436.1,
+          436.9,
+          434.3,
+          432.6
+        ],
+        "key_visible_samples_ms_upper_bound": [
+          263.9,
+          240.5,
+          273.5,
+          270.7,
+          239.8,
+          274.9,
+          225.6
+        ],
+        "capture_backend": "persistent XGetImage, 2ms polling, private display",
+        "cpu_ticks": 24,
+        "ticks_per_second": 100,
+        "idle_cpu_samples_percent": [
+          0.2,
+          0.4,
+          0.2,
+          3.6,
+          0.2,
+          0.2
+        ],
+        "settle_seconds": 20.0,
+        "cpu_percent_one_core": 0.8,
+        "mouse_visible_ms_upper_bound": 434.3,
+        "key_visible_ms_upper_bound": 263.9,
+        "idle_minute_clock_updated": true,
+        "minute_clock_visible_ms_upper_bound": 190.6,
+        "pool": "128M",
+        "resolution": "1024x768",
+        "pid": 1734720,
+        "emulator_sha256": "456bfbcf465427a0551c96231cf57301b502cb2cf5cdeb1503a1521e5486ec3c",
+        "bundle_sha256": "cc5fbefee7e834656f25dfa3f127da603b34d1f6928716f380c72664291f2c0c",
+        "zxrun_sha256": "a4e7894ec176eeb288db7086f1fd761ef85954f5128382f76f4d966467ce8b6f",
+        "loader_sha256": "140f0e12b338962e0fca518bdb399e7ca8654a9166b96929eb57b77d475c9434",
+        "running_executable_sha256_at_start": null,
+        "proc_executable_identity_error": "[Errno 2] No such file or directory: '/proc/1734720/exe'",
+        "executed_command": [
+          "/home/wao/Projects/ziranlang/ziran/backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/whole-guest/host-libs/ld-linux.so.2",
+          "--library-path",
+          "/home/wao/Projects/ziranlang/ziran/backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/whole-guest/host-libs",
+          "/home/wao/Projects/ziranlang/ziran/backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/whole-guest/bin/baseline-emu"
+        ],
+        "menu_point": [
+          50,
+          20
+        ],
+        "clock_bounds": [
+          782,
+          12,
+          38,
+          16
+        ],
+        "click_hold_ms": 120.0,
+        "start_monotonic_seconds": 148117.913494058,
+        "idle_start_monotonic_seconds": 148140.660650251,
+        "input_events": [
+          {
+            "start_monotonic_seconds": 148219.757524556,
+            "end_monotonic_seconds": 148220.556205769
+          },
+          {
+            "start_monotonic_seconds": 148221.672561664,
+            "end_monotonic_seconds": 148221.936435392
+          },
+          {
+            "start_monotonic_seconds": 148222.845991817,
+            "end_monotonic_seconds": 148223.275143265
+          },
+          {
+            "start_monotonic_seconds": 148224.229208052,
+            "end_monotonic_seconds": 148224.469754303
+          },
+          {
+            "start_monotonic_seconds": 148225.365523032,
+            "end_monotonic_seconds": 148225.796497909
+          },
+          {
+            "start_monotonic_seconds": 148226.761052366,
+            "end_monotonic_seconds": 148227.03452392
+          },
+          {
+            "start_monotonic_seconds": 148227.936139593,
+            "end_monotonic_seconds": 148228.372201563
+          },
+          {
+            "start_monotonic_seconds": 148229.326401321,
+            "end_monotonic_seconds": 148229.597077869
+          },
+          {
+            "start_monotonic_seconds": 148230.488192653,
+            "end_monotonic_seconds": 148230.925076355
+          },
+          {
+            "start_monotonic_seconds": 148231.88432142,
+            "end_monotonic_seconds": 148232.124098003
+          },
+          {
+            "start_monotonic_seconds": 148233.021894854,
+            "end_monotonic_seconds": 148233.456177595
+          },
+          {
+            "start_monotonic_seconds": 148234.411162103,
+            "end_monotonic_seconds": 148234.686078286
+          },
+          {
+            "start_monotonic_seconds": 148235.531477629,
+            "end_monotonic_seconds": 148235.964105233
+          },
+          {
+            "start_monotonic_seconds": 148236.906044732,
+            "end_monotonic_seconds": 148237.131648018
+          }
+        ],
+        "host": "alpha",
+        "load_average": [
+          3.0615234375,
+          3.14892578125,
+          3.13720703125
+        ]
+      }
+    },
+    {
+      "variant": "candidate",
+      "data": {
+        "first_frame_composed_ms": 2657.7,
+        "idle_seconds": 30.0,
+        "first_panel_visible_ms_upper_bound": 2667.2,
+        "mouse_visible_samples_ms_upper_bound": [
+          785.5,
+          414.4,
+          435.5,
+          424.2,
+          470.0,
+          420.5,
+          428.7
+        ],
+        "key_visible_samples_ms_upper_bound": [
+          235.0,
+          250.2,
+          247.0,
+          253.1,
+          246.2,
+          246.1,
+          290.2
+        ],
+        "capture_backend": "persistent XGetImage, 2ms polling, private display",
+        "cpu_ticks": 5,
+        "ticks_per_second": 100,
+        "idle_cpu_samples_percent": [
+          0.2,
+          0.0,
+          0.2,
+          0.2,
+          0.2,
+          0.2
+        ],
+        "settle_seconds": 20.0,
+        "cpu_percent_one_core": 0.167,
+        "mouse_visible_ms_upper_bound": 428.7,
+        "key_visible_ms_upper_bound": 247.0,
+        "idle_minute_clock_updated": true,
+        "minute_clock_visible_ms_upper_bound": 152.7,
+        "pool": "128M",
+        "resolution": "1024x768",
+        "pid": 1740079,
+        "emulator_sha256": "7e73dbbe65993fbb4c4e084251d7042270a5fcc35f167a8ec5bbf01774431462",
+        "bundle_sha256": "cc5fbefee7e834656f25dfa3f127da603b34d1f6928716f380c72664291f2c0c",
+        "zxrun_sha256": "a4e7894ec176eeb288db7086f1fd761ef85954f5128382f76f4d966467ce8b6f",
+        "loader_sha256": "140f0e12b338962e0fca518bdb399e7ca8654a9166b96929eb57b77d475c9434",
+        "running_executable_sha256_at_start": null,
+        "proc_executable_identity_error": "[Errno 2] No such file or directory: '/proc/1740079/exe'",
+        "executed_command": [
+          "/home/wao/Projects/ziranlang/ziran/backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/whole-guest/host-libs/ld-linux.so.2",
+          "--library-path",
+          "/home/wao/Projects/ziranlang/ziran/backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/whole-guest/host-libs",
+          "/home/wao/Projects/ziranlang/ziran/backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/whole-guest/bin/candidate-emu"
+        ],
+        "menu_point": [
+          50,
+          20
+        ],
+        "clock_bounds": [
+          782,
+          12,
+          38,
+          16
+        ],
+        "click_hold_ms": 120.0,
+        "start_monotonic_seconds": 148331.450351755,
+        "idle_start_monotonic_seconds": 148354.187196823,
+        "input_events": [
+          {
+            "start_monotonic_seconds": 148399.707027774,
+            "end_monotonic_seconds": 148400.49253697
+          },
+          {
+            "start_monotonic_seconds": 148401.590350145,
+            "end_monotonic_seconds": 148401.825382164
+          },
+          {
+            "start_monotonic_seconds": 148402.707765953,
+            "end_monotonic_seconds": 148403.12217636
+          },
+          {
+            "start_monotonic_seconds": 148404.104916315,
+            "end_monotonic_seconds": 148404.355143649
+          },
+          {
+            "start_monotonic_seconds": 148405.238631962,
+            "end_monotonic_seconds": 148405.674122605
+          },
+          {
+            "start_monotonic_seconds": 148406.663088738,
+            "end_monotonic_seconds": 148406.910135741
+          },
+          {
+            "start_monotonic_seconds": 148407.78792221,
+            "end_monotonic_seconds": 148408.212109598
+          },
+          {
+            "start_monotonic_seconds": 148409.195960338,
+            "end_monotonic_seconds": 148409.449071518
+          },
+          {
+            "start_monotonic_seconds": 148410.336241642,
+            "end_monotonic_seconds": 148410.80627631
+          },
+          {
+            "start_monotonic_seconds": 148411.793272897,
+            "end_monotonic_seconds": 148412.039517391
+          },
+          {
+            "start_monotonic_seconds": 148412.921624267,
+            "end_monotonic_seconds": 148413.342104616
+          },
+          {
+            "start_monotonic_seconds": 148414.319045225,
+            "end_monotonic_seconds": 148414.56512148
+          },
+          {
+            "start_monotonic_seconds": 148415.450419829,
+            "end_monotonic_seconds": 148415.879147409
+          },
+          {
+            "start_monotonic_seconds": 148416.858983228,
+            "end_monotonic_seconds": 148417.149141796
+          }
+        ],
+        "host": "alpha",
+        "load_average": [
+          3.8095703125,
+          3.31201171875,
+          3.1943359375
+        ]
+      }
+    }
+  ]
+}

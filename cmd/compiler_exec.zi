@@ -1979,6 +1979,19 @@ ExecWriteSlotBits :: (instance: *LirExecInstance, value: s32, bits: u64) #inline
 ExecCopyStorage :: (instance: *LirExecInstance, source: s64, destination: s64, count: s64) -> bool {
     if !ExecSpend(instance, ExecCopyCost(count)) { return false }
     if source == destination { return true }
+    #if TARGET == .C {
+        if count >= 32 {
+            storage := instance.storage[:]
+            last := storage.count - count
+            // The forward loop below also handles overlapping frame slots.
+            if source >= 0 && source <= last && destination >= 0 && destination <= last &&
+                (source <= destination - count || destination <= source - count) {
+                unused ExecCopyDisjointBytes(cast(*void)*storage[destination],
+                    cast(*void)*storage[source], cast(usize)count)
+                return true
+            }
+        }
+    }
     for index: cast(s64)0..count - 1 { instance.storage[destination + index] = instance.storage[source + index] }
     return true
 }

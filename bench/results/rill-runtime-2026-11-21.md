@@ -729,3 +729,180 @@ lifecycle and pointer tests completed successfully
 The raw comparison and four guest runs are retained in Rill's
 `backup/idle-performance/alpha-results/results-frame/`. Taiji recorded the
 installed artifacts in `backup/idle-performance/runtime-pair/frame-installed.json`.
+
+## Packed record member offsets trial
+
+The trial computed constant record member offsets during packing and reused
+those offsets for field addresses, inserts and extracts. The packed
+interpreter consumed the same work and fuel as the original field walk.
+Hosted Linux/i386 parity, the retained lowered executor suite and a focused
+fixture for every work and fuel boundary passed.
+
+Physical Alpha built both drivers with GCC 15.2. The control was the Alpha
+frame-reuse archive. Only `compiler_exec.o` and `zir_host_exec.o` changed
+out of 97 archive members. Both ABBA BAAB waves ran on CPU 3 with the same
+ZX inputs and host gates. The raw samples include hardware-gate rejections
+and both tails of the inclusive 1.5×IQR rule. [First run](zx-i386-packed-members-alpha-2026-11-22.json),
+[repeat](zx-i386-packed-members-repeat-alpha-2026-11-22.json).
+
+| Workload | First run control → candidate | Repeat control → candidate |
+| --- | ---: | ---: |
+| Rill row | 1.035757 → 1.054644 ms (0.982×) | 1.042897 → 1.060992 ms (0.983×) |
+| Integer blocks | 5.206387 → 5.125500 ms (1.016×) | 5.217847 → 5.225501 ms (0.999×) |
+| Sieve | 12.681159 → 12.555183 ms (1.010×) | 12.760859 → 12.519690 ms (1.019×) |
+| Records | 16.437763 → 16.403624 ms (1.002×) | 16.432345 → 16.466139 ms (0.998×) |
+| Aggregate load | 326.138248 → 324.735520 ms (1.004×) | 325.258852 → 325.360563 ms (1.000×) |
+
+The repeated Rill slowdown led to withdrawing the trial from the working
+sources. The measured archive
+`7e1d50502aa748409d0d4c7a8a7cfb4a0cb2649c89823c500f77df5ecf92767a`
+and source manifest
+`764428b029e688c5cd8ec89221a412779e86d3a9cacb3af8442ab34ab0a6fcad`
+are retained under `backup/rill-runtime-selection/i386-blocks/packed-member-offsets/`.
+The two runs completed in managed job `37fbbafccfadd11bcbbc6d5953c79de80abb`.
+
+## Disjoint frame storage copies
+
+An Alpha CPU-time sample of the frame-reuse control located 447 of 1,638
+Records samples in `ExecCopyStorage`. The forward byte loop accounted for
+374 of those. The Rill row profile attributed 34 of 1,371 samples to the
+helper. The sample executable was
+`22125c173ccf8c3de2afd7f3dfef3c65a4e9b2ce7cb0f67a02f2ac003cfda1de`.
+The raw PCs, profile metadata and executable are under
+`backup/rill-runtime-selection/i386-blocks/packed-member-offsets/`
+(`5ba9db949b09c56ccb7598c02ddfdab94fbf`).
+
+The C runtime uses the existing bulk-copy primitive for checked, disjoint
+frame spans of at least 32 bytes. Self-copies and possible overlaps follow
+the existing paths. The work charge precedes every copy. The trial changed
+only `compiler_exec.o` out of 97 archive members and used the same verified
+frame archive and fixture images in both waves. Physical Alpha built the
+i386 drivers with GCC 15.2 and measured them on CPU 3 in ABBA BAAB order.
+The raw data retain all samples, host-gate rejections and symmetric inclusive
+1.5×IQR exclusions. [First run](zx-i386-frame-bulk-copy-alpha-2026-11-22.json),
+[repeat](zx-i386-frame-bulk-copy-repeat-alpha-2026-11-22.json).
+
+| Workload | First run control → candidate | Repeat control → candidate |
+| --- | ---: | ---: |
+| Rill row | 1.075466 → 1.089855 ms (0.987×) | 1.057592 → 1.067372 ms (0.991×) |
+| Integer blocks | 5.403060 → 5.398834 ms (1.001×) | 5.360993 → 5.409621 ms (0.991×) |
+| Sieve | 13.154173 → 13.079131 ms (1.006×) | 12.993582 → 12.925992 ms (1.005×) |
+| Records | 17.178170 → 12.930518 ms (1.328×) | 17.108428 → 12.904398 ms (1.326×) |
+| Aggregate load | 337.625648 → 16.357742 ms (20.640×) | 334.378359 → 16.230672 ms (20.602×) |
+
+The physical Alpha build and two waves completed in managed job
+`142acb318b3425e01a9ed7f2fed97296f683`. The compile and benchmark scripts,
+source manifest, exact executor object and archive are retained under
+`backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/`. The source
+manifest SHA-256 is
+`ec877c504187442e6a08d9deb00cf68cde922821832d5ed3f4e6840daa16163d`.
+The candidate archive is
+`7475242610f61b02a9034d4f6f3e3cbfbc03f6e62bc8e55813e15f810e8e5e53`.
+The Rill row fixture regressed in both waves. A separately prepared private
+guest comparison pair is under
+`backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/`.
+The control is a copy of the 103-member runtime used for the current
+installation, SHA-256
+`c9631154d35efad67b1eab42dd16fa6ade4b37967e4e959a283438f8932be49b`.
+The private candidate is
+`148954cc6b5d3de437b162d5babc52f2282ecfa004f1d5f83cba88ae84356ac7`.
+All members retain the same order and contents except the Alpha-built
+`compiler_exec.o`, SHA-256
+`51093fd9a8d92c0f3a7df86629078e0f539e5b60eaa8342ffe8314af08712425`
+(`c6deb85322e94f48278dff998822ac02c69e`).
+
+Hosted i386 native and packed-reader parity passed on the private candidate
+with `env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_TEST_I386_BLOCKS=1 bash backup/rill-runtime-selection/host-slice/verify-i386.sh "$PWD/backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/candidate.a"`
+(`ea76d8f4d4d76ab6f15fd581f2889bf91607`). The exact candidate source generated
+the same executor C as the full local test run. All 276 tests executed and
+passed with `env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check JOBS=2 CHECK_JOBS=2`,
+and `env -u DISPLAY -u WAYLAND_DISPLAY make check-bootstrap JOBS=2` matched
+the bootstrap seeds (`93d4af5aa31177f7f8ebea318c8b6007d01c`).
+The archive identities and parity results were sent to the integrator for
+private 128 MiB guest validation. Installation and matched whole-guest
+measurements are pending.
+
+A matched timing control for the 103-member archive is available at
+`guest-comparison/alpha-executor-control/control.a`, SHA-256
+`3e90ad0ed8d7e71c5cd6de8546b98932c49b5c1aee96604930d3669ea541c075`.
+It uses the original Alpha-built executor from the timed 97-member control.
+Its generated executor C and header match the corresponding installed
+runtime sources byte for byte. The executor compiler and flags match the
+candidate. The other 102 objects match both archives. Hosted i386 parity
+passed on this control as well (`53fed5fc4d66b75a30af4ed1e354fef93ab7`).
+
+Physical Alpha linked hosted i386 drivers against this exact 103-member
+pair and repeated the five fixtures with the same host gate and sample
+exclusions (`b0ed0a13d542e0683fc3d7efcc845746451d`). The inputs, build
+script and raw results are retained under `guest-comparison/`.
+[First run](zx-i386-frame-bulk-copy-current-alpha-2026-11-22.json),
+[repeat](zx-i386-frame-bulk-copy-current-repeat-alpha-2026-11-22.json).
+
+| Workload | First run control → candidate | Repeat control → candidate |
+| --- | ---: | ---: |
+| Rill row | 1.075445 → 1.084499 ms (0.992×) | 1.089275 → 1.096065 ms (0.994×) |
+| Integer blocks | 5.347606 → 5.391409 ms (0.992×) | 5.320176 → 5.321603 ms (1.000×) |
+| Sieve | 13.032128 → 13.002834 ms (1.002×) | 13.261107 → 13.195979 ms (1.005×) |
+| Records | 16.901341 → 12.872081 ms (1.313×) | 17.345241 → 13.013361 ms (1.333×) |
+| Aggregate load | 337.363849 → 16.235976 ms (20.779×) | 337.384308 → 16.321351 ms (20.671×) |
+
+### Matched private 128 MiB Rill guests
+
+Physical Alpha linked both 32-bit emulators from the same 56 Taiji objects
+and 11 static libraries with GCC 15.2. Only the executor object differs
+between the two 103-member Ziran archives. Both guests used the same
+128 MiB pool, Rill bundle and pointer runner with CPU 3 affinity.
+
+| Input | SHA-256 |
+| --- | --- |
+| Input and binary manifest | `9d5558b9fcec736e0733f498ab907a9587e276a04f193bc49f47f66126769fee` |
+| Control emulator | `456bfbcf465427a0551c96231cf57301b502cb2cf5cdeb1503a1521e5486ec3c` |
+| Candidate emulator | `7e73dbbe65993fbb4c4e084251d7042270a5fcc35f167a8ec5bbf01774431462` |
+| Frozen Rill bundle | `cc5fbefee7e834656f25dfa3f127da603b34d1f6928716f380c72664291f2c0c` |
+| Pointer runner | `a4e7894ec176eeb288db7086f1fd761ef85954f5128382f76f4d966467ce8b6f` |
+
+`bash backup/rill-runtime-selection/i386-blocks/frame-bulk-copy/guest-comparison/stage-whole-guest.sh`
+ran ABBA followed by BAAB with seven menu and Escape samples per boot,
+30 seconds of idle CPU observation and a minute-clock repaint check. The
+900-second scope limit stopped the last boot of the second wave. The
+`resume-whole-guest-alpha.sh` script retained all seven completed boots,
+preserved the interrupted logs, and started only the missing candidate
+boot with the same inputs and settings
+(`1dc268c8a0965f3a3ce544d466fe70ea161a`,
+`50903dc7062291ae4ac589f02dd160399398`).
+
+Both exact Alpha-linked emulators passed the local Rill desktop lifecycle,
+row, pointer, workspace, image and fuel fixtures in private 128 MiB guests.
+The first workspace comparison mistakenly read a shared Rill bundle that
+changed between arms. The frozen-input rerun passed both arms. Main-pool
+peaks in the desktop lifecycle were 52,487,488 and 52,492,928 bytes
+(`b6b157ba160a677706430c4a562281e6405c`,
+`13dd1749fc942e6c0c981e2ec6a40f049c6f`,
+`447770d36c199bb100e1650a2c3cc54099fd`). The exact generated frame-copy
+function passed 425,598 bounded span and fuel cases against the forward-copy
+reference (`dd781591741eeb63bb54c340a1671b6ce442`). The final retained
+suite ran all 276 tests and bootstrap matched the refreshed C and SIMD
+seeds (`5c88357a15674f3e3d63e0b59b4e8331af2e`).
+
+Each arm contributed four boots and 28 samples each for menu and Escape
+response. The median table uses symmetric inclusive 1.5×IQR fences applied
+to each arm and metric. The summary also retains per-wave medians, raw
+values, fences and excluded indices. [ABBA samples](zx-i386-frame-bulk-copy-guest-alpha-2026-11-22.json),
+[BAAB samples](zx-i386-frame-bulk-copy-guest-repeat-alpha-2026-11-22.json),
+[filtered results](zx-i386-frame-bulk-copy-guest-summary-alpha-2026-11-22.json).
+
+| Measurement | Filtered control | Filtered candidate | Control / candidate |
+| --- | ---: | ---: | ---: |
+| First composed frame | 2,721.00 ms | 2,679.60 ms | 1.015× |
+| Menu visible | 425.65 ms | 410.80 ms | 1.036× |
+| Escape visible | 237.25 ms | 231.60 ms | 1.024× |
+| Minute clock visible | 172.35 ms | 146.95 ms | 1.173× |
+| Idle CPU | 0.667% of one core | 0.633% of one core | 1.054× |
+
+All eight boots passed the minute-clock check. Startup and Escape medians
+improved in both waves, by 0.6–1.4% and 1.8–4.1% respectively. Menu
+latency rose by 0.13% in the first wave and fell by 5.15% in the second.
+Idle CPU varied between boots. The hosted Rill row fixture still took
+0.6–0.8% longer in the two waves using this archive pair. The private
+guest improvement applied to the frozen Rill bundle above, while the
+integrator's installed regression run uses the current Rill bundle.

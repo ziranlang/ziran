@@ -228,7 +228,7 @@ name = "Plot"
 module_roots = ["src"]
 
 [toolchain]
-git = "https://github.com/ziranlang/ziran.git"
+git = "https://git.waozi.xyz/ziranlang/ziran.git"
 ref = "master"
 
 [exports]

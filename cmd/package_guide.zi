@@ -3,6 +3,8 @@
 Guide :: (arguments: []string) -> s32 {
     if arguments.count != 0 { return PkgFail("usage: ziran guide") }
     PkgPrint("Ziran guide (this compiler)\n\n", false)
+    PkgPrint("Language by example, mistakes from C/Go/Rust/JS, std signatures:\n", false)
+    PkgPrint("  docs/REFERENCE.md (https://ziran-lang.org/llms.txt).\n\n", false)
     PkgPrint("Start a project: ziran new hello, then cd hello && ziran run.\n", false)
     PkgPrint("  ziran new NAME --template lib|OWNER/REPO[:TEMPLATE] picks a template;\n", false)
     PkgPrint("  ziran init --template SOURCE adds one to the current project.\n", false)

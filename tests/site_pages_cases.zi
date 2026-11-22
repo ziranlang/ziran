@@ -1,5 +1,6 @@
 #import "native_test"
 #import "check_support"
+#import "reference_doc"
 #import "std/byte_text_linux"
 #import "std/file_tree_linux"
 #import "std/json_document"
@@ -68,11 +69,12 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !NativeAssert(*test, !TextContains(webp, "legacy_compare.sh") &&
         !TextContains(webp, "original Kryon decoder") && TextContains(api, "revision 28") &&
         !TextContains(api, "version 24"), "public references retained an obsolete pipeline or format") { return 1 }
+    if !CheckReferenceDoc(*test) { return 1 }
     // Check the live site after the fixtures so stale generated pages do not
     // hide failures in the module API checks.
     check := string.["python3", script, "--ziran", test.ziran, "--check"]
     unused NativeRun(*test, check[:])
     if test.failed { return 1 }
-    print("Local site tests: generated pages, loaded-file documentation and one-line examples passed\n")
+    print("Local site tests: generated pages, loaded-file documentation, one-line examples and the checked reference passed\n")
     return 0
 }

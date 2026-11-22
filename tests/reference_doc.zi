@@ -1,0 +1,60 @@
+// docs/REFERENCE.md stays prompt-sized and true: every `zi` block is written
+// as a file and passes `ziran check`, and site/llms.txt matches the reference.
+#import "native_test"
+#import "check_support"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+REFERENCE_MAX_LINES :: 600;
+
+// Writes each block to the work folder: a first line `// file: NAME.zi`
+// names the module, others are block_N.zi. Returns the written paths.
+ReferenceBlocks :: (test: *NativeTest, reference: string, folder: string) -> Vec(string) {
+    paths: Vec(string)
+    lines := TextLines(reference)
+    inside := false
+    name := ""
+    body: Vec(u8)
+    for line: lines {
+        if !inside {
+            if line == "```zi" { inside = true; name = "" }
+            continue
+        }
+        if line == "```" {
+            inside = false
+            if name == "" { name = CheckConcat(CheckConcat("block_", CheckNumber(paths.count + 1)), ".zi") }
+            path := CheckPath(folder, name)
+            taken: Vec(u8)
+            VecSwap(taken, body)
+            source := BuilderFinish(taken)
+            if !NativeWrite(test, path, source) { return .{} }
+            VecPush(paths, path)
+            continue
+        }
+        if name == "" && TextHasPrefix(line, "// file: ") { name = line["// file: ".count:] }
+        BuilderAppend(body, line)
+        BuilderAppend(body, "\n")
+    }
+    unused NativeAssert(test, !inside, "docs/REFERENCE.md has an unclosed zi block")
+    return paths
+}
+
+CheckReferenceDoc :: (test: *NativeTest) -> bool {
+    reference := NativeRead(test, CheckPath(test.repo, "docs/REFERENCE.md"))
+    lines := TextLines(reference)
+    if !NativeAssert(test, lines.count > 0 && lines.count <= REFERENCE_MAX_LINES,
+        "docs/REFERENCE.md must be at most 600 lines") { return false }
+    folder := CheckPath(test.work, "reference")
+    paths := ReferenceBlocks(test, reference, folder)
+    if test.failed || !NativeAssert(test, paths.count >= 10, "docs/REFERENCE.md lost its zi blocks") { return false }
+    for path: paths {
+        check := string.[test.ziran, "check", "--root", folder, path]
+        result := NativeInvoke(test, check[:])
+        if !NativeAssert(test, result.code == 0,
+            CheckConcat(CheckConcat("docs/REFERENCE.md block does not check: ", path), CheckConcat("\n", result.error))) { return false }
+    }
+    llms := string.[test.ziran, "run", "--target=c", "--root", CheckPath(test.repo, "scripts"),
+        CheckPath(test.repo, "scripts/site_llms.zi"), "--", "--check", test.repo]
+    unused NativeRun(test, llms[:])
+    return !test.failed
+}

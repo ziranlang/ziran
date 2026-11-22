@@ -1,0 +1,61 @@
+// Writes site/llms.txt, the prompt-sized Ziran reference for language models,
+// from docs/REFERENCE.md. With --check it reports a stale file instead.
+//
+//     ziran run --target=c --root scripts scripts/site_llms.zi -- [--check] [REPO]
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/stdio_linux"
+#import "std/text_tools"
+
+LLMS_HEADER :: #string END
+# Ziran
+
+> Ziran is a low-level, manually safe systems language with Jai-style syntax.
+> It compiles to C, Go, portable .zx bundles and native machine code. This
+> file is the complete reference for writing Ziran, generated from
+> docs/REFERENCE.md; every code block in it passes `ziran check`.
+
+- Source: https://git.waozi.xyz/ziranlang/ziran
+- Usage guide: https://ziran-lang.org/guide/usage.html
+- Standard library: https://ziran-lang.org/modules.html
+END;
+
+// The header, then the reference without its own title line.
+LlmsText :: (reference: string) -> string {
+    body := reference
+    first_line := TextFind(reference, "\n")
+    if TextHasPrefix(reference, "# ") && first_line >= 0 { body = reference[first_line + 1:] }
+    out: Vec(u8)
+    BuilderAppend(out, LLMS_HEADER)
+    BuilderAppend(out, body)
+    return BuilderFinish(out)
+}
+
+main :: (argc: s32, argv: **u8) -> s32 {
+    check := false
+    repo := "."
+    index: s32 = 1
+    while index < argc {
+        argument := TextFromCString(argv[index])
+        if argument == "--check" { check = true } else { repo = argument }
+        index += 1
+    }
+    source_path: Vec(u8)
+    BuilderPrint(*source_path, "%/docs/REFERENCE.md", repo)
+    source := BuilderFinish(source_path)
+    target_path: Vec(u8)
+    BuilderPrint(*target_path, "%/site/llms.txt", repo)
+    target := BuilderFinish(target_path)
+    reference, ok := ReadEntireFile(source)
+    if !ok { unused PrintError("site_llms: cannot read docs/REFERENCE.md\n"); return 2 }
+    wanted := LlmsText(reference)
+    current, current_ok := ReadEntireFile(target)
+    if current_ok && current == wanted { return 0 }
+    if check {
+        unused PrintError("site_llms: site/llms.txt is stale; run: ziran run --target=c --root scripts scripts/site_llms.zi\n")
+        return 1
+    }
+    if !WriteEntireFile(target, wanted) { unused PrintError("site_llms: cannot write site/llms.txt\n"); return 2 }
+    unused WriteOutput("updated site/llms.txt\n")
+    return 0
+}

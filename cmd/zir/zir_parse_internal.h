@@ -27,17 +27,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct ParseRecovery {
-    jmp_buf jump;
-    struct ParseRecovery *previous;
-    CompilerMemory *memory;
-    void *expression_cache;
-    int arrays, law;
-} ParseRecovery;
-extern _Thread_local ParseRecovery *ZirParseRecovery;
-void *ParseCacheEnter(void);
-void ParseCacheLeave(void *previous);
-
 enum {
     SOURCE_PATH_MAX = 1024,
     /* Longest physical source line. A raw #string body lowers to one line, so
@@ -75,80 +64,6 @@ typedef struct {
     int capacity;
     ZirBoundRead *reads; /* parallel to ITEMS in the law evaluator's tables */
 } ZirConsts;
-
-typedef struct {
-    ZirUsing *items;
-    int count;
-    int capacity;
-} ZirUsings;
-
-typedef struct {
-    ZirImport *items;
-    int count;
-    int capacity;
-} ZirImports;
-
-typedef struct {
-    ZirType *items;
-    int count;
-    int capacity;
-} ZirTypes;
-
-typedef struct {
-    char *source;
-    char *path;
-    char rel[SOURCE_PATH_MAX];
-    int line;
-    int is_public;
-    int is_file_private;
-} ZirDeferredType;
-
-typedef struct {
-    ZirDeferredType *items;
-    int count;
-    int capacity;
-} ZirDeferredTypes;
-
-typedef struct {
-    ZirFunction *items;
-    int count;
-    int capacity;
-} ZirFunctions;
-
-typedef struct {
-    ZirGlobal *items;
-    int count;
-    int capacity;
-} ZirGlobals;
-
-typedef struct {
-    char **paths;
-    int count;
-    int capacity;
-} ZirDiscoveredFiles;
-
-/* A file-scope `#insert NAME;`: where it stands and, once evaluated, the
- * source text NAME's compile-time string value splices there. */
-typedef struct {
-    char name[ZIR_NAME_MAX];
-    char rel[SOURCE_PATH_MAX];
-    int line;
-    char *text;
-} ZirInsert;
-
-typedef struct {
-    ZirInsert *items;
-    int count;
-    int capacity;
-    ZirConsts runs; /* discovered `NAME :: #run expression` constants */
-} ZirInserts;
-
-typedef struct {
-    int braces;                   /* net '{' until the region's closing '}' */
-    int selected;
-    int active;
-    int parent_active;
-} ZirCondFrame;
 
 /* A COMPILE_BUILDER is a #run Vec(u8), and a COMPILE_REFERENCE a pointer or
  * slice to a binding of a procedure being evaluated; both name storage that
@@ -229,39 +144,17 @@ typedef struct TypedBody {
     struct TypedBody *outer; /* the call evaluating this one */
 } TypedBody;
 
-typedef struct CompileParseContext {
-    ZirProgram *program;
-    const char *root;
-    ZirCompileImportResolver resolver;
-    void *resolver_context;
-    const ZirConsts *future_constants;
-    const ZirUsings *future_usings;
-    const ZirImports *future_imports;
-    const ZirTypes *future_types;
-    const ZirFunctions *future_functions;
-    const ZirGlobals *future_globals;
-} CompileParseContext;
-
-typedef struct LoadFrame {
-    const char *path;
-    const char *source;
-    char *canonical;
-    char *owned_source;
-    char rel[SOURCE_PATH_MAX];
-    char lookahead[SOURCE_LINE_MAX];
-    int line_no;
-    int physical_line_no;
-    int have_look;
-    int scope_public;
-    int scope_file;
-    int in_block_comment;
-    int conditional_depth;
-    int inserting; /* the outer frame was already inserted source */
-} LoadFrame;
-
 /* Shared between the parts only: the Makefile merges the parts into one
  * object and localizes these hidden symbols, so they never leave it. */
 #pragma GCC visibility push(hidden)
+void *ParseCacheEnter(void);
+void ParseCacheLeave(void *previous);
+ZirProgram *ParserWithRecovery(const char *path, const char *root, const char *source,
+                             ZirCompileImportResolver resolver, void *context,
+                             const char *const *defines, int define_count, const ZirImport *site);
+ZirProgram *ParserParseOperationBody(const char *path, const char *root, const char *source,
+                                    ZirCompileImportResolver resolver, void *context,
+                                    const char *const *defines, int define_count, const ZirImport *site);
 void die(const char *fmt, ...);
 void die_at(ZirSourceSpan span, const char *fmt, ...);
 void source_append(SourceBuffer *buffer, char byte);
@@ -269,7 +162,6 @@ char *lower_jai_multiline_strings(const char *source, const char *path);
 int starts_word(const char *s, const char *word);
 int looks_like_non_jai_control(const char *text, const char *word);
 int is_identifier_text(const char *text);
-extern _Thread_local int ZirSourceUsesResizableArrays;
 int declare_multiple_results(ZirModule *module, const char *name, char *ret,
                              size_t ret_size, int is_public, int is_file_private,
                              const char *template_parameters, ZirSourceSpan span);
@@ -330,6 +222,7 @@ uint64_t strip_using_parameters(char *args, size_t capacity, ZirSourceSpan span)
 int lower_procedure_name_expression(char *part, size_t capacity, const ZirFunction *function);
 void add_default_helpers(ZirProgram *program, ZirModule *module, const char *source_path, const char *root, ZirCompileImportResolver resolver, void *resolver_context);
 int parse_import_line(ZirModule *module, const char *path, int line_no, const char *line, int scope_public);
+int parse_insert_line(const char *line, char *name, size_t size, ZirSourceSpan span);
 /* Read SOURCE's leading #module_parameters into MODULE, bind them for the
  * import SITE (NULL for an input or embedded source) and add each bound value
  * as the constant NAME :: value. Returns the directive's line, 0 for none. */
@@ -372,42 +265,9 @@ int CachedParse(const ZirModule *module, const char *text, ZirSourceSpan span,
 void CachedParseDone(const ZirFunction *probe, ZirFunction *scratch);
 int evaluate_typed_expression(const ZirModule *module, const ZirConsts *names, const char *source, ZirSourceSpan span, int depth, int *fuel, CompileValue *result);
 int eval_typed_condition(const char *source, const ZirModule *module, const ZirConsts *names, ZirSourceSpan span, int64_t *result);
-ZirConsts visible_compile_constants(const ZirConsts *parsed, const ZirConsts *future);
-ZirModule visible_compile_module(const ZirModule *parsed, const CompileParseContext *context, const ZirConsts *constants);
-void free_visible_compile_module(ZirModule *visible);
-int select_compile_condition(ZirModule *module, const ZirConsts *consts, const char *source, ZirSourceSpan span, const CompileParseContext *context, const char *source_path, int *deferred);
+/* Implemented in the Ziran condition parser. */
 char *find_unquoted(const char *source, const char *needle, bool word);
-int lower_compile_ifx_value(char *value, size_t capacity, const ZirModule *module, const ZirConsts *consts, ZirSourceSpan span, int allow_deferred);
-int lower_compile_ifx_function(ZirFunction *fn, const ZirModule *module, const ZirConsts *consts, int allow_deferred);
 void lower_size_of_value(char *value, size_t capacity, const ZirModule *module, ZirSourceSpan span);
-int parse_compile_check(ZirModule *module, const char *path, int line_no, char *line, const ZirConsts *consts);
-int cond_top_step(char *line, ZirCondFrame *frames, int *count, ZirModule *module, const ZirConsts *consts, const CompileParseContext *context, const char *source_path, const char *path, int line_no, int *deferred);
-void cond_frame_settle(ZirCondFrame *frames, int count);
-void strip_block_comments(char *s, int *comment_depth);
-void normalize_jai_source_tokens(char *line, const char *path, const char *physical_path, int line_no);
-int normalize_jai_source_line(char *line, const char *path, const char *physical_path, int line_no, int in_string);
-char *read_source_line(char *line, size_t size, const char **source, const char *path, int line_no);
-void free_deferred_types(ZirDeferredTypes *deferred);
-void free_discovered_files(ZirDiscoveredFiles *files);
-void free_discovered_functions(ZirFunctions *functions);
-void discover_file_scope(const char *source, const char *path, const char *rel, const char *root, ZirConsts *future_constants, ZirUsings *future_usings, ZirImports *future_imports, ZirTypes *future_types, ZirDeferredTypes *deferred_types, ZirFunctions *future_functions, ZirGlobals *future_globals, ZirDiscoveredFiles *files, ZirInserts *inserts, int depth);
-/* The constant `#insert NAME;` names, or "" when the line is no #insert;
- * dies when the line misspells one. */
-int parse_insert_line(const char *line, char *name, size_t size, ZirSourceSpan span);
-/* Evaluate each discovered #insert's constant to source text, as #run would
- * at that point, and discover the declarations it splices in. */
-void evaluate_inserts(ZirInserts *inserts, ZirModule *module, const ZirConsts *consts,
-                      ZirConsts *future_constants, ZirUsings *future_usings,
-                      ZirImports *future_imports, ZirTypes *future_types,
-                      ZirDeferredTypes *deferred_types, ZirFunctions *future_functions,
-                      ZirGlobals *future_globals, ZirDiscoveredFiles *files,
-                      CompileParseContext *context, const char *path, const char *root);
-void free_inserts(ZirInserts *inserts);
-void discover_conditional_types(const ZirDeferredTypes *deferred, ZirModule *module, const ZirConsts *constants, const CompileParseContext *context, ZirTypes *future);
-void lower_enum_values(ZirType *type);
-void parse_enum_backing(ZirType *type, const char *header);
-char *read_lowered_source(const char *path);
-char *import_string_source(const char *line, ZirSourceSpan span);
 #pragma GCC visibility pop
 
 #endif

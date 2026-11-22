@@ -271,13 +271,15 @@ GO_PORT_MODULES := go_backend go_asm go_asm_x64
 CHECK_CORE_MODULES := check check_value check_statement check_expr check_text
 CHECK_PROGRAM_MODULES := check_function check_program check_link check_simd borrow
 CHECK_PORT_MODULES := check_types $(CHECK_CORE_MODULES) check_s12_types $(CHECK_PROGRAM_MODULES)
+PARSE_PORT_MODULES := parse_types parse_condition parse_discover parse_source
 compiler-port-dir = $(if $(filter 1,$(BOOTSTRAP)),bootstrap/compiler_$(1),$(BUILD_DIR)/compiler-$(subst _,-,$(1)))
 compiler-port-seed = $(addprefix bootstrap/compiler_$(1)/compiler_$(1).,c h)
 compiler-port-ready = $(if $(filter 1,$(BOOTSTRAP)),$(call compiler-port-seed,$(1)),$(call compiler-port-dir,$(1))/.generated)
 compiler-port-object = $(BUILD_DIR)/obj/compiler-$(subst _,-,$(1)).o
 GO_PORT_OBJECTS := $(foreach module,$(GO_PORT_MODULES),$(call compiler-port-object,$(module)))
 CHECK_PORT_OBJECTS := $(foreach module,$(CHECK_PORT_MODULES),$(call compiler-port-object,$(module)))
-override CFLAGS += $(foreach module,$(GO_PORT_MODULES) $(CHECK_PORT_MODULES),-I$(call compiler-port-dir,$(module)))
+PARSE_PORT_OBJECTS := $(foreach module,$(PARSE_PORT_MODULES),$(call compiler-port-object,$(module)))
+override CFLAGS += $(foreach module,$(GO_PORT_MODULES) $(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES),-I$(call compiler-port-dir,$(module)))
 # zi2c's pruning of a closed program's C (cmd/compiler_c_prune.zi). Its std
 # text_tools and vec code is already linked through the backend modules.
 ifeq ($(BOOTSTRAP),1)
@@ -449,12 +451,12 @@ $(SCANNER_OBJECT): $(SCANNER_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SCANNER_C)/compiler_scan.c
 
-$(call obj,cmd/zir/zir_text.c cmd/zir/zir_parse_condition.c): $(TEXT_READY)
+$(call obj,cmd/zir/zir_text.c): $(TEXT_READY)
 $(TEXT_OBJECT): $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(TEXT_C)/compiler_text.c
 
-$(call obj,cmd/zir/zir_parse.c cmd/zir/zir_parse_condition.c cmd/zir/zir_parse_declaration.c): $(SOURCE_READY)
+$(call obj,cmd/zir/zir_parse.c cmd/zir/zir_parse_declaration.c): $(SOURCE_READY)
 $(SOURCE_OBJECT): $(SOURCE_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SOURCE_C)/compiler_source.c
@@ -469,7 +471,7 @@ $(ENUM_OBJECT): $(ENUM_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(ENUM_C)/compiler_enum.c
 
-$(call obj,cmd/zir/zir_type.c cmd/zir/zir_parse_discover.c): $(TYPE_READY)
+$(call obj,cmd/zir/zir_type.c): $(TYPE_READY)
 $(TYPE_OBJECT): $(TYPE_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(TYPE_C)/compiler_type.c
@@ -577,36 +579,25 @@ $(NATIVE_NAMES_OBJECT): $(NATIVE_NAMES_C)/compiler_native_names.c \
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
 
-# Large modules compile in parts, then merge into one object each; their
-# shared helpers are hidden and localized so they never leave it.
-merge = $(CC) -r -nostdlib -o $@ $(filter %.o,$^) && $(OBJCOPY) --localize-hidden $(if $(COFF_PRIVATE_SYMBOLS),--localize-symbols=$(COFF_PRIVATE_SYMBOLS)/$(basename $(notdir $@)).txt) $@
-PARSE_PARTS := $(addprefix cmd/zir/zir_parse,.c _declaration.c _eval.c _typed.c \
-    _condition.c _discover.c _source.c)
+PARSE_PARTS := $(addprefix cmd/zir/zir_parse,.c _declaration.c _eval.c _typed.c)
 
-# COFF does not retain ELF hidden visibility, but objcopy can localize the
-# same declarations explicitly after the group's objects have been merged.
-ifneq ($(or $(findstring mingw,$(TARGET_MACHINE)),$(findstring windows,$(TARGET_MACHINE))),)
-COFF_PRIVATE_SYMBOLS := $(BUILD_DIR)/private-symbols
-$(COFF_PRIVATE_SYMBOLS)/%.txt: cmd/zir/zir_%_internal.h scripts/private-symbols.py
-	python3 scripts/private-symbols.py $< $@
-$(BUILD_DIR)/obj/parse.o: $(COFF_PRIVATE_SYMBOLS)/parse.txt
-endif
-
-# wasm objcopy cannot localize hidden symbols. Browser builds give the
-# parser's private helpers distinct names using the same list as COFF.
+# The C and Ziran parser parts agree on the names of their shared private
+# calls. Keep the prefix on Wasm, where objcopy cannot localize them.
 ifneq ($(findstring wasm,$(TARGET_MACHINE)),)
 WASM_PRIVATE_HEADERS ?= $(BUILD_DIR)/wasm-private
-$(WASM_PRIVATE_HEADERS)/%.h: cmd/zir/zir_%_internal.h scripts/private-symbols.py
+else
+PARSE_LOCALIZE := --wildcard --localize-symbol='private_parse_*' --localize-symbol='compiler_parse_*'
+endif
+PARSE_PRIVATE_HEADERS := $(or $(WASM_PRIVATE_HEADERS),$(BUILD_DIR)/private-symbols)
+$(PARSE_PRIVATE_HEADERS)/%.h: cmd/zir/zir_%_internal.h scripts/private-symbols.py
 	python3 scripts/private-symbols.py $< $(basename $@).txt
 	sed 's/.*/#define & private_$*_&/' $(basename $@).txt > $@
-endif
-ifneq ($(WASM_PRIVATE_HEADERS),)
-$(call obj,$(PARSE_PARTS)): CFLAGS += -include $(WASM_PRIVATE_HEADERS)/parse.h
-$(call obj,$(PARSE_PARTS)): $(WASM_PRIVATE_HEADERS)/parse.h
-endif
+$(call obj,$(PARSE_PARTS)): CFLAGS += -include $(PARSE_PRIVATE_HEADERS)/parse.h
+$(call obj,$(PARSE_PARTS)): $(PARSE_PRIVATE_HEADERS)/parse.h
 
-$(BUILD_DIR)/obj/parse.o: $(call obj,$(PARSE_PARTS))
-	$(merge)
+$(BUILD_DIR)/obj/parse.o: $(call obj,$(PARSE_PARTS)) $(PARSE_PORT_OBJECTS)
+	$(CC) -r -nostdlib -o $@ $(filter %.o,$^)
+	$(OBJCOPY) --localize-hidden $(PARSE_LOCALIZE) $@
 
 -include $(shell find $(BUILD_DIR)/obj -name '*.d' 2>/dev/null)
 
@@ -787,7 +778,7 @@ $(BIN_DIR)/zx2wasm: $(call obj,cmd/zx2wasm/main.c) $(BUILD_DIR)/libziran.a | $(B
 ifneq ($(BOOTSTRAP),1)
 $(BOOTSTRAP_BIN): $(BUILD_DIR)/runtime_headers.c
 $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) \
-    $(foreach module,$(CHECK_PORT_MODULES),$(call compiler-port-seed,$(module))) \
+    $(foreach module,$(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES),$(call compiler-port-seed,$(module))) \
     $(PORTABLE) cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi std/c_string.zi std/result.zi std/vec.zi \
     cmd/zi2c/main.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
     $(BACKEND_BOOTSTRAP_FILES) cmd/compiler_backend_cache.zi cmd/compiler_backend_process.zi \
@@ -871,6 +862,12 @@ $(foreach module,$(CHECK_CORE_MODULES),\
 $(eval $(call compiler-port-rules,check_s12_types,$(CHECK_PORT_HEADERS),$(CHECK_PORT_IMPORTS)))
 $(foreach module,$(CHECK_PROGRAM_MODULES),\
     $(eval $(call compiler-port-rules,$(module),$(CHECK_PORT_HEADERS) $(call compiler-port-ready,check_s12_types),$(CHECK_PORT_IMPORTS) cmd/compiler_check_s12_types.zi)))
+PARSE_PORT_IMPORTS := cmd/compiler_ir.zi cmd/compiler_parse_types.zi
+PARSE_PORT_HEADERS := $(IR_READY) $(call compiler-port-ready,parse_types)
+$(eval $(call compiler-port-rules,parse_types,$(IR_READY),cmd/compiler_ir.zi))
+$(eval $(call compiler-port-rules,parse_condition,$(PARSE_PORT_HEADERS) $(SOURCE_READY) $(TEXT_READY),$(PARSE_PORT_IMPORTS) cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_scan.zi))
+$(eval $(call compiler-port-rules,parse_discover,$(PARSE_PORT_HEADERS) $(TYPE_READY),$(PARSE_PORT_IMPORTS) cmd/compiler_type.zi cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_scan.zi))
+$(eval $(call compiler-port-rules,parse_source,$(PARSE_PORT_HEADERS),$(PARSE_PORT_IMPORTS)))
 $(eval $(call compiler-port-rules,go_asm_x64,$(IR_READY) $(NATIVE_NAMES_READY),$(GO_PORT_IMPORTS)))
 $(eval $(call compiler-port-rules,go_asm,$(IR_READY) $(NATIVE_NAMES_READY) $(call compiler-port-ready,go_asm_x64),$(GO_PORT_IMPORTS) cmd/compiler_go_asm_x64.zi))
 $(eval $(call compiler-port-rules,go_backend,$(IR_READY) $(NATIVE_NAMES_READY) $(call compiler-port-ready,go_asm) $(call compiler-port-ready,go_asm_x64),$(GO_PORT_IMPORTS) cmd/compiler_go_asm.zi cmd/compiler_go_asm_x64.zi))
@@ -1036,7 +1033,7 @@ BOOTSTRAP_MODULES := scan text source declaration enum type expression statement
 GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
     -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
 BOOTSTRAP_MODULES += parse portable_body scalar c_emit c_emit_value c_emit_statement c_emit_call c_emit_expr simd_metadata c_emit_simd go_simd c_backend
-BOOTSTRAP_MODULES += $(GO_PORT_MODULES) $(CHECK_PORT_MODULES)
+BOOTSTRAP_MODULES += $(GO_PORT_MODULES) $(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES)
 # Darwin's seed copies of the platform modules, generated with the defines a
 # Darwin host passes; one copy serves Apple Silicon and Intel.
 DARWIN_BOOTSTRAP_MODULES := runtime_emit backend_cache backend_process

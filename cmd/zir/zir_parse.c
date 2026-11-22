@@ -23,7 +23,71 @@ _Static_assert(ZIR_STMT_UNKNOWN == StatementKind_Unknown &&
                ZIR_STMT_IF_CASE == StatementKind_IfCase,
                "C frontend statement kinds must match the Ziran scanner");
 
-_Thread_local ParseRecovery *ZirParseRecovery;
+typedef struct ParseRecovery {
+    jmp_buf jump;
+    struct ParseRecovery *previous;
+    CompilerMemory *memory;
+    void *expression_cache;
+    int law;
+} ParseRecovery;
+
+static _Thread_local ParseRecovery *ZirParseRecovery;
+
+/* Keep the jump target live across the Ziran parser and nested import calls.
+ * Each operation owns its temporary allocations and source streams. */
+ZirProgram *
+ParserWithRecovery(const char *path, const char *root, const char *source,
+                   ZirCompileImportResolver resolver, void *context,
+                   const char *const *defines, int define_count, const ZirImport *site)
+{
+    CompilerContext *previous = CompilerContextCurrent();
+    CompilerContext *owner = previous ? previous : CompilerContextOpen();
+    if(!owner) {
+        DiagnosticOutOfMemory();
+        return NULL;
+    }
+    CompilerContextSelect(owner);
+    ParseRecovery *recovery = calloc(1, sizeof(*recovery));
+    if(!recovery) goto failed;
+    recovery->previous = ZirParseRecovery;
+    recovery->law = ZirLawEvaluation;
+    recovery->expression_cache = ParseCacheEnter();
+    if(!recovery->expression_cache) {
+        free(recovery);
+        goto failed;
+    }
+    recovery->memory = CompilerMemoryBegin();
+    if(!recovery->memory) {
+        ParseCacheLeave(recovery->expression_cache);
+        free(recovery);
+        goto failed;
+    }
+    ZirParseRecovery = recovery;
+    ZirProgram *program = NULL;
+    if(setjmp(recovery->jump) == 0)
+        program = ParserParseOperationBody(path, root, source, resolver, context,
+                                           defines, define_count, site);
+    ParseCacheLeave(recovery->expression_cache);
+    ZirParseRecovery = recovery->previous;
+    ZirLawEvaluation = recovery->law;
+    CompilerMemoryEnd(recovery->memory, program != NULL);
+    free(recovery);
+    SymbolLookupsChanged();
+    if(program && !program->context_retained) {
+        CompilerContextRetain(owner);
+        program->context_retained = 1;
+    }
+    if(program && !previous) program->owns_context = 1;
+    CompilerContextSelect(previous);
+    if(!program && !previous) CompilerContextClose(owner);
+    return program;
+
+failed:
+    CompilerContextSelect(previous);
+    if(!previous) CompilerContextClose(owner);
+    DiagnosticOutOfMemory();
+    return NULL;
+}
 
 static String
 source_view(const char *source)

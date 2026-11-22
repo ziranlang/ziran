@@ -8,6 +8,8 @@
 
 - Function and whole-program checking, generic linking, SIMD rules, and borrow analysis now build from Ziran source.
 
+- Source parsing, module discovery, and compile-time condition selection now build from Ziran source.
+
 - Compile hot packed ZX integer instruction runs on Linux i386 with bounded executable storage and the interpreter's work, fuel and failure locations.
 
 - Speed up large record and array loads in the ZX instruction engine.

@@ -1,0 +1,2194 @@
+// Source normalization and discovery of forward declarations.
+using IR :: #import "compiler_ir"
+using Parser :: #import "compiler_parse_types"
+Types :: #import "compiler_type"
+
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+CanonicalPath :: (path: *u8) -> *u8 #foreign compiler "CanonicalPath";
+CompilerCalloc :: (count: usize, size: usize) -> *void #foreign compiler "CompilerCalloc";
+CompilerFclose :: (file: *void) -> s32 #foreign compiler "CompilerFclose";
+CompilerFopen :: (path: *u8, mode: *u8) -> *void #foreign compiler "CompilerFopen";
+CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
+CompilerMalloc :: (size: usize) -> *void #foreign compiler "CompilerMalloc";
+CompilerRealloc :: (pointer: *void, size: usize) -> *void #foreign compiler "CompilerRealloc";
+CompilerStrdup :: (text: *u8) -> *u8 #foreign compiler "CompilerStrdup";
+DocumentRecord :: (path: *u8, bytes: *u8, count: usize) -> *u8 #foreign compiler "DocumentRecord";
+EnumMemberValue :: (type: *IR.ZirType, name: *u8, value: *s64) -> s32 #foreign compiler "EnumMemberValue";
+FindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+FunctionAddStmt :: (fn: *IR.ZirFunction, kind: IR.ZirStmtKind, text: *u8, span: IR.ZirSourceSpan) -> *IR.ZirStmt #foreign compiler "FunctionAddStmt";
+KeepParameters :: (text: *u8) -> *u8 #foreign compiler "KeepParameters";
+KeepText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
+OperatorProcedureName :: (op: *u8) -> *u8 #foreign compiler "OperatorProcedureName";
+OperatorTokenLength :: (text: *u8) -> usize #foreign compiler "OperatorTokenLength";
+PathIsAbsolute :: (path: *u8) -> s32 #foreign compiler "PathIsAbsolute";
+SourceOverlayAllowed :: (path: *u8) -> s32 #foreign compiler "SourceOverlayAllowed";
+SourceOverlayRead :: (path: *u8, count: *usize) -> *u8 #foreign compiler "SourceOverlayRead";
+Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+TypeFieldLine :: (field: *IR.ZirTypeField, type: *u8, out: *u8, size: usize) -> s32 #foreign compiler "TypeFieldLine";
+TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+brace_outside_literals :: (text: *u8) -> s32 #foreign compiler "private_parse_brace_outside_literals";
+classify_stmt :: (s: *u8) -> IR.ZirStmtKind #foreign compiler "private_parse_classify_stmt";
+closing_parenthesis :: (open: *u8) -> *u8 #foreign compiler "private_parse_closing_parenthesis";
+compile_string_bytes :: (value: *CompileValue, length: *usize) -> *u8 #foreign compiler "compile_string_bytes";
+cond_top_step :: (line: *u8, frames: *ZirCondFrame, count: *s32, module: *IR.ZirModule, consts: *ZirConsts, context: *CompileParseContext, source_path: *u8, path: *u8, line_no: s32, deferred: *s32) -> s32 #foreign compiler "private_parse_cond_top_step";
+contains_source_directive :: (source: *u8, directive: *u8) -> s32 #foreign compiler "private_parse_contains_source_directive";
+copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
+die :: (fmt: *u8, varargs: ..any) #foreign compiler "private_parse_die";
+die_at :: (span: IR.ZirSourceSpan, fmt: *u8, varargs: ..any) #foreign compiler "private_parse_die_at";
+escape_c_string :: (s: *u8, dst: *u8, dst_size: usize) -> usize #foreign compiler "escape_c_string";
+evaluate_typed_expression :: (module: *IR.ZirModule, names: *ZirConsts, source: *u8, span: IR.ZirSourceSpan, depth: s32, fuel: *s32, result: *CompileValue) -> s32 #foreign compiler "private_parse_evaluate_typed_expression";
+expand_compile_text :: (consts: *ZirConsts, src: *u8, lookup_path: *u8) -> *u8 #foreign compiler "private_parse_expand_compile_text";
+expand_type_this :: (type: *IR.ZirType) -> s32 #foreign compiler "private_parse_expand_type_this";
+ferror :: (__stream: *void) -> s32 #foreign libc "ferror";
+fread :: (__ptr: *void, __size: usize, __n: usize, __stream: *void) -> usize #foreign libc "fread";
+free_visible_compile_module :: (visible: *IR.ZirModule) #foreign compiler "private_parse_free_visible_compile_module";
+is_ident_char :: (c: s32) -> s32 #foreign compiler "is_ident_char";
+is_identifier_text :: (text: *u8) -> s32 #foreign compiler "private_parse_is_identifier_text";
+is_member_path_text :: (text: *u8) -> s32 #foreign compiler "private_parse_is_member_path_text";
+looks_like_function_header :: (line: *u8) -> s32 #foreign compiler "private_parse_looks_like_function_header";
+lower_jai_multiline_strings :: (source: *u8, path: *u8) -> *u8 #foreign compiler "private_parse_lower_jai_multiline_strings";
+memchr :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memchr";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+memset :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memset";
+net_block_braces :: (s: *u8) -> s32 #foreign compiler "private_parse_net_block_braces";
+normalize_record_separators :: (body: *u8, split_commas: s32) #foreign compiler "private_parse_normalize_record_separators";
+opening_brace_outside_literals :: (text: *u8) -> *u8 #foreign compiler "private_parse_opening_brace_outside_literals";
+parse_file_global :: (module: *IR.ZirModule, declaration: *u8, span: IR.ZirSourceSpan, scope_public: s32, scope_file: s32, name_out: *u8, name_size: usize) #foreign compiler "private_parse_parse_file_global";
+parse_function_header :: (name: *u8, name_size: usize, args: *u8, args_size: usize, ret: *u8, ret_size: usize, line: *u8) #foreign compiler "private_parse_parse_function_header";
+parse_import_line :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8, scope_public: s32) -> s32 #foreign compiler "private_parse_parse_import_line";
+parse_insert_line :: (line: *u8, name: *u8, size: usize, span: IR.ZirSourceSpan) -> s32 #foreign compiler "private_parse_parse_insert_line";
+parse_symbol_before_colons :: (s: *u8, out: *u8, out_size: usize) -> s32 #foreign compiler "private_parse_parse_symbol_before_colons";
+parse_type_parameters :: (after: *u8, keyword: *u8, names: *u8, capacity: usize) -> s32 #foreign compiler "private_parse_parse_type_parameters";
+parse_using_modifiers :: (cursor: **u8, filter: *u8, filter_size: usize, path: *u8, line_no: s32) -> s32 #foreign compiler "private_parse_parse_using_modifiers";
+relative_path :: (root: *u8, path: *u8) -> *u8 #foreign compiler "private_parse_relative_path";
+skip_inline_ws :: (s: *u8) -> *u8 #foreign compiler "skip_inline_ws";
+skip_ws :: (s: *u8) -> *u8 #foreign compiler "skip_ws";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+source_append :: (buffer: *SourceBuffer, byte: u8) #foreign compiler "private_parse_source_append";
+split_top_level :: (s: *u8, parts: *u8, max: s32, part_size: usize) -> s32 #foreign compiler "split_top_level";
+starts_word :: (s: *u8, word: *u8) -> s32 #foreign compiler "private_parse_starts_word";
+strchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strchr";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strcpy :: (__dest: *u8, __src: *u8) -> *u8 #foreign libc "strcpy";
+strip_block_comments :: (s: *u8, comment_depth: *s32) #foreign compiler "private_parse_strip_block_comments";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+strrchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strrchr";
+strstr :: (__haystack: *u8, __needle: *u8) -> *u8 #foreign libc "strstr";
+take_abi_incomplete :: (type: *IR.ZirType) -> s32 #foreign compiler "private_parse_take_abi_incomplete";
+take_go_anonymous :: (type: *IR.ZirType) -> s32 #foreign compiler "private_parse_take_go_anonymous";
+tolower :: (__c: s32) -> s32 #foreign libc "tolower";
+trim :: (s: *u8) -> *u8 #foreign compiler "trim";
+trim_in_place :: (s: *u8) -> *u8 #foreign compiler "trim_in_place";
+visible_compile_constants :: (parsed: *ZirConsts, future: *ZirConsts) -> ZirConsts #foreign compiler "private_parse_visible_compile_constants";
+visible_compile_module :: (parsed: *IR.ZirModule, context: *CompileParseContext, constants: *ZirConsts, visible: *IR.ZirModule) #foreign compiler "private_parse_visible_compile_module";
+discover_named_type_scratch: u8;
+discover_function_header_scratch: u8;
+discover_file_scope_scratch: u8;
+discover_conditional_type_scratch: u8;
+canonical_enum_values_scratch: u8;
+lower_enum_values_scratch: u8;
+read_lowered_source_scratch: u8;
+normalize_scratch: u8;
+ParserIOError :: () -> *u8 #foreign compiler "ZiranInspectIOError";
+isalnum :: (character: s32) -> s32 #foreign libc "isalnum";
+isalpha :: (character: s32) -> s32 #foreign libc "isalpha";
+isdigit :: (character: s32) -> s32 #foreign libc "isdigit";
+isspace :: (character: s32) -> s32 #foreign libc "isspace";
+isxdigit :: (character: s32) -> s32 #foreign libc "isxdigit";
+
+#scope_file
+type_text_length :: (text: *u8) -> usize {
+    p: *u8 = text
+    while loop_24 := ((cast(s32)(cast(s8)((p)[0])) == 32) || (cast(s32)(cast(s8)((p)[0])) == 9)) {
+        ParserPost2(*(p))
+    }
+    {
+        while loop_25 := true {
+            if (cast(s32)(cast(s8)((p)[0])) == 42) {
+                ParserPost2(*(p))
+                while loop_26 := ((cast(s32)(cast(s8)((p)[0])) == 32) || (cast(s32)(cast(s8)((p)[0])) == 9)) {
+                    ParserPost2(*(p))
+                }
+            } else {
+                if (cast(s32)(cast(s8)((p)[0])) == 91) {
+                    depth: s32 = 0
+                    while loop_27 := true {
+                        if (cast(s32)(cast(s8)((p)[0])) == 91) {
+                            ParserPost0(*(depth))
+                        } else {
+                            if (cast(s32)(cast(s8)((p)[0])) == 93) {
+                                ParserPost3(*(depth))
+                            } else {
+                                if (cast(s32)(cast(s8)((p)[0])) == 0) {
+                                    return cast(usize)(0)
+                                }
+                            }
+                        }
+                        ParserPost2(*(p))
+                        if !(depth > 0) { break loop_27 }
+                    }
+                    while loop_28 := ((cast(s32)(cast(s8)((p)[0])) == 32) || (cast(s32)(cast(s8)((p)[0])) == 9)) {
+                        ParserPost2(*(p))
+                    }
+                } else {
+                    break loop_25
+                }
+            }
+        }
+    }
+    name: *u8 = p
+    while loop_29 := ((((isalnum(cast(s32)(((cast(u8)((p)[0]))))) != 0) || (cast(s32)(cast(s8)((p)[0])) == 95)) || (cast(s32)(cast(s8)((p)[0])) == 46)) || (cast(s32)(cast(s8)((p)[0])) == 36)) {
+        ParserPost2(*(p))
+    }
+    if (p == name) {
+        return cast(usize)(0)
+    }
+    after: *u8 = p
+    while loop_30 := ((cast(s32)(cast(s8)((after)[0])) == 32) || (cast(s32)(cast(s8)((after)[0])) == 9)) {
+        ParserPost2(*(after))
+    }
+    if (cast(s32)(cast(s8)((after)[0])) == 40) {
+        depth: s32 = 0
+        p = after
+        while loop_31 := true {
+            if (cast(s32)(cast(s8)((p)[0])) == 40) {
+                ParserPost0(*(depth))
+            } else {
+                if (cast(s32)(cast(s8)((p)[0])) == 41) {
+                    ParserPost3(*(depth))
+                } else {
+                    if (cast(s32)(cast(s8)((p)[0])) == 0) {
+                        return cast(usize)(0)
+                    }
+                }
+            }
+            ParserPost2(*(p))
+            if !(depth > 0) { break loop_31 }
+        }
+    }
+    return cast(usize)(((cast(isize)(cast(usize)(p) - cast(usize)(text)) / cast(isize)size_of(u8))))
+}
+
+#scope_file
+normalize_jai_source_tokens_with_buffers :: (line: *u8, path: *u8, physical_path: *u8, line_no: s32, in_string: s32, buffers: *NormalizeJaiSourceTokensBuffers, uses_resizable_arrays: *s32) -> s32 {
+    names: ParserArray2_ParserAnonymous4 = .{items = .{.{ParserCString("int"), ParserCString("s64")}, .{ParserCString("float"), ParserCString("float32")}}}
+    old: ParserArray8__u8 = .{items = .{ParserCString("i8"), ParserCString("i16"), ParserCString("i32"), ParserCString("i64"), ParserCString("f32"), ParserCString("f64"), ParserCString("double"), null}}
+    used: usize = cast(usize)(0)
+    quote: u8 = cast(u8)((ifx (in_string != 0) then 34 else 0))
+    {
+        p: *u8 = line
+        while loop_32 := ((p)[0] != 0) {
+            if (((cast(s32)(cast(s8)(quote)) == 0) && (cast(s32)(cast(s8)((p)[0])) == 47)) && (cast(s32)(cast(s8)((p)[1])) == 47)) {
+                remaining: usize = strlen(p)
+                if ((used + remaining) >= cast(usize)size_of(ParserArray16384_u8)) {
+                    die_at(Span(path, line_no, 1), ParserCString("source line exceeds size limit"))
+                    unreachable
+                }
+                memcpy(cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).normalized).items))) + cast(usize)(used) * size_of(u8))), cast(*void)(p), (remaining + cast(usize)(1)))
+                used += remaining
+                break loop_32
+            }
+            if (((cast(s32)(cast(s8)(quote)) != 0) || (cast(s32)(cast(s8)((p)[0])) == 34)) || (cast(s32)(cast(s8)((p)[0])) == 39)) {
+                if (cast(s32)(cast(s8)(quote)) == 0) {
+                    quote = (p)[0]
+                    if ((used + cast(usize)(1)) >= cast(usize)size_of(ParserArray16384_u8)) {
+                        die_at(Span(path, line_no, 1), ParserCString("source line exceeds size limit"))
+                        unreachable
+                    }
+                    ((buffers).normalized).items[ParserPost5(*(used))] = (ParserPost2(*(p)))[0]
+                }
+                while loop_33 := ((p)[0] != 0) {
+                    next: u8 = (ParserPost2(*(p)))[0]
+                    if ((used + cast(usize)(1)) >= cast(usize)size_of(ParserArray16384_u8)) {
+                        die_at(Span(path, line_no, 1), ParserCString("source line exceeds size limit"))
+                        unreachable
+                    }
+                    ((buffers).normalized).items[ParserPost5(*(used))] = next
+                    if ((cast(s32)(cast(s8)(next)) == 92) && ((p)[0] != 0)) {
+                        if ((used + cast(usize)(1)) >= cast(usize)size_of(ParserArray16384_u8)) {
+                            die_at(Span(path, line_no, 1), ParserCString("source line exceeds size limit"))
+                            unreachable
+                        }
+                        ((buffers).normalized).items[ParserPost5(*(used))] = (ParserPost2(*(p)))[0]
+                    } else {
+                        if (cast(s32)(cast(s8)(next)) == cast(s32)(cast(s8)(quote))) {
+                            quote = cast(u8)(0)
+                            break loop_33
+                        }
+                    }
+                }
+                continue loop_32
+            }
+            directive: *u8 = null
+            directive_length: usize = cast(usize)(0)
+            if (strncmp(p, ParserCString("#filepath"), cast(usize)(9)) == 0) {
+                directive = ParserCString("#filepath")
+                directive_length = cast(usize)(9)
+            } else {
+                if (strncmp(p, ParserCString("#file"), cast(usize)(5)) == 0) {
+                    directive = ParserCString("#file")
+                    directive_length = cast(usize)(5)
+                } else {
+                    if (strncmp(p, ParserCString("#line"), cast(usize)(5)) == 0) {
+                        directive = ParserCString("#line")
+                        directive_length = cast(usize)(5)
+                    }
+                }
+            }
+            if (((directive != cast(*u8)((null))) && !(isalnum(cast(s32)(((cast(u8)((p)[directive_length]))))) != 0)) && (cast(s32)(cast(s8)((p)[directive_length])) != 95)) {
+                written: s32
+                if (strcmp(directive, ParserCString("#line")) == 0) {
+                    written = snprintf(cast(*u8)(*(((buffers).literal).items)), cast(usize)size_of(ParserArray4100_u8), ParserCString("%d"), line_no)
+                } else {
+                    value: *u8 = physical_path
+                    if (strcmp(directive, ParserCString("#filepath")) == 0) {
+                        slash: *u8 = strrchr(physical_path, 47)
+                        length: usize = (ifx (slash == cast(*u8)((null))) then cast(usize)(0) else (ifx (slash == physical_path) then cast(usize)(1) else cast(usize)(((cast(isize)(cast(usize)(slash) - cast(usize)(physical_path)) / cast(isize)size_of(u8))))))
+                        if (length >= cast(usize)size_of(ParserArray1024_u8)) {
+                            die_at(Span(path, line_no, 1), ParserCString("source filepath exceeds size limit"))
+                            unreachable
+                        }
+                        if (length == cast(usize)(0)) {
+                            copy_text(cast(*u8)(*(((buffers).directory).items)), cast(usize)size_of(ParserArray1024_u8), ParserCString("."))
+                        } else {
+                            memcpy(cast(*void)(cast(*u8)(*(((buffers).directory).items))), cast(*void)(physical_path), length)
+                            ((buffers).directory).items[length] = cast(u8)(0)
+                        }
+                        value = cast(*u8)(*(((buffers).directory).items))
+                    }
+                    ((buffers).literal).items[0] = cast(u8)(34)
+                    escaped: usize = escape_c_string(value, cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).literal).items))) + cast(usize)(1) * size_of(u8)), (cast(usize)size_of(ParserArray4100_u8) - cast(usize)(2)))
+                    ((buffers).literal).items[(escaped + cast(usize)(1))] = cast(u8)(34)
+                    ((buffers).literal).items[(escaped + cast(usize)(2))] = cast(u8)(0)
+                    written = (cast(s32)(escaped) + 2)
+                }
+                if ((written < 0) || (cast(usize)(written) >= (cast(usize)size_of(ParserArray16384_u8) - used))) {
+                    die_at(Span(path, line_no, 1), ParserCString("source line exceeds size limit"))
+                    unreachable
+                }
+                memcpy(cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).normalized).items))) + cast(usize)(used) * size_of(u8))), cast(*void)(cast(*u8)(*(((buffers).literal).items))), cast(usize)(written))
+                used += cast(usize)(written)
+                p = cast(*u8)(cast(usize)(p) + cast(usize)(directive_length) * size_of(u8))
+                continue loop_32
+            }
+            if (cast(s32)(cast(s8)((p)[0])) == 91) {
+                q: *u8 = cast(*u8)(cast(usize)(p) + cast(usize)(1) * size_of(u8))
+                while loop_34 := ((cast(s32)(cast(s8)((q)[0])) == 32) || (cast(s32)(cast(s8)((q)[0])) == 9)) {
+                    ParserPost2(*(q))
+                }
+                if (((cast(s32)(cast(s8)((q)[0])) == 46) && (cast(s32)(cast(s8)((q)[1])) == 46)) && (cast(s32)(cast(s8)((q)[2])) != 46)) {
+                    q = cast(*u8)(cast(usize)(q) + cast(usize)(2) * size_of(u8))
+                    while loop_35 := ((cast(s32)(cast(s8)((q)[0])) == 32) || (cast(s32)(cast(s8)((q)[0])) == 9)) {
+                        ParserPost2(*(q))
+                    }
+                    if (cast(s32)(cast(s8)((q)[0])) == 93) {
+                        element_length: usize = type_text_length(cast(*u8)(cast(usize)(q) + cast(usize)(1) * size_of(u8)))
+                        element: *u8 = cast(*u8)(AllocateOrExit(cast(usize)(16384)))
+                        if ((element_length == cast(usize)(0)) || (element_length >= cast(usize)(16384))) {
+                            CompilerFree(cast(*void)(element))
+                            die_at(Span(path, line_no, (cast(s32)(((cast(isize)(cast(usize)(p) - cast(usize)(line)) / cast(isize)size_of(u8)))) + 1)), ParserCString("[..] needs an element type"))
+                            unreachable
+                        }
+                        memcpy(cast(*void)(element), cast(*void)(cast(*u8)(cast(usize)(q) + cast(usize)(1) * size_of(u8))), element_length)
+                        (element)[element_length] = cast(u8)(0)
+                        normalize_jai_source_tokens(element, path, physical_path, line_no, uses_resizable_arrays)
+                        written: s32 = snprintf(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).normalized).items))) + cast(usize)(used) * size_of(u8)), (cast(usize)size_of(ParserArray16384_u8) - used), ParserCString("Vec(%s)"), skip_ws(element))
+                        CompilerFree(cast(*void)(element))
+                        if ((written < 0) || (cast(usize)(written) >= (cast(usize)size_of(ParserArray16384_u8) - used))) {
+                            die_at(Span(path, line_no, 1), ParserCString("source line exceeds size limit"))
+                            unreachable
+                        }
+                        used += cast(usize)(written)
+                        p = cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(q) + cast(usize)(1) * size_of(u8))) + cast(usize)(element_length) * size_of(u8))
+                        if uses_resizable_arrays != null { uses_resizable_arrays[0] = 1 }
+                        continue loop_32
+                    }
+                }
+            }
+            if ((isalpha(cast(s32)(((cast(u8)((p)[0]))))) != 0) || (cast(s32)(cast(s8)((p)[0])) == 95)) {
+                start: *u8 = p
+                while loop_36 := ((isalnum(cast(s32)(((cast(u8)((p)[0]))))) != 0) || (cast(s32)(cast(s8)((p)[0])) == 95)) {
+                    ParserPost2(*(p))
+                }
+                length: usize = cast(usize)(((cast(isize)(cast(usize)(p) - cast(usize)(start)) / cast(isize)size_of(u8))))
+                replacement: *u8 = null
+                array_calls: ParserArray4_ParserAnonymous5 = .{items = .{.{ParserCString("array_add"), ParserCString("VecPush")}, .{ParserCString("array_reset"), ParserCString("VecFree")}, .{ParserCString("array_free"), ParserCString("VecFree")}, .{ParserCString("array_reset_keeping_memory"), ParserCString("VecClear")}}}
+                after: *u8 = p
+                while loop_37 := ((cast(s32)(cast(s8)((after)[0])) == 32) || (cast(s32)(cast(s8)((after)[0])) == 9)) {
+                    ParserPost2(*(after))
+                }
+                {
+                    i: usize = cast(usize)(0)
+                    while loop_38 := ((cast(s32)(cast(s8)((after)[0])) == 40) && (i < (cast(usize)size_of(ParserArray4_ParserAnonymous5) / cast(usize)size_of(ParserAnonymous5)))) {
+                        if ((strlen(((array_calls).items[i]).jai) == length) && (strncmp(start, ((array_calls).items[i]).jai, length) == 0)) {
+                            vec_length: usize = strlen(((array_calls).items[i]).vec)
+                            if (((used + vec_length) + cast(usize)(1)) >= cast(usize)size_of(ParserArray16384_u8)) {
+                                die_at(Span(path, line_no, 1), ParserCString("source line exceeds size limit"))
+                                unreachable
+                            }
+                            memcpy(cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).normalized).items))) + cast(usize)(used) * size_of(u8))), cast(*void)(((array_calls).items[i]).vec), vec_length)
+                            used += vec_length
+                            ((buffers).normalized).items[ParserPost5(*(used))] = cast(u8)(40)
+                            p = skip_ws(cast(*u8)(cast(usize)(after) + cast(usize)(1) * size_of(u8)))
+                            if (cast(s32)(cast(s8)((p)[0])) == 42) {
+                                ParserPost2(*(p))
+                            }
+                            if uses_resizable_arrays != null { uses_resizable_arrays[0] = 1 }
+                            replacement = ParserCString("")
+                            break loop_38
+                        }
+                        ParserPost5(*(i))
+                    }
+                }
+                if (replacement != cast(*u8)((null))) {
+                    continue loop_32
+                }
+                if ((length == cast(usize)(3)) && (strncmp(start, ParserCString("nil"), cast(usize)(3)) == 0)) {
+                    die_at(Span(path, line_no, (cast(s32)(((cast(isize)(cast(usize)(start) - cast(usize)(line)) / cast(isize)size_of(u8)))) + 1)), ParserCString("nil is not Jai syntax; use null"))
+                    unreachable
+                }
+                if ((length == cast(usize)(6)) && (strncmp(start, ParserCString("sizeof"), cast(usize)(6)) == 0)) {
+                    die_at(Span(path, line_no, (cast(s32)(((cast(isize)(cast(usize)(start) - cast(usize)(line)) / cast(isize)size_of(u8)))) + 1)), ParserCString("sizeof is not Jai syntax; use size_of(Type)"))
+                    unreachable
+                }
+                {
+                    i: usize = cast(usize)(0)
+                    while loop_39 := (i < (cast(usize)size_of(ParserArray2_ParserAnonymous4) / cast(usize)size_of(ParserAnonymous4))) {
+                        if ((strlen(((names).items[i]).jai) == length) && (strncmp(start, ((names).items[i]).jai, length) == 0)) {
+                            replacement = ((names).items[i]).internal
+                            break loop_39
+                        }
+                        ParserPost5(*(i))
+                    }
+                }
+                {
+                    i: s32 = 0
+                    while loop_40 := ((old).items[i] != null) {
+                        if ((strlen((old).items[i]) == length) && (strncmp(start, (old).items[i], length) == 0)) {
+                            die_at(Span(path, line_no, (cast(s32)(((cast(isize)(cast(usize)(start) - cast(usize)(line)) / cast(isize)size_of(u8)))) + 1)), ParserCString("non-Jai primitive type spelling: %s"), (old).items[i])
+                            unreachable
+                        }
+                        ParserPost0(*(i))
+                    }
+                }
+                if (replacement != cast(*u8)((null))) {
+                    start = replacement
+                    length = strlen(replacement)
+                }
+                if ((used + length) >= cast(usize)size_of(ParserArray16384_u8)) {
+                    die_at(Span(path, line_no, 1), ParserCString("source line exceeds size limit"))
+                    unreachable
+                }
+                memcpy(cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).normalized).items))) + cast(usize)(used) * size_of(u8))), cast(*void)(start), length)
+                used += length
+                continue loop_32
+            }
+            if ((used + cast(usize)(1)) >= cast(usize)size_of(ParserArray16384_u8)) {
+                die_at(Span(path, line_no, 1), ParserCString("source line exceeds size limit"))
+                unreachable
+            }
+            ((buffers).normalized).items[ParserPost5(*(used))] = (ParserPost2(*(p)))[0]
+        }
+    }
+    ((buffers).normalized).items[used] = cast(u8)(0)
+    copy_text(line, cast(usize)(16384), cast(*u8)(*(((buffers).normalized).items)))
+    return cast(s32)(cast(s32)(cast(s8)(quote)) == 34)
+}
+
+#scope_export
+#program_export "private_parse_normalize_jai_source_line"
+normalize_jai_source_line :: (line: *u8, path: *u8, physical_path: *u8, line_no: s32, in_string: s32, uses_resizable_arrays: *s32) -> s32 {
+    start: *u8 = cast(*u8)(skip_inline_ws(line))
+    if ((!(in_string != 0) && (strncmp(start, ParserCString("operator"), cast(usize)(8)) == 0)) && !(is_ident_char(cast(s32)(cast(u8)((start)[8]))) != 0)) {
+        op: *u8 = skip_inline_ws(cast(*u8)(cast(usize)(start) + cast(usize)(8) * size_of(u8)))
+        length: usize = OperatorTokenLength(op)
+        after: *u8 = skip_inline_ws(cast(*u8)(cast(usize)(op) + cast(usize)(length) * size_of(u8)))
+        if ((length > cast(usize)(0)) && (strncmp(after, ParserCString("::"), cast(usize)(2)) == 0)) {
+            token_storage_0 := cast(*ParserArray4_u8)AllocateOrExit(size_of(ParserArray4_u8))
+            defer CompilerFree(cast(*void)token_storage_0)
+            memset(cast(*void)token_storage_0, 0, size_of(ParserArray4_u8))
+            rewritten: *u8 = cast(*u8)(AllocateOrExit(cast(usize)((16384 * 2))))
+            memcpy(cast(*void)(cast(*u8)(*((token_storage_0[0]).items))), cast(*void)(op), length)
+            (token_storage_0[0]).items[length] = cast(u8)(0)
+            written: s32 = snprintf(rewritten, cast(usize)((16384 * 2)), ParserCString("%.*s%s %s"), cast(s32)(((cast(isize)(cast(usize)(start) - cast(usize)(line)) / cast(isize)size_of(u8)))), line, OperatorProcedureName(cast(*u8)(*((token_storage_0[0]).items))), after)
+            if ((written < 0) || (cast(usize)(written) >= cast(usize)(16384))) {
+                CompilerFree(cast(*void)(rewritten))
+                die_at(Span(path, line_no, 1), ParserCString("source line exceeds size limit"))
+                unreachable
+            }
+            strcpy(line, rewritten)
+            CompilerFree(cast(*void)(rewritten))
+        } else {
+            if (((length == cast(usize)(0)) && (cast(s32)(cast(s8)((op)[0])) != 58)) && (strstr(start, ParserCString("::")) != cast(*u8)((null)))) {
+                die_at(Span(path, line_no, 1), ParserCString("operator procedures are written operator + :: (a: T, b: T) -> T, for + - * / %% == != < <= > >= & | ^ << >>"))
+                unreachable
+            }
+        }
+    }
+    buffers := cast(*NormalizeJaiSourceTokensBuffers)ParserScratchTake(*normalize_scratch, size_of(NormalizeJaiSourceTokensBuffers))
+    defer ParserScratchRelease(*normalize_scratch, cast(*void)buffers)
+    open: s32 = normalize_jai_source_tokens_with_buffers(line, path, physical_path, line_no, in_string, buffers, uses_resizable_arrays)
+    return open
+}
+
+#scope_export
+#program_export "private_parse_normalize_jai_source_tokens"
+normalize_jai_source_tokens :: (line: *u8, path: *u8, physical_path: *u8, line_no: s32, uses_resizable_arrays: *s32) {
+    cast(void)(normalize_jai_source_line(line, path, physical_path, line_no, 0, uses_resizable_arrays))
+}
+
+#scope_export
+#program_export "private_parse_read_source_line"
+read_source_line :: (line: *u8, size: usize, source: **u8, path: *u8, line_no: s32) -> *u8 {
+    if (cast(s32)(cast(s8)(((source)[0])[0])) == 0) {
+        return null
+    }
+    length: usize = cast(usize)(0)
+    while loop_41 := (((length + cast(usize)(1)) < size) && (cast(s32)(cast(s8)(((source)[0])[0])) != 0)) {
+        next: u8 = (ParserPost2(source))[0]
+        (line)[ParserPost5(*(length))] = next
+        if (cast(s32)(cast(s8)(next)) == 10) {
+            break loop_41
+        }
+    }
+    if (((cast(s32)(cast(s8)(((source)[0])[0])) != 0) && (length > cast(usize)(0))) && (cast(s32)(cast(s8)((line)[(length - cast(usize)(1))])) != 10)) {
+        die_at(Span(path, (line_no + 1), 1), ParserCString("source line exceeds %d characters"), (cast(s32)(size) - 1))
+        unreachable
+    }
+    (line)[length] = cast(u8)(0)
+    return line
+}
+
+#scope_file
+is_named_type_header :: (line: *u8) -> s32 {
+    colons: *u8 = strstr(line, ParserCString("::"))
+    if (colons == cast(*u8)((null))) {
+        return 0
+    }
+    name_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)name_storage_0)
+    memset(cast(*void)name_storage_0, 0, size_of(ParserArray128_u8))
+    length: usize = cast(usize)(((cast(isize)(cast(usize)(colons) - cast(usize)(line)) / cast(isize)size_of(u8))))
+    if ((length == cast(usize)(0)) || (length >= cast(usize)size_of(ParserArray128_u8))) {
+        return 0
+    }
+    memcpy(cast(*void)(cast(*u8)(*((name_storage_0[0]).items))), cast(*void)(line), length)
+    (name_storage_0[0]).items[length] = cast(u8)(0)
+    trim_in_place(cast(*u8)(*((name_storage_0[0]).items)))
+    if !(is_identifier_text(cast(*u8)(*((name_storage_0[0]).items))) != 0) {
+        return 0
+    }
+    body: *u8 = skip_ws(cast(*u8)(cast(usize)(colons) + cast(usize)(2) * size_of(u8)))
+    return cast(s32)((((starts_word(body, ParserCString("struct")) != 0) || (starts_word(body, ParserCString("union")) != 0)) || (starts_word(body, ParserCString("enum")) != 0)) || (starts_word(body, ParserCString("enum_flags")) != 0))
+}
+
+#scope_file
+discover_named_type_with_buffers :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, future: *ZirTypes, buffers: *DiscoverNamedTypeBuffers, uses_resizable_arrays: *s32) {
+    ((buffers).normalized).items[0] = cast(u8)(0)
+    normalized_length: usize = cast(usize)(0)
+    physical_line: s32 = line_no
+    if (contains_source_directive(source, ParserCString("#if")) != 0) {
+        return
+    }
+    in_string: s32 = 0
+    {
+        cursor: *u8 = source
+        while loop_42 := ((cursor)[0] != 0) {
+            end: *u8 = strchr(cursor, 10)
+            length: usize = (ifx (end == cast(*u8)((null))) then strlen(cursor) else cast(usize)(((cast(isize)(cast(usize)(end) - cast(usize)(cursor)) / cast(isize)size_of(u8)))))
+            if (length >= cast(usize)size_of(ParserArray16384_u8)) {
+                return
+            }
+            memcpy(cast(*void)(cast(*u8)(*(((buffers).line).items))), cast(*void)(cursor), length)
+            ((buffers).line).items[length] = cast(u8)(0)
+            in_string = normalize_jai_source_line(cast(*u8)(*(((buffers).line).items)), rel, path, ParserPost0(*(physical_line)), in_string, uses_resizable_arrays)
+            length = strlen(cast(*u8)(*(((buffers).line).items)))
+            if (((normalized_length + length) + cast(usize)(2)) >= cast(usize)size_of(ParserArray24576_u8)) {
+                return
+            }
+            memcpy(cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).normalized).items))) + cast(usize)(normalized_length) * size_of(u8))), cast(*void)(cast(*u8)(*(((buffers).line).items))), length)
+            normalized_length += length
+            ((buffers).normalized).items[ParserPost5(*(normalized_length))] = cast(u8)(10)
+            ((buffers).normalized).items[normalized_length] = cast(u8)(0)
+            cursor = (ifx (end == cast(*u8)((null))) then cast(*u8)(cast(usize)(cursor) + cast(usize)(strlen(cursor)) * size_of(u8)) else cast(*u8)(cast(usize)(end) + cast(usize)(1) * size_of(u8)))
+        }
+    }
+    source = cast(*u8)(*(((buffers).normalized).items))
+    colons: *u8 = strstr(source, ParserCString("::"))
+    after: *u8 = (ifx (colons == cast(*u8)((null))) then null else skip_ws(cast(*u8)(cast(usize)(colons) + cast(usize)(2) * size_of(u8))))
+    open: *u8 = (ifx (after == cast(*u8)((null))) then null else strchr(after, 123))
+    close: *u8 = null
+    depth: s32 = 0
+    quote: s32 = 0
+    if (open == cast(*u8)((null))) {
+        return
+    }
+    {
+        p: *u8 = open
+        while loop_43 := ((p)[0] != 0) {
+            if (quote != 0) {
+                if ((cast(s32)(cast(s8)((p)[0])) == 92) && ((p)[1] != 0)) {
+                    ParserPost2(*(p))
+                } else {
+                    if (cast(s32)(cast(s8)((p)[0])) == quote) {
+                        quote = 0
+                    }
+                }
+                ParserPost2(*(p))
+                continue loop_43
+            }
+            if ((cast(s32)(cast(s8)((p)[0])) == 34) || (cast(s32)(cast(s8)((p)[0])) == 39)) {
+                quote = cast(s32)(cast(s8)((p)[0]))
+                ParserPost2(*(p))
+                continue loop_43
+            }
+            if (cast(s32)(cast(s8)((p)[0])) == 123) {
+                ParserPost0(*(depth))
+            }
+            if ((cast(s32)(cast(s8)((p)[0])) == 125) && (ParserPre6(*(depth)) == 0)) {
+                close = p
+                break loop_43
+            }
+            ParserPost2(*(p))
+        }
+    }
+    if (close == cast(*u8)((null))) {
+        return
+    }
+    tail: *u8 = skip_ws(cast(*u8)(cast(usize)(close) + cast(usize)(1) * size_of(u8)))
+    if ((cast(s32)(cast(s8)((tail)[0])) != 0) && (strcmp(tail, ParserCString(";")) != 0)) {
+        return
+    }
+    memset(cast(*void)(*((buffers).type)), 0, cast(usize)size_of(IR.ZirType))
+    name_length: usize = cast(usize)(((cast(isize)(cast(usize)(colons) - cast(usize)(source)) / cast(isize)size_of(u8))))
+    if ((name_length == cast(usize)(0)) || (name_length >= cast(usize)size_of(ParserArray128_u8))) {
+        return
+    }
+    memcpy(cast(*void)(cast(*u8)(*(((buffers).type).name))), cast(*void)(source), name_length)
+    (((buffers).type).name)[name_length] = cast(u8)(0)
+    trim_in_place(cast(*u8)(*(((buffers).type).name)))
+    if !(is_identifier_text(cast(*u8)(*(((buffers).type).name))) != 0) {
+        return
+    }
+    ((buffers).type).span = Span(rel, line_no, 1)
+    ((buffers).type).is_public = scope_public
+    ((buffers).type).is_file_private = scope_file
+    ((buffers).type).is_union = starts_word(after, ParserCString("union"))
+    ((buffers).type).is_enum_flags = starts_word(after, ParserCString("enum_flags"))
+    ((buffers).type).is_enum = cast(s32)((((buffers).type).is_enum_flags != 0) || (starts_word(after, ParserCString("enum")) != 0))
+    if (((buffers).type).is_enum != 0) {
+        parse_enum_backing(*((buffers).type), after)
+    }
+    if (!(((buffers).type).is_enum != 0) && !(parse_type_parameters(after, (ifx (((buffers).type).is_union != 0) then ParserCString("union") else ParserCString("struct")), cast(*u8)(*(((buffers).type).template_params)), cast(usize)size_of(ParserArray128_u8)) != 0)) {
+        return
+    }
+    ((buffers).type).is_record_template = cast(s32)(cast(s32)(cast(s8)((((buffers).type).template_params)[0])) != 0)
+    body_length: usize = cast(usize)((((cast(isize)(cast(usize)(close) - cast(usize)(open)) / cast(isize)size_of(u8)) - cast(isize)(1))))
+    if (body_length >= cast(usize)size_of(ParserArray8192_u8)) {
+        return
+    }
+    memcpy(cast(*void)(cast(*u8)(*(((buffers).type).body))), cast(*void)(cast(*u8)(cast(usize)(open) + cast(usize)(1) * size_of(u8))), body_length)
+    (((buffers).type).body)[body_length] = cast(u8)(0)
+    if (((buffers).type).is_enum != 0) {
+        if (((buffers).type).is_enum_flags != 0) {
+            {
+                i: usize = cast(usize)(0)
+                while loop_44 := (i < body_length) {
+                    if (cast(s32)(cast(s8)((((buffers).type).body)[i])) == 59) {
+                        (((buffers).type).body)[i] = cast(u8)(10)
+                    }
+                    ParserPost5(*(i))
+                }
+            }
+            lower_enum_values(*((buffers).type))
+        } else {
+            used: usize = cast(usize)(0)
+            {
+                p: *u8 = cast(*u8)(*(((buffers).type).body))
+                while loop_45 := ((p)[0] != 0) {
+                    if ((cast(s32)(cast(s8)((p)[0])) == 58) && (cast(s32)(cast(s8)((p)[1])) == 58)) {
+                        if ((used + cast(usize)(3)) >= cast(usize)size_of(ParserArray8192_u8)) {
+                            return
+                        }
+                        memcpy(cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).lowered).items))) + cast(usize)(used) * size_of(u8))), cast(*void)(ParserCString(" = ")), cast(usize)(3))
+                        used += cast(usize)(3)
+                        ParserPost2(*(p))
+                    } else {
+                        if ((used + cast(usize)(1)) >= cast(usize)size_of(ParserArray8192_u8)) {
+                            return
+                        }
+                        ((buffers).lowered).items[ParserPost5(*(used))] = cast(u8)((ifx (cast(s32)(cast(s8)((p)[0])) == 59) then 10 else cast(s32)(cast(s8)((p)[0]))))
+                    }
+                    ParserPost2(*(p))
+                }
+            }
+            ((buffers).lowered).items[used] = cast(u8)(0)
+            copy_text(cast(*u8)(*(((buffers).type).body)), cast(usize)size_of(ParserArray8192_u8), cast(*u8)(*(((buffers).lowered).items)))
+            if !(EnumMemberValue(*((buffers).type), null, null) != 0) {
+                return
+            }
+            canonical_enum_values(*((buffers).type))
+        }
+    } else {
+        if (((buffers).type).is_record_template != 0) {
+            normalize_record_separators(cast(*u8)(*(((buffers).type).body)), 0)
+        }
+    }
+    if (!(((buffers).type).is_enum != 0) && !(take_abi_incomplete(*((buffers).type)) != 0)) {
+        return
+    }
+    if !(take_go_anonymous(*((buffers).type)) != 0) {
+        return
+    }
+    if !(expand_type_this(*((buffers).type)) != 0) {
+        return
+    }
+    if ((future).count == (future).capacity) {
+        capacity: s32 = (ifx ((future).capacity > 0) then ((future).capacity * 2) else 8)
+        items: *IR.ZirType = cast(*IR.ZirType)(CompilerRealloc(cast(*void)((future).items), (cast(usize)(capacity) * cast(usize)size_of(IR.ZirType))))
+        if (items == cast(*IR.ZirType)((null))) {
+            die(ParserCString("out of memory discovering types"))
+            unreachable
+        }
+        (future).items = items
+        (future).capacity = capacity
+    }
+    ((future).items)[ParserPost0(*((future).count))] = (buffers).type
+}
+
+#scope_file
+discover_named_type :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, future: *ZirTypes, uses_resizable_arrays: *s32) {
+    buffers := cast(*DiscoverNamedTypeBuffers)ParserScratchTake(*discover_named_type_scratch, size_of(DiscoverNamedTypeBuffers))
+    defer ParserScratchRelease(*discover_named_type_scratch, cast(*void)buffers)
+    discover_named_type_with_buffers(source, path, rel, line_no, scope_public, scope_file, future, buffers, uses_resizable_arrays)
+}
+
+#scope_file
+append_type_source :: (target: *u8, capacity: usize, line: *u8, overflow: *s32) {
+    if ((overflow)[0] != 0) {
+        return
+    }
+    length: usize = strlen(target)
+    addition: usize = strlen(line)
+    if (((length + addition) + cast(usize)(2)) >= capacity) {
+        ParserSet1(overflow, 1)
+        return
+    }
+    memcpy(cast(*void)(cast(*u8)(cast(usize)(target) + cast(usize)(length) * size_of(u8))), cast(*void)(line), addition)
+    (target)[(length + addition)] = cast(u8)(10)
+    (target)[((length + addition) + cast(usize)(1))] = cast(u8)(0)
+}
+
+#scope_file
+defer_conditional_type :: (deferred: *ZirDeferredTypes, source: *u8, path: *u8, rel: *u8, line: s32, is_public: s32, is_file_private: s32) {
+    if ((deferred).count == (deferred).capacity) {
+        capacity: s32 = (ifx ((deferred).capacity > 0) then ((deferred).capacity * 2) else 8)
+        items: *ZirDeferredType = cast(*ZirDeferredType)(CompilerRealloc(cast(*void)((deferred).items), (cast(usize)(capacity) * cast(usize)size_of(ZirDeferredType))))
+        if (items == cast(*ZirDeferredType)((null))) {
+            die(ParserCString("out of memory discovering conditional types"))
+            unreachable
+        }
+        (deferred).items = items
+        (deferred).capacity = capacity
+    }
+    item: *ZirDeferredType = cast(*ZirDeferredType)(cast(usize)((deferred).items) + cast(usize)(ParserPost0(*((deferred).count))) * size_of(ZirDeferredType))
+    memset(cast(*void)(item), 0, cast(usize)size_of(ZirDeferredType))
+    (item).source = CompilerStrdup(source)
+    (item).path = CompilerStrdup(path)
+    if (((item).source == cast(*u8)((null))) || ((item).path == cast(*u8)((null)))) {
+        die(ParserCString("out of memory discovering conditional types"))
+        unreachable
+    }
+    copy_text(cast(*u8)(*(((item).rel).items)), cast(usize)size_of(ParserArray1024_u8), rel)
+    (item).line = line
+    (item).is_public = is_public
+    (item).is_file_private = is_file_private
+}
+
+#scope_export
+#program_export "private_parse_free_deferred_types"
+free_deferred_types :: (deferred: *ZirDeferredTypes) {
+    {
+        i: s32 = 0
+        while loop_46 := (i < (deferred).count) {
+            CompilerFree(cast(*void)((((deferred).items)[i]).source))
+            CompilerFree(cast(*void)((((deferred).items)[i]).path))
+            ParserPost0(*(i))
+        }
+    }
+    CompilerFree(cast(*void)((deferred).items))
+}
+
+#scope_file
+discover_function_header_with_buffers :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, future: *ZirFunctions, buffers: *DiscoverFunctionHeaderBuffers, uses_resizable_arrays: *s32) {
+    if (!(looks_like_function_header(source) != 0) || ((strchr(source, 123) == cast(*u8)((null))) && (strstr(source, ParserCString("#foreign")) == cast(*u8)((null))))) {
+        return
+    }
+    name_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)name_storage_0)
+    memset(cast(*void)name_storage_0, 0, size_of(ParserArray128_u8))
+    result_storage_1 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)result_storage_1)
+    memset(cast(*void)result_storage_1, 0, size_of(ParserArray128_u8))
+    copy_text(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray24576_u8), source)
+    normalize_jai_source_tokens(cast(*u8)(*(((buffers).line).items)), rel, path, line_no, uses_resizable_arrays)
+    if (closing_parenthesis(strchr(cast(*u8)(*(((buffers).line).items)), 40)) == cast(*u8)((null))) {
+        return
+    }
+    parse_function_header(cast(*u8)(*((name_storage_0[0]).items)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*(((buffers).args).items)), cast(usize)size_of(ParserArray4096_u8), cast(*u8)(*((result_storage_1[0]).items)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*(((buffers).line).items)))
+    if (!(is_identifier_text(cast(*u8)(*((name_storage_0[0]).items))) != 0) || (cast(s32)(cast(s8)((result_storage_1[0]).items[0])) == 0)) {
+        return
+    }
+    if ((future).count == (future).capacity) {
+        capacity: s32 = (ifx ((future).capacity > 0) then ((future).capacity * 2) else 8)
+        items: *IR.ZirFunction = cast(*IR.ZirFunction)(CompilerRealloc(cast(*void)((future).items), (cast(usize)(capacity) * cast(usize)size_of(IR.ZirFunction))))
+        if (items == cast(*IR.ZirFunction)((null))) {
+            die(ParserCString("out of memory discovering procedures"))
+            unreachable
+        }
+        (future).items = items
+        (future).capacity = capacity
+    }
+    function: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((future).items) + cast(usize)(ParserPost0(*((future).count))) * size_of(IR.ZirFunction))
+    memset(cast(*void)(function), 0, cast(usize)size_of(IR.ZirFunction))
+    copy_text(cast(*u8)(*((function).name)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((name_storage_0[0]).items)))
+    (function).args_text = KeepParameters(cast(*u8)(*(((buffers).args).items)))
+    copy_text(cast(*u8)(*((function).return_type)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((result_storage_1[0]).items)))
+    (function).span = Span(rel, line_no, 1)
+    (function).is_public = scope_public
+    (function).is_file_private = scope_file
+}
+
+#scope_file
+discover_function_header :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, future: *ZirFunctions, uses_resizable_arrays: *s32) {
+    buffers := cast(*DiscoverFunctionHeaderBuffers)ParserScratchTake(*discover_function_header_scratch, size_of(DiscoverFunctionHeaderBuffers))
+    defer ParserScratchRelease(*discover_function_header_scratch, cast(*void)buffers)
+    discover_function_header_with_buffers(source, path, rel, line_no, scope_public, scope_file, future, buffers, uses_resizable_arrays)
+}
+
+#scope_file
+discover_body_statement :: (function: *IR.ZirFunction, source: *u8, line: s32, block_header: s32, saw_return: *s32) -> s32 {
+    part: *u8 = trim(source)
+    if (cast(s32)(cast(s8)((part)[0])) == 0) {
+        return cast(s32)(!(block_header != 0))
+    }
+    kind: IR.ZirStmtKind = classify_stmt(part)
+    if (block_header != 0) {
+        if (((cast(s32)(kind) != 6) && (cast(s32)(kind) != 7)) && (cast(s32)(kind) != 1)) {
+            return 0
+        }
+    } else {
+        if ((((((cast(s32)(kind) != 3) && (cast(s32)(kind) != 4)) && (cast(s32)(kind) != 5)) && (cast(s32)(kind) != 10)) && (cast(s32)(kind) != 11)) && (cast(s32)(kind) != 12)) {
+            return 0
+        }
+    }
+    if (strlen(part) >= cast(usize)(4096)) {
+        return 0
+    }
+    if (FunctionAddStmt(function, kind, part, Span(SpanPath((function).span), line, 1)) == cast(*IR.ZirStmt)((null))) {
+        die(ParserCString("out of memory discovering procedure body"))
+        unreachable
+    }
+    if (cast(s32)(kind) == 10) {
+        ParserSet1(saw_return, 1)
+    }
+    return 1
+}
+
+#scope_file
+discover_compile_body :: (function: *IR.ZirFunction, body: *u8, start_line: s32) {
+    text: *u8
+    close: *u8
+    line: s32
+    statement_line: s32
+    nesting: s32
+    blocks: s32
+    quote: s32
+    saw_return: s32
+    statement: *u8
+    while goto_unsupported := true {
+        text = CompilerStrdup(body)
+        if (text == cast(*u8)((null))) {
+            die(ParserCString("out of memory discovering procedure body"))
+            unreachable
+        }
+        close = strrchr(text, 125)
+        if ((close == cast(*u8)((null))) || (cast(s32)(cast(s8)((skip_ws(cast(*u8)(cast(usize)(close) + cast(usize)(1) * size_of(u8))))[0])) != 0)) {
+            break goto_unsupported
+        }
+        ParserSet4(close, cast(u8)(0))
+        line = start_line
+        statement_line = start_line
+        nesting = 0
+        blocks = 0
+        quote = 0
+        saw_return = 0
+        statement = text
+        {
+            cursor: *u8 = text
+            while loop_47 := true {
+                byte: u8 = (cursor)[0]
+                if (quote != 0) {
+                    if ((cast(s32)(cast(s8)(byte)) == 92) && (cast(s32)(cast(s8)((cursor)[1])) != 0)) {
+                        ParserPost2(*(cursor))
+                        ParserPost2(*(cursor))
+                        continue loop_47
+                    }
+                    if (cast(s32)(cast(s8)(byte)) == quote) {
+                        quote = 0
+                    }
+                } else {
+                    if ((cast(s32)(cast(s8)(byte)) == 34) || (cast(s32)(cast(s8)(byte)) == 39)) {
+                        quote = cast(s32)(cast(s8)(byte))
+                    } else {
+                        if ((cast(s32)(cast(s8)(byte)) == 47) && (cast(s32)(cast(s8)((cursor)[1])) == 47)) {
+                            while loop_48 := ((cast(s32)(cast(s8)((cursor)[0])) != 0) && (cast(s32)(cast(s8)((cursor)[0])) != 10)) {
+                                ParserSet4(ParserPost2(*(cursor)), cast(u8)(32))
+                            }
+                            byte = (cursor)[0]
+                        } else {
+                            if ((cast(s32)(cast(s8)(byte)) == 40) || (cast(s32)(cast(s8)(byte)) == 91)) {
+                                ParserPost0(*(nesting))
+                            } else {
+                                if ((cast(s32)(cast(s8)(byte)) == 41) || (cast(s32)(cast(s8)(byte)) == 93)) {
+                                    if (ParserPre6(*(nesting)) < 0) {
+                                        break goto_unsupported
+                                    }
+                                } else {
+                                    if (cast(s32)(cast(s8)(byte)) == 123) {
+                                        if (nesting == 0) {
+                                            after: u8 = (cursor)[1]
+                                            (cursor)[1] = cast(u8)(0)
+                                            header: *u8 = trim(statement)
+                                            kind: IR.ZirStmtKind = classify_stmt(header)
+                                            control: s32 = cast(s32)(((cast(s32)(kind) == 6) || (cast(s32)(kind) == 7)) || (cast(s32)(kind) == 1))
+                                            if ((control != 0) && (!(discover_body_statement(function, header, statement_line, 1, *(saw_return)) != 0) || (ParserPre7(*(blocks)) > 32))) {
+                                                break goto_unsupported
+                                            }
+                                            (cursor)[1] = after
+                                            if (control != 0) {
+                                                statement = cast(*u8)(cast(usize)(cursor) + cast(usize)(1) * size_of(u8))
+                                                statement_line = line
+                                                ParserPost2(*(cursor))
+                                                continue loop_47
+                                            }
+                                        }
+                                        ParserPost0(*(nesting))
+                                    } else {
+                                        if (cast(s32)(cast(s8)(byte)) == 125) {
+                                            if (nesting > 0) {
+                                                ParserPost3(*(nesting))
+                                            } else {
+                                                if (blocks > 0) {
+                                                    ParserSet4(cursor, cast(u8)(0))
+                                                    if !(discover_body_statement(function, statement, statement_line, 0, *(saw_return)) != 0) {
+                                                        break goto_unsupported
+                                                    }
+                                                    if (FunctionAddStmt(function, cast(IR.ZirStmtKind)(2), ParserCString("}"), Span(SpanPath((function).span), line, 1)) == cast(*IR.ZirStmt)((null))) {
+                                                        die(ParserCString("out of memory discovering procedure body"))
+                                                        unreachable
+                                                    }
+                                                    ParserPost3(*(blocks))
+                                                    statement = cast(*u8)(cast(usize)(cursor) + cast(usize)(1) * size_of(u8))
+                                                    statement_line = line
+                                                    ParserPost2(*(cursor))
+                                                    continue loop_47
+                                                } else {
+                                                    break goto_unsupported
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if ((cast(s32)(cast(s8)(byte)) == 0) || ((((cast(s32)(cast(s8)(byte)) == 59) || (cast(s32)(cast(s8)(byte)) == 10)) && (quote == 0)) && (nesting == 0))) {
+                    ParserSet4(cursor, cast(u8)(0))
+                    if !(discover_body_statement(function, statement, statement_line, 0, *(saw_return)) != 0) {
+                        break goto_unsupported
+                    }
+                    statement = cast(*u8)(cast(usize)(cursor) + cast(usize)(1) * size_of(u8))
+                    statement_line = (line + (cast(s32)(cast(s32)(cast(s8)(byte)) == 10)))
+                }
+                if (cast(s32)(cast(s8)(byte)) == 10) {
+                    ParserPost0(*(line))
+                }
+                if (cast(s32)(cast(s8)(byte)) == 0) {
+                    break loop_47
+                }
+                ParserPost2(*(cursor))
+            }
+        }
+        if ((((quote != 0) || (nesting != 0)) || (blocks != 0)) || !(saw_return != 0)) {
+            break goto_unsupported
+        }
+        CompilerFree(cast(*void)(text))
+        return
+        break
+    }
+    CompilerFree(cast(*void)((function).stmts))
+    (function).stmts = null
+    (function).stmt_count = 0
+    (function).stmt_cap = 0
+    CompilerFree(cast(*void)(text))
+}
+
+#scope_file
+discover_typed_global :: (source: *u8, path: *u8, rel: *u8, line_no: s32, scope_public: s32, scope_file: s32, future: *ZirGlobals, uses_resizable_arrays: *s32) {
+    length: usize = strlen(source)
+    if (((((length == cast(usize)(0)) || (cast(s32)(cast(s8)((source)[(length - cast(usize)(1))])) != 59)) || (strchr(source, 58) == cast(*u8)((null)))) || (strstr(source, ParserCString("::")) != cast(*u8)((null)))) || (!(isalpha(cast(s32)(((cast(u8)((source)[0]))))) != 0) && (cast(s32)(cast(s8)((source)[0])) != 95))) {
+        return
+    }
+    line: *u8 = cast(*u8)(AllocateOrExit(cast(usize)(16384)))
+    parsed: IR.ZirModule = .{}
+    copy_text(line, cast(usize)(16384), source)
+    normalize_jai_source_tokens(line, rel, path, line_no, uses_resizable_arrays)
+    parse_file_global(*(parsed), line, Span(rel, line_no, 1), scope_public, scope_file, null, cast(usize)(0))
+    CompilerFree(cast(*void)(line))
+    if ((parsed).global_count != 1) {
+        CompilerFree(cast(*void)((parsed).globals))
+        return
+    }
+    if ((future).count == (future).capacity) {
+        capacity: s32 = (ifx ((future).capacity > 0) then ((future).capacity * 2) else 8)
+        items: *IR.ZirGlobal = cast(*IR.ZirGlobal)(CompilerRealloc(cast(*void)((future).items), (cast(usize)(capacity) * cast(usize)size_of(IR.ZirGlobal))))
+        if (items == cast(*IR.ZirGlobal)((null))) {
+            die(ParserCString("out of memory discovering globals"))
+            unreachable
+        }
+        (future).items = items
+        (future).capacity = capacity
+    }
+    ((future).items)[ParserPost0(*((future).count))] = ((parsed).globals)[0]
+    CompilerFree(cast(*void)((parsed).globals))
+}
+
+#scope_file
+remember_discovered_file :: (files: *ZirDiscoveredFiles, path: *u8) -> s32 {
+    canonical: *u8 = CanonicalPath(path)
+    if (canonical == cast(*u8)((null))) {
+        canonical = CompilerStrdup(path)
+    }
+    if (canonical == cast(*u8)((null))) {
+        die(ParserCString("out of memory discovering loaded files"))
+        unreachable
+    }
+    {
+        i: s32 = 0
+        while loop_49 := (i < (files).count) {
+            if !(strcmp(((files).paths)[i], canonical) != 0) {
+                CompilerFree(cast(*void)(canonical))
+                return 0
+            }
+            ParserPost0(*(i))
+        }
+    }
+    if ((files).count == (files).capacity) {
+        capacity: s32 = (ifx ((files).capacity > 0) then ((files).capacity * 2) else 8)
+        paths: **u8 = cast(**u8)(CompilerRealloc(cast(*void)((files).paths), (cast(usize)(capacity) * cast(usize)size_of(*u8))))
+        if (paths == cast(**u8)((null))) {
+            die(ParserCString("out of memory discovering loaded files"))
+            unreachable
+        }
+        (files).paths = paths
+        (files).capacity = capacity
+    }
+    ((files).paths)[ParserPost0(*((files).count))] = canonical
+    return 1
+}
+
+#scope_export
+#program_export "private_parse_free_discovered_files"
+free_discovered_files :: (files: *ZirDiscoveredFiles) {
+    {
+        i: s32 = 0
+        while loop_50 := (i < (files).count) {
+            CompilerFree(cast(*void)(((files).paths)[i]))
+            ParserPost0(*(i))
+        }
+    }
+    CompilerFree(cast(*void)((files).paths))
+}
+
+#scope_export
+#program_export "private_parse_free_discovered_functions"
+free_discovered_functions :: (functions: *ZirFunctions) {
+    {
+        i: s32 = 0
+        while loop_51 := (i < (functions).count) {
+            CompilerFree(cast(*void)((((functions).items)[i]).stmts))
+            CompilerFree(cast(*void)((((functions).items)[i]).exprs))
+            ParserPost0(*(i))
+        }
+    }
+    CompilerFree(cast(*void)((functions).items))
+}
+
+#scope_file
+possible_function_header :: (line: *u8) -> s32 {
+    if (looks_like_function_header(line) != 0) {
+        return 1
+    }
+    colons: *u8 = strstr(line, ParserCString("::"))
+    if (colons == cast(*u8)((null))) {
+        return 0
+    }
+    body: *u8 = skip_ws(cast(*u8)(cast(usize)(colons) + cast(usize)(2) * size_of(u8)))
+    return cast(s32)((cast(s32)(cast(s8)((body)[0])) == 40) && (strchr(body, 59) == cast(*u8)((null))))
+}
+
+#scope_file
+discover_file_scope_with_buffers :: (source: *u8, path: *u8, rel: *u8, root: *u8, future_constants: *ZirConsts, future_usings: *ZirUsings, future_imports: *ZirImports, future_types: *ZirTypes, deferred_types: *ZirDeferredTypes, future_functions: *ZirFunctions, future_globals: *ZirGlobals, files: *ZirDiscoveredFiles, inserts: *ZirInserts, depth: s32, buffers: *DiscoverFileScopeBuffers, uses_resizable_arrays: *s32) {
+    if ((depth >= 32) || !(remember_discovered_file(files, path) != 0)) {
+        return
+    }
+    ((buffers).type_source).items[0] = cast(u8)(0)
+    ((buffers).function_source).items[0] = cast(u8)(0)
+    ((buffers).simple_body).items[0] = cast(u8)(0)
+    line_no: s32 = 0
+    comment_depth: s32 = 0
+    brace_depth: s32 = 0
+    scope_file: s32 = 0
+    scope_public: s32 = 1
+    collecting_type: s32 = 0
+    type_overflow: s32 = 0
+    type_start_line: s32 = 0
+    type_scope_file: s32 = 0
+    type_scope_public: s32 = 1
+    collecting_function: s32 = 0
+    function_overflow: s32 = 0
+    function_start_line: s32 = 0
+    function_scope_file: s32 = 0
+    function_scope_public: s32 = 1
+    simple_body_index: s32 = (-1)
+    simple_body_overflow: s32 = 0
+    simple_body_start_line: s32 = 0
+    while loop_52 := (read_source_line(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray16384_u8), *(source), path, line_no) != cast(*u8)((null))) {
+        ParserPost0(*(line_no))
+        strip_block_comments(cast(*u8)(*(((buffers).line).items)), *(comment_depth))
+        t: *u8 = trim(cast(*u8)(*(((buffers).line).items)))
+        brace_delta: s32 = net_block_braces(t)
+        if (simple_body_index >= 0) {
+            append_type_source(cast(*u8)(*(((buffers).simple_body).items)), cast(usize)size_of(ParserArray24576_u8), t, *(simple_body_overflow))
+            if ((brace_depth + brace_delta) == 0) {
+                if !(simple_body_overflow != 0) {
+                    discover_compile_body(cast(*IR.ZirFunction)(cast(usize)((future_functions).items) + cast(usize)(simple_body_index) * size_of(IR.ZirFunction)), cast(*u8)(*(((buffers).simple_body).items)), simple_body_start_line)
+                }
+                simple_body_index = (-1)
+            }
+        } else {
+            if ((collecting_type != 0) || ((brace_depth == 0) && (is_named_type_header(t) != 0))) {
+                if !(collecting_type != 0) {
+                    collecting_type = 1
+                    type_overflow = 0
+                    ((buffers).type_source).items[0] = cast(u8)(0)
+                    type_start_line = line_no
+                    type_scope_file = scope_file
+                    type_scope_public = scope_public
+                }
+                append_type_source(cast(*u8)(*(((buffers).type_source).items)), cast(usize)size_of(ParserArray24576_u8), t, *(type_overflow))
+                if ((strchr(cast(*u8)(*(((buffers).type_source).items)), 123) != cast(*u8)((null))) && ((brace_depth + brace_delta) == 0)) {
+                    if !(type_overflow != 0) {
+                        if (contains_source_directive(cast(*u8)(*(((buffers).type_source).items)), ParserCString("#if")) != 0) {
+                            defer_conditional_type(deferred_types, cast(*u8)(*(((buffers).type_source).items)), path, rel, type_start_line, type_scope_public, type_scope_file)
+                        } else {
+                            discover_named_type(cast(*u8)(*(((buffers).type_source).items)), path, rel, type_start_line, type_scope_public, type_scope_file, future_types, uses_resizable_arrays)
+                        }
+                    }
+                    collecting_type = 0
+                }
+            } else {
+                if ((collecting_function != 0) || ((brace_depth == 0) && (possible_function_header(t) != 0))) {
+                    if !(collecting_function != 0) {
+                        collecting_function = 1
+                        function_overflow = 0
+                        ((buffers).function_source).items[0] = cast(u8)(0)
+                        function_start_line = line_no
+                        function_scope_file = scope_file
+                        function_scope_public = scope_public
+                    }
+                    append_type_source(cast(*u8)(*(((buffers).function_source).items)), cast(usize)size_of(ParserArray24576_u8), t, *(function_overflow))
+                    closing: *u8 = (ifx (function_overflow != 0) then null else closing_parenthesis(strchr(cast(*u8)(*(((buffers).function_source).items)), 40)))
+                    if ((closing != cast(*u8)((null))) && ((opening_brace_outside_literals(cast(*u8)(cast(usize)(closing) + cast(usize)(1) * size_of(u8))) != cast(*u8)((null))) || (strstr(cast(*u8)(cast(usize)(closing) + cast(usize)(1) * size_of(u8)), ParserCString("#foreign")) != cast(*u8)((null))))) {
+                        previous: s32 = (future_functions).count
+                        discover_function_header(cast(*u8)(*(((buffers).function_source).items)), path, rel, function_start_line, function_scope_public, function_scope_file, future_functions, uses_resizable_arrays)
+                        open: *u8 = opening_brace_outside_literals(cast(*u8)(cast(usize)(closing) + cast(usize)(1) * size_of(u8)))
+                        if ((open != cast(*u8)((null))) && ((future_functions).count > previous)) {
+                            simple_body_index = previous
+                            simple_body_overflow = 0
+                            simple_body_start_line = line_no
+                            ((buffers).simple_body).items[0] = cast(u8)(0)
+                            append_type_source(cast(*u8)(*(((buffers).simple_body).items)), cast(usize)size_of(ParserArray24576_u8), cast(*u8)(cast(usize)(open) + cast(usize)(1) * size_of(u8)), *(simple_body_overflow))
+                            if ((brace_depth + brace_delta) == 0) {
+                                if !(simple_body_overflow != 0) {
+                                    discover_compile_body(cast(*IR.ZirFunction)(cast(usize)((future_functions).items) + cast(usize)(simple_body_index) * size_of(IR.ZirFunction)), cast(*u8)(*(((buffers).simple_body).items)), simple_body_start_line)
+                                }
+                                simple_body_index = (-1)
+                            }
+                        }
+                        collecting_function = 0
+                    } else {
+                        if (((closing != cast(*u8)((null))) && (strchr(cast(*u8)(cast(usize)(closing) + cast(usize)(1) * size_of(u8)), 59) != cast(*u8)((null)))) || ((function_overflow != 0) && (strchr(t, 123) != cast(*u8)((null))))) {
+                            collecting_function = 0
+                        }
+                    }
+                } else {
+                    if (brace_depth == 0) {
+                        if !(strcmp(t, ParserCString("#scope_file")) != 0) {
+                            scope_file = 1
+                            scope_public = 0
+                        } else {
+                            if (!(strcmp(t, ParserCString("#scope_module")) != 0) || !(strcmp(t, ParserCString("#scope_export")) != 0)) {
+                                scope_file = 0
+                                scope_public = cast(s32)(!(strcmp(t, ParserCString("#scope_export")) != 0))
+                            } else {
+                                if (starts_word(t, ParserCString("#insert")) != 0) {
+                                    name_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+                                    defer CompilerFree(cast(*void)name_storage_0)
+                                    memset(cast(*void)name_storage_0, 0, size_of(ParserArray128_u8))
+                                    parse_insert_line(t, cast(*u8)(*((name_storage_0[0]).items)), cast(usize)size_of(ParserArray128_u8), Span(rel, line_no, 1))
+                                    if (inserts != cast(*ZirInserts)((null))) {
+                                        if ((inserts).count == (inserts).capacity) {
+                                            capacity: s32 = (ifx ((inserts).capacity > 0) then ((inserts).capacity * 2) else 4)
+                                            items: *ZirInsert = cast(*ZirInsert)(CompilerRealloc(cast(*void)((inserts).items), (cast(usize)(capacity) * cast(usize)size_of(ZirInsert))))
+                                            if (items == cast(*ZirInsert)((null))) {
+                                                die(ParserCString("out of memory discovering #insert"))
+                                                unreachable
+                                            }
+                                            (inserts).items = items
+                                            (inserts).capacity = capacity
+                                        }
+                                        insert: *ZirInsert = cast(*ZirInsert)(cast(usize)((inserts).items) + cast(usize)(ParserPost0(*((inserts).count))) * size_of(ZirInsert))
+                                        memset(cast(*void)(insert), 0, cast(usize)size_of(ZirInsert))
+                                        copy_text(cast(*u8)(*(((insert).name).items)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((name_storage_0[0]).items)))
+                                        copy_text(cast(*u8)(*(((insert).rel).items)), cast(usize)size_of(ParserArray1024_u8), rel)
+                                        (insert).line = line_no
+                                    }
+                                } else {
+                                    if (starts_word(t, ParserCString("#load")) != 0) {
+                                        argument: *u8 = skip_ws(cast(*u8)(cast(usize)(t) + cast(usize)(strlen(ParserCString("#load"))) * size_of(u8)))
+                                        end: *u8 = (ifx (cast(s32)(cast(s8)((argument)[0])) == 34) then strchr(cast(*u8)(cast(usize)(argument) + cast(usize)(1) * size_of(u8)), 34) else null)
+                                        if ((end != cast(*u8)((null))) && !(strcmp(skip_ws(cast(*u8)(cast(usize)(end) + cast(usize)(1) * size_of(u8))), ParserCString(";")) != 0)) {
+                                            length: usize = cast(usize)((((cast(isize)(cast(usize)(end) - cast(usize)(argument)) / cast(isize)size_of(u8)) - cast(isize)(1))))
+                                            if ((length > cast(usize)(3)) && (length < cast(usize)size_of(ParserArray1024_u8))) {
+                                                memcpy(cast(*void)(cast(*u8)(*(((buffers).requested).items))), cast(*void)(cast(*u8)(cast(usize)(argument) + cast(usize)(1) * size_of(u8))), length)
+                                                ((buffers).requested).items[length] = cast(u8)(0)
+                                                if ((!(PathIsAbsolute(cast(*u8)(*(((buffers).requested).items))) != 0) && !(strcmp(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).requested).items))) + cast(usize)(length) * size_of(u8))) - cast(usize)(3) * size_of(u8)), ParserCString(".zi")) != 0)) && (strchr(cast(*u8)(*(((buffers).requested).items)), 92) == cast(*u8)((null)))) {
+                                                    slash: *u8 = strrchr(path, 47)
+                                                    written: s32 = (ifx (slash == cast(*u8)((null))) then snprintf(cast(*u8)(*(((buffers).candidate).items)), cast(usize)size_of(ParserArray2048_u8), ParserCString("%s"), cast(*u8)(*(((buffers).requested).items))) else snprintf(cast(*u8)(*(((buffers).candidate).items)), cast(usize)size_of(ParserArray2048_u8), ParserCString("%.*s/%s"), cast(s32)(((cast(isize)(cast(usize)(slash) - cast(usize)(path)) / cast(isize)size_of(u8)))), path, cast(*u8)(*(((buffers).requested).items))))
+                                                    if ((written > 0) && (cast(usize)(written) < cast(usize)size_of(ParserArray2048_u8))) {
+                                                        loaded_path: *u8 = CanonicalPath(cast(*u8)(*(((buffers).candidate).items)))
+                                                        if (loaded_path != cast(*u8)((null))) {
+                                                            copy_text(cast(*u8)(*(((buffers).loaded_rel).items)), cast(usize)size_of(ParserArray1024_u8), relative_path(root, loaded_path))
+                                                            loaded: *u8 = read_lowered_source(loaded_path)
+                                                            discover_file_scope(loaded, loaded_path, cast(*u8)(*(((buffers).loaded_rel).items)), root, future_constants, future_usings, future_imports, future_types, deferred_types, future_functions, future_globals, files, inserts, (depth + 1), uses_resizable_arrays)
+                                                            CompilerFree(cast(*void)(loaded))
+                                                            CompilerFree(cast(*void)(loaded_path))
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        if (((starts_word(t, ParserCString("using")) != 0) || !(strncmp(t, ParserCString("using,"), cast(usize)(6)) != 0)) && (strstr(t, ParserCString("#import")) == cast(*u8)((null)))) {
+                                            binding: *u8 = skip_ws(cast(*u8)(cast(usize)(t) + cast(usize)(5) * size_of(u8)))
+                                            filter_storage_1 := cast(*ParserArray160_u8)AllocateOrExit(size_of(ParserArray160_u8))
+                                            defer CompilerFree(cast(*void)filter_storage_1)
+                                            memset(cast(*void)filter_storage_1, 0, size_of(ParserArray160_u8))
+                                            copy_text(cast(*u8)filter_storage_1, size_of(ParserArray160_u8), ParserCString(""))
+                                            parse_using_modifiers(*(binding), cast(*u8)(*((filter_storage_1[0]).items)), cast(usize)size_of(ParserArray160_u8), rel, line_no)
+                                            length: usize = strlen(binding)
+                                            if ((((length > cast(usize)(1)) && (cast(s32)(cast(s8)((binding)[(length - cast(usize)(1))])) == 59)) && (length < cast(usize)(128))) && (strchr(binding, 58) == cast(*u8)((null)))) {
+                                                name_storage_2 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+                                                defer CompilerFree(cast(*void)name_storage_2)
+                                                memset(cast(*void)name_storage_2, 0, size_of(ParserArray128_u8))
+                                                memcpy(cast(*void)(cast(*u8)(*((name_storage_2[0]).items))), cast(*void)(binding), (length - cast(usize)(1)))
+                                                (name_storage_2[0]).items[(length - cast(usize)(1))] = cast(u8)(0)
+                                                trim_in_place(cast(*u8)(*((name_storage_2[0]).items)))
+                                                if (is_member_path_text(cast(*u8)(*((name_storage_2[0]).items))) != 0) {
+                                                    if ((future_usings).count == (future_usings).capacity) {
+                                                        capacity: s32 = (ifx ((future_usings).capacity > 0) then ((future_usings).capacity * 2) else 8)
+                                                        items: *IR.ZirUsing = cast(*IR.ZirUsing)(CompilerRealloc(cast(*void)((future_usings).items), (cast(usize)(capacity) * cast(usize)size_of(IR.ZirUsing))))
+                                                        if (items == cast(*IR.ZirUsing)((null))) {
+                                                            die(ParserCString("out of memory discovering using declarations"))
+                                                            unreachable
+                                                        }
+                                                        (future_usings).items = items
+                                                        (future_usings).capacity = capacity
+                                                    }
+                                                    using_local: *IR.ZirUsing = cast(*IR.ZirUsing)(cast(usize)((future_usings).items) + cast(usize)(ParserPost0(*((future_usings).count))) * size_of(IR.ZirUsing))
+                                                    memset(cast(*void)(using_local), 0, cast(usize)size_of(IR.ZirUsing))
+                                                    copy_text(cast(*u8)(*((using_local).path)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((name_storage_2[0]).items)))
+                                                    copy_text(cast(*u8)(*((using_local).filter)), cast(usize)size_of(ParserArray160_u8), cast(*u8)(*((filter_storage_1[0]).items)))
+                                                    (using_local).is_file_private = scope_file
+                                                    (using_local).span = Span(rel, line_no, 1)
+                                                }
+                                            }
+                                        } else {
+                                            discover_typed_global(t, path, rel, line_no, scope_public, scope_file, future_globals, uses_resizable_arrays)
+                                            colons: *u8 = strstr(t, ParserCString("::"))
+                                            declaration: *u8 = (ifx (colons != cast(*u8)((null))) then skip_ws(cast(*u8)(cast(usize)(colons) + cast(usize)(2) * size_of(u8))) else t)
+                                            if ((starts_word(declaration, ParserCString("#type")) != 0) && (starts_word(skip_ws(cast(*u8)(cast(usize)(declaration) + cast(usize)(strlen(ParserCString("#type"))) * size_of(u8))), ParserCString("#foreign")) != 0)) {
+                                                name_storage_3 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+                                                defer CompilerFree(cast(*void)name_storage_3)
+                                                memset(cast(*void)name_storage_3, 0, size_of(ParserArray128_u8))
+                                                if (parse_symbol_before_colons(t, cast(*u8)(*((name_storage_3[0]).items)), cast(usize)size_of(ParserArray128_u8)) != 0) {
+                                                    if ((future_types).count == (future_types).capacity) {
+                                                        capacity: s32 = (ifx ((future_types).capacity > 0) then ((future_types).capacity * 2) else 8)
+                                                        items: *IR.ZirType = cast(*IR.ZirType)(CompilerRealloc(cast(*void)((future_types).items), (cast(usize)(capacity) * cast(usize)size_of(IR.ZirType))))
+                                                        if (items == cast(*IR.ZirType)((null))) {
+                                                            die(ParserCString("out of memory discovering foreign types"))
+                                                            unreachable
+                                                        }
+                                                        (future_types).items = items
+                                                        (future_types).capacity = capacity
+                                                    }
+                                                    type: *IR.ZirType = cast(*IR.ZirType)(cast(usize)((future_types).items) + cast(usize)(ParserPost0(*((future_types).count))) * size_of(IR.ZirType))
+                                                    memset(cast(*void)(type), 0, cast(usize)size_of(IR.ZirType))
+                                                    copy_text(cast(*u8)(*((type).name)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((name_storage_3[0]).items)))
+                                                    (type).is_extern = 1
+                                                    (type).is_public = scope_public
+                                                    (type).is_file_private = scope_file
+                                                    (type).span = Span(rel, line_no, 1)
+                                                }
+                                            }
+                                            if ((starts_word(declaration, ParserCString("#import")) != 0) || !(strncmp(declaration, ParserCString("#import,"), cast(usize)(8)) != 0)) {
+                                                mode: *u8 = skip_ws(cast(*u8)(cast(usize)(declaration) + cast(usize)(7) * size_of(u8)))
+                                                string_import: s32 = 0
+                                                if (cast(s32)(cast(s8)((mode)[0])) == 44) {
+                                                    string_import = starts_word(skip_ws(cast(*u8)(cast(usize)(mode) + cast(usize)(1) * size_of(u8))), ParserCString("string"))
+                                                }
+                                                if !(string_import != 0) {
+                                                    memset(cast(*void)(*((buffers).discovered)), 0, cast(usize)size_of(IR.ZirModule))
+                                                    if ((parse_import_line(*((buffers).discovered), rel, line_no, t, scope_public) != 0) && (((buffers).discovered).import_count > 0)) {
+                                                        if ((future_imports).count == (future_imports).capacity) {
+                                                            capacity: s32 = (ifx ((future_imports).capacity > 0) then ((future_imports).capacity * 2) else 8)
+                                                            items: *IR.ZirImport = cast(*IR.ZirImport)(CompilerRealloc(cast(*void)((future_imports).items), (cast(usize)(capacity) * cast(usize)size_of(IR.ZirImport))))
+                                                            if (items == cast(*IR.ZirImport)((null))) {
+                                                                die(ParserCString("out of memory discovering imports"))
+                                                                unreachable
+                                                            }
+                                                            (future_imports).items = items
+                                                            (future_imports).capacity = capacity
+                                                        }
+                                                        import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((future_imports).items) + cast(usize)(ParserPost0(*((future_imports).count))) * size_of(IR.ZirImport))
+                                                        ParserSet8(import_local, (((buffers).discovered).imports)[0])
+                                                        (import_local).is_file_private = scope_file
+                                                    }
+                                                    CompilerFree(cast(*void)(((buffers).discovered).imports))
+                                                }
+                                            }
+                                            if (((colons != cast(*u8)((null))) && !(brace_outside_literals(t) != 0)) && !(looks_like_function_header(t) != 0)) {
+                                                name_storage_4 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+                                                defer CompilerFree(cast(*void)name_storage_4)
+                                                memset(cast(*void)name_storage_4, 0, size_of(ParserArray128_u8))
+                                                name_length: usize = cast(usize)(((cast(isize)(cast(usize)(colons) - cast(usize)(t)) / cast(isize)size_of(u8))))
+                                                expr: *u8 = skip_ws(cast(*u8)(cast(usize)(colons) + cast(usize)(2) * size_of(u8)))
+                                                expr_length: usize = strlen(expr)
+                                                while loop_53 := ((expr_length > cast(usize)(0)) && (isspace(cast(s32)(((cast(u8)((expr)[(expr_length - cast(usize)(1))]))))) != 0)) {
+                                                    ParserPost9(*(expr_length))
+                                                }
+                                                value_length: usize = expr_length
+                                                if ((value_length > cast(usize)(0)) && (cast(s32)(cast(s8)((expr)[(value_length - cast(usize)(1))])) == 59)) {
+                                                    ParserPost9(*(value_length))
+                                                }
+                                                table: *ZirConsts = (ifx ((cast(s32)(cast(s8)((expr)[0])) != 35) || (starts_word(expr, ParserCString("#defined")) != 0)) then future_constants else (ifx ((starts_word(expr, ParserCString("#run")) != 0) && (inserts != cast(*ZirInserts)((null)))) then *((inserts).runs) else null))
+                                                if (((((table != cast(*ZirConsts)((null))) && (name_length > cast(usize)(0))) && (name_length < cast(usize)size_of(ParserArray128_u8))) && (value_length > cast(usize)(0))) && (value_length < cast(usize)(4096))) {
+                                                    memcpy(cast(*void)(cast(*u8)(*((name_storage_4[0]).items))), cast(*void)(t), name_length)
+                                                    (name_storage_4[0]).items[name_length] = cast(u8)(0)
+                                                    trim_in_place(cast(*u8)(*((name_storage_4[0]).items)))
+                                                    if (is_identifier_text(cast(*u8)(*((name_storage_4[0]).items))) != 0) {
+                                                        if ((table).count == (table).capacity) {
+                                                            capacity: s32 = (ifx ((table).capacity > 0) then ((table).capacity * 2) else 16)
+                                                            items: *ZirConst = cast(*ZirConst)(CompilerRealloc(cast(*void)((table).items), (cast(usize)(capacity) * cast(usize)size_of(ZirConst))))
+                                                            if (items == cast(*ZirConst)((null))) {
+                                                                die(ParserCString("out of memory discovering constants"))
+                                                                unreachable
+                                                            }
+                                                            (table).items = items
+                                                            (table).capacity = capacity
+                                                        }
+                                                        constant: *ZirConst = cast(*ZirConst)(cast(usize)((table).items) + cast(usize)(ParserPost0(*((table).count))) * size_of(ZirConst))
+                                                        memset(cast(*void)(constant), 0, cast(usize)size_of(ZirConst))
+                                                        copy_text(cast(*u8)(*(((constant).name).items)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((name_storage_4[0]).items)))
+                                                        expr_text: *u8 = cast(*u8)(AllocateOrExit((value_length + cast(usize)(1))))
+                                                        memcpy(cast(*void)(expr_text), cast(*void)(expr), value_length)
+                                                        (expr_text)[value_length] = cast(u8)(0)
+                                                        trim_in_place(expr_text)
+                                                        (constant).expr = KeepText(expr_text)
+                                                        CompilerFree(cast(*void)(expr_text))
+                                                        copy_text(cast(*u8)(*(((constant).path).items)), cast(usize)size_of(ParserArray1024_u8), rel)
+                                                        (constant).is_file_private = scope_file
+                                                        (constant).source_line = line_no
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        brace_depth += brace_delta
+        if (brace_depth < 0) {
+            brace_depth = 0
+        }
+    }
+}
+
+#scope_export
+#program_export "private_parse_discover_file_scope"
+discover_file_scope :: (source: *u8, path: *u8, rel: *u8, root: *u8, future_constants: *ZirConsts, future_usings: *ZirUsings, future_imports: *ZirImports, future_types: *ZirTypes, deferred_types: *ZirDeferredTypes, future_functions: *ZirFunctions, future_globals: *ZirGlobals, files: *ZirDiscoveredFiles, inserts: *ZirInserts, depth: s32, uses_resizable_arrays: *s32) {
+    buffers := cast(*DiscoverFileScopeBuffers)ParserScratchTake(*discover_file_scope_scratch, size_of(DiscoverFileScopeBuffers))
+    defer ParserScratchRelease(*discover_file_scope_scratch, cast(*void)buffers)
+    discover_file_scope_with_buffers(source, path, rel, root, future_constants, future_usings, future_imports, future_types, deferred_types, future_functions, future_globals, files, inserts, depth, buffers, uses_resizable_arrays)
+}
+
+#scope_file
+insert_constant :: (consts: *ZirConsts, future: *ZirConsts, runs: *ZirConsts, name: *u8, relative: *u8) -> *ZirConst {
+    tables_storage_0 := cast(*ParserArray3__ZirConsts)AllocateOrExit(size_of(ParserArray3__ZirConsts))
+    defer CompilerFree(cast(*void)tables_storage_0)
+    memset(cast(*void)tables_storage_0, 0, size_of(ParserArray3__ZirConsts))
+    tables_storage_0[0] = .{items = .{consts, future, runs}}
+    {
+        t: s32 = 0
+        while loop_54 := (t < 3) {
+            {
+                i: s32 = 0
+                while loop_55 := (i < ((tables_storage_0[0]).items[t]).count) {
+                    constant: *ZirConst = cast(*ZirConst)(cast(usize)(((tables_storage_0[0]).items[t]).items) + cast(usize)(i) * size_of(ZirConst))
+                    if (!(strcmp(cast(*u8)(*(((constant).name).items)), name) != 0) && (!((constant).is_file_private != 0) || !(strcmp(cast(*u8)(*(((constant).path).items)), relative) != 0))) {
+                        return constant
+                    }
+                    ParserPost0(*(i))
+                }
+            }
+            ParserPost0(*(t))
+        }
+    }
+    return null
+}
+
+#scope_export
+#program_export "private_parse_evaluate_inserts"
+evaluate_inserts :: (inserts: *ZirInserts, module: *IR.ZirModule, consts: *ZirConsts, future_constants: *ZirConsts, future_usings: *ZirUsings, future_imports: *ZirImports, future_types: *ZirTypes, deferred_types: *ZirDeferredTypes, future_functions: *ZirFunctions, future_globals: *ZirGlobals, files: *ZirDiscoveredFiles, context: *CompileParseContext, path: *u8, root: *u8, uses_resizable_arrays: *s32) {
+    {
+        i: s32 = 0
+        while loop_56 := (i < (inserts).count) {
+            insert: *ZirInsert = cast(*ZirInsert)(cast(usize)((inserts).items) + cast(usize)(i) * size_of(ZirInsert))
+            span: IR.ZirSourceSpan = Span(cast(*u8)(*(((insert).rel).items)), (insert).line, 1)
+            constant: *ZirConst = insert_constant(consts, future_constants, *((inserts).runs), cast(*u8)(*(((insert).name).items)), cast(*u8)(*(((insert).rel).items)))
+            if ((constant == cast(*ZirConst)((null))) || ((constant).expr == cast(*u8)((null)))) {
+                die_at(span, ParserCString("#insert needs a compile-time string constant; %s is not a constant"), cast(*u8)(*(((insert).name).items)))
+                unreachable
+            }
+            expr: *u8 = (constant).expr
+            if (starts_word(expr, ParserCString("#run")) != 0) {
+                expr = skip_ws(cast(*u8)(cast(usize)(expr) + cast(usize)(strlen(ParserCString("#run"))) * size_of(u8)))
+            }
+            visible_storage_0 := cast(*ZirConsts)AllocateOrExit(size_of(ZirConsts))
+            defer CompilerFree(cast(*void)visible_storage_0)
+            memset(cast(*void)visible_storage_0, 0, size_of(ZirConsts))
+            visible_storage_0[0] = visible_compile_constants(consts, future_constants)
+            scope: IR.ZirModule
+            visible_compile_module(module, context, *(visible_storage_0[0]), *scope)
+            expanded: *u8 = expand_compile_text(*(visible_storage_0[0]), expr, cast(*u8)(*(((insert).rel).items)))
+            if (expanded == cast(*u8)((null))) {
+                die(ParserCString("out of memory evaluating #insert"))
+                unreachable
+            }
+            value_storage_1 := cast(*CompileValue)AllocateOrExit(size_of(CompileValue))
+            defer CompilerFree(cast(*void)value_storage_1)
+            memset(cast(*void)value_storage_1, 0, size_of(CompileValue))
+            folded: s32 = 0
+            {
+                attempt: s32 = cast(s32)(strstr(expanded, ParserCString("size_of")) != cast(*u8)((null)))
+                while loop_57 := ((attempt < 2) && !(folded != 0)) {
+                    fuel: s32 = 8000000
+                    compile_value_clear(*(value_storage_1[0]))
+                    if (((attempt == 1) && ((context).resolver != cast(ZirCompileImportResolver)((null)))) && !((context).resolver((context).resolver_context, (context).program, *(scope), path, root, expanded) != 0)) {
+                        die_at(span, ParserCString("cannot resolve imports for #insert %s"), cast(*u8)(*(((insert).name).items)))
+                        unreachable
+                    }
+                    folded = cast(s32)((evaluate_typed_expression(*(scope), *(visible_storage_0[0]), expanded, span, 1, *(fuel), *(value_storage_1[0])) != 0) && (cast(u32)((value_storage_1[0]).kind) != cast(u32)(0)))
+                    ParserPost0(*(attempt))
+                }
+            }
+            CompilerFree(cast(*void)(expanded))
+            free_visible_compile_module(*(scope))
+            CompilerFree(cast(*void)((visible_storage_0[0]).items))
+            length: usize = cast(usize)(0)
+            bytes: *u8 = (ifx ((folded != 0) && (cast(u32)((value_storage_1[0]).kind) == cast(u32)(3))) then compile_string_bytes(*(value_storage_1[0]), *(length)) else null)
+            if (bytes == cast(*u8)((null))) {
+                die_at(span, ParserCString("#insert needs a compile-time string constant; %s is not one"), cast(*u8)(*(((insert).name).items)))
+                unreachable
+            }
+            if (memchr(cast(*void)(bytes), 0, length) != (null)) {
+                die_at(span, ParserCString("#insert source %s holds a NUL byte"), cast(*u8)(*(((insert).name).items)))
+                unreachable
+            }
+            (insert).text = cast(*u8)(AllocateOrExit((length + cast(usize)(2))))
+            memcpy(cast(*void)((insert).text), cast(*void)(bytes), length)
+            CompilerFree(cast(*void)(bytes))
+            if ((length == cast(usize)(0)) || (cast(s32)(cast(s8)(((insert).text)[(length - cast(usize)(1))])) != 10)) {
+                ((insert).text)[ParserPost5(*(length))] = cast(u8)(10)
+            }
+            ((insert).text)[length] = cast(u8)(0)
+            lowered: *u8 = lower_jai_multiline_strings((insert).text, cast(*u8)(*(((insert).rel).items)))
+            CompilerFree(cast(*void)((insert).text))
+            (insert).text = lowered
+            pseudo_storage_2 := cast(*ParserArray1056_u8)AllocateOrExit(size_of(ParserArray1056_u8))
+            defer CompilerFree(cast(*void)pseudo_storage_2)
+            memset(cast(*void)pseudo_storage_2, 0, size_of(ParserArray1056_u8))
+            snprintf(cast(*u8)(*((pseudo_storage_2[0]).items)), cast(usize)size_of(ParserArray1056_u8), ParserCString("%s#insert%d"), path, i)
+            discover_file_scope((insert).text, cast(*u8)(*((pseudo_storage_2[0]).items)), cast(*u8)(*(((insert).rel).items)), root, future_constants, future_usings, future_imports, future_types, deferred_types, future_functions, future_globals, files, null, 1, uses_resizable_arrays)
+            ParserPost0(*(i))
+        }
+    }
+}
+
+#scope_export
+#program_export "private_parse_free_inserts"
+free_inserts :: (inserts: *ZirInserts) {
+    {
+        i: s32 = 0
+        while loop_58 := (i < (inserts).count) {
+            CompilerFree(cast(*void)((((inserts).items)[i]).text))
+            ParserPost0(*(i))
+        }
+    }
+    CompilerFree(cast(*void)((inserts).items))
+    CompilerFree(cast(*void)(((inserts).runs).items))
+    ParserSet10(inserts, ZirInserts.{})
+}
+
+#scope_file
+discover_conditional_type_with_buffers :: (item: *ZirDeferredType, module: *IR.ZirModule, constants: *ZirConsts, context: *CompileParseContext, future: *ZirTypes, allow_defer: s32, buffers: *DiscoverConditionalTypeBuffers, uses_resizable_arrays: *s32) -> s32 {
+    source: *u8 = (item).source
+    ((buffers).selected).items[0] = cast(u8)(0)
+    memset(cast(*void)(cast(*ZirCondFrame)(*(((buffers).frames).items))), 0, cast(usize)size_of(ParserArray8_ZirCondFrame))
+    frame_count: s32 = 0
+    line_no: s32 = ((item).line - 1)
+    overflow: s32 = 0
+    while loop_59 := (read_source_line(cast(*u8)(*(((buffers).line).items)), cast(usize)size_of(ParserArray16384_u8), *(source), (item).path, line_no) != cast(*u8)((null))) {
+        pending: s32 = 0
+        ParserPost0(*(line_no))
+        text: *u8 = trim(cast(*u8)(*(((buffers).line).items)))
+        consumed: s32 = cond_top_step(text, cast(*ZirCondFrame)(*(((buffers).frames).items)), *(frame_count), module, constants, context, (item).path, cast(*u8)(*(((item).rel).items)), line_no, (ifx (allow_defer != 0) then *(pending) else null))
+        if (pending != 0) {
+            return 0
+        }
+        if ((consumed != 0) || ((frame_count > 0) && !((((buffers).frames).items[(frame_count - 1)]).active != 0))) {
+            continue loop_59
+        }
+        append_type_source(cast(*u8)(*(((buffers).selected).items)), cast(usize)size_of(ParserArray24576_u8), text, *(overflow))
+    }
+    if (!(overflow != 0) && (frame_count == 0)) {
+        discover_named_type(cast(*u8)(*(((buffers).selected).items)), (item).path, cast(*u8)(*(((item).rel).items)), (item).line, (item).is_public, (item).is_file_private, future, uses_resizable_arrays)
+    }
+    return 1
+}
+
+#scope_file
+discover_conditional_type :: (item: *ZirDeferredType, module: *IR.ZirModule, constants: *ZirConsts, context: *CompileParseContext, future: *ZirTypes, allow_defer: s32, uses_resizable_arrays: *s32) -> s32 {
+    buffers := cast(*DiscoverConditionalTypeBuffers)ParserScratchTake(*discover_conditional_type_scratch, size_of(DiscoverConditionalTypeBuffers))
+    defer ParserScratchRelease(*discover_conditional_type_scratch, cast(*void)buffers)
+    return discover_conditional_type_with_buffers(item, module, constants, context, future, allow_defer, buffers, uses_resizable_arrays)
+}
+
+#scope_export
+#program_export "private_parse_discover_conditional_types"
+discover_conditional_types :: (deferred: *ZirDeferredTypes, module: *IR.ZirModule, constants: *ZirConsts, context: *CompileParseContext, future: *ZirTypes, uses_resizable_arrays: *s32) {
+    done: *u8 = cast(*u8)(CompilerCalloc((cast(usize)((deferred).count) + cast(usize)(1)), cast(usize)(1)))
+    if (done == cast(*u8)((null))) {
+        die(ParserCString("out of memory discovering conditional types"))
+        unreachable
+    }
+    remaining: s32 = (deferred).count
+    while loop_60 := (remaining > 0) {
+        progress: s32 = 0
+        {
+            i: s32 = 0
+            while loop_61 := (i < (deferred).count) {
+                if ((done)[i] != 0) {
+                    ParserPost0(*(i))
+                    continue loop_61
+                }
+                if (discover_conditional_type(cast(*ZirDeferredType)(cast(usize)((deferred).items) + cast(usize)(i) * size_of(ZirDeferredType)), module, constants, context, future, 1, uses_resizable_arrays) != 0) {
+                    (done)[i] = cast(u8)(1)
+                    ParserPost3(*(remaining))
+                    ParserPost0(*(progress))
+                }
+                ParserPost0(*(i))
+            }
+        }
+        if (progress > 0) {
+            continue loop_60
+        }
+        {
+            i: s32 = 0
+            while loop_62 := (i < (deferred).count) {
+                if !((done)[i] != 0) {
+                    discover_conditional_type(cast(*ZirDeferredType)(cast(usize)((deferred).items) + cast(usize)(i) * size_of(ZirDeferredType)), module, constants, context, future, 0, uses_resizable_arrays)
+                    (done)[i] = cast(u8)(1)
+                    ParserPost3(*(remaining))
+                    break loop_62
+                }
+                ParserPost0(*(i))
+            }
+        }
+    }
+    CompilerFree(cast(*void)(done))
+}
+
+#scope_file
+canonical_enum_values_with_buffers :: (type: *IR.ZirType, buffers: *CanonicalEnumValuesBuffers) {
+    used: usize = cast(usize)(0)
+    cursor: *u8 = cast(*u8)(*((type).body))
+    if !(EnumMemberValue(type, null, null) != 0) {
+        die_at((type).span, ParserCString("invalid enum value or value outside backing type: %s"), cast(*u8)(*((type).name)))
+        unreachable
+    }
+    while loop_63 := ((cursor)[0] != 0) {
+        while loop_64 := ((cast(s32)(cast(s8)((cursor)[0])) == 44) || (isspace(cast(s32)(((cast(u8)((cursor)[0]))))) != 0)) {
+            ParserPost2(*(cursor))
+        }
+        if !((cursor)[0] != 0) {
+            break loop_63
+        }
+        start: *u8 = cursor
+        while loop_65 := ((isalnum(cast(s32)(((cast(u8)((cursor)[0]))))) != 0) || (cast(s32)(cast(s8)((cursor)[0])) == 95)) {
+            ParserPost2(*(cursor))
+        }
+        name_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+        defer CompilerFree(cast(*void)name_storage_0)
+        memset(cast(*void)name_storage_0, 0, size_of(ParserArray128_u8))
+        value: s64
+        length: usize = cast(usize)(((cast(isize)(cast(usize)(cursor) - cast(usize)(start)) / cast(isize)size_of(u8))))
+        if ((length == cast(usize)(0)) || (length >= cast(usize)size_of(ParserArray128_u8))) {
+            die_at((type).span, ParserCString("invalid enum member"))
+            unreachable
+        }
+        snprintf(cast(*u8)(*((name_storage_0[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%.*s"), cast(s32)(length), start)
+        if !(EnumMemberValue(type, cast(*u8)(*((name_storage_0[0]).items)), *(value)) != 0) {
+            die_at((type).span, ParserCString("invalid enum member: %s"), cast(*u8)(*((name_storage_0[0]).items)))
+            unreachable
+        }
+        written: s32 = snprintf(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).canonical).items))) + cast(usize)(used) * size_of(u8)), (cast(usize)size_of(ParserArray8192_u8) - used), ParserCString("%s = %lld\n"), cast(*u8)(*((name_storage_0[0]).items)), cast(s64)(value))
+        if ((written < 0) || (cast(usize)(written) >= (cast(usize)size_of(ParserArray8192_u8) - used))) {
+            die_at((type).span, ParserCString("enum body exceeds size limit"))
+            unreachable
+        }
+        used += cast(usize)(written)
+        while loop_66 := ((((cursor)[0] != 0) && (cast(s32)(cast(s8)((cursor)[0])) != 44)) && (cast(s32)(cast(s8)((cursor)[0])) != 10)) {
+            ParserPost2(*(cursor))
+        }
+        if ((cursor)[0] != 0) {
+            ParserPost2(*(cursor))
+        }
+    }
+    ((buffers).canonical).items[used] = cast(u8)(0)
+    copy_text(cast(*u8)(*((type).body)), cast(usize)size_of(ParserArray8192_u8), cast(*u8)(*(((buffers).canonical).items)))
+}
+
+#scope_file
+canonical_enum_values :: (type: *IR.ZirType) {
+    buffers := cast(*CanonicalEnumValuesBuffers)ParserScratchTake(*canonical_enum_values_scratch, size_of(CanonicalEnumValuesBuffers))
+    defer ParserScratchRelease(*canonical_enum_values_scratch, cast(*void)buffers)
+    canonical_enum_values_with_buffers(type, buffers)
+}
+
+#scope_file
+lower_enum_values_with_buffers :: (type: *IR.ZirType, buffers: *LowerEnumValuesBuffers) {
+    used: usize = cast(usize)(0)
+    {
+        p: *u8 = cast(*u8)(*((type).body))
+        while loop_67 := ((p)[0] != 0) {
+            if (((type).is_enum != 0) && (cast(s32)(cast(s8)((p)[0])) == 61)) {
+                die_at((type).span, ParserCString("enum members use Jai Member :: value syntax, not ="))
+                unreachable
+            }
+            if ((cast(s32)(cast(s8)((p)[0])) == 58) && (cast(s32)(cast(s8)((p)[1])) == 58)) {
+                if ((used + cast(usize)(3)) >= cast(usize)size_of(ParserArray8192_u8)) {
+                    die_at((type).span, ParserCString("enum body exceeds size limit"))
+                    unreachable
+                }
+                memcpy(cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).lowered).items))) + cast(usize)(used) * size_of(u8))), cast(*void)(ParserCString(" = ")), cast(usize)(3))
+                used += cast(usize)(3)
+                ParserPost2(*(p))
+            } else {
+                if ((used + cast(usize)(1)) >= cast(usize)size_of(ParserArray8192_u8)) {
+                    die_at((type).span, ParserCString("enum body exceeds size limit"))
+                    unreachable
+                }
+                ((buffers).lowered).items[ParserPost5(*(used))] = (p)[0]
+            }
+            ParserPost2(*(p))
+        }
+    }
+    ((buffers).lowered).items[used] = cast(u8)(0)
+    if ((type).is_enum_specified != 0) {
+        {
+            p: *u8 = cast(*u8)(*(((buffers).lowered).items))
+            while loop_68 := ((p)[0] != 0) {
+                end: *u8 = p
+                while loop_69 := ((((end)[0] != 0) && (cast(s32)(cast(s8)((end)[0])) != 10)) && (cast(s32)(cast(s8)((end)[0])) != 44)) {
+                    ParserPost2(*(end))
+                }
+                member: *u8 = p
+                while loop_70 := ((member < end) && (isspace(cast(s32)(((cast(u8)((member)[0]))))) != 0)) {
+                    ParserPost2(*(member))
+                }
+                if (member < end) {
+                    name: *u8 = member
+                    while loop_71 := ((member < end) && ((isalnum(cast(s32)(((cast(u8)((member)[0]))))) != 0) || (cast(s32)(cast(s8)((member)[0])) == 95))) {
+                        ParserPost2(*(member))
+                    }
+                    while loop_72 := ((member < end) && (isspace(cast(s32)(((cast(u8)((member)[0]))))) != 0)) {
+                        ParserPost2(*(member))
+                    }
+                    if (((member == name) || (member == end)) || (cast(s32)(cast(s8)((member)[0])) != 61)) {
+                        die_at((type).span, ParserCString("#specified enum requires an explicit value for every member"))
+                        unreachable
+                    }
+                }
+                p = (ifx ((end)[0] != 0) then cast(*u8)(cast(usize)(end) + cast(usize)(1) * size_of(u8)) else end)
+            }
+        }
+    }
+    if !((type).is_enum_flags != 0) {
+        copy_text(cast(*u8)(*((type).body)), cast(usize)size_of(ParserArray8192_u8), cast(*u8)(*(((buffers).lowered).items)))
+        if ((type).is_enum != 0) {
+            canonical_enum_values(type)
+        }
+        return
+    }
+    previous_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)previous_storage_0)
+    memset(cast(*void)previous_storage_0, 0, size_of(ParserArray128_u8))
+    copy_text(cast(*u8)previous_storage_0, size_of(ParserArray128_u8), ParserCString(""))
+    emitted: usize = cast(usize)(0)
+    {
+        p: *u8 = cast(*u8)(*(((buffers).lowered).items))
+        while loop_73 := ((p)[0] != 0) {
+            name_storage_1 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+            defer CompilerFree(cast(*void)name_storage_1)
+            memset(cast(*void)name_storage_1, 0, size_of(ParserArray128_u8))
+            end: *u8 = p
+            while loop_74 := ((((end)[0] != 0) && (cast(s32)(cast(s8)((end)[0])) != 10)) && (cast(s32)(cast(s8)((end)[0])) != 44)) {
+                ParserPost2(*(end))
+            }
+            if (cast(usize)(((cast(isize)(cast(usize)(end) - cast(usize)(p)) / cast(isize)size_of(u8)))) >= cast(usize)size_of(ParserArray4096_u8)) {
+                die_at((type).span, ParserCString("enum_flags member exceeds size limit"))
+                unreachable
+            }
+            snprintf(cast(*u8)(*(((buffers).member).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%.*s"), cast(s32)(((cast(isize)(cast(usize)(end) - cast(usize)(p)) / cast(isize)size_of(u8)))), p)
+            trim_in_place(cast(*u8)(*(((buffers).member).items)))
+            p = (ifx ((end)[0] != 0) then cast(*u8)(cast(usize)(end) + cast(usize)(1) * size_of(u8)) else end)
+            if (cast(s32)(cast(s8)(((buffers).member).items[0])) == 0) {
+                continue loop_73
+            }
+            n: usize = cast(usize)(0)
+            while loop_75 := ((isalnum(cast(s32)(((cast(u8)(((buffers).member).items[n]))))) != 0) || (cast(s32)(cast(s8)(((buffers).member).items[n])) == 95)) {
+                ParserPost5(*(n))
+            }
+            if (((n == cast(usize)(0)) || (n >= cast(usize)size_of(ParserArray128_u8))) || !((isalpha(cast(s32)(((cast(u8)(((buffers).member).items[0]))))) != 0) || (cast(s32)(cast(s8)(((buffers).member).items[0])) == 95))) {
+                die_at((type).span, ParserCString("invalid enum_flags member: %s"), cast(*u8)(*(((buffers).member).items)))
+                unreachable
+            }
+            snprintf(cast(*u8)(*((name_storage_1[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%.*s"), cast(s32)(n), cast(*u8)(*(((buffers).member).items)))
+            rest: *u8 = skip_ws(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).member).items))) + cast(usize)(n) * size_of(u8)))
+            written: s32
+            if (cast(s32)(cast(s8)((rest)[0])) == 61) {
+                written = snprintf(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).flags).items))) + cast(usize)(emitted) * size_of(u8)), (cast(usize)size_of(ParserArray8192_u8) - emitted), ParserCString("%s\n"), cast(*u8)(*(((buffers).member).items)))
+            } else {
+                if ((cast(s32)(cast(s8)((rest)[0])) == 0) && ((previous_storage_0[0]).items[0] != 0)) {
+                    written = snprintf(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).flags).items))) + cast(usize)(emitted) * size_of(u8)), (cast(usize)size_of(ParserArray8192_u8) - emitted), ParserCString("%s = %s << 1\n"), cast(*u8)(*((name_storage_1[0]).items)), cast(*u8)(*((previous_storage_0[0]).items)))
+                } else {
+                    if (cast(s32)(cast(s8)((rest)[0])) == 0) {
+                        written = snprintf(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).flags).items))) + cast(usize)(emitted) * size_of(u8)), (cast(usize)size_of(ParserArray8192_u8) - emitted), ParserCString("%s = 1\n"), cast(*u8)(*((name_storage_1[0]).items)))
+                    } else {
+                        die_at((type).span, ParserCString("invalid enum_flags member: %s"), cast(*u8)(*(((buffers).member).items)))
+                        unreachable
+                    }
+                }
+            }
+            if ((written < 0) || (cast(usize)(written) >= (cast(usize)size_of(ParserArray8192_u8) - emitted))) {
+                die_at((type).span, ParserCString("enum_flags body exceeds size limit"))
+                unreachable
+            }
+            emitted += cast(usize)(written)
+            copy_text(cast(*u8)(*((previous_storage_0[0]).items)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((name_storage_1[0]).items)))
+        }
+    }
+    ((buffers).flags).items[emitted] = cast(u8)(0)
+    copy_text(cast(*u8)(*((type).body)), cast(usize)size_of(ParserArray8192_u8), cast(*u8)(*(((buffers).flags).items)))
+    canonical_enum_values(type)
+}
+
+#scope_export
+#program_export "private_parse_lower_enum_values"
+lower_enum_values :: (type: *IR.ZirType) {
+    buffers := cast(*LowerEnumValuesBuffers)ParserScratchTake(*lower_enum_values_scratch, size_of(LowerEnumValuesBuffers))
+    defer ParserScratchRelease(*lower_enum_values_scratch, cast(*void)buffers)
+    lower_enum_values_with_buffers(type, buffers)
+}
+
+#scope_export
+#program_export "private_parse_parse_enum_backing"
+parse_enum_backing :: (type: *IR.ZirType, header: *u8) {
+    start: *u8 = skip_ws(cast(*u8)(cast(usize)(header) + cast(usize)(((ifx ((type).is_enum_flags != 0) then 10 else 4))) * size_of(u8)))
+    end: *u8 = strchr(start, 123)
+    backing_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)backing_storage_0)
+    memset(cast(*void)backing_storage_0, 0, size_of(ParserArray128_u8))
+    if (end == cast(*u8)((null))) {
+        end = cast(*u8)(cast(usize)(start) + cast(usize)(strlen(start)) * size_of(u8))
+    }
+    if (cast(usize)(((cast(isize)(cast(usize)(end) - cast(usize)(start)) / cast(isize)size_of(u8)))) >= cast(usize)size_of(ParserArray128_u8)) {
+        die_at((type).span, ParserCString("enum backing type exceeds size limit"))
+        unreachable
+    }
+    snprintf(cast(*u8)(*((backing_storage_0[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%.*s"), cast(s32)(((cast(isize)(cast(usize)(end) - cast(usize)(start)) / cast(isize)size_of(u8)))), start)
+    trim_in_place(cast(*u8)(*((backing_storage_0[0]).items)))
+    c_spelling: *u8 = strchr(cast(*u8)(*((backing_storage_0[0]).items)), 35)
+    while loop_76 := ((c_spelling != cast(*u8)((null))) && !((cast(s32)(cast(s8)((c_spelling)[1])) == 99) && (isspace(cast(s32)(((cast(u8)((c_spelling)[2]))))) != 0))) {
+        c_spelling = strchr(cast(*u8)(cast(usize)(c_spelling) + cast(usize)(1) * size_of(u8)), 35)
+    }
+    if (c_spelling != cast(*u8)((null))) {
+        prefix: ParserText = ParserTextView(Types.CSpelling(IR.CText(c_spelling)))
+        valid: s32 = cast(s32)(((((prefix).length > cast(usize)(0)) && ((prefix).length < cast(usize)size_of(ParserArray128_u8))) && !(isdigit(cast(s32)(((cast(u8)(((prefix).data)[0]))))) != 0)) && ((c_spelling == cast(*u8)(*((backing_storage_0[0]).items))) || (isspace(cast(s32)(((cast(u8)((c_spelling)[(-1)]))))) != 0)))
+        {
+            i: usize = cast(usize)(0)
+            while loop_77 := ((valid != 0) && (i < (prefix).length)) {
+                valid = cast(s32)((isalnum(cast(s32)(((cast(u8)(((prefix).data)[i]))))) != 0) || (cast(s32)(cast(s8)(((prefix).data)[i])) == 95))
+                ParserPost5(*(i))
+            }
+        }
+        if !(valid != 0) {
+            die_at((type).span, ParserCString("enum #c requires a C identifier prefix, last: #c \"PREFIX\""))
+            unreachable
+        }
+        snprintf(cast(*u8)(*((type).c_prefix)), cast(usize)size_of(ParserArray128_u8), ParserCString("%.*s"), cast(s32)((prefix).length), (prefix).data)
+        ParserSet4(c_spelling, cast(u8)(0))
+        trim_in_place(cast(*u8)(*((backing_storage_0[0]).items)))
+    }
+    directive: *u8 = strstr(cast(*u8)(*((backing_storage_0[0]).items)), ParserCString("#specified"))
+    if (directive != cast(*u8)((null))) {
+        after: *u8 = cast(*u8)(cast(usize)(directive) + cast(usize)(strlen(ParserCString("#specified"))) * size_of(u8))
+        if ((cast(s32)(cast(s8)((skip_ws(after))[0])) != 0) || ((directive > cast(*u8)(*((backing_storage_0[0]).items))) && !(isspace(cast(s32)(((cast(u8)((directive)[(-1)]))))) != 0))) {
+            die_at((type).span, ParserCString("invalid #specified enum modifier"))
+            unreachable
+        }
+        ParserSet4(directive, cast(u8)(0))
+        trim_in_place(cast(*u8)(*((backing_storage_0[0]).items)))
+        (type).is_enum_specified = 1
+    }
+    if (cast(s32)(cast(s8)((backing_storage_0[0]).items[0])) == 0) {
+        copy_text(cast(*u8)(*((backing_storage_0[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("s64"))
+    }
+    if ((((((((strcmp(cast(*u8)(*((backing_storage_0[0]).items)), ParserCString("s8")) != 0) && (strcmp(cast(*u8)(*((backing_storage_0[0]).items)), ParserCString("u8")) != 0)) && (strcmp(cast(*u8)(*((backing_storage_0[0]).items)), ParserCString("s16")) != 0)) && (strcmp(cast(*u8)(*((backing_storage_0[0]).items)), ParserCString("u16")) != 0)) && (strcmp(cast(*u8)(*((backing_storage_0[0]).items)), ParserCString("s32")) != 0)) && (strcmp(cast(*u8)(*((backing_storage_0[0]).items)), ParserCString("u32")) != 0)) && (strcmp(cast(*u8)(*((backing_storage_0[0]).items)), ParserCString("s64")) != 0)) && (strcmp(cast(*u8)(*((backing_storage_0[0]).items)), ParserCString("u64")) != 0)) {
+        die_at((type).span, ParserCString("enum requires an integer backing type: %s"), cast(*u8)(*((backing_storage_0[0]).items)))
+        unreachable
+    }
+    copy_text(cast(*u8)(*((type).enum_backing)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((backing_storage_0[0]).items)))
+}
+
+#scope_export
+#program_export "SubstituteGenericType"
+SubstituteGenericType :: (source: *u8, output: *u8, capacity: usize, params: *ParserArray128_u8, actual: *ParserArray128_u8, count: s32) -> s32 {
+    used: usize = cast(usize)(0)
+    while loop_78 := ((source)[0] != 0) {
+        replacement: *u8 = null
+        length: usize = cast(usize)(1)
+        if ((isalpha(cast(s32)(((cast(u8)((source)[0]))))) != 0) || (cast(s32)(cast(s8)((source)[0])) == 95)) {
+            while loop_79 := ((isalnum(cast(s32)(((cast(u8)((source)[length]))))) != 0) || (cast(s32)(cast(s8)((source)[length])) == 95)) {
+                ParserPost5(*(length))
+            }
+            {
+                i: s32 = 0
+                while loop_80 := (i < count) {
+                    if ((strlen(cast(*u8)(*((params)[i]).items[0])) == length) && (strncmp(source, cast(*u8)(*((params)[i]).items[0]), length) == 0)) {
+                        replacement = cast(*u8)(*((actual)[i]).items[0])
+                        break loop_80
+                    }
+                    ParserPost0(*(i))
+                }
+            }
+        }
+        if (replacement != cast(*u8)((null))) {
+            replacement_length: usize = strlen(replacement)
+            if ((used + replacement_length) >= capacity) {
+                return 0
+            }
+            memcpy(cast(*void)(cast(*u8)(cast(usize)(output) + cast(usize)(used) * size_of(u8))), cast(*void)(replacement), replacement_length)
+            used += replacement_length
+        } else {
+            if ((used + length) >= capacity) {
+                return 0
+            }
+            memcpy(cast(*void)(cast(*u8)(cast(usize)(output) + cast(usize)(used) * size_of(u8))), cast(*void)(source), length)
+            used += length
+        }
+        source = cast(*u8)(cast(usize)(source) + cast(usize)(length) * size_of(u8))
+    }
+    (output)[used] = cast(u8)(0)
+    return 1
+}
+
+#scope_file
+qualify_generic_field_type :: (type: *u8, out: *u8, size: usize, params: *ParserArray128_u8, parameter_count: s32, owner: *IR.ZirModule, user: *IR.ZirModule) -> s32 {
+    used: usize = cast(usize)(0)
+    {
+        p: *u8 = type
+        while loop_81 := ((p)[0] != 0) {
+            if (!(isalpha(cast(s32)(((cast(u8)((p)[0]))))) != 0) && (cast(s32)(cast(s8)((p)[0])) != 95)) {
+                if ((used + cast(usize)(1)) >= size) {
+                    return 0
+                }
+                (out)[ParserPost5(*(used))] = (ParserPost2(*(p)))[0]
+                continue loop_81
+            }
+            start: *u8 = p
+            while loop_82 := (((isalnum(cast(s32)(((cast(u8)((p)[0]))))) != 0) || (cast(s32)(cast(s8)((p)[0])) == 95)) || ((cast(s32)(cast(s8)((p)[0])) == 46) && ((isalpha(cast(s32)(((cast(u8)((p)[1]))))) != 0) || (cast(s32)(cast(s8)((p)[1])) == 95)))) {
+                ParserPost2(*(p))
+            }
+            name_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+            defer CompilerFree(cast(*void)name_storage_0)
+            memset(cast(*void)name_storage_0, 0, size_of(ParserArray128_u8))
+            qualified_storage_1 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+            defer CompilerFree(cast(*void)qualified_storage_1)
+            memset(cast(*void)qualified_storage_1, 0, size_of(ParserArray128_u8))
+            length: usize = cast(usize)(((cast(isize)(cast(usize)(p) - cast(usize)(start)) / cast(isize)size_of(u8))))
+            if (length >= cast(usize)size_of(ParserArray128_u8)) {
+                return 0
+            }
+            memcpy(cast(*void)(cast(*u8)(*((name_storage_0[0]).items))), cast(*void)(start), length)
+            (name_storage_0[0]).items[length] = cast(u8)(0)
+            spelled: *u8 = cast(*u8)(*((name_storage_0[0]).items))
+            parameter: s32 = 0
+            {
+                i: s32 = 0
+                while loop_83 := (i < parameter_count) {
+                    parameter |= cast(s32)(strcmp(cast(*u8)(*((params)[i]).items[0]), cast(*u8)(*((name_storage_0[0]).items))) == 0)
+                    ParserPost0(*(i))
+                }
+            }
+            if (!(parameter != 0) && (strchr(cast(*u8)(*((name_storage_0[0]).items)), 46) == cast(*u8)((null)))) {
+                declared_in: *IR.ZirModule = null
+                declared: *IR.ZirType = FindType(owner, cast(*u8)(*((name_storage_0[0]).items)), *(declared_in))
+                if (((((declared != cast(*IR.ZirType)((null))) && (declared_in != cast(*IR.ZirModule)((null)))) && (FindType(user, cast(*u8)(*((name_storage_0[0]).items)), null) != declared)) && (snprintf(cast(*u8)(*((qualified_storage_1[0]).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s.%s"), cast(*u8)(*((declared_in).name)), cast(*u8)(*((name_storage_0[0]).items))) < cast(s32)(cast(usize)size_of(ParserArray128_u8)))) && (FindType(user, cast(*u8)(*((qualified_storage_1[0]).items)), null) == declared)) {
+                    spelled = cast(*u8)(*((qualified_storage_1[0]).items))
+                }
+            }
+            spelled_length: usize = strlen(spelled)
+            if ((used + spelled_length) >= size) {
+                return 0
+            }
+            memcpy(cast(*void)(cast(*u8)(cast(usize)(out) + cast(usize)(used) * size_of(u8))), cast(*void)(spelled), spelled_length)
+            used += spelled_length
+        }
+    }
+    (out)[used] = cast(u8)(0)
+    return 1
+}
+
+#scope_export
+#program_export "InstantiateGenericRecord"
+InstantiateGenericRecord :: (instance: *IR.ZirType, generic: *IR.ZirType) -> s32 {
+    return InstantiateGenericRecordAt(instance, generic, null, null)
+}
+
+#program_export "InstantiateGenericRecordAt"
+InstantiateGenericRecordAt :: (instance: *IR.ZirType, generic: *IR.ZirType, owner: *IR.ZirModule, user: *IR.ZirModule) -> s32 {
+    params_storage_0 := cast(*ParserArray16_ParserArray128_u8)AllocateOrExit(size_of(ParserArray16_ParserArray128_u8))
+    defer CompilerFree(cast(*void)params_storage_0)
+    memset(cast(*void)params_storage_0, 0, size_of(ParserArray16_ParserArray128_u8))
+    actual_storage_1 := cast(*ParserArray16_ParserArray128_u8)AllocateOrExit(size_of(ParserArray16_ParserArray128_u8))
+    defer CompilerFree(cast(*void)actual_storage_1)
+    memset(cast(*void)actual_storage_1, 0, size_of(ParserArray16_ParserArray128_u8))
+    parameter_count: s32
+    argument_count: s32
+    if (!((instance).is_type_instance != 0) || !((generic).is_record_template != 0)) {
+        return 0
+    }
+    parameter_count = split_top_level(cast(*u8)(*((generic).template_params)), cast(*u8)(*((params_storage_0[0]).items[0]).items[0]), 16, cast(usize)size_of(ParserArray128_u8))
+    argument_count = split_top_level(cast(*u8)(*((instance).template_args)), cast(*u8)(*((actual_storage_1[0]).items[0]).items[0]), 16, cast(usize)size_of(ParserArray128_u8))
+    if ((parameter_count < 1) || (parameter_count != argument_count)) {
+        return 0
+    }
+    {
+        i: s32 = 0
+        while loop_84 := (i < parameter_count) {
+            if (!(is_identifier_text(cast(*u8)(*((params_storage_0[0]).items[i]).items[0])) != 0) || !(((actual_storage_1[0]).items[i]).items[0] != 0)) {
+                return 0
+            }
+            {
+                previous: s32 = 0
+                while loop_85 := (previous < i) {
+                    if !(strcmp(cast(*u8)(*((params_storage_0[0]).items[previous]).items[0]), cast(*u8)(*((params_storage_0[0]).items[i]).items[0])) != 0) {
+                        return 0
+                    }
+                    ParserPost0(*(previous))
+                }
+            }
+            ParserPost0(*(i))
+        }
+    }
+    offset: usize = cast(usize)(0)
+    used: usize = cast(usize)(0)
+    members: s32 = 0
+    status: s32
+    field: IR.ZirTypeField
+    while loop_86 := ((ParserSet1(*(status), TypeNextField(generic, *(offset), *(field)))) == 1) {
+        type_storage_2 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+        defer CompilerFree(cast(*void)type_storage_2)
+        memset(cast(*void)type_storage_2, 0, size_of(ParserArray128_u8))
+        if (((owner != cast(*IR.ZirModule)((null))) && (user != cast(*IR.ZirModule)((null)))) && (owner != user)) {
+            qualified_storage_3 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+            defer CompilerFree(cast(*void)qualified_storage_3)
+            memset(cast(*void)qualified_storage_3, 0, size_of(ParserArray128_u8))
+            if !(qualify_generic_field_type(cast(*u8)(*((field).type)), cast(*u8)(*((qualified_storage_3[0]).items)), cast(usize)size_of(ParserArray128_u8), cast(*ParserArray128_u8)(*((params_storage_0[0]).items)), parameter_count, owner, user) != 0) {
+                return 0
+            }
+            copy_text(cast(*u8)(*((field).type)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((qualified_storage_3[0]).items)))
+        }
+        if !(SubstituteGenericType(cast(*u8)(*((field).type)), cast(*u8)(*((type_storage_2[0]).items)), cast(usize)size_of(ParserArray128_u8), cast(*ParserArray128_u8)(*((params_storage_0[0]).items)), cast(*ParserArray128_u8)(*((actual_storage_1[0]).items)), parameter_count) != 0) {
+            return 0
+        }
+        length: s32 = TypeFieldLine(*(field), cast(*u8)(*((type_storage_2[0]).items)), cast(*u8)(cast(usize)(cast(*u8)(*((instance).body))) + cast(usize)(used) * size_of(u8)), (cast(usize)size_of(ParserArray8192_u8) - used))
+        if ((length < 0) || (cast(usize)(length) >= (cast(usize)size_of(ParserArray8192_u8) - used))) {
+            return 0
+        }
+        used += cast(usize)(length)
+        ParserPost0(*(members))
+    }
+    if ((status < 0) || (members == 0)) {
+        return 0
+    }
+    (instance).is_union = (generic).is_union
+    (instance).is_results = (generic).is_results
+    if ((!(strcmp(cast(*u8)(*((generic).name)), ParserCString("Map")) != 0) && (members == 2)) && (parameter_count == 2)) {
+        position: usize = cast(usize)(0)
+        key: IR.ZirTypeField
+        value: IR.ZirTypeField
+        end: IR.ZirTypeField
+        if (((((((((((TypeNextField(generic, *(position), *(key)) == 1) && (TypeNextField(generic, *(position), *(value)) == 1)) && (TypeNextField(generic, *(position), *(end)) == 0)) && !(strcmp(cast(*u8)(*((key).name)), ParserCString("key")) != 0)) && !(strcmp(cast(*u8)(*((key).type)), cast(*u8)(*((params_storage_0[0]).items[0]).items[0])) != 0)) && !(strcmp(cast(*u8)(*((value).name)), ParserCString("value")) != 0)) && !(strcmp(cast(*u8)(*((value).type)), cast(*u8)(*((params_storage_0[0]).items[1]).items[0])) != 0)) && !((key).is_using != 0)) && !((value).is_using != 0)) && !(((key).go_tag)[0] != 0)) && !(((value).go_tag)[0] != 0)) {
+            (instance).is_map = 1
+        }
+    }
+    if (!(strcmp(cast(*u8)(*((generic).name)), ParserCString("Vec")) != 0) && (members == 3)) {
+        position: usize = cast(usize)(0)
+        part: IR.ZirTypeField
+        if (((((((((TypeNextField(generic, *(position), *(part)) == 1) && !(strcmp(cast(*u8)(*((part).name)), ParserCString("data")) != 0)) && !(strcmp(cast(*u8)(*((part).type)), ParserCString("*T")) != 0)) && (TypeNextField(generic, *(position), *(part)) == 1)) && !(strcmp(cast(*u8)(*((part).name)), ParserCString("count")) != 0)) && !(strcmp(cast(*u8)(*((part).type)), ParserCString("s64")) != 0)) && (TypeNextField(generic, *(position), *(part)) == 1)) && !(strcmp(cast(*u8)(*((part).name)), ParserCString("capacity")) != 0)) && !(strcmp(cast(*u8)(*((part).type)), ParserCString("s64")) != 0)) {
+            (instance).is_owned_vec = 1
+        }
+    }
+    (instance).is_type_instance = 0
+    if !((instance).is_synthetic_application != 0) {
+        ((instance).template_name)[0] = cast(u8)(0)
+        ((instance).template_args)[0] = cast(u8)(0)
+    }
+    return 1
+}
+
+#scope_file
+read_lowered_source_with_buffers :: (path: *u8, buffers: *ReadLoweredSourceBuffers) -> *u8 {
+    if !(SourceOverlayAllowed(path) != 0) {
+        die_at(Span(path, 0, 0), ParserCString("source import escapes the edit root and standard library"))
+        unreachable
+    }
+    overlay_count: usize
+    overlay: *u8 = SourceOverlayRead(path, *(overlay_count))
+    if (overlay != null) {
+        if !(DocumentRecord(path, overlay, overlay_count) != null) {
+            die_at(Span(path, 0, 0), ParserCString("source document identity limit exceeded"))
+            unreachable
+        }
+        return lower_jai_multiline_strings(overlay, path)
+    }
+    in: *void = CompilerFopen(path, ParserCString("rb"))
+    if (in == (null)) {
+        die_at(Span(path, 0, 0), ParserCString("open failed: %s"), ParserIOError())
+        unreachable
+    }
+    input_storage_0 := cast(*SourceBuffer)AllocateOrExit(size_of(SourceBuffer))
+    defer CompilerFree(cast(*void)input_storage_0)
+    memset(cast(*void)input_storage_0, 0, size_of(SourceBuffer))
+    input_storage_0[0] = .{}
+    count: usize
+    while loop_87 := ((ParserSet11(*(count), fread(cast(*void)(cast(*u8)(*(((buffers).bytes).items))), cast(usize)(1), cast(usize)size_of(ParserArray8192_u8), in))) != cast(usize)(0)) {
+        {
+            i: usize = cast(usize)(0)
+            while loop_88 := (i < count) {
+                if (cast(s32)(((buffers).bytes).items[i]) == 0) {
+                    die_at(Span(path, 0, 0), ParserCString("source contains a null byte"))
+                    unreachable
+                }
+                source_append(*(input_storage_0[0]), cast(u8)(((buffers).bytes).items[i]))
+                ParserPost5(*(i))
+            }
+        }
+    }
+    if (ferror(in) != 0) {
+        die_at(Span(path, 0, 0), ParserCString("read failed: %s"), ParserIOError())
+        unreachable
+    }
+    CompilerFclose(in)
+    if ((input_storage_0[0]).text == cast(*u8)((null))) {
+        (input_storage_0[0]).text = cast(*u8)(CompilerMalloc(cast(usize)(1)))
+        if ((input_storage_0[0]).text == cast(*u8)((null))) {
+            die(ParserCString("out of memory reading source"))
+            unreachable
+        }
+        ((input_storage_0[0]).text)[0] = cast(u8)(0)
+    }
+    if !(DocumentRecord(path, (input_storage_0[0]).text, (input_storage_0[0]).length) != null) {
+        die_at(Span(path, 0, 0), ParserCString("source document identity limit exceeded"))
+        unreachable
+    }
+    lowered: *u8 = lower_jai_multiline_strings((input_storage_0[0]).text, path)
+    CompilerFree(cast(*void)((input_storage_0[0]).text))
+    return lowered
+}
+
+#scope_export
+#program_export "private_parse_read_lowered_source"
+read_lowered_source :: (path: *u8) -> *u8 {
+    buffers := cast(*ReadLoweredSourceBuffers)ParserScratchTake(*read_lowered_source_scratch, size_of(ReadLoweredSourceBuffers))
+    defer ParserScratchRelease(*read_lowered_source_scratch, cast(*void)buffers)
+    return read_lowered_source_with_buffers(path, buffers)
+}
+
+#scope_export
+#program_export "private_parse_import_string_source"
+import_string_source :: (line: *u8, span: IR.ZirSourceSpan) -> *u8 {
+    directive: *u8 = skip_ws(line)
+    if (!(starts_word(directive, ParserCString("#import")) != 0) && (strncmp(directive, ParserCString("#import,"), cast(usize)(8)) != 0)) {
+        alias_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+        defer CompilerFree(cast(*void)alias_storage_0)
+        memset(cast(*void)alias_storage_0, 0, size_of(ParserArray128_u8))
+        if !(parse_symbol_before_colons(directive, cast(*u8)(*((alias_storage_0[0]).items)), cast(usize)size_of(ParserArray128_u8)) != 0) {
+            return null
+        }
+        directive = skip_ws(cast(*u8)(cast(usize)(strstr(directive, ParserCString("::"))) + cast(usize)(2) * size_of(u8)))
+        if (!(starts_word(directive, ParserCString("#import")) != 0) && (strncmp(directive, ParserCString("#import,"), cast(usize)(8)) != 0)) {
+            return null
+        }
+    }
+    mode: *u8 = skip_ws(cast(*u8)(cast(usize)(directive) + cast(usize)(strlen(ParserCString("#import"))) * size_of(u8)))
+    if (cast(s32)(cast(s8)((mode)[0])) != 44) {
+        return null
+    }
+    mode = skip_ws(cast(*u8)(cast(usize)(mode) + cast(usize)(1) * size_of(u8)))
+    if ((strncmp(mode, ParserCString("string"), cast(usize)(6)) != 0) || !(isspace(cast(s32)(((cast(u8)((mode)[6]))))) != 0)) {
+        return null
+    }
+    cursor: *u8 = skip_ws(cast(*u8)(cast(usize)(mode) + cast(usize)(6) * size_of(u8)))
+    if (cast(s32)(cast(s8)((ParserPost2(*(cursor)))[0])) != 34) {
+        die_at(span, ParserCString("#import, string requires a source string"))
+        unreachable
+    }
+    output_storage_1 := cast(*SourceBuffer)AllocateOrExit(size_of(SourceBuffer))
+    defer CompilerFree(cast(*void)output_storage_1)
+    memset(cast(*void)output_storage_1, 0, size_of(SourceBuffer))
+    output_storage_1[0] = .{}
+    closed: s32 = 0
+    while loop_89 := ((cursor)[0] != 0) {
+        byte: u8 = cast(u8)((ParserPost2(*(cursor)))[0])
+        if (cast(s32)(byte) == 34) {
+            closed = 1
+            break loop_89
+        }
+        if (cast(s32)(byte) == 92) {
+            byte = cast(u8)((ParserPost2(*(cursor)))[0])
+            if (cast(s32)(byte) == 0) {
+                die_at(span, ParserCString("unterminated #import, string literal"))
+                unreachable
+            }
+            if (cast(s32)(byte) == 110) {
+                byte = cast(u8)(10)
+            } else {
+                if (cast(s32)(byte) == 114) {
+                    byte = cast(u8)(13)
+                } else {
+                    if (cast(s32)(byte) == 116) {
+                        byte = cast(u8)(9)
+                    } else {
+                        if (cast(s32)(byte) == 97) {
+                            byte = cast(u8)(7)
+                        } else {
+                            if (cast(s32)(byte) == 98) {
+                                byte = cast(u8)(8)
+                            } else {
+                                if (cast(s32)(byte) == 102) {
+                                    byte = cast(u8)(12)
+                                } else {
+                                    if (cast(s32)(byte) == 118) {
+                                        byte = cast(u8)(11)
+                                    } else {
+                                        if (cast(s32)(byte) == 120) {
+                                            high: s32 = (ifx (isxdigit(cast(s32)(((cast(u8)((cursor)[0]))))) != 0) then ((ifx (isdigit(cast(s32)(((cast(u8)((cursor)[0]))))) != 0) then (cast(s32)(cast(s8)((cursor)[0])) - 48) else ((tolower(cast(s32)(cast(u8)((cursor)[0]))) - 97) + 10))) else (-1))
+                                            low: s32 = (ifx ((high >= 0) && (isxdigit(cast(s32)(((cast(u8)((cursor)[1]))))) != 0)) then ((ifx (isdigit(cast(s32)(((cast(u8)((cursor)[1]))))) != 0) then (cast(s32)(cast(s8)((cursor)[1])) - 48) else ((tolower(cast(s32)(cast(u8)((cursor)[1]))) - 97) + 10))) else (-1))
+                                            if (low < 0) {
+                                                die_at(span, ParserCString("#import, string needs two hex digits after \\x"))
+                                                unreachable
+                                            }
+                                            byte = cast(u8)((((high * 16) + low)))
+                                            cursor = cast(*u8)(cast(usize)(cursor) + cast(usize)(2) * size_of(u8))
+                                        } else {
+                                            if ((cast(s32)(byte) != 34) && (cast(s32)(byte) != 92)) {
+                                                die_at(span, ParserCString("unsupported #import, string escape"))
+                                                unreachable
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (cast(s32)(byte) == 0) {
+            die_at(span, ParserCString("#import, string source cannot contain a null byte"))
+            unreachable
+        }
+        source_append(*(output_storage_1[0]), cast(u8)(byte))
+    }
+    if (!(closed != 0) || (strcmp(skip_ws(cursor), ParserCString(";")) != 0)) {
+        die_at(span, ParserCString("#import, string requires a closing quote and ';'"))
+        unreachable
+    }
+    if ((output_storage_1[0]).text == cast(*u8)((null))) {
+        (output_storage_1[0]).text = cast(*u8)(CompilerMalloc(cast(usize)(1)))
+        if ((output_storage_1[0]).text == cast(*u8)((null))) {
+            die(ParserCString("out of memory reading imported string"))
+            unreachable
+        }
+        ((output_storage_1[0]).text)[0] = cast(u8)(0)
+    }
+    return (output_storage_1[0]).text
+}
+
+#scope_file
+compile_value_clear :: (value: *CompileValue) {
+    (value).kind = 0
+    (value).integer = cast(s64)(0)
+    (value).real = cast(float64)(0)
+    ((value).type).items[0] = cast(u8)(0)
+    (value).kept = null
+    ((value).spelling).items[0] = cast(u8)(0)
+    (value).type_owner = null
+}

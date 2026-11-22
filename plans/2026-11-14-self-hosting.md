@@ -36,9 +36,13 @@ statement, expression, and text passes and their shared records. S12 ports
 function and whole-program checking, generic linking, SIMD rules, and borrow
 analysis. The build links the Ziran checker modules directly, with generated C
 seeds for bootstrapping and prefixed names for private calls. The remaining C
-parser and tool drivers use the public declarations in `zir_check.h`.
+parser and tool drivers use the public declarations in `zir_check.h`. S13
+ports source parsing, module discovery and compile-time condition selection.
+The parser keeps its C-facing entry points and leaves recovery jumps in the
+host boundary while the remaining declaration, evaluation and typed parser
+code moves in S14.
 
-S13–S18 remain open. They cover the parser, frontend services, portable ZX and
+S14–S18 remain open. They cover the remaining parser, frontend services, portable ZX and
 host interfaces, inline assembly and tool drivers, and the stage-0 through
 stage-2 fixed-point proof. The current `check-bootstrap` compares generated
 modules against the checked-in seed.
@@ -236,12 +240,12 @@ C ABI/storage boundary:
 | `zir_overlay.c` / `.h` | source overlay `SourceOverlayBegin:9` | `compiler_overlay` | S15 |
 | `zir_packages.c` / `.h` | package manifest resolution from `:48` | `compiler_package_resolve` | S16 |
 | `zir_parse.c` / `.h` | module/global parsing; source helpers `:159`, `:635`; globals `:246` | `compiler_frontend_parse` | S14 |
-| `zir_parse_condition.c` | compile-time conditions `:11`, `:600` | `compiler_frontend_parse_condition` | S13 |
+| `zir_parse_condition.c` | compile-time conditions and linked compile expressions | `compiler_parse_condition` | S13 |
 | `zir_parse_declaration.c` | declarations/imports/foreigns from `:26`, `:518`, `:575` | `compiler_frontend_parse_declaration` | S14 |
-| `zir_parse_discover.c` | discovery/type headers from `:18`, enum backing `:1386`, C spelling call `:1400` | `compiler_frontend_parse_discover` | S13 |
+| `zir_parse_discover.c` | module discovery, type headers, enum backing and record substitution | `compiler_parse_discover` | S13 |
 | `zir_parse_eval.c` | compile-time evaluation `:6` | `compiler_frontend_parse_eval` | S14 |
 | `zir_parse_internal.h` | parser private ABI | private Ziran records | S14 |
-| `zir_parse_source.c` | file/import pipeline `parse_source:155`, `parse_file_with_imports:2176`, `parse_file:2270` | `compiler_frontend_parse_source` | S13 |
+| `zir_parse_source.c` | source, file and import parsing | `compiler_parse_source` | S13 |
 | `zir_parse_typed.c` | typed expression compilation from `:9`, cache `:1027` | `compiler_frontend_parse_typed` | S14 |
 | `zir_profile.c` / `.h` | counters/RSS/time from `:35` | `compiler_profile`; OS callbacks may remain | S17 |
 | `zir_proof.h` | proof ABI | covered by `compiler_proof`/`compiler_proof_kernel` | S15 |
@@ -468,16 +472,16 @@ No step commits before its implementation and proof are complete.
 
 ### S13 — source/discovery parser
 
-- Add `cmd/compiler_frontend_parse_source.zi`,
-  `cmd/compiler_frontend_parse_condition.zi`, and
-  `cmd/compiler_frontend_parse_discover.zi`; port `zir_parse_source.c`
-  (`parse_source:155`, `parse_file_with_imports:2176`, `parse_file:2270`),
-  `zir_parse_condition.c`, and `zir_parse_discover.c`. Call generated source,
-  text and type modules directly.
-- Change S14 consumers to the new file/program API.
-- Delete `zir_parse_source.c`, `zir_parse_condition.c`, and
-  `zir_parse_discover.c`.
-- Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=parser`.
+- `compiler_parse_source`, `compiler_parse_condition`, and
+  `compiler_parse_discover` replace the matching `zir_parse_*.c` files and
+  call the Ziran source, text, and type modules directly.
+  `compiler_parse_types` defines their shared records. Both compiler builds
+  link the port, and `bootstrap/` holds the generated seed pairs.
+- `zir_parse.h` remains the C-facing API, including file and source parsing,
+  import resolution, and generic record substitution. `zir_parse.c` owns
+  `setjmp` and `longjmp`, nested import recovery, and the remaining S14 helpers.
+- Verify with `env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check JOBS=2 CHECK_JOBS=2`
+  and `env -u DISPLAY -u WAYLAND_DISPLAY make check-bootstrap JOBS=2`.
 
 ### S14 — declaration/typed parser and IR cleanup
 
@@ -613,7 +617,7 @@ is deleted, then keep their golden hashes/bytes as regression fixtures.
 | S10 | Change `tests/go_fields.sh`, `tests/simd_go.sh`, and Go assembly fixtures under `tests/fixtures/go_assembly/`; compare Go and assembly bytes/text. |
 | S11 | Change `tests/safe_inference.sh` and `tests/safe_inference.zi`; add checker result/diagnostic/source-span parity. |
 | S12 | Change `tests/parser_recovery.sh`, `tests/parser_recovery_test.c`, `tests/borrow_import_graph.sh`, and assembly/SIMD checker cases; prove whole-program/link/borrow behavior. |
-| S13 | Change `tests/compiler_source.sh`, `tests/compiler_source_test.c`, and `tests/parser_recovery.sh`; cover imports, conditions and discovery. |
+| S13 | Retain parser recovery, module parameter, compile-time expression and source insertion coverage. Compare emitted IR and diagnostics against the pre-port compiler. |
 | S14 | Change `tests/compiler_declaration.sh`, `tests/compiler_declaration_test.c`, `tests/compiler_expression.sh`, and `tests/compiler_expression_test.c`; cover declaration/typed/eval/cleanup parity. |
 | S15 | Change `tests/compiler_scan.sh`, `tests/compiler_text.sh`, `tests/compiler_enum.sh`, `tests/compiler_type.sh`, and their existing C harnesses; add service-free lifetime/context assertions. |
 | S16 | Change `tests/executable_bundle.sh`, `tests/bundle_assets.sh`, `tests/bundle_runtime_provider.sh`, `tests/host_capability.sh`, and `tests/host_slices.sh`; preserve embedding ABI and serialized-byte parity. |

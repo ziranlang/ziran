@@ -1,0 +1,880 @@
+// Compile-time conditions and layout queries.
+using IR :: #import "compiler_ir"
+using Parser :: #import "compiler_parse_types"
+Source :: #import "compiler_source"
+Text :: #import "compiler_text"
+
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+CompilerCalloc :: (count: usize, size: usize) -> *void #foreign compiler "CompilerCalloc";
+CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
+CompilerParseExpr :: (arg0: *IR.ZirFunction, arg1: *IR.ZirModule, arg2: *void, arg3: IR.ZirSourceSpan) -> s32 #foreign compiler "CompilerParseExpr";
+CompilerStructureFunction :: (arg0: *IR.ZirFunction, arg1: *IR.ZirModule) #foreign compiler "CompilerStructureFunction";
+InferExpressionType :: (module: *IR.ZirModule, expression: *u8, span: IR.ZirSourceSpan, type: *u8, capacity: usize) -> s32 #foreign compiler "InferExpressionType";
+JaiTypeSpelling :: (span: IR.ZirSourceSpan, type: *u8) -> s32 #foreign compiler "JaiTypeSpelling";
+KeepText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
+LowerFileScopeUsing :: (module: *IR.ZirModule, source: *u8, capacity: usize, span: IR.ZirSourceSpan) -> s32 #foreign compiler "LowerFileScopeUsing";
+ModuleAddAssert :: (module: *IR.ZirModule, condition: *u8, message: *u8, span: IR.ZirSourceSpan) -> s32 #foreign compiler "ModuleAddAssert";
+Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+SymbolLookupsChanged :: () #foreign compiler "SymbolLookupsChanged";
+TextEditBegin :: (text: *u8, capacity: *usize) -> *u8 #foreign compiler "TextEditBegin";
+TextEditEnd :: (buffer: *u8) -> *u8 #foreign compiler "TextEditEnd";
+TypeLayout :: (module: *IR.ZirModule, type: *u8, size: *usize, alignment: *usize) -> s32 #foreign compiler "TypeLayout";
+TypeOfOperand :: (source: *u8, operand: *u8, capacity: usize) -> s32 #foreign compiler "TypeOfOperand";
+copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
+die :: (fmt: *u8, varargs: ..any) #foreign compiler "private_parse_die";
+die_at :: (span: IR.ZirSourceSpan, fmt: *u8, varargs: ..any) #foreign compiler "private_parse_die_at";
+eval_typed_condition :: (source: *u8, module: *IR.ZirModule, names: *ZirConsts, span: IR.ZirSourceSpan, result: *s64) -> s32 #foreign compiler "private_parse_eval_typed_condition";
+exit :: (__status: s32) #foreign libc "exit";
+expand_compile_expr :: (dst: *u8, dst_size: usize, consts: *ZirConsts, src: *u8, lookup_path: *u8) #foreign compiler "private_parse_expand_compile_expr";
+line_is_compile_else :: (line: *u8) -> s32 #foreign compiler "private_parse_line_is_compile_else";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+memset :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memset";
+net_block_braces :: (s: *u8) -> s32 #foreign compiler "private_parse_net_block_braces";
+normalize_jai_source_tokens :: (line: *u8, path: *u8, physical_path: *u8, line_no: s32, uses_resizable_arrays: *s32) #foreign compiler "private_parse_normalize_jai_source_tokens";
+parse_cond_start :: (line: *u8, condition: **u8) -> s32 #foreign compiler "private_parse_parse_cond_start";
+skip_ws :: (s: *u8) -> *u8 #foreign compiler "skip_ws";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+starts_word :: (s: *u8, word: *u8) -> s32 #foreign compiler "private_parse_starts_word";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+strstr :: (__haystack: *u8, __needle: *u8) -> *u8 #foreign libc "strstr";
+trim :: (s: *u8) -> *u8 #foreign compiler "trim";
+trim_in_place :: (s: *u8) -> *u8 #foreign compiler "trim_in_place";
+replace_compile_ifx_scratch: u8;
+lower_compile_ifx_value_scratch: u8;
+replace_size_of_scratch: u8;
+lower_size_of_value_scratch: u8;
+parse_compile_check_scratch: u8;
+isspace :: (character: s32) -> s32 #foreign libc "isspace";
+
+#scope_export
+#program_export "private_parse_visible_compile_constants"
+visible_compile_constants :: (parsed: *ZirConsts, future: *ZirConsts) -> ZirConsts {
+    visible_storage_0 := cast(*ZirConsts)AllocateOrExit(size_of(ZirConsts))
+    defer CompilerFree(cast(*void)visible_storage_0)
+    memset(cast(*void)visible_storage_0, 0, size_of(ZirConsts))
+    visible_storage_0[0] = .{}
+    extra: s32 = (ifx (future != cast(*ZirConsts)((null))) then (future).count else 0)
+    (visible_storage_0[0]).items = cast(*ZirConst)(CompilerCalloc(((cast(usize)((parsed).count) + cast(usize)(extra)) + cast(usize)(1)), cast(usize)size_of(ZirConst)))
+    if ((visible_storage_0[0]).items == cast(*ZirConst)((null))) {
+        die(ParserCString("out of memory resolving compile-time constants"))
+        unreachable
+    }
+    {
+        i: s32 = 0
+        while loop_1 := (i < (parsed).count) {
+            ((visible_storage_0[0]).items)[ParserPost0(*((visible_storage_0[0]).count))] = ((parsed).items)[i]
+            ParserPost0(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while loop_2 := (i < extra) {
+            candidate: *ZirConst = cast(*ZirConst)(cast(usize)((future).items) + cast(usize)(i) * size_of(ZirConst))
+            present: s32 = 0
+            {
+                j: s32 = 0
+                while loop_3 := (j < (parsed).count) {
+                    if (!(strcmp(cast(*u8)(*(((((parsed).items)[j]).name).items)), cast(*u8)(*(((candidate).name).items))) != 0) && !(strcmp(cast(*u8)(*(((((parsed).items)[j]).path).items)), cast(*u8)(*(((candidate).path).items))) != 0)) {
+                        present = 1
+                        break loop_3
+                    }
+                    ParserPost0(*(j))
+                }
+            }
+            if !(present != 0) {
+                ((visible_storage_0[0]).items)[ParserPost0(*((visible_storage_0[0]).count))] = (candidate)[0]
+            }
+            ParserPost0(*(i))
+        }
+    }
+    return visible_storage_0[0]
+}
+
+#scope_file
+visible_items :: (parsed: *$T, count: s32, future: *T, future_count: s32, visible: *s32) -> *T {
+    items := cast(*T)CompilerCalloc(cast(usize)count + cast(usize)future_count + 1, size_of(T))
+    if items == null { die(ParserCString("out of memory resolving compile-time declarations")); unreachable }
+    if count > 0 { memcpy(cast(*void)items, cast(*void)parsed, cast(usize)count * size_of(T)) }
+    visible[0] = count
+    for 0..future_count - 1 {
+        candidate := *future[it]
+        present := false
+        for 0..count - 1 {
+            seen := *parsed[it]
+            if seen.span.line == candidate.span.line && strcmp(SpanPath(seen.span), SpanPath(candidate.span)) == 0 {
+                present = true
+                break
+            }
+        }
+        if !present {
+            memcpy(cast(*void)*items[visible[0]], cast(*void)candidate, size_of(T))
+            visible[0] += 1
+        }
+    }
+    return items
+}
+
+#scope_file
+add_visible_compile_defines :: (visible: *IR.ZirModule, parsed: *IR.ZirModule, constants: *ZirConsts) {
+    SymbolLookupsChanged()
+    (visible).defines = cast(*IR.ZirDefine)(CompilerCalloc(((cast(usize)((parsed).define_count) + cast(usize)((constants).count)) + cast(usize)(1)), cast(usize)size_of(IR.ZirDefine)))
+    if ((visible).defines == cast(*IR.ZirDefine)((null))) {
+        die(ParserCString("out of memory resolving compile-time constants"))
+        unreachable
+    }
+    (visible).define_count = 0
+    {
+        i: s32 = 0
+        while loop_4 := (i < (parsed).define_count) {
+            ((visible).defines)[ParserPost0(*((visible).define_count))] = ((parsed).defines)[i]
+            ParserPost0(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while loop_5 := (i < (constants).count) {
+            constant: *ZirConst = cast(*ZirConst)(cast(usize)((constants).items) + cast(usize)(i) * size_of(ZirConst))
+            present: s32 = 0
+            {
+                j: s32 = 0
+                while loop_6 := (j < (parsed).define_count) {
+                    if (!(strcmp(cast(*u8)(*((((parsed).defines)[j]).name)), cast(*u8)(*(((constant).name).items))) != 0) && !(strcmp(SpanPath((((parsed).defines)[j]).span), cast(*u8)(*(((constant).path).items))) != 0)) {
+                        present = 1
+                        break loop_6
+                    }
+                    ParserPost0(*(j))
+                }
+            }
+            if (present != 0) {
+                ParserPost0(*(i))
+                continue loop_5
+            }
+            definition: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((visible).defines) + cast(usize)(ParserPost0(*((visible).define_count))) * size_of(IR.ZirDefine))
+            copy_text(cast(*u8)(*((definition).name)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*(((constant).name).items)))
+            (definition).value = KeepText((constant).expr)
+            (definition).is_public = (constant).is_public
+            (definition).is_file_private = (constant).is_file_private
+            (definition).span = Span(cast(*u8)(*(((constant).path).items)), (constant).source_line, 1)
+            ParserPost0(*(i))
+        }
+    }
+}
+
+#scope_export
+#program_export "private_parse_visible_compile_module"
+visible_compile_module :: (parsed: *IR.ZirModule, context: *CompileParseContext, constants: *ZirConsts, visible: *IR.ZirModule) {
+    memcpy(cast(*void)visible, cast(*void)parsed, size_of(IR.ZirModule))
+    SymbolLookupsChanged()
+    future_usings := ifx context != null then context.future_usings else null
+    visible.usings = visible_items(parsed.usings, parsed.using_count, ifx future_usings != null then future_usings.items else null, ifx future_usings != null then future_usings.count else 0, *visible.using_count)
+    add_visible_compile_defines(visible, parsed, constants)
+    future_imports := ifx context != null then context.future_imports else null
+    visible.imports = visible_items(parsed.imports, parsed.import_count, ifx future_imports != null then future_imports.items else null, ifx future_imports != null then future_imports.count else 0, *visible.import_count)
+    future_types := ifx context != null then context.future_types else null
+    visible.types = visible_items(parsed.types, parsed.type_count, ifx future_types != null then future_types.items else null, ifx future_types != null then future_types.count else 0, *visible.type_count)
+    future_functions := ifx context != null then context.future_functions else null
+    visible.functions = visible_items(parsed.functions, parsed.function_count, ifx future_functions != null then future_functions.items else null, ifx future_functions != null then future_functions.count else 0, *visible.function_count)
+    future_globals := ifx context != null then context.future_globals else null
+    visible.globals = visible_items(parsed.globals, parsed.global_count, ifx future_globals != null then future_globals.items else null, ifx future_globals != null then future_globals.count else 0, *visible.global_count)
+}
+
+#scope_export
+#program_export "private_parse_free_visible_compile_module"
+free_visible_compile_module :: (visible: *IR.ZirModule) {
+    SymbolLookupsChanged()
+    CompilerFree(cast(*void)((visible).usings))
+    CompilerFree(cast(*void)((visible).defines))
+    CompilerFree(cast(*void)((visible).imports))
+    CompilerFree(cast(*void)((visible).types))
+    CompilerFree(cast(*void)((visible).functions))
+    CompilerFree(cast(*void)((visible).globals))
+}
+
+#scope_export
+#program_export "private_parse_select_compile_condition"
+select_compile_condition :: (module: *IR.ZirModule, consts: *ZirConsts, source: *u8, span: IR.ZirSourceSpan, context: *CompileParseContext, source_path: *u8, deferred: *s32) -> s32 {
+    source_module: *IR.ZirModule
+    expanded_storage_0 := cast(*ParserArray4096_u8)AllocateOrExit(size_of(ParserArray4096_u8))
+    defer CompilerFree(cast(*void)expanded_storage_0)
+    memset(cast(*void)expanded_storage_0, 0, size_of(ParserArray4096_u8))
+    value: s64
+    known: s32
+    visible_storage_1 := cast(*ZirConsts)AllocateOrExit(size_of(ZirConsts))
+    defer CompilerFree(cast(*void)visible_storage_1)
+    memset(cast(*void)visible_storage_1, 0, size_of(ZirConsts))
+    using_scope: IR.ZirModule
+    while goto_not_ready := true {
+        while goto_selected := true {
+            source_module = module
+            value = cast(s64)(0)
+            visible_storage_1[0] = visible_compile_constants(consts, (ifx (context != cast(*CompileParseContext)((null))) then (context).future_constants else null))
+            visible_compile_module(module, context, *(visible_storage_1[0]), *using_scope)
+            module = *(using_scope)
+            consts = *(visible_storage_1[0])
+            expand_compile_expr(cast(*u8)(*((expanded_storage_0[0]).items)), cast(usize)size_of(ParserArray4096_u8), consts, source, SpanPath(span))
+            arrays := ifx context != null then context.uses_resizable_arrays else null
+            normalize_jai_source_tokens(cast(*u8)(*((expanded_storage_0[0]).items)), SpanPath(span), source_path, (span).line, arrays)
+            if ((((using_scope).using_count > 0) && (strstr(cast(*u8)(*((expanded_storage_0[0]).items)), ParserCString("size_of")) == cast(*u8)((null)))) && (eval_typed_condition(cast(*u8)(*((expanded_storage_0[0]).items)), module, consts, span, *(value)) != 0)) {
+                break goto_selected
+            }
+            if (((((using_scope).using_count > 0) && (context != cast(*CompileParseContext)((null)))) && ((context).resolver != cast(ZirCompileImportResolver)((null)))) && !((context).resolver((context).resolver_context, (context).program, module, source_path, (context).root, null) != 0)) {
+                if (deferred != cast(*s32)((null))) {
+                    ParserSet1(deferred, 1)
+                    break goto_not_ready
+                }
+                die_at(span, ParserCString("cannot resolve imports for #if enum member"))
+                unreachable
+            }
+            if !(LowerFileScopeUsing(module, cast(*u8)(*((expanded_storage_0[0]).items)), cast(usize)size_of(ParserArray4096_u8), span) != 0) {
+                if (deferred != cast(*s32)((null))) {
+                    ParserSet1(deferred, 1)
+                    break goto_not_ready
+                }
+                die_at(span, ParserCString("invalid #if enum member"))
+                unreachable
+            }
+            if ((((strstr(cast(*u8)(*((expanded_storage_0[0]).items)), ParserCString("size_of")) != cast(*u8)((null))) && (context != cast(*CompileParseContext)((null)))) && ((context).resolver != cast(ZirCompileImportResolver)((null)))) && !((context).resolver((context).resolver_context, (context).program, module, source_path, (context).root, cast(*u8)(*((expanded_storage_0[0]).items))) != 0)) {
+                if (deferred != cast(*s32)((null))) {
+                    ParserSet1(deferred, 1)
+                    break goto_not_ready
+                }
+                die_at(span, ParserCString("cannot resolve imports for #if condition"))
+                unreachable
+            }
+            if (((deferred != cast(*s32)((null))) && (strstr(cast(*u8)(*((expanded_storage_0[0]).items)), ParserCString("size_of")) != cast(*u8)((null)))) && !(compile_size_of_ready(module, cast(*u8)(*((expanded_storage_0[0]).items))) != 0)) {
+                ParserSet1(deferred, 1)
+                break goto_not_ready
+            }
+            if (strstr(cast(*u8)(*((expanded_storage_0[0]).items)), ParserCString("size_of")) != cast(*u8)((null))) {
+                lower_size_of_value(cast(*u8)(*((expanded_storage_0[0]).items)), cast(usize)size_of(ParserArray4096_u8), module, span)
+            }
+            known = eval_typed_condition(cast(*u8)(*((expanded_storage_0[0]).items)), module, consts, span, *(value))
+            if (!(known != 0) && (context != cast(*CompileParseContext)((null)))) {
+                {
+                    i: s32 = 0
+                    while loop_7 := (i < (module).import_count) {
+                        import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
+                        if (((import_local).resolved_module != cast(*IR.ZirModule)((null))) || ((cast(s32)((import_local).kind) != 1) && (cast(s32)((import_local).kind) != 2))) {
+                            ParserPost0(*(i))
+                            continue loop_7
+                        }
+                        {
+                            m: s32 = 0
+                            while loop_8 := (m < ((context).program).module_count) {
+                                candidate: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((context).program).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                                if ((candidate != source_module) && (strcmp(cast(*u8)(*((candidate).name)), cast(*u8)(*((import_local).target))) == 0)) {
+                                    (import_local).resolved_module = candidate
+                                    SymbolLookupsChanged()
+                                    break loop_8
+                                }
+                                ParserPost0(*(m))
+                            }
+                        }
+                        ParserPost0(*(i))
+                    }
+                }
+                if (((context).resolver != cast(ZirCompileImportResolver)((null))) && !((context).resolver((context).resolver_context, (context).program, module, source_path, (context).root, cast(*u8)(*((expanded_storage_0[0]).items))) != 0)) {
+                    if (deferred != cast(*s32)((null))) {
+                        ParserSet1(deferred, 1)
+                        break goto_not_ready
+                    }
+                    die_at(span, ParserCString("cannot resolve imports for #if condition"))
+                    unreachable
+                }
+                if !(LowerFileScopeUsing(module, cast(*u8)(*((expanded_storage_0[0]).items)), cast(usize)size_of(ParserArray4096_u8), span) != 0) {
+                    if (deferred != cast(*s32)((null))) {
+                        ParserSet1(deferred, 1)
+                        break goto_not_ready
+                    }
+                    die_at(span, ParserCString("invalid #if enum member"))
+                    unreachable
+                }
+                known = eval_typed_condition(cast(*u8)(*((expanded_storage_0[0]).items)), module, consts, span, *(value))
+            }
+            if !(known != 0) {
+                if (deferred != cast(*s32)((null))) {
+                    ParserSet1(deferred, 1)
+                    break goto_not_ready
+                }
+                die_at(span, ParserCString("#if condition is not a compile-time constant: %s"), cast(*u8)(*((expanded_storage_0[0]).items)))
+                unreachable
+            }
+            break
+        }
+        free_visible_compile_module(*(using_scope))
+        CompilerFree(cast(*void)((visible_storage_1[0]).items))
+        return cast(s32)(value != cast(s64)(0))
+        break
+    }
+    free_visible_compile_module(*(using_scope))
+    CompilerFree(cast(*void)((visible_storage_1[0]).items))
+    return 0
+}
+
+#scope_export
+#program_export "private_parse_find_unquoted"
+find_unquoted :: (source: *u8, needle: *u8, word: bool) -> *u8 {
+    at: s64 = Source.FindUnquoted(IR.CText(source), IR.CText(needle), word)
+    return (ifx (at < cast(s64)(0)) then null else cast(*u8)(cast(usize)(cast(*u8)(source)) + cast(usize)(at) * size_of(u8)))
+}
+
+#scope_file
+outer_compile_ifx :: (fn: *IR.ZirFunction) -> *IR.ZirExpr {
+    found: *IR.ZirExpr = null
+    {
+        i: s32 = 0
+        while loop_9 := (i < (fn).expr_count) {
+            expr: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(i) * size_of(IR.ZirExpr))
+            if ((((cast(s32)((expr).kind) == 14) && !(strcmp(cast(*u8)(*((expr).op)), ParserCString("#ifx")) != 0)) && (((expr).left < 0) || (strstr((((fn).exprs)[(expr).left]).text, ParserCString("#ifx")) == cast(*u8)((null))))) && ((found == cast(*IR.ZirExpr)((null))) || (strlen((expr).text) > strlen((found).text)))) {
+                found = expr
+            }
+            ParserPost0(*(i))
+        }
+    }
+    return found
+}
+
+#scope_file
+compile_size_of_ready :: (module: *IR.ZirModule, condition: *u8) -> s32 {
+    if (find_unquoted(condition, ParserCString("size_of"), cast(bool)(1)) != cast(*u8)((null))) {
+        {
+            i: s32 = 0
+            while loop_10 := (i < (module).import_count) {
+                if (((cast(s32)((((module).imports)[i]).kind) == 1) || (cast(s32)((((module).imports)[i]).kind) == 2)) && ((((module).imports)[i]).resolved_module == cast(*IR.ZirModule)((null)))) {
+                    return 0
+                }
+                ParserPost0(*(i))
+            }
+        }
+    }
+    {
+        at: *u8 = find_unquoted(condition, ParserCString("size_of"), cast(bool)(1))
+        while loop_11 := (at != cast(*u8)((null))) {
+            start: *u8 = cast(*u8)(skip_ws(cast(*u8)(cast(usize)(at) + cast(usize)(7) * size_of(u8))))
+            if (cast(s32)(cast(s8)((start)[0])) != 40) {
+                return 0
+            }
+            ParserPost2(*(start))
+            end: *u8 = start
+            depth: s32 = 1
+            while loop_12 := (((end)[0] != 0) && (depth > 0)) {
+                if (cast(s32)(cast(s8)((end)[0])) == 40) {
+                    ParserPost0(*(depth))
+                } else {
+                    if (cast(s32)(cast(s8)((end)[0])) == 41) {
+                        ParserPost3(*(depth))
+                    }
+                }
+                if (depth > 0) {
+                    ParserPost2(*(end))
+                }
+            }
+            if ((depth != 0) || (cast(usize)(((cast(isize)(cast(usize)(end) - cast(usize)(start)) / cast(isize)size_of(u8)))) >= cast(usize)(4096))) {
+                return 0
+            }
+            type_storage_0 := cast(*ParserArray4096_u8)AllocateOrExit(size_of(ParserArray4096_u8))
+            defer CompilerFree(cast(*void)type_storage_0)
+            memset(cast(*void)type_storage_0, 0, size_of(ParserArray4096_u8))
+            length: usize = cast(usize)(((cast(isize)(cast(usize)(end) - cast(usize)(start)) / cast(isize)size_of(u8))))
+            memcpy(cast(*void)(cast(*u8)(*((type_storage_0[0]).items))), cast(*void)(start), length)
+            (type_storage_0[0]).items[length] = cast(u8)(0)
+            trim_in_place(cast(*u8)(*((type_storage_0[0]).items)))
+            size: usize
+            alignment: usize
+            if !(TypeLayout(module, cast(*u8)(*((type_storage_0[0]).items)), *(size), *(alignment)) != 0) {
+                return 0
+            }
+            at = find_unquoted(cast(*u8)(cast(usize)(at) + cast(usize)(7) * size_of(u8)), ParserCString("size_of"), cast(bool)(1))
+        }
+    }
+    return 1
+}
+
+#scope_file
+replace_compile_ifx_with_buffers :: (source: *u8, capacity: usize, fn: *IR.ZirFunction, module: *IR.ZirModule, expr: *IR.ZirExpr, consts: *ZirConsts, span: IR.ZirSourceSpan, allow_deferred: s32, buffers: *ReplaceCompileIfxBuffers) -> s32 {
+    value: s64 = cast(s64)(0)
+    at: *u8
+    selected: *u8
+    written: s32
+    if ((((expr).left < 0) || ((expr).right < 0)) || ((expr).third < 0)) {
+        die_at(span, ParserCString("malformed #ifx expression"))
+        unreachable
+    }
+    expand_compile_expr(cast(*u8)(*(((buffers).condition).items)), cast(usize)size_of(ParserArray4096_u8), consts, (((fn).exprs)[(expr).left]).text, SpanPath(span))
+    if ((allow_deferred != 0) && !(compile_size_of_ready(module, cast(*u8)(*(((buffers).condition).items))) != 0)) {
+        return 0
+    }
+    if (strstr(cast(*u8)(*(((buffers).condition).items)), ParserCString("size_of")) != cast(*u8)((null))) {
+        lower_size_of_value(cast(*u8)(*(((buffers).condition).items)), cast(usize)size_of(ParserArray4096_u8), module, span)
+    }
+    if !(eval_typed_condition(cast(*u8)(*(((buffers).condition).items)), module, consts, span, *(value)) != 0) {
+        if (allow_deferred != 0) {
+            return 0
+        }
+        die_at(span, ParserCString("#ifx condition is not a compile-time constant: %s"), cast(*u8)(*(((buffers).condition).items)))
+        unreachable
+    }
+    selected = (((fn).exprs)[(ifx (value != 0) then (expr).right else (expr).third)]).text
+    at = find_unquoted(source, (expr).text, cast(bool)(0))
+    if (at == cast(*u8)((null))) {
+        die_at(span, ParserCString("cannot locate #ifx expression in source"))
+        unreachable
+    }
+    written = snprintf(cast(*u8)(*(((buffers).rewritten).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%.*s(%s)%s"), cast(s32)(((cast(isize)(cast(usize)(at) - cast(usize)(source)) / cast(isize)size_of(u8)))), source, selected, cast(*u8)(cast(usize)(at) + cast(usize)(strlen((expr).text)) * size_of(u8)))
+    if (((written < 0) || (cast(usize)(written) >= cast(usize)size_of(ParserArray4096_u8))) || (cast(usize)(written) >= capacity)) {
+        die_at(span, ParserCString("#ifx selection exceeds expression limit"))
+        unreachable
+    }
+    copy_text(source, capacity, cast(*u8)(*(((buffers).rewritten).items)))
+    return 1
+}
+
+#scope_file
+replace_compile_ifx :: (source: *u8, capacity: usize, fn: *IR.ZirFunction, module: *IR.ZirModule, expr: *IR.ZirExpr, consts: *ZirConsts, span: IR.ZirSourceSpan, allow_deferred: s32) -> s32 {
+    buffers := cast(*ReplaceCompileIfxBuffers)ParserScratchTake(*replace_compile_ifx_scratch, size_of(ReplaceCompileIfxBuffers))
+    defer ParserScratchRelease(*replace_compile_ifx_scratch, cast(*void)buffers)
+    return replace_compile_ifx_with_buffers(source, capacity, fn, module, expr, consts, span, allow_deferred, buffers)
+}
+
+#scope_file
+lower_compile_ifx_value_with_buffers :: (value: *u8, capacity: usize, module: *IR.ZirModule, consts: *ZirConsts, span: IR.ZirSourceSpan, allow_deferred: s32, buffers: *LowerCompileIfxValueBuffers) -> s32 {
+    {
+        pass: s32 = 0
+        while loop_13 := (pass < 128) {
+            memset(cast(*void)(*((buffers).probe)), 0, cast(usize)size_of(IR.ZirFunction))
+            ParseExpr(*((buffers).probe), module, value, span)
+            expr: *IR.ZirExpr = outer_compile_ifx(*((buffers).probe))
+            if (expr == cast(*IR.ZirExpr)((null))) {
+                CompilerFree(cast(*void)(((buffers).probe).exprs))
+                if (find_unquoted(value, ParserCString("#ifx"), cast(bool)(0)) != cast(*u8)((null))) {
+                    die_at(span, ParserCString("invalid #ifx expression"))
+                    unreachable
+                }
+                return 1
+            }
+            replaced: s32 = replace_compile_ifx(value, capacity, *((buffers).probe), module, expr, consts, span, allow_deferred)
+            CompilerFree(cast(*void)(((buffers).probe).exprs))
+            if !(replaced != 0) {
+                return 0
+            }
+            ParserPost0(*(pass))
+        }
+    }
+    die_at(span, ParserCString("too many nested #ifx expressions"))
+    unreachable
+}
+
+#scope_export
+#program_export "private_parse_lower_compile_ifx_value"
+lower_compile_ifx_value :: (value: *u8, capacity: usize, module: *IR.ZirModule, consts: *ZirConsts, span: IR.ZirSourceSpan, allow_deferred: s32) -> s32 {
+    buffers := cast(*LowerCompileIfxValueBuffers)ParserScratchTake(*lower_compile_ifx_value_scratch, size_of(LowerCompileIfxValueBuffers))
+    defer ParserScratchRelease(*lower_compile_ifx_value_scratch, cast(*void)buffers)
+    return lower_compile_ifx_value_with_buffers(value, capacity, module, consts, span, allow_deferred, buffers)
+}
+
+#scope_export
+#program_export "private_parse_lower_compile_ifx_function"
+lower_compile_ifx_function :: (fn: *IR.ZirFunction, module: *IR.ZirModule, consts: *ZirConsts, allow_deferred: s32) -> s32 {
+    {
+        pass: s32 = 0
+        while loop_14 := (pass < 128) {
+            StructureFunction(fn, module)
+            expr: *IR.ZirExpr = outer_compile_ifx(fn)
+            if (expr == cast(*IR.ZirExpr)((null))) {
+                {
+                    i: s32 = 0
+                    while loop_15 := (i < (fn).stmt_count) {
+                        if (find_unquoted((((fn).stmts)[i]).text, ParserCString("#ifx"), cast(bool)(0)) != cast(*u8)((null))) {
+                            die_at((((fn).stmts)[i]).span, ParserCString("invalid #ifx expression"))
+                            unreachable
+                        }
+                        ParserPost0(*(i))
+                    }
+                }
+                return 1
+            }
+            replaced: s32 = 0
+            {
+                i: s32 = 0
+                while loop_16 := (i < (fn).stmt_count) {
+                    st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))
+                    if (find_unquoted((st).text, (expr).text, cast(bool)(0)) == cast(*u8)((null))) {
+                        ParserPost0(*(i))
+                        continue loop_16
+                    }
+                    text_storage_0 := cast(*ParserArray4096_u8)AllocateOrExit(size_of(ParserArray4096_u8))
+                    defer CompilerFree(cast(*void)text_storage_0)
+                    memset(cast(*void)text_storage_0, 0, size_of(ParserArray4096_u8))
+                    copy_text(cast(*u8)(*((text_storage_0[0]).items)), cast(usize)size_of(ParserArray4096_u8), (st).text)
+                    if !(replace_compile_ifx(cast(*u8)(*((text_storage_0[0]).items)), cast(usize)size_of(ParserArray4096_u8), fn, module, expr, consts, (st).span, allow_deferred) != 0) {
+                        return 0
+                    }
+                    (st).text = KeepText(cast(*u8)(*((text_storage_0[0]).items)))
+                    replaced = 1
+                    break loop_16
+                    ParserPost0(*(i))
+                }
+            }
+            if !(replaced != 0) {
+                die_at((fn).span, ParserCString("cannot locate #ifx expression in function"))
+                unreachable
+            }
+            ParserPost0(*(pass))
+        }
+    }
+    die_at((fn).span, ParserCString("too many nested #ifx expressions"))
+    unreachable
+}
+
+#scope_file
+function_has_compile_ifx :: (fn: *IR.ZirFunction) -> s32 {
+    {
+        i: s32 = 0
+        while loop_17 := (i < (fn).stmt_count) {
+            if (find_unquoted(cast(*u8)((((fn).stmts)[i]).text), ParserCString("#ifx"), cast(bool)(0)) != cast(*u8)((null))) {
+                return 1
+            }
+            ParserPost0(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+first_size_of :: (fn: *IR.ZirFunction, include_type_of: s32) -> *IR.ZirExpr {
+    {
+        i: s32 = 0
+        while loop_18 := (i < (fn).expr_count) {
+            if ((cast(s32)((((fn).exprs)[i]).kind) == 13) && ((include_type_of != 0) || (strncmp(skip_ws((((fn).exprs)[i]).name), ParserCString("type_of"), cast(usize)(7)) != 0))) {
+                return cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(i) * size_of(IR.ZirExpr))
+            }
+            ParserPost0(*(i))
+        }
+    }
+    return null
+}
+
+#scope_file
+replace_size_of_with_buffers :: (source: *u8, capacity: usize, module: *IR.ZirModule, expr: *IR.ZirExpr, span: IR.ZirSourceSpan, buffers: *ReplaceSizeOfBuffers) {
+    inferred_storage_0 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
+    defer CompilerFree(cast(*void)inferred_storage_0)
+    memset(cast(*void)inferred_storage_0, 0, size_of(ParserArray128_u8))
+    size: usize
+    alignment: usize
+    at: *u8 = find_unquoted(source, (expr).text, cast(bool)(0))
+    sized_type: *u8 = (expr).name
+    written: s32
+    if (TypeOfOperand((expr).name, cast(*u8)(*(((buffers).operand).items)), cast(usize)size_of(ParserArray4096_u8)) != 0) {
+        if !(InferExpressionType(module, cast(*u8)(*(((buffers).operand).items)), span, cast(*u8)(*((inferred_storage_0[0]).items)), cast(usize)size_of(ParserArray128_u8)) != 0) {
+            die_at(span, ParserCString("size_of(type_of(...)) requires a checked expression"))
+            unreachable
+        }
+        sized_type = cast(*u8)(*((inferred_storage_0[0]).items))
+    } else {
+        if !(JaiTypeSpelling(span, (expr).name) != 0) {
+            exit(1)
+        }
+    }
+    if (!(TypeLayout(module, sized_type, *(size), *(alignment)) != 0) || (size > cast(usize)(9223372036854775807))) {
+        die_at(span, ParserCString("size_of requires a known sized type: %s"), sized_type)
+        unreachable
+    }
+    if (at == cast(*u8)((null))) {
+        die_at(span, ParserCString("cannot locate size_of expression in source"))
+        unreachable
+    }
+    written = snprintf(cast(*u8)(*(((buffers).rewritten).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%.*s(%zu)%s"), cast(s32)(((cast(isize)(cast(usize)(at) - cast(usize)(source)) / cast(isize)size_of(u8)))), source, size, cast(*u8)(cast(usize)(at) + cast(usize)(strlen((expr).text)) * size_of(u8)))
+    if (((written < 0) || (cast(usize)(written) >= cast(usize)size_of(ParserArray4096_u8))) || (cast(usize)(written) >= capacity)) {
+        die_at(span, ParserCString("size_of selection exceeds expression limit"))
+        unreachable
+    }
+    copy_text(source, capacity, cast(*u8)(*(((buffers).rewritten).items)))
+}
+
+#scope_file
+replace_size_of :: (source: *u8, capacity: usize, module: *IR.ZirModule, expr: *IR.ZirExpr, span: IR.ZirSourceSpan) {
+    buffers := cast(*ReplaceSizeOfBuffers)ParserScratchTake(*replace_size_of_scratch, size_of(ReplaceSizeOfBuffers))
+    defer ParserScratchRelease(*replace_size_of_scratch, cast(*void)buffers)
+    replace_size_of_with_buffers(source, capacity, module, expr, span, buffers)
+}
+
+#scope_file
+lower_size_of_value_with_buffers :: (value: *u8, capacity: usize, module: *IR.ZirModule, span: IR.ZirSourceSpan, buffers: *LowerSizeOfValueBuffers) {
+    {
+        pass: s32 = 0
+        while loop_19 := (pass < 128) {
+            memset(cast(*void)(*((buffers).probe)), 0, cast(usize)size_of(IR.ZirFunction))
+            ParseExpr(*((buffers).probe), module, value, span)
+            expr: *IR.ZirExpr = first_size_of(*((buffers).probe), 1)
+            if (expr == cast(*IR.ZirExpr)((null))) {
+                CompilerFree(cast(*void)(((buffers).probe).exprs))
+                if (find_unquoted(value, ParserCString("size_of"), cast(bool)(1)) != cast(*u8)((null))) {
+                    die_at(span, ParserCString("invalid size_of expression"))
+                    unreachable
+                }
+                return
+            }
+            replace_size_of(value, capacity, module, expr, span)
+            CompilerFree(cast(*void)(((buffers).probe).exprs))
+            ParserPost0(*(pass))
+        }
+    }
+    die_at(span, ParserCString("too many size_of expressions"))
+    unreachable
+}
+
+#scope_export
+#program_export "private_parse_lower_size_of_value"
+lower_size_of_value :: (value: *u8, capacity: usize, module: *IR.ZirModule, span: IR.ZirSourceSpan) {
+    buffers := cast(*LowerSizeOfValueBuffers)ParserScratchTake(*lower_size_of_value_scratch, size_of(LowerSizeOfValueBuffers))
+    defer ParserScratchRelease(*lower_size_of_value_scratch, cast(*void)buffers)
+    lower_size_of_value_with_buffers(value, capacity, module, span, buffers)
+}
+
+#scope_export
+#program_export "LowerLinkedCompileExpressions"
+LowerLinkedCompileExpressions :: (module: *IR.ZirModule, allow_deferred: s32) -> s32 {
+    constants_storage_0 := cast(*ZirConsts)AllocateOrExit(size_of(ZirConsts))
+    defer CompilerFree(cast(*void)constants_storage_0)
+    memset(cast(*void)constants_storage_0, 0, size_of(ZirConsts))
+    constants_storage_0[0] = .{}
+    saved_lookup_path_storage_1 := cast(*ParserArray1024_u8)AllocateOrExit(size_of(ParserArray1024_u8))
+    defer CompilerFree(cast(*void)saved_lookup_path_storage_1)
+    memset(cast(*void)saved_lookup_path_storage_1, 0, size_of(ParserArray1024_u8))
+    progress: s32 = 0
+    copy_text(cast(*u8)(*((saved_lookup_path_storage_1[0]).items)), cast(usize)size_of(ParserArray1024_u8), cast(*u8)(*((module).lookup_path)))
+    (constants_storage_0[0]).count = (module).define_count
+    (constants_storage_0[0]).items = cast(*ZirConst)(CompilerCalloc((cast(usize)((constants_storage_0[0]).count) + cast(usize)(1)), cast(usize)size_of(ZirConst)))
+    if ((constants_storage_0[0]).items == cast(*ZirConst)((null))) {
+        die(ParserCString("out of memory lowering #ifx"))
+        unreachable
+    }
+    {
+        i: s32 = 0
+        while loop_20 := (i < (constants_storage_0[0]).count) {
+            definition: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((module).defines) + cast(usize)(i) * size_of(IR.ZirDefine))
+            constant: *ZirConst = cast(*ZirConst)(cast(usize)((constants_storage_0[0]).items) + cast(usize)(i) * size_of(ZirConst))
+            copy_text(cast(*u8)(*(((constant).name).items)), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((definition).name)))
+            (constant).expr = KeepText((definition).value)
+            copy_text(cast(*u8)(*(((constant).path).items)), cast(usize)size_of(ParserArray1024_u8), SpanPath((definition).span))
+            (constant).is_file_private = (definition).is_file_private
+            ParserPost0(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while loop_21 := (i < (module).define_count) {
+            definition: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((module).defines) + cast(usize)(i) * size_of(IR.ZirDefine))
+            before: *u8 = (definition).value
+            copy_text(cast(*u8)(*((module).lookup_path)), cast(usize)size_of(ParserArray1024_u8), SpanPath((definition).span))
+            SymbolLookupsChanged()
+            if (find_unquoted((definition).value, ParserCString("#ifx"), cast(bool)(0)) != cast(*u8)((null))) {
+                capacity: usize
+                edit: *u8 = TextEditBegin((definition).value, *(capacity))
+                lower_compile_ifx_value(edit, capacity, module, *(constants_storage_0[0]), (definition).span, allow_deferred)
+                (definition).value = TextEditEnd(edit)
+            }
+            if ((!(starts_word((definition).value, ParserCString("#run")) != 0) && (find_unquoted((definition).value, ParserCString("#ifx"), cast(bool)(0)) == cast(*u8)((null)))) && (find_unquoted((definition).value, ParserCString("size_of"), cast(bool)(1)) != cast(*u8)((null)))) {
+                capacity: usize
+                edit: *u8 = TextEditBegin((definition).value, *(capacity))
+                lower_size_of_value(edit, capacity, module, (definition).span)
+                (definition).value = TextEditEnd(edit)
+            }
+            if (strcmp(before, (definition).value) != 0) {
+                ParserPost0(*(progress))
+            }
+            (((constants_storage_0[0]).items)[i]).expr = KeepText((definition).value)
+            ParserPost0(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while loop_22 := (i < (module).global_count) {
+            global: *IR.ZirGlobal = cast(*IR.ZirGlobal)(cast(usize)((module).globals) + cast(usize)(i) * size_of(IR.ZirGlobal))
+            before: *u8 = (global).init
+            copy_text(cast(*u8)(*((module).lookup_path)), cast(usize)size_of(ParserArray1024_u8), SpanPath((global).span))
+            SymbolLookupsChanged()
+            if (find_unquoted((global).init, ParserCString("#ifx"), cast(bool)(0)) != cast(*u8)((null))) {
+                capacity: usize
+                edit: *u8 = TextEditBegin((global).init, *(capacity))
+                lower_compile_ifx_value(edit, capacity, module, *(constants_storage_0[0]), (global).span, allow_deferred)
+                (global).init = TextEditEnd(edit)
+            }
+            if ((find_unquoted((global).init, ParserCString("#ifx"), cast(bool)(0)) == cast(*u8)((null))) && (find_unquoted((global).init, ParserCString("size_of"), cast(bool)(1)) != cast(*u8)((null)))) {
+                capacity: usize
+                edit: *u8 = TextEditBegin((global).init, *(capacity))
+                lower_size_of_value(edit, capacity, module, (global).span)
+                (global).init = TextEditEnd(edit)
+            }
+            if (strcmp(before, (global).init) != 0) {
+                ParserPost0(*(progress))
+            }
+            ParserPost0(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while loop_23 := (i < (module).function_count) {
+            fn: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((module).functions) + cast(usize)(i) * size_of(IR.ZirFunction))
+            copy_text(cast(*u8)(*((module).lookup_path)), cast(usize)size_of(ParserArray1024_u8), SpanPath((fn).span))
+            SymbolLookupsChanged()
+            if (function_has_compile_ifx(fn) != 0) {
+                if (lower_compile_ifx_function(fn, module, *(constants_storage_0[0]), allow_deferred) != 0) {
+                    ParserPost0(*(progress))
+                }
+            }
+            ParserPost0(*(i))
+        }
+    }
+    copy_text(cast(*u8)(*((module).lookup_path)), cast(usize)size_of(ParserArray1024_u8), cast(*u8)(*((saved_lookup_path_storage_1[0]).items)))
+    SymbolLookupsChanged()
+    CompilerFree(cast(*void)((constants_storage_0[0]).items))
+    return progress
+}
+
+#scope_file
+parse_compile_check_with_buffers :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8, consts: *ZirConsts, buffers: *ParseCompileCheckBuffers) -> s32 {
+    if ((strncmp(line, ParserCString("#assert"), cast(usize)(7)) == 0) && ((cast(s32)(cast(s8)((line)[7])) == 0) || (isspace(cast(s32)(((cast(u8)((line)[7]))))) != 0))) {
+        body: *u8 = trim(cast(*u8)(cast(usize)(line) + cast(usize)(7) * size_of(u8)))
+        if (cast(s32)(cast(s8)((body)[0])) == 0) {
+            die_at(Span(path, line_no, 1), ParserCString("#assert needs a condition"))
+            unreachable
+        }
+        part_storage_0 := cast(*Text.SourcePart)AllocateOrExit(size_of(Text.SourcePart))
+        defer CompilerFree(cast(*void)part_storage_0)
+        memset(cast(*void)part_storage_0, 0, size_of(Text.SourcePart))
+        part_storage_0[0] = Text.NextSourcePart(IR.CText(body), 0)
+        if ((part_storage_0[0]).next >= cast(s64)(0)) {
+            comma: *u8 = cast(*u8)(cast(usize)(body) + cast(usize)((part_storage_0[0]).end) * size_of(u8))
+            ParserSet4(comma, cast(u8)(0))
+            snprintf(cast(*u8)(*(((buffers).msg).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("%s"), trim(cast(*u8)(cast(usize)(comma) + cast(usize)(1) * size_of(u8))))
+            if (cast(s32)(cast(s8)(((buffers).msg).items[0])) == 0) {
+                snprintf(cast(*u8)(*(((buffers).msg).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("\"Ziran #assert failed\""))
+            }
+        } else {
+            snprintf(cast(*u8)(*(((buffers).msg).items)), cast(usize)size_of(ParserArray4096_u8), ParserCString("\"Ziran #assert failed\""))
+        }
+        copy_text(cast(*u8)(*(((buffers).raw).items)), cast(usize)size_of(ParserArray4096_u8), trim(body))
+        expand_compile_expr(cast(*u8)(*(((buffers).cond).items)), cast(usize)size_of(ParserArray4096_u8), consts, cast(*u8)(*(((buffers).raw).items)), path)
+        value: s64 = cast(s64)(0)
+        known: s32 = cast(s32)((strstr(cast(*u8)(*(((buffers).cond).items)), ParserCString("size_of")) == cast(*u8)((null))) && (eval_typed_condition(cast(*u8)(*(((buffers).cond).items)), module, consts, Span(path, line_no, 1), *(value)) != 0))
+        if ((known != 0) && !(value != 0)) {
+            die_at(Span(path, line_no, 1), ParserCString("#assert failed: %s"), cast(*u8)(*(((buffers).msg).items)))
+            unreachable
+        }
+        if (known != 0) {
+            copy_text(cast(*u8)(*(((buffers).cond).items)), cast(usize)size_of(ParserArray4096_u8), (ifx (value != 0) then ParserCString("1") else ParserCString("0")))
+        } else {
+            copy_text(cast(*u8)(*(((buffers).cond).items)), cast(usize)size_of(ParserArray4096_u8), cast(*u8)(*(((buffers).raw).items)))
+        }
+        if !(ModuleAddAssert(module, cast(*u8)(*(((buffers).cond).items)), cast(*u8)(*(((buffers).msg).items)), Span(path, line_no, 1)) != 0) {
+            die_at(Span(path, line_no, 1), ParserCString("out of memory while recording #assert"))
+            unreachable
+        }
+        return 1
+    }
+    if ((strncmp(line, ParserCString("#error"), cast(usize)(6)) == 0) && ((cast(s32)(cast(s8)((line)[6])) == 0) || (isspace(cast(s32)(((cast(u8)((line)[6]))))) != 0))) {
+        body: *u8 = trim(cast(*u8)(cast(usize)(line) + cast(usize)(6) * size_of(u8)))
+        if (cast(s32)(cast(s8)((body)[0])) == 0) {
+            die_at(Span(path, line_no, 1), ParserCString("#error needs a message"))
+            unreachable
+        }
+        die_at(Span(path, line_no, 1), ParserCString("#error: %s"), body)
+        unreachable
+    }
+    return 0
+}
+
+#scope_export
+#program_export "private_parse_parse_compile_check"
+parse_compile_check :: (module: *IR.ZirModule, path: *u8, line_no: s32, line: *u8, consts: *ZirConsts) -> s32 {
+    buffers := cast(*ParseCompileCheckBuffers)ParserScratchTake(*parse_compile_check_scratch, size_of(ParseCompileCheckBuffers))
+    defer ParserScratchRelease(*parse_compile_check_scratch, cast(*void)buffers)
+    return parse_compile_check_with_buffers(module, path, line_no, line, consts, buffers)
+}
+
+#scope_export
+#program_export "private_parse_cond_top_step"
+cond_top_step :: (line: *u8, frames: *ZirCondFrame, count: *s32, module: *IR.ZirModule, consts: *ZirConsts, context: *CompileParseContext, source_path: *u8, path: *u8, line_no: s32, deferred: *s32) -> s32 {
+    cnd: *u8 = null
+    at_branch_boundary: s32 = cast(s32)(((count)[0] == 0) || (((frames)[((count)[0] - 1)]).braces == 1))
+    ck: s32 = 0
+    fr: *ZirCondFrame
+    if ((at_branch_boundary != 0) || (starts_word(line, ParserCString("#if")) != 0)) {
+        ck = parse_cond_start(line, *(cnd))
+    }
+    if (ck == 1) {
+        if ((count)[0] >= 8) {
+            die_at(Span(path, line_no, 1), ParserCString("too many nested #if blocks"))
+            unreachable
+        }
+        fr = cast(*ZirCondFrame)(cast(usize)(frames) + cast(usize)(ParserPost0(count)) * size_of(ZirCondFrame))
+        (fr).parent_active = cast(s32)(((count)[0] == 1) || (((frames)[((count)[0] - 2)]).active != 0))
+        (fr).selected = cast(s32)(((fr).parent_active != 0) && (select_compile_condition(module, consts, cnd, Span(path, line_no, 1), context, source_path, deferred) != 0))
+        (fr).active = cast(s32)(((fr).parent_active != 0) && ((fr).selected != 0))
+        (fr).braces = 1
+        return 1
+    }
+    if ((count)[0] <= 0) {
+        if ((ck == 2) || (line_is_compile_else(line) != 0)) {
+            die_at(Span(path, line_no, 1), ParserCString("else without a matching #if"))
+            unreachable
+        }
+        return 0
+    }
+    fr = cast(*ZirCondFrame)(cast(usize)(frames) + cast(usize)(((count)[0] - 1)) * size_of(ZirCondFrame))
+    if (ck == 2) {
+        chosen: s32 = cast(s32)((((fr).parent_active != 0) && !((fr).selected != 0)) && (select_compile_condition(module, consts, cnd, Span(path, line_no, 1), context, source_path, deferred) != 0))
+        (fr).active = cast(s32)((((fr).parent_active != 0) && !((fr).selected != 0)) && (chosen != 0))
+        (fr).selected |= chosen
+        (fr).braces = 1
+        return 1
+    }
+    if (((fr).braces == 1) && (line_is_compile_else(line) != 0)) {
+        (fr).active = cast(s32)(((fr).parent_active != 0) && !((fr).selected != 0))
+        (fr).selected = 1
+        (fr).braces = 1
+        return 1
+    }
+    (fr).braces += net_block_braces(line)
+    if ((fr).braces <= 0) {
+        ParserPost3(count)
+        return 1
+    }
+    return 0
+}
+
+#scope_export
+#program_export "private_parse_cond_frame_settle"
+cond_frame_settle :: (frames: *ZirCondFrame, count: s32) {
+    if (count > 0) {
+        ParserPost3(*(((frames)[(count - 1)]).braces))
+    }
+}
+
+#scope_export
+#program_export "private_parse_strip_block_comments"
+strip_block_comments :: (s: *u8, comment_depth: *s32) {
+    length: usize = strlen(s)
+    result := Source.StripComments(IR.CText(s), IR.CBuffer(s, length), comment_depth[0])
+    s[result.count] = 0
+    comment_depth[0] = result.depth
+}
+
+
+#scope_file
+ParseExpr :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan) -> s32 {
+    return CompilerParseExpr(fn, cast(*IR.ZirModule)(module), cast(*void)(text), span)
+}
+
+#scope_file
+StructureFunction :: (fn: *IR.ZirFunction, module: *IR.ZirModule) {
+    CompilerStructureFunction(fn, cast(*IR.ZirModule)(module))
+}

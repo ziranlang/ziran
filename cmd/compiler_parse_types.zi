@@ -1,0 +1,466 @@
+// Parser records shared by source parsing, discovery, and condition selection.
+using IR :: #import "compiler_ir"
+
+ZirCompileImportResolver :: #type (context: *void, program: *IR.ZirProgram, module: *IR.ZirModule, source_path: *u8, root: *u8, condition: *u8) -> s32 #c_call;
+
+ParserArray8192_u8 :: struct {
+    items: [8192]u8
+}
+
+CanonicalEnumValuesBuffers :: struct {
+    canonical: ParserArray8192_u8
+}
+
+CompileParseContext :: struct {
+    program: *IR.ZirProgram
+    root: *u8
+    resolver: ZirCompileImportResolver
+    resolver_context: *void
+    uses_resizable_arrays: *s32
+    future_constants: *ZirConsts
+    future_usings: *ZirUsings
+    future_imports: *ZirImports
+    future_types: *ZirTypes
+    future_functions: *ZirFunctions
+    future_globals: *ZirGlobals
+}
+
+ParserArray128_u8 :: struct {
+    items: [128]u8
+}
+
+ParserArray64_u8 :: struct {
+    items: [64]u8
+}
+
+CompileValue :: struct {
+    kind: s32
+    integer: s64
+    real: float64
+    type: ParserArray128_u8
+    kept: *u8
+    spelling: ParserArray64_u8
+    type_owner: *IR.ZirModule
+}
+
+ParserArray1024_u8 :: struct {
+    items: [1024]u8
+}
+
+DeferredLine :: struct {
+    line: *u8
+    rel: ParserArray1024_u8
+    line_no: s32
+    scope_public: s32
+    scope_file: s32
+}
+
+DeferredLines :: struct {
+    items: *DeferredLine
+    count: s32
+}
+
+ParserArray16384_u8 :: struct {
+    items: [16384]u8
+}
+
+ParserArray24576_u8 :: struct {
+    items: [24576]u8
+}
+
+ZirCondFrame :: struct {
+    braces: s32
+    selected: s32
+    active: s32
+    parent_active: s32
+}
+
+ParserArray8_ZirCondFrame :: struct {
+    items: [8]ZirCondFrame
+}
+
+DiscoverConditionalTypeBuffers :: struct {
+    line: ParserArray16384_u8
+    selected: ParserArray24576_u8
+    frames: ParserArray8_ZirCondFrame
+}
+
+ParserArray2048_u8 :: struct {
+    items: [2048]u8
+}
+
+DiscoverFileScopeBuffers :: struct {
+    line: ParserArray16384_u8
+    type_source: ParserArray24576_u8
+    function_source: ParserArray24576_u8
+    simple_body: ParserArray24576_u8
+    requested: ParserArray1024_u8
+    candidate: ParserArray2048_u8
+    loaded_rel: ParserArray1024_u8
+    discovered: IR.ZirModule
+}
+
+ParserArray4096_u8 :: struct {
+    items: [4096]u8
+}
+
+DiscoverFunctionHeaderBuffers :: struct {
+    line: ParserArray24576_u8
+    args: ParserArray4096_u8
+}
+
+DiscoverNamedTypeBuffers :: struct {
+    normalized: ParserArray24576_u8
+    line: ParserArray16384_u8
+    type: IR.ZirType
+    lowered: ParserArray8192_u8
+}
+
+ImportResolver :: struct {
+    resolve: ZirCompileImportResolver
+    context: *void
+}
+
+LoadFrame :: struct {
+    path: *u8
+    source: *u8
+    canonical: *u8
+    owned_source: *u8
+    rel: ParserArray1024_u8
+    lookahead: ParserArray16384_u8
+    line_no: s32
+    physical_line_no: s32
+    have_look: s32
+    scope_public: s32
+    scope_file: s32
+    in_block_comment: s32
+    conditional_depth: s32
+    inserting: s32
+}
+
+LowerCompileIfxValueBuffers :: struct {
+    probe: IR.ZirFunction
+}
+
+LowerEnumValuesBuffers :: struct {
+    lowered: ParserArray8192_u8
+    flags: ParserArray8192_u8
+    member: ParserArray4096_u8
+}
+
+LowerSizeOfValueBuffers :: struct {
+    probe: IR.ZirFunction
+}
+
+ParserArray4100_u8 :: struct {
+    items: [4100]u8
+}
+
+NormalizeJaiSourceTokensBuffers :: struct {
+    normalized: ParserArray16384_u8
+    literal: ParserArray4100_u8
+    directory: ParserArray1024_u8
+}
+
+ParseCompileCheckBuffers :: struct {
+    cond: ParserArray4096_u8
+    raw: ParserArray4096_u8
+    msg: ParserArray4096_u8
+}
+
+ParserArray16_ParserArray128_u8 :: struct {
+    items: [16]ParserArray128_u8
+}
+
+ParserArray32768_u8 :: struct {
+    items: [32768]u8
+}
+
+ParserArray16_ParserArray32768_u8 :: struct {
+    items: [16]ParserArray32768_u8
+}
+
+ParserArray32_ParserArray128_u8 :: struct {
+    items: [32]ParserArray128_u8
+}
+
+ParserArray32_ParserArray1024_u8 :: struct {
+    items: [32]ParserArray1024_u8
+}
+
+ParserArray32_LoadFrame :: struct {
+    items: [32]LoadFrame
+}
+
+ParserArray16_ParserArray4096_u8 :: struct {
+    items: [16]ParserArray4096_u8
+}
+
+ParserArray64_ParserArray4096_u8 :: struct {
+    items: [64]ParserArray4096_u8
+}
+
+ParseSourceBuffers :: struct {
+    line: ParserArray16384_u8
+    rel: ParserArray1024_u8
+    pending: *u8
+    pending_capacity: usize
+    logical: *u8
+    logical_capacity: usize
+    results_record: ParserArray128_u8
+    binding_targets: ParserArray16_ParserArray128_u8
+    binding_value: ParserArray4096_u8
+    binding_line: ParserArray4096_u8
+    lookahead: ParserArray16384_u8
+    onelineq: ParserArray16_ParserArray32768_u8
+    tframes: ParserArray8_ZirCondFrame
+    type_frames: ParserArray8_ZirCondFrame
+    foreign_library_names: ParserArray32_ParserArray128_u8
+    foreign_library_targets: ParserArray32_ParserArray1024_u8
+    foreign_library_paths: ParserArray32_ParserArray1024_u8
+    load_frames: ParserArray32_LoadFrame
+    raw: ParserArray16384_u8
+    la: ParserArray16384_u8
+    head: ParserArray32768_u8
+    body: ParserArray32768_u8
+    tail: ParserArray32768_u8
+    reason: ParserArray4096_u8
+    payload: ParserArray4096_u8
+    requested: ParserArray1024_u8
+    candidate: ParserArray2048_u8
+    synthetic_path: ParserArray2048_u8
+    args: ParserArray4096_u8
+    parts: ParserArray16_ParserArray4096_u8
+    defaults: ParserArray4096_u8
+    parameters: ParserArray64_ParserArray4096_u8
+    run_value: ParserArray4096_u8
+    selected_value: ParserArray4096_u8
+    expanded: ParserArray4096_u8
+    run_scope: IR.ZirModule
+    parallel_text: ParserArray32768_u8
+    checks_text: ParserArray32768_u8
+    using_path_text: ParserArray32768_u8
+}
+
+ParserAnonymous4 :: struct {
+    jai: *u8
+    internal: *u8
+}
+
+ParserAnonymous5 :: struct {
+    jai: *u8
+    vec: *u8
+}
+
+ReadLoweredSourceBuffers :: struct {
+    bytes: ParserArray8192_u8
+}
+
+ReplaceCompileIfxBuffers :: struct {
+    condition: ParserArray4096_u8
+    rewritten: ParserArray4096_u8
+}
+
+ReplaceSizeOfBuffers :: struct {
+    rewritten: ParserArray4096_u8
+    operand: ParserArray4096_u8
+}
+
+SourceBuffer :: struct {
+    text: *u8
+    length: usize
+    capacity: usize
+}
+
+ZirConst :: struct {
+    name: ParserArray128_u8
+    expr: *u8
+    type: ParserArray128_u8
+    path: ParserArray1024_u8
+    is_file_private: s32
+    is_public: s32
+    source_line: s32
+}
+
+ZirConsts :: struct {
+    items: *ZirConst
+    count: s32
+    capacity: s32
+    reads: *void
+}
+
+ZirDeferredType :: struct {
+    source: *u8
+    path: *u8
+    rel: ParserArray1024_u8
+    line: s32
+    is_public: s32
+    is_file_private: s32
+}
+
+ZirDeferredTypes :: struct {
+    items: *ZirDeferredType
+    count: s32
+    capacity: s32
+}
+
+ZirDiscoveredFiles :: struct {
+    paths: **u8
+    count: s32
+    capacity: s32
+}
+
+ZirFunctions :: struct {
+    items: *IR.ZirFunction
+    count: s32
+    capacity: s32
+}
+
+ZirGlobals :: struct {
+    items: *IR.ZirGlobal
+    count: s32
+    capacity: s32
+}
+
+ZirImports :: struct {
+    items: *IR.ZirImport
+    count: s32
+    capacity: s32
+}
+
+ZirInsert :: struct {
+    name: ParserArray128_u8
+    rel: ParserArray1024_u8
+    line: s32
+    text: *u8
+}
+
+ZirInserts :: struct {
+    items: *ZirInsert
+    count: s32
+    capacity: s32
+    runs: ZirConsts
+}
+
+ZirTypes :: struct {
+    items: *IR.ZirType
+    count: s32
+    capacity: s32
+}
+
+ZirUsings :: struct {
+    items: *IR.ZirUsing
+    count: s32
+    capacity: s32
+}
+
+ParserArray2_ParserAnonymous4 :: struct {
+    items: [2]ParserAnonymous4
+}
+
+ParserArray8__u8 :: struct {
+    items: [8]*u8
+}
+
+ParserArray4_ParserAnonymous5 :: struct {
+    items: [4]ParserAnonymous5
+}
+
+ParserArray4_u8 :: struct {
+    items: [4]u8
+}
+
+ParserArray160_u8 :: struct {
+    items: [160]u8
+}
+
+ParserArray3__ZirConsts :: struct {
+    items: [3]*ZirConsts
+}
+
+ParserArray1056_u8 :: struct {
+    items: [1056]u8
+}
+
+ParserArray2_ParserArray128_u8 :: struct {
+    items: [2]ParserArray128_u8
+}
+
+ParserArray8_s32 :: struct {
+    items: [8]s32
+}
+
+ParserArray64_s32 :: struct {
+    items: [64]s32
+}
+
+ParserArray32_s32 :: struct {
+    items: [32]s32
+}
+
+ParserArray16_u8 :: struct {
+    items: [16]u8
+}
+
+ParserArray3_u8 :: struct {
+    items: [3]u8
+}
+
+ParserArray22_u8 :: struct {
+    items: [22]u8
+}
+
+ParserArray19_u8 :: struct {
+    items: [19]u8
+}
+
+ParserPost0 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] + 1; return old }
+ParserSet1 :: (p: *s32, value: s32) -> s32 { p[0] = value; return value }
+ParserPost2 :: (p: **u8) -> *u8 { old := p[0]; p[0] = cast(*u8)(cast(usize)p[0] + size_of(u8)); return old }
+ParserPost3 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] - 1; return old }
+ParserSet4 :: (p: *u8, value: u8) -> u8 { p[0] = value; return value }
+ParserPost5 :: (p: *usize) -> usize { old := p[0]; p[0] = p[0] + 1; return old }
+ParserPre6 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] - 1; return p[0] }
+ParserPre7 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] + 1; return p[0] }
+ParserSet8 :: (p: *IR.ZirImport, value: IR.ZirImport) -> IR.ZirImport { p[0] = value; return value }
+ParserPost9 :: (p: *usize) -> usize { old := p[0]; p[0] = p[0] - 1; return old }
+ParserSet10 :: (p: *ZirInserts, value: ZirInserts) -> ZirInserts { p[0] = value; return value }
+ParserSet11 :: (p: *usize, value: usize) -> usize { p[0] = value; return value }
+ParserSet12 :: (p: **u8, value: *u8) -> *u8 { p[0] = value; return value }
+ParserPost13 :: (p: **u8) -> *u8 { old := p[0]; p[0] = cast(*u8)(cast(usize)p[0] - size_of(u8)); return old }
+ParserSet14 :: (p: *IR.ZirModule, value: IR.ZirModule) -> IR.ZirModule { p[0] = value; return value }
+ParserPre15 :: (p: *usize) -> usize { old := p[0]; p[0] = p[0] - 1; return p[0] }
+
+ParserText :: struct { data: *u8; length: usize }
+// Borrow text from the descriptor returned by the existing compiler modules.
+ParserTextView :: (text: string) -> ParserText { return (cast(*ParserText)*text)[0] }
+ParserCString :: (text: string) -> *u8 { return ParserTextView(text).data }
+
+#scope_file
+compiler :: #system_library "ziran";
+Destroy :: #type (memory: *void) #c_call;
+CompilerContextScratch :: (key: *void, destroy: Destroy) -> *void #foreign compiler "CompilerContextScratch";
+CompilerScratchTake :: (pool: *void) -> *void #foreign compiler "CompilerScratchTake";
+CompilerScratchPut :: (pool: *void, memory: *void) -> s32 #foreign compiler "CompilerScratchPut";
+CompilerMemoryRecovering :: () -> s32 #foreign compiler "CompilerMemoryRecovering";
+CompilerFree :: (memory: *void) #foreign compiler "CompilerFree";
+DestroyScratch :: (memory: *void) { CompilerFree(memory) }
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+
+#scope_export
+ParserScratchTake :: (key: *u8, size: usize) -> *void {
+    if CompilerMemoryRecovering() == 0 {
+        pool := CompilerContextScratch(cast(*void)key, DestroyScratch)
+        memory := CompilerScratchTake(pool)
+        if memory != null { return memory }
+    }
+    return AllocateOrExit(size)
+}
+
+ParserScratchRelease :: (key: *u8, memory: *void) {
+    if CompilerMemoryRecovering() == 0 {
+        pool := CompilerContextScratch(cast(*void)key, DestroyScratch)
+        if CompilerScratchPut(pool, memory) != 0 { return }
+    }
+    CompilerFree(memory)
+}

@@ -16,6 +16,24 @@ old paths below remain dated evidence. For implementation, translate
 `cmd/zir-zx` to the consolidated `cmd/zi2zx`. The deletion steps delete those
 new live C paths, not already-removed compatibility directories.
 
+## C and SIMD integration status
+
+The S4–S8 implementations are maintained in `cmd/compiler_c_*.zi`,
+`cmd/compiler_scalar.zi`, `cmd/compiler_simd_metadata.zi`, and
+`cmd/compiler_go_simd.zi`. The ordinary build generates their C and the seed
+build compiles the matching `bootstrap/compiler_*/` files. The old handwritten
+C emitter, SIMD metadata and C lowering implementations have been removed.
+`zi2c` reads the generated C backend ABI. The remaining C clients use
+`zir_emit.h` for the legacy Go and inline assembly boundary and thin headers
+for scalar and SIMD calls. Go SIMD body text comes from the existing Ziran
+SIMD header generator and is exposed to the emitter by the host services.
+
+S9's build and cache modules were already integrated. S10–S18 remain open.
+They cover the Go backend, checker, parser, frontend services, portable ZX and
+host interfaces, inline assembly and tool drivers, and the stage-0 through
+stage-2 fixed-point proof. The current `check-bootstrap` compares generated
+modules against the checked-in seed.
+
 ## Why staged bootstrap is mandatory
 
 The current compiler is already partly self-hosted: `zi2c` compiles
@@ -335,8 +353,8 @@ No step commits before its implementation and proof are complete.
 - Change `cmd/zir-c/zir_c_lower.c` and `cmd/zir-go/zir_go_lower.c` to the
   generated generic ABI; add generated objects to both tool links at
   `Makefile:468-474`.
-- Delete `cmd/zir/zir_emit.c`, `cmd/zir/zir_emit.h`, `cmd/zir/zir_scalar.h`,
-  and `cmd/zir/zir_emit_internal.h`.
+- Delete `cmd/zir/zir_emit.c` and `cmd/zir/zir_emit_internal.h`. The remaining
+  C callers keep `zir_emit.h` and a thin `zir_scalar.h` during their migration.
 - Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=c99_target`.
 
 ### S5 — C value and statement emitters
@@ -365,11 +383,12 @@ No step commits before its implementation and proof are complete.
   `cmd/compiler_simd_metadata.zi`; port `cmd/zir/zir_emit_simd.c`,
   `zir_emit_simd_go.c`, `zir_simd.c` and `zir_simd.h`. The range proofs are
   done (2026-11-17): `cmd/compiler_c_range*.zi`, seeded in
-  `bootstrap/compiler_c_range/`; the GPU emitter and the Go SIMD body header
-  are already gone.
+  `bootstrap/compiler_c_range/`. The Go SIMD body header is produced by the
+  Ziran SIMD header generator.
 - Change generated C/Go emitters and `compiler_runtime_emit` to these modules;
   update `Makefile:468-474` and bootstrap lists.
-- Delete all four listed C files/headers.
+- Delete the three handwritten C implementations. The checker, borrow pass
+  and linker keep a thin `zir_simd.h` over the generated metadata header.
 - Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=simd`.
 
 ### S8 — C backend lowering

@@ -1,8 +1,6 @@
 /* Checking std/simd operation calls; see zir_simd.h. */
 #include "zir_check_internal.h"
 #include "zir_simd.h"
-#define ZIRAN_SIMD_REF_ONLY 1
-#include "ziran_simd.h"
 
 #include <stdio.h>
 
@@ -115,7 +113,7 @@ check_simd_count(Checker *c, int index, const SimdOp *op, const int *children,
             operand.value = strtoll(lanes->text, NULL, 10);
         }
         const char *message = "";
-        if(SimdSignature(op, NULL, &operand, count, &message) == NULL ||
+        if(SimdCheckedSignature(op, NULL, &operand, count, &message) == NULL ||
            (lanes != NULL && !operand.is_constant) || strcmp(e->type, "s64")) {
             error(c, e->span, "invalid SIMD operation", display);
             return 1;
@@ -209,7 +207,7 @@ check_simd_call(Checker *c, int index, const char **result_type)
     e = &c->fn->exprs[index];
 
     const char *message = "";
-    const char *signature = SimdSignature(op, *result ? result : NULL, operands,
+    const char *signature = SimdCheckedSignature(op, *result ? result : NULL, operands,
                                           operand_count, &message);
     if(signature == NULL) {
         char detail[ZIR_NAME_MAX * 2];

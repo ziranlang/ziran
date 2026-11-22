@@ -1,7 +1,7 @@
 /*
  * zi2c - .zi -> C compiler. Zir is the shared frontend: every .zi parses
- * into a ZirProgram (zir_parse.c) and lowers to C (zir_c_lower.c). All inputs
- * are parsed first so cross-module calls resolve through one symbol table.
+ * into a ZirProgram (zir_parse.c) and lowers to C (compiler_c_backend.zi).
+ * All inputs are parsed first so cross-module calls resolve through one symbol table.
  */
 #include "zir.h"
 #include "zir_parse.h"
@@ -11,12 +11,10 @@
 #include "zir_serial.h"
 #include "zir_load.h"
 #include "zir_link.h"
-#include "zir_c_lower.h"
 #include "compiler_backend_process.h"
-
-#include "zir_emit.h"
+#include "compiler_c_backend.h"
+#include "compiler_runtime_emit.h"
 #include "zir_profile.h"
-#include "zir_simd.h"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -59,12 +57,12 @@ lock_output(const char *directory)
  * separate C main calls it, when other code calls it or takes it as a
  * value, when it is exported under another symbol, or when it carries
  * assembly or per-CPU clones. */
-static const ZirFunction *
-in_place_main(const ZirProgram *program, const ZirModule *entry_owner,
-              const ZirFunction *entry_fn, int exe)
+static ZirFunction *
+in_place_main(const ZirProgram *program, ZirModule *entry_owner,
+              ZirFunction *entry_fn, int exe)
 {
-    const ZirModule *owner = exe ? entry_owner : NULL;
-    const ZirFunction *fn = exe ? entry_fn : NULL;
+    ZirModule *owner = exe ? entry_owner : NULL;
+    ZirFunction *fn = exe ? entry_fn : NULL;
     for(int m = 0; fn == NULL && m < program->module_count; m++)
         for(int f = 0; fn == NULL && f < program->modules[m].function_count; f++)
             if(!program->modules[m].functions[f].is_template &&
@@ -83,7 +81,7 @@ in_place_main(const ZirProgram *program, const ZirModule *entry_owner,
  * exported main nor written as C's main itself. The entry takes nothing or
  * (argc, argv) and returns nothing or an integer. */
 static int
-write_entry_main(const ZirModule *module, const ZirFunction *fn,
+write_entry_main(ZirModule *module, ZirFunction *fn,
                  const char *out_dir, const char *path)
 {
     if(NativeProgramMain(module, fn))
@@ -100,7 +98,7 @@ write_entry_main(const ZirModule *module, const ZirFunction *fn,
     }
     fprintf(out, "/* zi2c --exe: runs %s:%s as the program. */\n", module->name, fn->name);
     fprintf(out, "#include \"%s.h\"\n", stem);
-    EmitNativeMain(out, module, fn, ZIR_C);
+    EmitNativeMain(out, module, fn, ZirTarget_ZIR_C);
     (void)out_dir;
     if(fclose(out) != 0) {
         Diagnostic(fn->span, "zir.output", "cannot finish %s: %s", path, strerror(errno));
@@ -201,7 +199,7 @@ finish_simd_helpers(const char *out_dir)
         if(fclose(file) != 0) ok = 0;
         if(ok) {
             text[size] = '\0';
-            CollectNativeSimdUses(text, &uses);
+            CollectNativeSimdUses((uint8_t *)text, &uses);
         }
         free(text);
     }
@@ -215,7 +213,7 @@ finish_simd_helpers(const char *out_dir)
 
 static int
 lower_programs(ZirProgram **progs, int count, const char *root, const char *out_dir,
-               const ZirCModuleSyms *syms, int symbol_count)
+               ZirCModuleSyms *syms, int symbol_count)
 {
     enum { MAX_EMIT_WORKERS = 16, PROGRAMS_PER_WORKER = 16 };
     int workers = compiler_backend_process_WorkerLimit();
@@ -223,7 +221,8 @@ lower_programs(ZirProgram **progs, int count, const char *root, const char *out_
     if(workers > MAX_EMIT_WORKERS) workers = MAX_EMIT_WORKERS;
     if(workers < 2 || DiagnosticJsonEnabled()) {
         for(int i = 0; i < count; i++)
-            if(!c_lower(progs[i], root, out_dir, syms, symbol_count, NULL, NULL)) return 0;
+            if(!c_lower(progs[i], (uint8_t *)root, (uint8_t *)out_dir,
+                        syms, symbol_count, NULL, NULL)) return 0;
         return finish_simd_helpers(out_dir);
     }
     int recorded = 0;
@@ -244,7 +243,8 @@ lower_programs(ZirProgram **progs, int count, const char *root, const char *out_
             for(int w = 0; w < started; w++) close(reports[w]);
             int lowered = 1;
             for(int i = started; lowered && i < count; i += workers)
-                lowered = c_lower(progs[i], root, out_dir, syms, symbol_count, NULL, NULL);
+                lowered = c_lower(progs[i], (uint8_t *)root, (uint8_t *)out_dir,
+                                  syms, symbol_count, NULL, NULL);
             for(int k = recorded; lowered && k < compiler_runtime_emit_GeneratedPathCount(); k++) {
                 const char *path = (const char *)compiler_runtime_emit_GeneratedPath(k);
                 lowered = write_all(pipes[1], path, strlen(path)) &&
@@ -439,8 +439,8 @@ main(int argc, char **argv)
             if(!c_build_syms(&view, &syms[i]))
                 goto done;
         }
-        const ZirModule *entry_owner = NULL;
-        const ZirFunction *entry_fn = NULL;
+        ZirModule *entry_owner = NULL;
+        ZirFunction *entry_fn = NULL;
         for(i = 0; i < linked->module_count && entry_fn == NULL; i++) {
             if(strcmp(linked->modules[i].name, entry_module)) continue;
             for(int f = 0; f < linked->modules[i].function_count; f++)
@@ -464,12 +464,12 @@ main(int argc, char **argv)
                              "--exe cannot find %s", entry);
             goto done;
         }
-        if(exe && !CheckNativeEntry(entry_fn, "c"))
+        if(exe && !CheckNativeEntry(entry_fn, (uint8_t *)"c"))
             goto done;
         /* --no-main writes every procedure under its own name. */
-        const ZirFunction *main_fn = closed && !no_main ?
+        ZirFunction *main_fn = closed && !no_main ?
             in_place_main(linked, entry_owner, entry_fn, exe) : NULL;
-        if(!c_lower(linked, root, out_dir, syms, linked->module_count,
+        if(!c_lower(linked, (uint8_t *)root, (uint8_t *)out_dir, syms, linked->module_count,
                     closed ? entry_fn : NULL, main_fn))
             goto done;
         char wrapper[ZIR_PATH_MAX];

@@ -1,5 +1,7 @@
 #ifndef ZIR_EMIT_H
 #define ZIR_EMIT_H
+/* C-facing declarations for the remaining Go, inline assembly and frontend
+ * callers. Generated emitter headers expose Ziran's byte-pointer ABI. */
 #include "zir.h"
 #include "compiler_native_names.h"
 #include "zir_body.h"

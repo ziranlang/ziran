@@ -1,0 +1,662 @@
+// std/simd helpers for Go: collects called zi_* helpers and writes ziran_simd.go.
+using IR :: #import "compiler_ir"
+using Native :: #import "compiler_native_names"
+using Simd :: #import "compiler_simd_metadata"
+
+#scope_file
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+realloc :: (memory: *void, size: usize) -> *void #foreign libc "realloc";
+free :: (memory: *void) #foreign libc "free";
+exit :: (status: s32) #foreign libc "exit";
+memcpy :: (dst: *void, src: *void, count: usize) -> *void #foreign libc "memcpy";
+memset :: (dst: *void, value: s32, count: usize) -> *void #foreign libc "memset";
+memcmp :: (a: *void, b: *void, count: usize) -> s32 #foreign libc "memcmp";
+strlen :: (s: *u8) -> usize #foreign libc "strlen";
+strcmp :: (a: *u8, b: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (a: *u8, b: *u8, n: usize) -> s32 #foreign libc "strncmp";
+strstr :: (haystack: *u8, needle: *u8) -> *u8 #foreign libc "strstr";
+snprintf :: (out: *u8, size: usize, fmt: *u8, args: ..any) -> s32 #foreign libc "snprintf";
+fprintf :: (stream: *void, fmt: *u8, args: ..any) -> s32 #foreign libc "fprintf";
+fputs :: (s: *u8, stream: *void) -> s32 #foreign libc "fputs";
+ferror :: (stream: *void) -> s32 #foreign libc "ferror";
+fclose :: (stream: *void) -> s32 #foreign libc "fclose";
+remove :: (path: *u8) -> s32 #foreign libc "remove";
+
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, fmt: *u8, args: ..any) #foreign compiler "Diagnostic";
+VectorType :: (type: *u8, vector: *SimdVector) -> s32 #foreign compiler "VectorType";
+VectorTypeName :: (lane: *u8, lanes: s32) -> *u8 #foreign compiler "VectorTypeName";
+CTargetType :: (type: *u8, target: Native.ZirTarget) -> *u8 #foreign compiler "TargetTypeZiran";
+GeneratedOutputOpen :: (path: *u8, temp: *u8, temp_size: usize) -> *void #foreign compiler "GeneratedOutputOpen";
+GeneratedOutputReplace :: (temp: *u8, path: *u8) -> s32 #foreign compiler "GeneratedOutputReplace";
+
+GoSimdText :: struct {
+    name: *u8
+    text: *u8
+}
+
+ZirGoSimdBodyCount :: () -> usize #foreign compiler "ZirGoSimdBodyCount";
+ZirGoSimdBodyAt :: (i: usize) -> *GoSimdText #foreign compiler "ZirGoSimdBodyAt";
+ZirGoSimdLaneCount :: () -> usize #foreign compiler "ZirGoSimdLaneCount";
+ZirGoSimdLaneAt :: (i: usize) -> *GoSimdText #foreign compiler "ZirGoSimdLaneAt";
+
+StaticText :: struct { data: *u8; length: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+PtrAdd :: (base: *u8, offset: usize) -> *u8 { return cast(*u8)(cast(usize)base + offset) }
+
+CheckFormat :: (n: s32, size: usize) -> s32 {
+    if n < 0 || cast(usize)n >= size {
+        span: IR.ZirSourceSpan
+        Diagnostic(span, CStr("zir.output"), CStr("generated expression exceeds output limit"))
+        exit(1)
+    }
+    return n
+}
+
+IsAlnum :: (c: u8) -> bool {
+    return (c >= #char "a" && c <= #char "z") || (c >= #char "A" && c <= #char "Z") || (c >= #char "0" && c <= #char "9")
+}
+
+g_go_helpers: **u8 = null;
+g_go_helper_count: s32 = 0;
+g_go_helper_capacity: s32 = 0;
+
+#scope_export
+
+#program_export "GoSimdBegin"
+GoSimdBegin :: () {
+    for i: cast(s32)0..g_go_helper_count - 1 {
+        free(cast(*void)g_go_helpers[i])
+    }
+    free(cast(*void)g_go_helpers)
+    g_go_helpers = null
+    g_go_helper_count = 0
+    g_go_helper_capacity = 0
+}
+
+#scope_file
+
+Remember :: (start: *u8, length: usize) {
+    for i: cast(s32)0..g_go_helper_count - 1 {
+        if strlen(g_go_helpers[i]) == length && memcmp(cast(*void)g_go_helpers[i], cast(*void)start, length) == 0 {
+            return
+        }
+    }
+    if g_go_helper_count == g_go_helper_capacity {
+        g_go_helper_capacity = ifx g_go_helper_capacity != 0 then g_go_helper_capacity * 2 else 16
+        grown := cast(**u8)realloc(cast(*void)g_go_helpers, cast(usize)g_go_helper_capacity * size_of(*u8))
+        if grown == null {
+            span: IR.ZirSourceSpan
+            Diagnostic(span, CStr("zir_go.global"), CStr("zi2go: out of memory"))
+            exit(1)
+        }
+        g_go_helpers = grown
+    }
+    name := cast(*u8)AllocateOrExit(length + 1)
+    memcpy(cast(*void)name, cast(*void)start, length)
+    name[length] = 0
+    g_go_helpers[g_go_helper_count] = name
+    g_go_helper_count += 1
+}
+
+GoHelper :: struct {
+    op: *SimdOp
+    first: SimdVector
+    second: SimdVector
+    types: s32
+    pointer: s32
+    string_mem: s32
+    checked: s32
+}
+
+VectorComponent :: (start: *u8, length: usize, vector: *SimdVector) -> bool {
+    name: [8]u8
+    if length == 0 || length >= 8 { return false }
+    memcpy(cast(*void)*name[0], cast(*void)start, length)
+    name[length] = 0
+    return VectorType(*name[0], vector) != 0
+}
+
+ParseHelper :: (name: *u8, helper: *GoHelper) -> bool {
+    memset(cast(*void)helper, 0, size_of(GoHelper))
+    if strncmp(name, CStr("zi_"), 3) != 0 { return false }
+    end := PtrAdd(name, strlen(name))
+    base3 := PtrAdd(name, 3)
+    for types: cast(s32)0..1 {
+        underscore := end
+        while cast(usize)underscore > cast(usize)base3 && PtrAdd(underscore, cast(usize)-1)[0] != #char "_" {
+            underscore = PtrAdd(underscore, cast(usize)-1)
+        }
+        if cast(usize)underscore <= cast(usize)base3 { break }
+        vector: SimdVector
+        if !VectorComponent(underscore, cast(usize)end - cast(usize)underscore, *vector) { break }
+        if types == 0 { helper.second = vector }
+        else { helper.first = vector }
+        helper.types = types + 1
+        end = PtrAdd(underscore, cast(usize)-1)
+    }
+    if helper.types == 0 { return false }
+    if helper.types == 1 { helper.first = helper.second }
+    snake: [64]u8
+    length := cast(usize)end - cast(usize)base3
+    if length == 0 || length >= 64 - 8 { return false }
+    memcpy(cast(*void)*snake[0], cast(*void)base3, length)
+    snake[length] = 0
+    if length > 8 && strcmp(PtrAdd(*snake[0], length - 8), CStr("_checked")) == 0 {
+        helper.checked = 1
+        length -= 8
+        snake[length] = 0
+    }
+    if length > 4 && strcmp(PtrAdd(*snake[0], length - 4), CStr("_ptr")) == 0 {
+        helper.pointer = 1
+        length -= 4
+        snake[length] = 0
+    }
+    if length > 7 && strcmp(PtrAdd(*snake[0], length - 7), CStr("_string")) == 0 {
+        helper.string_mem = 1
+        length -= 7
+        snake[length] = 0
+    }
+    checked: [80]u8
+    CheckFormat(snprintf(*checked[0], 80, CStr("zi_simd_%s"), *snake[0]), 80)
+    helper.op = SimdOpChecked(*checked[0])
+    if helper.op == null { return false }
+    if helper.string_mem != 0 && (helper.op.shape != .SIMD_LOAD || strcmp(helper.first.lane, CStr("u8")) != 0) {
+        return false
+    }
+    two := helper.op.shape == .SIMD_NARROW || helper.op.shape == .SIMD_REINTERPRET ||
+           helper.op.shape == .SIMD_CONVERT || helper.op.shape == .SIMD_GATHER
+    memory := helper.op.shape == .SIMD_LOAD || helper.op.shape == .SIMD_STORE || helper.op.shape == .SIMD_GATHER
+    if two != (helper.types == 2) || (helper.pointer != 0 && !memory) ||
+       (helper.checked != 0 && (!memory || helper.pointer != 0)) {
+        return false
+    }
+    if (helper.op.lanes & (cast(u32)1 << cast(u32)SimdLaneKind(*helper.first))) == 0 &&
+       helper.op.shape != .SIMD_REINTERPRET && helper.op.shape != .SIMD_CONVERT &&
+       helper.op.shape != .SIMD_NARROW && helper.op.shape != .SIMD_GATHER {
+        return false
+    }
+    return true
+}
+
+#scope_export
+
+#program_export "GoSimdCollect"
+GoSimdCollect :: (text: *u8) {
+    if text == null { return }
+    p := text
+    while p[0] != 0 {
+        if !(p[0] == #char "z" && p[1] == #char "i" && p[2] == #char "_") ||
+           (cast(usize)p > cast(usize)text && (IsAlnum(PtrAdd(p, cast(usize)-1)[0]) || PtrAdd(p, cast(usize)-1)[0] == #char "_")) {
+            p = PtrAdd(p, 1)
+            continue
+        }
+        start := p
+        while IsAlnum(p[0]) || p[0] == #char "_" { p = PtrAdd(p, 1) }
+        length := cast(usize)p - cast(usize)start
+        name: [96]u8
+        helper: GoHelper
+        if p[0] != #char "(" || length >= 96 { continue }
+        memcpy(cast(*void)*name[0], cast(*void)start, length)
+        name[length] = 0
+        if ParseHelper(*name[0], *helper) { Remember(start, length) }
+    }
+}
+
+#scope_file
+
+LaneName :: (vector: *SimdVector) -> *u8 {
+    k := SimdLaneKind(vector)
+    if k == 0 { return CStr("u8") }
+    if k == 1 { return CStr("s8") }
+    if k == 2 { return CStr("u16") }
+    if k == 3 { return CStr("s16") }
+    if k == 4 { return CStr("u32") }
+    if k == 5 { return CStr("s32") }
+    if k == 6 { return CStr("u64") }
+    if k == 7 { return CStr("s64") }
+    if k == 8 { return CStr("f32") }
+    return CStr("f64")
+}
+
+GoType :: (type: *u8) -> *u8 {
+    return CTargetType(type, .ZIR_GO)
+}
+
+GoVectorName :: (i: s32) -> *u8 {
+    if i == 0 { return CStr("u8x16") }
+    if i == 1 { return CStr("s8x16") }
+    if i == 2 { return CStr("u16x8") }
+    if i == 3 { return CStr("s16x8") }
+    if i == 4 { return CStr("u32x4") }
+    if i == 5 { return CStr("s32x4") }
+    if i == 6 { return CStr("u64x2") }
+    if i == 7 { return CStr("s64x2") }
+    if i == 8 { return CStr("f32x4") }
+    if i == 9 { return CStr("f64x2") }
+    if i == 10 { return CStr("u8x32") }
+    if i == 11 { return CStr("s8x32") }
+    if i == 12 { return CStr("u16x16") }
+    if i == 13 { return CStr("s16x16") }
+    if i == 14 { return CStr("u32x8") }
+    if i == 15 { return CStr("s32x8") }
+    if i == 16 { return CStr("u64x4") }
+    if i == 17 { return CStr("s64x4") }
+    if i == 18 { return CStr("f32x8") }
+    return CStr("f64x4")
+}
+
+WriteLaneConv :: (out: *void, lname: string, gtype: string, to_bits: string, from_bits: string) {
+    fprintf(out, CStr("\nfunc zi_simd_bits_%s(v %s) uint64 {\n\treturn %s\n}\n\nfunc zi_simd_lane_%s(b uint64) %s {\n\treturn %s\n}\n"),
+            CStr(lname), CStr(gtype), CStr(to_bits), CStr(lname), CStr(gtype), CStr(from_bits))
+}
+
+WriteConversions :: (out: *void) {
+    WriteLaneConv(out, "u8", "uint8", "uint64(v)", "uint8(b)")
+    WriteLaneConv(out, "s8", "int8", "uint64(uint8(v))", "int8(b)")
+    WriteLaneConv(out, "u16", "uint16", "uint64(v)", "uint16(b)")
+    WriteLaneConv(out, "s16", "int16", "uint64(uint16(v))", "int16(b)")
+    WriteLaneConv(out, "u32", "uint32", "uint64(v)", "uint32(b)")
+    WriteLaneConv(out, "s32", "int32", "uint64(uint32(v))", "int32(b)")
+    WriteLaneConv(out, "u64", "uint64", "v", "b")
+    WriteLaneConv(out, "s64", "int64", "uint64(v)", "int64(b)")
+    WriteLaneConv(out, "f32", "float32", "uint64(math.Float32bits(v))", "math.Float32frombits(uint32(b))")
+    WriteLaneConv(out, "f64", "float64", "math.Float64bits(v)", "math.Float64frombits(b)")
+    for i: cast(s32)0..19 {
+        name := GoVectorName(i)
+        vector: SimdVector
+        VectorType(name, *vector)
+        lane := LaneName(*vector)
+        gt := GoType(name)
+        fprintf(out, CStr("\nfunc zi_simd_in_%s(x *zi_lanes, v %s) {\n\tfor i := range v {\n\t\tx[i] = zi_simd_bits_%s(v[i])\n\t}\n}\n\nfunc zi_simd_out_%s(x *zi_lanes) (v %s) {\n\tfor i := range v {\n\t\tv[i] = zi_simd_lane_%s(x[i])\n\t}\n\treturn v\n}\n"),
+                name, gt, lane, name, gt, lane)
+    }
+}
+
+HelperResult :: (helper: *GoHelper, types: **u8, count: s32) -> *u8 {
+    operands: [40]SimdOperand
+    message: *u8 = null
+    for i: cast(s32)0..count - 1 {
+        operands[i].type = types[i]
+        operands[i].is_constant = 1
+        operands[i].value = 0
+    }
+    return SimdSignature(helper.op, helper.second.name, *operands[0], count, *message)
+}
+
+WriteMemory :: (out: *void, name: *u8, helper: *GoHelper) {
+    v := *helper.first
+    vt := GoType(v.name)
+    lt := GoType(v.lane)
+    lanes := ifx helper.op.id == ZI_OP_LOAD_LOW || helper.op.id == ZI_OP_STORE_LOW then 64 / v.lane_bits else v.lanes
+    view: [160]u8
+    if helper.pointer != 0 {
+        CheckFormat(snprintf(*view[0], 160, CStr("unsafe.Slice((*%s)(unsafe.Add(unsafe.Pointer(p), i*%d)), %d)"),
+                             lt, v.lane_bits / 8, lanes), 160)
+    } else {
+        CheckFormat(snprintf(*view[0], 160, CStr("m[i:i+%d]"), lanes), 160)
+    }
+    memory := ifx helper.pointer != 0 then CStr("p *") else CStr("m []")
+    if helper.op.shape == .SIMD_STORE {
+        fprintf(out, CStr("\nfunc %s(%s%s, i int64, v %s) {\n"), name, memory, lt, vt)
+        if helper.checked != 0 { fprintf(out, CStr("\tzi_simd_check(int64(len(m)), i, %d)\n"), lanes) }
+        fprintf(out, CStr("\tcopy(%s, v[:%d])\n}\n"), *view[0], lanes)
+        return
+    }
+    m_pre := ifx helper.string_mem != 0 then CStr("m ") else memory
+    m_typ := ifx helper.string_mem != 0 then CStr("string") else lt
+    fprintf(out, CStr("\nfunc %s(%s%s, i int64) (v %s) {\n"), name, m_pre, m_typ, vt)
+    if helper.checked != 0 { fprintf(out, CStr("\tzi_simd_check(int64(len(m)), i, %d)\n"), lanes) }
+    fprintf(out, CStr("\tcopy(v[:%d], %s)\n\treturn v\n}\n"), lanes, *view[0])
+}
+
+WriteGather :: (out: *void, name: *u8, helper: *GoHelper) {
+    index := *helper.first
+    result := *helper.second
+    lt := GoType(result.lane)
+    read := ifx index.is_signed != 0 then CStr("int64(idx[l])") else CStr("int64(uint32(idx[l]))")
+    if helper.pointer != 0 {
+        fprintf(out, CStr("\nfunc %s(p *%s, idx %s) (v %s) {\n\tfor l := range v {\n\t\tv[l] = *(*%s)(unsafe.Add(unsafe.Pointer(p), %s*%d))\n\t}\n\treturn v\n}\n"),
+                name, lt, GoType(index.name), GoType(result.name), lt, read, result.lane_bits / 8)
+        return
+    }
+    fprintf(out, CStr("\nfunc %s(t []%s, idx %s) (v %s) {\n"), name, lt, GoType(index.name), GoType(result.name))
+    if helper.checked != 0 {
+        fprintf(out, CStr("\tfor l := range idx {\n\t\tzi_simd_gather_check(%s, int64(len(t)))\n\t}\n"), read)
+    }
+    fprintf(out, CStr("\tfor l := range v {\n\t\tv[l] = t[%s]\n\t}\n\treturn v\n}\n"), read)
+}
+
+TypedBody :: (name: *u8) -> *GoSimdText {
+    low: usize = 0
+    high := ZirGoSimdBodyCount()
+    while low < high {
+        middle := low + (high - low) / 2
+        entry := ZirGoSimdBodyAt(middle)
+        order := strcmp(name, entry.name)
+        if order == 0 { return entry }
+        if order < 0 { high = middle }
+        else { low = middle + 1 }
+    }
+    return null
+}
+
+GoValue :: struct {
+    params: [2048]u8
+    body: [4096]u8
+    result: *u8
+}
+
+AppendVectorParam :: (value: *GoValue, types: **u8, count: *s32, vectors: *s32, param: *u8, type: *u8) {
+    pu := strlen(*value.params[0])
+    sep := ifx count.* != 0 then CStr(", ") else CStr("")
+    CheckFormat(snprintf(PtrAdd(*value.params[0], pu), 2048 - pu, CStr("%s%s %s"), sep, param, GoType(type)), 2048 - pu)
+    bu := strlen(*value.body[0])
+    reg: s32 = #char "x"
+    if vectors.* == 1 { reg = #char "y" }
+    else if vectors.* == 2 { reg = #char "z" }
+    vectors.* += 1
+    CheckFormat(snprintf(PtrAdd(*value.body[0], bu), 4096 - bu, CStr("\tzi_simd_in_%s(&%c, %s)\n"), type, reg, param), 4096 - bu)
+    types[count.*] = type
+    count.* += 1
+}
+
+ValueSignature :: (helper: *GoHelper, value: *GoValue) -> bool {
+    op := helper.op
+    v := *helper.first
+    types: [40]*u8
+    count: s32 = 0
+    vectors: s32 = 0
+    value.params[0] = 0
+    value.body[0] = 0
+    lane: [8]u8
+    if op.shape == .SIMD_UNARY || op.shape == .SIMD_WIDEN_HALF || op.shape == .SIMD_WIDEN ||
+       op.shape == .SIMD_ADD_PAIRS || op.shape == .SIMD_REDUCE || op.shape == .SIMD_ALL_ZERO ||
+       op.shape == .SIMD_HALF || op.shape == .SIMD_REINTERPRET || op.shape == .SIMD_CONVERT {
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("a"), v.name)
+    } else if op.shape == .SIMD_BINARY || op.shape == .SIMD_COMPARE || op.shape == .SIMD_SHIFT_LANES ||
+              op.shape == .SIMD_MUL_WIDE || op.shape == .SIMD_MADD || op.shape == .SIMD_SAD ||
+              op.shape == .SIMD_COMBINE || op.shape == .SIMD_NARROW {
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("a"), v.name)
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("b"), v.name)
+    } else if op.shape == .SIMD_MADD_SAT {
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("a"), v.name)
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("b"), VectorTypeName(CStr("s8"), v.lanes))
+    } else if op.shape == .SIMD_BYTE_SHUFFLE {
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("a"), v.name)
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("b"), VectorTypeName(CStr("u8"), v.lanes))
+    } else if op.shape == .SIMD_SELECT {
+        CheckFormat(snprintf(*lane[0], 8, CStr("u%d"), v.lane_bits), 8)
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("m"), VectorTypeName(*lane[0], v.lanes))
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("a"), v.name)
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("b"), v.name)
+    } else if op.shape == .SIMD_SHIFT {
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("a"), v.name)
+        pu := strlen(*value.params[0]); CheckFormat(snprintf(PtrAdd(*value.params[0], pu), 2048 - pu, CStr(", n uint64")), 2048 - pu)
+        bu := strlen(*value.body[0]); CheckFormat(snprintf(PtrAdd(*value.body[0], bu), 4096 - bu, CStr("\tk[0] = int64(n)\n")), 4096 - bu)
+        types[count] = CStr("u64"); count += 1
+    } else if op.shape == .SIMD_BYTE_SHIFT {
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("a"), v.name)
+        pu := strlen(*value.params[0]); CheckFormat(snprintf(PtrAdd(*value.params[0], pu), 2048 - pu, CStr(", n int")), 2048 - pu)
+        bu := strlen(*value.body[0]); CheckFormat(snprintf(PtrAdd(*value.body[0], bu), 4096 - bu, CStr("\tk[0] = int64(n)\n")), 4096 - bu)
+        types[count] = CStr("integer"); count += 1
+    } else if op.shape == .SIMD_ALIGN {
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("a"), v.name)
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("b"), v.name)
+        pu := strlen(*value.params[0]); CheckFormat(snprintf(PtrAdd(*value.params[0], pu), 2048 - pu, CStr(", n int")), 2048 - pu)
+        bu := strlen(*value.body[0]); CheckFormat(snprintf(PtrAdd(*value.body[0], bu), 4096 - bu, CStr("\tk[0] = int64(n)\n")), 4096 - bu)
+        types[count] = CStr("integer"); count += 1
+    } else if op.shape == .SIMD_LANE {
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("a"), v.name)
+        pu := strlen(*value.params[0]); CheckFormat(snprintf(PtrAdd(*value.params[0], pu), 2048 - pu, CStr(", i int")), 2048 - pu)
+        bu := strlen(*value.body[0]); CheckFormat(snprintf(PtrAdd(*value.body[0], bu), 4096 - bu, CStr("\tk[0] = int64(i)\n")), 4096 - bu)
+        types[count] = CStr("integer"); count += 1
+    } else if op.shape == .SIMD_WITH_LANE {
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("a"), v.name)
+        pu := strlen(*value.params[0]); CheckFormat(snprintf(PtrAdd(*value.params[0], pu), 2048 - pu, CStr(", i int, l %s"), GoType(v.lane)), 2048 - pu)
+        bu := strlen(*value.body[0]); CheckFormat(snprintf(PtrAdd(*value.body[0], bu), 4096 - bu, CStr("\tk[0] = int64(i)\n\ty[0] = zi_simd_bits_%s(l)\n"), LaneName(v)), 4096 - bu)
+        types[count] = CStr("integer"); count += 1
+        types[count] = v.lane; count += 1
+    } else if op.shape == .SIMD_SHUFFLE {
+        AppendVectorParam(value, *types[0], *count, *vectors, CStr("a"), v.name)
+        bl := SimdBlockLanes(v)
+        for i: cast(s32)0..bl - 1 {
+            pu := strlen(*value.params[0]); CheckFormat(snprintf(PtrAdd(*value.params[0], pu), 2048 - pu, CStr(", k%d int"), i), 2048 - pu)
+            bu := strlen(*value.body[0]); CheckFormat(snprintf(PtrAdd(*value.body[0], bu), 4096 - bu, CStr("\tk[%d] = int64(k%d)\n"), i, i), 4096 - bu)
+            types[count] = CStr("integer"); count += 1
+        }
+    } else if op.shape == .SIMD_MAKE {
+        for i: cast(s32)0..v.lanes - 1 {
+            pu := strlen(*value.params[0])
+            sep := ifx i != 0 then CStr(", ") else CStr("")
+            CheckFormat(snprintf(PtrAdd(*value.params[0], pu), 2048 - pu, CStr("%sl%d %s"), sep, i, GoType(v.lane)), 2048 - pu)
+            bu := strlen(*value.body[0])
+            CheckFormat(snprintf(PtrAdd(*value.body[0], bu), 4096 - bu, CStr("\tx[%d] = zi_simd_bits_%s(l%d)\n"), i, LaneName(v), i), 4096 - bu)
+            types[count] = v.lane; count += 1
+        }
+    } else if op.shape == .SIMD_SPLAT {
+        pu := strlen(*value.params[0]); CheckFormat(snprintf(PtrAdd(*value.params[0], pu), 2048 - pu, CStr("l %s"), GoType(v.lane)), 2048 - pu)
+        bu := strlen(*value.body[0]); CheckFormat(snprintf(PtrAdd(*value.body[0], bu), 4096 - bu, CStr("\ty[0] = zi_simd_bits_%s(l)\n"), LaneName(v)), 4096 - bu)
+        types[count] = v.lane; count += 1
+    } else if op.shape == .SIMD_ZERO {
+    } else {
+        return false
+    }
+    value.result = HelperResult(helper, *types[0], count)
+    return value.result != null
+}
+
+WriteValue :: (out: *void, name: *u8, suffix: *u8, helper: *GoHelper, typed: *GoSimdText) -> bool {
+    op := helper.op
+    v := *helper.first
+    value := cast(*GoValue)AllocateOrExit(size_of(GoValue))
+    if !ValueSignature(helper, value) {
+        free(cast(*void)value)
+        return false
+    }
+    result := value.result
+    r: SimdVector
+    vector_result := VectorType(result, *r) != 0
+    r_kind := ifx vector_result then SimdLaneKind(*r) else (ifx strcmp(result, v.lane) == 0 then SimdLaneKind(v) else cast(s32)ZI_K_S64)
+    r_lanes := ifx vector_result then r.lanes else cast(s32)1
+    a_type := ifx op.shape == .SIMD_MAKE || op.shape == .SIMD_SPLAT || op.shape == .SIMD_ZERO then result else v.name
+    a: SimdVector
+    VectorType(a_type, *a)
+    if typed != null {
+        fprintf(out, CStr("\nfunc %s%s(%s) %s {\n%s}\n"), name, suffix, *value.params[0], GoType(result), typed.text)
+        free(cast(*void)value)
+        return true
+    }
+    fprintf(out, CStr("\nfunc %s%s(%s) %s {\n\tvar x, y, z, o zi_lanes\n\tvar k [32]int64\n%s"),
+            name, suffix, *value.params[0], GoType(result), *value.body[0])
+    fprintf(out, CStr("\tzi_simd_ref(%d, %d, %d, %d, %d, &x, &y, &z, &k, &o)\n"),
+            op.id, r_kind, r_lanes, SimdLaneKind(*a), a.lanes)
+    if vector_result {
+        fprintf(out, CStr("\treturn zi_simd_out_%s(&o)\n}\n"), result)
+    } else if strcmp(result, CStr("bool")) == 0 {
+        fputs(CStr("\treturn o[0] != 0\n}\n"), out)
+    } else if strcmp(result, v.lane) == 0 {
+        fprintf(out, CStr("\treturn zi_simd_lane_%s(o[0])\n}\n"), LaneName(v))
+    } else {
+        fputs(CStr("\treturn int64(o[0])\n}\n"), out)
+    }
+    free(cast(*void)value)
+    return true
+}
+
+SortHelpers :: () {
+    // Insertion sort — helper count is tiny (dozens to a few hundred).
+    i: s32 = 1
+    while i < g_go_helper_count {
+        key := g_go_helpers[i]
+        j := i - 1
+        while j >= 0 && strcmp(g_go_helpers[j], key) > 0 {
+            g_go_helpers[j + 1] = g_go_helpers[j]
+            j -= 1
+        }
+        g_go_helpers[j + 1] = key
+        i += 1
+    }
+}
+
+Calls :: (text: *u8, name: *u8) -> bool {
+    length := strlen(name)
+    p := strstr(text, name)
+    while p != null {
+        if p[length] == #char "(" && (p == text || !(IsAlnum(PtrAdd(p, cast(usize)-1)[0]) || PtrAdd(p, cast(usize)-1)[0] == #char "_")) {
+            return true
+        }
+        p = strstr(PtrAdd(p, 1), name)
+    }
+    return false
+}
+
+WriteHelpers :: (out_dir: *u8, pkg: *u8, check: s32) -> s32 {
+    SortHelpers()
+    pointer: s32 = 0
+    checks: s32 = 0
+    math_imp: s32 = check
+    lane_count := ZirGoSimdLaneCount()
+    lane_used := cast(*u8)AllocateOrExit(lane_count + 1)
+    memset(cast(*void)lane_used, 0, lane_count + 1)
+    for i: cast(s32)0..g_go_helper_count - 1 {
+        helper: GoHelper
+        if !ParseHelper(g_go_helpers[i], *helper) { continue }
+        shape := helper.op.shape
+        if shape == .SIMD_LOAD || shape == .SIMD_STORE || shape == .SIMD_GATHER {
+            pointer |= helper.pointer
+            checks |= helper.checked
+            continue
+        }
+        typed := TypedBody(g_go_helpers[i])
+        if typed == null {
+            if check != 0 { continue }
+            span: IR.ZirSourceSpan
+            Diagnostic(span, CStr("compiler.internal"), CStr("no typed Go body for %s"), g_go_helpers[i])
+            free(cast(*void)lane_used)
+            return 1
+        }
+        if strstr(typed.text, CStr("math.")) != null { math_imp = 1 }
+        f: usize = 0
+        while f < lane_count {
+            lf := ZirGoSimdLaneAt(f)
+            if lane_used[f] == 0 && Calls(typed.text, lf.name) {
+                lane_used[f] = 1
+                if strstr(lf.text, CStr("math.")) != null { math_imp = 1 }
+            }
+            f += 1
+        }
+    }
+    path: [IR.ZIR_PATH_MAX]u8
+    temp: [IR.ZIR_PATH_MAX]u8
+    CheckFormat(snprintf(*path[0], IR.ZIR_PATH_MAX, CStr("%s/ziran_simd.go"), out_dir), IR.ZIR_PATH_MAX)
+    out := GeneratedOutputOpen(*path[0], *temp[0], IR.ZIR_PATH_MAX)
+    if out == null {
+        span: IR.ZirSourceSpan
+        Diagnostic(span, CStr("zir_go.global"), CStr("cannot create Go output: %s"), *path[0])
+        free(cast(*void)lane_used)
+        return 1
+    }
+    fprintf(out, CStr("// Code generated by zi2go from std/simd. DO NOT EDIT.\npackage %s\n"), pkg)
+    if math_imp != 0 || checks != 0 || pointer != 0 {
+        m_s := ifx math_imp != 0 then CStr("\t\"math\"\n") else CStr("")
+        c_s := ifx checks != 0 then CStr("\t\"strconv\"\n") else CStr("")
+        p_s := ifx pointer != 0 then CStr("\t\"unsafe\"\n") else CStr("")
+        fprintf(out, CStr("\nimport (\n%s%s%s)\n"), m_s, c_s, p_s)
+    }
+    failed: s32 = 0
+    for i: cast(s32)0..g_go_helper_count - 1 {
+        if failed != 0 { break }
+        helper: GoHelper
+        ParseHelper(g_go_helpers[i], *helper)
+        name := g_go_helpers[i]
+        if helper.op.shape == .SIMD_LOAD || helper.op.shape == .SIMD_STORE {
+            WriteMemory(out, name, *helper)
+        } else if helper.op.shape == .SIMD_GATHER {
+            WriteGather(out, name, *helper)
+        } else if !WriteValue(out, name, CStr(""), *helper, TypedBody(name)) ||
+                  (check != 0 && !WriteValue(out, name, CStr("_ref"), *helper, null)) {
+            span: IR.ZirSourceSpan
+            Diagnostic(span, CStr("compiler.internal"), CStr("no Go helper for %s"), name)
+            failed = 1
+        }
+    }
+    f_idx: usize = 0
+    while f_idx < lane_count {
+        if lane_used[f_idx] != 0 {
+            lf := ZirGoSimdLaneAt(f_idx)
+            fprintf(out, CStr("\n%s"), lf.text)
+        }
+        f_idx += 1
+    }
+    free(cast(*void)lane_used)
+    if checks != 0 {
+        fputs(CStr("\nfunc zi_simd_check(length, index int64, count int) {\n\tif index < 0 || index > length-int64(count) {\n\t\tpanic(\"ziran: SIMD access of \" + strconv.Itoa(count) + \" lanes at \" +\n\t\t\tstrconv.FormatInt(index, 10) + \" out of bounds (length \" +\n\t\t\tstrconv.FormatInt(length, 10) + \")\")\n\t}\n}\n\nfunc zi_simd_gather_check(index, length int64) {\n\tif index < 0 || index >= length {\n\t\tpanic(\"ziran: gather index \" + strconv.FormatInt(index, 10) +\n\t\t\t\" out of bounds (length \" + strconv.FormatInt(length, 10) + \")\")\n\t}\n}\n"), out)
+    }
+    if check != 0 {
+        WriteConversions(out)
+        fputs(CStr("\nvar zi_simd_helpers = [][3]any{\n"), out)
+        for i: cast(s32)0..g_go_helper_count - 1 {
+            fprintf(out, CStr("\t{\"%s\", %s, %s_ref},\n"), g_go_helpers[i], g_go_helpers[i], g_go_helpers[i])
+        }
+        fputs(CStr("}\n"), out)
+    }
+    if ferror(out) != 0 { failed = 1 }
+    if fclose(out) != 0 { failed = 1 }
+    if failed != 0 || GeneratedOutputReplace(*temp[0], *path[0]) != 0 {
+        if failed == 0 {
+            span: IR.ZirSourceSpan
+            Diagnostic(span, CStr("zir_go.global"), CStr("cannot finish Go output: %s"), *path[0])
+        }
+        remove(*temp[0])
+        return 1
+    }
+    return 0
+}
+
+#scope_export
+
+#program_export "GoSimdWrite"
+GoSimdWrite :: (out_dir: *u8, pkg: *u8) -> s32 {
+    if g_go_helper_count == 0 { return 0 }
+    return WriteHelpers(out_dir, pkg, 0)
+}
+
+#program_export "GoSimdWriteCheck"
+GoSimdWriteCheck :: (out_dir: *u8, pkg: *u8) -> s32 {
+    GoSimdBegin()
+    missing: s32 = 0
+    value := cast(*GoValue)AllocateOrExit(size_of(GoValue))
+    o: s32 = 0
+    while true {
+        op := SimdOpAt(o)
+        if op == null { break }
+        o += 1
+        if op.shape == .SIMD_LOAD || op.shape == .SIMD_STORE || op.shape == .SIMD_GATHER { continue }
+        two := op.shape == .SIMD_NARROW || op.shape == .SIMD_REINTERPRET || op.shape == .SIMD_CONVERT
+        j_lim: s32 = ifx two then 20 else 1
+        for i: cast(s32)0..19 {
+            for j: cast(s32)0..j_lim - 1 {
+                name: [96]u8
+                if two {
+                    CheckFormat(snprintf(*name[0], 96, CStr("zi_%s_%s_%s"), op.snake, GoVectorName(i), GoVectorName(j)), 96)
+                } else {
+                    CheckFormat(snprintf(*name[0], 96, CStr("zi_%s_%s"), op.snake, GoVectorName(i)), 96)
+                }
+                helper: GoHelper
+                if !ParseHelper(*name[0], *helper) || !ValueSignature(*helper, value) { continue }
+                Remember(*name[0], strlen(*name[0]))
+                if TypedBody(*name[0]) == null {
+                    missing = 1
+                }
+            }
+        }
+    }
+    free(cast(*void)value)
+    failed := WriteHelpers(out_dir, pkg, 1)
+    GoSimdBegin()
+    return ifx failed != 0 || missing != 0 then 1 else 0
+}

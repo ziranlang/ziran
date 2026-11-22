@@ -1,0 +1,76 @@
+// Bit representations, rather than host signed arithmetic, define integers.
+IR :: #import "compiler_ir"
+
+#scope_export
+
+Width :: (type: string) -> u32 {
+    if type == "int" || type == "integer" { return 64 }
+    if type.count < 2 || (type[0] != #char "s" && type[0] != #char "u") { return 0 }
+    rest := type[1:]
+    if rest == "8" { return 8 }
+    if rest == "16" { return 16 }
+    if rest == "32" { return 32 }
+    if rest == "64" { return 64 }
+    return 0
+}
+
+Mask :: (width: u32) -> u64 {
+    if width == 64 { return cast(u64)0xffffffffffffffff }
+    return (cast(u64)1 << cast(u64)width) - 1
+}
+
+Signed :: (bits: u64, width: u32) -> s64 {
+    masked := bits & Mask(width)
+    sign := cast(u64)1 << cast(u64)(width - 1)
+    if (masked & sign) == 0 { return cast(s64)masked }
+    return -1 - cast(s64)((~masked) & Mask(width))
+}
+
+Stored :: (bits: u64, type: string) -> s64 {
+    width := Width(type)
+    if width == 0 { width = 64 }
+    masked := bits & Mask(width)
+    if type.count > 0 && type[0] == #char "u" {
+        if width < 64 { return cast(s64)masked }
+        return Signed(masked, 64)
+    }
+    return Signed(masked, width)
+}
+
+Compare :: (a: u64, b: u64, width: u32, is_unsigned: s32) -> s32 {
+    ma := a & Mask(width)
+    mb := b & Mask(width)
+    if is_unsigned != 0 {
+        if ma < mb { return -1 }
+        return ifx ma > mb then 1 else 0
+    }
+    x := Signed(ma, width)
+    y := Signed(mb, width)
+    if x < y { return -1 }
+    return ifx x > y then 1 else 0
+}
+
+#program_export "ScalarWidthZiran"
+ScalarWidthC :: (type: *void) -> u32 {
+    return Width(IR.CText(cast(*u8)type))
+}
+
+#program_export "ScalarMask"
+ScalarMask :: (width: u32) -> u64 {
+    return Mask(width)
+}
+
+#program_export "ScalarSigned"
+ScalarSigned :: (bits: u64, width: u32) -> s64 {
+    return Signed(bits, width)
+}
+
+#program_export "ScalarStoredZiran"
+ScalarStoredC :: (bits: u64, type: *void) -> s64 {
+    return Stored(bits, IR.CText(cast(*u8)type))
+}
+
+#program_export "ScalarCompare"
+ScalarCompare :: (a: u64, b: u64, width: u32, is_unsigned: s32) -> s32 {
+    return Compare(a, b, width, is_unsigned)
+}

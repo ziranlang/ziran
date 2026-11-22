@@ -9,81 +9,35 @@
 #define ZIR_SIMD_H
 
 #include "zir.h"
-#include "compiler_runtime_emit.h"
-#include <stdint.h>
+#include "compiler_simd_metadata.h"
 
-typedef enum SimdShape {
-    SIMD_BINARY, SIMD_UNARY, SIMD_COMPARE, SIMD_SELECT, SIMD_SHIFT,
-    SIMD_SHIFT_LANES, SIMD_BYTE_SHIFT, SIMD_ALIGN, SIMD_MAKE, SIMD_SPLAT,
-    SIMD_ZERO, SIMD_LANE, SIMD_WITH_LANE, SIMD_LOAD, SIMD_STORE, SIMD_GATHER,
-    SIMD_WIDEN_HALF, SIMD_WIDEN, SIMD_NARROW, SIMD_MUL_WIDE, SIMD_MADD,
-    SIMD_MADD_SAT, SIMD_ADD_PAIRS, SIMD_SAD, SIMD_REDUCE, SIMD_ALL_ZERO,
-    SIMD_BYTE_SHUFFLE, SIMD_SHUFFLE, SIMD_REINTERPRET, SIMD_CONVERT,
-    SIMD_HALF, SIMD_COMBINE, SIMD_COUNT
-} SimdShape;
+/* The checker uses the generated records with C's read-only text types. */
+enum {
+    SIMD_ALIGN = SimdShape_SIMD_ALIGN,
+    SIMD_BYTE_SHIFT = SimdShape_SIMD_BYTE_SHIFT,
+    SIMD_COUNT = SimdShape_SIMD_COUNT,
+    SIMD_LANE = SimdShape_SIMD_LANE,
+    SIMD_MAKE = SimdShape_SIMD_MAKE,
+    SIMD_SHUFFLE = SimdShape_SIMD_SHUFFLE,
+    SIMD_SPLAT = SimdShape_SIMD_SPLAT,
+    SIMD_STORE = SimdShape_SIMD_STORE,
+    SIMD_WITH_LANE = SimdShape_SIMD_WITH_LANE
+};
 
-typedef struct SimdOp {
-    int id;              /* ZI_OP_* in ziran_simd.h */
-    const char *name;    /* source name in std/simd, such as AddSat */
-    const char *snake;   /* runtime spelling, such as add_sat */
-    const char *checked; /* reserved checked name, such as zi_simd_add_sat */
-    SimdShape shape;
-    unsigned lanes;      /* accepted lane kinds, bit ZI_K_* */
-    int type_argument;   /* the first operand names the result type */
-} SimdOp;
+#define SimdModule(module) SimdModule((ZirModule *)(module))
+#define SimdOpNamed(name) SimdOpNamed((uint8_t *)(name))
+#define SimdOpChecked(name) SimdOpChecked((uint8_t *)(name))
 
-/* Lane kind of a vector, ZI_K_U8 .. ZI_K_F64, or -1. */
-int SimdLaneKind(const ZirVector *vector);
-/* The operation at index, from 0, or NULL past the last. */
-const SimdOp *SimdOpAt(int index);
-/* A source name in std/simd, or NULL. */
-const SimdOp *SimdOpNamed(const char *name);
-/* A checked call name, or NULL. */
-const SimdOp *SimdOpChecked(const char *name);
-/* The std/simd module that holds the operations. */
-int SimdModule(const ZirModule *module);
-
-/* One operand as the signature check sees it. */
-typedef struct SimdOperand {
-    const char *type;    /* checked type; "integer"/"real" for literals */
-    int is_constant;     /* the value is known while checking */
-    int64_t value;
-} SimdOperand;
-
-/*
- * The result type of `op`, or NULL with *message describing the problem.
- * `result` is the type operand (or the checked call's type when reading
- * saved IR); `operands` are the value operands after it.
- */
-const char *SimdSignature(const SimdOp *op, const char *result,
-                          const SimdOperand *operands, int count,
-                          const char **message);
-
-/* The memory operand of a load, store or gather: its element type, and
- * whether it is a slice, a fixed array or a pointer. */
-enum { SIMD_MEMORY_NONE, SIMD_MEMORY_SLICE, SIMD_MEMORY_ARRAY, SIMD_MEMORY_POINTER, SIMD_MEMORY_STRING };
-int SimdMemory(const char *type, char *element, size_t size, int *capacity);
-
-/* Lanes of `type` in one 128-bit block. */
-int SimdBlockLanes(const ZirVector *vector);
-
-/* Whether a native vector of two blocks has its own helper for `op`,
- * zi_native_<helper>: the 256-bit WidenLow, WidenHigh, MulWideLow,
- * MulWideHigh and Narrow work block by block, while a native vector's lanes
- * run in order through both blocks; its Make takes one block's lanes, and
- * its LoadLow and StoreLow move half the vector rather than 64 bits. */
-int SimdNativeHelper(const SimdOp *op);
-
-/* The entry of a name, added when absent and add is set, or -1. */
-long SimdNamesFind(SimdNames *names, const char *name, size_t length, int add);
-void SimdNamesFree(SimdNames *names);
-/* The helper a word of generated C names, as ziran_simd_ops.h spells it:
- * zi_add_s16x8, zi_avx2_add_s16x16 and zi_add_s16x16_p_ name add_s16x8 and
- * add_s16x16. Narrows *word and *length; 0 for other words. */
-int SimdHelperWord(const char **word, size_t *length);
-
-/* Record a word of generated C; words naming no helper are ignored. */
-void SimdUsesNote(ZirSimdUses *uses, const char *word, size_t length);
-void SimdUsesFree(ZirSimdUses *uses);
+/* The type or NULL, with the reason in *message. The result argument is the
+ * type operand (or a saved call's checked type), separate from value operands. */
+static inline const char *
+SimdCheckedSignature(const SimdOp *op, const char *result, SimdOperand *operands,
+                     int count, const char **message)
+{
+    uint8_t *detail = NULL;
+    uint8_t *type = SimdSignature((SimdOp *)op, (uint8_t *)result, operands, count, &detail);
+    *message = (const char *)detail;
+    return (const char *)type;
+}
 
 #endif

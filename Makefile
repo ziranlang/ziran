@@ -212,6 +212,60 @@ BODY_READY := $(BODY_C)/.generated
 endif
 BODY_OBJECT := $(BUILD_DIR)/obj/compiler-portable-body.o
 override CFLAGS += -I$(BODY_C)
+ifeq ($(BOOTSTRAP),1)
+SCALAR_C := bootstrap/compiler_scalar
+SCALAR_READY := $(SCALAR_C)/compiler_scalar.c $(SCALAR_C)/compiler_scalar.h
+C_EMIT_C := bootstrap/compiler_c_emit
+C_EMIT_READY := $(C_EMIT_C)/compiler_c_emit.c $(C_EMIT_C)/compiler_c_emit.h
+C_EMIT_VALUE_C := bootstrap/compiler_c_emit_value
+C_EMIT_VALUE_READY := $(C_EMIT_VALUE_C)/compiler_c_emit_value.c $(C_EMIT_VALUE_C)/compiler_c_emit_value.h
+C_EMIT_STATEMENT_C := bootstrap/compiler_c_emit_statement
+C_EMIT_STATEMENT_READY := $(C_EMIT_STATEMENT_C)/compiler_c_emit_statement.c $(C_EMIT_STATEMENT_C)/compiler_c_emit_statement.h
+C_EMIT_CALL_C := bootstrap/compiler_c_emit_call
+C_EMIT_CALL_READY := $(C_EMIT_CALL_C)/compiler_c_emit_call.c $(C_EMIT_CALL_C)/compiler_c_emit_call.h
+C_EMIT_EXPR_C := bootstrap/compiler_c_emit_expr
+C_EMIT_EXPR_READY := $(C_EMIT_EXPR_C)/compiler_c_emit_expr.c $(C_EMIT_EXPR_C)/compiler_c_emit_expr.h
+SIMD_METADATA_C := bootstrap/compiler_simd_metadata
+SIMD_METADATA_READY := $(SIMD_METADATA_C)/compiler_simd_metadata.c $(SIMD_METADATA_C)/compiler_simd_metadata.h
+C_EMIT_SIMD_C := bootstrap/compiler_c_emit_simd
+C_EMIT_SIMD_READY := $(C_EMIT_SIMD_C)/compiler_c_emit_simd.c $(C_EMIT_SIMD_C)/compiler_c_emit_simd.h
+GO_SIMD_C := bootstrap/compiler_go_simd
+GO_SIMD_READY := $(GO_SIMD_C)/compiler_go_simd.c $(GO_SIMD_C)/compiler_go_simd.h
+C_BACKEND_C := bootstrap/compiler_c_backend
+C_BACKEND_READY := $(C_BACKEND_C)/compiler_c_backend.c $(C_BACKEND_C)/compiler_c_backend.h
+else
+SCALAR_C := $(BUILD_DIR)/compiler-scalar
+SCALAR_READY := $(SCALAR_C)/.generated
+C_EMIT_C := $(BUILD_DIR)/compiler-c-emit
+C_EMIT_READY := $(C_EMIT_C)/.generated
+C_EMIT_VALUE_C := $(BUILD_DIR)/compiler-c-emit-value
+C_EMIT_VALUE_READY := $(C_EMIT_VALUE_C)/.generated
+C_EMIT_STATEMENT_C := $(BUILD_DIR)/compiler-c-emit-statement
+C_EMIT_STATEMENT_READY := $(C_EMIT_STATEMENT_C)/.generated
+C_EMIT_CALL_C := $(BUILD_DIR)/compiler-c-emit-call
+C_EMIT_CALL_READY := $(C_EMIT_CALL_C)/.generated
+C_EMIT_EXPR_C := $(BUILD_DIR)/compiler-c-emit-expr
+C_EMIT_EXPR_READY := $(C_EMIT_EXPR_C)/.generated
+SIMD_METADATA_C := $(BUILD_DIR)/compiler-simd-metadata
+SIMD_METADATA_READY := $(SIMD_METADATA_C)/.generated
+C_EMIT_SIMD_C := $(BUILD_DIR)/compiler-c-emit-simd
+C_EMIT_SIMD_READY := $(C_EMIT_SIMD_C)/.generated
+GO_SIMD_C := $(BUILD_DIR)/compiler-go-simd
+GO_SIMD_READY := $(GO_SIMD_C)/.generated
+C_BACKEND_C := $(BUILD_DIR)/compiler-c-backend
+C_BACKEND_READY := $(C_BACKEND_C)/.generated
+endif
+SCALAR_OBJECT := $(BUILD_DIR)/obj/compiler-scalar.o
+C_EMIT_OBJECT := $(BUILD_DIR)/obj/compiler-c-emit.o
+C_EMIT_VALUE_OBJECT := $(BUILD_DIR)/obj/compiler-c-emit-value.o
+C_EMIT_STATEMENT_OBJECT := $(BUILD_DIR)/obj/compiler-c-emit-statement.o
+C_EMIT_CALL_OBJECT := $(BUILD_DIR)/obj/compiler-c-emit-call.o
+C_EMIT_EXPR_OBJECT := $(BUILD_DIR)/obj/compiler-c-emit-expr.o
+SIMD_METADATA_OBJECT := $(BUILD_DIR)/obj/compiler-simd-metadata.o
+C_EMIT_SIMD_OBJECT := $(BUILD_DIR)/obj/compiler-c-emit-simd.o
+GO_SIMD_OBJECT := $(BUILD_DIR)/obj/compiler-go-simd.o
+C_BACKEND_OBJECT := $(BUILD_DIR)/obj/compiler-c-backend.o
+override CFLAGS += -I$(SCALAR_C) -I$(C_EMIT_C) -I$(C_EMIT_VALUE_C) -I$(C_EMIT_STATEMENT_C) -I$(C_EMIT_CALL_C) -I$(C_EMIT_EXPR_C) -I$(SIMD_METADATA_C) -I$(C_EMIT_SIMD_C) -I$(GO_SIMD_C) -I$(C_BACKEND_C)
 # zi2c's pruning of a closed program's C (cmd/compiler_c_prune.zi). Its std
 # text_tools and vec code is already linked through the backend modules.
 ifeq ($(BOOTSTRAP),1)
@@ -239,7 +293,7 @@ RANGE_MODULES := compiler_c_range compiler_c_range_facts compiler_c_range_values
 RANGE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/c-range/%.o,$(RANGE_MODULES))
 override CFLAGS += -I$(RANGE_C)
 FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c cmd/zir/zir_sha256.c cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
-    cmd/zir/zir_simd.c cmd/zir/zir_cleanup.c \
+    cmd/zir/zir_cleanup.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c \
     cmd/zir/zir_serial.c cmd/zir/zir_load.c \
     cmd/zir/zir_packages.c \
@@ -289,7 +343,7 @@ $(call obj,cmd/zx2wasm/main.c)_CFLAGS += -iquote $(ENGINE_C) -include $(ENGINE_N
 $(call obj,cmd/zx2wasm/main.c): $(ENGINE_NAMES)
 endif
 LIB_OBJECTS := $(call obj,$(LIB_SOURCES) $(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
-    $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(RANGE_OBJECTS) $(NATIVE_NAMES_OBJECT) \
+    $(BUILD_DIR)/obj/parse.o $(RANGE_OBJECTS) $(NATIVE_NAMES_OBJECT) \
     $(call obj,cmd/zir/zir_zx_wasm_web.c)
 NATIVE_HOST_ENABLED := 1
 ifneq ($(findstring emcc,$(notdir $(firstword $(CC)))),)
@@ -301,11 +355,11 @@ LIB_OBJECTS += $(BUILD_DIR)/obj/native-core.o
 endif
 endif
 FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
-    $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(RANGE_OBJECTS) $(NATIVE_NAMES_OBJECT)
+    $(BUILD_DIR)/obj/parse.o $(RANGE_OBJECTS) $(NATIVE_NAMES_OBJECT)
 # The expression parser, cmd/compiler_parse.zi.
 override CFLAGS += -I$(PARSE_C)
-LIB_OBJECTS += $(PARSE_OBJECT) $(BODY_OBJECT)
-FRONTEND_OBJECTS += $(PARSE_OBJECT) $(BODY_OBJECT)
+LIB_OBJECTS += $(PARSE_OBJECT) $(BODY_OBJECT) $(SCALAR_OBJECT) $(C_EMIT_OBJECT) $(C_EMIT_VALUE_OBJECT) $(C_EMIT_STATEMENT_OBJECT) $(C_EMIT_CALL_OBJECT) $(C_EMIT_EXPR_OBJECT) $(SIMD_METADATA_OBJECT) $(C_EMIT_SIMD_OBJECT) $(GO_SIMD_OBJECT)
+FRONTEND_OBJECTS += $(PARSE_OBJECT) $(BODY_OBJECT) $(SCALAR_OBJECT) $(C_EMIT_OBJECT) $(C_EMIT_VALUE_OBJECT) $(C_EMIT_STATEMENT_OBJECT) $(C_EMIT_CALL_OBJECT) $(C_EMIT_EXPR_OBJECT) $(SIMD_METADATA_OBJECT) $(C_EMIT_SIMD_OBJECT) $(GO_SIMD_OBJECT)
 BUNDLE_OBJECT := $(call obj,$(PORTABLE)) $(BUNDLE_MODULE_OBJECT)
 RUNTIME_EMIT_OBJECTS := $(addprefix $(BUILD_DIR)/obj/runtime-emit/,compiler_runtime_emit.o file.o file_linux.o c_string.o vec.o)
 BACKEND_PROCESS_SOURCES := compiler_backend_process.c byte_text_linux.c environment_linux.c \
@@ -372,7 +426,7 @@ force-compiler-flags:
 
 # zir.h includes the IR records generated from cmd/compiler_ir.zi, and
 # zir_simd.h the runtime-emit records, and zir_token.h the scanner kinds.
-$(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY) $(NATIVE_NAMES_READY) $(RUNTIME_EMIT_READY) | $(SIMD_HEADERS) $(SCANNER_READY)
+$(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY) $(NATIVE_NAMES_READY) $(RUNTIME_EMIT_READY) $(SCALAR_READY) | $(SIMD_HEADERS) $(SCANNER_READY)
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $($@_CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 
@@ -433,6 +487,38 @@ $(call obj,cmd/zir/zir_services.c): $(BODY_READY)
 $(BODY_OBJECT): $(BODY_READY) $(IR_READY) $(NATIVE_NAMES_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(BODY_C)/compiler_portable_body.c
+$(SCALAR_OBJECT): $(SCALAR_READY) $(IR_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SCALAR_C)/compiler_scalar.c
+$(C_EMIT_OBJECT): $(C_EMIT_READY) $(IR_READY) $(NATIVE_NAMES_READY) $(SCALAR_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(C_EMIT_C)/compiler_c_emit.c
+$(C_EMIT_VALUE_OBJECT): $(C_EMIT_VALUE_READY) $(IR_READY) $(NATIVE_NAMES_READY) $(RANGE_READY) $(C_EMIT_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(C_EMIT_VALUE_C)/compiler_c_emit_value.c
+$(C_EMIT_STATEMENT_OBJECT): $(C_EMIT_STATEMENT_READY) $(IR_READY) $(NATIVE_NAMES_READY) $(RANGE_READY) $(C_EMIT_READY) $(C_EMIT_VALUE_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(C_EMIT_STATEMENT_C)/compiler_c_emit_statement.c
+$(C_EMIT_CALL_OBJECT): $(C_EMIT_CALL_READY) $(IR_READY) $(NATIVE_NAMES_READY) $(RANGE_READY) $(C_EMIT_READY) $(C_EMIT_VALUE_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(C_EMIT_CALL_C)/compiler_c_emit_call.c
+$(C_EMIT_EXPR_OBJECT): $(C_EMIT_EXPR_READY) $(IR_READY) $(NATIVE_NAMES_READY) $(RANGE_READY) $(C_EMIT_READY) $(C_EMIT_VALUE_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(C_EMIT_EXPR_C)/compiler_c_emit_expr.c
+$(SIMD_METADATA_OBJECT): $(SIMD_METADATA_READY) $(IR_READY) $(SCALAR_READY) $(RUNTIME_EMIT_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SIMD_METADATA_C)/compiler_simd_metadata.c
+$(C_EMIT_SIMD_OBJECT): $(C_EMIT_SIMD_READY) $(IR_READY) $(NATIVE_NAMES_READY) $(RANGE_READY) $(C_EMIT_VALUE_READY) $(SIMD_METADATA_READY) $(RUNTIME_EMIT_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(C_EMIT_SIMD_C)/compiler_c_emit_simd.c
+$(GO_SIMD_OBJECT): $(GO_SIMD_READY) $(IR_READY) $(NATIVE_NAMES_READY) $(SIMD_METADATA_READY) $(RUNTIME_EMIT_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(GO_SIMD_C)/compiler_go_simd.c
+$(C_BACKEND_OBJECT): $(C_BACKEND_READY) $(IR_READY) $(NATIVE_NAMES_READY) $(RANGE_READY) $(C_EMIT_READY) $(C_EMIT_VALUE_READY) $(C_EMIT_CALL_READY) $(SIMD_METADATA_READY) $(RUNTIME_EMIT_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(C_BACKEND_C)/compiler_c_backend.c
+$(call obj,cmd/zir/zir_services.c): $(SIMD_DIR)/zir_simd_go_bodies.h
+$(call obj,cmd/zir/zir_check_simd.c cmd/zir/zir_borrow.c cmd/zir/zir_link.c): $(SIMD_METADATA_READY)
 $(SERVICES_OBJECT): $(SERVICES_READY) $(IR_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SERVICES_C)/compiler_services.c
@@ -487,9 +573,6 @@ PARSE_PARTS := $(addprefix cmd/zir/zir_parse,.c _declaration.c _eval.c _typed.c 
     _condition.c _discover.c _source.c)
 CHECK_PARTS := $(addprefix cmd/zir/zir_check,.c _value.c _expr.c _statement.c \
     _function.c _link.c _program.c _simd.c _text.c)
-EMIT_PARTS := $(addprefix cmd/zir/zir_emit,.c _value.c _call.c _expr.c _statement.c _simd.c _simd_go.c)
-# The parts include the range proofs' generated header.
-$(call obj,$(EMIT_PARTS)): $(RANGE_READY)
 
 # COFF does not retain ELF hidden visibility, but objcopy can localize the
 # same declarations explicitly after the group's objects have been merged.
@@ -499,7 +582,6 @@ $(COFF_PRIVATE_SYMBOLS)/%.txt: cmd/zir/zir_%_internal.h scripts/private-symbols.
 	python3 scripts/private-symbols.py $< $@
 $(BUILD_DIR)/obj/parse.o: $(COFF_PRIVATE_SYMBOLS)/parse.txt
 $(BUILD_DIR)/obj/check.o: $(COFF_PRIVATE_SYMBOLS)/check.txt
-$(BUILD_DIR)/obj/emit.o: $(COFF_PRIVATE_SYMBOLS)/emit.txt
 endif
 
 # wasm objcopy cannot localize hidden symbols. Browser builds give each
@@ -516,17 +598,12 @@ $(call obj,$(PARSE_PARTS)): CFLAGS += -include $(WASM_PRIVATE_HEADERS)/parse.h
 $(call obj,$(PARSE_PARTS)): $(WASM_PRIVATE_HEADERS)/parse.h
 $(call obj,$(CHECK_PARTS)): CFLAGS += -include $(WASM_PRIVATE_HEADERS)/check.h
 $(call obj,$(CHECK_PARTS)): $(WASM_PRIVATE_HEADERS)/check.h
-$(call obj,$(EMIT_PARTS)): CFLAGS += -include $(WASM_PRIVATE_HEADERS)/emit.h
-$(call obj,$(EMIT_PARTS)): $(WASM_PRIVATE_HEADERS)/emit.h
 endif
 
 $(BUILD_DIR)/obj/parse.o: $(call obj,$(PARSE_PARTS))
 	$(merge)
 
 $(BUILD_DIR)/obj/check.o: $(call obj,$(CHECK_PARTS))
-	$(merge)
-
-$(BUILD_DIR)/obj/emit.o: $(call obj,$(EMIT_PARTS))
 	$(merge)
 
 -include $(shell find $(BUILD_DIR)/obj -name '*.d' 2>/dev/null)
@@ -683,9 +760,8 @@ $(RANGE_C)/.generated: $(patsubst %,cmd/%.zi,$(RANGE_MODULES)) cmd/compiler_ir.z
 	    -o $(RANGE_C) cmd/compiler_c_range.zi
 	touch $@
 
-$(call obj,cmd/zi2c/zir_c_lower.c): $(C_PRUNE_READY)
-$(call obj,cmd/zi2c/zir_c_lower.c)_CFLAGS += -I$(C_PRUNE_C)
-$(BIN_DIR)/zi2c: $(call obj,cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c) $(C_PRUNE_OBJECTS) \
+$(call obj,cmd/zi2c/main.c): $(C_BACKEND_READY) $(C_EMIT_READY) $(C_EMIT_VALUE_READY) $(C_EMIT_CALL_READY) $(SIMD_METADATA_READY) $(RANGE_READY)
+$(BIN_DIR)/zi2c: $(call obj,cmd/zi2c/main.c) $(C_BACKEND_OBJECT) $(C_PRUNE_OBJECTS) \
     $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 	chmod 755 $@
@@ -707,13 +783,33 @@ $(BIN_DIR)/zx2wasm: $(call obj,cmd/zx2wasm/main.c) $(BUILD_DIR)/libziran.a | $(B
 
 ifneq ($(BOOTSTRAP),1)
 $(BOOTSTRAP_BIN): $(BUILD_DIR)/runtime_headers.c
-$(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
+$(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) \
     $(PORTABLE) cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi std/c_string.zi std/result.zi std/vec.zi \
-    cmd/zi2c/main.c cmd/zi2c/zir_c_lower.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
+    cmd/zi2c/main.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
     $(BACKEND_BOOTSTRAP_FILES) cmd/compiler_backend_cache.zi cmd/compiler_backend_process.zi \
     cmd/compiler_native_names.zi cmd/compiler_portable_body.zi \
     bootstrap/compiler_portable_body/compiler_portable_body.c \
     bootstrap/compiler_portable_body/compiler_portable_body.h \
+    bootstrap/compiler_scalar/compiler_scalar.c \
+    bootstrap/compiler_scalar/compiler_scalar.h \
+    bootstrap/compiler_c_emit/compiler_c_emit.c \
+    bootstrap/compiler_c_emit/compiler_c_emit.h \
+    bootstrap/compiler_c_emit_value/compiler_c_emit_value.c \
+    bootstrap/compiler_c_emit_value/compiler_c_emit_value.h \
+    bootstrap/compiler_c_emit_statement/compiler_c_emit_statement.c \
+    bootstrap/compiler_c_emit_statement/compiler_c_emit_statement.h \
+    bootstrap/compiler_c_emit_call/compiler_c_emit_call.c \
+    bootstrap/compiler_c_emit_call/compiler_c_emit_call.h \
+    bootstrap/compiler_c_emit_expr/compiler_c_emit_expr.c \
+    bootstrap/compiler_c_emit_expr/compiler_c_emit_expr.h \
+    bootstrap/compiler_simd_metadata/compiler_simd_metadata.c \
+    bootstrap/compiler_simd_metadata/compiler_simd_metadata.h \
+    bootstrap/compiler_c_emit_simd/compiler_c_emit_simd.c \
+    bootstrap/compiler_c_emit_simd/compiler_c_emit_simd.h \
+    bootstrap/compiler_go_simd/compiler_go_simd.c \
+    bootstrap/compiler_go_simd/compiler_go_simd.h \
+    bootstrap/compiler_c_backend/compiler_c_backend.c \
+    bootstrap/compiler_c_backend/compiler_c_backend.h \
     bootstrap/compiler_scan/compiler_scan.c bootstrap/compiler_scan/compiler_scan.h \
     bootstrap/compiler_text/compiler_text.c bootstrap/compiler_text/compiler_text.h \
     bootstrap/compiler_source/compiler_source.c bootstrap/compiler_source/compiler_source.h \
@@ -751,6 +847,56 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
 $(BODY_C)/.generated: cmd/compiler_portable_body.zi cmd/compiler_ir.zi cmd/compiler_native_names.zi cmd/compiler_services.zi cmd/compiler_type.zi $(BOOTSTRAP_BIN)
 	$(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
 	    -o $(BODY_C) cmd/compiler_portable_body.zi
+	touch $@
+
+$(SCALAR_C)/.generated: cmd/compiler_scalar.zi cmd/compiler_ir.zi $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
+	    -o $(SCALAR_C) cmd/compiler_scalar.zi
+	touch $@
+
+$(C_EMIT_C)/.generated: cmd/compiler_c_emit.zi cmd/compiler_ir.zi cmd/compiler_native_names.zi cmd/compiler_scalar.zi cmd/compiler_services.zi cmd/compiler_type.zi $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(C_EMIT_C) cmd/compiler_c_emit.zi
+	touch $@
+
+$(C_EMIT_VALUE_C)/.generated: cmd/compiler_c_emit_value.zi cmd/compiler_c_emit.zi cmd/compiler_ir.zi cmd/compiler_native_names.zi $(patsubst %,cmd/%.zi,$(RANGE_MODULES)) $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(C_EMIT_VALUE_C) cmd/compiler_c_emit_value.zi
+	touch $@
+
+$(C_EMIT_STATEMENT_C)/.generated: cmd/compiler_c_emit_statement.zi cmd/compiler_c_emit_value.zi cmd/compiler_c_emit.zi cmd/compiler_ir.zi cmd/compiler_native_names.zi $(patsubst %,cmd/%.zi,$(RANGE_MODULES)) $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(C_EMIT_STATEMENT_C) cmd/compiler_c_emit_statement.zi
+	touch $@
+
+$(C_EMIT_CALL_C)/.generated: cmd/compiler_c_emit_call.zi cmd/compiler_c_emit_value.zi cmd/compiler_c_emit.zi cmd/compiler_ir.zi cmd/compiler_native_names.zi $(patsubst %,cmd/%.zi,$(RANGE_MODULES)) $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(C_EMIT_CALL_C) cmd/compiler_c_emit_call.zi
+	touch $@
+
+$(C_EMIT_EXPR_C)/.generated: cmd/compiler_c_emit_expr.zi cmd/compiler_c_emit_value.zi cmd/compiler_c_emit.zi cmd/compiler_ir.zi cmd/compiler_native_names.zi $(patsubst %,cmd/%.zi,$(RANGE_MODULES)) $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(C_EMIT_EXPR_C) cmd/compiler_c_emit_expr.zi
+	touch $@
+
+$(SIMD_METADATA_C)/.generated: cmd/compiler_simd_metadata.zi cmd/compiler_ir.zi cmd/compiler_scalar.zi cmd/compiler_runtime_emit.zi $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(SIMD_METADATA_C) cmd/compiler_simd_metadata.zi
+	touch $@
+
+$(C_EMIT_SIMD_C)/.generated: cmd/compiler_c_emit_simd.zi cmd/compiler_simd_metadata.zi cmd/compiler_c_emit_value.zi cmd/compiler_ir.zi cmd/compiler_native_names.zi $(patsubst %,cmd/%.zi,$(RANGE_MODULES)) $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(C_EMIT_SIMD_C) cmd/compiler_c_emit_simd.zi
+	touch $@
+
+$(GO_SIMD_C)/.generated: cmd/compiler_go_simd.zi cmd/compiler_simd_metadata.zi cmd/compiler_ir.zi cmd/compiler_native_names.zi $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(GO_SIMD_C) cmd/compiler_go_simd.zi
+	touch $@
+
+$(C_BACKEND_C)/.generated: cmd/compiler_c_backend.zi cmd/compiler_ir.zi cmd/compiler_native_names.zi cmd/compiler_c_emit.zi cmd/compiler_c_emit_value.zi cmd/compiler_c_emit_call.zi cmd/compiler_simd_metadata.zi cmd/compiler_runtime_emit.zi $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd --module-path std \
+	    -o $(C_BACKEND_C) cmd/compiler_c_backend.zi
 	touch $@
 
 $(SCANNER_C)/.generated: cmd/compiler_scan.zi $(BOOTSTRAP_BIN)
@@ -857,7 +1003,7 @@ $(LINK_C)/.generated: cmd/compiler_link.zi cmd/compiler_services.zi cmd/compiler
 BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel proof bundle ir law services link runtime_emit backend_cache backend_process native_names lowered_ir zir_lower c_prune c_range
 GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
     -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
-BOOTSTRAP_MODULES += parse portable_body
+BOOTSTRAP_MODULES += parse portable_body scalar c_emit c_emit_value c_emit_statement c_emit_call c_emit_expr simd_metadata c_emit_simd go_simd c_backend
 # Darwin's seed copies of the platform modules, generated with the defines a
 # Darwin host passes; one copy serves Apple Silicon and Intel.
 DARWIN_BOOTSTRAP_MODULES := runtime_emit backend_cache backend_process

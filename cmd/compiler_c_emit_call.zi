@@ -1,0 +1,1117 @@
+// Native C/Go call, slot wrapper, global initializer, and print emitter.
+using IR :: #import "compiler_ir"
+using Native :: #import "compiler_native_names"
+CEmit :: #import "compiler_c_emit"
+using Val :: #import "compiler_c_emit_value"
+
+#scope_export
+
+ZirGlobalScalarRewrite :: #type (module: *IR.ZirModule, source: *u8, out: *u8, size: usize, context: *void) -> s32 #c_call;
+ZirGlobalTypeRewrite :: #type (module: *IR.ZirModule, source: *u8, out: *u8, size: usize, context: *void) -> s32 #c_call;
+ZirGlobalFieldRewrite :: #type (record: *IR.ZirType, source: *u8, out: *u8, size: usize, context: *void) #c_call;
+
+#scope_file
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+calloc :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+free :: (memory: *void) #foreign libc "free";
+exit :: (status: s32) #foreign libc "exit";
+memcpy :: (dst: *void, src: *void, count: usize) -> *void #foreign libc "memcpy";
+memmove :: (dst: *void, src: *void, count: usize) -> *void #foreign libc "memmove";
+memset :: (dst: *void, value: s32, count: usize) -> *void #foreign libc "memset";
+memchr :: (s: *void, c: s32, n: usize) -> *void #foreign libc "memchr";
+strlen :: (s: *u8) -> usize #foreign libc "strlen";
+strcmp :: (a: *u8, b: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (a: *u8, b: *u8, n: usize) -> s32 #foreign libc "strncmp";
+strchr :: (s: *u8, c: s32) -> *u8 #foreign libc "strchr";
+snprintf :: (out: *u8, size: usize, fmt: *u8, args: ..any) -> s32 #foreign libc "snprintf";
+fprintf :: (stream: *void, fmt: *u8, args: ..any) -> s32 #foreign libc "fprintf";
+fputs :: (s: *u8, stream: *void) -> s32 #foreign libc "fputs";
+fputc :: (c: s32, stream: *void) -> s32 #foreign libc "fputc";
+
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, fmt: *u8, args: ..any) #foreign compiler "Diagnostic";
+KeepText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
+copy_text :: (dst: *u8, size: usize, src: *u8) #foreign compiler "copy_text";
+skip_ws :: (s: *u8) -> *u8 #foreign compiler "skip_ws";
+trim_in_place :: (s: *u8) -> *u8 #foreign compiler "trim_in_place";
+split_top_level :: (s: *u8, parts: *u8, max: s32, part_size: usize) -> s32 #foreign compiler "split_top_level";
+ArrayElementType :: (type: *u8, element: *u8, size: usize, capacity: *s32) -> s32 #foreign compiler "ArrayElementType";
+ArrayValueType :: (type: *u8) -> s32 #foreign compiler "ArrayValueType";
+ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
+CFindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+CTypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+CResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, fn: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunction";
+CanEmitBody :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 #foreign compiler "CanEmitBody";
+DecodeStringLiteral :: (source: *u8, out: *u8, capacity: usize, length: *usize) -> s32 #foreign compiler "DecodeStringLiteral";
+CompilerParseExprTyped :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *void, span: IR.ZirSourceSpan, expected: *void) -> s32 #foreign compiler "CompilerParseExprTyped";
+
+PRINT_PIECES_MAX :: 64
+PrintPiece :: struct {
+    is_argument: s32
+    literal: [4096]u8
+}
+PrintFormatPieces :: (fmt: *u8, pieces: *PrintPiece, capacity: s32) -> s32 #foreign compiler "PrintFormatPieces";
+
+// Emitter procedures linked from the expression and SIMD modules.
+emit_expr :: (e: *Emitter, index: s32, expected: *u8, out: *u8, size: usize) #foreign compiler "zir_emit_emit_expr";
+SimdTierCopyCall :: (e: *Emitter, call: *IR.ZirExpr) -> s32 #foreign compiler "zir_emit_SimdTierCopyCall";
+
+// From compiler_c_emit.zi.
+CCanonical :: (type: *u8) -> *u8 #foreign compiler "zir_emit_canonical";
+CSlotNativeType :: (source: *u8, target: Native.ZirTarget, out: *u8, size: usize) #foreign compiler "zir_emit_slot_native_type";
+CSlotTypeAtUse :: (source: *u8, target: Native.ZirTarget, resolve_type: CEmit.ZirResolveTarget,
+                   context: *void, out: *u8, size: usize) #foreign compiler "zir_emit_slot_type_at_use";
+CEnumType :: (module: *IR.ZirModule, type: *u8) -> s32 #foreign compiler "zir_emit_enum_type";
+CNumberPrefix :: (module: *IR.ZirModule, out: *u8, size: usize) #foreign compiler "zir_emit_number_prefix";
+CTargetFieldName :: (record: *IR.ZirType, target: Native.ZirTarget, name: *u8, out: *u8, size: usize) #foreign compiler "TargetFieldName";
+CNativeGoType :: (module: *IR.ZirModule, type: *u8, dst: *u8, dst_size: usize) -> s32 #foreign compiler "NativeGoType";
+
+StaticText :: struct { data: *u8; length: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+PtrAdd :: (p: *u8, n: usize) -> *u8 { return cast(*u8)(cast(usize)p + n) }
+PtrSub :: (p: *u8, n: usize) -> *u8 { return cast(*u8)(cast(usize)p - n) }
+
+FunctionArgs :: (fn: *IR.ZirFunction) -> *u8 {
+    if fn != null && fn.args_text != null { return fn.args_text }
+    return CStr("")
+}
+
+IsAlpha :: (c: u8) -> bool { return (c >= #char "a" && c <= #char "z") || (c >= #char "A" && c <= #char "Z") }
+IsAlnum :: (c: u8) -> bool { return IsAlpha(c) || (c >= #char "0" && c <= #char "9") }
+
+CheckFormat :: (n: s32, size: usize) -> s32 {
+    if n < 0 || cast(usize)n >= size {
+        zero_span: IR.ZirSourceSpan
+        Diagnostic(zero_span, CStr("zir.output"), CStr("generated expression exceeds output limit"))
+        exit(1)
+    }
+    return n
+}
+
+EmitIndent :: (e: *Emitter) {
+    unit := ifx e.target == .ZIR_GO then CStr("\t") else CStr("    ")
+    for i: cast(s32)0..e.indent - 1 { fputs(unit, e.out) }
+}
+
+GlobalSlotWrapperName :: (module: *IR.ZirModule, global: *IR.ZirGlobal, index: s32, out: *u8, size: usize) {
+    prefix: [64]u8
+    CNumberPrefix(module, *prefix[0], 64)
+    offset := cast(s64)(cast(usize)global - cast(usize)module.globals) / cast(s64)size_of(IR.ZirGlobal)
+    CheckFormat(snprintf(out, size, CStr("%s_global_slot_%lld_%d"), *prefix[0], offset, index), size)
+}
+
+AppendText :: (out: *u8, size: usize, used: *usize, text: *u8) -> bool {
+    if <<used >= size { return false }
+    written := snprintf(PtrAdd(out, <<used), size - <<used, CStr("%s"), text)
+    if written < 0 || cast(usize)written >= size - <<used { return false }
+    <<used += cast(usize)written
+    return true
+}
+
+GlobalField :: (record: *IR.ZirType, name: *u8, ordinal: s32, found: *IR.ZirTypeField) -> bool {
+    field: IR.ZirTypeField
+    offset: usize = 0
+    position: s32 = 0
+    while CTypeNextField(record, *offset, *field) == 1 {
+        if (name[0] != 0 && strcmp(name, *field.name[0]) == 0) ||
+           (name[0] == 0 && position == ordinal) {
+            <<found = field
+            return true
+        }
+        position += 1
+    }
+    return false
+}
+
+GlobalFunctionSlot :: (module: *IR.ZirModule, scope: *IR.ZirModule, type: *u8, expr: *IR.ZirExpr) -> *IR.ZirType {
+    slot := CFindType(scope, type, null)
+    owner: *IR.ZirModule = null
+    declaration: *IR.ZirFunction = null
+    if slot == null || slot.is_procedure_type == 0 ||
+       (expr.kind != .IDENT && expr.kind != .MEMBER) ||
+       CResolveFunction(module, expr.text, *owner, *declaration) != 1 ||
+       declaration.is_extern != 0 {
+        return null
+    }
+    return slot
+}
+
+GlobalTypeAtUse :: (module: *IR.ZirModule, scope: *IR.ZirModule, type: *u8, out: *u8, size: usize) -> bool {
+    element: [IR.ZIR_NAME_MAX]u8
+    if ArrayElementType(type, *element[0], IR.ZIR_NAME_MAX, null) != 0 {
+        close := strchr(type, #char "]")
+        mapped: [IR.ZIR_NAME_MAX]u8
+        if close == null || !GlobalTypeAtUse(module, scope, *element[0], *mapped[0], IR.ZIR_NAME_MAX) {
+            return false
+        }
+        plen := cast(s32)(cast(usize)close - cast(usize)type + 1)
+        written := snprintf(out, size, CStr("%.*s%s"), plen, type, *mapped[0])
+        return written >= 0 && cast(usize)written < size
+    }
+    declared := CFindType(scope, type, null)
+    if scope == module || declared == null || CFindType(module, type, null) == declared {
+        copy_text(out, size, type)
+        return strlen(type) < size
+    }
+    for i: cast(s32)0..module.import_count - 1 {
+        imp := *module.imports[i]
+        if imp.kind != .MODULE || imp.resolved_module != scope { continue }
+        written := snprintf(out, size, CStr("%s.%s"), *imp.name[0], type)
+        if written >= 0 && cast(usize)written < size && CFindType(module, out, null) == declared {
+            return true
+        }
+    }
+    return false
+}
+
+GlobalLiteralEmit :: struct {
+    module: *IR.ZirModule
+    global: *IR.ZirGlobal
+    probe: *IR.ZirFunction
+    target: Native.ZirTarget
+    span: IR.ZirSourceSpan
+    scalar: ZirGlobalScalarRewrite
+    type_name: ZirGlobalTypeRewrite
+    field_name: ZirGlobalFieldRewrite
+    context: *void
+}
+
+EmitGlobalLiteralNode :: (emit: *GlobalLiteralEmit, index: s32, scope: *IR.ZirModule, type: *u8,
+                          out: *u8, size: usize, used: *usize, depth: s32) -> bool {
+    if index < 0 || index >= emit.probe.expr_count || depth > 32 { return false }
+    expr := *emit.probe.exprs[index]
+    if expr.kind == .COMPOUND {
+        element: [IR.ZIR_NAME_MAX]u8
+        record: *IR.ZirType = null
+        record_owner: *IR.ZirModule = null
+        is_array := ArrayElementType(type, *element[0], IR.ZIR_NAME_MAX, null) != 0
+        if !is_array { record = CFindType(scope, type, *record_owner) }
+        if !is_array && (record == null || record.is_enum != 0 ||
+                         record.is_procedure_type != 0 || record.is_union != 0) {
+            return false
+        }
+        if emit.target == .ZIR_GO {
+            mapped: [IR.ZIR_NAME_MAX * 2]u8
+            visible: [IR.ZIR_NAME_MAX]u8
+            if emit.type_name == null ||
+               !GlobalTypeAtUse(emit.module, scope, type, *visible[0], IR.ZIR_NAME_MAX) ||
+               emit.type_name(emit.module, *visible[0], *mapped[0], IR.ZIR_NAME_MAX * 2, emit.context) == 0 ||
+               !AppendText(out, size, used, *mapped[0]) ||
+               !AppendText(out, size, used, CStr("{")) {
+                return false
+            }
+        } else if !AppendText(out, size, used, CStr("{")) {
+            return false
+        }
+        position: s32 = 0
+        child := expr.first_child
+        while child >= 0 {
+            entry := *emit.probe.exprs[child]
+            field_type := *element[0]
+            field: IR.ZirTypeField
+            if entry.right < 0 || (record != null && !GlobalField(record, entry.name, position, *field)) {
+                return false
+            }
+            if position != 0 && !AppendText(out, size, used, CStr(", ")) { return false }
+            if record != null {
+                mapped: [IR.ZIR_NAME_MAX * 2]u8
+                field_type = *field.type[0]
+                if emit.field_name != null {
+                    emit.field_name(record, *field.name[0], *mapped[0], IR.ZIR_NAME_MAX * 2, emit.context)
+                } else {
+                    CTargetFieldName(record, emit.target, *field.name[0], *mapped[0], IR.ZIR_NAME_MAX * 2)
+                }
+                if emit.target == .ZIR_GO {
+                    if !AppendText(out, size, used, *mapped[0]) || !AppendText(out, size, used, CStr(": ")) { return false }
+                } else {
+                    if !AppendText(out, size, used, CStr(".")) || !AppendText(out, size, used, *mapped[0]) ||
+                       !AppendText(out, size, used, CStr(" = ")) { return false }
+                }
+            }
+            next_scope := ifx record != null then record_owner else scope
+            if !EmitGlobalLiteralNode(emit, entry.right, next_scope, field_type, out, size, used, depth + 1) {
+                return false
+            }
+            position += 1
+            child = entry.next_sibling
+        }
+        return AppendText(out, size, used, CStr("}"))
+    }
+    slot := GlobalFunctionSlot(emit.module, scope, type, expr)
+    if slot != null {
+        if emit.target == .ZIR_GO || slot.is_c_call != 0 {
+            if emit.scalar == null { return false }
+            call_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+            res_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+            defer { free(cast(*void)call_buf); free(cast(*void)res_buf) }
+            CheckFormat(snprintf(call_buf, IR.ZIR_TEXT_MAX, CStr("%s()"), expr.text), IR.ZIR_TEXT_MAX)
+            if emit.scalar(emit.module, call_buf, res_buf, IR.ZIR_TEXT_MAX, emit.context) == 0 { return false }
+            length := strlen(res_buf)
+            if length < 2 || strcmp(PtrAdd(res_buf, length - 2), CStr("()")) != 0 { return false }
+            res_buf[length - 2] = 0
+            return AppendText(out, size, used, res_buf)
+        }
+        wrapper: [IR.ZIR_NAME_MAX]u8
+        GlobalSlotWrapperName(emit.module, emit.global, index, *wrapper[0], IR.ZIR_NAME_MAX)
+        prefix := ifx emit.target == .ZIR_C then CStr("{NULL, ") else CStr("{nullptr, ")
+        return AppendText(out, size, used, prefix) && AppendText(out, size, used, *wrapper[0]) &&
+               AppendText(out, size, used, CStr("}"))
+    }
+    scalar_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX * 2)
+    defer { free(cast(*void)scalar_buf) }
+    if ScalarLiteral(type, expr.text, emit.target, emit.span, scalar_buf, IR.ZIR_TEXT_MAX * 2) == 0 {
+        if emit.scalar == null || emit.scalar(emit.module, expr.text, scalar_buf, IR.ZIR_TEXT_MAX * 2, emit.context) == 0 {
+            return false
+        }
+    }
+    return AppendText(out, size, used, scalar_buf)
+}
+
+#scope_export
+
+#program_export
+EmitGlobalInitializer :: (module: *IR.ZirModule, global: *IR.ZirGlobal, target: Native.ZirTarget,
+                          scalar: ZirGlobalScalarRewrite, type_name: ZirGlobalTypeRewrite,
+                          field_name: ZirGlobalFieldRewrite, context: *void, out: *u8, size: usize) -> s32 {
+    if size == 0 || global.init[0] == 0 { return 0 }
+    probe := cast(*IR.ZirFunction)AllocateOrExit(size_of(IR.ZirFunction))
+    defer { free(cast(*void)probe) }
+    memset(cast(*void)probe, 0, size_of(IR.ZirFunction))
+    out[0] = 0
+    root := CompilerParseExprTyped(probe, module, cast(*void)global.init, global.span, cast(*void)*global.type[0])
+    if root < 0 || (probe.exprs[root].kind != .COMPOUND &&
+       GlobalFunctionSlot(module, module, *global.type[0], *probe.exprs[root]) == null) {
+        free(cast(*void)probe.exprs)
+        return 0
+    }
+    emit := GlobalLiteralEmit.{module, global, probe, target, global.span, scalar, type_name, field_name, context}
+    used: usize = 0
+    ok := EmitGlobalLiteralNode(*emit, root, module, *global.type[0], out, size, *used, 0)
+    free(cast(*void)probe.exprs)
+    return ifx ok then 1 else -1
+}
+
+#program_export
+EmitGlobalInitializerText :: (module: *IR.ZirModule, global: *IR.ZirGlobal, target: Native.ZirTarget,
+                              scalar: ZirGlobalScalarRewrite, type_name: ZirGlobalTypeRewrite,
+                              field_name: ZirGlobalFieldRewrite, context: *void, status: *s32) -> *u8 {
+    size := strlen(global.init) * 4 + 4096
+    for attempt: 0..1 {
+        text := cast(*u8)AllocateOrExit(size)
+        <<status = EmitGlobalInitializer(module, global, target, scalar, type_name, field_name, context, text, size)
+        if <<status == 1 { return text }
+        free(cast(*void)text)
+        if <<status == 0 { return null }
+        size *= 8
+    }
+    return null
+}
+
+#scope_file
+
+GlobalTypeHoldsSlot :: (scope: *IR.ZirModule, type: *u8, depth: s32) -> bool {
+    element: [IR.ZIR_NAME_MAX]u8
+    owner: *IR.ZirModule = null
+    if depth > 32 { return true }
+    declared := CFindType(scope, type, *owner)
+    if declared != null && declared.is_procedure_type != 0 { return true }
+    if ArrayElementType(type, *element[0], IR.ZIR_NAME_MAX, null) != 0 {
+        return GlobalTypeHoldsSlot(scope, *element[0], depth + 1)
+    }
+    if declared == null { return false }
+    field: IR.ZirTypeField
+    offset: usize = 0
+    next_scope := ifx owner != null then owner else scope
+    while CTypeNextField(declared, *offset, *field) == 1 {
+        if GlobalTypeHoldsSlot(next_scope, *field.type[0], depth + 1) { return true }
+    }
+    return false
+}
+
+EmitGlobalSlotWrappersNode :: (out: *void, module: *IR.ZirModule, global: *IR.ZirGlobal,
+                               probe: *IR.ZirFunction, index: s32, scope: *IR.ZirModule, type: *u8,
+                               target: Native.ZirTarget, resolver: CEmit.ZirResolveTarget, context: *void, depth: s32) {
+    if index < 0 || index >= probe.expr_count || depth > 32 { return }
+    value := *probe.exprs[index]
+    if value.kind == .COMPOUND {
+        element: [IR.ZIR_NAME_MAX]u8
+        record_owner: *IR.ZirModule = null
+        is_array := ArrayElementType(type, *element[0], IR.ZIR_NAME_MAX, null) != 0
+        record := ifx is_array then null else CFindType(scope, type, *record_owner)
+        position: s32 = 0
+        child := value.first_child
+        while child >= 0 {
+            entry := *probe.exprs[child]
+            field: IR.ZirTypeField
+            if entry.right >= 0 && (is_array || (record != null && GlobalField(record, entry.name, position, *field))) {
+                next_scope := ifx record != null then record_owner else scope
+                next_type := ifx record != null then *field.type[0] else *element[0]
+                EmitGlobalSlotWrappersNode(out, module, global, probe, entry.right, next_scope, next_type,
+                                           target, resolver, context, depth + 1)
+            }
+            position += 1
+            child = entry.next_sibling
+        }
+        return
+    }
+    slot := GlobalFunctionSlot(module, scope, type, value)
+    if slot == null || slot.is_c_call != 0 { return }
+    parameters := cast(*u8)AllocateOrExit(cast(usize)(64 * IR.ZIR_TEXT_MAX))
+    call_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    res_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer { free(cast(*void)parameters); free(cast(*void)call_buf); free(cast(*void)res_buf) }
+    count := ifx skip_ws(*slot.body[0])[0] != 0 then split_top_level(*slot.body[0], parameters, 64, IR.ZIR_TEXT_MAX) else cast(s32)0
+    wrapper: [IR.ZIR_NAME_MAX]u8
+    result_type: [IR.ZIR_NAME_MAX]u8
+    resolved_result: [IR.ZIR_NAME_MAX]u8
+    CSlotNativeType(*slot.procedure_return_type[0], target, *result_type[0], IR.ZIR_NAME_MAX)
+    resolver(context, *result_type[0], *resolved_result[0], IR.ZIR_NAME_MAX)
+    GlobalSlotWrapperName(module, global, index, *wrapper[0], IR.ZIR_NAME_MAX)
+    fprintf(out, CStr("static %s %s(void *context"), *resolved_result[0], *wrapper[0])
+    length := cast(usize)CheckFormat(snprintf(call_buf, IR.ZIR_TEXT_MAX, CStr("%s("), value.text), IR.ZIR_TEXT_MAX)
+    for argument: cast(s32)0..count - 1 {
+        param := PtrAdd(parameters, cast(usize)argument * IR.ZIR_TEXT_MAX)
+        separator := strchr(param, #char ":")
+        if separator == null { break }
+        source := skip_ws(PtrAdd(separator, 1))
+        native_type: [IR.ZIR_NAME_MAX]u8
+        resolved_type: [IR.ZIR_NAME_MAX]u8
+        CSlotNativeType(source, target, *native_type[0], IR.ZIR_NAME_MAX)
+        resolver(context, *native_type[0], *resolved_type[0], IR.ZIR_NAME_MAX)
+        fprintf(out, CStr(", %s slot_arg_%d"), *resolved_type[0], argument)
+        sep := ifx argument != 0 then CStr(", ") else CStr("")
+        length += cast(usize)CheckFormat(snprintf(PtrAdd(call_buf, length), IR.ZIR_TEXT_MAX - length,
+                                                  CStr("%sslot_arg_%d"), sep, argument), IR.ZIR_TEXT_MAX - length)
+    }
+    CheckFormat(snprintf(PtrAdd(call_buf, length), IR.ZIR_TEXT_MAX - length, CStr(")")), IR.ZIR_TEXT_MAX - length)
+    resolver(context, call_buf, res_buf, IR.ZIR_TEXT_MAX)
+    ret_kw := ifx strcmp(*slot.procedure_return_type[0], CStr("void")) != 0 then CStr("return ") else CStr("")
+    fprintf(out, CStr(")\n{\n    (void)context;\n    %s%s;\n}\n"), ret_kw, res_buf)
+}
+
+#scope_export
+
+#program_export
+EmitGlobalSlotWrappers :: (out: *void, module: *IR.ZirModule, global: *IR.ZirGlobal,
+                           target: Native.ZirTarget, resolver: CEmit.ZirResolveTarget, context: *void) {
+    if target != .ZIR_C || global.init[0] == 0 || !GlobalTypeHoldsSlot(module, *global.type[0], 0) { return }
+    probe := cast(*IR.ZirFunction)AllocateOrExit(size_of(IR.ZirFunction))
+    defer { free(cast(*void)probe) }
+    memset(cast(*void)probe, 0, size_of(IR.ZirFunction))
+    root := CompilerParseExprTyped(probe, module, cast(*void)global.init, global.span, cast(*void)*global.type[0])
+    if root >= 0 {
+        EmitGlobalSlotWrappersNode(out, module, global, probe, root, module, *global.type[0], target, resolver, context, 0)
+    }
+    free(cast(*void)probe.exprs)
+}
+
+#scope_file
+
+CallParameterType :: (e: *Emitter, call: *IR.ZirExpr, ordinal: s32, out: *u8, size: usize) {
+    signature: *u8 = null
+    if call.slot_type[0] != 0 {
+        slot := CFindType(e.module, call.slot_type, null)
+        if slot != null && slot.is_procedure_type != 0 { signature = *slot.body[0] }
+    } else {
+        owner: *IR.ZirModule = null
+        function: *IR.ZirFunction = null
+        if CResolveFunction(e.module, call.name, *owner, *function) == 1 && function != null {
+            signature = FunctionArgs(function)
+        } else {
+            for i: cast(s32)0..e.module.import_count - 1 {
+                if e.module.imports[i].kind == .EXTERN && strcmp(*e.module.imports[i].name[0], call.name) == 0 {
+                    signature = *e.module.imports[i].args[0]
+                    break
+                }
+            }
+        }
+    }
+    if signature == null || signature[0] == 0 { return }
+    parts := cast(*u8)calloc(64, IR.ZIR_TEXT_MAX)
+    if parts == null { return }
+    defer { free(cast(*void)parts) }
+    count := split_top_level(signature, parts, 64, IR.ZIR_TEXT_MAX)
+    if ordinal >= 0 && ordinal < count {
+        part := PtrAdd(parts, cast(usize)ordinal * IR.ZIR_TEXT_MAX)
+        colon := strchr(part, #char ":")
+        if colon != null {
+            val := skip_ws(PtrAdd(colon, 1))
+            trim_in_place(val)
+            copy_text(out, size, val)
+        }
+    }
+}
+
+ArrayArgumentCopiedByCallee :: (e: *Emitter, call: *IR.ZirExpr, ordinal: s32, argument: s32) -> bool {
+    value := *e.fn.exprs[argument]
+    if e.target != .ZIR_C || call.slot_type[0] != 0 || value.kind != .IDENT ||
+       value.name == null || ArrayValueType(CCanonical(value.type)) == 0 {
+        return false
+    }
+    local := false
+    i := e.local_count - 1
+    while i >= 0 && !local {
+        if strcmp(*e.locals[i].name[0], value.name) == 0 {
+            local = e.locals[i].alias[0] == 0
+        }
+        i -= 1
+    }
+    owner: *IR.ZirModule = null
+    function: *IR.ZirFunction = null
+    if !local || CResolveFunction(e.module, call.name, *owner, *function) != 1 ||
+       function == null || owner == null || CanEmitBody(owner, function) == 0 {
+        return false
+    }
+    parameter: [IR.ZIR_NAME_MAX]u8
+    parameter[0] = 0
+    CallParameterType(e, call, ordinal, *parameter[0], IR.ZIR_NAME_MAX)
+    return parameter[0] != 0 && strcmp(CCanonical(*parameter[0]), CCanonical(value.type)) == 0
+}
+
+IdentifierByte :: (c: u8) -> bool {
+    return c == #char "_" || (c >= #char "0" && c <= #char "9") ||
+           (c >= #char "a" && c <= #char "z") || (c >= #char "A" && c <= #char "Z")
+}
+
+ReplaceCallPlaceholders :: (text: *u8, arguments: *u8, count: s32, out: *u8, size: usize) {
+    prefix := CStr("zir_call_argument_")
+    plen: usize = 18
+    used: usize = 0
+    p := text
+    while p[0] != 0 && used + 1 < size {
+        ordinal: s32 = 0
+        digits := PtrAdd(p, plen)
+        end := digits
+        if (p == text || !IdentifierByte(PtrSub(p, 1)[0])) && strncmp(p, prefix, plen) == 0 {
+            while end[0] >= #char "0" && end[0] <= #char "9" {
+                ordinal = ordinal * 10 + cast(s32)(end[0] - #char "0")
+                end = PtrAdd(end, 1)
+            }
+        }
+        if cast(usize)end > cast(usize)digits && !IdentifierByte(end[0]) && ordinal < count {
+            arg := PtrAdd(arguments, cast(usize)ordinal * IR.ZIR_NAME_MAX)
+            alen := strlen(arg)
+            if used + alen >= size { break }
+            memcpy(cast(*void)PtrAdd(out, used), cast(*void)arg, alen)
+            used += alen
+            p = end
+            continue
+        }
+        out[used] = p[0]
+        used += 1
+        p = PtrAdd(p, 1)
+    }
+    out[ifx used < size then used else size - 1] = 0
+}
+
+LocalStorageRoot :: (fn: *IR.ZirFunction, index: s32, name: *u8) -> bool {
+    if index < 0 { return false }
+    expr := *fn.exprs[index]
+    if expr.kind == .IDENT { return strcmp(expr.name, name) == 0 }
+    if expr.kind == .MEMBER || expr.kind == .INDEX || expr.kind == .CAST {
+        return LocalStorageRoot(fn, expr.left, name)
+    }
+    if expr.kind == .UNARY { return LocalStorageRoot(fn, expr.right, name) }
+    return true
+}
+
+#scope_export
+
+#program_export "zir_emit_call_can_change"
+CallCanChange :: (e: *Emitter, index: s32) -> s32 {
+    if index < 0 { return 0 }
+    expr := *e.fn.exprs[index]
+    k := expr.kind
+    if k == .INT || k == .FLOAT || k == .STRING || k == .SIZE_OF || k == .COMPILE_TIME || k == .CALL {
+        return 0
+    }
+    if k == .IDENT {
+        for i: cast(s32)0..e.module.define_count - 1 {
+            if strcmp(*e.module.defines[i].name[0], expr.name) == 0 { return 0 }
+        }
+        local := false
+        for i: cast(s32)0..e.local_count - 1 {
+            if strcmp(*e.locals[i].name[0], expr.name) == 0 { local = true; break }
+        }
+        if !local { return 1 }
+        for i: cast(s32)0..e.fn.expr_count - 1 {
+            other := *e.fn.exprs[i]
+            if other.kind == .SLICE && other.left >= 0 &&
+               strcmp(e.fn.exprs[other.left].type, CStr("string")) != 0 &&
+               LocalStorageRoot(e.fn, other.left, expr.name) { return 1 }
+            if other.kind == .UNARY && strcmp(*other.op[0], CStr("&")) == 0 &&
+               LocalStorageRoot(e.fn, other.right, expr.name) { return 1 }
+        }
+        return 0
+    }
+    if k == .MEMBER {
+        return ifx e.fn.exprs[expr.left].type[0] == #char "*" || CallCanChange(e, expr.left) != 0 then 1 else 0
+    }
+    if k == .INDEX {
+        base := e.fn.exprs[expr.left].type
+        return ifx base[0] != #char "[" || base[1] == #char "]" ||
+                   CallCanChange(e, expr.left) != 0 || CallCanChange(e, expr.right) != 0 then 1 else 0
+    }
+    if k == .UNARY {
+        if strcmp(*expr.op[0], CStr("*")) == 0 { return 1 }
+        return ifx strcmp(*expr.op[0], CStr("&")) != 0 && CallCanChange(e, expr.right) != 0 then 1 else 0
+    }
+    if k == .BINARY || k == .CAST {
+        return ifx CallCanChange(e, expr.left) != 0 || CallCanChange(e, expr.right) != 0 then 1 else 0
+    }
+    return 1
+}
+
+#program_export "zir_emit_emit_call"
+EmitCall :: (e: *Emitter, expr: *IR.ZirExpr, array_result: *u8, out: *u8, size: usize) {
+    text_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    arguments := cast(*u8)calloc(64, IR.ZIR_NAME_MAX)
+    source_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    arg_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    plain_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    resolved_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer {
+        free(cast(*void)text_buf); free(cast(*void)arguments); free(cast(*void)source_buf)
+        free(cast(*void)arg_buf); free(cast(*void)plain_buf); free(cast(*void)resolved_buf)
+    }
+    count: s32 = 0
+    argument_count: s32 = 0
+    has_named := false
+    child := expr.first_child
+    while child >= 0 {
+        if e.fn.exprs[child].argument_name[0] != 0 { has_named = true }
+        child = e.fn.exprs[child].next_sibling
+    }
+    n: usize = 0
+    if expr.slot_type[0] != 0 {
+        callable: [IR.ZIR_NAME_MAX]u8
+        Fresh(e, *callable[0])
+        if expr.name[0] != 0 {
+            Resolve(e, expr.name, source_buf, IR.ZIR_TEXT_MAX)
+        } else {
+            source_buf[0] = 0
+            emit_expr(e, expr.left, expr.slot_type, source_buf, IR.ZIR_TEXT_MAX)
+        }
+        Declare(e, *callable[0], expr.slot_type, source_buf)
+        if e.target == .ZIR_C {
+            slot := CFindType(e.module, expr.slot_type, null)
+            if slot != null && slot.is_c_call != 0 {
+                n = cast(usize)CheckFormat(snprintf(text_buf, IR.ZIR_TEXT_MAX, CStr("%s("), *callable[0]), IR.ZIR_TEXT_MAX)
+            } else {
+                n = cast(usize)CheckFormat(snprintf(text_buf, IR.ZIR_TEXT_MAX, CStr("%s.call(%s.context"), *callable[0], *callable[0]), IR.ZIR_TEXT_MAX)
+                count = 1
+            }
+        } else {
+            n = cast(usize)CheckFormat(snprintf(text_buf, IR.ZIR_TEXT_MAX, CStr("%s("), *callable[0]), IR.ZIR_TEXT_MAX)
+        }
+    } else {
+        n = cast(usize)CheckFormat(snprintf(text_buf, IR.ZIR_TEXT_MAX, CStr("%s("), expr.name), IR.ZIR_TEXT_MAX)
+    }
+    if array_result != null {
+        sep := ifx count != 0 then CStr(", ") else CStr("")
+        n += cast(usize)CheckFormat(snprintf(PtrAdd(text_buf, n), IR.ZIR_TEXT_MAX - n, CStr("%s%s"), sep, array_result), IR.ZIR_TEXT_MAX - n)
+        count += 1
+    }
+    child = expr.first_child
+    while child >= 0 {
+        ordinal := e.fn.exprs[child].argument_index
+        arg_slot := PtrAdd(arguments, cast(usize)ordinal * IR.ZIR_NAME_MAX)
+        if ordinal < 0 || ordinal >= 64 || arg_slot[0] != 0 {
+            Val.Fatal(expr, CStr("invalid checked call argument order"))
+        }
+        argument_type: [IR.ZIR_NAME_MAX]u8
+        copy_text(*argument_type[0], IR.ZIR_NAME_MAX, e.fn.exprs[child].type)
+        if strcmp(*argument_type[0], CStr("null")) == 0 || strcmp(*argument_type[0], CStr("integer")) == 0 {
+            parameter_type: [IR.ZIR_NAME_MAX]u8
+            parameter_type[0] = 0
+            CallParameterType(e, expr, ordinal, *parameter_type[0], IR.ZIR_NAME_MAX)
+            if strcmp(*argument_type[0], CStr("null")) == 0 ||
+               (CEnumType(e.module, *parameter_type[0]) != 0 && CFindType(e.module, *parameter_type[0], null).is_enum_flags != 0) {
+                copy_text(*argument_type[0], IR.ZIR_NAME_MAX, *parameter_type[0])
+            }
+        }
+        later_calls: s32 = 0
+        later_reads: s32 = 0
+        next := e.fn.exprs[child].next_sibling
+        while next >= 0 {
+            later_calls |= ExpressionCalls(e.fn, next)
+            later_reads |= CallCanChange(e, next)
+            next = e.fn.exprs[next].next_sibling
+        }
+        e.call_in_place = ifx !has_named && later_reads == 0 && (e.target == .ZIR_GO || later_calls == 0) then 1 else 0
+        e.array_operand = ifx e.call_in_place != 0 && ArrayArgumentCopiedByCallee(e, expr, ordinal, child) then 1 else 0
+        e.braced_initializer = ifx e.target == .ZIR_GO && e.fn.exprs[child].kind == .COMPOUND &&
+                                   ArrayValueType(CCanonical(*argument_type[0])) != 0 then 1 else 0
+        emit_expr(e, child, *argument_type[0], arg_buf, IR.ZIR_TEXT_MAX)
+        if (later_calls != 0 && CallCanChange(e, child) != 0) ||
+           (PlainIdentifier(arg_buf) == 0 && ((has_named && ExpressionCalls(e.fn, child) != 0) || strlen(arg_buf) >= IR.ZIR_NAME_MAX)) {
+            captured: [IR.ZIR_NAME_MAX]u8
+            Fresh(e, *captured[0])
+            Declare(e, *captured[0], *argument_type[0], arg_buf)
+            copy_text(arg_buf, IR.ZIR_TEXT_MAX, *captured[0])
+        }
+        copy_text(arg_slot, IR.ZIR_NAME_MAX, Bare(arg_buf, plain_buf, IR.ZIR_TEXT_MAX))
+        argument_count += 1
+        child = e.fn.exprs[child].next_sibling
+    }
+    for ordinal: cast(s32)0..argument_count - 1 {
+        arg_slot := PtrAdd(arguments, cast(usize)ordinal * IR.ZIR_NAME_MAX)
+        if arg_slot[0] == 0 { Val.Fatal(expr, CStr("missing checked call argument")) }
+        placeholder: [IR.ZIR_NAME_MAX]u8
+        CheckFormat(snprintf(*placeholder[0], IR.ZIR_NAME_MAX, CStr("zir_call_argument_%d"), ordinal), IR.ZIR_NAME_MAX)
+        sep := ifx count != 0 then CStr(", ") else CStr("")
+        item := ifx expr.slot_type[0] != 0 then arg_slot else *placeholder[0]
+        n += cast(usize)CheckFormat(snprintf(PtrAdd(text_buf, n), IR.ZIR_TEXT_MAX - n, CStr("%s%s"), sep, item), IR.ZIR_TEXT_MAX - n)
+        count += 1
+    }
+    CheckFormat(snprintf(PtrAdd(text_buf, n), IR.ZIR_TEXT_MAX - n, CStr(")")), IR.ZIR_TEXT_MAX - n)
+    if expr.slot_type[0] != 0 {
+        copy_text(out, size, text_buf)
+        return
+    }
+    e.resolve(e.context, text_buf, resolved_buf, IR.ZIR_TEXT_MAX)
+    if SimdTierCopyCall(e, expr) != 0 {
+        name_len: usize = 0
+        length := strlen(resolved_buf)
+        while IdentifierByte(resolved_buf[name_len]) { name_len += 1 }
+        if name_len == 0 || resolved_buf[name_len] != #char "(" {
+            Val.Fatal(expr, CStr("unexpected call text for a SIMD tier copy"))
+        }
+        CheckFormat(snprintf(source_buf, IR.ZIR_TEXT_MAX, CStr("_ziran_%s"), e.simd_tier), IR.ZIR_TEXT_MAX)
+        added := strlen(source_buf)
+        if length + added >= IR.ZIR_TEXT_MAX { Val.Fatal(expr, CStr("call text too long for a SIMD tier copy")) }
+        memmove(cast(*void)PtrAdd(resolved_buf, name_len + added), cast(*void)PtrAdd(resolved_buf, name_len), length - name_len + 1)
+        memcpy(cast(*void)PtrAdd(resolved_buf, name_len), cast(*void)source_buf, added)
+    }
+    ReplaceCallPlaceholders(resolved_buf, arguments, argument_count, out, size)
+}
+
+#scope_file
+
+SlotWrapperName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32, out: *u8, size: usize) {
+    prefix: [64]u8
+    CNumberPrefix(module, *prefix[0], 64)
+    offset := cast(s64)(cast(usize)fn - cast(usize)module.functions) / cast(s64)size_of(IR.ZirFunction)
+    CheckFormat(snprintf(out, size, CStr("%s_slot_%lld_%d"), *prefix[0], offset, index), size)
+}
+
+#scope_export
+
+#program_export
+EmitSlotWrappers :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction,
+                     target: Native.ZirTarget, resolver: CEmit.ZirResolveTarget, context: *void) {
+    if target != .ZIR_C || CanEmitBody(module, fn) == 0 { return }
+    parameters := cast(*u8)AllocateOrExit(cast(usize)(64 * IR.ZIR_TEXT_MAX))
+    call_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    res_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer { free(cast(*void)parameters); free(cast(*void)call_buf); free(cast(*void)res_buf) }
+    for index: cast(s32)0..fn.expr_count - 1 {
+        value := *fn.exprs[index]
+        if value.is_function_value == 0 { continue }
+        slot_owner: *IR.ZirModule = null
+        slot := CFindType(module, value.type, *slot_owner)
+        if slot == null || slot.is_c_call != 0 { continue }
+        count := ifx skip_ws(*slot.body[0])[0] != 0 then split_top_level(*slot.body[0], parameters, 64, IR.ZIR_TEXT_MAX) else cast(s32)0
+        wrapper: [IR.ZIR_NAME_MAX]u8
+        resolved_result: [IR.ZIR_NAME_MAX]u8
+        CSlotTypeAtUse(*slot.procedure_return_type[0], target, CEmit.ResolveTypeAtUse, cast(*void)slot_owner, *resolved_result[0], IR.ZIR_NAME_MAX)
+        SlotWrapperName(module, fn, index, *wrapper[0], IR.ZIR_NAME_MAX)
+        fprintf(out, CStr("static %s %s(void *context"), *resolved_result[0], *wrapper[0])
+        length := cast(usize)CheckFormat(snprintf(call_buf, IR.ZIR_TEXT_MAX, CStr("%s("), value.name), IR.ZIR_TEXT_MAX)
+        for argument: cast(s32)0..count - 1 {
+            param := PtrAdd(parameters, cast(usize)argument * IR.ZIR_TEXT_MAX)
+            source := skip_ws(PtrAdd(strchr(param, #char ":"), 1))
+            resolved_type: [IR.ZIR_NAME_MAX]u8
+            CSlotTypeAtUse(source, target, CEmit.ResolveTypeAtUse, cast(*void)slot_owner, *resolved_type[0], IR.ZIR_NAME_MAX)
+            fprintf(out, CStr(", %s slot_arg_%d"), *resolved_type[0], argument)
+            sep := ifx argument != 0 then CStr(", ") else CStr("")
+            length += cast(usize)CheckFormat(snprintf(PtrAdd(call_buf, length), IR.ZIR_TEXT_MAX - length,
+                                                      CStr("%sslot_arg_%d"), sep, argument), IR.ZIR_TEXT_MAX - length)
+        }
+        CheckFormat(snprintf(PtrAdd(call_buf, length), IR.ZIR_TEXT_MAX - length, CStr(")")), IR.ZIR_TEXT_MAX - length)
+        resolver(context, call_buf, res_buf, IR.ZIR_TEXT_MAX)
+        ret_kw := ifx strcmp(*slot.procedure_return_type[0], CStr("void")) != 0 then CStr("return ") else CStr("")
+        fprintf(out, CStr(")\n{\n    (void)context;\n    %s%s;\n}\n"), ret_kw, res_buf)
+    }
+}
+
+#program_export "zir_emit_emit_function_value"
+EmitFunctionValue :: (e: *Emitter, index: s32, out: *u8, size: usize) {
+    call_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    res_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    parameters := cast(*u8)AllocateOrExit(cast(usize)(64 * IR.ZIR_TEXT_MAX))
+    args_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    sig_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer {
+        free(cast(*void)call_buf); free(cast(*void)res_buf); free(cast(*void)parameters)
+        free(cast(*void)args_buf); free(cast(*void)sig_buf)
+    }
+    value := *e.fn.exprs[index]
+    slot_owner: *IR.ZirModule = null
+    slot := CFindType(e.module, value.type, *slot_owner)
+    if slot_owner == null { slot_owner = e.module }
+    if e.target == .ZIR_C {
+        if slot != null && slot.is_c_call != 0 {
+            CheckFormat(snprintf(call_buf, IR.ZIR_TEXT_MAX, CStr("%s()"), value.name), IR.ZIR_TEXT_MAX)
+            e.resolve(e.context, call_buf, res_buf, IR.ZIR_TEXT_MAX)
+            length := strlen(res_buf)
+            if length >= 2 && strcmp(PtrAdd(res_buf, length - 2), CStr("()")) == 0 {
+                res_buf[length - 2] = 0
+            }
+            copy_text(out, size, res_buf)
+            return
+        }
+        wrapper: [IR.ZIR_NAME_MAX]u8
+        SlotWrapperName(e.module, e.fn, index, *wrapper[0], IR.ZIR_NAME_MAX)
+        native: [IR.ZIR_NAME_MAX * 2]u8
+        e.resolve(e.context, value.type, *native[0], IR.ZIR_NAME_MAX * 2)
+        CheckFormat(snprintf(out, size, CStr("(%s){NULL, %s}"), *native[0], *wrapper[0]), size)
+        return
+    }
+    count := ifx skip_ws(*slot.body[0])[0] != 0 then split_top_level(*slot.body[0], parameters, 64, IR.ZIR_TEXT_MAX) else cast(s32)0
+    args_buf[0] = 0
+    sig_buf[0] = 0
+    length: usize = 0
+    sig_len: usize = 0
+    for argument: cast(s32)0..count - 1 {
+        parameter: [IR.ZIR_NAME_MAX]u8
+        Fresh(e, *parameter[0])
+        sep := ifx argument != 0 then CStr(", ") else CStr("")
+        length += cast(usize)CheckFormat(snprintf(PtrAdd(args_buf, length), IR.ZIR_TEXT_MAX - length,
+                                                  CStr("%s%s"), sep, *parameter[0]), IR.ZIR_TEXT_MAX - length)
+        if e.target == .ZIR_GO {
+            param := PtrAdd(parameters, cast(usize)argument * IR.ZIR_TEXT_MAX)
+            source := skip_ws(PtrAdd(strchr(param, #char ":"), 1))
+            type: [IR.ZIR_NAME_MAX]u8
+            if CNativeGoType(slot_owner, source, *type[0], IR.ZIR_NAME_MAX) == 0 {
+                Diagnostic(slot.span, CStr("zir_go.callback"), CStr("unsupported callback parameter type: %s"), source)
+                exit(1)
+            }
+            sig_len += cast(usize)CheckFormat(snprintf(PtrAdd(sig_buf, sig_len), IR.ZIR_TEXT_MAX - sig_len,
+                                                       CStr("%s%s %s"), sep, *parameter[0], *type[0]), IR.ZIR_TEXT_MAX - sig_len)
+        }
+    }
+    CheckFormat(snprintf(call_buf, IR.ZIR_TEXT_MAX, CStr("%s(%s)"), value.name, args_buf), IR.ZIR_TEXT_MAX)
+    e.resolve(e.context, call_buf, res_buf, IR.ZIR_TEXT_MAX)
+    if e.target == .ZIR_GO {
+        result_type: [IR.ZIR_NAME_MAX]u8
+        result_type[0] = 0
+        if strcmp(*slot.procedure_return_type[0], CStr("void")) != 0 {
+            if CNativeGoType(slot_owner, *slot.procedure_return_type[0], *result_type[0], IR.ZIR_NAME_MAX) == 0 {
+                Diagnostic(slot.span, CStr("zir_go.callback"), CStr("unsupported callback result type: %s"), *slot.procedure_return_type[0])
+                exit(1)
+            }
+        }
+        sp := ifx result_type[0] != 0 then CStr(" ") else CStr("")
+        rk := ifx result_type[0] != 0 then CStr("return ") else CStr("")
+        CheckFormat(snprintf(out, size, CStr("func(%s)%s%s { %s%s }"), sig_buf, sp, *result_type[0], rk, res_buf), size)
+    } else {
+        CheckFormat(snprintf(out, size, CStr("(%s) => %s"), args_buf, res_buf), size)
+    }
+}
+
+#program_export "zir_emit_member_path"
+MemberPath :: (fn: *IR.ZirFunction, index: s32) -> s32 {
+    expr := *fn.exprs[index]
+    if expr.kind == .IDENT { return 1 }
+    if expr.kind == .INDEX {
+        return ifx ArrayElementType(fn.exprs[expr.left].type, null, 0, null) != 0 && MemberPath(fn, expr.left) != 0 then 1 else 0
+    }
+    return ifx (expr.kind == .MEMBER || expr.kind == .POINTER_MEMBER) && MemberPath(fn, expr.left) != 0 then 1 else 0
+}
+
+#program_export "zir_emit_expression_calls"
+ExpressionCalls :: (fn: *IR.ZirFunction, index: s32) -> s32 {
+    if index < 0 || index >= fn.expr_count { return 0 }
+    expr := *fn.exprs[index]
+    if expr.kind == .CALL { return 1 }
+    child := expr.first_child
+    while child >= 0 {
+        if ExpressionCalls(fn, child) != 0 { return 1 }
+        child = fn.exprs[child].next_sibling
+    }
+    return ifx ExpressionCalls(fn, expr.left) != 0 || ExpressionCalls(fn, expr.right) != 0 ||
+               ExpressionCalls(fn, expr.third) != 0 then 1 else 0
+}
+
+#scope_file
+
+PrintRun :: struct {
+    format: [IR.ZIR_TEXT_MAX]u8
+    format_length: usize
+    plain: [IR.ZIR_TEXT_MAX]u8
+    plain_length: usize
+    arguments: [IR.ZIR_TEXT_MAX]u8
+    values: s32
+}
+
+PrintRunText :: (run: *PrintRun, bytes: *u8, length: usize) {
+    i: usize = 0
+    while i < length {
+        if run.plain_length + 1 < IR.ZIR_TEXT_MAX {
+            run.plain[run.plain_length] = bytes[i]
+            run.plain_length += 1
+        }
+        if run.format_length + 2 < IR.ZIR_TEXT_MAX {
+            run.format[run.format_length] = bytes[i]
+            run.format_length += 1
+            if bytes[i] == #char "%" {
+                run.format[run.format_length] = #char "%"
+                run.format_length += 1
+            }
+        }
+        i += 1
+    }
+}
+
+PrintRunValue :: (run: *PrintRun, verb: *u8, argument: *u8) {
+    used := strlen(*run.arguments[0])
+    c := verb
+    while c[0] != 0 && run.format_length + 1 < IR.ZIR_TEXT_MAX {
+        run.format[run.format_length] = c[0]
+        run.format_length += 1
+        c = PtrAdd(c, 1)
+    }
+    CheckFormat(snprintf(PtrAdd(*run.arguments[0], used), IR.ZIR_TEXT_MAX - used, CStr(", %s"), argument), IR.ZIR_TEXT_MAX - used)
+    run.values += 1
+}
+
+ZiranLiteralOf :: (bytes: *u8, length: usize, out: *u8, size: usize) {
+    used: usize = 0
+    out[used] = #char "\""; used += 1
+    i: usize = 0
+    while i < length && used + 6 < size {
+        byte := bytes[i]
+        if byte == #char "\"" || byte == #char "\\" {
+            out[used] = #char "\\"; used += 1
+            out[used] = byte; used += 1
+        } else if byte == #char "\n" {
+            out[used] = #char "\\"; used += 1
+            out[used] = #char "n"; used += 1
+        } else if byte == #char "\t" {
+            out[used] = #char "\\"; used += 1
+            out[used] = #char "t"; used += 1
+        } else if byte == #char "\r" {
+            out[used] = #char "\\"; used += 1
+            out[used] = #char "r"; used += 1
+        } else if byte < 0x20 || byte == 0x7f {
+            used += cast(usize)snprintf(PtrAdd(out, used), size - used, CStr("\\x%02x"), cast(u32)byte)
+        } else {
+            out[used] = byte; used += 1
+        }
+        i += 1
+    }
+    out[used] = #char "\""; used += 1
+    out[used] = 0
+}
+
+PrintRunFlush :: (e: *Emitter, run: *PrintRun, format_expr: s32) {
+    if run.format_length == 0 {
+        memset(cast(*void)run, 0, size_of(PrintRun))
+        return
+    }
+    source_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    lit_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer { free(cast(*void)source_buf); free(cast(*void)lit_buf) }
+    piece := e.fn.exprs[format_expr]
+    if run.values == 0 && e.target == .ZIR_GO {
+        ZiranLiteralOf(*run.plain[0], run.plain_length, source_buf, IR.ZIR_TEXT_MAX)
+    } else {
+        ZiranLiteralOf(*run.format[0], run.format_length, source_buf, IR.ZIR_TEXT_MAX)
+    }
+    piece.text = KeepText(source_buf)
+    EmitStringLiteral(*piece, e.target, lit_buf, IR.ZIR_TEXT_MAX)
+    EmitIndent(e)
+    if e.target == .ZIR_GO {
+        fmt := ifx run.values != 0 then CStr("fmt.Printf(%s%s)\n") else CStr("fmt.Print(%s%s)\n")
+        fprintf(e.out, fmt, lit_buf, *run.arguments[0])
+    } else {
+        fprintf(e.out, CStr("printf(%s%s);\n"), lit_buf, *run.arguments[0])
+    }
+    memset(cast(*void)run, 0, size_of(PrintRun))
+}
+
+PostfixExpression :: (text: *u8) -> bool {
+    p := text
+    if !(IsAlpha(p[0]) || p[0] == #char "_") { return false }
+    while IsAlnum(p[0]) || p[0] == #char "_" { p = PtrAdd(p, 1) }
+    while p[0] != 0 {
+        if p[0] == #char "." || (p[0] == #char "-" && p[1] == #char ">") {
+            p = PtrAdd(p, ifx p[0] == #char "." then cast(usize)1 else cast(usize)2)
+            if !(IsAlpha(p[0]) || p[0] == #char "_") { return false }
+            while IsAlnum(p[0]) || p[0] == #char "_" { p = PtrAdd(p, 1) }
+        } else if p[0] == #char "(" || p[0] == #char "[" {
+            depth: s32 = 0
+            quoted := false
+            while true {
+                if quoted {
+                    if p[0] == #char "\\" && p[1] != 0 { p = PtrAdd(p, 1) }
+                    else if p[0] == #char "\"" { quoted = false }
+                } else if p[0] == #char "\"" { quoted = true }
+                else if p[0] == #char "(" || p[0] == #char "[" { depth += 1 }
+                else if p[0] == #char ")" || p[0] == #char "]" { depth -= 1 }
+                p = PtrAdd(p, 1)
+                if p[0] == 0 || depth <= 0 { break }
+            }
+            if depth != 0 { return false }
+        } else {
+            return false
+        }
+    }
+    return true
+}
+
+#scope_export
+
+#program_export "zir_emit_emit_print"
+EmitPrint :: (e: *Emitter, expr: *IR.ZirExpr) {
+    pieces := cast(*PrintPiece)calloc(PRINT_PIECES_MAX, size_of(PrintPiece))
+    values := cast(*u8)calloc(PRINT_PIECES_MAX, IR.ZIR_TEXT_MAX)
+    val_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    lit_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    bytes_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    operand_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    plain_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    text_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    run := cast(*PrintRun)calloc(1, size_of(PrintRun))
+    defer {
+        free(cast(*void)pieces); free(cast(*void)values); free(cast(*void)val_buf)
+        free(cast(*void)lit_buf); free(cast(*void)bytes_buf); free(cast(*void)operand_buf)
+        free(cast(*void)plain_buf); free(cast(*void)text_buf); free(cast(*void)run)
+    }
+    first := expr.first_child
+    count: s32 = -1
+    if pieces != null && values != null && first >= 0 {
+        count = PrintFormatPieces(e.fn.exprs[first].text, pieces, PRINT_PIECES_MAX)
+    }
+    if count < 0 { Val.Fatal(expr, CStr("invalid checked print format")) }
+    one_statement := true
+    if e.target != .ZIR_GO {
+        for i: cast(s32)0..count - 1 {
+            length: usize = 0
+            if pieces[i].is_argument == 0 &&
+               DecodeStringLiteral(*pieces[i].literal[0], bytes_buf, IR.ZIR_TEXT_MAX, *length) != 0 &&
+               memchr(cast(*void)bytes_buf, 0, length) != null {
+                one_statement = false
+            }
+        }
+    }
+    capture: s32 = 0
+    child := e.fn.exprs[first].next_sibling
+    while child >= 0 {
+        type := ScalarType(e.fn.exprs[child].type)
+        capture |= ExpressionCalls(e.fn, child)
+        if e.target != .ZIR_GO && (strcmp(type, CStr("float32")) == 0 || strcmp(type, CStr("float64")) == 0) {
+            one_statement = false
+        }
+        child = e.fn.exprs[child].next_sibling
+    }
+    types: [PRINT_PIECES_MAX]*u8
+    children: [PRINT_PIECES_MAX]s32
+    argument: s32 = 0
+    child = e.fn.exprs[first].next_sibling
+    while child >= 0 {
+        later_calls: s32 = 0
+        later_reads: s32 = 0
+        types[argument] = ScalarType(e.fn.exprs[child].type)
+        children[argument] = child
+        next := e.fn.exprs[child].next_sibling
+        while next >= 0 {
+            later_calls |= ExpressionCalls(e.fn, next)
+            later_reads |= CallCanChange(e, next)
+            next = e.fn.exprs[next].next_sibling
+        }
+        in_place := one_statement && later_calls == 0 && later_reads == 0 &&
+                    (e.target == .ZIR_GO || strcmp(types[argument], CStr("string")) != 0)
+        e.call_in_place = ifx in_place then 1 else 0
+        emit_expr(e, child, e.fn.exprs[child].type, val_buf, IR.ZIR_TEXT_MAX)
+        slot := PtrAdd(values, cast(usize)argument * IR.ZIR_TEXT_MAX)
+        if capture != 0 && !in_place && later_calls != 0 && CallCanChange(e, child) != 0 {
+            Fresh(e, slot)
+            Declare(e, slot, types[argument], val_buf)
+        } else {
+            copy_text(slot, IR.ZIR_TEXT_MAX, val_buf)
+        }
+        argument += 1
+        child = e.fn.exprs[child].next_sibling
+    }
+    argument = 0
+    for i: cast(s32)0..count - 1 {
+        if pieces[i].is_argument == 0 {
+            length: usize = 0
+            if DecodeStringLiteral(*pieces[i].literal[0], bytes_buf, IR.ZIR_TEXT_MAX, *length) == 0 {
+                Val.Fatal(expr, CStr("invalid checked print format"))
+            }
+            if e.target != .ZIR_GO && memchr(cast(*void)bytes_buf, 0, length) != null {
+                piece := e.fn.exprs[first]
+                PrintRunFlush(e, run, first)
+                piece.text = KeepText(*pieces[i].literal[0])
+                EmitStringLiteral(*piece, e.target, lit_buf, IR.ZIR_TEXT_MAX)
+                EmitIndent(e); fprintf(e.out, CStr("fwrite(%s, 1, %zu, stdout);\n"), lit_buf, length)
+                continue
+            }
+            PrintRunText(run, bytes_buf, length)
+            continue
+        }
+        type := types[argument]
+        slot := PtrAdd(values, cast(usize)argument * IR.ZIR_TEXT_MAX)
+        child_idx := children[argument]
+        argument += 1
+        if e.fn.exprs[child_idx].kind == .STRING {
+            length: usize = 0
+            if DecodeStringLiteral(e.fn.exprs[child_idx].text, bytes_buf, IR.ZIR_TEXT_MAX, *length) != 0 &&
+               (e.target == .ZIR_GO || memchr(cast(*void)bytes_buf, 0, length) == null) {
+                PrintRunText(run, bytes_buf, length)
+                continue
+            }
+        }
+        Bare(slot, plain_buf, IR.ZIR_TEXT_MAX)
+        copy_text(slot, IR.ZIR_TEXT_MAX, plain_buf)
+        name := slot
+        if PostfixExpression(name) || Enclosed(name) != 0 {
+            copy_text(operand_buf, IR.ZIR_TEXT_MAX, name)
+        } else {
+            CheckFormat(snprintf(operand_buf, IR.ZIR_TEXT_MAX, CStr("(%s)"), name), IR.ZIR_TEXT_MAX)
+        }
+        if e.target == .ZIR_GO {
+            if strcmp(type, CStr("string")) == 0 { PrintRunValue(run, CStr("%s"), name) }
+            else if strcmp(type, CStr("bool")) == 0 { PrintRunValue(run, CStr("%t"), name) }
+            else if strcmp(type, CStr("float64")) == 0 || strcmp(type, CStr("float32")) == 0 {
+                fmt := ifx strcmp(type, CStr("float64")) == 0 then CStr("formatFloat(%s, 64)") else CStr("formatFloat(float64(%s), 32)")
+                CheckFormat(snprintf(text_buf, IR.ZIR_TEXT_MAX, fmt, name), IR.ZIR_TEXT_MAX)
+                PrintRunValue(run, CStr("%s"), text_buf)
+            } else { PrintRunValue(run, CStr("%d"), name) }
+            continue
+        }
+        if strcmp(type, CStr("float32")) == 0 || strcmp(type, CStr("float64")) == 0 {
+            PrintRunFlush(e, run, first)
+            EmitIndent(e)
+            fmt := ifx strcmp(type, CStr("float32")) == 0 then CStr("print_float((double)%s, 1);\n") else CStr("print_float(%s, 0);\n")
+            fprintf(e.out, fmt, name)
+        } else if strcmp(type, CStr("string")) == 0 {
+            CheckFormat(snprintf(text_buf, IR.ZIR_TEXT_MAX, CStr("(int)%s.length, %s.data"), operand_buf, operand_buf), IR.ZIR_TEXT_MAX)
+            PrintRunValue(run, CStr("%.*s"), text_buf)
+        } else if strcmp(type, CStr("bool")) == 0 {
+            CheckFormat(snprintf(text_buf, IR.ZIR_TEXT_MAX, CStr("%s ? \"true\" : \"false\""), operand_buf), IR.ZIR_TEXT_MAX)
+            PrintRunValue(run, CStr("%s"), text_buf)
+        } else {
+            bits: u64 = 0
+            is_unsigned := type[0] == #char "u"
+            if IntegerLiteralBits(name, *bits) != 0 {
+                if is_unsigned {
+                    CheckFormat(snprintf(text_buf, IR.ZIR_TEXT_MAX, CStr("%lluULL"), bits), IR.ZIR_TEXT_MAX)
+                } else {
+                    CheckFormat(snprintf(text_buf, IR.ZIR_TEXT_MAX, CStr("%lldLL"), cast(s64)bits), IR.ZIR_TEXT_MAX)
+                }
+            } else {
+                fmt := ifx is_unsigned then CStr("(unsigned long long)%s") else CStr("(long long)%s")
+                CheckFormat(snprintf(text_buf, IR.ZIR_TEXT_MAX, fmt, operand_buf), IR.ZIR_TEXT_MAX)
+            }
+            PrintRunValue(run, ifx is_unsigned then CStr("%llu") else CStr("%lld"), text_buf)
+        }
+    }
+    PrintRunFlush(e, run, first)
+}

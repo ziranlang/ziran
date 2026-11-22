@@ -6,8 +6,11 @@
 #include "compiler_portable_body.h"
 #include "zir_diagnostic.h"
 #include "zir_memory.h"
+#include "zir_stream.h"
 
 #include <errno.h>
+#include <math.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -123,3 +126,96 @@ CanEmitBody(const ZirModule *module, const ZirFunction *fn)
         free(support);
     return answer;
 }
+
+void **
+ZirConstantTablesSlot(void)
+{
+    static _Thread_local void *slot;
+    return &slot;
+}
+
+FILE *
+ZirTextStreamOpen(TextStream *stream, char **text, size_t *size)
+{
+    return TextStreamOpen(stream, text, size);
+}
+
+int
+ZirTextStreamClose(TextStream *stream)
+{
+    return TextStreamClose(stream);
+}
+
+FILE *
+ZirEmitScratchOpen(unsigned char **text, size_t *size)
+{
+#if defined(ZIR_MEMORY_STREAMS)
+    return ZirWriteMemory(text, size);
+#else
+    *text = NULL;
+    *size = 0;
+    return tmpfile();
+#endif
+}
+
+void
+ZirEmitScratchClose(FILE *file, size_t *size)
+{
+#if !defined(ZIR_MEMORY_STREAMS)
+    long written = ftell(file);
+    if(written < 0) {
+        fclose(file);
+        *size = 1;
+        return;
+    }
+    *size = (size_t)written;
+#endif
+    if(fclose(file) != 0)
+        *size = 1;
+}
+
+int
+ZirSignbit(double value)
+{
+    return signbit(value) != 0;
+}
+
+int
+ZirParseInt64(const char *text, int64_t *out)
+{
+    char *end = NULL;
+    errno = 0;
+    long long value = strtoll(text, &end, 0);
+    if(errno != 0 || end == text || *end != '\0')
+        return 0;
+    *out = (int64_t)value;
+    return 1;
+}
+
+/* Publish the immutable SIMD metadata once, even with parallel checkers. */
+void
+ZirSimdInitialize(void (*initialize)(void))
+{
+    enum { UNINITIALIZED, INITIALIZING, READY };
+    static atomic_int state = ATOMIC_VAR_INIT(UNINITIALIZED);
+    if(atomic_load_explicit(&state, memory_order_acquire) == READY)
+        return;
+    int expected = UNINITIALIZED;
+    if(atomic_compare_exchange_strong_explicit(&state, &expected, INITIALIZING,
+                                               memory_order_acq_rel, memory_order_acquire)) {
+        initialize();
+        atomic_store_explicit(&state, READY, memory_order_release);
+    } else {
+        while(atomic_load_explicit(&state, memory_order_acquire) != READY) {}
+    }
+}
+
+typedef struct GoSimdText {
+    const char *name, *text;
+} GoSimdText;
+#include "zir_simd_go_bodies.h"
+
+size_t ZirGoSimdBodyCount(void) { return sizeof(go_simd_bodies) / sizeof(go_simd_bodies[0]); }
+const GoSimdText *ZirGoSimdBodyAt(size_t i) { return &go_simd_bodies[i]; }
+size_t ZirGoSimdLaneCount(void) { return sizeof(go_simd_lane_functions) / sizeof(go_simd_lane_functions[0]); }
+const GoSimdText *ZirGoSimdLaneAt(size_t i) { return &go_simd_lane_functions[i]; }

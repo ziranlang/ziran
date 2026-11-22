@@ -1,0 +1,3032 @@
+// ZIR to C backend: lowers a ZirProgram to .c/.h source files.
+using IR :: #import "compiler_ir"
+using Native :: #import "compiler_native_names"
+CEmit :: #import "compiler_c_emit"
+Val :: #import "compiler_c_emit_value"
+CallMod :: #import "compiler_c_emit_call"
+Simd :: #import "compiler_simd_metadata"
+Runtime :: #import "compiler_runtime_emit"
+
+#scope_export
+
+ZirCFunctionSym :: struct {
+    source: [IR.ZIR_NAME_MAX]u8 #c "char"
+    c: [IR.ZIR_NAME_MAX * 3]u8 #c "char"
+}
+
+ZirCHeaderUse :: struct {
+    module: *IR.ZirModule #c "const ZirModule *"
+    use: u8
+}
+
+ZirCHeaderUses :: struct {
+    items: *ZirCHeaderUse
+    count: s32
+}
+
+ZirCModuleSyms :: struct {
+    module_stem: [IR.ZIR_PATH_MAX]u8 #c "char"
+    module_slash: [IR.ZIR_PATH_MAX]u8 #c "char"
+    fns: *ZirCFunctionSym
+    fn_count: s32
+    module: *IR.ZirModule #c "const ZirModule *"
+    header_uses: ZirCHeaderUses
+}
+
+#scope_file
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+malloc :: (size: usize) -> *void #foreign libc "malloc";
+calloc :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+realloc :: (memory: *void, size: usize) -> *void #foreign libc "realloc";
+free :: (memory: *void) #foreign libc "free";
+exit :: (status: s32) #foreign libc "exit";
+perror :: (s: *u8) #foreign libc "perror";
+memcpy :: (dst: *void, src: *void, count: usize) -> *void #foreign libc "memcpy";
+memmove :: (dst: *void, src: *void, count: usize) -> *void #foreign libc "memmove";
+memset :: (dst: *void, value: s32, count: usize) -> *void #foreign libc "memset";
+memcmp :: (a: *void, b: *void, count: usize) -> s32 #foreign libc "memcmp";
+memchr :: (s: *void, c: s32, n: usize) -> *void #foreign libc "memchr";
+strlen :: (s: *u8) -> usize #foreign libc "strlen";
+strcmp :: (a: *u8, b: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (a: *u8, b: *u8, n: usize) -> s32 #foreign libc "strncmp";
+strcpy :: (dst: *u8, src: *u8) -> *u8 #foreign libc "strcpy";
+strdup :: (s: *u8) -> *u8 #foreign libc "strdup";
+strchr :: (s: *u8, c: s32) -> *u8 #foreign libc "strchr";
+strrchr :: (s: *u8, c: s32) -> *u8 #foreign libc "strrchr";
+strstr :: (haystack: *u8, needle: *u8) -> *u8 #foreign libc "strstr";
+snprintf :: (out: *u8, size: usize, fmt: *u8, args: ..any) -> s32 #foreign libc "snprintf";
+sprintf :: (out: *u8, fmt: *u8, args: ..any) -> s32 #foreign libc "sprintf";
+fprintf :: (stream: *void, fmt: *u8, args: ..any) -> s32 #foreign libc "fprintf";
+fputs :: (s: *u8, stream: *void) -> s32 #foreign libc "fputs";
+ferror :: (stream: *void) -> s32 #foreign libc "ferror";
+fclose :: (stream: *void) -> s32 #foreign libc "fclose";
+remove :: (path: *u8) -> s32 #foreign libc "remove";
+mkdir :: (path: *u8, mode: u32) -> s32 #foreign libc "mkdir";
+
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, fmt: *u8, args: ..any) #foreign compiler "Diagnostic";
+DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+copy_text :: (dst: *u8, size: usize, src: *u8) #foreign compiler "copy_text";
+skip_ws :: (s: *u8) -> *u8 #foreign compiler "skip_ws";
+CKeepParameters :: (text: *u8) -> *u8 #foreign compiler "KeepParameters";
+ParametersOf :: (text: *u8) -> *ZirParameters #foreign compiler "ParametersOf";
+ZirIntegerLiteral :: (text: *u8, value: *u64) -> s32 #foreign compiler "ZirIntegerLiteral";
+ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
+ArrayElementType :: (type: *u8, element: *u8, size: usize, capacity: *s32) -> s32 #foreign compiler "ArrayElementType";
+SliceElementType :: (type: *u8, element: *u8, size: usize) -> s32 #foreign compiler "SliceElementType";
+VectorType :: (type: *u8, vector: *void) -> s32 #foreign compiler "VectorType";
+BitBuiltin :: (name: *u8) -> s32 #foreign compiler "BitBuiltin";
+CFindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+EnumMemberValue :: (enumeration: *IR.ZirType, member: *u8, out: *s64) -> s32 #foreign compiler "EnumMemberValue";
+CResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, fn: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunction";
+ResolveGlobalAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, global: **IR.ZirGlobal) -> s32 #foreign compiler "ResolveGlobalAt";
+DefineIsAggregate :: (module: *IR.ZirModule, d: *IR.ZirDefine) -> s32 #foreign compiler "CompilerDefineIsAggregate";
+CheckTargetCapabilities :: (program: *IR.ZirProgram, target: *u8) -> s32 #foreign compiler "CheckTargetCapabilities";
+GeneratedOutputOpen :: (path: *u8, temp: *u8, temp_size: usize) -> *void #foreign compiler "GeneratedOutputOpen";
+GeneratedOutputReplace :: (temp: *u8, path: *u8) -> s32 #foreign compiler "GeneratedOutputReplace";
+ProfileStart :: () -> u64 #foreign compiler "ProfileStart";
+ProfileEnd :: (name: *u8, started: u64) #foreign compiler "ProfileEnd";
+CompilerContextSelect :: (ctx: *void) -> *void #foreign compiler "CompilerContextSelect";
+
+ZirTextStreamOpen :: (stream: *TextStream, text: **u8, size: *usize) -> *void #foreign compiler "ZirTextStreamOpen";
+ZirTextStreamClose :: (stream: *TextStream) -> s32 #foreign compiler "ZirTextStreamClose";
+
+// Emitter & runtime-emit & prune C exports.
+CTargetType :: (type: *u8, target: Native.ZirTarget) -> *u8 #foreign compiler "TargetTypeZiran";
+NativeTypeName :: (owner: *IR.ZirModule, type: *IR.ZirType, out: *u8, size: usize) #foreign compiler "NativeTypeName";
+NativeTypeAtUse :: (module: *IR.ZirModule, type: *u8, out: *u8, size: usize) -> s32 #foreign compiler "NativeTypeAtUse";
+NativeEnumMemberName :: (owner: *IR.ZirModule, type: *IR.ZirType, member: *u8, out: *u8, size: usize) -> s32 #foreign compiler "NativeEnumMemberName";
+TypeHasZeroArray :: (module: *IR.ZirModule, type: *u8) -> s32 #foreign compiler "TypeHasZeroArray";
+NativeCFunctionName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, out: *u8, size: usize) #foreign compiler "NativeCFunctionName";
+NativeCForeignName :: (module: *IR.ZirModule, foreign: *IR.ZirImport, out: *u8, size: usize) #foreign compiler "NativeCForeignName";
+NativeCModuleInitName :: (module: *IR.ZirModule, out: *u8, size: usize) #foreign compiler "NativeCModuleInitName";
+ModuleNeedsStartup :: (module: *IR.ZirModule) -> s32 #foreign compiler "ModuleNeedsStartup";
+NativeHeaderGuard :: (stem: *u8, out: *u8, size: usize) #foreign compiler "NativeHeaderGuard";
+ScalarLiteral :: (type: *u8, text: *u8, target: Native.ZirTarget, span: IR.ZirSourceSpan, out: *u8, size: usize) -> s32 #foreign compiler "ScalarLiteral";
+EmitGlobalInitializerText :: (module: *IR.ZirModule, global: *IR.ZirGlobal, target: Native.ZirTarget,
+                              scalar: CallMod.ZirGlobalScalarRewrite, type_name: *void, field_name: *void,
+                              context: *void, status: *s32) -> *u8 #foreign compiler "EmitGlobalInitializerText";
+EmitGlobalSlotWrappers :: (out: *void, module: *IR.ZirModule, global: *IR.ZirGlobal, target: Native.ZirTarget,
+                           resolver: CEmit.ZirResolveTarget, context: *void) #foreign compiler "EmitGlobalSlotWrappers";
+ModuleUsesSlices :: (module: *IR.ZirModule) -> s32 #foreign compiler "ModuleUsesSlices";
+ModuleHeaderUsesVectors :: (module: *IR.ZirModule) -> s32 #foreign compiler "ModuleHeaderUsesVectors";
+ModuleUsesVecOperations :: (module: *IR.ZirModule) -> s32 #foreign compiler "ModuleUsesVecOperations";
+TargetBindingName :: (fn: *IR.ZirFunction, target: Native.ZirTarget, name: *u8, out: *u8, size: usize) #foreign compiler "TargetBindingName";
+TargetFieldName :: (record: *IR.ZirType, target: Native.ZirTarget, name: *u8, out: *u8, size: usize) #foreign compiler "TargetFieldName";
+TargetGlobalName :: (module: *IR.ZirModule, target: Native.ZirTarget, name: *u8, out: *u8, size: usize) #foreign compiler "TargetGlobalName";
+TargetDefineName :: (module: *IR.ZirModule, target: Native.ZirTarget, name: *u8, out: *u8, size: usize) #foreign compiler "TargetDefineName";
+ArrayAbiArgs :: (fn: *IR.ZirFunction, out: *u8, size: usize) #foreign compiler "ArrayAbiArgs";
+EmitParallelWorkers :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget,
+                        resolve: CEmit.ZirResolveTarget, context: *void) #foreign compiler "EmitParallelWorkers";
+EmitNumbers :: (out: *void, module: *IR.ZirModule, target: Native.ZirTarget) #foreign compiler "EmitNumbers";
+EmitConstantTablesBegin :: (prefix: *u8, target: Native.ZirTarget) #foreign compiler "EmitConstantTablesBegin";
+EmitConstantTablesEnd :: () -> *u8 #foreign compiler "EmitConstantTablesEnd";
+EmitNativeHelpers :: (out: *void, text: *u8, simd: *Runtime.ZirSimdUses) -> s32 #foreign compiler "EmitNativeHelpers";
+NativeProgramMain :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 #foreign compiler "NativeProgramMain";
+CheckNativeEntry :: (fn: *IR.ZirFunction, target: *u8) -> s32 #foreign compiler "CheckNativeEntry";
+EmitStatusReturns :: (fn: *IR.ZirFunction) #foreign compiler "EmitStatusReturns";
+EmitNativeMainDeclaration :: (out: *void) #foreign compiler "EmitNativeMainDeclaration";
+EmitSymbolDeclaration :: (out: *void, result: *u8, name: *u8, parameters: *u8, symbol: *u8) #foreign compiler "EmitSymbolDeclaration";
+EmitNativeMain :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget) #foreign compiler "EmitNativeMain";
+EmitStringLiteral :: (expr: *IR.ZirExpr, target: Native.ZirTarget, out: *u8, size: usize) #foreign compiler "EmitStringLiteral";
+CStringLiteralBytes :: (literal: *u8) -> usize #foreign compiler "CStringLiteralBytes";
+WriteCStringArray :: (out: *void, indent: s32, declaration: *u8, literal: *u8) #foreign compiler "WriteCStringArray";
+EmitSlotWrappers :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget,
+                     resolver: CEmit.ZirResolveTarget, context: *void) #foreign compiler "EmitSlotWrappers";
+EmitSlotType :: (out: *void, slot: *IR.ZirType, target: Native.ZirTarget,
+                 resolve_type: CEmit.ZirResolveTarget, context: *void) #foreign compiler "EmitSlotType";
+EmitBody :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget,
+             resolve: CEmit.ZirResolveTarget, context: *void,
+             assembly: *void, assembly_context: *void) -> s32 #foreign compiler "EmitBody";
+EmitUseSimdTier :: (tier: *u8, native_blocks: s32) #foreign compiler "EmitUseSimdTier";
+SimdTierCopied :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 #foreign compiler "SimdTierCopied";
+EmitAssemblyHelpers :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, result_type: *u8, args: *u8) #foreign compiler "EmitAssemblyHelpers";
+EmitAssembly :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, result_type: *u8) #foreign compiler "EmitAssembly";
+EmitAssemblyBlockHelpers :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget) #foreign compiler "EmitAssemblyBlockHelpers";
+
+EmitRuntimeHeaders :: (out_dir: StaticText, generated_path: StaticText, simd: *Runtime.ZirSimdUses, used: *Runtime.SimdNames) -> bool #foreign compiler "compiler_runtime_emit_EmitRuntimeHeaders";
+EmitSimdOps :: (out_dir: StaticText, uses: *Runtime.ZirSimdUses) -> bool #foreign compiler "compiler_runtime_emit_EmitSimdOps";
+PruneProgram :: (modules: *ZirCPruneModule, count: s32, simd: *void) -> bool #foreign compiler "compiler_c_prune_PruneProgram";
+PruneModuleFree :: (module: *ZirCPruneModule) #foreign compiler "compiler_c_prune_PruneModuleFree";
+PruneNoteNames :: (text: *u8, names: *void) #foreign compiler "compiler_c_prune_PruneNoteNames";
+
+LOWER_NAME_MAX :: 128
+LOWER_TEXT_MAX :: 4096
+LOWER_GLOBAL_MAX :: 262144
+C_STRING_LITERAL_MAX :: 4095
+INLINE_STATEMENTS :: 48
+INLINE_EXPRESSIONS :: 192
+INLINE_TEXT :: 8192
+TIER_UNIT_EXPRESSIONS :: 4000
+OPEN_HEADER_DEPTH :: 9
+
+PRUNE_MARK :: 1
+PRUNE_FRAME :: 70
+PRUNE_MODULES :: 85
+PRUNE_DECLARATION :: 68
+PRUNE_ROOT :: 82
+PRUNE_HELPER :: 72
+PRUNE_INLINE :: 73
+PRUNE_INLINE_BODY :: 74
+PRUNE_NAME :: 78
+PRUNE_END :: 69
+
+MAIN_UNUSED :: 0
+MAIN_VOIDED :: 1
+MAIN_READ :: 2
+
+ZIR_INLINE_NONE :: 0
+ZIR_INLINE_ALWAYS :: 1
+ZIR_INLINE_COLD :: 2
+ZIR_BIT_NONE :: 0
+
+TextStream :: struct {
+    file: *void
+    data: *u8
+    length: usize
+    text: **u8
+    size: *usize
+}
+
+ZirParameter :: struct {
+    text: *u8
+    name: *u8
+    type: *u8
+    binding_name: *u8
+    value_type: *u8
+    default_value: *u8
+    is_using: s32
+}
+
+ZirParameters :: struct {
+    count: s32
+    _pad: s32
+    items: [64]ZirParameter
+}
+
+ZirCPruneModule :: struct {
+    stem: *u8
+    guard: *u8
+    vector_operations: s32
+    header: *u8
+    source: *u8
+    header_scope: *s32
+    header_scope_count: s32
+    source_scope: *s32
+    source_scope_count: s32
+    final_header: *u8
+    final_source: *u8
+}
+
+StaticText :: struct { data: *u8; length: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+PtrAdd :: (base: *u8, offset: usize) -> *u8 { return cast(*u8)(cast(usize)base + offset) }
+
+ToZirString :: (s: *u8) -> StaticText {
+    v: StaticText
+    v.data = s
+    v.length = strlen(s)
+    return v
+}
+
+IsAlpha :: (c: u8) -> bool {
+    return (c >= #char "a" && c <= #char "z") || (c >= #char "A" && c <= #char "Z")
+}
+
+IsDigit :: (c: u8) -> bool {
+    return c >= #char "0" && c <= #char "9"
+}
+
+IsAlnum :: (c: u8) -> bool {
+    return IsAlpha(c) || IsDigit(c)
+}
+
+IsSpace :: (c: u8) -> bool {
+    return c == #char " " || c == #char "\t" || c == #char "\n" || c == #char "\r" || c == 11 || c == 12
+}
+
+FunctionArgs :: (fn: *IR.ZirFunction) -> *u8 {
+    return ifx fn.args_text != null then fn.args_text else CStr("")
+}
+
+StatementHasAssembly :: (st: *IR.ZirStmt) -> bool {
+    return st.kind == .BLOCK_OPEN && st.assembly_text != null && st.assembly_text[0] != 0
+}
+
+OneStringLiteral :: (value: *u8) -> bool {
+    if value[0] != #char "\"" { return false }
+    p := PtrAdd(value, 1)
+    while p[0] != 0 && p[0] != #char "\"" {
+        step: usize = ifx p[0] == #char "\\" && p[1] != 0 then 2 else 1
+        p = PtrAdd(p, step)
+    }
+    return p[0] == #char "\"" && p[1] == 0
+}
+
+HeaderHasPrivate :: (m: *IR.ZirModule) -> bool {
+    for i: cast(s32)0..m.define_count - 1 {
+        if m.defines[i].is_public == 0 { return true }
+    }
+    for i: cast(s32)0..m.type_count - 1 {
+        if m.types[i].is_public == 0 { return true }
+    }
+    for i: cast(s32)0..m.function_count - 1 {
+        fn := *m.functions[i]
+        if fn.is_specialization != 0 && fn.is_public != 0 && fn.is_template == 0 && !SignaturePublic(m, fn) {
+            return true
+        }
+    }
+    return false
+}
+
+EnumStorageType :: (backing: *u8) -> *u8 {
+    if strcmp(backing, CStr("s8")) == 0 { return CStr("int8_t") }
+    if strcmp(backing, CStr("u8")) == 0 { return CStr("uint8_t") }
+    if strcmp(backing, CStr("s16")) == 0 { return CStr("int16_t") }
+    if strcmp(backing, CStr("u16")) == 0 { return CStr("uint16_t") }
+    if strcmp(backing, CStr("s32")) == 0 { return CStr("int32_t") }
+    if strcmp(backing, CStr("u32")) == 0 { return CStr("uint32_t") }
+    if strcmp(backing, CStr("s64")) == 0 { return CStr("int64_t") }
+    if strcmp(backing, CStr("u64")) == 0 { return CStr("uint64_t") }
+    return null
+}
+
+MkdirParent :: (path: *u8) {
+    tmp: [1024]u8
+    snprintf(*tmp[0], 1024, CStr("%s"), path)
+    len := strlen(*tmp[0])
+    i: usize = 1
+    while i < len {
+        if tmp[i] == #char "/" {
+            tmp[i] = 0
+            mkdir(*tmp[0], 493) // 0755
+            tmp[i] = #char "/"
+        }
+        i += 1
+    }
+}
+
+StemFromSource :: (src: *u8, dst: *u8, dst_size: usize) {
+    n := strlen(src)
+    if n > 3 && strcmp(PtrAdd(src, n - 3), CStr(".zi")) == 0 { n -= 3 }
+    if n >= dst_size { n = dst_size - 1 }
+    memcpy(cast(*void)dst, cast(*void)src, n)
+    dst[n] = 0
+}
+
+SplitArrayType :: (type: *u8, base: *u8, base_size: usize, suffix: *u8, suffix_size: usize) {
+    p := type
+    sn: usize = 0
+    suffix[0] = 0
+    if p[0] == #char "[" && p[1] == #char "]" {
+        snprintf(base, base_size, CStr("Slice"))
+        suffix[0] = 0
+        return
+    }
+    while p[0] == #char "[" {
+        close := strchr(p, #char "]")
+        if close == null { break }
+        len := cast(usize)close - cast(usize)p + 1
+        if sn + len + 1 < suffix_size {
+            memcpy(cast(*void)PtrAdd(suffix, sn), cast(*void)p, len)
+            sn += len
+            suffix[sn] = 0
+        }
+        p = PtrAdd(close, 1)
+        while p[0] == #char " " || p[0] == #char "\t" { p = PtrAdd(p, 1) }
+    }
+    snprintf(base, base_size, CStr("%s"), p)
+}
+
+RewriteSelfPointerType :: (owner: *u8, base: *u8, base_size: usize) {
+    work := cast(*u8)AllocateOrExit(LOWER_TEXT_MAX)
+    snprintf(work, LOWER_TEXT_MAX, CStr("%s"), base)
+    p := work
+    while p[0] == #char " " || p[0] == #char "\t" { p = PtrAdd(p, 1) }
+    star := strrchr(p, #char "*")
+    if star == null { free(cast(*void)work); return }
+    star[0] = 0
+    n := strlen(p)
+    while n > 0 && (p[n - 1] == #char " " || p[n - 1] == #char "\t") {
+        n -= 1
+        p[n] = 0
+    }
+    if strcmp(p, owner) == 0 {
+        snprintf(base, base_size, CStr("struct %s*"), owner)
+    }
+    free(cast(*void)work)
+}
+
+CEnumMember :: (m: *IR.ZirModule, type: *IR.ZirType, member: *u8, out: *u8, size: usize) -> bool {
+    written: s32 = 0
+    if type.c_prefix[0] != 0 {
+        written = snprintf(out, size, CStr("%s%s"), *type.c_prefix[0], member)
+    } else if NativeEnumMemberName(m, type, member, out, size) != 0 {
+        written = cast(s32)strlen(out)
+    } else {
+        prefixed := strncmp(member, *type.name[0], strlen(*type.name[0])) == 0
+        p1 := ifx prefixed then CStr("") else *type.name[0]
+        p2 := ifx prefixed then CStr("") else CStr("_")
+        written = snprintf(out, size, CStr("%s%s%s"), p1, p2, member)
+    }
+    return written >= 0 && cast(usize)written < size
+}
+
+g_lowering_program: *IR.ZirProgram = null;
+g_lowering_simd: *Runtime.ZirSimdUses = null;
+g_lowering_prune: *ZirCPruneModule = null;
+g_lowering_entry: *IR.ZirFunction = null;
+g_lowering_main: *IR.ZirFunction = null;
+
+PruneMark :: (out: *void, kind: s32, names: *u8) {
+    sp := ifx names != null then CStr(" ") else CStr("")
+    nm := ifx names != null then names else CStr("")
+    fprintf(out, CStr("%c%c%s%s\n"), PRUNE_MARK, kind, sp, nm)
+}
+
+#scope_export
+
+#program_export "PruneInlineText"
+PruneInlineText :: (stem: *u8, guard: *u8, vector_operations: s32,
+                    declarations: *u8, bodies: *u8, simd: *Runtime.ZirSimdUses) -> *u8 {
+    stream: TextStream
+    text: *u8 = null
+    size: usize = 0
+    out := ZirTextStreamOpen(*stream, *text, *size)
+    if out == null { return null }
+    rm := CStr("/* ziran runtime includes */\n")
+    nm := CStr("/* ziran numeric helpers */\n")
+    length := strlen(rm) + strlen(nm) + strlen(declarations) + strlen(bodies) + 1
+    section := cast(*u8)AllocateOrExit(length)
+    snprintf(section, length, CStr("%s%s%s%s"), rm, nm, declarations, bodies)
+    fprintf(out, CStr("\n/* Small procedures other modules inline; %s.c defines them. */\n#if !defined(__cplusplus) && !defined(%s_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)\n"),
+            stem, guard)
+    if vector_operations != 0 { fputs(CStr("#include \"zir_vec.h\"\n"), out) }
+    failed := EmitNativeHelpers(out, section, simd) != 0
+    fputs(CStr("#endif\n"), out)
+    free(cast(*void)section)
+    if ZirTextStreamClose(*stream) != 0 || failed {
+        free(cast(*void)text)
+        return null
+    }
+    return text
+}
+
+#scope_file
+
+BoundProviderCName :: (imp: *IR.ZirImport, dst: *u8, dst_size: usize) -> bool {
+    if imp.extern_kind != .HOST || strncmp(*imp.target[0], CStr("ziran:"), 6) != 0 ||
+       imp.extern_symbol[0] == 0 {
+        return false
+    }
+    if g_lowering_program != null {
+        for m: cast(s32)0..g_lowering_program.module_count - 1 {
+            module := *g_lowering_program.modules[m]
+            if strcmp(*module.name[0], PtrAdd(*imp.target[0], 6)) != 0 { continue }
+            for f: cast(s32)0..module.function_count - 1 {
+                if module.functions[f].is_extern == 0 &&
+                   strcmp(*module.functions[f].name[0], *imp.extern_symbol[0]) == 0 {
+                    NativeCFunctionName(module, *module.functions[f], dst, dst_size)
+                    return true
+                }
+            }
+        }
+    }
+    snprintf(dst, dst_size, CStr("%s"), *imp.extern_symbol[0])
+    return true
+}
+
+ResolveModuleFn :: (m: *IR.ZirModule, ident: *u8, len: usize, dst: *u8, dst_size: usize) -> usize {
+    name: [IR.ZIR_NAME_MAX]u8
+    owner: *IR.ZirModule = null
+    fn: *IR.ZirFunction = null
+    if len >= IR.ZIR_NAME_MAX { return 0 }
+    memcpy(cast(*void)*name[0], cast(*void)ident, len)
+    name[len] = 0
+    for i: cast(s32)0..m.import_count - 1 {
+        foreign := *m.imports[i]
+        if foreign.kind == .EXTERN && strcmp(*foreign.name[0], *name[0]) == 0 &&
+           strncmp(*foreign.target[0], CStr("c."), 2) == 0 {
+            NativeCForeignName(m, foreign, dst, dst_size)
+            return strlen(dst)
+        }
+    }
+    if CResolveFunction(m, *name[0], *owner, *fn) == 1 {
+        NativeCFunctionName(owner, fn, dst, dst_size)
+        return strlen(dst)
+    }
+    for i: cast(s32)0..m.import_count - 1 {
+        foreign := *m.imports[i]
+        if foreign.kind == .EXTERN && strcmp(*foreign.name[0], *name[0]) == 0 &&
+           BoundProviderCName(foreign, dst, dst_size) {
+            return strlen(dst)
+        }
+    }
+    return 0
+}
+
+ResolveAliasedFn :: (m: *IR.ZirModule, restab: *ZirCModuleSyms, restab_count: s32,
+                     alias: *u8, alen: usize, fn_name: *u8, flen: usize, dst: *u8, dst_size: usize) -> usize {
+    if restab == null { return 0 }
+    for i: cast(s32)0..m.import_count - 1 {
+        imp := *m.imports[i]
+        if imp.kind != .MODULE { continue }
+        if strlen(*imp.name[0]) != alen || strncmp(*imp.name[0], alias, alen) != 0 { continue }
+        for j: cast(s32)0..restab_count - 1 {
+            if strcmp(*restab[j].module_slash[0], *imp.target[0]) != 0 &&
+               strcmp(*restab[j].module_stem[0], *imp.target[0]) != 0 {
+                continue
+            }
+            for k: cast(s32)0..restab[j].fn_count - 1 {
+                if strlen(*restab[j].fns[k].source[0]) == flen &&
+                   strncmp(*restab[j].fns[k].source[0], fn_name, flen) == 0 {
+                    snprintf(dst, dst_size, CStr("%s"), *restab[j].fns[k].c[0])
+                    return strlen(dst)
+                }
+            }
+        }
+    }
+    qualified: [IR.ZIR_NAME_MAX]u8
+    owner: *IR.ZirModule = null
+    function: *IR.ZirFunction = null
+    length := snprintf(*qualified[0], IR.ZIR_NAME_MAX, CStr("%.*s.%.*s"), cast(s32)alen, alias, cast(s32)flen, fn_name)
+    if length > 0 && cast(usize)length < IR.ZIR_NAME_MAX &&
+       CResolveFunction(m, *qualified[0], *owner, *function) == 1 {
+        NativeCFunctionName(owner, function, dst, dst_size)
+        return strlen(dst)
+    }
+    return 0
+}
+
+CIntegerSpellings :: (text: *u8, size: usize) -> bool {
+    out := cast(*u8)malloc(size)
+    if out == null { return false }
+    used: usize = 0
+    read := text
+    while read[0] != 0 {
+        start := read
+        if read[0] == #char "\"" || read[0] == #char "'" {
+            quote := read[0]
+            read = PtrAdd(read, 1)
+            while read[0] != 0 && read[0] != quote {
+                step: usize = ifx read[0] == #char "\\" && read[1] != 0 then 2 else 1
+                read = PtrAdd(read, step)
+            }
+            if read[0] != 0 { read = PtrAdd(read, 1) }
+            put_n := cast(usize)read - cast(usize)start
+            if used + put_n >= size { free(cast(*void)out); return false }
+            memcpy(cast(*void)PtrAdd(out, used), cast(*void)start, put_n)
+            used += put_n
+            continue
+        }
+        if !IsAlnum(read[0]) && read[0] != #char "_" {
+            if used + 1 >= size { free(cast(*void)out); return false }
+            out[used] = read[0]
+            used += 1
+            read = PtrAdd(read, 1)
+            continue
+        }
+        while IsAlnum(read[0]) || read[0] == #char "_" { read = PtrAdd(read, 1) }
+        length := cast(usize)read - cast(usize)start
+        digits := length
+        while digits > 1 && strchr(CStr("uUlL"), cast(s32)start[digits - 1]) != null { digits -= 1 }
+        lit: [96]u8
+        spelling: [32]u8
+        value: u64 = 0
+        rewrite := IsDigit(start[0]) && read[0] != #char "." && digits < 96 &&
+                   (memchr(cast(*void)start, #char "_", length) != null ||
+                    (start[0] == #char "0" && (start[1] == #char "b" || start[1] == #char "B")))
+        if rewrite {
+            memcpy(cast(*void)*lit[0], cast(*void)start, digits)
+            lit[digits] = 0
+            rewrite = ZirIntegerLiteral(*lit[0], *value) != 0
+        }
+        if !rewrite {
+            if used + length >= size { free(cast(*void)out); return false }
+            memcpy(cast(*void)PtrAdd(out, used), cast(*void)start, length)
+            used += length
+            continue
+        }
+        suf := ifx digits == length && value > 9223372036854775807 then CStr("ULL") else CStr("")
+        n := cast(usize)snprintf(*spelling[0], 32, CStr("%llu%s"), value, suf)
+        if used + n >= size { free(cast(*void)out); return false }
+        memcpy(cast(*void)PtrAdd(out, used), cast(*void)*spelling[0], n)
+        used += n
+        rem := length - digits
+        if used + rem >= size { free(cast(*void)out); return false }
+        if rem != 0 { memcpy(cast(*void)PtrAdd(out, used), cast(*void)PtrAdd(start, digits), rem) }
+        used += rem
+    }
+    out[used] = 0
+    memcpy(cast(*void)text, cast(*void)out, used + 1)
+    free(cast(*void)out)
+    return true
+}
+
+IsModuleAlias :: (m: *IR.ZirModule, alias: *u8, alias_len: usize) -> bool {
+    for i: cast(s32)0..m.import_count - 1 {
+        if m.imports[i].kind == .MODULE &&
+           strlen(*m.imports[i].name[0]) == alias_len &&
+           strncmp(*m.imports[i].name[0], alias, alias_len) == 0 {
+            return true
+        }
+    }
+    return false
+}
+
+RewriteBody2 :: (m: *IR.ZirModule, restab: *ZirCModuleSyms, restab_count: s32,
+                 src: *u8, dst: *u8, dst_size: usize) -> bool {
+    n: usize = 0
+    p := src
+    while p[0] != 0 && n + 6 < dst_size {
+        if p[0] == #char "\"" || p[0] == #char "'" {
+            quote := p[0]
+            dst[n] = p[0]; n += 1; p = PtrAdd(p, 1)
+            while p[0] != 0 && n + 2 < dst_size {
+                ch := p[0]; p = PtrAdd(p, 1)
+                dst[n] = ch; n += 1
+                if ch == #char "\\" && p[0] != 0 {
+                    dst[n] = p[0]; n += 1; p = PtrAdd(p, 1)
+                } else if ch == quote {
+                    break
+                }
+            }
+            continue
+        }
+        prev_alnum := cast(usize)p > cast(usize)src && IsAlnum(PtrAdd(p, cast(usize)-1)[0])
+        if strncmp(p, CStr("null"), 4) == 0 && !prev_alnum && !IsAlnum(p[4]) && p[4] != #char "_" {
+            dst[n] = #char "N"; n += 1
+            dst[n] = #char "U"; n += 1
+            dst[n] = #char "L"; n += 1
+            dst[n] = #char "L"; n += 1
+            p = PtrAdd(p, 4)
+            continue
+        }
+        if IsAlpha(p[0]) || p[0] == #char "_" {
+            e := p
+            while IsAlnum(e[0]) || e[0] == #char "_" { e = PtrAdd(e, 1) }
+            ident_len := cast(usize)e - cast(usize)p
+            done := false
+            if e[0] == #char "." && (IsAlpha(e[1]) || e[1] == #char "_") {
+                member := PtrAdd(e, 1)
+                end := member
+                while IsAlnum(end[0]) || end[0] == #char "_" { end = PtrAdd(end, 1) }
+                for t: cast(s32)0..m.type_count - 1 {
+                    enumeration := *m.types[t]
+                    member_name: [IR.ZIR_NAME_MAX]u8
+                    val: s64 = 0
+                    length := cast(usize)end - cast(usize)member
+                    if enumeration.is_enum == 0 ||
+                       strlen(*enumeration.name[0]) != ident_len ||
+                       strncmp(*enumeration.name[0], p, ident_len) != 0 ||
+                       length >= IR.ZIR_NAME_MAX {
+                        continue
+                    }
+                    memcpy(cast(*void)*member_name[0], cast(*void)member, length)
+                    member_name[length] = 0
+                    if EnumMemberValue(enumeration, *member_name[0], *val) == 0 { continue }
+                    mapped := cast(*u8)AllocateOrExit(LOWER_TEXT_MAX)
+                    ok := CEnumMember(m, enumeration, *member_name[0], mapped, LOWER_TEXT_MAX)
+                    if !ok { free(cast(*void)mapped); return false }
+                    written := strlen(mapped)
+                    if n + written >= dst_size { free(cast(*void)mapped); return false }
+                    memcpy(cast(*void)PtrAdd(dst, n), cast(*void)mapped, written)
+                    free(cast(*void)mapped)
+                    n += written
+                    p = end
+                    done = true
+                    break
+                }
+            }
+            if done { continue }
+            if e[0] == #char "." && e[1] != 0 && !IsModuleAlias(m, p, ident_len) {
+                m0 := PtrAdd(e, 1)
+                me := m0
+                while IsAlnum(me[0]) || me[0] == #char "_" { me = PtrAdd(me, 1) }
+                dotted: [IR.ZIR_NAME_MAX]u8
+                owner: *IR.ZirModule = null
+                callee: *IR.ZirFunction = null
+                length := snprintf(*dotted[0], IR.ZIR_NAME_MAX, CStr("%.*s"), cast(s32)(cast(usize)me - cast(usize)p), p)
+                if me[0] == #char "(" && length > 0 && cast(usize)length < IR.ZIR_NAME_MAX &&
+                   CResolveFunction(m, *dotted[0], *owner, *callee) == 1 {
+                    cname: [LOWER_NAME_MAX * 3]u8
+                    NativeCFunctionName(owner, callee, *cname[0], LOWER_NAME_MAX * 3)
+                    clen := strlen(*cname[0])
+                    if n + clen < dst_size {
+                        memcpy(cast(*void)PtrAdd(dst, n), cast(*void)*cname[0], clen)
+                        n += clen
+                    }
+                    p = me
+                    continue
+                }
+            }
+            if e[0] == #char "." && e[1] != 0 && IsModuleAlias(m, p, ident_len) {
+                m0 := PtrAdd(e, 1)
+                me := m0
+                while IsAlnum(me[0]) || me[0] == #char "_" { me = PtrAdd(me, 1) }
+                if me[0] == #char "(" && restab != null {
+                    cname: [LOWER_NAME_MAX * 3]u8
+                    clen := ResolveAliasedFn(m, restab, restab_count, p, ident_len, m0, cast(usize)me - cast(usize)m0, *cname[0], LOWER_NAME_MAX * 3)
+                    if clen > 0 {
+                        if n + clen < dst_size {
+                            memcpy(cast(*void)PtrAdd(dst, n), cast(*void)*cname[0], clen)
+                            n += clen
+                        }
+                        p = me
+                        continue
+                    }
+                }
+                qualified: [IR.ZIR_NAME_MAX]u8
+                native: [LOWER_NAME_MAX * 2]u8
+                type_length := snprintf(*qualified[0], IR.ZIR_NAME_MAX, CStr("%.*s"), cast(s32)(cast(usize)me - cast(usize)p), p)
+                if type_length >= 0 && cast(usize)type_length < IR.ZIR_NAME_MAX &&
+                   NativeTypeAtUse(m, *qualified[0], *native[0], LOWER_NAME_MAX * 2) != 0 {
+                    length := strlen(*native[0])
+                    if n + length >= dst_size { return false }
+                    memcpy(cast(*void)PtrAdd(dst, n), cast(*void)*native[0], length)
+                    n += length
+                    p = me
+                    continue
+                }
+                p = PtrAdd(e, 1)
+                continue
+            }
+            after_member := (cast(usize)p > cast(usize)src && PtrAdd(p, cast(usize)-1)[0] == #char ".") ||
+                            (cast(usize)p > cast(usize)src + 1 && PtrAdd(p, cast(usize)-1)[0] == #char ">" && PtrAdd(p, cast(usize)-2)[0] == #char "-")
+            if !after_member && e[0] == #char "(" && PtrAdd(e, cast(usize)-1)[0] != #char " " {
+                cname: [LOWER_NAME_MAX * 2]u8
+                clen := ResolveModuleFn(m, p, ident_len, *cname[0], LOWER_NAME_MAX * 2)
+                if clen > 0 {
+                    if n + clen < dst_size {
+                        memcpy(cast(*void)PtrAdd(dst, n), cast(*void)*cname[0], clen)
+                        n += clen
+                    }
+                    p = e
+                    continue
+                }
+            }
+            if !after_member && e[0] != #char "." && !(e[0] == #char "-" && e[1] == #char ">") &&
+               e[0] != #char "(" && n >= 2 && dst[n - 1] == #char " " && dst[n - 2] == #char "=" &&
+               (n < 3 || (dst[n - 3] != #char "=" && dst[n - 3] != #char "!")) {
+                cname: [LOWER_NAME_MAX * 2]u8
+                clen := ResolveModuleFn(m, p, ident_len, *cname[0], LOWER_NAME_MAX * 2)
+                if clen > 0 {
+                    if n + clen < dst_size {
+                        memcpy(cast(*void)PtrAdd(dst, n), cast(*void)*cname[0], clen)
+                        n += clen
+                    }
+                    p = e
+                    continue
+                }
+            }
+            if !after_member && e[0] != #char "(" && (e[0] == #char ")" || e[0] == #char ",") &&
+               n >= 1 && (dst[n - 1] == #char "(" || (n >= 2 && dst[n - 1] == #char " " && dst[n - 2] == #char ",")) {
+                cname: [LOWER_NAME_MAX * 2]u8
+                clen := ResolveModuleFn(m, p, ident_len, *cname[0], LOWER_NAME_MAX * 2)
+                if clen > 0 {
+                    if n + clen < dst_size {
+                        memcpy(cast(*void)PtrAdd(dst, n), cast(*void)*cname[0], clen)
+                        n += clen
+                    }
+                    p = e
+                    continue
+                }
+            }
+            if !after_member {
+                resolved_top := false
+                for i: cast(s32)0..m.global_count - 1 {
+                    if strlen(*m.globals[i].name[0]) != ident_len || strncmp(*m.globals[i].name[0], p, ident_len) != 0 {
+                        continue
+                    }
+                    mapped: [LOWER_NAME_MAX]u8
+                    TargetGlobalName(m, .ZIR_C, *m.globals[i].name[0], *mapped[0], LOWER_NAME_MAX)
+                    length := strlen(*mapped[0])
+                    if n + length < dst_size {
+                        memcpy(cast(*void)PtrAdd(dst, n), cast(*void)*mapped[0], length)
+                        n += length
+                        p = e
+                        resolved_top = true
+                        break
+                    }
+                }
+                if resolved_top { continue }
+                for i: cast(s32)0..m.define_count - 1 {
+                    if strlen(*m.defines[i].name[0]) != ident_len || strncmp(*m.defines[i].name[0], p, ident_len) != 0 {
+                        continue
+                    }
+                    mapped: [LOWER_NAME_MAX]u8
+                    TargetDefineName(m, .ZIR_C, *m.defines[i].name[0], *mapped[0], LOWER_NAME_MAX)
+                    length := strlen(*mapped[0])
+                    if n + length < dst_size {
+                        memcpy(cast(*void)PtrAdd(dst, n), cast(*void)*mapped[0], length)
+                        n += length
+                        p = e
+                        resolved_top = true
+                        break
+                    }
+                }
+                if resolved_top { continue }
+                if ident_len < IR.ZIR_NAME_MAX {
+                    source_type: [IR.ZIR_NAME_MAX]u8
+                    native: [LOWER_NAME_MAX * 2]u8
+                    memcpy(cast(*void)*source_type[0], cast(*void)p, ident_len)
+                    source_type[ident_len] = 0
+                    if NativeTypeAtUse(m, *source_type[0], *native[0], LOWER_NAME_MAX * 2) != 0 {
+                        length := strlen(*native[0])
+                        if n + length >= dst_size { return false }
+                        memcpy(cast(*void)PtrAdd(dst, n), cast(*void)*native[0], length)
+                        n += length
+                        p = e
+                        continue
+                    }
+                }
+            }
+            while cast(usize)p < cast(usize)e && n + 1 < dst_size {
+                dst[n] = p[0]; n += 1; p = PtrAdd(p, 1)
+            }
+            continue
+        }
+        dst[n] = p[0]; n += 1; p = PtrAdd(p, 1)
+    }
+    dst[n] = 0
+    return p[0] == 0
+}
+
+StripAliasType :: (m: *IR.ZirModule, type: *u8, dst: *u8, dst_size: usize) {
+    if SliceElementType(type, null, 0) != 0 {
+        copy_text(dst, dst_size, CStr("Slice"))
+        return
+    }
+    if VectorType(type, null) != 0 {
+        copy_text(dst, dst_size, CTargetType(type, .ZIR_C))
+        return
+    }
+    if NativeTypeAtUse(m, type, dst, dst_size) != 0 { return }
+    dot := strchr(type, #char ".")
+    scalar := ScalarType(type)
+    if scalar[0] != 0 && strcmp(scalar, type) == 0 && CTargetType(type, .ZIR_C) != null {
+        snprintf(dst, dst_size, CStr("%s"), CTargetType(type, .ZIR_C))
+        return
+    }
+    if type[0] == #char "*" && type[1] != 0 {
+        base: [LOWER_NAME_MAX * 2]u8
+        StripAliasType(m, PtrAdd(type, 1), *base[0], LOWER_NAME_MAX * 2)
+        snprintf(dst, dst_size, CStr("%s*"), *base[0])
+        return
+    }
+    if dot != null {
+        alen := cast(usize)dot - cast(usize)type
+        if IsModuleAlias(m, type, alen) {
+            snprintf(dst, dst_size, CStr("%s"), PtrAdd(dot, 1))
+            return
+        }
+    }
+    snprintf(dst, dst_size, CStr("%s"), type)
+}
+
+ResolveSlotType :: (context: *void, source: *u8, out: *u8, size: usize) {
+    StripAliasType(cast(*IR.ZirModule)context, source, out, size)
+}
+
+ConvertArgs :: (m: *IR.ZirModule, fn: *IR.ZirFunction, args: *u8, dst: *u8, dst_size: usize, canonical_names: s32) {
+    n: usize = 0
+    dst[0] = 0
+    if args == null || args[0] == 0 {
+        snprintf(dst, dst_size, CStr("void"))
+        return
+    }
+    part := cast(*u8)AllocateOrExit(LOWER_TEXT_MAX)
+    p := args
+    depth: s32 = 0
+    start := p
+    first := true
+    while true {
+        if p[0] == #char "(" || p[0] == #char "[" || p[0] == #char "{" { depth += 1 }
+        else if p[0] == #char ")" || p[0] == #char "]" || p[0] == #char "}" { depth -= 1 }
+        if (p[0] == #char "," && depth == 0) || p[0] == 0 {
+            len := cast(usize)p - cast(usize)start
+            if len >= LOWER_TEXT_MAX { len = LOWER_TEXT_MAX - 1 }
+            memcpy(cast(*void)part, cast(*void)start, len)
+            part[len] = 0
+            e := strlen(part)
+            while e > 0 && (part[e - 1] == #char " " || part[e - 1] == #char "\t") {
+                e -= 1
+                part[e] = 0
+            }
+            colon := strchr(part, #char ":")
+            if colon != null {
+                name: [LOWER_NAME_MAX]u8
+                type: [LOWER_NAME_MAX]u8
+                name_start := skip_ws(part)
+                nl := cast(usize)colon - cast(usize)name_start
+                ty := PtrAdd(colon, 1)
+                while ty[0] == #char " " || ty[0] == #char "\t" { ty = PtrAdd(ty, 1) }
+                if strcmp(ty, CStr("..any")) == 0 {
+                    if !first && n + 2 < dst_size { dst[n] = #char ","; n += 1 }
+                    if !first && n + 1 < dst_size { dst[n] = #char " "; n += 1 }
+                    n += cast(usize)snprintf(PtrAdd(dst, n), dst_size - n, CStr("..."))
+                    first = false
+                } else {
+                    while nl > 0 && IsSpace(name_start[nl - 1]) { nl -= 1 }
+                    if nl >= LOWER_NAME_MAX { nl = LOWER_NAME_MAX - 1 }
+                    memcpy(cast(*void)*name[0], cast(*void)name_start, nl)
+                    name[nl] = 0
+                    binding: [LOWER_NAME_MAX]u8
+                    TargetBindingName(fn, .ZIR_C, *name[0], *binding[0], LOWER_NAME_MAX)
+                    copy_text(*name[0], LOWER_NAME_MAX, *binding[0])
+                    StripAliasType(m, ty, *type[0], LOWER_NAME_MAX)
+                    if canonical_names != 0 { copy_text(*name[0], LOWER_NAME_MAX, CStr("_")) }
+                    pbase: [LOWER_NAME_MAX]u8
+                    psuffix: [LOWER_NAME_MAX]u8
+                    SplitArrayType(*type[0], *pbase[0], LOWER_NAME_MAX, *psuffix[0], LOWER_NAME_MAX)
+                    StripAliasType(m, *pbase[0], *type[0], LOWER_NAME_MAX)
+                    copy_text(*pbase[0], LOWER_NAME_MAX, *type[0])
+                    if !first && n + 2 < dst_size { dst[n] = #char ","; n += 1 }
+                    if !first && n + 1 < dst_size { dst[n] = #char " "; n += 1 }
+                    if strcmp(*psuffix[0], CStr("[0]")) == 0 {
+                        n += cast(usize)snprintf(PtrAdd(dst, n), dst_size - n, CStr("%s *%s"), *pbase[0], *name[0])
+                    } else {
+                        n += cast(usize)snprintf(PtrAdd(dst, n), dst_size - n, CStr("%s %s%s"), *pbase[0], *name[0], *psuffix[0])
+                    }
+                    first = false
+                }
+            }
+            if p[0] == 0 { break }
+            start = PtrAdd(p, 1)
+        }
+        p = PtrAdd(p, 1)
+    }
+    free(cast(*void)part)
+    if n == 0 { snprintf(dst, dst_size, CStr("void")) }
+}
+
+CRewriteOverflow :: (path: *u8, line: s32) {
+    Diagnostic(Span(ifx path != null then path else CStr(""), line, 1), CStr("zir_c.body"),
+               CStr("statement is too long to lower (buffer limit)"))
+    exit(1)
+}
+
+BodySymbols :: struct {
+    module: *IR.ZirModule
+    symbols: *ZirCModuleSyms
+    count: s32
+    source_path: *u8
+}
+
+ResolveBodySymbol :: (context: *void, text: *u8, out: *u8, size: usize) {
+    symbols := cast(*BodySymbols)context
+    owner: *IR.ZirModule = null
+    global: *IR.ZirGlobal = null
+    if text[0] == #char "*" {
+        StripAliasType(symbols.module, text, out, size)
+        return
+    }
+    if strchr(text, #char ".") != null && NativeTypeAtUse(symbols.module, text, out, size) != 0 {
+        return
+    }
+    if ResolveGlobalAt(symbols.module, text, symbols.source_path, *owner, *global) == 1 {
+        TargetGlobalName(owner, .ZIR_C, *global.name[0], out, size)
+        return
+    }
+    for i: cast(s32)0..symbols.module.define_count - 1 {
+        if strcmp(*symbols.module.defines[i].name[0], text) == 0 {
+            TargetDefineName(symbols.module, .ZIR_C, text, out, size)
+            return
+        }
+    }
+    RewriteBody2(symbols.module, symbols.symbols, symbols.count, text, out, size)
+}
+
+CTextReads :: (text: *u8, name: *u8) -> bool {
+    length := strlen(name)
+    p := text
+    while p[0] != 0 {
+        if p[0] == #char "\"" || p[0] == #char "'" {
+            quote := p[0]
+            p = PtrAdd(p, 1)
+            while p[0] != 0 && p[0] != quote {
+                step: usize = ifx p[0] == #char "\\" && p[1] != 0 then 2 else 1
+                p = PtrAdd(p, step)
+            }
+            if p[0] != 0 { p = PtrAdd(p, 1) }
+        } else if p[0] == #char "/" && p[1] == #char "/" {
+            while p[0] != 0 && p[0] != #char "\n" { p = PtrAdd(p, 1) }
+        } else if p[0] == #char "/" && p[1] == #char "*" {
+            end := strstr(PtrAdd(p, 2), CStr("*/"))
+            p = ifx end != null then PtrAdd(end, 2) else PtrAdd(p, strlen(p))
+        } else if IsAlpha(p[0]) || p[0] == #char "_" {
+            start := p
+            while IsAlnum(p[0]) || p[0] == #char "_" { p = PtrAdd(p, 1) }
+            if cast(usize)p - cast(usize)start == length && memcmp(cast(*void)start, cast(*void)name, length) == 0 {
+                return true
+            }
+        } else {
+            p = PtrAdd(p, 1)
+        }
+    }
+    return false
+}
+
+BodyText :: (module: *IR.ZirModule, symbols: *ZirCModuleSyms, symbol_count: s32, function: *IR.ZirFunction) -> *u8 {
+    ctx: BodySymbols
+    ctx.module = module
+    ctx.symbols = symbols
+    ctx.count = symbol_count
+    ctx.source_path = SpanPath(function.span)
+    stream: TextStream
+    text: *u8 = null
+    size: usize = 0
+    body := ZirTextStreamOpen(*stream, *text, *size)
+    if body == null { perror(CStr("procedure body text")); exit(1) }
+    emitted := EmitBody(body, module, function, .ZIR_C, ResolveBodySymbol, cast(*void)*ctx, null, null)
+    if ZirTextStreamClose(*stream) != 0 { perror(CStr("procedure body text")); exit(1) }
+    if emitted == 0 {
+        Diagnostic(function.span, CStr("zir_c.body"), CStr("function has no checked typed body: %s"), *function.name[0])
+        exit(1)
+    }
+    return text
+}
+
+LowerBody :: (out: *void, module: *IR.ZirModule, symbols: *ZirCModuleSyms, symbol_count: s32, function: *IR.ZirFunction) {
+    text := BodyText(module, symbols, symbol_count, function)
+    abi_args := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    ArrayAbiArgs(function, abi_args, IR.ZIR_TEXT_MAX)
+    parameters := ParametersOf(abi_args)
+    for i: cast(s32)0..parameters.count - 1 {
+        parameter := *parameters.items[i]
+        name: [LOWER_NAME_MAX]u8
+        if parameter.name == null || parameter.name[0] == 0 ||
+           (parameter.type != null && strcmp(parameter.type, CStr("..any")) == 0) {
+            continue
+        }
+        TargetBindingName(function, .ZIR_C, parameter.name, *name[0], LOWER_NAME_MAX)
+        ident := IsAlpha(name[0]) || name[0] == #char "_"
+        p := *name[0]
+        while ident && p[0] != 0 {
+            ident = IsAlnum(p[0]) || p[0] == #char "_"
+            p = PtrAdd(p, 1)
+        }
+        if ident && !CTextReads(text, *name[0]) {
+            fprintf(out, CStr("    (void)%s;\n"), *name[0])
+        }
+    }
+    free(cast(*void)abi_args)
+    fputs(text, out)
+    free(cast(*void)text)
+}
+
+FreeCName :: (text: *u8, name0: *u8, name1: *u8, first: *u8, second: *u8, out: *u8, size: usize) {
+    copy_text(out, size, first)
+    serial: s32 = 1
+    while CTextReads(text, out) || strcmp(out, name0) == 0 || strcmp(out, name1) == 0 {
+        if serial == 1 { copy_text(out, size, second) }
+        else { snprintf(out, size, CStr("%s_%d"), second, serial) }
+        serial += 1
+    }
+}
+
+MainParameterUse :: (text: *u8, name: *u8) -> s32 {
+    if !CTextReads(text, name) { return MAIN_UNUSED }
+    cast_str: [LOWER_NAME_MAX + 8]u8
+    snprintf(*cast_str[0], LOWER_NAME_MAX + 8, CStr("(void)%s;"), name)
+    length := strlen(*cast_str[0])
+    rest := cast(*u8)AllocateOrExit(strlen(text) + 1)
+    strcpy(rest, text)
+    at := strstr(rest, *cast_str[0])
+    while at != null {
+        memset(cast(*void)at, #char " ", length)
+        at = strstr(PtrAdd(at, length), *cast_str[0])
+    }
+    read := CTextReads(rest, name)
+    free(cast(*void)rest)
+    return ifx read then MAIN_READ else MAIN_VOIDED
+}
+
+LowerMain :: (out: *void, module: *IR.ZirModule, symbols: *ZirCModuleSyms, symbol_count: s32, function: *IR.ZirFunction) {
+    status := function.return_type[0] == 0 || strcmp(*function.return_type[0], CStr("void")) == 0
+    EmitStatusReturns(ifx status then function else null)
+    text := BodyText(module, symbols, symbol_count, function)
+    EmitStatusReturns(null)
+    parameters := ParametersOf(FunctionArgs(function))
+    name0: [LOWER_NAME_MAX]u8; name0[0] = 0
+    name1: [LOWER_NAME_MAX]u8; name1[0] = 0
+    use0: s32 = MAIN_UNUSED
+    use1: s32 = MAIN_UNUSED
+    if parameters.count >= 1 && parameters.items[0].name != null && parameters.items[0].name[0] != 0 {
+        TargetBindingName(function, .ZIR_C, parameters.items[0].name, *name0[0], LOWER_NAME_MAX)
+        use0 = MainParameterUse(text, *name0[0])
+    }
+    if parameters.count >= 2 && parameters.items[1].name != null && parameters.items[1].name[0] != 0 {
+        TargetBindingName(function, .ZIR_C, parameters.items[1].name, *name1[0], LOWER_NAME_MAX)
+        use1 = MainParameterUse(text, *name1[0])
+    }
+    if use0 == MAIN_UNUSED && use1 == MAIN_UNUSED {
+        fputs(CStr("int\nmain(void)\n{\n"), out)
+    } else {
+        count_type := parameters.items[0].type
+        values_type := ifx strcmp(parameters.items[1].type, CStr("**s8")) == 0 then CStr("int8_t **") else CStr("uint8_t **")
+        own0 := use0 == MAIN_VOIDED || (use0 == MAIN_READ && strcmp(count_type, CStr("s32")) == 0)
+        own1 := use1 == MAIN_VOIDED
+        count: [LOWER_NAME_MAX]u8
+        values: [LOWER_NAME_MAX]u8
+        if own0 { copy_text(*count[0], LOWER_NAME_MAX, *name0[0]) }
+        else { FreeCName(text, *name0[0], *name1[0], CStr("argc"), CStr("argument_count"), *count[0], LOWER_NAME_MAX) }
+        if own1 { copy_text(*values[0], LOWER_NAME_MAX, *name1[0]) }
+        else { FreeCName(text, *name0[0], *name1[0], CStr("argv"), CStr("arguments"), *values[0], LOWER_NAME_MAX) }
+        fprintf(out, CStr("int\nmain(int %s, char **%s)\n{\n"), *count[0], *values[0])
+        if use0 == MAIN_UNUSED {
+            fprintf(out, CStr("    (void)%s;\n"), *count[0])
+        } else if !own0 {
+            ct := CTargetType(count_type, .ZIR_C)
+            fprintf(out, CStr("    %s %s = (%s)%s;\n"), ct, *name0[0], ct, *count[0])
+        }
+        if use1 == MAIN_UNUSED {
+            fprintf(out, CStr("    (void)%s;\n"), *values[0])
+        } else if !own1 {
+            fprintf(out, CStr("    %s%s = (%s)%s;\n"), values_type, *name1[0], values_type, *values[0])
+        }
+    }
+    fputs(text, out)
+    free(cast(*void)text)
+    fputs(CStr("}\n"), out)
+}
+
+SimdTierName :: (t: s32) -> *u8 {
+    if t == 0 { return CStr("avx2") }
+    if t == 1 { return CStr("sse41") }
+    return CStr("ssse3")
+}
+
+SimdTierAttr :: (t: s32) -> *u8 {
+    if t == 0 { return CStr("ZI_TARGET_AVX2") }
+    if t == 1 { return CStr("ZI_TARGET_SSE41") }
+    return CStr("ZI_TARGET_SSSE3")
+}
+
+SimdTierLevel :: (t: s32) -> s32 {
+    if t == 0 { return 4 }
+    if t == 1 { return 3 }
+    return 2
+}
+
+ExpandedExpressions :: (m: *IR.ZirModule, fn: *IR.ZirFunction, depth: s32) -> s64 {
+    total: s64 = cast(s64)fn.expr_count
+    if depth >= 8 { return total }
+    for i: cast(s32)0..fn.expr_count - 1 {
+        x := *fn.exprs[i]
+        if x.kind != .CALL || x.name[0] == 0 || strchr(x.name, #char ".") != null { continue }
+        for f: cast(s32)0..m.function_count - 1 {
+            if *m.functions[f] != fn && m.functions[f].inlining == ZIR_INLINE_ALWAYS &&
+               strcmp(*m.functions[f].name[0], x.name) == 0 {
+                total += ExpandedExpressions(m, *m.functions[f], depth + 1)
+                break
+            }
+        }
+    }
+    return total
+}
+
+ModuleSplitsTiers :: (m: *IR.ZirModule) -> s32 {
+    targets: s64 = 0
+    for i: cast(s32)0..m.global_count - 1 {
+        if m.globals[i].is_static != 0 { return 0 }
+    }
+    for i: cast(s32)0..m.function_count - 1 {
+        fn := *m.functions[i]
+        if fn.is_template != 0 || fn.is_extern != 0 { continue }
+        if fn.assembly_text != null && fn.assembly_text[0] != 0 { return 0 }
+        for s: cast(s32)0..fn.stmt_count - 1 {
+            if fn.stmts[s].is_parallel != 0 || fn.stmts[s].is_gpu != 0 || StatementHasAssembly(*fn.stmts[s]) {
+                return 0
+            }
+        }
+        if fn.simd_target != 0 { targets += ExpandedExpressions(m, fn, 0) }
+    }
+    return ifx targets >= TIER_UNIT_EXPRESSIONS then 1 else 0
+}
+
+EmitTargetClones :: (c: *void, m: *IR.ZirModule, restab: *ZirCModuleSyms, restab_count: s32,
+                     fn: *IR.ZirFunction, cret: *u8, cname: *u8, cargs: *u8, split: s32) {
+    fputs(CStr("#if defined(ZIRAN_SIMD_DISPATCH)\n"), c)
+    ret := ifx cret[0] != 0 then cret else CStr("void")
+    for t: cast(s32)0..2 {
+        tname := SimdTierName(t)
+        tattr := SimdTierAttr(t)
+        tlevel := SimdTierLevel(t)
+        if tlevel < 4 { fprintf(c, CStr("#if ZI_BASE_TIER < %d\n"), tlevel) }
+        if split != 0 {
+            fprintf(c, CStr("ZIRAN_TIER_CLONE %s %s %s_ziran_%s(%s);\n#if defined(ZIRAN_TIER_UNIT) && ZIRAN_TIER_UNIT == %d\nZIRAN_TIER_CLONE %s %s\n%s_ziran_%s(%s)\n{\n"),
+                    tattr, ret, cname, tname, cargs, tlevel, tattr, ret, cname, tname, cargs)
+        } else {
+            fprintf(c, CStr("static %s %s\n%s_ziran_%s(%s)\n{\n"), tattr, ret, cname, tname, cargs)
+        }
+        EmitUseSimdTier(tname, ifx tlevel >= 4 then 2 else 1)
+        LowerBody(c, m, restab, restab_count, fn)
+        EmitUseSimdTier(null, 0)
+        fputs(CStr("}\n"), c)
+        if split != 0 { fputs(CStr("#endif\n"), c) }
+        if tlevel < 4 { fputs(CStr("#endif\n"), c) }
+    }
+    fputs(CStr("#endif\n"), c)
+}
+
+EmitTierCopies :: (c: *void, m: *IR.ZirModule, restab: *ZirCModuleSyms, restab_count: s32,
+                   fn: *IR.ZirFunction, cret: *u8, cname: *u8, cargs: *u8, split: s32, body: s32) {
+    fputs(CStr("#if defined(ZIRAN_SIMD_DISPATCH)\n"), c)
+    ret := ifx cret[0] != 0 then cret else CStr("void")
+    tail := ifx body != 0 then CStr("\n{\n") else CStr(";\n")
+    for t: cast(s32)0..2 {
+        tname := SimdTierName(t)
+        tattr := SimdTierAttr(t)
+        tlevel := SimdTierLevel(t)
+        if tlevel < 4 { fprintf(c, CStr("#if ZI_BASE_TIER < %d\n"), tlevel) }
+        if split != 0 { fprintf(c, CStr("#if defined(ZIRAN_TIER_UNIT) && ZIRAN_TIER_UNIT == %d\n"), tlevel) }
+        fprintf(c, CStr("static inline ZIRAN_ALWAYS_INLINE %s %s\n%s_ziran_%s(%s)%s"),
+                tattr, ret, cname, tname, cargs, tail)
+        if body != 0 {
+            EmitUseSimdTier(tname, ifx tlevel >= 4 then 2 else 1)
+            LowerBody(c, m, restab, restab_count, fn)
+            EmitUseSimdTier(null, 0)
+            fputs(CStr("}\n"), c)
+        }
+        if split != 0 { fputs(CStr("#endif\n"), c) }
+        if tlevel < 4 { fputs(CStr("#endif\n"), c) }
+    }
+    fputs(CStr("#endif\n"), c)
+}
+
+WriteTierUnit :: (m: *IR.ZirModule, cpath: *u8, name: *u8, tier: s32) -> bool {
+    path: [IR.ZIR_PATH_MAX]u8
+    temp: [IR.ZIR_PATH_MAX]u8
+    length := strlen(cpath)
+    if length < 2 || snprintf(*path[0], IR.ZIR_PATH_MAX, CStr("%.*s.%s.c"), cast(s32)(length - 2), cpath, name) >= IR.ZIR_PATH_MAX {
+        return false
+    }
+    unit := GeneratedOutputOpen(*path[0], *temp[0], IR.ZIR_PATH_MAX)
+    if unit == null { return false }
+    slash := strrchr(cpath, #char "/")
+    base := ifx slash != null then PtrAdd(slash, 1) else cpath
+    fprintf(unit, CStr("/* Generated by zi2c from %s. */\n/* The %s clones of %s, which builds the rest of the module. */\n#define ZIRAN_TIER_UNIT %d\n#include \"%s\"\n"),
+            *m.source_path[0], name, base, tier, base)
+    failed := ferror(unit) != 0
+    if fclose(unit) != 0 || failed {
+        remove(*temp[0])
+        return false
+    }
+    return GeneratedOutputReplace(*temp[0], *path[0]) == 0
+}
+
+EmitTargetDispatch :: (c: *void, fn: *IR.ZirFunction, cret: *u8, cname: *u8, abi_args: *u8) {
+    parameters := ParametersOf(abi_args)
+    returns := cret[0] != 0 && strcmp(cret, CStr("void")) != 0
+    ret_kw := ifx returns then CStr("return ") else CStr("")
+    ret_tail := ifx returns then CStr("") else CStr(" return;")
+    fputs(CStr("#if defined(ZIRAN_SIMD_DISPATCH)\n    switch(zi_simd_tier()) {\n"), c)
+    for t: cast(s32)0..2 {
+        tname := SimdTierName(t)
+        tlevel := SimdTierLevel(t)
+        if tlevel < 4 { fprintf(c, CStr("#if ZI_BASE_TIER < %d\n"), tlevel) }
+        fprintf(c, CStr("    case %d: %s%s_ziran_%s("), tlevel, ret_kw, cname, tname)
+        for i: cast(s32)0..parameters.count - 1 {
+            name: [LOWER_NAME_MAX]u8
+            TargetBindingName(fn, .ZIR_C, parameters.items[i].name, *name[0], LOWER_NAME_MAX)
+            fprintf(c, CStr("%s%s"), ifx i != 0 then CStr(", ") else CStr(""), *name[0])
+        }
+        fprintf(c, CStr(");%s\n"), ret_tail)
+        if tlevel < 4 { fputs(CStr("#endif\n"), c) }
+    }
+    fputs(CStr("    default: break;\n    }\n#endif\n"), c)
+}
+
+CExternSymbol :: (imp: *IR.ZirImport, dst: *u8, dst_size: usize) -> bool {
+    if imp == null || strncmp(*imp.target[0], CStr("c."), 2) != 0 || imp.target[2] == 0 {
+        return false
+    }
+    snprintf(dst, dst_size, CStr("%s"), PtrAdd(*imp.target[0], 2))
+    return true
+}
+
+ExtractExternSignature :: (imp: *IR.ZirImport, ret: *u8, ret_size: usize, args: *u8, args_size: usize) {
+    sig := *imp.signature[0]
+    op := strchr(sig, #char "(")
+    cl := ifx op != null then strchr(op, #char ")") else cast(*u8)null
+    arrow := ifx cl != null then strstr(cl, CStr("->")) else cast(*u8)null
+    snprintf(ret, ret_size, CStr("void"))
+    if arrow != null {
+        r := PtrAdd(arrow, 2)
+        rn: usize = 0
+        while r[0] == #char " " || r[0] == #char "\t" { r = PtrAdd(r, 1) }
+        while r[0] != 0 && r[0] != #char "#" && rn + 1 < ret_size {
+            ret[rn] = r[0]; rn += 1; r = PtrAdd(r, 1)
+        }
+        while rn > 0 && (ret[rn - 1] == #char " " || ret[rn - 1] == #char "\t") { rn -= 1 }
+        ret[rn] = 0
+    }
+    if op != null && cl != null && cast(usize)cl > cast(usize)op {
+        snprintf(args, args_size, CStr("%.*s"), cast(s32)(cast(usize)cl - cast(usize)op - 1), PtrAdd(op, 1))
+    } else {
+        snprintf(args, args_size, CStr("void"))
+    }
+}
+
+ExternCallArgs :: (fn: *IR.ZirFunction, args: *u8, dst: *u8, dst_size: usize) {
+    p := args
+    start := args
+    depth: s32 = 0
+    first := true
+    n: usize = 0
+    dst[0] = 0
+    if args == null || args[0] == 0 || strcmp(args, CStr("void")) == 0 { return }
+    while true {
+        if p[0] == #char "(" || p[0] == #char "[" || p[0] == #char "{" { depth += 1 }
+        else if p[0] == #char ")" || p[0] == #char "]" || p[0] == #char "}" { depth -= 1 }
+        if (p[0] == #char "," && depth == 0) || p[0] == 0 {
+            colon := start
+            name_start := start
+            while name_start[0] == #char " " || name_start[0] == #char "\t" { name_start = PtrAdd(name_start, 1) }
+            while cast(usize)colon < cast(usize)p && colon[0] != #char ":" { colon = PtrAdd(colon, 1) }
+            name_end := colon
+            while cast(usize)name_end > cast(usize)name_start &&
+                  (PtrAdd(name_end, cast(usize)-1)[0] == #char " " || PtrAdd(name_end, cast(usize)-1)[0] == #char "\t") {
+                name_end = PtrAdd(name_end, cast(usize)-1)
+            }
+            if cast(usize)colon < cast(usize)p && cast(usize)name_end > cast(usize)name_start {
+                name: [LOWER_NAME_MAX]u8
+                binding: [LOWER_NAME_MAX]u8
+                length := cast(usize)name_end - cast(usize)name_start
+                if length >= LOWER_NAME_MAX { length = LOWER_NAME_MAX - 1 }
+                memcpy(cast(*void)*name[0], cast(*void)name_start, length)
+                name[length] = 0
+                TargetBindingName(fn, .ZIR_C, *name[0], *binding[0], LOWER_NAME_MAX)
+                rem := ifx dst_size > n then dst_size - n else cast(usize)0
+                n += cast(usize)snprintf(PtrAdd(dst, n), rem, CStr("%s%s"), ifx first then CStr("") else CStr(", "), *binding[0])
+                first = false
+            }
+            if p[0] == 0 { break }
+            start = PtrAdd(p, 1)
+        }
+        p = PtrAdd(p, 1)
+    }
+}
+
+EmitExternPrototypeBuffers :: struct {
+    cargs: [LOWER_TEXT_MAX]u8
+    abi_args: [LOWER_TEXT_MAX]u8
+    conv: [LOWER_TEXT_MAX]u8
+    binding_args: [LOWER_TEXT_MAX]u8
+    abi: IR.ZirFunction
+    call: [LOWER_TEXT_MAX]u8
+}
+
+ForeignBindingHash :: (symbol: *u8, ret: *u8, args: *u8) -> u32 {
+    hash: u32 = 2166136261
+    parts: [3]*u8
+    parts[0] = symbol
+    parts[1] = ret
+    parts[2] = args
+    for part: cast(s32)0..2 {
+        at := parts[part]
+        while at[0] != 0 {
+            hash = (hash ^ cast(u32)at[0]) * 16777619
+            at = PtrAdd(at, 1)
+        }
+        hash = (hash ^ cast(u32)#char "|") * 16777619
+    }
+    return hash
+}
+
+EmitExternPrototype :: (c: *void, m: *IR.ZirModule, imp: *IR.ZirImport) {
+    buffers := cast(*EmitExternPrototypeBuffers)AllocateOrExit(size_of(EmitExternPrototypeBuffers))
+    ret: [LOWER_NAME_MAX]u8
+    return_type: [LOWER_NAME_MAX]u8
+    symbol: [LOWER_NAME_MAX]u8
+    provider: [LOWER_NAME_MAX]u8
+    cname := ifx BoundProviderCName(imp, *provider[0], LOWER_NAME_MAX) then *provider[0] else *imp.name[0]
+    ExtractExternSignature(imp, *ret[0], LOWER_NAME_MAX, *buffers.cargs[0], LOWER_TEXT_MAX)
+    StripAliasType(m, *ret[0], *return_type[0], LOWER_NAME_MAX)
+    copy_text(*ret[0], LOWER_NAME_MAX, *return_type[0])
+    memset(cast(*void)*buffers.abi, 0, size_of(IR.ZirFunction))
+    buffers.abi.args_text = CKeepParameters(*buffers.cargs[0])
+    copy_text(*buffers.abi.return_type[0], IR.ZIR_NAME_MAX, *ret[0])
+    ArrayAbiArgs(*buffers.abi, *buffers.abi_args[0], LOWER_TEXT_MAX)
+    ConvertArgs(m, *buffers.abi, *buffers.abi_args[0], *buffers.conv[0], LOWER_TEXT_MAX, 0)
+    if ArrayElementType(*ret[0], null, 0, null) != 0 { copy_text(*ret[0], LOWER_NAME_MAX, CStr("void")) }
+    ret_s := ifx ret[0] != 0 then *ret[0] else CStr("void")
+    if CExternSymbol(imp, *symbol[0], LOWER_NAME_MAX) {
+        foreign_name: [LOWER_NAME_MAX * 2]u8
+        local_name: [LOWER_NAME_MAX]u8
+        NativeCForeignName(m, imp, *local_name[0], LOWER_NAME_MAX)
+        ConvertArgs(m, null, *buffers.abi_args[0], *buffers.binding_args[0], LOWER_TEXT_MAX, 1)
+        binding := ForeignBindingHash(*symbol[0], ret_s, *buffers.binding_args[0])
+        snprintf(*foreign_name[0], LOWER_NAME_MAX * 2, CStr("zir_foreign_%s"), *local_name[0])
+        fprintf(c, CStr("#ifndef ZIR_FOREIGN_%s_%08x\n#define ZIR_FOREIGN_%s_%08x\n"),
+                *local_name[0], binding, *local_name[0], binding)
+        EmitSymbolDeclaration(c, ret_s, *foreign_name[0], *buffers.conv[0], *symbol[0])
+        if imp.is_varargs != 0 {
+            fprintf(c, CStr("#define %s %s\n#endif\n"), *local_name[0], *foreign_name[0])
+            free(cast(*void)buffers)
+            return
+        }
+        ExternCallArgs(*buffers.abi, *buffers.abi_args[0], *buffers.call[0], LOWER_TEXT_MAX)
+        fprintf(c, CStr("static %s\n%s(%s)\n{\n"), ret_s, *local_name[0], *buffers.conv[0])
+        if ret[0] != 0 && strcmp(*ret[0], CStr("void")) != 0 {
+            fprintf(c, CStr("    return %s(%s);\n"), *foreign_name[0], *buffers.call[0])
+        } else {
+            fprintf(c, CStr("    %s(%s);\n"), *foreign_name[0], *buffers.call[0])
+        }
+        fprintf(c, CStr("}\n#endif\n"))
+    } else {
+        fprintf(c, CStr("%s %s(%s);\n"), ret_s, cname, *buffers.conv[0])
+    }
+    free(cast(*void)buffers)
+}
+
+ExternPrototypeNames :: (m: *IR.ZirModule, imp: *IR.ZirImport, names: *u8, size: usize) {
+    symbol: [LOWER_NAME_MAX]u8
+    local: [LOWER_NAME_MAX]u8
+    if CExternSymbol(imp, *symbol[0], LOWER_NAME_MAX) {
+        NativeCForeignName(m, imp, *local[0], LOWER_NAME_MAX)
+        snprintf(names, size, CStr("%s zir_foreign_%s"), *local[0], *local[0])
+    } else if BoundProviderCName(imp, *local[0], LOWER_NAME_MAX) {
+        snprintf(names, size, CStr("%s"), *local[0])
+    } else {
+        snprintf(names, size, CStr("%s"), *imp.name[0])
+    }
+}
+
+HeaderDeclarationOpen :: (h: *void, kind: s32, names: *u8, hidden: bool, guard: *u8) {
+    if g_lowering_prune != null { PruneMark(h, kind, names) }
+    else if hidden { fprintf(h, CStr("#ifdef %s_PRIVATE\n"), guard) }
+}
+
+HeaderDeclarationClose :: (h: *void, hidden: bool) {
+    if g_lowering_prune == null && hidden { fputs(CStr("#endif\n"), h) }
+}
+
+RewriteGlobalScalar :: (module: *IR.ZirModule, source: *u8, out: *u8, size: usize, context: *void) -> s32 {
+    return ifx RewriteBody2(module, null, 0, source, out, size) then 1 else 0
+}
+
+HasWord :: (text: *u8, word: *u8) -> bool {
+    length := strlen(word)
+    if length == 0 { return false }
+    p := strstr(text, word)
+    while p != null {
+        before := cast(usize)p > cast(usize)text && (IsAlnum(PtrAdd(p, cast(usize)-1)[0]) || PtrAdd(p, cast(usize)-1)[0] == #char "_")
+        after := IsAlnum(p[length]) || p[length] == #char "_"
+        if !before && !after { return true }
+        p = strstr(PtrAdd(p, length), word)
+    }
+    return false
+}
+
+ModuleImport :: (m: *IR.ZirModule, alias: *u8, length: usize) -> *IR.ZirImport {
+    for i: cast(s32)0..m.import_count - 1 {
+        if m.imports[i].kind == .MODULE && strlen(*m.imports[i].name[0]) == length &&
+           strncmp(*m.imports[i].name[0], alias, length) == 0 {
+            return *m.imports[i]
+        }
+    }
+    return null
+}
+
+HeaderOwnerUse :: (uses: *ZirCHeaderUses, owner: *IR.ZirModule, use: u8) {
+    for i: cast(s32)0..uses.count - 1 {
+        if uses.items[i].module != owner { continue }
+        if use == 1 { uses.items[i].use = 1 }
+        return
+    }
+    items := cast(*ZirCHeaderUse)realloc(cast(*void)uses.items, cast(usize)(uses.count + 1) * size_of(ZirCHeaderUse))
+    if items == null { DiagnosticOutOfMemory(); exit(1) }
+    uses.items = items
+    uses.items[uses.count].module = owner
+    uses.items[uses.count].use = use
+    uses.count += 1
+}
+
+HeaderTypeUse :: (m: *IR.ZirModule, type: *u8, use: u8, uses: *ZirCHeaderUses) {
+    if type == null { return }
+    base: [IR.ZIR_NAME_MAX]u8
+    copy_text(*base[0], IR.ZIR_NAME_MAX, type)
+    for depth: cast(s32)0..63 {
+        element: [IR.ZIR_NAME_MAX]u8
+        if ArrayElementType(*base[0], *element[0], IR.ZIR_NAME_MAX, null) != 0 ||
+           SliceElementType(*base[0], *element[0], IR.ZIR_NAME_MAX) != 0 {
+            copy_text(*base[0], IR.ZIR_NAME_MAX, *element[0])
+            continue
+        }
+        if base[0] == #char "*" {
+            memmove(cast(*void)*base[0], cast(*void)*base[1], strlen(*base[0]))
+            continue
+        }
+        break
+    }
+    owner: *IR.ZirModule = null
+    if CFindType(m, *base[0], *owner) == null || owner == null { return }
+    if owner != m { HeaderOwnerUse(uses, owner, use) }
+}
+
+HeaderParametersUse :: (m: *IR.ZirModule, args: *u8, use: u8, uses: *ZirCHeaderUses) {
+    parameters := ParametersOf(args)
+    for i: cast(s32)0..parameters.count - 1 {
+        HeaderTypeUse(m, parameters.items[i].type, use, uses)
+    }
+}
+
+HeaderLocalType :: (m: *IR.ZirModule, type: *u8) -> s32 {
+    if type == null || type[0] == 0 { return -1 }
+    base: [IR.ZIR_NAME_MAX]u8
+    copy_text(*base[0], IR.ZIR_NAME_MAX, type)
+    for depth: cast(s32)0..63 {
+        element: [IR.ZIR_NAME_MAX]u8
+        if ArrayElementType(*base[0], *element[0], IR.ZIR_NAME_MAX, null) != 0 ||
+           SliceElementType(*base[0], *element[0], IR.ZIR_NAME_MAX) != 0 {
+            copy_text(*base[0], IR.ZIR_NAME_MAX, *element[0])
+            continue
+        }
+        if base[0] == #char "*" {
+            memmove(cast(*void)*base[0], cast(*void)*base[1], strlen(*base[0]))
+            continue
+        }
+        break
+    }
+    owner: *IR.ZirModule = null
+    found := CFindType(m, *base[0], *owner)
+    if found == null || (owner != null && owner != m) { return -1 }
+    base_addr := cast(usize)m.types
+    found_addr := cast(usize)found
+    end_addr := base_addr + cast(usize)m.type_count * size_of(IR.ZirType)
+    if found_addr < base_addr || found_addr >= end_addr { return -1 }
+    return cast(s32)((found_addr - base_addr) / size_of(IR.ZirType))
+}
+
+HeaderMarkVisible :: (m: *IR.ZirModule, type: *u8, visible: *u8, stack: *s32, depth: *s32) {
+    index := HeaderLocalType(m, type)
+    if index < 0 || visible[index] != 0 { return }
+    visible[index] = 1
+    stack[depth.*] = index
+    depth.* += 1
+}
+
+HeaderVisibleTypes :: (m: *IR.ZirModule) -> *u8 {
+    count: usize = ifx m.type_count > 0 then cast(usize)m.type_count else 1
+    visible := cast(*u8)calloc(count, 1)
+    stack := cast(*s32)malloc(count * size_of(s32))
+    if visible == null || stack == null { DiagnosticOutOfMemory(); exit(1) }
+    depth: s32 = 0
+    for i: cast(s32)0..m.type_count - 1 {
+        if m.types[i].is_public != 0 {
+            visible[i] = 1
+            stack[depth] = i
+            depth += 1
+        }
+    }
+    while depth > 0 {
+        depth -= 1
+        type := *m.types[stack[depth]]
+        if type.is_extern != 0 || type.is_enum != 0 || type.is_record_template != 0 { continue }
+        if type.is_procedure_type != 0 {
+            HeaderMarkVisible(m, *type.procedure_return_type[0], visible, stack, *depth)
+            parameters := ParametersOf(*type.body[0])
+            for i: cast(s32)0..parameters.count - 1 {
+                HeaderMarkVisible(m, parameters.items[i].type, visible, stack, *depth)
+            }
+            continue
+        }
+        offset: usize = 0
+        field: IR.ZirTypeField
+        while TypeNextField(type, *offset, *field) == 1 {
+            HeaderMarkVisible(m, *field.type[0], visible, stack, *depth)
+        }
+    }
+    free(cast(*void)stack)
+    return visible
+}
+
+HeaderImportUses :: (m: *IR.ZirModule, uses: *ZirCHeaderUses) {
+    memset(cast(*void)uses, 0, size_of(ZirCHeaderUses))
+    visible := HeaderVisibleTypes(m)
+    for i: cast(s32)0..m.type_count - 1 {
+        type := *m.types[i]
+        if type.is_extern != 0 || type.is_enum != 0 || type.is_record_template != 0 { continue }
+        use: u8 = ifx visible[i] != 0 then 1 else 2
+        if type.is_procedure_type != 0 {
+            HeaderTypeUse(m, *type.procedure_return_type[0], use, uses)
+            HeaderParametersUse(m, *type.body[0], use, uses)
+        } else {
+            offset: usize = 0
+            field: IR.ZirTypeField
+            while TypeNextField(type, *offset, *field) == 1 {
+                HeaderTypeUse(m, *field.type[0], use, uses)
+            }
+        }
+    }
+    for i: cast(s32)0..m.function_count - 1 {
+        fn := *m.functions[i]
+        if fn.is_template != 0 || fn.is_public == 0 { continue }
+        HeaderTypeUse(m, *fn.return_type[0], 1, uses)
+        HeaderParametersUse(m, FunctionArgs(fn), 1, uses)
+    }
+    for i: cast(s32)0..m.global_count - 1 {
+        if m.globals[i].is_static == 0 { HeaderTypeUse(m, *m.globals[i].type[0], 1, uses) }
+    }
+    for i: cast(s32)0..m.import_count - 1 {
+        foreign := *m.imports[i]
+        if foreign.kind != .EXTERN || foreign.is_public == 0 { continue }
+        HeaderTypeUse(m, *foreign.return_type[0], 1, uses)
+        HeaderParametersUse(m, *foreign.args[0], 1, uses)
+    }
+    for i: cast(s32)0..m.import_count - 1 {
+        imp := *m.imports[i]
+        if (imp.kind == .OPEN || imp.kind == .MODULE) && imp.required != 0 && imp.resolved_module != null {
+            HeaderOwnerUse(uses, imp.resolved_module, 1)
+        }
+    }
+    ordered: s32 = 0
+    for i: cast(s32)0..m.import_count - 1 {
+        imp := *m.imports[i]
+        if imp.kind != .OPEN && imp.kind != .MODULE { continue }
+        j := ordered
+        while j < uses.count {
+            if uses.items[j].module != imp.resolved_module { j += 1; continue }
+            item := uses.items[j]
+            if j > ordered {
+                memmove(cast(*void)*uses.items[ordered + 1], cast(*void)*uses.items[ordered],
+                        cast(usize)(j - ordered) * size_of(ZirCHeaderUse))
+            }
+            uses.items[ordered] = item
+            ordered += 1
+            break
+        }
+    }
+    free(cast(*void)visible)
+}
+
+HeaderNode :: struct {
+    module: *IR.ZirModule
+    uses: *ZirCHeaderUses
+    owned: *ZirCHeaderUses
+    visit: u32
+    order: s32
+    low: s32
+    depth: s32
+    on_stack: s32
+}
+
+HeaderTable :: struct {
+    nodes: *HeaderNode
+    count: s32
+    capacity: s32
+    slots: *s32
+    slot_count: s32
+    work: *s32
+    work_capacity: s32
+    visit: u32
+}
+
+g_header_table: HeaderTable;
+
+HeaderSlot :: (m: *IR.ZirModule) -> usize {
+    mask := cast(usize)g_header_table.slot_count - 1
+    factor: u64 = 0x9e3779b97f4a7c15
+    slot := ((cast(usize)m >> 4) * cast(usize)factor) & mask
+    while g_header_table.slots[slot] != 0 &&
+          g_header_table.nodes[g_header_table.slots[slot] - 1].module != m {
+        slot = (slot + 1) & mask
+    }
+    return slot
+}
+
+HeaderInsert :: (m: *IR.ZirModule, uses: *ZirCHeaderUses) -> s32 {
+    if 2 * (g_header_table.count + 1) > g_header_table.slot_count {
+        slot_count := ifx g_header_table.slot_count != 0 then 2 * g_header_table.slot_count else 256
+        free(cast(*void)g_header_table.slots)
+        g_header_table.slots = cast(*s32)AllocateOrExit(cast(usize)slot_count * size_of(s32))
+        memset(cast(*void)g_header_table.slots, 0, cast(usize)slot_count * size_of(s32))
+        g_header_table.slot_count = slot_count
+        for i: cast(s32)0..g_header_table.count - 1 {
+            g_header_table.slots[HeaderSlot(g_header_table.nodes[i].module)] = i + 1
+        }
+    }
+    if g_header_table.count == g_header_table.capacity {
+        capacity := ifx g_header_table.capacity != 0 then 2 * g_header_table.capacity else 256
+        nodes := cast(*HeaderNode)realloc(cast(*void)g_header_table.nodes, cast(usize)capacity * size_of(HeaderNode))
+        if nodes == null { perror(CStr("realloc")); exit(1) }
+        g_header_table.nodes = nodes
+        g_header_table.capacity = capacity
+    }
+    node := g_header_table.count
+    g_header_table.count += 1
+    memset(cast(*void)*g_header_table.nodes[node], 0, size_of(HeaderNode))
+    g_header_table.nodes[node].module = m
+    g_header_table.nodes[node].uses = uses
+    g_header_table.slots[HeaderSlot(m)] = node + 1
+    return node
+}
+
+HeaderNodeOf :: (m: *IR.ZirModule) -> s32 {
+    if g_header_table.slot_count != 0 {
+        found := g_header_table.slots[HeaderSlot(m)]
+        if found != 0 { return found - 1 }
+    }
+    uses := cast(*ZirCHeaderUses)AllocateOrExit(size_of(ZirCHeaderUses))
+    HeaderImportUses(m, uses)
+    node := HeaderInsert(m, uses)
+    g_header_table.nodes[node].owned = uses
+    return node
+}
+
+HeaderTableOpen :: (restab: *ZirCModuleSyms, restab_count: s32) {
+    for i: cast(s32)0..restab_count - 1 {
+        if restab[i].module != null &&
+           !(g_header_table.slot_count != 0 && g_header_table.slots[HeaderSlot(restab[i].module)] != 0) {
+            HeaderInsert(restab[i].module, *restab[i].header_uses)
+        }
+    }
+}
+
+HeaderTableClose :: () {
+    for i: cast(s32)0..g_header_table.count - 1 {
+        if g_header_table.nodes[i].owned != null { free(cast(*void)g_header_table.nodes[i].owned.items) }
+        free(cast(*void)g_header_table.nodes[i].owned)
+    }
+    free(cast(*void)g_header_table.nodes)
+    free(cast(*void)g_header_table.slots)
+    free(cast(*void)g_header_table.work)
+    memset(cast(*void)*g_header_table, 0, size_of(HeaderTable))
+}
+
+HeaderWorkPush :: (used: *s32, node: s32) {
+    if used.* == g_header_table.work_capacity {
+        capacity := ifx g_header_table.work_capacity != 0 then 2 * g_header_table.work_capacity else 256
+        work := cast(*s32)realloc(cast(*void)g_header_table.work, cast(usize)capacity * size_of(s32))
+        if work == null { perror(CStr("realloc")); exit(1) }
+        g_header_table.work = work
+        g_header_table.work_capacity = capacity
+    }
+    g_header_table.work[used.*] = node
+    used.* += 1
+}
+
+HeaderUse :: (m: *IR.ZirModule, imp: *IR.ZirImport) -> s32 {
+    uses := g_header_table.nodes[HeaderNodeOf(m)].uses
+    for i: cast(s32)0..uses.count - 1 {
+        if uses.items[i].module == imp.resolved_module { return cast(s32)uses.items[i].use }
+    }
+    return 0
+}
+
+HeaderModule :: (m: *IR.ZirModule, alias: *u8, length: usize) -> *IR.ZirModule {
+    imp := ModuleImport(m, alias, length)
+    if imp == null || imp.resolved_module == null || HeaderUse(m, imp) != 1 { return null }
+    return imp.resolved_module
+}
+
+InlineTypeOk :: (m: *IR.ZirModule, type: *u8) -> bool {
+    if type == null || type[0] == 0 { return true }
+    for i: cast(s32)0..m.type_count - 1 {
+        if m.types[i].is_public == 0 && HasWord(type, *m.types[i].name[0]) { return false }
+    }
+    dot := strchr(type, #char ".")
+    while dot != null {
+        start := dot
+        while cast(usize)start > cast(usize)type &&
+              (IsAlnum(PtrAdd(start, cast(usize)-1)[0]) || PtrAdd(start, cast(usize)-1)[0] == #char "_") {
+            start = PtrAdd(start, cast(usize)-1)
+        }
+        len := cast(usize)dot - cast(usize)start
+        if ModuleImport(m, start, len) != null && HeaderModule(m, start, len) == null { return false }
+        dot = strchr(PtrAdd(dot, 1), #char ".")
+    }
+    return true
+}
+
+SignaturePublic :: (m: *IR.ZirModule, fn: *IR.ZirFunction) -> bool {
+    parameters := ParametersOf(FunctionArgs(fn))
+    if !InlineTypeOk(m, *fn.return_type[0]) { return false }
+    for i: cast(s32)0..parameters.count - 1 {
+        if !InlineTypeOk(m, parameters.items[i].type) { return false }
+    }
+    return true
+}
+
+PublicFunction :: (m: *IR.ZirModule, name: *u8) -> *IR.ZirFunction {
+    if m == null { return null }
+    for i: cast(s32)0..m.function_count - 1 {
+        fn := *m.functions[i]
+        if strcmp(*fn.name[0], name) == 0 {
+            return ifx fn.is_public != 0 && fn.is_template == 0 && fn.is_extern == 0 then fn else null
+        }
+    }
+    return null
+}
+
+OpenFunction :: (m: *IR.ZirModule, name: *u8) -> *IR.ZirFunction {
+    g_header_table.visit += 1
+    visit := g_header_table.visit
+    used: s32 = 0
+    HeaderWorkPush(*used, HeaderNodeOf(m))
+    g_header_table.nodes[g_header_table.work[0]].depth = 0
+    next: s32 = 0
+    while next < used {
+        node := g_header_table.work[next]
+        from := g_header_table.nodes[node].module
+        depth := g_header_table.nodes[node].depth
+        if next > 0 {
+            fn := PublicFunction(from, name)
+            if fn != null { return fn }
+        }
+        if depth == OPEN_HEADER_DEPTH { next += 1; continue }
+        for i: cast(s32)0..from.import_count - 1 {
+            imp := *from.imports[i]
+            if (imp.kind != .OPEN && !(imp.kind == .MODULE && imp.is_using != 0)) ||
+               imp.resolved_module == null || HeaderUse(from, imp) != 1 {
+                continue
+            }
+            to := HeaderNodeOf(imp.resolved_module)
+            if g_header_table.nodes[to].visit == visit { continue }
+            g_header_table.nodes[to].visit = visit
+            g_header_table.nodes[to].depth = depth + 1
+            HeaderWorkPush(*used, to)
+        }
+        next += 1
+    }
+    return null
+}
+
+HeaderFunction :: (m: *IR.ZirModule, name: *u8) -> *IR.ZirFunction {
+    for i: cast(s32)0..m.function_count - 1 {
+        if strcmp(*m.functions[i].name[0], name) == 0 { return PublicFunction(m, name) }
+    }
+    return OpenFunction(m, name)
+}
+
+PublicMember :: (m: *IR.ZirModule, name: *u8) -> bool {
+    if PublicFunction(m, name) != null { return true }
+    for i: cast(s32)0..m.define_count - 1 {
+        if strcmp(*m.defines[i].name[0], name) == 0 { return m.defines[i].is_public != 0 }
+    }
+    for i: cast(s32)0..m.global_count - 1 {
+        if strcmp(*m.globals[i].name[0], name) == 0 { return m.globals[i].is_static == 0 }
+    }
+    return false
+}
+
+SystemHeaderStem :: (stem: *u8) -> bool {
+    return strcmp(stem, CStr("alloca")) == 0 || strcmp(stem, CStr("assert")) == 0 ||
+           strcmp(stem, CStr("complex")) == 0 || strcmp(stem, CStr("ctype")) == 0 ||
+           strcmp(stem, CStr("dirent")) == 0 || strcmp(stem, CStr("endian")) == 0 ||
+           strcmp(stem, CStr("errno")) == 0 || strcmp(stem, CStr("fcntl")) == 0 ||
+           strcmp(stem, CStr("features")) == 0 || strcmp(stem, CStr("fenv")) == 0 ||
+           strcmp(stem, CStr("float")) == 0 || strcmp(stem, CStr("inttypes")) == 0 ||
+           strcmp(stem, CStr("iso646")) == 0 || strcmp(stem, CStr("limits")) == 0 ||
+           strcmp(stem, CStr("locale")) == 0 || strcmp(stem, CStr("math")) == 0 ||
+           strcmp(stem, CStr("poll")) == 0 || strcmp(stem, CStr("pthread")) == 0 ||
+           strcmp(stem, CStr("sched")) == 0 || strcmp(stem, CStr("setjmp")) == 0 ||
+           strcmp(stem, CStr("signal")) == 0 || strcmp(stem, CStr("stdalign")) == 0 ||
+           strcmp(stem, CStr("stdarg")) == 0 || strcmp(stem, CStr("stdatomic")) == 0 ||
+           strcmp(stem, CStr("stdbool")) == 0 || strcmp(stem, CStr("stddef")) == 0 ||
+           strcmp(stem, CStr("stdint")) == 0 || strcmp(stem, CStr("stdio")) == 0 ||
+           strcmp(stem, CStr("stdlib")) == 0 || strcmp(stem, CStr("stdnoreturn")) == 0 ||
+           strcmp(stem, CStr("string")) == 0 || strcmp(stem, CStr("strings")) == 0 ||
+           strcmp(stem, CStr("tgmath")) == 0 || strcmp(stem, CStr("threads")) == 0 ||
+           strcmp(stem, CStr("time")) == 0 || strcmp(stem, CStr("uchar")) == 0 ||
+           strcmp(stem, CStr("unistd")) == 0 || strcmp(stem, CStr("wchar")) == 0 ||
+           strcmp(stem, CStr("wctype")) == 0
+}
+
+InlineCandidate :: (m: *IR.ZirModule, fn: *IR.ZirFunction) -> bool {
+    if m.name[0] == 0 || strcmp(*m.name[0], CStr("main")) == 0 { return false }
+    if fn.is_template != 0 || fn.is_public == 0 || fn.is_extern != 0 || fn.exported != 0 ||
+       fn.simd_target != 0 || fn.is_global_initializer != 0 || fn.uses_host != 0 || fn.go_method[0] != 0 ||
+       (fn.assembly_text != null && fn.assembly_text[0] != 0) || NativeProgramMain(m, fn) != 0 || fn == g_lowering_main ||
+       ArrayElementType(*fn.return_type[0], null, 0, null) != 0 || fn.inlining == ZIR_INLINE_COLD ||
+       (fn.inlining != ZIR_INLINE_ALWAYS && (fn.stmt_count > INLINE_STATEMENTS || fn.expr_count > INLINE_EXPRESSIONS)) {
+        return false
+    }
+    for i: cast(s32)0..fn.stmt_count - 1 {
+        st := *fn.stmts[i]
+        if st.is_parallel != 0 || st.is_gpu != 0 || st.is_using != 0 || StatementHasAssembly(st) { return false }
+        k := st.kind
+        if k != .BLOCK_OPEN && k != .BLOCK_CLOSE && k != .DECL && k != .ASSIGN &&
+           k != .EXPR && k != .IF && k != .WHILE && k != .FOR && k != .RETURN &&
+           k != .BREAK && k != .CONTINUE {
+            return false
+        }
+        if k == .DECL && !InlineTypeOk(m, cast(*u8)cast(*void)st.type) { return false }
+    }
+    for i: cast(s32)0..fn.expr_count - 1 {
+        e := *fn.exprs[i]
+        if e.is_function_value != 0 || (e.slot_type != null && e.slot_type[0] != 0) || !InlineTypeOk(m, e.type) {
+            return false
+        }
+        k := e.kind
+        if k == .INT || k == .FLOAT || k == .BINARY || k == .UNARY ||
+           k == .POINTER_MEMBER || k == .INDEX || k == .CONDITIONAL {
+            continue
+        }
+        if k == .CAST || k == .SIZE_OF {
+            if !InlineTypeOk(m, e.name) { return false }
+            continue
+        }
+        if k == .IDENT {
+            if ModuleImport(m, e.name, strlen(e.name)) != null {
+                if HeaderModule(m, e.name, strlen(e.name)) == null { return false }
+                continue
+            }
+            for j: cast(s32)0..m.global_count - 1 {
+                if strcmp(*m.globals[j].name[0], e.name) == 0 && m.globals[j].is_static != 0 { return false }
+            }
+            for j: cast(s32)0..m.define_count - 1 {
+                if strcmp(*m.defines[j].name[0], e.name) == 0 && m.defines[j].is_public == 0 { return false }
+            }
+            continue
+        }
+        if k == .MEMBER {
+            if e.left >= 0 && fn.exprs[e.left].kind == .IDENT {
+                alias := fn.exprs[e.left].name
+                if ModuleImport(m, alias, strlen(alias)) != null &&
+                   !PublicMember(HeaderModule(m, alias, strlen(alias)), e.name) {
+                    return false
+                }
+            }
+            continue
+        }
+        if k == .CALL {
+            if strcmp(e.name, CStr("zi_sqrt")) == 0 || BitBuiltin(e.name) != ZIR_BIT_NONE || Simd.SimdOpChecked(e.name) != null {
+                continue
+            }
+            dot := strchr(e.name, #char ".")
+            if dot == null {
+                if HeaderFunction(m, e.name) == null { return false }
+            } else {
+                if PublicFunction(HeaderModule(m, e.name, cast(usize)dot - cast(usize)e.name), PtrAdd(dot, 1)) == null {
+                    return false
+                }
+            }
+            continue
+        }
+        return false
+    }
+    return true
+}
+
+InlineNames :: struct {
+    names: **u8
+    count: s32
+    cap: s32
+}
+
+InlineNameAdd :: (names: *InlineNames, name: *u8) {
+    if name == null || name[0] == 0 { return }
+    if names.count == names.cap {
+        cap := ifx names.cap != 0 then names.cap * 2 else 64
+        grown := cast(**u8)realloc(cast(*void)names.names, cast(usize)cap * size_of(*u8))
+        if grown == null { perror(CStr("realloc")); exit(1) }
+        names.names = grown
+        names.cap = cap
+    }
+    dup := strdup(name)
+    if dup == null { perror(CStr("strdup")); exit(1) }
+    names.names[names.count] = dup
+    names.count += 1
+}
+
+InlineModuleNames :: (names: *InlineNames, m: *IR.ZirModule, private_only: bool) {
+    name: [LOWER_NAME_MAX * 2]u8
+    for i: cast(s32)0..m.function_count - 1 {
+        fn := *m.functions[i]
+        if fn.is_template != 0 || (private_only && fn.is_public != 0) { continue }
+        NativeCFunctionName(m, fn, *name[0], LOWER_NAME_MAX * 2)
+        InlineNameAdd(names, *name[0])
+    }
+    for i: cast(s32)0..m.type_count - 1 {
+        if private_only && m.types[i].is_public != 0 { continue }
+        NativeTypeName(m, *m.types[i], *name[0], LOWER_NAME_MAX * 2)
+        InlineNameAdd(names, *name[0])
+    }
+    for i: cast(s32)0..m.define_count - 1 {
+        if private_only && m.defines[i].is_public != 0 { continue }
+        TargetDefineName(m, .ZIR_C, *m.defines[i].name[0], *name[0], LOWER_NAME_MAX * 2)
+        InlineNameAdd(names, *name[0])
+    }
+    for i: cast(s32)0..m.global_count - 1 {
+        if private_only && m.globals[i].is_static == 0 { continue }
+        TargetGlobalName(m, .ZIR_C, *m.globals[i].name[0], *name[0], LOWER_NAME_MAX * 2)
+        InlineNameAdd(names, *name[0])
+    }
+    if private_only {
+        for i: cast(s32)0..m.import_count - 1 {
+            imp := *m.imports[i]
+            if imp.kind == .EXTERN && imp.is_public == 0 && CExternSymbol(imp, *name[0], LOWER_NAME_MAX * 2) {
+                InlineNameAdd(names, *name[0])
+            }
+        }
+    }
+}
+
+HeaderCycleWalk :: (names: *InlineNames, m: *IR.ZirModule, root: *IR.ZirModule, order: *s32, stacked: *s32) {
+    node := HeaderNodeOf(m)
+    visit := g_header_table.visit
+    g_header_table.nodes[node].visit = visit
+    g_header_table.nodes[node].order = order.*
+    g_header_table.nodes[node].low = order.*
+    order.* += 1
+    g_header_table.nodes[node].on_stack = 1
+    HeaderWorkPush(stacked, node)
+    uses := g_header_table.nodes[node].uses
+    for i: cast(s32)0..uses.count - 1 {
+        to := uses.items[i].module
+        if uses.items[i].use != 1 { continue }
+        next := HeaderNodeOf(to)
+        low: s32 = 0
+        if g_header_table.nodes[next].visit != visit {
+            HeaderCycleWalk(names, to, root, order, stacked)
+            low = g_header_table.nodes[next].low
+        } else if g_header_table.nodes[next].on_stack != 0 {
+            low = g_header_table.nodes[next].order
+        } else {
+            continue
+        }
+        if low < g_header_table.nodes[node].low { g_header_table.nodes[node].low = low }
+    }
+    if g_header_table.nodes[node].low != g_header_table.nodes[node].order { return }
+    while true {
+        stacked.* -= 1
+        member := g_header_table.work[stacked.*]
+        g_header_table.nodes[member].on_stack = 0
+        if m == root && member != node {
+            InlineModuleNames(names, g_header_table.nodes[member].module, false)
+        }
+        if member == node { break }
+    }
+}
+
+InlineCycleNames :: (names: *InlineNames, m: *IR.ZirModule) {
+    order: s32 = 0
+    stacked: s32 = 0
+    g_header_table.visit += 1
+    HeaderCycleWalk(names, m, m, *order, *stacked)
+}
+
+InlineTextOk :: (text: *u8, names: *InlineNames, forced: bool) -> bool {
+    if (!forced && strlen(text) > INLINE_TEXT) || HasWord(text, CStr("static")) { return false }
+    p := text
+    while p[0] != 0 {
+        if !(IsAlpha(p[0]) || p[0] == #char "_") { p = PtrAdd(p, 1); continue }
+        start := p
+        while IsAlnum(p[0]) || p[0] == #char "_" { p = PtrAdd(p, 1) }
+        length := cast(usize)p - cast(usize)start
+        for i: cast(s32)0..names.count - 1 {
+            if strlen(names.names[i]) == length && memcmp(cast(*void)names.names[i], cast(*void)start, length) == 0 {
+                return false
+            }
+        }
+    }
+    return true
+}
+
+LowerModuleBuffers :: struct {
+    stem: [512]u8
+    guard: [600]u8
+    hpath: [1024]u8
+    cpath: [1024]u8
+    value: [LOWER_GLOBAL_MAX]u8
+    raw: [LOWER_TEXT_MAX]u8
+    member: [LOWER_TEXT_MAX]u8
+    mapped: [LOWER_TEXT_MAX]u8
+    type: [LOWER_TEXT_MAX]u8
+    base: [LOWER_TEXT_MAX]u8
+    tmpb: [LOWER_TEXT_MAX]u8
+    cargs: [LOWER_TEXT_MAX]u8
+    abi_args: [IR.ZIR_TEXT_MAX]u8
+    initw: [LOWER_GLOBAL_MAX]u8
+}
+
+EmitInliningAttributes :: (out: *void, m: *IR.ZirModule) {
+    found := false
+    for i: cast(s32)0..m.function_count - 1 {
+        if m.functions[i].inlining != ZIR_INLINE_NONE && m.functions[i].is_template == 0 {
+            found = true
+            break
+        }
+    }
+    if !found { return }
+    fputs(CStr("#ifndef ZIRAN_ALWAYS_INLINE\n#if defined(__GNUC__) || defined(__clang__)\n#define ZIRAN_ALWAYS_INLINE __attribute__((always_inline))\n#define ZIRAN_COLD __attribute__((noinline, cold))\n#else\n#define ZIRAN_ALWAYS_INLINE\n#define ZIRAN_COLD\n#endif\n#endif\n"), out)
+}
+
+InliningPrefix :: (fn: *IR.ZirFunction) -> *u8 {
+    if fn.inlining == ZIR_INLINE_COLD { return CStr("ZIRAN_COLD ") }
+    if fn.inlining != ZIR_INLINE_ALWAYS { return CStr("") }
+    return ifx fn.is_public != 0 then CStr("ZIRAN_ALWAYS_INLINE inline ") else CStr("inline ZIRAN_ALWAYS_INLINE ")
+}
+
+InlineStreamOpen :: (stream: *TextStream, text: **u8, size: *usize) -> *void {
+    file := ZirTextStreamOpen(stream, text, size)
+    if file == null { perror(CStr("inline header text")); exit(1) }
+    return file
+}
+
+InlineStreamClose :: (stream: *TextStream, text: **u8) -> *u8 {
+    if ZirTextStreamClose(stream) != 0 { perror(CStr("inline header text")); exit(1) }
+    return text.*
+}
+
+EmitHeaderInlines :: (h: *void, m: *IR.ZirModule, restab: *ZirCModuleSyms, restab_count: s32,
+                      buffers: *LowerModuleBuffers) -> s32 {
+    names: InlineNames
+    declarations: TextStream
+    bodies: TextStream
+    declaration_text: *u8 = null
+    body_text_buf: *u8 = null
+    declaration_size: usize = 0
+    body_size: usize = 0
+    declaration_file: *void = null
+    body_file: *void = null
+    count: s32 = 0
+    if SystemHeaderStem(*buffers.stem[0]) { return 0 }
+    for i: cast(s32)0..m.function_count - 1 {
+        fn := *m.functions[i]
+        if !InlineCandidate(m, fn) { continue }
+        if declaration_file == null {
+            InlineModuleNames(*names, m, true)
+            for j: cast(s32)0..m.import_count - 1 {
+                imp := *m.imports[j]
+                if (imp.kind == .MODULE || imp.kind == .OPEN) && imp.resolved_module != null && HeaderUse(m, imp) != 1 {
+                    InlineModuleNames(*names, imp.resolved_module, false)
+                }
+            }
+            InlineCycleNames(*names, m)
+            declaration_file = InlineStreamOpen(*declarations, *declaration_text, *declaration_size)
+            body_file = InlineStreamOpen(*bodies, *body_text_buf, *body_size)
+        }
+        cname: [LOWER_NAME_MAX]u8
+        cret: [LOWER_NAME_MAX]u8
+        NativeCFunctionName(m, fn, *cname[0], LOWER_NAME_MAX)
+        ArrayAbiArgs(fn, *buffers.abi_args[0], IR.ZIR_TEXT_MAX)
+        ConvertArgs(m, fn, *buffers.abi_args[0], *buffers.cargs[0], LOWER_TEXT_MAX, 0)
+        StripAliasType(m, *fn.return_type[0], *cret[0], LOWER_NAME_MAX)
+        scratch: TextStream
+        scratch_text: *u8 = null
+        scratch_size: usize = 0
+        out := InlineStreamOpen(*scratch, *scratch_text, *scratch_size)
+        symbols: BodySymbols
+        symbols.module = m
+        symbols.symbols = restab
+        symbols.count = restab_count
+        EmitAssemblyBlockHelpers(out, m, fn, .ZIR_C)
+        EmitParallelWorkers(out, m, fn, .ZIR_C, ResolveBodySymbol, cast(*void)*symbols)
+        EmitSlotWrappers(out, m, fn, .ZIR_C, ResolveBodySymbol, cast(*void)*symbols)
+        EmitAssemblyHelpers(out, m, fn, .ZIR_C, *cret[0], *buffers.cargs[0])
+        alone := InlineStreamClose(*scratch, *scratch_text)[0] == 0
+        free(cast(*void)scratch_text)
+        if !alone { continue }
+        body: TextStream
+        text: *u8 = null
+        text_size: usize = 0
+        out = InlineStreamOpen(*body, *text, *text_size)
+        LowerBody(out, m, restab, restab_count, fn)
+        InlineStreamClose(*body, *text)
+        if InlineTextOk(text, *names, fn.inlining == ZIR_INLINE_ALWAYS) {
+            result := ifx cret[0] != 0 then *cret[0] else CStr("void")
+            force := ifx fn.inlining == ZIR_INLINE_ALWAYS then CStr("ZIRAN_ALWAYS_INLINE ") else CStr("")
+            if g_lowering_prune != null { PruneMark(declaration_file, PRUNE_INLINE, *cname[0]) }
+            fprintf(declaration_file, CStr("static inline %s%s %s_ziran_inline(%s);\n#define %s(...) %s_ziran_inline(__VA_ARGS__)\n"),
+                    force, result, *cname[0], *buffers.cargs[0], *cname[0], *cname[0])
+            if g_lowering_prune != null { PruneMark(body_file, PRUNE_INLINE_BODY, *cname[0]) }
+            fprintf(body_file, CStr("\nstatic inline %s%s\n%s_ziran_inline(%s)\n{\n%s}\n"),
+                    force, result, *cname[0], *buffers.cargs[0], text)
+            count += 1
+        }
+        free(cast(*void)text)
+    }
+    for i: cast(s32)0..names.count - 1 { free(cast(*void)names.names[i]) }
+    free(cast(*void)names.names)
+    if declaration_file == null { return 0 }
+    InlineStreamClose(*declarations, *declaration_text)
+    InlineStreamClose(*bodies, *body_text_buf)
+    if count != 0 && g_lowering_prune != null {
+        fputs(declaration_text, h)
+        fputs(body_text_buf, h)
+    } else if count != 0 {
+        section := PruneInlineText(*buffers.stem[0], *buffers.guard[0], ModuleUsesVecOperations(m),
+                                   declaration_text, body_text_buf, g_lowering_simd)
+        if section == null || fputs(section, h) < 0 {
+            perror(CStr("inline header"))
+            exit(1)
+        }
+        free(cast(*void)section)
+    }
+    free(cast(*void)declaration_text)
+    free(cast(*void)body_text_buf)
+    return count
+}
+
+HeaderFields :: (h: *void, m: *IR.ZirModule, ty: *IR.ZirType, buffers: *LowerModuleBuffers, indent: *u8, nested: s32) {
+    offset: usize = 0
+    field: IR.ZirTypeField
+    status: s32 = 0
+    while true {
+        status = TypeNextField(ty, *offset, *field)
+        if status != 1 { break }
+        mapped: [LOWER_NAME_MAX]u8
+        suffix: [LOWER_NAME_MAX]u8
+        TargetFieldName(ty, .ZIR_C, *field.name[0], *mapped[0], LOWER_NAME_MAX)
+        SplitArrayType(*field.type[0], *buffers.base[0], LOWER_TEXT_MAX, *suffix[0], LOWER_NAME_MAX)
+        if strcmp(*field.c_type[0], CStr("union")) == 0 || strcmp(*field.c_type[0], CStr("struct")) == 0 {
+            owner: *IR.ZirModule = null
+            inner := CFindType(m, *field.type[0], *owner)
+            if owner == null { owner = m }
+            want_union: s32 = ifx field.c_type[0] == #char "u" then 1 else 0
+            if nested != 0 || field.is_using == 0 || suffix[0] != 0 || inner == null || inner.is_enum != 0 ||
+               inner.is_procedure_type != 0 || inner.is_extern != 0 || inner.is_record_template != 0 ||
+               inner.is_union != want_union {
+                Diagnostic(ty.span, CStr("zir_c.record"), CStr("#c \"%s\" requires a using field of a %s: %s"),
+                           *field.c_type[0], *field.c_type[0], *field.name[0])
+                exit(1)
+            }
+            native: [LOWER_NAME_MAX * 2]u8
+            deeper: [32]u8
+            NativeTypeName(owner, inner, *native[0], LOWER_NAME_MAX * 2)
+            fprintf(h, CStr("%sunion {\n%s    %s %s;\n%s    %s {\n"),
+                    indent, indent, *native[0], *mapped[0], indent, *field.c_type[0])
+            snprintf(*deeper[0], 32, CStr("%s        "), indent)
+            HeaderFields(h, owner, inner, buffers, *deeper[0], 1)
+            fprintf(h, CStr("%s    };\n%s};\n"), indent, indent)
+            continue
+        }
+        if field.c_type[0] != 0 {
+            snprintf(*buffers.base[0], LOWER_TEXT_MAX, CStr("%s"), *field.c_type[0])
+        } else {
+            StripAliasType(m, *buffers.base[0], *buffers.tmpb[0], LOWER_TEXT_MAX)
+            snprintf(*buffers.base[0], LOWER_TEXT_MAX, CStr("%s"), *buffers.tmpb[0])
+            RewriteSelfPointerType(*ty.name[0], *buffers.base[0], LOWER_TEXT_MAX)
+        }
+        fprintf(h, CStr("%s%s %s%s;\n"), indent, *buffers.base[0], *mapped[0], *suffix[0])
+    }
+    if status < 0 {
+        Diagnostic(ty.span, CStr("check.record"), CStr("malformed field in %s"), *ty.name[0])
+        exit(1)
+    }
+}
+
+OwnedText :: (text: *u8) -> *u8 {
+    size := strlen(text) + 1
+    copy := cast(*u8)AllocateOrExit(size)
+    memcpy(cast(*void)copy, cast(*void)text, size)
+    return copy
+}
+
+WriteModuleFile :: (m: *IR.ZirModule, out_dir: *u8, path: *u8, text: *u8,
+                    source: s32, split: s32, used: *Runtime.SimdNames) -> bool {
+    what := ifx source != 0 then CStr("source") else CStr("header")
+    temp: [1100]u8
+    file := GeneratedOutputOpen(path, *temp[0], 1100)
+    if file == null {
+        Diagnostic(m.span, CStr("zir_c.global"), CStr("cannot create C %s output: %s"), what, path)
+        return false
+    }
+    failed := EmitNativeHelpers(file, text, g_lowering_simd)
+    if fclose(file) != 0 { failed = -1 }
+    if failed != 0 {
+        remove(*temp[0])
+        Diagnostic(m.span, CStr("zir_c.global"), CStr("cannot finish C %s output: %s"), what, path)
+        return false
+    }
+    if GeneratedOutputReplace(*temp[0], path) != 0 {
+        Diagnostic(m.span, CStr("zir_c.global"), CStr("cannot replace C %s output: %s"), what, path)
+        return false
+    }
+    if !EmitRuntimeHeaders(ToZirString(out_dir), ToZirString(path), g_lowering_simd, used) {
+        Diagnostic(m.span, CStr("zir_c.global"), CStr("cannot write runtime headers beside %s"), path)
+        return false
+    }
+    if split != 0 {
+        for t: cast(s32)0..2 {
+            if !WriteTierUnit(m, path, SimdTierName(t), SimdTierLevel(t)) {
+                Diagnostic(m.span, CStr("zir_c.global"), CStr("cannot write the %s unit beside %s"), SimdTierName(t), path)
+                return false
+            }
+        }
+    }
+    return true
+}
+
+LowerModuleWithBuffers :: (m: *IR.ZirModule, restab: *ZirCModuleSyms, restab_count: s32,
+                           out_dir: *u8, buffers: *LowerModuleBuffers) -> s32 {
+    needs_startup := ModuleNeedsStartup(m)
+    split := ModuleSplitsTiers(m)
+    targets: s32 = 0
+    init_name: [LOWER_NAME_MAX]u8
+    NativeCModuleInitName(m, *init_name[0], LOWER_NAME_MAX)
+    StemFromSource(*m.source_path[0], *buffers.stem[0], 512)
+    NativeHeaderGuard(*buffers.stem[0], *buffers.guard[0], 600)
+    snprintf(*buffers.hpath[0], 1024, CStr("%s/%s.h"), out_dir, *buffers.stem[0])
+    snprintf(*buffers.cpath[0], 1024, CStr("%s/%s.c"), out_dir, *buffers.stem[0])
+    MkdirParent(*buffers.hpath[0])
+
+    header_stream: TextStream
+    header_text: *u8 = null
+    header_size: usize = 0
+    h := ZirTextStreamOpen(*header_stream, *header_text, *header_size)
+    if h == null {
+        Diagnostic(m.span, CStr("zir_c.global"), CStr("cannot create C header output: %s"), *buffers.hpath[0])
+        return 0
+    }
+    fprintf(h, CStr("/* Generated by zi2c from %s. */\n"), *m.source_path[0])
+    fprintf(h, CStr("#ifndef %s\n#define %s\n\n"), *buffers.guard[0], *buffers.guard[0])
+    fputs(CStr("/* ziran runtime includes */\n"), h)
+    pruned := g_lowering_prune != null
+    if pruned { PruneMark(h, PRUNE_HELPER, CStr("ZIRAN_ALWAYS_INLINE ZIRAN_COLD")) }
+    EmitInliningAttributes(h, m)
+    if ModuleUsesSlices(m) != 0 {
+        if pruned { PruneMark(h, PRUNE_HELPER, CStr("Slice SliceIndex SliceRange SliceRangeAt")) }
+        fputs(CStr("#include \"zir_slice.h\"\n"), h)
+    }
+    if ModuleHeaderUsesVectors(m) != 0 {
+        if pruned { PruneMark(h, PRUNE_HELPER, null) }
+        fputs(CStr("#include \"ziran_simd_types.h\"\n"), h)
+    }
+    uses := g_header_table.nodes[HeaderNodeOf(m)].uses
+    if pruned { PruneMark(h, PRUNE_MODULES, null) }
+    if !pruned {
+        for i: cast(s32)0..uses.count - 1 {
+            use := uses.items[i].use
+            stem: [IR.ZIR_PATH_MAX]u8
+            StemFromSource(*uses.items[i].module.source_path[0], *stem[0], IR.ZIR_PATH_MAX)
+            if use == 2 { fprintf(h, CStr("#ifdef %s_PRIVATE\n"), *buffers.guard[0]) }
+            fprintf(h, CStr("#include \"%s.h\"\n"), *stem[0])
+            if use == 2 { fputs(CStr("#endif\n"), h) }
+        }
+    }
+    if pruned { PruneMark(h, PRUNE_FRAME, null) }
+    fputs(CStr("\n#ifdef __cplusplus\nextern \"C\" {\n#endif\n"), h)
+    for i: cast(s32)0..m.define_count - 1 {
+        d := *m.defines[i]
+        dval := cast(*u8)cast(*void)d.value
+        name: [LOWER_NAME_MAX]u8
+        if !OneStringLiteral(dval) && DefineIsAggregate(m, d) != 0 { continue }
+        TargetDefineName(m, .ZIR_C, *d.name[0], *name[0], LOWER_NAME_MAX)
+        HeaderDeclarationOpen(h, PRUNE_DECLARATION, *name[0], d.is_public == 0, *buffers.guard[0])
+        if OneStringLiteral(dval) {
+            expr: IR.ZirExpr
+            expr.kind = .STRING
+            expr.text = dval
+            expr.span = d.span
+            capacity := strlen(dval) * 4 + 16
+            lit := cast(*u8)AllocateOrExit(capacity)
+            EmitStringLiteral(*expr, .ZIR_C, lit, capacity)
+            fprintf(h, CStr("#define %s %s\n"), *name[0], lit)
+            free(cast(*void)lit)
+            HeaderDeclarationClose(h, d.is_public == 0)
+            continue
+        }
+        if !RewriteBody2(m, null, 0, dval, *buffers.value[0], LOWER_GLOBAL_MAX) {
+            CRewriteOverflow(*m.source_path[0], d.span.line)
+        }
+        vp := *buffers.value[0]
+        while vp[0] != 0 {
+            if vp[0] == #char "\n" || vp[0] == #char "\r" { vp[0] = #char " " }
+            vp = PtrAdd(vp, 1)
+        }
+        if !CIntegerSpellings(*buffers.value[0], LOWER_GLOBAL_MAX) {
+            CRewriteOverflow(*m.source_path[0], d.span.line)
+        }
+        fprintf(h, CStr("#define %s %s\n"), *name[0], *buffers.value[0])
+        HeaderDeclarationClose(h, d.is_public == 0)
+    }
+    visible := HeaderVisibleTypes(m)
+    for i: cast(s32)0..m.type_count - 1 {
+        ty := *m.types[i]
+        native: [LOWER_NAME_MAX * 2]u8
+        NativeTypeName(m, ty, *native[0], LOWER_NAME_MAX * 2)
+        if ty.is_extern == 0 && ty.is_record_template == 0 && ty.is_procedure_type == 0 && ty.is_enum == 0 {
+            HeaderDeclarationOpen(h, PRUNE_DECLARATION, *native[0], visible[i] == 0, *buffers.guard[0])
+            if ty.is_synthetic_application != 0 {
+                fprintf(h, CStr("#ifndef ZIRAN_CONCRETE_FORWARD_%s\n#define ZIRAN_CONCRETE_FORWARD_%s\n"), *native[0], *native[0])
+            }
+            kw := ifx ty.is_union != 0 then CStr("union") else CStr("struct")
+            fprintf(h, CStr("typedef %s %s %s;\n"), kw, *native[0], *native[0])
+            if ty.is_abi_incomplete != 0 {
+                fprintf(h, CStr("#pragma ziran abi_incomplete %s\n"), *native[0])
+            }
+            if ty.is_synthetic_application != 0 { fputs(CStr("#endif\n"), h) }
+            HeaderDeclarationClose(h, visible[i] == 0)
+        }
+        if ty.is_enum != 0 {
+            backing := EnumStorageType(*ty.enum_backing[0])
+            if backing == null {
+                Diagnostic(ty.span, CStr("zir_c.enum"), CStr("invalid enum backing type"))
+                exit(1)
+            }
+            HeaderDeclarationOpen(h, PRUNE_DECLARATION, *native[0], false, *buffers.guard[0])
+            fprintf(h, CStr("typedef %s %s;\n"), backing, *native[0])
+        }
+    }
+    for i: cast(s32)0..m.type_count - 1 {
+        slot := *m.types[i]
+        if slot.is_procedure_type == 0 { continue }
+        slot_name: [LOWER_NAME_MAX * 2]u8
+        ResolveSlotType(cast(*void)m, *slot.name[0], *slot_name[0], LOWER_NAME_MAX * 2)
+        HeaderDeclarationOpen(h, PRUNE_DECLARATION, *slot_name[0], visible[i] == 0, *buffers.guard[0])
+        EmitSlotType(h, slot, .ZIR_C, ResolveSlotType, cast(*void)m)
+        HeaderDeclarationClose(h, visible[i] == 0)
+    }
+    for i: cast(s32)0..m.type_count - 1 {
+        ty := *m.types[i]
+        native: [LOWER_NAME_MAX * 2]u8
+        NativeTypeName(m, ty, *native[0], LOWER_NAME_MAX * 2)
+        if ty.is_extern != 0 || ty.is_record_template != 0 || ty.is_procedure_type != 0 { continue }
+        HeaderDeclarationOpen(h, PRUNE_DECLARATION, ifx ty.is_enum != 0 then null else *native[0],
+                              visible[i] == 0, *buffers.guard[0])
+        if ty.is_enum != 0 {
+            backing := EnumStorageType(*ty.enum_backing[0])
+            if backing == null {
+                Diagnostic(ty.span, CStr("zir_c.enum"), CStr("invalid enum backing type"))
+                exit(1)
+            }
+            fprintf(h, CStr("\nenum {\n"))
+            line := *ty.body[0]
+            while line != null && line[0] != 0 {
+                nl := strchr(line, #char "\n")
+                len := ifx nl != null then cast(usize)nl - cast(usize)line else strlen(line)
+                if len > 0 {
+                    if len >= LOWER_TEXT_MAX { len = LOWER_TEXT_MAX - 1 }
+                    memcpy(cast(*void)*buffers.raw[0], cast(*void)line, len)
+                    buffers.raw[len] = 0
+                    while len > 0 && (buffers.raw[len - 1] == #char " " || buffers.raw[len - 1] == #char ",") {
+                        len -= 1
+                        buffers.raw[len] = 0
+                    }
+                    if buffers.raw[0] != 0 {
+                        mlen: usize = 0
+                        while IsAlnum(buffers.raw[mlen]) || buffers.raw[mlen] == #char "_" { mlen += 1 }
+                        if mlen == 0 {
+                            Diagnostic(ty.span, CStr("zir_c.enum"), CStr("invalid enum member declaration"))
+                            exit(1)
+                        }
+                        memcpy(cast(*void)*buffers.member[0], cast(*void)*buffers.raw[0], mlen)
+                        buffers.member[mlen] = 0
+                        if !CEnumMember(m, ty, *buffers.member[0], *buffers.mapped[0], LOWER_TEXT_MAX) {
+                            CRewriteOverflow(*m.source_path[0], ty.span.line)
+                        }
+                        if pruned { PruneMark(h, PRUNE_NAME, *buffers.mapped[0]) }
+                        fprintf(h, CStr("    %s%s,\n"), *buffers.mapped[0], PtrAdd(*buffers.raw[0], mlen))
+                    }
+                }
+                line = ifx nl != null then PtrAdd(nl, 1) else null
+            }
+            fprintf(h, CStr("};\n"))
+            HeaderDeclarationClose(h, visible[i] == 0)
+            continue
+        }
+        if ty.is_synthetic_application != 0 {
+            fprintf(h, CStr("#ifndef ZIRAN_CONCRETE_%s\n#define ZIRAN_CONCRETE_%s\n"), *native[0], *native[0])
+        }
+        ext := ifx TypeHasZeroArray(m, *ty.name[0]) != 0 then CStr("__extension__ ") else CStr("")
+        kw := ifx ty.is_union != 0 then CStr("union") else CStr("struct")
+        fprintf(h, CStr("\n%s%s %s {\n"), ext, kw, *native[0])
+        HeaderFields(h, m, ty, buffers, CStr("    "), 0)
+        fprintf(h, CStr("};\n"))
+        if ty.is_synthetic_application != 0 { fputs(CStr("#endif\n"), h) }
+        HeaderDeclarationClose(h, visible[i] == 0)
+    }
+    free(cast(*void)visible)
+
+    for i: cast(s32)0..m.global_count - 1 {
+        g := *m.globals[i]
+        suffix: [LOWER_NAME_MAX]u8
+        name: [LOWER_NAME_MAX]u8
+        if g.is_static != 0 { continue }
+        TargetGlobalName(m, .ZIR_C, *g.name[0], *name[0], LOWER_NAME_MAX)
+        SplitArrayType(*g.type[0], *buffers.base[0], LOWER_TEXT_MAX, *suffix[0], LOWER_NAME_MAX)
+        StripAliasType(m, *buffers.base[0], *buffers.tmpb[0], LOWER_TEXT_MAX)
+        snprintf(*buffers.base[0], LOWER_TEXT_MAX, CStr("%s"), *buffers.tmpb[0])
+        if suffix[0] != 0 {
+            tmps: [LOWER_NAME_MAX]u8
+            if !RewriteBody2(m, null, 0, *suffix[0], *tmps[0], LOWER_NAME_MAX) {
+                CRewriteOverflow(*m.source_path[0], g.span.line)
+            }
+            snprintf(*suffix[0], LOWER_NAME_MAX, CStr("%s"), *tmps[0])
+        }
+        HeaderDeclarationOpen(h, PRUNE_DECLARATION, *name[0], false, *buffers.guard[0])
+        ext := ifx TypeHasZeroArray(m, *g.type[0]) != 0 then CStr("__extension__ ") else CStr("")
+        fprintf(h, CStr("%sextern %s %s%s;\n"), ext, *buffers.base[0], *name[0], *suffix[0])
+    }
+    for i: cast(s32)0..m.import_count - 1 {
+        imp := *m.imports[i]
+        if imp.kind != .EXTERN || imp.is_public == 0 || imp.signature[0] == 0 { continue }
+        if pruned {
+            names: [LOWER_NAME_MAX * 3]u8
+            ExternPrototypeNames(m, imp, *names[0], LOWER_NAME_MAX * 3)
+            PruneMark(h, PRUNE_DECLARATION, *names[0])
+        }
+        EmitExternPrototype(h, m, imp)
+    }
+    for i: cast(s32)0..m.function_count - 1 {
+        fn := *m.functions[i]
+        cname: [LOWER_NAME_MAX]u8
+        cret: [LOWER_NAME_MAX]u8
+        if fn.is_template != 0 || fn.is_public == 0 { continue }
+        if fn == g_lowering_main { continue }
+        NativeCFunctionName(m, fn, *cname[0], LOWER_NAME_MAX)
+        ArrayAbiArgs(fn, *buffers.abi_args[0], IR.ZIR_TEXT_MAX)
+        ConvertArgs(m, fn, *buffers.abi_args[0], *buffers.cargs[0], LOWER_TEXT_MAX, 0)
+        rt := ifx ArrayElementType(*fn.return_type[0], null, 0, null) != 0 then CStr("void") else *fn.return_type[0]
+        StripAliasType(m, rt, *cret[0], LOWER_NAME_MAX)
+        symbol: *u8 = null
+        if fn.exported != 0 && NativeProgramMain(m, fn) == 0 {
+            symbol = ifx fn.export_symbol[0] != 0 then *fn.export_symbol[0] else *fn.name[0]
+            if strcmp(*cname[0], symbol) == 0 { symbol = null }
+        }
+        if pruned {
+            names: [LOWER_NAME_MAX * 2 + 2]u8
+            sp := ifx symbol != null then CStr(" ") else CStr("")
+            sym := ifx symbol != null then symbol else CStr("")
+            snprintf(*names[0], LOWER_NAME_MAX * 2 + 2, CStr("%s%s%s"), *cname[0], sp, sym)
+            kind: s32 = ifx NativeProgramMain(m, fn) != 0 || fn.exported != 0 || fn == g_lowering_entry then PRUNE_ROOT else PRUNE_DECLARATION
+            PruneMark(h, kind, *names[0])
+        }
+        hidden := !pruned && fn.is_specialization != 0 && !SignaturePublic(m, fn)
+        if hidden { fprintf(h, CStr("#ifdef %s_PRIVATE\n"), *buffers.guard[0]) }
+        ret_s := ifx cret[0] != 0 then *cret[0] else CStr("void")
+        if symbol != null {
+            EmitSymbolDeclaration(h, ret_s, *cname[0], *buffers.cargs[0], symbol)
+        } else {
+            cold := ifx fn.inlining == ZIR_INLINE_COLD then CStr("ZIRAN_COLD ") else CStr("")
+            fprintf(h, CStr("%s%s %s(%s);\n"), cold, ret_s, *cname[0], *buffers.cargs[0])
+        }
+        if hidden { fputs(CStr("#endif\n"), h) }
+        if NativeProgramMain(m, fn) != 0 { EmitNativeMainDeclaration(h) }
+    }
+    inlines := EmitHeaderInlines(h, m, restab, restab_count, buffers)
+    if pruned { PruneMark(h, PRUNE_END, null) }
+    fprintf(h, CStr("\n#ifdef __cplusplus\n}\n#endif\n\n#endif /* %s */\n"), *buffers.guard[0])
+    header_error := ferror(h) != 0
+    if ZirTextStreamClose(*header_stream) != 0 { header_error = true }
+    if header_error {
+        free(cast(*void)header_text)
+        Diagnostic(m.span, CStr("zir_c.global"), CStr("cannot finish C header output: %s"), *buffers.hpath[0])
+        return 0
+    }
+    prune: *ZirCPruneModule = null
+    if pruned {
+        mod_idx := (cast(usize)m - cast(usize)g_lowering_program.modules) / size_of(IR.ZirModule)
+        prune = *g_lowering_prune[mod_idx]
+        prune.stem = OwnedText(*buffers.stem[0])
+        prune.guard = OwnedText(*buffers.guard[0])
+        prune.vector_operations = ModuleUsesVecOperations(m)
+        prune.header = header_text
+    } else {
+        written := WriteModuleFile(m, out_dir, *buffers.hpath[0], header_text, 0, 0, null)
+        free(cast(*void)header_text)
+        if !written { return 0 }
+    }
+    if m.function_count == 0 && m.global_count == 0 && m.assert_count == 0 && needs_startup == 0 {
+        return 1
+    }
+
+    stream: TextStream
+    source_text: *u8 = null
+    source_size: usize = 0
+    c := ZirTextStreamOpen(*stream, *source_text, *source_size)
+    if c == null {
+        Diagnostic(m.span, CStr("zir_c.global"), CStr("cannot create C source output: %s"), *buffers.cpath[0])
+        return 0
+    }
+    fprintf(c, CStr("/* Generated by zi2c from %s. */\n"), *m.source_path[0])
+    if inlines != 0 && pruned {
+        fputs(CStr("\x01S\n"), c)
+    } else if inlines != 0 {
+        fprintf(c, CStr("#define %s_SOURCE 1\n"), *buffers.guard[0])
+    }
+    fputs(CStr("/* ziran runtime includes */\n"), c)
+    if ModuleUsesVecOperations(m) != 0 { fputs(CStr("#include \"zir_vec.h\"\n"), c) }
+    if pruned {
+        fputs(CStr("\x01U\n"), c)
+    } else if HeaderHasPrivate(m) {
+        fprintf(c, CStr("#define %s_PRIVATE 1\n#include \"%s.h\"\n#undef %s_PRIVATE\n"),
+                *buffers.guard[0], *buffers.stem[0], *buffers.guard[0])
+    } else {
+        fprintf(c, CStr("#include \"%s.h\"\n"), *buffers.stem[0])
+    }
+    EmitNumbers(c, m, .ZIR_C)
+    fputs(CStr("/* ziran constant tables */\n"), c)
+    EmitConstantTablesBegin(*buffers.guard[0], .ZIR_C)
+    if !pruned {
+        for i: cast(s32)0..m.import_count - 1 {
+            imp := *m.imports[i]
+            if imp.required != 0 || (imp.kind != .OPEN && imp.kind != .MODULE) { continue }
+            fprintf(c, CStr("#include \"%s.h\"\n"), *imp.target[0])
+        }
+    }
+    for i: cast(s32)0..m.import_count - 1 {
+        imp := *m.imports[i]
+        if imp.kind != .EXTERN || imp.is_public != 0 || imp.signature[0] == 0 { continue }
+        EmitExternPrototype(c, m, imp)
+    }
+    if !pruned { EmitInliningAttributes(c, m) }
+    for i: cast(s32)0..m.function_count - 1 {
+        if targets != 0 { break }
+        if m.functions[i].simd_target != 0 && m.functions[i].is_template == 0 && m.functions[i].is_extern == 0 {
+            fputs(CStr("#define ZIRAN_SIMD_TIERS 1\n#include \"ziran_simd.h\"\n"), c)
+            targets = 1
+        }
+    }
+    if split != 0 {
+        fputs(CStr("#if (defined(__GNUC__) || defined(__clang__)) && !defined(_WIN32) && !defined(__CYGWIN__)\n#define ZIRAN_TIER_CLONE __attribute__((visibility(\"hidden\")))\n#else\n#define ZIRAN_TIER_CLONE\n#endif\n"), c)
+    }
+    has_private_fn := false
+    for i: cast(s32)0..m.function_count - 1 {
+        if m.functions[i].is_template == 0 && m.functions[i].is_public == 0 && m.functions[i].is_extern == 0 {
+            has_private_fn = true
+            break
+        }
+    }
+    if has_private_fn {
+        fputs(CStr("#ifndef ZIRAN_MAYBE_UNUSED\n#if defined(__GNUC__) || defined(__clang__)\n#define ZIRAN_MAYBE_UNUSED __attribute__((unused))\n#else\n#define ZIRAN_MAYBE_UNUSED\n#endif\n#endif\n"), c)
+    }
+    for i: cast(s32)0..m.function_count - 1 {
+        fn := *m.functions[i]
+        cname: [LOWER_NAME_MAX]u8
+        cret: [LOWER_NAME_MAX]u8
+        if fn.is_template != 0 || fn.is_public != 0 || fn.is_extern != 0 { continue }
+        NativeCFunctionName(m, fn, *cname[0], LOWER_NAME_MAX)
+        ArrayAbiArgs(fn, *buffers.abi_args[0], IR.ZIR_TEXT_MAX)
+        ConvertArgs(m, fn, *buffers.abi_args[0], *buffers.cargs[0], LOWER_TEXT_MAX, 0)
+        rt := ifx ArrayElementType(*fn.return_type[0], null, 0, null) != 0 then CStr("void") else *fn.return_type[0]
+        StripAliasType(m, rt, *cret[0], LOWER_NAME_MAX)
+        fprintf(c, CStr("static %s%s %s(%s) ZIRAN_MAYBE_UNUSED;\n"),
+                InliningPrefix(fn), ifx cret[0] != 0 then *cret[0] else CStr("void"), *cname[0], *buffers.cargs[0])
+    }
+    if targets != 0 {
+        for i: cast(s32)0..m.function_count - 1 {
+            fn := *m.functions[i]
+            if SimdTierCopied(m, fn) == 0 { continue }
+            cname: [LOWER_NAME_MAX]u8
+            cret: [LOWER_NAME_MAX]u8
+            NativeCFunctionName(m, fn, *cname[0], LOWER_NAME_MAX)
+            ArrayAbiArgs(fn, *buffers.abi_args[0], IR.ZIR_TEXT_MAX)
+            ConvertArgs(m, fn, *buffers.abi_args[0], *buffers.cargs[0], LOWER_TEXT_MAX, 0)
+            rt := ifx ArrayElementType(*fn.return_type[0], null, 0, null) != 0 then CStr("void") else *fn.return_type[0]
+            StripAliasType(m, rt, *cret[0], LOWER_NAME_MAX)
+            EmitTierCopies(c, m, restab, restab_count, fn, *cret[0], *cname[0], *buffers.cargs[0], split, 0)
+        }
+    }
+    if split != 0 { fputs(CStr("#ifndef ZIRAN_TIER_UNIT\n"), c) }
+    for i: cast(s32)0..m.global_count - 1 {
+        symbols: BodySymbols
+        symbols.module = m
+        symbols.symbols = restab
+        symbols.count = restab_count
+        symbols.source_path = SpanPath(m.globals[i].span)
+        EmitGlobalSlotWrappers(c, m, *m.globals[i], .ZIR_C, ResolveBodySymbol, cast(*void)*symbols)
+    }
+    for i: cast(s32)0..m.global_count - 1 {
+        g := *m.globals[i]
+        suffix: [LOWER_NAME_MAX]u8
+        name: [LOWER_NAME_MAX]u8
+        TargetGlobalName(m, .ZIR_C, *g.name[0], *name[0], LOWER_NAME_MAX)
+        SplitArrayType(*g.type[0], *buffers.base[0], LOWER_TEXT_MAX, *suffix[0], LOWER_NAME_MAX)
+        StripAliasType(m, *buffers.base[0], *buffers.tmpb[0], LOWER_TEXT_MAX)
+        snprintf(*buffers.base[0], LOWER_TEXT_MAX, CStr("%s"), *buffers.tmpb[0])
+        if suffix[0] != 0 {
+            tmps: [LOWER_NAME_MAX]u8
+            if !RewriteBody2(m, null, 0, *suffix[0], *tmps[0], LOWER_NAME_MAX) {
+                CRewriteOverflow(*m.source_path[0], g.span.line)
+            }
+            snprintf(*suffix[0], LOWER_NAME_MAX, CStr("%s"), *tmps[0])
+        }
+        buffers.initw[0] = 0
+        compound_text: *u8 = null
+        ginit := cast(*u8)cast(*void)g.init
+        if ScalarLiteral(*g.type[0], ginit, .ZIR_C, g.span, *buffers.initw[0], LOWER_GLOBAL_MAX) == 0 {
+            compound: s32 = 0
+            compound_text = EmitGlobalInitializerText(m, g, .ZIR_C, RewriteGlobalScalar, null, null, null, *compound)
+            if compound < 0 {
+                Diagnostic(g.span, CStr("zir_c.global"), CStr("cannot lower compound global initializer: %s"), *g.name[0])
+                exit(1)
+            }
+            if compound == 0 && !RewriteBody2(m, null, 0, ginit, *buffers.initw[0], LOWER_GLOBAL_MAX) {
+                CRewriteOverflow(*m.source_path[0], g.span.line)
+            }
+        }
+        if compound_text == null && strcmp(*g.type[0], CStr("string")) == 0 &&
+           strncmp(*buffers.initw[0], CStr("{\""), 2) == 0 &&
+           CStringLiteralBytes(PtrAdd(*buffers.initw[0], 1)) > C_STRING_LITERAL_MAX {
+            end := PtrAdd(*buffers.initw[0], 2)
+            while end[0] != 0 && end[0] != #char "\"" {
+                end = PtrAdd(end, ifx end[0] == #char "\\" then cast(usize)2 else cast(usize)1)
+            }
+            text_name: [LOWER_NAME_MAX + 32]u8
+            declaration: [LOWER_NAME_MAX + 64]u8
+            snprintf(*text_name[0], LOWER_NAME_MAX + 32, CStr("ziran_text_%s"), *name[0])
+            snprintf(*declaration[0], LOWER_NAME_MAX + 64, CStr("static const char %s"), *text_name[0])
+            WriteCStringArray(c, 0, *declaration[0], PtrAdd(*buffers.initw[0], 1))
+            compound_text = cast(*u8)AllocateOrExit(strlen(*text_name[0]) + strlen(end) + 2)
+            sprintf(compound_text, CStr("{%s%s"), *text_name[0], PtrAdd(end, 1))
+        }
+        zero := TypeHasZeroArray(m, *g.type[0]) != 0
+        ext := ifx zero then CStr("__extension__ ") else CStr("")
+        st_kw := ifx g.is_static != 0 then CStr("static ") else CStr("")
+        init_val := ifx compound_text != null then compound_text else (ifx buffers.initw[0] != 0 then *buffers.initw[0] else (ifx zero then CStr("{}") else CStr("{0}")))
+        fprintf(c, CStr("%s%s%s %s%s = %s;\n"), ext, st_kw, *buffers.base[0], *name[0], *suffix[0], init_val)
+        free(cast(*void)compound_text)
+    }
+    if split != 0 { fputs(CStr("#endif\n"), c) }
+    for i: cast(s32)0..m.function_count - 1 {
+        fn := *m.functions[i]
+        cname: [LOWER_NAME_MAX]u8
+        cret: [LOWER_NAME_MAX]u8
+        if fn.is_template != 0 { continue }
+        NativeCFunctionName(m, fn, *cname[0], LOWER_NAME_MAX)
+        ArrayAbiArgs(fn, *buffers.abi_args[0], IR.ZIR_TEXT_MAX)
+        ConvertArgs(m, fn, *buffers.abi_args[0], *buffers.cargs[0], LOWER_TEXT_MAX, 0)
+        rt := ifx ArrayElementType(*fn.return_type[0], null, 0, null) != 0 then CStr("void") else *fn.return_type[0]
+        StripAliasType(m, rt, *cret[0], LOWER_NAME_MAX)
+        ret_s := ifx cret[0] != 0 then *cret[0] else CStr("void")
+        if fn.is_extern != 0 {
+            fprintf(c, CStr("\n%s %s(%s);\n"), ret_s, *cname[0], *buffers.cargs[0])
+            continue
+        }
+        fputs(CStr("\n"), c)
+        EmitAssemblyBlockHelpers(c, m, fn, .ZIR_C)
+        symbols: BodySymbols
+        symbols.module = m
+        symbols.symbols = restab
+        symbols.count = restab_count
+        EmitParallelWorkers(c, m, fn, .ZIR_C, ResolveBodySymbol, cast(*void)*symbols)
+        EmitSlotWrappers(c, m, fn, .ZIR_C, ResolveBodySymbol, cast(*void)*symbols)
+        EmitAssemblyHelpers(c, m, fn, .ZIR_C, *cret[0], *buffers.cargs[0])
+        if fn.simd_target != 0 {
+            EmitTargetClones(c, m, restab, restab_count, fn, *cret[0], *cname[0], *buffers.cargs[0], split)
+        }
+        if split != 0 && fn.is_public != 0 { fputs(CStr("#ifndef ZIRAN_TIER_UNIT\n"), c) }
+        if fn == g_lowering_main {
+            LowerMain(c, m, restab, restab_count, fn)
+            if split != 0 && fn.is_public != 0 { fputs(CStr("#endif\n"), c) }
+            continue
+        }
+        if fn.is_public != 0 {
+            fprintf(c, CStr("%s%s\n%s(%s)\n{\n"), InliningPrefix(fn), ret_s, *cname[0], *buffers.cargs[0])
+        } else {
+            fprintf(c, CStr("static %s%s\n%s(%s)\n{\n"), InliningPrefix(fn), ret_s, *cname[0], *buffers.cargs[0])
+        }
+        if fn.simd_target != 0 { EmitTargetDispatch(c, fn, *cret[0], *cname[0], *buffers.abi_args[0]) }
+        EmitAssembly(c, m, fn, .ZIR_C, *cret[0])
+        LowerBody(c, m, restab, restab_count, fn)
+        fputs(CStr("}\n"), c)
+        if NativeProgramMain(m, fn) != 0 { EmitNativeMain(c, m, fn, .ZIR_C) }
+        if split != 0 && fn.is_public != 0 { fputs(CStr("#endif\n"), c) }
+        if targets != 0 && SimdTierCopied(m, fn) != 0 {
+            EmitTierCopies(c, m, restab, restab_count, fn, *cret[0], *cname[0], *buffers.cargs[0], split, 1)
+        }
+    }
+    if split != 0 { fputs(CStr("\n#ifndef ZIRAN_TIER_UNIT"), c) }
+    startup_count: s32 = 0
+    for i: cast(s32)0..m.function_count - 1 { startup_count += m.functions[i].is_global_initializer }
+    if needs_startup != 0 {
+        fputs(CStr("\n#include <stdlib.h>\n"), c)
+        for i: cast(s32)0..m.import_count - 1 {
+            dep := m.imports[i].resolved_module
+            if ModuleNeedsStartup(dep) != 0 {
+                name: [LOWER_NAME_MAX]u8
+                NativeCModuleInitName(dep, *name[0], LOWER_NAME_MAX)
+                fprintf(c, CStr("void %s(void);\n"), *name[0])
+            }
+        }
+        fprintf(c, CStr("\nstatic int ziran_state_%s;"), *init_name[0])
+        fprintf(c, CStr("\nvoid\n%s(void)\n{\n    if(ziran_state_%s == 2) return;\n    if(ziran_state_%s == 1) abort();\n    ziran_state_%s = 1;\n"),
+                *init_name[0], *init_name[0], *init_name[0], *init_name[0])
+        for i: cast(s32)0..m.import_count - 1 {
+            dep := m.imports[i].resolved_module
+            if ModuleNeedsStartup(dep) != 0 {
+                name: [LOWER_NAME_MAX]u8
+                NativeCModuleInitName(dep, *name[0], LOWER_NAME_MAX)
+                fprintf(c, CStr("    %s();\n"), *name[0])
+            }
+        }
+        for i: cast(s32)0..m.function_count - 1 {
+            if m.functions[i].is_global_initializer != 0 {
+                name: [LOWER_NAME_MAX]u8
+                NativeCFunctionName(m, *m.functions[i], *name[0], LOWER_NAME_MAX)
+                fprintf(c, CStr("    %s();\n"), *name[0])
+            }
+        }
+        fprintf(c, CStr("    ziran_state_%s = 2;\n}\n"), *init_name[0])
+    }
+    if startup_count != 0 {
+        fprintf(c, CStr("\n__attribute__((constructor)) static void\nziran_constructor_%s(void)\n{\n    %s();\n}\n"),
+                *init_name[0], *init_name[0])
+    }
+    if split != 0 { fputs(CStr("\n#endif\n"), c) }
+    tables := EmitConstantTablesEnd()
+    if ZirTextStreamClose(*stream) != 0 {
+        free(cast(*void)tables)
+        Diagnostic(m.span, CStr("zir_c.global"), CStr("cannot finish C source output: %s"), *buffers.cpath[0])
+        return 0
+    }
+    ctm := CStr("/* ziran constant tables */\n")
+    ctm_len := strlen(ctm)
+    mark := strstr(source_text, ctm)
+    before: usize = ifx mark != null then cast(usize)mark - cast(usize)source_text else 0
+    added: usize = ifx tables != null then strlen(tables) else 0
+    after: usize = ifx mark != null then strlen(PtrAdd(mark, ctm_len)) else 0
+    joined: *u8 = ifx mark != null then cast(*u8)malloc(before + added + after + 1) else null
+    if mark == null || joined == null {
+        free(cast(*void)tables)
+        free(cast(*void)source_text)
+        Diagnostic(m.span, CStr("zir_c.global"), CStr("cannot finish C source output: %s"), *buffers.cpath[0])
+        return 0
+    }
+    memcpy(cast(*void)joined, cast(*void)source_text, before)
+    if added != 0 { memcpy(cast(*void)PtrAdd(joined, before), cast(*void)tables, added) }
+    memcpy(cast(*void)PtrAdd(joined, before + added), cast(*void)PtrAdd(mark, ctm_len), after + 1)
+    free(cast(*void)tables)
+    free(cast(*void)source_text)
+    source_text = joined
+
+    if prune != null {
+        prune.source = source_text
+        return 1
+    }
+    written := WriteModuleFile(m, out_dir, *buffers.cpath[0], source_text, 1, split, null)
+    free(cast(*void)source_text)
+    return ifx written then 1 else 0
+}
+
+LowerModule :: (m: *IR.ZirModule, restab: *ZirCModuleSyms, restab_count: s32, out_dir: *u8) -> s32 {
+    buffers := cast(*LowerModuleBuffers)AllocateOrExit(size_of(LowerModuleBuffers))
+    started := ProfileStart()
+    returned := LowerModuleWithBuffers(m, restab, restab_count, out_dir, buffers)
+    ProfileEnd(CStr("emit.c"), started)
+    free(cast(*void)buffers)
+    return returned
+}
+
+ProgramModuleIndex :: (program: *IR.ZirProgram, m: *IR.ZirModule) -> s32 {
+    if m == null { return -1 }
+    base := cast(usize)program.modules
+    addr := cast(usize)m
+    end := base + cast(usize)program.module_count * size_of(IR.ZirModule)
+    if addr < base || addr >= end { return -1 }
+    return cast(s32)((addr - base) / size_of(IR.ZirModule))
+}
+
+IncludeScope :: (program: *IR.ZirProgram, self: *IR.ZirModule, starts: **IR.ZirModule, start_count: s32, count: *s32) -> *s32 {
+    total := program.module_count
+    alloc_n: usize = ifx total > 0 then cast(usize)total else 1
+    scope := cast(*s32)AllocateOrExit(alloc_n * size_of(s32))
+    seen := cast(*u8)AllocateOrExit(alloc_n)
+    memset(cast(*void)seen, 0, alloc_n)
+    length: s32 = 0
+    index := ProgramModuleIndex(program, self)
+    if index >= 0 { seen[index] = 1 }
+    for i: cast(s32)0..start_count - 1 {
+        index = ProgramModuleIndex(program, starts[i])
+        if index >= 0 && seen[index] == 0 {
+            seen[index] = 1
+            scope[length] = index
+            length += 1
+        }
+    }
+    head: s32 = 0
+    while head < length {
+        uses := g_header_table.nodes[HeaderNodeOf(*program.modules[scope[head]])].uses
+        for i: cast(s32)0..uses.count - 1 {
+            index = ProgramModuleIndex(program, uses.items[i].module)
+            if uses.items[i].use == 1 && index >= 0 && seen[index] == 0 {
+                seen[index] = 1
+                scope[length] = index
+                length += 1
+            }
+        }
+        head += 1
+    }
+    free(cast(*void)seen)
+    count.* = length
+    return scope
+}
+
+PruneScopes :: (program: *IR.ZirProgram, m: *IR.ZirModule, prune: *ZirCPruneModule) {
+    uses := g_header_table.nodes[HeaderNodeOf(m)].uses
+    capacity := uses.count + m.import_count
+    alloc_n: usize = ifx capacity > 0 then cast(usize)capacity else 1
+    starts := cast(**IR.ZirModule)AllocateOrExit(alloc_n * size_of(*IR.ZirModule))
+    count: s32 = 0
+    for i: cast(s32)0..uses.count - 1 {
+        if uses.items[i].use == 1 { starts[count] = uses.items[i].module; count += 1 }
+    }
+    prune.header_scope = IncludeScope(program, m, starts, count, *prune.header_scope_count)
+    count = 0
+    for i: cast(s32)0..uses.count - 1 { starts[count] = uses.items[i].module; count += 1 }
+    for i: cast(s32)0..m.import_count - 1 {
+        if m.imports[i].kind == .OPEN || m.imports[i].kind == .MODULE {
+            starts[count] = m.imports[i].resolved_module
+            count += 1
+        }
+    }
+    prune.source_scope = IncludeScope(program, m, starts, count, *prune.source_scope_count)
+    free(cast(*void)starts)
+}
+
+WritePrunedProgram :: (program: *IR.ZirProgram, out_dir: *u8) -> s32 {
+    count := program.module_count
+    for i: cast(s32)0..count - 1 {
+        PruneScopes(program, *program.modules[i], *g_lowering_prune[i])
+    }
+    if !PruneProgram(g_lowering_prune, count, cast(*void)g_lowering_simd) {
+        Diagnostic(program.modules[0].span, CStr("zir_c.global"), CStr("cannot prune the C output in %s"), out_dir)
+        return 0
+    }
+    used: Runtime.SimdNames
+    for i: cast(s32)0..count - 1 {
+        if g_lowering_prune[i].final_header != null {
+            PruneNoteNames(g_lowering_prune[i].final_header, cast(*void)*used)
+        }
+        if g_lowering_prune[i].final_source != null {
+            PruneNoteNames(g_lowering_prune[i].final_source, cast(*void)*used)
+        }
+    }
+    written := true
+    for i: cast(s32)0..count - 1 {
+        if !written { break }
+        m := *program.modules[i]
+        prune := *g_lowering_prune[i]
+        path: [1100]u8
+        if prune.final_header != null {
+            snprintf(*path[0], 1100, CStr("%s/%s.h"), out_dir, prune.stem)
+            written = WriteModuleFile(m, out_dir, *path[0], prune.final_header, 0, 0, *used)
+        }
+        if written && prune.final_source != null {
+            snprintf(*path[0], 1100, CStr("%s/%s.c"), out_dir, prune.stem)
+            written = WriteModuleFile(m, out_dir, *path[0], prune.final_source, 1, ModuleSplitsTiers(m), *used)
+        }
+    }
+    Simd.SimdNamesFree(*used)
+    return ifx written then 1 else 0
+}
+
+#scope_export
+
+#program_export "c_lower_in_context"
+CLowerInContext :: (program: *IR.ZirProgram, root: *u8, out_dir: *u8,
+                    restab: *ZirCModuleSyms, restab_count: s32,
+                    entry: *IR.ZirFunction, main_fn: *IR.ZirFunction) -> s32 {
+    if program == null { return 0 }
+    if CheckTargetCapabilities(program, CStr("c")) == 0 { return 0 }
+    for i: cast(s32)0..program.module_count - 1 {
+        for f: cast(s32)0..program.modules[i].function_count - 1 {
+            fn := *program.modules[i].functions[f]
+            if fn.is_template == 0 && NativeProgramMain(*program.modules[i], fn) != 0 &&
+               CheckNativeEntry(fn, CStr("c")) == 0 {
+                return 0
+            }
+        }
+    }
+    simd: Runtime.ZirSimdUses
+    g_lowering_program = program
+    g_lowering_simd = *simd
+    if entry != null {
+        n: usize = ifx program.module_count > 0 then cast(usize)program.module_count else 1
+        size := n * size_of(ZirCPruneModule)
+        g_lowering_prune = cast(*ZirCPruneModule)AllocateOrExit(size)
+        memset(cast(*void)g_lowering_prune, 0, size)
+        g_lowering_entry = entry
+        g_lowering_main = main_fn
+    }
+    HeaderTableOpen(restab, restab_count)
+    lowered: s32 = 1
+    for i: cast(s32)0..program.module_count - 1 {
+        if lowered == 0 { break }
+        lowered = LowerModule(*program.modules[i], restab, restab_count, out_dir)
+    }
+    if lowered != 0 && g_lowering_prune != null {
+        lowered = WritePrunedProgram(program, out_dir)
+    }
+    HeaderTableClose()
+    if g_lowering_prune != null {
+        for i: cast(s32)0..program.module_count - 1 {
+            PruneModuleFree(*g_lowering_prune[i])
+        }
+        free(cast(*void)g_lowering_prune)
+    }
+    g_lowering_prune = null
+    g_lowering_entry = null
+    g_lowering_main = null
+    g_lowering_program = null
+    g_lowering_simd = null
+    if lowered != 0 && simd.header != 0 && !EmitSimdOps(ToZirString(out_dir), *simd) {
+        Diagnostic(program.modules[0].span, CStr("zir_c.global"), CStr("cannot write ziran_simd_ops.h in %s"), out_dir)
+        lowered = 0
+    }
+    Simd.SimdUsesFree(*simd)
+    return lowered
+}
+
+#program_export "c_build_syms"
+CBuildSyms :: (program: *IR.ZirProgram, out: *ZirCModuleSyms) -> s32 {
+    memset(cast(*void)out, 0, size_of(ZirCModuleSyms))
+    if program == null || program.module_count == 0 { return 1 }
+    n: usize = 0
+    p := *program.modules[0].name[0]
+    while p[0] != 0 && n + 1 < IR.ZIR_PATH_MAX {
+        out.module_slash[n] = ifx p[0] == #char "." then #char "/" else p[0]
+        n += 1
+        p = PtrAdd(p, 1)
+    }
+    out.module_slash[n] = 0
+    sp := *program.modules[0].source_path[0]
+    sn := strlen(sp)
+    if sn > 3 && strcmp(PtrAdd(sp, sn - 3), CStr(".zi")) == 0 { sn -= 3 }
+    if sn >= IR.ZIR_PATH_MAX { sn = IR.ZIR_PATH_MAX - 1 }
+    memcpy(cast(*void)*out.module_stem[0], cast(*void)sp, sn)
+    out.module_stem[sn] = 0
+
+    total: s32 = 0
+    for i: cast(s32)0..program.module_count - 1 {
+        for j: cast(s32)0..program.modules[i].function_count - 1 {
+            if program.modules[i].functions[j].is_template == 0 { total += 1 }
+        }
+    }
+    alloc_n: usize = ifx total > 0 then cast(usize)total else 1
+    out.fns = cast(*ZirCFunctionSym)calloc(alloc_n, size_of(ZirCFunctionSym))
+    if out.fns == null { return 0 }
+    for i: cast(s32)0..program.module_count - 1 {
+        m := *program.modules[i]
+        for j: cast(s32)0..m.function_count - 1 {
+            fn := *m.functions[j]
+            if fn.is_template != 0 { continue }
+            snprintf(*out.fns[out.fn_count].source[0], IR.ZIR_NAME_MAX, CStr("%s"), *fn.name[0])
+            NativeCFunctionName(m, fn, *out.fns[out.fn_count].c[0], IR.ZIR_NAME_MAX * 3)
+            out.fn_count += 1
+        }
+    }
+    out.module = *program.modules[0]
+    HeaderImportUses(out.module, *out.header_uses)
+    return 1
+}
+
+#program_export "c_free_syms"
+CFreeSyms :: (syms: *ZirCModuleSyms, count: s32) {
+    for i: cast(s32)0..count - 1 {
+        free(cast(*void)syms[i].fns)
+        free(cast(*void)syms[i].header_uses.items)
+    }
+}
+
+#program_export "c_lower"
+CLower :: (program: *IR.ZirProgram, root: *u8, out_dir: *u8,
+           restab: *ZirCModuleSyms, restab_count: s32,
+           entry: *IR.ZirFunction, main_fn: *IR.ZirFunction) -> s32 {
+    previous := CompilerContextSelect(ifx program != null then cast(*void)program.context else null)
+    result := CLowerInContext(program, root, out_dir, restab, restab_count, entry, main_fn)
+    CompilerContextSelect(previous)
+    return result
+}

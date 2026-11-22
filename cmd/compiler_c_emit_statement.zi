@@ -1,0 +1,1855 @@
+// Native C/Go statement, control-flow, parallel-region, switch, inline-call, and body emitter.
+using IR :: #import "compiler_ir"
+using Native :: #import "compiler_native_names"
+using Range :: #import "compiler_c_range"
+using RangeFactsMod :: #import "compiler_c_range_facts"
+CEmit :: #import "compiler_c_emit"
+using Val :: #import "compiler_c_emit_value"
+
+#scope_file
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+malloc :: (size: usize) -> *void #foreign libc "malloc";
+calloc :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+realloc :: (memory: *void, size: usize) -> *void #foreign libc "realloc";
+free :: (memory: *void) #foreign libc "free";
+exit :: (status: s32) #foreign libc "exit";
+memcpy :: (dst: *void, src: *void, count: usize) -> *void #foreign libc "memcpy";
+memset :: (dst: *void, value: s32, count: usize) -> *void #foreign libc "memset";
+strlen :: (s: *u8) -> usize #foreign libc "strlen";
+strcmp :: (a: *u8, b: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (a: *u8, b: *u8, n: usize) -> s32 #foreign libc "strncmp";
+strchr :: (s: *u8, c: s32) -> *u8 #foreign libc "strchr";
+strstr :: (haystack: *u8, needle: *u8) -> *u8 #foreign libc "strstr";
+snprintf :: (out: *u8, size: usize, fmt: *u8, args: ..any) -> s32 #foreign libc "snprintf";
+fprintf :: (stream: *void, fmt: *u8, args: ..any) -> s32 #foreign libc "fprintf";
+fputs :: (s: *u8, stream: *void) -> s32 #foreign libc "fputs";
+fputc :: (c: s32, stream: *void) -> s32 #foreign libc "fputc";
+tmpfile :: () -> *void #foreign libc "tmpfile";
+ftell :: (stream: *void) -> s64 #foreign libc "ftell";
+fclose :: (stream: *void) -> s32 #foreign libc "fclose";
+
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, fmt: *u8, args: ..any) #foreign compiler "Diagnostic";
+copy_text :: (dst: *u8, size: usize, src: *u8) #foreign compiler "copy_text";
+skip_ws :: (s: *u8) -> *u8 #foreign compiler "skip_ws";
+trim_in_place :: (s: *u8) -> *u8 #foreign compiler "trim_in_place";
+split_top_level :: (s: *u8, parts: *u8, max: s32, part_size: usize) -> s32 #foreign compiler "split_top_level";
+
+CParameter :: struct {
+    text: *u8
+    name: *u8
+    type: *u8
+    binding_name: *u8
+    value_type: *u8
+    default_value: *u8
+    is_using: s32
+}
+CParameters :: struct {
+    count: s32
+    items: [1]CParameter
+}
+ParametersOf :: (text: *u8) -> *CParameters #foreign compiler "ParametersOf";
+
+ArrayElementType :: (type: *u8, element: *u8, size: usize, capacity: *s32) -> s32 #foreign compiler "ArrayElementType";
+SliceElementType :: (type: *u8, element: *u8, size: usize) -> s32 #foreign compiler "SliceElementType";
+ArrayValueType :: (type: *u8) -> s32 #foreign compiler "ArrayValueType";
+VecElementType :: (module: *IR.ZirModule, type: *u8, element: *u8, size: usize) -> s32 #foreign compiler "VecElementType";
+CFindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+TypeNextFieldShared :: (record: *IR.ZirType, offset: *usize, field: **IR.ZirTypeField) -> s32 #foreign compiler "TypeNextFieldShared";
+OwnedTextType :: (module: *IR.ZirModule, type: *u8) -> s32 #foreign compiler "OwnedTextType";
+BuiltinTypeName :: (name: *u8) -> s32 #foreign compiler "BuiltinTypeName";
+CResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, fn: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunction";
+CanEmitBody :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 #foreign compiler "CanEmitBody";
+ZirIntegerLiteral :: (text: *u8, value: *u64) -> s32 #foreign compiler "ZirIntegerLiteral";
+EmitAssemblyBlock :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, statement: s32, target: Native.ZirTarget) -> s32 #foreign compiler "EmitAssemblyBlock";
+AssemblyBlockOperands :: (fn: *IR.ZirFunction, statement: s32, names: **u8, types: **u8, max: s32, out_kinds: *s32) -> s32 #foreign compiler "AssemblyBlockOperands";
+
+// Emitter procedures linked from the expression, call and SIMD modules.
+emit_expr :: (e: *Emitter, index: s32, expected: *u8, out: *u8, size: usize) #foreign compiler "zir_emit_emit_expr";
+expression_calls :: (fn: *IR.ZirFunction, index: s32) -> s32 #foreign compiler "zir_emit_expression_calls";
+call_can_change :: (e: *Emitter, index: s32) -> s32 #foreign compiler "zir_emit_call_can_change";
+EmitSimdTier :: () -> *u8 #foreign compiler "zir_emit_EmitSimdTier";
+
+// From compiler_c_emit.zi.
+CCanonical :: (type: *u8) -> *u8 #foreign compiler "zir_emit_canonical";
+CWidth :: (type: *u8) -> s32 #foreign compiler "zir_emit_width";
+CEnumType :: (module: *IR.ZirModule, type: *u8) -> s32 #foreign compiler "zir_emit_enum_type";
+CRecordType :: (module: *IR.ZirModule, type: *u8) -> s32 #foreign compiler "zir_emit_record_type";
+CFieldRecord :: (module: *IR.ZirModule, type: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "zir_emit_field_record";
+CSpelledFieldStore :: (target: Native.ZirTarget, record: *IR.ZirType, name: *u8, value: *u8, size: usize) #foreign compiler "zir_emit_spelled_field_store";
+CZeroValue :: (type: *u8, target: Native.ZirTarget) -> *u8 #foreign compiler "zir_emit_zero_value";
+CEmitterTypeContainsVec :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 #foreign compiler "zir_emit_emitter_type_contains_vec";
+CTargetBindingName :: (fn: *IR.ZirFunction, target: Native.ZirTarget, name: *u8, out: *u8, size: usize) #foreign compiler "TargetBindingName";
+CTypeHasZeroArray :: (module: *IR.ZirModule, type: *u8) -> s32 #foreign compiler "TypeHasZeroArray";
+CArrayAbiName :: (fn: *IR.ZirFunction, parameter: s32, out: *u8, size: usize) #foreign compiler "ArrayAbiName";
+CNativeProgramMain :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 #foreign compiler "NativeProgramMain";
+
+StaticText :: struct { data: *u8; length: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+PtrAdd :: (p: *u8, n: usize) -> *u8 { return cast(*u8)(cast(usize)p + n) }
+
+ZIR_INLINE_COLD :: 2
+INLINE_BODY_STATEMENTS :: 24
+INLINE_BODY_EXPRESSIONS :: 96
+INLINE_NESTING :: 2
+INLINE_RECORD_FIELDS :: 16
+INLINE_RECORD_DEPTH :: 3
+
+FunctionArgs :: (fn: *IR.ZirFunction) -> *u8 {
+    if fn != null && fn.args_text != null { return fn.args_text }
+    return CStr("")
+}
+
+StatementHasAssembly :: (st: *IR.ZirStmt) -> bool {
+    return st.kind == .BLOCK_OPEN && st.assembly_text != null && st.assembly_text[0] != 0
+}
+
+IsDigit :: (c: u8) -> bool { return c >= #char "0" && c <= #char "9" }
+IsAlnum :: (c: u8) -> bool {
+    return (c >= #char "a" && c <= #char "z") || (c >= #char "A" && c <= #char "Z") || (c >= #char "0" && c <= #char "9")
+}
+
+CheckFormat :: (n: s32, size: usize) -> s32 {
+    if n < 0 || cast(usize)n >= size {
+        zero_span: IR.ZirSourceSpan
+        Diagnostic(zero_span, CStr("zir.output"), CStr("generated expression exceeds output limit"))
+        exit(1)
+    }
+    return n
+}
+
+EmitIndent :: (e: *Emitter) {
+    unit := ifx e.target == .ZIR_GO then CStr("\t") else CStr("    ")
+    for i: cast(s32)0..e.indent - 1 { fputs(unit, e.out) }
+}
+
+EmitLineText :: (e: *Emitter, text: *u8) {
+    EmitIndent(e)
+    fputs(text, e.out)
+    fputc(#char "\n", e.out)
+}
+
+ExprWalkNextLocal :: (walk: *IR.ZirExprWalk) -> s32 {
+    if walk.count <= 0 { return -1 }
+    walk.count -= 1
+    index := walk.pending[walk.count]
+    expr := *walk.fn.exprs[index]
+    if expr.third >= 0 && expr.third < walk.fn.expr_count {
+        walk.pending[walk.count] = expr.third; walk.count += 1
+    }
+    if expr.right >= 0 && expr.right < walk.fn.expr_count {
+        walk.pending[walk.count] = expr.right; walk.count += 1
+    }
+    if expr.left >= 0 && expr.left < walk.fn.expr_count {
+        walk.pending[walk.count] = expr.left; walk.count += 1
+    }
+    child := expr.first_child
+    while child >= 0 && child < walk.fn.expr_count {
+        walk.pending[walk.count] = child; walk.count += 1
+        child = walk.fn.exprs[child].next_sibling
+    }
+    return index
+}
+
+ExprWalkFirstLocal :: (walk: *IR.ZirExprWalk, root: s32) -> s32 {
+    walk.count = 0
+    if root < 0 || root >= walk.fn.expr_count { return -1 }
+    walk.pending[0] = root
+    walk.count = 1
+    return ExprWalkNextLocal(walk)
+}
+
+NamesBinding :: (fn: *IR.ZirFunction, root: s32, name: *u8) -> bool {
+    pending := cast(*s32)malloc(cast(usize)fn.expr_count * size_of(s32))
+    if pending == null { return true }
+    defer { free(cast(*void)pending) }
+    walk := IR.ZirExprWalk.{fn, pending, 0}
+    named := false
+    i := ExprWalkFirstLocal(*walk, root)
+    while i >= 0 && !named {
+        if fn.exprs[i].kind == .IDENT && fn.exprs[i].name != null && strcmp(fn.exprs[i].name, name) == 0 {
+            named = true
+        }
+        i = ExprWalkNextLocal(*walk)
+    }
+    return named
+}
+
+ArrayResultInPlace :: (e: *Emitter, root: s32, type: *u8, declared: *u8) -> bool {
+    call := *e.fn.exprs[root]
+    if e.target != .ZIR_C || call.kind != .CALL || type == null ||
+       ArrayElementType(type, null, 0, null) == 0 || CTypeHasZeroArray(e.module, type) != 0 ||
+       call.type == null || strcmp(CCanonical(call.type), CCanonical(type)) != 0 {
+        return false
+    }
+    if declared == null || call.first_child < 0 { return true }
+    pending := cast(*s32)malloc(cast(usize)e.fn.expr_count * size_of(s32))
+    if pending == null { return false }
+    defer { free(cast(*void)pending) }
+    walk := IR.ZirExprWalk.{e.fn, pending, 0}
+    mentioned := false
+    i := ExprWalkFirstLocal(*walk, call.first_child)
+    while i >= 0 && !mentioned {
+        if e.fn.exprs[i].kind == .IDENT && strcmp(e.fn.exprs[i].name, declared) == 0 {
+            mentioned = true
+        }
+        i = ExprWalkNextLocal(*walk)
+    }
+    return !mentioned
+}
+
+BlockEnd :: (fn: *IR.ZirFunction, begin: s32, end: s32) -> s32 {
+    depth: s32 = 1
+    i := begin + 1
+    while i < end {
+        k := fn.stmts[i].kind
+        if k == .IF || k == .WHILE || k == .BLOCK_OPEN { depth += 1 }
+        if k == .BLOCK_CLOSE {
+            depth -= 1
+            if depth == 0 { return i }
+        }
+        i += 1
+    }
+    return end
+}
+
+ParallelRegion :: struct {
+    while_index: s32
+    close: s32
+    body_begin: s32
+    body_end: s32
+    first: [IR.ZIR_NAME_MAX]u8
+    last: [IR.ZIR_NAME_MAX]u8
+    cursor: [IR.ZIR_NAME_MAX]u8
+    binder: [IR.ZIR_NAME_MAX]u8
+    forward: s32
+    captures: [16][IR.ZIR_NAME_MAX]u8
+    capture_types: [16][IR.ZIR_NAME_MAX]u8
+    capture_count: s32
+    worker: [IR.ZIR_NAME_MAX * 2]u8
+}
+
+ParallelRegionAt :: (fn: *IR.ZirFunction, while_index: s32, region: *ParallelRegion) -> bool {
+    st := *fn.stmts[while_index]
+    if st.kind != .WHILE || st.is_parallel == 0 || while_index < 3 { return false }
+    cursor_decl := *fn.stmts[while_index - 1]
+    last_decl := *fn.stmts[while_index - 2]
+    first_decl := *fn.stmts[while_index - 3]
+    binder_decl := *fn.stmts[while_index + 1]
+    index_decl := *fn.stmts[while_index + 2]
+    if cursor_decl.kind != .DECL || last_decl.kind != .DECL || first_decl.kind != .DECL ||
+       binder_decl.kind != .DECL || index_decl.kind != .DECL ||
+       strcmp(index_decl.name, CStr("it_index")) != 0 {
+        return false
+    }
+    close: s32 = -1
+    depth: s32 = 1
+    i := while_index + 1
+    while i < fn.stmt_count {
+        kind := fn.stmts[i].kind
+        if kind == .IF || kind == .WHILE || kind == .FOR || kind == .BLOCK_OPEN || kind == .IF_CASE {
+            depth += 1
+        } else if kind == .BLOCK_CLOSE {
+            depth -= 1
+            if depth == 0 { close = i; break }
+        }
+        i += 1
+    }
+    if close < 0 || close - 1 <= while_index + 2 { return false }
+    advance := *fn.stmts[close - 1]
+    if advance.kind != .ASSIGN || advance.lhs_root < 0 ||
+       fn.exprs[advance.lhs_root].kind != .IDENT ||
+       strcmp(fn.exprs[advance.lhs_root].name, cursor_decl.name) != 0 {
+        return false
+    }
+    memset(cast(*void)region, 0, size_of(ParallelRegion))
+    region.while_index = while_index
+    region.close = close
+    region.body_begin = while_index + 3
+    region.body_end = close - 1
+    while region.body_end > region.body_begin {
+        tail := *fn.stmts[region.body_end - 1]
+        if tail.kind == .ASSIGN && tail.lhs_root >= 0 &&
+           fn.exprs[tail.lhs_root].kind == .IDENT &&
+           strcmp(fn.exprs[tail.lhs_root].name, cursor_decl.name) == 0 {
+            region.body_end -= 1
+            continue
+        }
+        if tail.kind == .BLOCK_CLOSE && region.body_end - 2 > while_index &&
+           fn.stmts[region.body_end - 2].kind == .BREAK &&
+           fn.stmts[region.body_end - 3].kind == .IF {
+            guard := *fn.stmts[region.body_end - 3]
+            mentions_cursor := false
+            stack: [64]s32
+            top: s32 = 0
+            if guard.expr_root >= 0 && guard.expr_root < fn.expr_count {
+                stack[top] = guard.expr_root; top += 1
+            }
+            while top > 0 && !mentions_cursor {
+                top -= 1
+                expr := *fn.exprs[stack[top]]
+                if expr.kind == .IDENT && strcmp(expr.name, cursor_decl.name) == 0 {
+                    mentions_cursor = true
+                }
+                if expr.left >= 0 && expr.left < fn.expr_count && top < 64 { stack[top] = expr.left; top += 1 }
+                if expr.right >= 0 && expr.right < fn.expr_count && top < 64 { stack[top] = expr.right; top += 1 }
+                if expr.third >= 0 && expr.third < fn.expr_count && top < 64 { stack[top] = expr.third; top += 1 }
+                child := expr.first_child
+                while child >= 0 && child < fn.expr_count && top < 64 {
+                    stack[top] = child; top += 1
+                    child = fn.exprs[child].next_sibling
+                }
+            }
+            if mentions_cursor {
+                region.body_end -= 3
+                continue
+            }
+        }
+        break
+    }
+    copy_text(*region.first[0], IR.ZIR_NAME_MAX, first_decl.name)
+    copy_text(*region.last[0], IR.ZIR_NAME_MAX, last_decl.name)
+    copy_text(*region.cursor[0], IR.ZIR_NAME_MAX, cursor_decl.name)
+    copy_text(*region.binder[0], IR.ZIR_NAME_MAX, binder_decl.name)
+    region.forward = ifx strstr(st.text, CStr("<=")) != null && strstr(st.text, CStr(">=")) == null then 1 else 0
+    return true
+}
+
+NameInStrides :: (list: *u8, count: s32, name: *u8) -> bool {
+    for i: cast(s32)0..count - 1 {
+        if strcmp(PtrAdd(list, cast(usize)i * IR.ZIR_NAME_MAX), name) == 0 { return true }
+    }
+    return false
+}
+
+ParallelRegionCaptures :: (module: *IR.ZirModule, fn: *IR.ZirFunction, region: *ParallelRegion) {
+    if region.body_end - region.body_begin > 4000 { return }
+    declared := cast(*u8)AllocateOrExit(cast(usize)(64 * IR.ZIR_NAME_MAX))
+    defer { free(cast(*void)declared) }
+    declared_count: s32 = 0
+    copy_text(PtrAdd(declared, cast(usize)declared_count * IR.ZIR_NAME_MAX), IR.ZIR_NAME_MAX, *region.binder[0])
+    declared_count += 1
+    copy_text(PtrAdd(declared, cast(usize)declared_count * IR.ZIR_NAME_MAX), IR.ZIR_NAME_MAX, CStr("it_index"))
+    declared_count += 1
+    i := region.body_begin
+    while i < region.body_end && declared_count < 60 {
+        st := *fn.stmts[i]
+        if st.kind == .DECL && st.name[0] != 0 && !NameInStrides(declared, declared_count, st.name) {
+            copy_text(PtrAdd(declared, cast(usize)declared_count * IR.ZIR_NAME_MAX), IR.ZIR_NAME_MAX, st.name)
+            declared_count += 1
+        }
+        i += 1
+    }
+    i = region.body_begin
+    while i < region.body_end {
+        if StatementHasAssembly(*fn.stmts[i]) {
+            names: [30]*u8
+            types: [30]*u8
+            count := AssemblyBlockOperands(fn, i, *names[0], *types[0], 30, null)
+            if count < 0 { exit(1) }
+            for operand: cast(s32)0..count - 1 {
+                name := names[operand]
+                if NameInStrides(declared, declared_count, name) ||
+                   NameInStrides(*region.captures[0][0], region.capture_count, name) ||
+                   strcmp(name, *region.first[0]) == 0 || strcmp(name, *region.last[0]) == 0 ||
+                   strcmp(name, *region.cursor[0]) == 0 { continue }
+                if region.capture_count == 16 {
+                    Diagnostic(fn.stmts[i].span, CStr("emit.parallel"), CStr("native parallel region exceeds 16 captured bindings"))
+                    exit(1)
+                }
+                copy_text(*region.captures[region.capture_count][0], IR.ZIR_NAME_MAX, name)
+                copy_text(*region.capture_types[region.capture_count][0], IR.ZIR_NAME_MAX, types[operand])
+                region.capture_count += 1
+            }
+        }
+        i += 1
+    }
+    pending := cast(*s32)AllocateOrExit((cast(usize)fn.expr_count + 1) * size_of(s32))
+    defer { free(cast(*void)pending) }
+    walk := IR.ZirExprWalk.{fn, pending, 0}
+    i = region.body_begin
+    while i < region.body_end && region.capture_count < 16 {
+        st := *fn.stmts[i]
+        roots: [2]s32 = .{st.expr_root, st.lhs_root}
+        for r: 0..1 {
+            x := ExprWalkFirstLocal(*walk, roots[r])
+            while x >= 0 {
+                expr := *fn.exprs[x]
+                x = ExprWalkNextLocal(*walk)
+                if expr.kind != .IDENT || expr.name[0] == 0 { continue }
+                if NameInStrides(declared, declared_count, expr.name) ||
+                   strcmp(expr.name, *region.first[0]) == 0 ||
+                   strcmp(expr.name, *region.last[0]) == 0 ||
+                   strcmp(expr.name, *region.cursor[0]) == 0 { continue }
+                is_global := false
+                for g: cast(s32)0..module.global_count - 1 {
+                    if strcmp(*module.globals[g].name[0], expr.name) == 0 { is_global = true; break }
+                }
+                if is_global { continue }
+                function_owner: *IR.ZirModule = null
+                function: *IR.ZirFunction = null
+                if CResolveFunction(module, expr.name, *function_owner, *function) == 1 { continue }
+                block_open: s32 = -1
+                depth: s32 = 0
+                s2 := region.while_index
+                while s2 >= 0 {
+                    kind := fn.stmts[s2].kind
+                    if kind == .BLOCK_CLOSE { depth += 1 }
+                    else if kind == .BLOCK_OPEN || kind == .IF || kind == .WHILE || kind == .FOR || kind == .IF_CASE {
+                        if depth == 0 { block_open = s2; break }
+                        depth -= 1
+                    }
+                    s2 -= 1
+                }
+                decl: *IR.ZirStmt = null
+                s2 = block_open
+                while s2 >= 0 && decl == null {
+                    candidate := *fn.stmts[s2]
+                    if candidate.kind == .DECL && strcmp(candidate.name, expr.name) == 0 { decl = candidate }
+                    s2 -= 1
+                }
+                declared_type := ifx decl != null then decl.type else null
+                if decl == null {
+                    parameters := ParametersOf(FunctionArgs(fn))
+                    items := cast(*CParameter)(*parameters.items[0])
+                    for p: cast(s32)0..parameters.count - 1 {
+                        if strcmp(items[p].binding_name, expr.name) == 0 {
+                            declared_type = items[p].value_type
+                        }
+                    }
+                }
+                if declared_type == null || declared_type[0] == 0 { continue }
+                if NameInStrides(*region.captures[0][0], region.capture_count, expr.name) { continue }
+                type: [IR.ZIR_NAME_MAX]u8
+                copy_text(*type[0], IR.ZIR_NAME_MAX, declared_type)
+                if strcmp(*type[0], CStr("null")) == 0 { continue }
+                copy_text(*region.captures[region.capture_count][0], IR.ZIR_NAME_MAX, expr.name)
+                copy_text(*region.capture_types[region.capture_count][0], IR.ZIR_NAME_MAX, *type[0])
+                region.capture_count += 1
+            }
+        }
+        i += 1
+    }
+}
+
+ParallelRegionFits :: (fn: *IR.ZirFunction, while_index: s32) -> bool {
+    region := cast(*ParallelRegion)AllocateOrExit(size_of(ParallelRegion))
+    defer { free(cast(*void)region) }
+    return ParallelRegionAt(fn, while_index, region) && region.forward != 0
+}
+
+ParallelCaptureType :: (e: *Emitter, type_in: *u8, out: *u8, size: usize) {
+    type := type_in
+    pointers: s32 = 0
+    while type[0] == #char "*" {
+        pointers += 1
+        type = skip_ws(PtrAdd(type, 1))
+    }
+    scalar := cast(*u8)Native.TargetType(cast(*void)type, e.target)
+    if scalar != null { copy_text(out, size, scalar) }
+    else { e.resolve(e.context, type, out, size) }
+    used := strlen(out)
+    if used + cast(usize)pointers + 1 > size { exit(1) }
+    while pointers > 0 {
+        out[used] = #char "*"
+        used += 1
+        pointers -= 1
+    }
+    out[used] = 0
+}
+
+CaptureRange :: (e: *Emitter, region: *ParallelRegion, c: s32, ctx: *u8, range: *u8, size: usize) -> bool {
+    type := *region.capture_types[c][0]
+    captured: [IR.ZIR_NAME_MAX * 4]u8
+    element: [IR.ZIR_NAME_MAX]u8
+    mapped: [IR.ZIR_NAME_MAX * 2]u8
+    CTargetBindingName(e.fn, e.target, *region.captures[c][0], *captured[0], IR.ZIR_NAME_MAX * 4)
+    if strcmp(type, CStr("string")) == 0 {
+        CheckFormat(snprintf(range, size, CStr("%s.capture_%s.data, (int64_t)%s.capture_%s.length"),
+                             ctx, *captured[0], ctx, *captured[0]), size)
+    } else if SliceElementType(type, *element[0], IR.ZIR_NAME_MAX) != 0 {
+        ParallelCaptureType(e, *element[0], *mapped[0], IR.ZIR_NAME_MAX * 2)
+        CheckFormat(snprintf(range, size, CStr("%s.capture_%s.data, %s.capture_%s.length * (int64_t)sizeof(%s)"),
+                             ctx, *captured[0], ctx, *captured[0], *mapped[0]), size)
+    } else if ArrayValueType(type) != 0 {
+        CheckFormat(snprintf(range, size, CStr("%s.capture_%s, (int64_t)sizeof(%s)"),
+                             ctx, *captured[0], *captured[0]), size)
+    } else {
+        return false
+    }
+    return true
+}
+
+ParallelWritesSlice :: (fn: *IR.ZirFunction, region: *ParallelRegion, name: *u8) -> bool {
+    i := region.body_begin
+    while i < region.body_end {
+        st := *fn.stmts[i]
+        root: s32 = -1
+        if st.kind == .DECL {
+            if st.expr_root >= 0 && fn.exprs[st.expr_root].kind == .SLICE {
+                root = fn.exprs[st.expr_root].left
+            } else { i += 1; continue }
+        } else if st.kind == .ASSIGN {
+            root = st.lhs_root
+        }
+        while root >= 0 && root < fn.expr_count &&
+              (fn.exprs[root].kind == .INDEX || fn.exprs[root].kind == .MEMBER) {
+            root = fn.exprs[root].left
+        }
+        if root >= 0 && root < fn.expr_count && fn.exprs[root].kind == .IDENT &&
+           strcmp(fn.exprs[root].name, name) == 0 {
+            return true
+        }
+        i += 1
+    }
+    return false
+}
+
+ParallelSharedStorage :: (e: *Emitter, while_index: s32, ctx: *u8, out: *u8, size: usize) {
+    full := cast(*ParallelRegion)AllocateOrExit(size_of(ParallelRegion))
+    written := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    other := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer { free(cast(*void)full); free(cast(*void)written); free(cast(*void)other) }
+    used: usize = 0
+    out[0] = 0
+    ParallelRegionAt(e.fn, while_index, full)
+    ParallelRegionCaptures(e.module, e.fn, full)
+    for w: cast(s32)0..full.capture_count - 1 {
+        if SliceElementType(*full.capture_types[w][0], null, 0) == 0 ||
+           !ParallelWritesSlice(e.fn, full, *full.captures[w][0]) ||
+           !CaptureRange(e, full, w, ctx, written, IR.ZIR_TEXT_MAX) { continue }
+        for c: cast(s32)0..full.capture_count - 1 {
+            if c == w || !CaptureRange(e, full, c, ctx, other, IR.ZIR_TEXT_MAX) { continue }
+            sep := ifx used != 0 then CStr(" || ") else CStr("")
+            wrote := snprintf(PtrAdd(out, used), size - used, CStr("%sziran_parallel_overlap(%s, %s)"), sep, written, other)
+            if wrote < 0 || cast(usize)wrote >= size - used {
+                Diagnostic(e.fn.stmts[while_index].span, CStr("emit.parallel"),
+                           CStr("native parallel region shares too many slices to check"))
+                exit(1)
+            }
+            used += cast(usize)wrote
+        }
+    }
+}
+
+ParallelRegionDispatch :: (e: *Emitter, region: *ParallelRegion) {
+    start_value := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    end_value := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    shared := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    full := cast(*ParallelRegion)AllocateOrExit(size_of(ParallelRegion))
+    defer {
+        free(cast(*void)start_value); free(cast(*void)end_value)
+        free(cast(*void)shared); free(cast(*void)full)
+    }
+    first_decl := *e.fn.stmts[region.while_index - 3]
+    last_decl := *e.fn.stmts[region.while_index - 2]
+    ctx: [IR.ZIR_NAME_MAX]u8
+    emit_expr(e, first_decl.expr_root, CStr("s64"), start_value, IR.ZIR_TEXT_MAX)
+    emit_expr(e, last_decl.expr_root, CStr("s64"), end_value, IR.ZIR_TEXT_MAX)
+    Fresh(e, *ctx[0])
+    EmitLineText(e, CStr("{"))
+    e.indent += 1
+    EmitIndent(e); fprintf(e.out, CStr("struct %s_ctx %s;\n"), *region.worker[0], *ctx[0])
+    EmitIndent(e); fprintf(e.out, CStr("%s.start = %s;\n"), *ctx[0], start_value)
+    EmitIndent(e); fprintf(e.out, CStr("%s.end = %s;\n"), *ctx[0], end_value)
+    ParallelRegionAt(e.fn, region.while_index, full)
+    ParallelRegionCaptures(e.module, e.fn, full)
+    for c: cast(s32)0..full.capture_count - 1 {
+        captured: [IR.ZIR_NAME_MAX * 4]u8
+        CTargetBindingName(e.fn, e.target, *full.captures[c][0], *captured[0], IR.ZIR_NAME_MAX * 4)
+        EmitIndent(e)
+        if ArrayValueType(*full.capture_types[c][0]) != 0 {
+            fprintf(e.out, CStr("%s.capture_%s = (void *)%s;\n"), *ctx[0], *captured[0], *captured[0])
+        } else {
+            fprintf(e.out, CStr("%s.capture_%s = %s;\n"), *ctx[0], *captured[0], *captured[0])
+        }
+    }
+    ParallelSharedStorage(e, region.while_index, *ctx[0], shared, IR.ZIR_TEXT_MAX)
+    if shared[0] != 0 {
+        EmitIndent(e); fprintf(e.out, CStr("if(%s)\n"), shared)
+        e.indent += 1
+        EmitIndent(e); fprintf(e.out, CStr("%s_worker(%s.start, %s.end, &%s);\n"), *region.worker[0], *ctx[0], *ctx[0], *ctx[0])
+        e.indent -= 1
+        EmitLineText(e, CStr("else"))
+        e.indent += 1
+    }
+    EmitIndent(e); fprintf(e.out, CStr("ziran_parallel_run(%s_worker, %s.start, %s.end, &%s);\n"),
+                           *region.worker[0], *ctx[0], *ctx[0], *ctx[0])
+    if shared[0] != 0 { e.indent -= 1 }
+    e.indent -= 1
+    EmitLineText(e, CStr("}"))
+}
+
+#scope_export
+
+#program_export
+FunctionHasParallelRegions :: (fn: *IR.ZirFunction) -> s32 {
+    for i: cast(s32)0..fn.stmt_count - 1 {
+        if fn.stmts[i].kind == .WHILE && fn.stmts[i].is_parallel != 0 { return 1 }
+    }
+    return 0
+}
+
+#scope_file
+
+EmitParallelWorker :: (e: *Emitter, fn: *IR.ZirFunction, region: *ParallelRegion, ordinal: s32) {
+    function_name: [IR.ZIR_NAME_MAX]u8
+    mapped: [IR.ZIR_NAME_MAX * 2]u8
+    low: [IR.ZIR_NAME_MAX]u8
+    high: [IR.ZIR_NAME_MAX]u8
+    opaque: [IR.ZIR_NAME_MAX]u8
+    context: [IR.ZIR_NAME_MAX]u8
+    cursor: [IR.ZIR_NAME_MAX]u8
+    binder: [IR.ZIR_NAME_MAX * 4]u8
+    CArrayAbiName(fn, 8000000 + ordinal * 5, *low[0], IR.ZIR_NAME_MAX)
+    CArrayAbiName(fn, 8000001 + ordinal * 5, *high[0], IR.ZIR_NAME_MAX)
+    CArrayAbiName(fn, 8000002 + ordinal * 5, *opaque[0], IR.ZIR_NAME_MAX)
+    CArrayAbiName(fn, 8000003 + ordinal * 5, *context[0], IR.ZIR_NAME_MAX)
+    CArrayAbiName(fn, 8000004 + ordinal * 5, *cursor[0], IR.ZIR_NAME_MAX)
+    CTargetBindingName(fn, e.target, *region.binder[0], *binder[0], IR.ZIR_NAME_MAX * 4)
+    scalar := cast(*u8)Native.TargetType(cast(*void)CStr("s64"), e.target)
+    CTargetBindingName(fn, e.target, *fn.name[0], *function_name[0], IR.ZIR_NAME_MAX)
+    snprintf(*region.worker[0], IR.ZIR_NAME_MAX * 2, CStr("ziran_par_%s_%d"), *function_name[0], ordinal)
+    fprintf(e.out, CStr("struct %s_ctx {\n"), *region.worker[0])
+    fprintf(e.out, CStr("    int64_t start;\n    int64_t end;\n"))
+    for c: cast(s32)0..region.capture_count - 1 {
+        type_mapped: [IR.ZIR_NAME_MAX * 2]u8
+        captured: [IR.ZIR_NAME_MAX * 4]u8
+        CTargetBindingName(fn, e.target, *region.captures[c][0], *captured[0], IR.ZIR_NAME_MAX * 4)
+        if ArrayValueType(*region.capture_types[c][0]) != 0 {
+            fprintf(e.out, CStr("    void *capture_%s;\n"), *captured[0])
+            continue
+        }
+        ParallelCaptureType(e, *region.capture_types[c][0], *type_mapped[0], IR.ZIR_NAME_MAX * 2)
+        fprintf(e.out, CStr("    %s capture_%s;\n"), *type_mapped[0], *captured[0])
+    }
+    fprintf(e.out, CStr("};\n\n"))
+    fprintf(e.out, CStr("static void %s_worker(int64_t %s, int64_t %s, void *%s)\n{\n"),
+            *region.worker[0], *low[0], *high[0], *opaque[0])
+    e.indent = 1
+    fprintf(e.out, CStr("    struct %s_ctx *%s = (struct %s_ctx *)%s;\n"),
+            *region.worker[0], *context[0], *region.worker[0], *opaque[0])
+    copy_text(*mapped[0], IR.ZIR_NAME_MAX * 2, ifx scalar != null then scalar else CStr("int64_t"))
+    EmitIndent(e); fprintf(e.out, CStr("%s %s = %s->start;\n"), *mapped[0], *region.first[0], *context[0])
+    EmitIndent(e); fprintf(e.out, CStr("%s %s = %s->end;\n"), *mapped[0], *region.last[0], *context[0])
+    for c: cast(s32)0..region.capture_count - 1 {
+        type_mapped: [IR.ZIR_NAME_MAX * 2]u8
+        captured: [IR.ZIR_NAME_MAX * 4]u8
+        CTargetBindingName(fn, e.target, *region.captures[c][0], *captured[0], IR.ZIR_NAME_MAX * 4)
+        if ArrayValueType(*region.capture_types[c][0]) != 0 {
+            element: [IR.ZIR_NAME_MAX * 2]u8
+            bounds: [IR.ZIR_NAME_MAX * 2]u8
+            pointer: [IR.ZIR_NAME_MAX]u8
+            ArrayTargetType(e, *region.capture_types[c][0], *element[0], IR.ZIR_NAME_MAX * 2, *bounds[0], IR.ZIR_NAME_MAX * 2)
+            Fresh(e, *pointer[0])
+            EmitIndent(e); fprintf(e.out, CStr("%s (*%s)%s = %s->capture_%s;\n"), *element[0], *pointer[0], *bounds[0], *context[0], *captured[0])
+            TrackLocal(e, *region.captures[c][0], *region.capture_types[c][0])
+            snprintf(*e.locals[e.local_count - 1].alias[0], IR.ZIR_NAME_MAX * 2, CStr("(*%s)"), *pointer[0])
+            continue
+        }
+        ParallelCaptureType(e, *region.capture_types[c][0], *type_mapped[0], IR.ZIR_NAME_MAX * 2)
+        EmitIndent(e); fprintf(e.out, CStr("%s %s = %s->capture_%s;\n"), *type_mapped[0], *captured[0], *context[0], *captured[0])
+    }
+    EmitIndent(e); fprintf(e.out, CStr("for (int64_t %s = %s; %s <= %s; %s += 1) {\n"),
+                           *cursor[0], *low[0], *cursor[0], *high[0], *cursor[0])
+    e.indent += 1
+    EmitIndent(e); fprintf(e.out, CStr("%s %s = %s;\n"), *mapped[0], *binder[0], *cursor[0])
+    EmitIndent(e); fprintf(e.out, CStr("%s it_index = %s - %s;\n"), *mapped[0], *cursor[0], *region.first[0])
+    EmitSequence(e, region.body_begin, region.body_end)
+    e.indent -= 1
+    EmitLineText(e, CStr("}"))
+    fprintf(e.out, CStr("}\n\n"))
+}
+
+#scope_export
+
+#program_export
+EmitParallelWorkers :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction,
+                        target: Native.ZirTarget, resolve: CEmit.ZirResolveTarget, context: *void) {
+    if FunctionHasParallelRegions(fn) == 0 { return }
+    e := cast(*Emitter)AllocateOrExit(size_of(Emitter))
+    region := cast(*ParallelRegion)AllocateOrExit(size_of(ParallelRegion))
+    defer { free(cast(*void)e); free(cast(*void)region) }
+    memset(cast(*void)e, 0, size_of(Emitter))
+    e.out = out
+    e.module = module
+    e.fn = fn
+    e.target = target
+    e.resolve = resolve
+    e.context = context
+    e.indent = 0
+    e.locals = cast(*Local)calloc(cast(usize)fn.stmt_count + 65, size_of(Local))
+    if e.locals == null { return }
+    defer { free(cast(*void)e.locals) }
+    e.minify = Val.zir_minify_output
+    fprintf(out, CStr("#include \"ziran_parallel.h\"\n\n"))
+    ordinal: s32 = 0
+    for i: cast(s32)0..fn.stmt_count - 1 {
+        if !ParallelRegionAt(fn, i, region) { continue }
+        if region.forward == 0 {
+            fprintf(out, CStr("/* ziran: reverse #parallel region keeps serial execution */\n"))
+            continue
+        }
+        ParallelRegionCaptures(module, fn, region)
+        EmitParallelWorker(e, fn, region, ordinal)
+        ordinal += 1
+    }
+}
+
+#program_export "zir_emit_zero_record"
+ZeroRecord :: (e: *Emitter, type: *u8, out: *u8, size: usize) {
+    if e.target == .ZIR_GO {
+        target_type: [IR.ZIR_NAME_MAX * 2]u8
+        e.resolve(e.context, type, *target_type[0], IR.ZIR_NAME_MAX * 2)
+        record := CFindType(e.module, type, null)
+        if record != null && (record.foreign_target[0] != 0 || record.is_map != 0) {
+            CheckFormat(snprintf(out, size, CStr("*new(%s)"), *target_type[0]), size)
+        } else {
+            CheckFormat(snprintf(out, size, CStr("%s{}"), *target_type[0]), size)
+        }
+        return
+    }
+    copy_text(out, size, ifx CTypeHasZeroArray(e.module, type) != 0 then CStr("{}") else CStr("{0}"))
+}
+
+#scope_file
+
+ScratchSizeClose :: (file: *void) -> usize {
+    written := ftell(file)
+    if written < 0 { fclose(file); return 1 }
+    if fclose(file) != 0 { return 1 }
+    return cast(usize)written
+}
+
+ConditionInHeader :: (e: *Emitter, root: s32) -> bool {
+    cond := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer { free(cast(*void)cond) }
+    saved_out := e.out
+    saved_serial := e.serial
+    saved_locals := e.local_count
+    scratch := tmpfile()
+    if scratch == null { return false }
+    e.out = scratch
+    e.call_in_place = 1
+    emit_expr(e, root, CStr("bool"), cond, IR.ZIR_TEXT_MAX)
+    scratch_size := ScratchSizeClose(scratch)
+    e.out = saved_out
+    e.serial = saved_serial
+    e.local_count = saved_locals
+    return scratch_size == 0
+}
+
+EmitIf :: (e: *Emitter, i: s32, end: s32, chained: s32) -> s32 {
+    cond := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    plain := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer { free(cast(*void)cond); free(cast(*void)plain) }
+    close := BlockEnd(e.fn, i, end)
+    e.call_in_place = 1
+    emit_expr(e, e.fn.stmts[i].expr_root, CStr("bool"), cond, IR.ZIR_TEXT_MAX)
+    Bare(cond, plain, IR.ZIR_TEXT_MAX)
+    EmitIndent(e)
+    if chained != 0 {
+        fmt := ifx e.target == .ZIR_GO then CStr("} else if %s {\n") else CStr("} else if (%s) {\n")
+        fprintf(e.out, fmt, plain)
+    } else {
+        fmt := ifx e.target == .ZIR_GO then CStr("if %s {\n") else CStr("if (%s) {\n")
+        fprintf(e.out, fmt, plain)
+    }
+    e.indent += 1
+    EmitSequence(e, i + 1, close)
+    e.indent -= 1
+    if close + 1 < end && e.fn.stmts[close + 1].kind == .IF && e.fn.stmts[close + 1].is_else != 0 {
+        next := close + 1
+        if e.fn.stmts[next].expr_root >= 0 && ConditionInHeader(e, e.fn.stmts[next].expr_root) {
+            close = EmitIf(e, next, end, 1)
+        } else {
+            EmitLineText(e, CStr("} else {"))
+            e.indent += 1
+            if e.fn.stmts[next].expr_root >= 0 {
+                close = EmitIf(e, next, end, 0)
+            } else {
+                close = BlockEnd(e.fn, next, end)
+                EmitSequence(e, next + 1, close)
+            }
+            e.indent -= 1
+        }
+    }
+    if chained == 0 { EmitLineText(e, CStr("}")) }
+    return close
+}
+
+ExpressionReads :: (fn: *IR.ZirFunction, index: s32, name: *u8) -> bool {
+    if index < 0 || index >= fn.expr_count { return false }
+    expr := *fn.exprs[index]
+    if expr.kind == .IDENT && strcmp(expr.name, name) == 0 { return true }
+    if expr.kind == .MEMBER && expr.left >= 0 &&
+       (strcmp(expr.name, CStr("count")) == 0 || strcmp(expr.name, CStr("data")) == 0) &&
+       ArrayElementType(fn.exprs[expr.left].type, null, 0, null) != 0 {
+        return false
+    }
+    if expr.kind == .SLICE && expr.left >= 0 &&
+       ArrayElementType(fn.exprs[expr.left].type, null, 0, null) != 0 {
+        return ExpressionReads(fn, expr.right, name) || ExpressionReads(fn, expr.third, name)
+    }
+    child := expr.first_child
+    while child >= 0 {
+        if ExpressionReads(fn, child, name) { return true }
+        child = fn.exprs[child].next_sibling
+    }
+    return ExpressionReads(fn, expr.left, name) ||
+           ExpressionReads(fn, expr.right, name) ||
+           ExpressionReads(fn, expr.third, name)
+}
+
+GoBindingReadLater :: (fn: *IR.ZirFunction, declaration: s32) -> bool {
+    name := fn.stmts[declaration].name
+    read := false
+    for s: cast(s32)0..fn.stmt_count - 1 {
+        st := *fn.stmts[s]
+        if s != declaration && st.kind == .DECL && strcmp(st.name, name) == 0 { return false }
+        if s <= declaration || read { continue }
+        root := st.expr_root
+        while root >= 0 && !read {
+            read = ExpressionReads(fn, root, name)
+            root = fn.exprs[root].next_sibling
+        }
+        if !read && st.lhs_root >= 0 && fn.exprs[st.lhs_root].kind != .IDENT {
+            read = ExpressionReads(fn, st.lhs_root, name)
+        }
+    }
+    return read
+}
+
+CBindingUnread :: (fn: *IR.ZirFunction, name: *u8) -> bool {
+    for x: cast(s32)0..fn.expr_count - 1 {
+        if fn.exprs[x].kind != .IDENT || fn.exprs[x].name == null || strcmp(fn.exprs[x].name, name) != 0 {
+            continue
+        }
+        is_target := false
+        for s: cast(s32)0..fn.stmt_count - 1 {
+            if fn.stmts[s].lhs_root == x { is_target = true; break }
+        }
+        if !is_target { return false }
+    }
+    return true
+}
+
+TypedInitializer :: (e: *Emitter, root: s32, declared: *u8) -> s32 {
+    expr := *e.fn.exprs[root]
+    type := CCanonical(expr.type)
+    record := CFindType(e.module, CCanonical(declared), null)
+    if expr.kind == .INT || expr.kind == .FLOAT ||
+       strcmp(type, CStr("integer")) == 0 || strcmp(type, CStr("real")) == 0 || strcmp(type, CStr("null")) == 0 ||
+       strcmp(type, CCanonical(declared)) != 0 ||
+       (record != null && record.is_procedure_type != 0) {
+        return 0
+    }
+    return 1
+}
+
+NativeStep :: (e: *Emitter, st: *IR.ZirStmt) -> bool {
+    if st.for_step == 0 { return false }
+    for i: cast(s32)0..e.loop_count - 1 {
+        if e.loop_native[i] != 0 && e.loop_id[i] == st.for_step { return true }
+    }
+    return false
+}
+
+LoopBodyReads :: (e: *Emitter, begin: s32, end: s32, loop: s32, name: *u8) -> bool {
+    fn := e.fn
+    s := begin
+    while s < end {
+        st := *fn.stmts[s]
+        if st.for_step == loop { s += 1; continue }
+        if st.kind == .DECL && strcmp(st.name, name) == 0 { return true }
+        root := st.expr_root
+        while root >= 0 {
+            if ExpressionReads(fn, root, name) { return true }
+            root = fn.exprs[root].next_sibling
+        }
+        if st.lhs_root >= 0 && ExpressionReads(fn, st.lhs_root, name) { return true }
+        s += 1
+    }
+    return false
+}
+
+LiteralOperand :: (fn: *IR.ZirFunction, index: s32, value: *s64) -> bool {
+    expr := *fn.exprs[index]
+    bits: u64 = 0
+    negative := false
+    if expr.kind == .UNARY && strcmp(*expr.op[0], CStr("-")) == 0 {
+        negative = true
+        expr = *fn.exprs[expr.right]
+    }
+    if expr.kind != .INT || ZirIntegerLiteral(expr.text, *bits) == 0 || bits > (cast(u64)1 << 40) {
+        return false
+    }
+    <<value = ifx negative then -cast(s64)bits else cast(s64)bits
+    return true
+}
+
+NamesIdent :: (fn: *IR.ZirFunction, index: s32, name: *u8) -> bool {
+    return index >= 0 && fn.exprs[index].kind == .IDENT && strcmp(fn.exprs[index].name, name) == 0
+}
+
+ComparesIdents :: (fn: *IR.ZirFunction, index: s32, op: *u8, left: *u8, right: *u8) -> bool {
+    if index < 0 { return false }
+    expr := *fn.exprs[index]
+    return expr.kind == .BINARY && strcmp(*expr.op[0], op) == 0 &&
+           NamesIdent(fn, expr.left, left) && NamesIdent(fn, expr.right, right)
+}
+
+RangeTestsOnce :: (fn: *IR.ZirFunction, loop: s32, close: s32) -> bool {
+    st := *fn.stmts[loop]
+    if loop < 3 || st.is_parallel != 0 || st.for_form != 0 || st.expr_root < 0 { return false }
+    test := *fn.exprs[st.expr_root]
+    if test.kind != .BINARY ||
+       (strcmp(*test.op[0], CStr("<=")) != 0 && strcmp(*test.op[0], CStr(">=")) != 0) ||
+       test.left < 0 || test.right < 0 ||
+       fn.exprs[test.left].kind != .IDENT || fn.exprs[test.right].kind != .IDENT {
+        return false
+    }
+    cursor := fn.exprs[test.left].name
+    bound := fn.exprs[test.right].name
+    step := ifx test.op[0] == #char "<" then CStr("+=") else CStr("-=")
+    if strcmp(cursor, bound) == 0 || fn.stmts[loop - 1].kind != .DECL ||
+       strcmp(fn.stmts[loop - 1].name, cursor) != 0 { return false }
+    declared := false
+    s := loop - 3
+    while s < loop - 1 {
+        if fn.stmts[s].kind == .DECL && strcmp(fn.stmts[s].name, bound) == 0 { declared = true }
+        s += 1
+    }
+    if !declared { return false }
+    for x: cast(s32)0..fn.expr_count - 1 {
+        if fn.exprs[x].kind == .UNARY && strcmp(*fn.exprs[x].op[0], CStr("&")) == 0 &&
+           (NamesIdent(fn, fn.exprs[x].right, cursor) || NamesIdent(fn, fn.exprs[x].right, bound)) {
+            return false
+        }
+    }
+    steps: s32 = 0
+    s = loop + 1
+    while s < close {
+        body := *fn.stmts[s]
+        if StatementHasAssembly(body) || body.kind == .FOR ||
+           (body.kind == .DECL && (strcmp(body.name, cursor) == 0 || strcmp(body.name, bound) == 0)) {
+            return false
+        }
+        if body.kind != .ASSIGN { s += 1; continue }
+        if body.lhs_root < 0 { return false }
+        if NamesIdent(fn, body.lhs_root, bound) { return false }
+        if !NamesIdent(fn, body.lhs_root, cursor) { s += 1; continue }
+        one: s64 = 0
+        if strcmp(*body.assignment_op[0], step) != 0 || body.expr_root < 0 ||
+           !LiteralOperand(fn, body.expr_root, *one) || one != 1 || s < loop + 4 ||
+           fn.stmts[s - 1].kind != .BLOCK_CLOSE || fn.stmts[s - 2].kind != .BREAK ||
+           fn.stmts[s - 3].kind != .IF ||
+           !ComparesIdents(fn, fn.stmts[s - 3].expr_root, CStr("=="), cursor, bound) {
+            return false
+        }
+        steps += 1
+        s += 1
+    }
+    return steps > 0 && fn.stmts[close - 1].kind == .ASSIGN &&
+           NamesIdent(fn, fn.stmts[close - 1].lhs_root, cursor)
+}
+
+InlineValueTypeIn :: (m: *IR.ZirModule, type_in: *u8, depth: s32) -> bool {
+    if type_in == null || type_in[0] == 0 { return false }
+    type := CCanonical(type_in)
+    if strchr(type, #char "[") != null || CEmitterTypeContainsVec(m, type, 0) != 0 ||
+       OwnedTextType(m, type) != 0 { return false }
+    if type[0] == #char "*" || BuiltinTypeName(type) != 0 { return true }
+    owner: *IR.ZirModule = null
+    record := CFindType(m, type, *owner)
+    if record == null { return false }
+    if record.is_enum != 0 || record.is_procedure_type != 0 { return true }
+    if record.is_union != 0 || record.is_extern != 0 || depth >= INLINE_RECORD_DEPTH { return false }
+    offset: usize = 0
+    field: *IR.ZirTypeField = null
+    fields: s32 = 0
+    next_mod := ifx owner != null then owner else m
+    more := TypeNextFieldShared(record, *offset, *field)
+    while more == 1 {
+        fields += 1
+        if fields > INLINE_RECORD_FIELDS || !InlineValueTypeIn(next_mod, *field.type[0], depth + 1) {
+            return false
+        }
+        more = TypeNextFieldShared(record, *offset, *field)
+    }
+    return more == 0
+}
+
+InlineCallee :: (e: *Emitter, call: *IR.ZirExpr) -> *IR.ZirFunction {
+    m := e.module
+    if e.target != .ZIR_C || e.inline_depth >= INLINE_NESTING || call.slot_type[0] != 0 ||
+       call.name[0] == 0 || strchr(call.name, #char ".") != null { return null }
+    fn: *IR.ZirFunction = null
+    for i: cast(s32)0..m.function_count - 1 {
+        if strcmp(*m.functions[i].name[0], call.name) == 0 { fn = *m.functions[i]; break }
+    }
+    if fn == null || fn == e.fn || fn.is_template != 0 || fn.is_extern != 0 || fn.exported != 0 ||
+       fn.simd_target != 0 || fn.is_global_initializer != 0 || fn.uses_host != 0 || fn.go_method[0] != 0 ||
+       (fn.assembly_text != null && fn.assembly_text[0] != 0) || CNativeProgramMain(m, fn) != 0 ||
+       fn.inlining == ZIR_INLINE_COLD || fn.checked == 0 ||
+       fn.stmt_count == 0 || fn.stmt_count > INLINE_BODY_STATEMENTS ||
+       fn.expr_count > INLINE_BODY_EXPRESSIONS || CanEmitBody(m, fn) == 0 {
+        return null
+    }
+    if strcmp(*fn.return_type[0], CStr("void")) != 0 && !InlineValueTypeIn(m, *fn.return_type[0], 0) {
+        return null
+    }
+    parameters := ParametersOf(FunctionArgs(fn))
+    items := cast(*CParameter)(*parameters.items[0])
+    arguments: s32 = 0
+    child := call.first_child
+    while child >= 0 { arguments += 1; child = e.fn.exprs[child].next_sibling }
+    if arguments != parameters.count { return null }
+    for i: cast(s32)0..parameters.count - 1 {
+        if items[i].name == null || items[i].is_using != 0 || !InlineValueTypeIn(m, items[i].type, 0) {
+            return null
+        }
+    }
+    for i: cast(s32)0..fn.stmt_count - 1 {
+        st := *fn.stmts[i]
+        if st.is_parallel != 0 || st.is_gpu != 0 || st.is_using != 0 || StatementHasAssembly(st) { return null }
+        k := st.kind
+        if k == .DECL {
+            if !InlineValueTypeIn(m, st.type, 0) { return null }
+        } else if k != .BLOCK_OPEN && k != .BLOCK_CLOSE && k != .ASSIGN &&
+                  k != .EXPR && k != .IF && k != .RETURN {
+            return null
+        }
+    }
+    for i: cast(s32)0..fn.expr_count - 1 {
+        x := *fn.exprs[i]
+        if x.is_function_value != 0 { return null }
+        if x.kind == .CALL && x.name[0] != 0 && strcmp(x.name, *fn.name[0]) == 0 { return null }
+        if x.kind == .CALL && strchr(x.name, #char ".") == null {
+            own := false
+            for f: cast(s32)0..m.function_count - 1 {
+                if strcmp(*m.functions[f].name[0], x.name) == 0 &&
+                   m.functions[f].is_extern == 0 && m.functions[f].uses_host == 0 {
+                    own = true; break
+                }
+            }
+            if !own { return null }
+        }
+        if x.kind == .IDENT {
+            for g: cast(s32)0..m.global_count - 1 {
+                if strcmp(*m.globals[g].name[0], x.name) == 0 { return null }
+            }
+        }
+    }
+    return fn
+}
+
+InlineLiteral :: (text_in: *u8) -> bool {
+    text := text_in
+    if text[0] == #char "-" { text = PtrAdd(text, 1) }
+    if !IsDigit(text[0]) { return false }
+    while IsAlnum(text[0]) { text = PtrAdd(text, 1) }
+    return text[0] == 0
+}
+
+#scope_export
+
+#program_export "zir_emit_emit_inline_call"
+EmitInlineCall :: (e: *Emitter, call: *IR.ZirExpr, out: *u8, size: usize) -> s32 {
+    fn := InlineCallee(e, call)
+    if fn == null { return 0 }
+    parameters := ParametersOf(FunctionArgs(fn))
+    items := cast(*CParameter)(*parameters.items[0])
+    count := parameters.count
+    alloc_count := ifx count > 0 then count else cast(s32)1
+    values := cast(*u8)calloc(cast(usize)alloc_count, IR.ZIR_TEXT_MAX)
+    locals := cast(*Local)calloc(cast(usize)(fn.stmt_count + count + 65), size_of(Local))
+    plain := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    zero := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    inner := cast(*Emitter)AllocateOrExit(size_of(Emitter))
+    defer {
+        free(cast(*void)values); free(cast(*void)locals)
+        free(cast(*void)plain); free(cast(*void)zero); free(cast(*void)inner)
+    }
+    if values == null || locals == null { return 0 }
+    result: [IR.ZIR_NAME_MAX]u8
+    label: [IR.ZIR_NAME_MAX]u8
+    result[0] = 0
+    child := call.first_child
+    while child >= 0 {
+        ordinal := e.fn.exprs[child].argument_index
+        type := items[ordinal].type
+        val_slot := PtrAdd(values, cast(usize)ordinal * IR.ZIR_TEXT_MAX)
+        later_calls: s32 = 0
+        next := e.fn.exprs[child].next_sibling
+        while next >= 0 {
+            later_calls |= expression_calls(e.fn, next)
+            next = e.fn.exprs[next].next_sibling
+        }
+        e.call_in_place = 0
+        emit_expr(e, child, type, val_slot, IR.ZIR_TEXT_MAX)
+        Bare(val_slot, plain, IR.ZIR_TEXT_MAX)
+        keep := InlineLiteral(plain) || (PlainIdentifier(plain) != 0 && later_calls == 0)
+        p: s32 = 0
+        while keep && p < count {
+            binding: [IR.ZIR_NAME_MAX]u8
+            CTargetBindingName(fn, e.target, items[p].name, *binding[0], IR.ZIR_NAME_MAX)
+            if strcmp(*binding[0], plain) == 0 { keep = false }
+            p += 1
+        }
+        if keep {
+            copy_text(val_slot, IR.ZIR_TEXT_MAX, plain)
+        } else {
+            captured: [IR.ZIR_NAME_MAX]u8
+            Fresh(e, *captured[0])
+            Declare(e, *captured[0], type, val_slot)
+            copy_text(val_slot, IR.ZIR_TEXT_MAX, *captured[0])
+        }
+        child = e.fn.exprs[child].next_sibling
+    }
+    if strcmp(*fn.return_type[0], CStr("void")) != 0 {
+        Fresh(e, *result[0])
+        if CRecordType(e.module, *fn.return_type[0]) != 0 {
+            ZeroRecord(e, *fn.return_type[0], zero, IR.ZIR_TEXT_MAX)
+        } else {
+            copy_text(zero, IR.ZIR_TEXT_MAX, CZeroValue(*fn.return_type[0], e.target))
+        }
+        Declare(e, *result[0], *fn.return_type[0], zero)
+    }
+    Fresh(e, *label[0])
+    memcpy(cast(*void)inner, cast(*void)e, size_of(Emitter))
+    inner.fn = fn
+    inner.locals = locals
+    inner.local_count = 0
+    inner.depth = 0
+    inner.loop_count = 0
+    inner.loop_header[0] = 0
+    inner.sequence_terminated = 0
+    inner.call_in_place = 0
+    inner.array_destination = null
+    inner.array_operand = 0
+    inner.short_declaration = 0
+    inner.braced_initializer = 0
+    inner.inline_result = ifx result[0] != 0 then *result[0] else null
+    inner.inline_label = *label[0]
+    inner.inline_tail = fn.stmt_count - 1
+    inner.inline_jumps = 0
+    inner.inline_depth = e.inline_depth + 1
+    inner.ranges = RangeFactsMod.RangeFactsBuild(fn)
+    EmitLineText(e, CStr("{"))
+    inner.indent = e.indent + 1
+    for p: cast(s32)0..count - 1 {
+        val_slot := PtrAdd(values, cast(usize)p * IR.ZIR_TEXT_MAX)
+        Declare(inner, items[p].name, items[p].type, val_slot)
+        TrackLocal(inner, items[p].name, CCanonical(items[p].type))
+        if CBindingUnread(fn, items[p].name) {
+            binding: [IR.ZIR_NAME_MAX]u8
+            CTargetBindingName(fn, .ZIR_C, items[p].name, *binding[0], IR.ZIR_NAME_MAX)
+            EmitIndent(inner); fprintf(inner.out, CStr("(void)%s;\n"), *binding[0])
+        }
+    }
+    EmitSequence(inner, 0, fn.stmt_count)
+    RangeFactsMod.RangeFactsFree(inner.ranges)
+    e.serial = inner.serial
+    if inner.inline_jumps != 0 {
+        EmitIndent(e); fprintf(e.out, CStr("%s: ;\n"), *label[0])
+    }
+    EmitLineText(e, CStr("}"))
+    copy_text(out, size, *result[0])
+    return 1
+}
+
+#scope_file
+
+NativeFor :: (e: *Emitter, open: s32, close: s32) -> bool {
+    fn := e.fn
+    if open + 2 >= close { return false }
+    counter := *fn.stmts[open + 1]
+    loop := *fn.stmts[open + 2]
+    if counter.kind != .DECL || counter.expr_root < 0 ||
+       loop.kind != .WHILE || loop.for_form == 0 || loop.is_parallel != 0 {
+        return false
+    }
+    loop_close := BlockEnd(fn, open + 2, close)
+    if loop_close + 1 != close { return false }
+    start_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    cond_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    plain_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer { free(cast(*void)start_buf); free(cast(*void)cond_buf); free(cast(*void)plain_buf) }
+    step := CStr("++")
+    s := open + 3
+    while s < loop_close {
+        if fn.stmts[s].for_step == loop.loop_id {
+            if strcmp(*fn.stmts[s].assignment_op[0], CStr("-=")) == 0 { step = CStr("--") }
+            break
+        }
+        s += 1
+    }
+    counter_name: [IR.ZIR_NAME_MAX]u8
+    CTargetBindingName(fn, e.target, counter.name, *counter_name[0], IR.ZIR_NAME_MAX)
+    saved_locals := e.local_count
+    saved_serial := e.serial
+    saved_out := e.out
+    scratch := tmpfile()
+    if scratch == null { return false }
+    e.out = scratch
+    emit_expr(e, counter.expr_root, counter.type, start_buf, IR.ZIR_TEXT_MAX)
+    TrackLocal(e, counter.name, counter.type)
+    emit_expr(e, loop.expr_root, CStr("bool"), cond_buf, IR.ZIR_TEXT_MAX)
+    scratch_size := ScratchSizeClose(scratch)
+    e.out = saved_out
+    if scratch_size != 0 {
+        e.local_count = saved_locals
+        e.serial = saved_serial
+        return false
+    }
+    Bare(cond_buf, plain_buf, IR.ZIR_TEXT_MAX)
+    e.loop_header_binds = 0
+    if loop.for_form == 2 && e.target == .ZIR_GO && open + 3 < loop_close {
+        value := *fn.stmts[open + 3]
+        index := ifx value.kind == .DECL && value.expr_root >= 0 then *fn.exprs[value.expr_root] else null
+        if index != null && index.kind == .INDEX &&
+           fn.exprs[index.left].kind == .IDENT &&
+           strcmp(CCanonical(fn.exprs[index.left].type), CStr("string")) != 0 &&
+           VecElementType(e.module, fn.exprs[index.left].type, null, 0) == 0 &&
+           call_can_change(e, index.left) == 0 &&
+           !LoopBodyReads(e, open + 4, loop_close, loop.loop_id, counter.name) {
+            collection: [IR.ZIR_NAME_MAX]u8
+            value_name: [IR.ZIR_NAME_MAX]u8
+            Resolve(e, fn.exprs[index.left].name, *collection[0], IR.ZIR_NAME_MAX)
+            CTargetBindingName(fn, e.target, value.name, *value_name[0], IR.ZIR_NAME_MAX)
+            if LoopBodyReads(e, open + 4, loop_close, loop.loop_id, value.name) {
+                CheckFormat(snprintf(*e.loop_header[0], IR.ZIR_TEXT_MAX, CStr("for _, %s := range %s"), *value_name[0], *collection[0]), IR.ZIR_TEXT_MAX)
+            } else {
+                CheckFormat(snprintf(*e.loop_header[0], IR.ZIR_TEXT_MAX, CStr("for range %s"), *collection[0]), IR.ZIR_TEXT_MAX)
+            }
+            TrackLocal(e, value.name, value.type)
+            e.loop_header_binds = 1
+        }
+    }
+    if e.loop_header_binds == 0 {
+        ct := cast(*u8)Native.TargetType(cast(*void)counter.type, e.target)
+        if e.target == .ZIR_GO {
+            CheckFormat(snprintf(*e.loop_header[0], IR.ZIR_TEXT_MAX, CStr("for %s := %s(%s); %s; %s%s"),
+                                 *counter_name[0], ct, start_buf, plain_buf, *counter_name[0], step), IR.ZIR_TEXT_MAX)
+        } else {
+            CheckFormat(snprintf(*e.loop_header[0], IR.ZIR_TEXT_MAX, CStr("for (%s %s = %s; %s; %s%s)"),
+                                 ct, *counter_name[0], start_buf, plain_buf, *counter_name[0], step), IR.ZIR_TEXT_MAX)
+        }
+    }
+    EmitSequence(e, open + 2, loop_close + 1)
+    e.loop_header[0] = 0
+    e.local_count = saved_locals
+    return true
+}
+
+CaseLabels :: (e: *Emitter, root: s32, value: *u8, labels: *s32, count: *s32) -> bool {
+    expr := *e.fn.exprs[root]
+    if expr.kind != .BINARY { return false }
+    if strcmp(*expr.op[0], CStr("||")) == 0 {
+        return CaseLabels(e, expr.left, value, labels, count) &&
+               CaseLabels(e, expr.right, value, labels, count)
+    }
+    if strcmp(*expr.op[0], CStr("==")) != 0 || <<count >= 16 { return false }
+    left := *e.fn.exprs[expr.left]
+    right := *e.fn.exprs[expr.right]
+    if left.kind != .IDENT || strcmp(left.name, value) != 0 { return false }
+    if right.kind == .CAST { right = *e.fn.exprs[right.right] }
+    if right.kind != .INT && right.kind != .STRING { return false }
+    labels[<<count] = expr.right
+    <<count += 1
+    return true
+}
+
+ContainsBreak :: (fn: *IR.ZirFunction, begin: s32, end: s32) -> bool {
+    s := begin
+    while s < end {
+        if fn.stmts[s].kind == .BREAK { return true }
+        s += 1
+    }
+    return false
+}
+
+EmitSwitch :: (e: *Emitter, declaration: s32, end: s32) -> s32 {
+    fn := e.fn
+    decl := *fn.stmts[declaration]
+    type := CCanonical(decl.type)
+    arms: [64]s32
+    arm_count: s32 = 0
+    close: s32 = -1
+    last_else: s32 = -1
+    if strncmp(decl.name, CStr("case_value_"), 11) != 0 || decl.expr_root < 0 ||
+       declaration + 1 >= end || fn.stmts[declaration + 1].kind != .IF ||
+       fn.stmts[declaration + 1].is_else != 0 {
+        return -1
+    }
+    if e.target != .ZIR_GO && CWidth(type) == 0 && CEnumType(e.module, type) == 0 { return -1 }
+    at := declaration + 1
+    while at < end && fn.stmts[at].kind == .IF && (at == declaration + 1 || fn.stmts[at].is_else != 0) {
+        labels: [16]s32
+        count: s32 = 0
+        close = BlockEnd(fn, at, end)
+        if fn.stmts[at].expr_root < 0 {
+            last_else = at
+            if ContainsBreak(fn, at + 1, close) { return -1 }
+            break
+        }
+        if arm_count >= 64 || !CaseLabels(e, fn.stmts[at].expr_root, decl.name, *labels[0], *count) ||
+           ContainsBreak(fn, at + 1, close) {
+            return -1
+        }
+        arms[arm_count] = at
+        arm_count += 1
+        at = close + 1
+    }
+    if arm_count < 2 || close < 0 { return -1 }
+    s := declaration + 2
+    while s <= close {
+        root := fn.stmts[s].expr_root
+        while root >= 0 {
+            if fn.stmts[s].kind != .IF && ExpressionReads(fn, root, decl.name) { return -1 }
+            root = fn.exprs[root].next_sibling
+        }
+        s += 1
+    }
+    val_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    plain_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    text_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    label_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer {
+        free(cast(*void)val_buf); free(cast(*void)plain_buf)
+        free(cast(*void)text_buf); free(cast(*void)label_buf)
+    }
+    e.call_in_place = 1
+    emit_expr(e, decl.expr_root, decl.type, val_buf, IR.ZIR_TEXT_MAX)
+    Bare(val_buf, plain_buf, IR.ZIR_TEXT_MAX)
+    EmitIndent(e)
+    fprintf(e.out, ifx e.target == .ZIR_GO then CStr("switch %s {\n") else CStr("switch (%s) {\n"), plain_buf)
+    for arm: cast(s32)0..arm_count {
+        arm_at := ifx arm < arm_count then arms[arm] else last_else
+        if arm_at < 0 { break }
+        body_end := BlockEnd(fn, arm_at, end)
+        if arm < arm_count {
+            labels: [16]s32
+            count: s32 = 0
+            used: usize = 0
+            CaseLabels(e, fn.stmts[arm_at].expr_root, decl.name, *labels[0], *count)
+            for l: cast(s32)0..count - 1 {
+                emit_expr(e, labels[l], decl.type, label_buf, IR.ZIR_TEXT_MAX)
+                sep := ifx l != 0 then (ifx e.target == .ZIR_GO then CStr(", ") else CStr(" ")) else CStr("")
+                fmt := ifx e.target == .ZIR_GO then CStr("%s%s") else CStr("%scase %s:")
+                used += cast(usize)CheckFormat(snprintf(PtrAdd(text_buf, used), IR.ZIR_TEXT_MAX - used,
+                                                        fmt, sep, Bare(label_buf, plain_buf, IR.ZIR_TEXT_MAX)),
+                                               IR.ZIR_TEXT_MAX - used)
+            }
+            EmitIndent(e)
+            fprintf(e.out, ifx e.target == .ZIR_GO then CStr("case %s:\n") else CStr("%s\n"), text_buf)
+        } else {
+            EmitLineText(e, CStr("default:"))
+        }
+        e.indent += 1
+        block := e.target != .ZIR_GO
+        if block {
+            EmitLineText(e, CStr("{"))
+            e.indent += 1
+        }
+        EmitSequence(e, arm_at + 1, body_end)
+        if e.target != .ZIR_GO && e.sequence_terminated == 0 {
+            EmitLineText(e, CStr("break;"))
+        }
+        if block {
+            e.indent -= 1
+            EmitLineText(e, CStr("}"))
+        }
+        e.indent -= 1
+    }
+    EmitLineText(e, CStr("}"))
+    e.sequence_terminated = 0
+    return close
+}
+
+OwnedDestinationFrees :: (e: *Emitter, index: s32) -> bool {
+    place := *e.fn.exprs[index]
+    field := place.kind == .MEMBER
+    if CEmitterTypeContainsVec(e.module, place.type, 0) == 0 { return false }
+    while place.kind == .MEMBER && place.left >= 0 {
+        place = *e.fn.exprs[place.left]
+        if place.type == null || place.type[0] == #char "*" { return false }
+    }
+    if place.kind != .IDENT { return false }
+    for i: cast(s32)0..e.local_count - 1 {
+        if strcmp(*e.locals[i].name[0], place.name) == 0 { return field }
+    }
+    return true
+}
+
+status_returns: *IR.ZirFunction = null;
+
+#scope_export
+
+#program_export
+EmitStatusReturns :: (fn: *IR.ZirFunction) {
+    status_returns = fn
+}
+
+#scope_file
+
+EmitSequence :: (e: *Emitter, begin: s32, end: s32) {
+    val_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    lhs_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    res_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    old_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    plain_buf := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    defer {
+        free(cast(*void)val_buf); free(cast(*void)lhs_buf); free(cast(*void)res_buf)
+        free(cast(*void)old_buf); free(cast(*void)plain_buf)
+    }
+    saved := e.local_count
+    e.depth += 1
+    e.sequence_terminated = 0
+    i := begin
+    while i < end {
+        st := *e.fn.stmts[i]
+        if st.kind == .ASSIGN && NativeStep(e, st) { i += 1; continue }
+        if st.kind == .DECL {
+            switch_end := EmitSwitch(e, i, end)
+            if switch_end >= 0 { i = switch_end + 1; continue }
+            if st.expr_root >= 0 && ArrayResultInPlace(e, st.expr_root, st.type, st.name) {
+                binding: [IR.ZIR_NAME_MAX]u8
+                element: [IR.ZIR_NAME_MAX * 2]u8
+                bounds: [IR.ZIR_NAME_MAX * 2]u8
+                AliasShadowedLocal(e, st.name)
+                CTargetBindingName(e.fn, e.target, st.name, *binding[0], IR.ZIR_NAME_MAX)
+                ArrayTargetType(e, st.type, *element[0], IR.ZIR_NAME_MAX * 2, *bounds[0], IR.ZIR_NAME_MAX * 2)
+                EmitIndent(e); fprintf(e.out, CStr("%s %s%s;\n"), *element[0], *binding[0], *bounds[0])
+                e.array_destination = *binding[0]
+                e.array_destination_used = 0
+                e.call_in_place = 1
+                emit_expr(e, st.expr_root, st.type, val_buf, IR.ZIR_TEXT_MAX)
+                e.array_destination = null
+                if e.array_destination_used == 0 { AssignValue(e, *binding[0], st.type, val_buf) }
+                TrackLocal(e, st.name, st.type)
+                i += 1
+                continue
+            }
+            if st.expr_root < 0 && e.target == .ZIR_C &&
+               Range.InitializedBeforeRead(e.ranges, e.fn, e.module, i) {
+                binding: [IR.ZIR_NAME_MAX]u8
+                element: [IR.ZIR_NAME_MAX * 2]u8
+                bounds: [IR.ZIR_NAME_MAX * 2]u8
+                AliasShadowedLocal(e, st.name)
+                CTargetBindingName(e.fn, e.target, st.name, *binding[0], IR.ZIR_NAME_MAX)
+                if ArrayElementType(st.type, null, 0, null) != 0 {
+                    ArrayTargetType(e, st.type, *element[0], IR.ZIR_NAME_MAX * 2, *bounds[0], IR.ZIR_NAME_MAX * 2)
+                    EmitIndent(e); fprintf(e.out, CStr("%s %s%s;\n"), *element[0], *binding[0], *bounds[0])
+                } else {
+                    e.resolve(e.context, st.type, *element[0], IR.ZIR_NAME_MAX * 2)
+                    EmitIndent(e); fprintf(e.out, CStr("%s %s;\n"), *element[0], *binding[0])
+                }
+                if CBindingUnread(e.fn, st.name) {
+                    EmitIndent(e); fprintf(e.out, CStr("(void)%s;\n"), *binding[0])
+                }
+                TrackLocal(e, st.name, st.type)
+                i += 1
+                continue
+            }
+            if st.expr_root >= 0 {
+                e.call_in_place = 1
+                e.braced_initializer = ifx e.fn.exprs[st.expr_root].kind == .COMPOUND then 1 else 0
+                emit_expr(e, st.expr_root, st.type, val_buf, IR.ZIR_TEXT_MAX)
+                e.short_declaration = TypedInitializer(e, st.expr_root, st.type)
+                if e.target == .ZIR_C && NamesBinding(e.fn, st.expr_root, st.name) {
+                    outer: [IR.ZIR_NAME_MAX]u8
+                    Fresh(e, *outer[0])
+                    e.short_declaration = 0
+                    Declare(e, *outer[0], st.type, val_buf)
+                    copy_text(val_buf, IR.ZIR_TEXT_MAX, *outer[0])
+                }
+            } else if CRecordType(e.module, st.type) != 0 {
+                ZeroRecord(e, st.type, val_buf, IR.ZIR_TEXT_MAX)
+            } else {
+                copy_text(val_buf, IR.ZIR_TEXT_MAX, CZeroValue(st.type, e.target))
+            }
+            AliasShadowedLocal(e, st.name)
+            Declare(e, st.name, st.type, val_buf)
+            if e.target == .ZIR_GO && !GoBindingReadLater(e.fn, i) {
+                binding: [IR.ZIR_NAME_MAX]u8
+                CTargetBindingName(e.fn, e.target, st.name, *binding[0], IR.ZIR_NAME_MAX)
+                EmitIndent(e); fprintf(e.out, CStr("_ = %s\n"), *binding[0])
+            }
+            if e.target == .ZIR_C && (CTypeHasZeroArray(e.module, st.type) != 0 || CBindingUnread(e.fn, st.name)) {
+                binding: [IR.ZIR_NAME_MAX]u8
+                CTargetBindingName(e.fn, e.target, st.name, *binding[0], IR.ZIR_NAME_MAX)
+                EmitIndent(e); fprintf(e.out, CStr("(void)%s;\n"), *binding[0])
+            }
+            TrackLocal(e, st.name, st.type)
+        } else if st.kind == .ASSIGN {
+            CaptureDestination(e, st.lhs_root, lhs_buf, IR.ZIR_TEXT_MAX)
+            if strcmp(*st.assignment_op[0], CStr("=")) != 0 {
+                lhs_type := e.fn.exprs[st.lhs_root].type
+                if expression_calls(e.fn, st.lhs_root) != 0 ||
+                   expression_calls(e.fn, st.expr_root) != 0 ||
+                   ArrayElementType(lhs_type, null, 0, null) != 0 {
+                    Fresh(e, old_buf)
+                    Declare(e, old_buf, lhs_type, lhs_buf)
+                } else {
+                    copy_text(old_buf, IR.ZIR_TEXT_MAX, lhs_buf)
+                }
+                emit_expr(e, st.expr_root, lhs_type, val_buf, IR.ZIR_TEXT_MAX)
+                op: [4]u8
+                copy_text(*op[0], 4, *st.assignment_op[0])
+                op[strlen(*op[0]) - 1] = 0
+                type := CCanonical(lhs_type)
+                if CWidth(type) != 0 {
+                    Number(e, type, old_buf, type, val_buf, e.fn.exprs[st.expr_root].type, Operation(*op[0]), res_buf, IR.ZIR_TEXT_MAX)
+                } else {
+                    CheckFormat(snprintf(res_buf, IR.ZIR_TEXT_MAX, CStr("%s %s %s"), old_buf, *op[0], val_buf), IR.ZIR_TEXT_MAX)
+                }
+                old_length := strlen(old_buf)
+                op_len := strlen(*op[0])
+                if e.target == .ZIR_GO && strcmp(old_buf, lhs_buf) == 0 &&
+                   strncmp(res_buf, old_buf, old_length) == 0 && res_buf[old_length] == #char " " &&
+                   strncmp(PtrAdd(res_buf, old_length + 1), *op[0], op_len) == 0 &&
+                   res_buf[old_length + 1 + op_len] == #char " " {
+                    operand := PtrAdd(res_buf, old_length + op_len + 2)
+                    EmitIndent(e)
+                    if strcmp(operand, CStr("1")) == 0 && (strcmp(*op[0], CStr("+")) == 0 || strcmp(*op[0], CStr("-")) == 0) {
+                        fprintf(e.out, CStr("%s%s\n"), lhs_buf, ifx strcmp(*op[0], CStr("+")) == 0 then CStr("++") else CStr("--"))
+                    } else {
+                        fprintf(e.out, CStr("%s %s= %s\n"), lhs_buf, *op[0], operand)
+                    }
+                    i += 1
+                    continue
+                }
+            } else {
+                frees_old := OwnedDestinationFrees(e, st.lhs_root)
+                e.call_in_place = ifx !frees_old && (e.fn.exprs[st.lhs_root].kind == .IDENT ||
+                    (expression_calls(e.fn, st.lhs_root) == 0 && call_can_change(e, st.lhs_root) == 0)) then 1 else 0
+                in_place := e.call_in_place != 0 && ArrayResultInPlace(e, st.expr_root, e.fn.exprs[st.lhs_root].type, null)
+                if in_place {
+                    e.array_destination = lhs_buf
+                    e.array_destination_used = 0
+                }
+                emit_expr(e, st.expr_root, e.fn.exprs[st.lhs_root].type, val_buf, IR.ZIR_TEXT_MAX)
+                e.array_destination = null
+                if in_place && e.array_destination_used != 0 { i += 1; continue }
+                copy_text(res_buf, IR.ZIR_TEXT_MAX, val_buf)
+                if frees_old {
+                    type := e.fn.exprs[st.lhs_root].type
+                    Fresh(e, old_buf)
+                    Declare(e, old_buf, type, val_buf)
+                    DropOwnedValue(e, lhs_buf, type, e.module, 0)
+                    copy_text(res_buf, IR.ZIR_TEXT_MAX, old_buf)
+                }
+            }
+            place := *e.fn.exprs[st.lhs_root]
+            if place.kind == .MEMBER || place.kind == .POINTER_MEMBER {
+                CSpelledFieldStore(e.target, CFieldRecord(e.module, e.fn.exprs[place.left].type, null),
+                                   place.name, res_buf, IR.ZIR_TEXT_MAX)
+            }
+            AssignValue(e, lhs_buf, e.fn.exprs[st.lhs_root].type, res_buf)
+        } else if st.kind == .RETURN {
+            if e.inline_label != null {
+                if st.expr_root >= 0 && e.inline_result != null {
+                    e.call_in_place = 1
+                    emit_expr(e, st.expr_root, *e.fn.return_type[0], val_buf, IR.ZIR_TEXT_MAX)
+                    AssignValue(e, e.inline_result, *e.fn.return_type[0], Bare(val_buf, plain_buf, IR.ZIR_TEXT_MAX))
+                }
+                if i != e.inline_tail {
+                    EmitIndent(e); fprintf(e.out, CStr("goto %s;\n"), e.inline_label)
+                    e.inline_jumps += 1
+                }
+                LeaveBlockLocals(e, saved)
+                e.sequence_terminated = 1
+                return
+            }
+            if st.expr_root >= 0 {
+                returned_type := *e.fn.return_type[0]
+                returned := *e.fn.exprs[st.expr_root]
+                if e.target == .ZIR_C && ArrayElementType(returned_type, null, 0, null) != 0 &&
+                   CTypeHasZeroArray(e.module, returned_type) == 0 && returned.type != null &&
+                   strcmp(CCanonical(returned.type), CCanonical(returned_type)) == 0 {
+                    output: [IR.ZIR_NAME_MAX]u8
+                    element: [IR.ZIR_NAME_MAX * 2]u8
+                    bounds: [IR.ZIR_NAME_MAX * 2]u8
+                    CArrayAbiName(e.fn, -1, *output[0], IR.ZIR_NAME_MAX)
+                    direct := ArrayResultInPlace(e, st.expr_root, returned_type, null)
+                    e.call_in_place = 1
+                    if direct {
+                        e.array_destination = *output[0]
+                        e.array_destination_used = 0
+                    } else {
+                        e.array_operand = 1
+                    }
+                    emit_expr(e, st.expr_root, returned_type, val_buf, IR.ZIR_TEXT_MAX)
+                    e.array_destination = null
+                    e.array_operand = 0
+                    if !direct || e.array_destination_used == 0 {
+                        ArrayTargetType(e, returned_type, *element[0], IR.ZIR_NAME_MAX * 2, *bounds[0], IR.ZIR_NAME_MAX * 2)
+                        EmitIndent(e); fprintf(e.out, CStr("memmove(%s, %s, sizeof(%s%s));\n"), *output[0], val_buf, *element[0], *bounds[0])
+                    }
+                    DropLocals(e, 0)
+                    EmitLineText(e, CStr("return;"))
+                    LeaveBlockLocals(e, saved)
+                    e.sequence_terminated = 1
+                    return
+                }
+                e.call_in_place = 1
+                emit_expr(e, st.expr_root, *e.fn.return_type[0], val_buf, IR.ZIR_TEXT_MAX)
+                if e.target == .ZIR_C && ArrayElementType(*e.fn.return_type[0], null, 0, null) != 0 {
+                    output: [IR.ZIR_NAME_MAX]u8
+                    CArrayAbiName(e.fn, -1, *output[0], IR.ZIR_NAME_MAX)
+                    EmitIndent(e); fprintf(e.out, CStr("memmove(%s, %s, sizeof(%s));\n"), *output[0], val_buf, val_buf)
+                    DropLocals(e, 0)
+                    EmitLineText(e, CStr("return;"))
+                } else {
+                    if HasOwnedLocals(e) != 0 {
+                        ret_tmp: [IR.ZIR_NAME_MAX]u8
+                        Fresh(e, *ret_tmp[0])
+                        Declare(e, *ret_tmp[0], *e.fn.return_type[0], val_buf)
+                        DropLocals(e, 0)
+                        copy_text(val_buf, IR.ZIR_TEXT_MAX, *ret_tmp[0])
+                    }
+                    EmitIndent(e)
+                    semi := ifx e.target == .ZIR_GO then CStr("") else CStr(";")
+                    fprintf(e.out, CStr("return %s%s\n"), Bare(val_buf, plain_buf, IR.ZIR_TEXT_MAX), semi)
+                }
+            } else {
+                DropLocals(e, 0)
+                if e.target == .ZIR_GO { EmitLineText(e, CStr("return")) }
+                else if e.fn == status_returns { EmitLineText(e, CStr("return 0;")) }
+                else { EmitLineText(e, CStr("return;")) }
+            }
+            LeaveBlockLocals(e, saved)
+            e.sequence_terminated = 1
+            return
+        } else if st.kind == .UNREACHABLE {
+            DropLocals(e, 0)
+            EmitLineText(e, ifx e.target == .ZIR_GO then CStr("panic(\"unreachable\")") else CStr("abort();"))
+            LeaveBlockLocals(e, saved)
+            e.sequence_terminated = 1
+            return
+        } else if st.kind == .IF {
+            i = EmitIf(e, i, end, 0)
+        } else if st.kind == .WHILE {
+            close := BlockEnd(e.fn, i, end)
+            labeled := false
+            if st.is_parallel != 0 && e.target == .ZIR_GO {
+                EmitLineText(e, CStr("// ziran: #parallel region downgraded to serial"))
+            }
+            if st.is_parallel != 0 && e.target == .ZIR_C {
+                region := cast(*ParallelRegion)AllocateOrExit(size_of(ParallelRegion))
+                if ParallelRegionAt(e.fn, i, region) && region.forward != 0 {
+                    function_name: [IR.ZIR_NAME_MAX]u8
+                    ordinal: s32 = 0
+                    CTargetBindingName(e.fn, e.target, *e.fn.name[0], *function_name[0], IR.ZIR_NAME_MAX)
+                    for s2: cast(s32)0..i - 1 {
+                        if e.fn.stmts[s2].kind == .WHILE && e.fn.stmts[s2].is_parallel != 0 &&
+                           ParallelRegionFits(e.fn, s2) { ordinal += 1 }
+                    }
+                    snprintf(*region.worker[0], IR.ZIR_NAME_MAX * 2, CStr("ziran_par_%s_%d"), *function_name[0], ordinal)
+                    ParallelRegionDispatch(e, region)
+                    free(cast(*void)region)
+                    i = close + 1
+                    continue
+                }
+                free(cast(*void)region)
+                EmitLineText(e, CStr("/* ziran: #parallel region downgraded to serial */"))
+            }
+            for target_idx: cast(s32)0..e.fn.stmt_count - 1 {
+                if st.loop_id != 0 && e.fn.stmts[target_idx].target_id == st.loop_id { labeled = true }
+            }
+            if labeled && e.target == .ZIR_GO {
+                EmitIndent(e); fprintf(e.out, CStr("zir_loop_%d:\n"), st.loop_id)
+            }
+            native := st.for_form != 0 && e.loop_header[0] != 0
+            binds := ifx native then e.loop_header_binds else cast(s32)0
+            if native {
+                EmitIndent(e); fprintf(e.out, CStr("%s {\n"), *e.loop_header[0])
+                e.loop_header[0] = 0
+                e.indent += 1
+            } else {
+                saved_out := e.out
+                saved_serial := e.serial
+                scratch := tmpfile()
+                header := false
+                if scratch != null {
+                    e.out = scratch
+                    e.call_in_place = 1
+                    emit_expr(e, st.expr_root, CStr("bool"), val_buf, IR.ZIR_TEXT_MAX)
+                    scratch_size := ScratchSizeClose(scratch)
+                    e.out = saved_out
+                    header = scratch_size == 0
+                }
+                if header {
+                    EmitIndent(e)
+                    fmt := CStr("while (%s) {\n")
+                    if e.target == .ZIR_GO { fmt = CStr("for %s {\n") }
+                    else if RangeTestsOnce(e.fn, i, close) { fmt = CStr("if (%s) for (;;) {\n") }
+                    fprintf(e.out, fmt, Bare(val_buf, plain_buf, IR.ZIR_TEXT_MAX))
+                    e.indent += 1
+                } else {
+                    e.serial = saved_serial
+                    EmitLineText(e, ifx e.target == .ZIR_GO then CStr("for {") else CStr("while (true) {"))
+                    e.indent += 1
+                    e.call_in_place = 1
+                    emit_expr(e, st.expr_root, CStr("bool"), val_buf, IR.ZIR_TEXT_MAX)
+                    EmitIndent(e)
+                    fprintf(e.out, ifx e.target == .ZIR_GO then CStr("if !%s { break }\n") else CStr("if (!%s) { break; }\n"), val_buf)
+                }
+            }
+            if labeled && e.target != .ZIR_GO {
+                EmitLineText(e, CStr("{"))
+                e.indent += 1
+            }
+            if e.loop_count >= 128 {
+                Diagnostic(st.span, CStr("emit.loop_nesting"), CStr("too many nested loops during emission"))
+                exit(1)
+            }
+            e.loop_start[e.loop_count] = e.local_count
+            e.loop_native[e.loop_count] = ifx native then 1 else 0
+            e.loop_id[e.loop_count] = st.loop_id
+            e.loop_count += 1
+            EmitSequence(e, i + 1 + binds, close)
+            e.loop_count -= 1
+            if labeled && e.target != .ZIR_GO {
+                e.indent -= 1
+                EmitLineText(e, CStr("}"))
+                EmitIndent(e); fprintf(e.out, CStr("zir_loop_continue_%d: ;\n"), st.loop_id)
+            }
+            e.indent -= 1
+            EmitLineText(e, CStr("}"))
+            if labeled && e.target != .ZIR_GO {
+                EmitIndent(e); fprintf(e.out, CStr("zir_loop_break_%d: ;\n"), st.loop_id)
+            }
+            i = close
+        } else if st.kind == .BLOCK_OPEN {
+            close := BlockEnd(e.fn, i, end)
+            if StatementHasAssembly(st) {
+                emitted: s32 = 0
+                if e.assembly != null { emitted = e.assembly(e.out, e.module, e.fn, i, e.assembly_context) }
+                else { emitted = EmitAssemblyBlock(e.out, e.module, e.fn, i, e.target) }
+                if emitted != 0 {
+                    e.indent += 2
+                    EmitSequence(e, i + 1, close)
+                    e.indent -= 2
+                    fputs(CStr("    }\n    }\n"), e.out)
+                    i = close + 1
+                    continue
+                }
+            }
+            if NativeFor(e, i, close) { i = close + 1; continue }
+            EmitLineText(e, CStr("{"))
+            e.indent += 1
+            EmitSequence(e, i + 1, close)
+            e.indent -= 1
+            EmitLineText(e, CStr("}"))
+            i = close
+        } else if st.kind == .BREAK || st.kind == .CONTINUE {
+            if e.loop_count > 0 {
+                target_idx := e.loop_count - 1
+                if st.target_id != 0 {
+                    while target_idx >= 0 && e.loop_id[target_idx] != st.target_id { target_idx -= 1 }
+                }
+                if target_idx >= 0 { DropLocals(e, e.loop_start[target_idx]) }
+            }
+            kw := ifx st.kind == .BREAK then CStr("break") else CStr("continue")
+            EmitIndent(e)
+            if st.target_id != 0 {
+                if e.target == .ZIR_GO { fprintf(e.out, CStr("%s zir_loop_%d\n"), kw, st.target_id) }
+                else { fprintf(e.out, CStr("goto zir_loop_%s_%d;\n"), kw, st.target_id) }
+            } else {
+                semi := ifx e.target == .ZIR_GO then CStr("") else CStr(";")
+                fprintf(e.out, CStr("%s%s\n"), kw, semi)
+            }
+            LeaveBlockLocals(e, saved)
+            e.sequence_terminated = 1
+            return
+        } else if st.kind == .EXPR || st.kind == .UNUSED {
+            if st.expr_root >= 0 {
+                expr := *e.fn.exprs[st.expr_root]
+                owned := CEmitterTypeContainsVec(e.module, expr.type, 0)
+                e.call_in_place = ifx owned == 0 then 1 else 0
+                emit_expr(e, st.expr_root, expr.type, val_buf, IR.ZIR_TEXT_MAX)
+                if val_buf[0] != 0 && expr.kind == .CALL && owned != 0 {
+                    temporary: [IR.ZIR_NAME_MAX]u8
+                    Fresh(e, *temporary[0])
+                    Declare(e, *temporary[0], expr.type, val_buf)
+                    DropTemporaryVec(e, *temporary[0], e.fn.exprs[st.expr_root].type)
+                } else if val_buf[0] != 0 && expr.kind == .CALL &&
+                          PlainIdentifier(val_buf) == 0 &&
+                          !(e.target == .ZIR_GO && CEnumType(e.module, expr.type) != 0) {
+                    EmitIndent(e)
+                    fprintf(e.out, ifx e.target == .ZIR_GO then CStr("%s\n") else CStr("%s;\n"), val_buf)
+                } else if val_buf[0] != 0 {
+                    EmitIndent(e)
+                    fprintf(e.out, ifx e.target == .ZIR_GO then CStr("_ = %s\n") else CStr("(void)%s;\n"), val_buf)
+                }
+            }
+        }
+        i += 1
+    }
+    DropLocals(e, saved)
+    LeaveBlockLocals(e, saved)
+    e.sequence_terminated = 0
+}
+
+#scope_export
+
+#program_export
+EmitBody :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget,
+             resolver: CEmit.ZirResolveTarget, context: *void,
+             assembly: ZirAssemblyBlockEmitter, assembly_context: *void) -> s32 {
+    if CanEmitBody(module, fn) == 0 { return 0 }
+    e := cast(*Emitter)AllocateOrExit(size_of(Emitter))
+    params := cast(*u8)AllocateOrExit(cast(usize)(64 * IR.ZIR_TEXT_MAX))
+    defer { free(cast(*void)e); free(cast(*void)params) }
+    memset(cast(*void)e, 0, size_of(Emitter))
+    e.out = out
+    e.module = module
+    e.fn = fn
+    e.target = target
+    e.resolve = resolver
+    e.context = context
+    e.indent = 1
+    e.minify = Val.zir_minify_output
+    e.simd_tier = ifx target == .ZIR_C then EmitSimdTier() else null
+    e.assembly = assembly
+    e.assembly_context = assembly_context
+    e.locals = cast(*Local)calloc(cast(usize)fn.stmt_count + 65, size_of(Local))
+    if e.locals == null {
+        Diagnostic(fn.span, CStr("emit.expression"), CStr("out of memory during scalar emission"))
+        exit(1)
+    }
+    defer { free(cast(*void)e.locals) }
+    args := FunctionArgs(fn)
+    count := ifx skip_ws(args)[0] != 0 then split_top_level(args, params, 64, IR.ZIR_TEXT_MAX) else cast(s32)0
+    for i: cast(s32)0..count - 1 {
+        param := PtrAdd(params, cast(usize)i * IR.ZIR_TEXT_MAX)
+        colon := strchr(param, #char ":")
+        colon[0] = 0
+        trim_in_place(param)
+        type := CCanonical(skip_ws(PtrAdd(colon, 1)))
+        if target == .ZIR_C && ArrayValueType(type) != 0 {
+            incoming: [IR.ZIR_NAME_MAX]u8
+            binding: [IR.ZIR_NAME_MAX]u8
+            CArrayAbiName(fn, i, *incoming[0], IR.ZIR_NAME_MAX)
+            CTargetBindingName(fn, target, param, *binding[0], IR.ZIR_NAME_MAX)
+            DeclareArray(e, *binding[0], type, *incoming[0])
+        }
+        TrackLocal(e, param, type)
+    }
+    if target == .ZIR_C { e.ranges = RangeFactsMod.RangeFactsBuild(fn) }
+    EmitSequence(e, 0, fn.stmt_count)
+    if e.sequence_terminated == 0 {
+        DropLocals(e, 0)
+        if strcmp(*fn.return_type[0], CStr("void")) != 0 {
+            EmitLineText(e, ifx target == .ZIR_GO then CStr("panic(\"unreachable\")") else CStr("abort();"))
+        }
+    }
+    RangeFactsMod.RangeFactsFree(e.ranges)
+    return 1
+}

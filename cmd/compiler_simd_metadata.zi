@@ -1,0 +1,823 @@
+// SIMD vector operations: names, signatures, constants, and helper-name tables.
+using IR :: #import "compiler_ir"
+Scalar :: #import "compiler_scalar"
+using Runtime :: #import "compiler_runtime_emit"
+
+#scope_export
+
+ZI_K_U8 :: 0
+ZI_K_S8 :: 1
+ZI_K_U16 :: 2
+ZI_K_S16 :: 3
+ZI_K_U32 :: 4
+ZI_K_S32 :: 5
+ZI_K_U64 :: 6
+ZI_K_S64 :: 7
+ZI_K_F32 :: 8
+ZI_K_F64 :: 9
+
+ZI_OP_ADD :: 1
+ZI_OP_SUB :: 2
+ZI_OP_MUL :: 3
+ZI_OP_DIV :: 4
+ZI_OP_ADD_SAT :: 5
+ZI_OP_SUB_SAT :: 6
+ZI_OP_MIN :: 7
+ZI_OP_MAX :: 8
+ZI_OP_AVG :: 9
+ZI_OP_MUL_HIGH :: 10
+ZI_OP_MUL_HIGH_ROUND :: 11
+ZI_OP_AND :: 12
+ZI_OP_OR :: 13
+ZI_OP_XOR :: 14
+ZI_OP_AND_NOT :: 15
+ZI_OP_NOT :: 16
+ZI_OP_ABS :: 17
+ZI_OP_NEG :: 18
+ZI_OP_EQ :: 19
+ZI_OP_LT :: 20
+ZI_OP_GT :: 21
+ZI_OP_SELECT :: 22
+ZI_OP_SHL :: 23
+ZI_OP_SHR :: 24
+ZI_OP_SHR_ROUND :: 25
+ZI_OP_SHL_LANES :: 26
+ZI_OP_SHR_LANES :: 27
+ZI_OP_SHL_BYTES :: 28
+ZI_OP_SHR_BYTES :: 29
+ZI_OP_ALIGN_BYTES :: 30
+ZI_OP_MAKE :: 31
+ZI_OP_SPLAT :: 32
+ZI_OP_ZERO :: 33
+ZI_OP_LANE :: 34
+ZI_OP_WITH_LANE :: 35
+ZI_OP_LOAD :: 36
+ZI_OP_LOAD_LOW :: 37
+ZI_OP_STORE :: 38
+ZI_OP_STORE_LOW :: 39
+ZI_OP_GATHER :: 40
+ZI_OP_WIDEN_LOW :: 41
+ZI_OP_WIDEN_HIGH :: 42
+ZI_OP_WIDEN :: 43
+ZI_OP_NARROW :: 44
+ZI_OP_MUL_WIDE_LOW :: 45
+ZI_OP_MUL_WIDE_HIGH :: 46
+ZI_OP_MADD :: 47
+ZI_OP_MADD_SAT :: 48
+ZI_OP_ADD_PAIRS :: 49
+ZI_OP_SAD :: 50
+ZI_OP_REDUCE_ADD :: 51
+ZI_OP_REDUCE_MIN :: 52
+ZI_OP_REDUCE_MAX :: 53
+ZI_OP_REDUCE_MAX_INDEX :: 54
+ZI_OP_ALL_ZERO :: 55
+ZI_OP_BYTE_SHUFFLE :: 56
+ZI_OP_SHUFFLE :: 57
+ZI_OP_REINTERPRET :: 58
+ZI_OP_CONVERT :: 59
+ZI_OP_LOW :: 60
+ZI_OP_HIGH :: 61
+ZI_OP_COMBINE :: 62
+ZI_OP_INTERLEAVE_LOW :: 63
+ZI_OP_INTERLEAVE_HIGH :: 64
+ZI_OP_SIGN :: 65
+ZI_OP_ABS_DIFF :: 66
+ZI_OP_LANES :: 67
+ZI_OP_BLOCKS :: 68
+
+SIMD_MEMORY_NONE :: 0
+SIMD_MEMORY_SLICE :: 1
+SIMD_MEMORY_ARRAY :: 2
+SIMD_MEMORY_POINTER :: 3
+SIMD_MEMORY_STRING :: 4
+
+SimdShape :: enum s32 {
+    SIMD_BINARY :: 0
+    SIMD_UNARY :: 1
+    SIMD_COMPARE :: 2
+    SIMD_SELECT :: 3
+    SIMD_SHIFT :: 4
+    SIMD_SHIFT_LANES :: 5
+    SIMD_BYTE_SHIFT :: 6
+    SIMD_ALIGN :: 7
+    SIMD_MAKE :: 8
+    SIMD_SPLAT :: 9
+    SIMD_ZERO :: 10
+    SIMD_LANE :: 11
+    SIMD_WITH_LANE :: 12
+    SIMD_LOAD :: 13
+    SIMD_STORE :: 14
+    SIMD_GATHER :: 15
+    SIMD_WIDEN_HALF :: 16
+    SIMD_WIDEN :: 17
+    SIMD_NARROW :: 18
+    SIMD_MUL_WIDE :: 19
+    SIMD_MADD :: 20
+    SIMD_MADD_SAT :: 21
+    SIMD_ADD_PAIRS :: 22
+    SIMD_SAD :: 23
+    SIMD_REDUCE :: 24
+    SIMD_ALL_ZERO :: 25
+    SIMD_BYTE_SHUFFLE :: 26
+    SIMD_SHUFFLE :: 27
+    SIMD_REINTERPRET :: 28
+    SIMD_CONVERT :: 29
+    SIMD_HALF :: 30
+    SIMD_COMBINE :: 31
+    SIMD_COUNT :: 32
+}
+
+SimdVector :: struct {
+    name: *u8
+    lane: *u8
+    lanes: s32
+    lane_bits: s32
+    bytes: s32
+    is_signed: s32
+    is_float: s32
+    is_native: s32
+    block: *u8
+}
+
+SimdOp :: struct {
+    id: s32
+    name: *u8 #c "const char *"
+    snake: *u8 #c "const char *"
+    checked: *u8 #c "const char *"
+    shape: SimdShape
+    lanes: u32
+    type_argument: s32
+}
+
+SimdOperand :: struct {
+    type: *u8 #c "const char *"
+    is_constant: s32
+    value: s64
+}
+
+#scope_file
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+free :: (memory: *void) #foreign libc "free";
+memcpy :: (dst: *void, src: *void, count: usize) -> *void #foreign libc "memcpy";
+memset :: (dst: *void, value: s32, count: usize) -> *void #foreign libc "memset";
+memcmp :: (a: *void, b: *void, count: usize) -> s32 #foreign libc "memcmp";
+strlen :: (s: *u8) -> usize #foreign libc "strlen";
+strcmp :: (a: *u8, b: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (a: *u8, b: *u8, n: usize) -> s32 #foreign libc "strncmp";
+strcpy :: (dst: *u8, src: *u8) -> *u8 #foreign libc "strcpy";
+snprintf :: (out: *u8, size: usize, fmt: *u8, args: ..any) -> s32 #foreign libc "snprintf";
+
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
+ScalarWidthZiran :: (type: *void) -> u32 #foreign compiler "ScalarWidthZiran";
+SliceElementType :: (type: *u8, element: *u8, size: usize) -> s32 #foreign compiler "SliceElementType";
+ArrayElementType :: (type: *u8, element: *u8, size: usize, capacity: *s32) -> s32 #foreign compiler "ArrayElementType";
+VectorType :: (type: *u8, vector: *SimdVector) -> s32 #foreign compiler "VectorType";
+VectorTypeName :: (lane: *u8, lanes: s32) -> *u8 #foreign compiler "VectorTypeName";
+NativeVectorName :: (lane: *u8) -> *u8 #foreign compiler "NativeVectorName";
+
+StaticText :: struct { data: *u8; length: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+PtrAdd :: (base: *u8, offset: usize) -> *u8 { return cast(*u8)(cast(usize)base + offset) }
+
+LANE_U8 :: 1
+LANE_S8 :: 2
+LANE_U16 :: 4
+LANE_S16 :: 8
+LANE_U32 :: 16
+LANE_S32 :: 32
+LANE_U64 :: 64
+LANE_S64 :: 128
+LANE_F32 :: 256
+LANE_F64 :: 512
+LANE_INT :: 255
+LANE_FLOAT :: 768
+LANE_ANY :: 1023
+LANE_SMALL :: 15
+LANE_NARROWABLE :: 63
+
+OP_COUNT :: 68
+
+g_ops: [OP_COUNT]SimdOp;
+
+SimdInitializer :: #type () #c_call;
+ZirSimdInitialize :: (initialize: SimdInitializer) #foreign compiler "ZirSimdInitialize";
+
+SetOp :: (idx: s32, id: s32, name: string, snake: string, checked: string, shape: SimdShape, lanes: u32, typed: s32) {
+    g_ops[idx].id = id
+    g_ops[idx].name = CStr(name)
+    g_ops[idx].snake = CStr(snake)
+    g_ops[idx].checked = CStr(checked)
+    g_ops[idx].shape = shape
+    g_ops[idx].lanes = lanes
+    g_ops[idx].type_argument = typed
+}
+
+InitializeOps :: () {
+    i: s32 = 0
+    SetOp(i, ZI_OP_ADD, "Add", "add", "zi_simd_add", .SIMD_BINARY, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_SUB, "Sub", "sub", "zi_simd_sub", .SIMD_BINARY, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_MUL, "Mul", "mul", "zi_simd_mul", .SIMD_BINARY, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_DIV, "Div", "div", "zi_simd_div", .SIMD_BINARY, LANE_FLOAT, 0); i += 1
+    SetOp(i, ZI_OP_ADD_SAT, "AddSat", "add_sat", "zi_simd_add_sat", .SIMD_BINARY, LANE_SMALL, 0); i += 1
+    SetOp(i, ZI_OP_SUB_SAT, "SubSat", "sub_sat", "zi_simd_sub_sat", .SIMD_BINARY, LANE_SMALL, 0); i += 1
+    SetOp(i, ZI_OP_MIN, "Min", "min", "zi_simd_min", .SIMD_BINARY, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_MAX, "Max", "max", "zi_simd_max", .SIMD_BINARY, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_AVG, "Average", "avg", "zi_simd_avg", .SIMD_BINARY, LANE_U8 | LANE_U16, 0); i += 1
+    SetOp(i, ZI_OP_MUL_HIGH, "MulHigh", "mul_high", "zi_simd_mul_high", .SIMD_BINARY, LANE_U16 | LANE_S16, 0); i += 1
+    SetOp(i, ZI_OP_MUL_HIGH_ROUND, "MulHighRound", "mul_high_round", "zi_simd_mul_high_round", .SIMD_BINARY, LANE_S16, 0); i += 1
+    SetOp(i, ZI_OP_AND, "And", "and", "zi_simd_and", .SIMD_BINARY, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_OR, "Or", "or", "zi_simd_or", .SIMD_BINARY, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_XOR, "Xor", "xor", "zi_simd_xor", .SIMD_BINARY, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_AND_NOT, "AndNot", "and_not", "zi_simd_and_not", .SIMD_BINARY, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_NOT, "Not", "not", "zi_simd_not", .SIMD_UNARY, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_ABS, "Abs", "abs", "zi_simd_abs", .SIMD_UNARY, LANE_S8 | LANE_S16 | LANE_S32 | LANE_S64 | LANE_FLOAT, 0); i += 1
+    SetOp(i, ZI_OP_NEG, "Neg", "neg", "zi_simd_neg", .SIMD_UNARY, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_SIGN, "Sign", "sign", "zi_simd_sign", .SIMD_BINARY, LANE_S8 | LANE_S16 | LANE_S32 | LANE_S64, 0); i += 1
+    SetOp(i, ZI_OP_ABS_DIFF, "AbsDiff", "abs_diff", "zi_simd_abs_diff", .SIMD_BINARY, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_EQ, "Equal", "eq", "zi_simd_eq", .SIMD_COMPARE, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_LT, "Less", "lt", "zi_simd_lt", .SIMD_COMPARE, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_GT, "Greater", "gt", "zi_simd_gt", .SIMD_COMPARE, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_SELECT, "Select", "select", "zi_simd_select", .SIMD_SELECT, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_SHL, "ShiftLeft", "shl", "zi_simd_shl", .SIMD_SHIFT, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_SHR, "ShiftRight", "shr", "zi_simd_shr", .SIMD_SHIFT, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_SHR_ROUND, "ShiftRightRound", "shr_round", "zi_simd_shr_round", .SIMD_SHIFT, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_SHL_LANES, "ShiftLeftLanes", "shl_lanes", "zi_simd_shl_lanes", .SIMD_SHIFT_LANES, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_SHR_LANES, "ShiftRightLanes", "shr_lanes", "zi_simd_shr_lanes", .SIMD_SHIFT_LANES, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_SHL_BYTES, "ShiftBytesLeft", "shl_bytes", "zi_simd_shl_bytes", .SIMD_BYTE_SHIFT, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_SHR_BYTES, "ShiftBytesRight", "shr_bytes", "zi_simd_shr_bytes", .SIMD_BYTE_SHIFT, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_ALIGN_BYTES, "AlignBytes", "align_bytes", "zi_simd_align_bytes", .SIMD_ALIGN, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_MAKE, "Make", "make", "zi_simd_make", .SIMD_MAKE, LANE_ANY, 1); i += 1
+    SetOp(i, ZI_OP_SPLAT, "Splat", "splat", "zi_simd_splat", .SIMD_SPLAT, LANE_ANY, 1); i += 1
+    SetOp(i, ZI_OP_ZERO, "Zero", "zero", "zi_simd_zero", .SIMD_ZERO, LANE_ANY, 1); i += 1
+    SetOp(i, ZI_OP_LANE, "Lane", "lane", "zi_simd_lane", .SIMD_LANE, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_WITH_LANE, "WithLane", "with_lane", "zi_simd_with_lane", .SIMD_WITH_LANE, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_LOAD, "Load", "load", "zi_simd_load", .SIMD_LOAD, LANE_ANY, 1); i += 1
+    SetOp(i, ZI_OP_LOAD_LOW, "LoadLow", "load_low", "zi_simd_load_low", .SIMD_LOAD, LANE_ANY, 1); i += 1
+    SetOp(i, ZI_OP_STORE, "Store", "store", "zi_simd_store", .SIMD_STORE, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_STORE_LOW, "StoreLow", "store_low", "zi_simd_store_low", .SIMD_STORE, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_GATHER, "Gather", "gather", "zi_simd_gather", .SIMD_GATHER, LANE_U32 | LANE_S32, 0); i += 1
+    SetOp(i, ZI_OP_WIDEN_LOW, "WidenLow", "widen_low", "zi_simd_widen_low", .SIMD_WIDEN_HALF, LANE_NARROWABLE, 0); i += 1
+    SetOp(i, ZI_OP_WIDEN_HIGH, "WidenHigh", "widen_high", "zi_simd_widen_high", .SIMD_WIDEN_HALF, LANE_NARROWABLE, 0); i += 1
+    SetOp(i, ZI_OP_WIDEN, "Widen", "widen", "zi_simd_widen", .SIMD_WIDEN, LANE_NARROWABLE, 0); i += 1
+    SetOp(i, ZI_OP_NARROW, "Narrow", "narrow", "zi_simd_narrow", .SIMD_NARROW, LANE_U16 | LANE_S16 | LANE_U32 | LANE_S32 | LANE_U64 | LANE_S64, 1); i += 1
+    SetOp(i, ZI_OP_MUL_WIDE_LOW, "MulWideLow", "mul_wide_low", "zi_simd_mul_wide_low", .SIMD_MUL_WIDE, LANE_NARROWABLE, 0); i += 1
+    SetOp(i, ZI_OP_MUL_WIDE_HIGH, "MulWideHigh", "mul_wide_high", "zi_simd_mul_wide_high", .SIMD_MUL_WIDE, LANE_NARROWABLE, 0); i += 1
+    SetOp(i, ZI_OP_MADD, "MulAddPairs", "madd", "zi_simd_madd", .SIMD_MADD, LANE_S16, 0); i += 1
+    SetOp(i, ZI_OP_MADD_SAT, "MulAddPairsSat", "madd_sat", "zi_simd_madd_sat", .SIMD_MADD_SAT, LANE_U8, 0); i += 1
+    SetOp(i, ZI_OP_ADD_PAIRS, "AddPairs", "add_pairs", "zi_simd_add_pairs", .SIMD_ADD_PAIRS, LANE_NARROWABLE, 0); i += 1
+    SetOp(i, ZI_OP_SAD, "SumAbsDiff", "sad", "zi_simd_sad", .SIMD_SAD, LANE_U8, 0); i += 1
+    SetOp(i, ZI_OP_REDUCE_ADD, "ReduceAdd", "reduce_add", "zi_simd_reduce_add", .SIMD_REDUCE, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_REDUCE_MIN, "ReduceMin", "reduce_min", "zi_simd_reduce_min", .SIMD_REDUCE, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_REDUCE_MAX, "ReduceMax", "reduce_max", "zi_simd_reduce_max", .SIMD_REDUCE, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_REDUCE_MAX_INDEX, "ReduceMaxIndex", "reduce_max_index", "zi_simd_reduce_max_index", .SIMD_REDUCE, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_ALL_ZERO, "AllZero", "all_zero", "zi_simd_all_zero", .SIMD_ALL_ZERO, LANE_INT, 0); i += 1
+    SetOp(i, ZI_OP_BYTE_SHUFFLE, "ByteShuffle", "byte_shuffle", "zi_simd_byte_shuffle", .SIMD_BYTE_SHUFFLE, LANE_U8 | LANE_S8, 0); i += 1
+    SetOp(i, ZI_OP_SHUFFLE, "Shuffle", "shuffle", "zi_simd_shuffle", .SIMD_SHUFFLE, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_REINTERPRET, "Reinterpret", "reinterpret", "zi_simd_reinterpret", .SIMD_REINTERPRET, LANE_ANY, 1); i += 1
+    SetOp(i, ZI_OP_CONVERT, "Convert", "convert", "zi_simd_convert", .SIMD_CONVERT, LANE_ANY, 1); i += 1
+    SetOp(i, ZI_OP_LOW, "Low", "low", "zi_simd_low", .SIMD_HALF, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_HIGH, "High", "high", "zi_simd_high", .SIMD_HALF, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_COMBINE, "Combine", "combine", "zi_simd_combine", .SIMD_COMBINE, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_INTERLEAVE_LOW, "InterleaveLow", "interleave_low", "zi_simd_interleave_low", .SIMD_BINARY, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_INTERLEAVE_HIGH, "InterleaveHigh", "interleave_high", "zi_simd_interleave_high", .SIMD_BINARY, LANE_ANY, 0); i += 1
+    SetOp(i, ZI_OP_LANES, "Lanes", "lanes", "zi_simd_lanes", .SIMD_COUNT, LANE_ANY, 1); i += 1
+    SetOp(i, ZI_OP_BLOCKS, "Blocks", "blocks", "zi_simd_blocks", .SIMD_COUNT, LANE_ANY, 1); i += 1
+}
+
+#scope_export
+
+#program_export "SimdLaneKind"
+SimdLaneKind :: (vector: *SimdVector) -> s32 {
+    if strcmp(vector.lane, CStr("u8")) == 0 { return 0 }
+    if strcmp(vector.lane, CStr("s8")) == 0 { return 1 }
+    if strcmp(vector.lane, CStr("u16")) == 0 { return 2 }
+    if strcmp(vector.lane, CStr("s16")) == 0 { return 3 }
+    if strcmp(vector.lane, CStr("u32")) == 0 { return 4 }
+    if strcmp(vector.lane, CStr("s32")) == 0 { return 5 }
+    if strcmp(vector.lane, CStr("u64")) == 0 { return 6 }
+    if strcmp(vector.lane, CStr("s64")) == 0 { return 7 }
+    if strcmp(vector.lane, CStr("float32")) == 0 { return 8 }
+    if strcmp(vector.lane, CStr("float64")) == 0 { return 9 }
+    return -1
+}
+
+#program_export "SimdOpAt"
+SimdOpAt :: (index: s32) -> *SimdOp {
+    if index < 0 || index >= OP_COUNT { return null }
+    ZirSimdInitialize(InitializeOps)
+    return *g_ops[index]
+}
+
+#program_export "SimdOpNamed"
+SimdOpNamed :: (name: *u8) -> *SimdOp {
+    if name == null { return null }
+    ZirSimdInitialize(InitializeOps)
+    for i: cast(s32)0..OP_COUNT - 1 {
+        if strcmp(name, g_ops[i].name) == 0 { return *g_ops[i] }
+    }
+    return null
+}
+
+#program_export "SimdOpChecked"
+SimdOpChecked :: (name: *u8) -> *SimdOp {
+    if name == null || strncmp(name, CStr("zi_simd_"), 8) != 0 { return null }
+    ZirSimdInitialize(InitializeOps)
+    rest := PtrAdd(name, 8)
+    for i: cast(s32)0..OP_COUNT - 1 {
+        if g_ops[i].snake[0] == rest[0] && strcmp(rest, g_ops[i].snake) == 0 {
+            return *g_ops[i]
+        }
+    }
+    return null
+}
+
+#program_export "SimdModule"
+SimdModule :: (module: *IR.ZirModule) -> s32 {
+    return ifx module != null && strcmp(*module.standard_name[0], CStr("simd")) == 0 then 1 else 0
+}
+
+#program_export "SimdBlockLanes"
+SimdBlockLanes :: (vector: *SimdVector) -> s32 {
+    return ifx vector.bytes > 16 then vector.lanes / 2 else vector.lanes
+}
+
+#program_export "SimdNativeHelper"
+SimdNativeHelper :: (op: *SimdOp) -> s32 {
+    id := op.id
+    if id == ZI_OP_WIDEN_LOW || id == ZI_OP_WIDEN_HIGH || id == ZI_OP_MUL_WIDE_LOW ||
+       id == ZI_OP_MUL_WIDE_HIGH || id == ZI_OP_NARROW || id == ZI_OP_MAKE ||
+       id == ZI_OP_LOAD_LOW || id == ZI_OP_STORE_LOW {
+        return 1
+    }
+    return 0
+}
+
+#program_export "SimdMemory"
+SimdMemory :: (type: *u8, element: *u8, size: usize, capacity: *s32) -> s32 {
+    inner: [IR.ZIR_NAME_MAX]u8
+    kind: s32 = SIMD_MEMORY_NONE
+    count: s32 = -1
+    if type == null { return 0 }
+    if strcmp(ScalarType(type), CStr("string")) == 0 {
+        kind = SIMD_MEMORY_STRING
+        strcpy(*inner[0], CStr("u8"))
+    } else if SliceElementType(type, *inner[0], IR.ZIR_NAME_MAX) != 0 {
+        kind = SIMD_MEMORY_SLICE
+    } else if ArrayElementType(type, *inner[0], IR.ZIR_NAME_MAX, *count) != 0 {
+        kind = SIMD_MEMORY_ARRAY
+    } else if type[0] == #char "*" && strlen(PtrAdd(type, 1)) < IR.ZIR_NAME_MAX {
+        kind = SIMD_MEMORY_POINTER
+        strcpy(*inner[0], PtrAdd(type, 1))
+    } else {
+        return SIMD_MEMORY_NONE
+    }
+    scalar := ScalarType(*inner[0])
+    if element != null {
+        snprintf(element, size, CStr("%s"), ifx scalar[0] != 0 then scalar else *inner[0])
+    }
+    if capacity != null { capacity.* = count }
+    return kind
+}
+
+#scope_file
+
+IntegerScalar :: (type: *u8) -> bool {
+    if strcmp(type, CStr("integer")) == 0 { return true }
+    scalar := ScalarType(type)
+    return ScalarWidthZiran(cast(*void)scalar) > 0 ||
+           strcmp(scalar, CStr("isize")) == 0 || strcmp(scalar, CStr("usize")) == 0
+}
+
+LaneOperand :: (vector: *SimdVector, operand: *SimdOperand) -> bool {
+    type := operand.type
+    scalar := ScalarType(type)
+    if vector.is_float != 0 {
+        return strcmp(type, CStr("real")) == 0 || strcmp(type, CStr("integer")) == 0 ||
+               strcmp(scalar, vector.lane) == 0 ||
+               (strcmp(scalar, CStr("float32")) == 0 && strcmp(vector.lane, CStr("float64")) == 0)
+    }
+    if strcmp(type, CStr("integer")) == 0 {
+        if operand.is_constant == 0 { return true }
+        if vector.lane_bits == 64 { return vector.is_signed != 0 || operand.value >= 0 }
+        high := ifx vector.is_signed != 0 then (cast(s64)1 << (vector.lane_bits - 1)) - 1 else (cast(s64)1 << vector.lane_bits) - 1
+        low := ifx vector.is_signed != 0 then -high - 1 else cast(s64)0
+        return operand.value >= low && operand.value <= high
+    }
+    w: u32 = ifx scalar[0] != 0 then ScalarWidthZiran(cast(*void)scalar) else 0
+    if w == 0 { return false }
+    if strcmp(scalar, vector.lane) == 0 { return true }
+    return cast(s32)w < vector.lane_bits && (scalar[0] == #char "u" || vector.is_signed != 0)
+}
+
+Wider :: (vector: *SimdVector, lanes: s32) -> *u8 {
+    lane: [8]u8
+    ch: s32 = ifx vector.is_signed != 0 then #char "s" else #char "u"
+    snprintf(*lane[0], 8, CStr("%c%d"), ch, vector.lane_bits * 2)
+    return VectorTypeName(*lane[0], lanes)
+}
+
+VectorOf :: (op: *SimdOp, operand: *SimdOperand, vector: *SimdVector) -> bool {
+    if VectorType(operand.type, vector) == 0 { return false }
+    kind := SimdLaneKind(vector)
+    return kind >= 0 && (op.lanes & (cast(u32)1 << cast(u32)kind)) != 0
+}
+
+Fail :: (message: **u8, text: string) -> *u8 {
+    message.* = CStr(text)
+    return null
+}
+
+Signature :: (op: *SimdOp, result: *u8, operands: *SimdOperand, count: s32, message: **u8) -> *u8 {
+    a: SimdVector
+    b: SimdVector
+    r: SimdVector
+    element: [IR.ZIR_NAME_MAX]u8
+    unsupported := "does not take this vector type"
+    message.* = CStr("")
+    if op.type_argument != 0 && op.shape != .SIMD_COUNT && (result == null || VectorType(result, *r) == 0) {
+        return Fail(message, "takes a vector type first, such as s16x8")
+    }
+    if op.shape == .SIMD_BINARY || op.shape == .SIMD_COMPARE {
+        if count != 2 { return Fail(message, "takes two vectors of one type") }
+        if !VectorOf(op, *operands[0], *a) { return Fail(message, unsupported) }
+        if strcmp(operands[0].type, operands[1].type) != 0 {
+            return Fail(message, "takes two vectors of one type")
+        }
+        if (op.shape == .SIMD_COMPARE && a.is_float != 0) || op.id == ZI_OP_ABS_DIFF {
+            lane: [8]u8
+            snprintf(*lane[0], 8, CStr("u%d"), a.lane_bits)
+            return VectorTypeName(*lane[0], a.lanes)
+        }
+        return a.name
+    }
+    if op.shape == .SIMD_UNARY {
+        if count != 1 { return Fail(message, "takes one vector") }
+        if !VectorOf(op, *operands[0], *a) { return Fail(message, unsupported) }
+        return a.name
+    }
+    if op.shape == .SIMD_SELECT {
+        if count != 3 { return Fail(message, "takes a mask and two vectors of one type") }
+        if VectorType(operands[0].type, *b) == 0 || b.is_float != 0 ||
+           !VectorOf(op, *operands[1], *a) || strcmp(operands[1].type, operands[2].type) != 0 ||
+           b.lanes != a.lanes || b.lane_bits != a.lane_bits {
+            return Fail(message, "takes an integer mask with the vectors' lane width, then two vectors of one type")
+        }
+        return a.name
+    }
+    if op.shape == .SIMD_SHIFT {
+        if count != 2 || !VectorOf(op, *operands[0], *a) || !IntegerScalar(operands[1].type) {
+            return Fail(message, "takes an integer vector and an integer count")
+        }
+        return a.name
+    }
+    if op.shape == .SIMD_SHIFT_LANES {
+        if count != 2 || !VectorOf(op, *operands[0], *a) || strcmp(operands[0].type, operands[1].type) != 0 {
+            return Fail(message, "takes an integer vector and a vector of counts of the same type")
+        }
+        return a.name
+    }
+    if op.shape == .SIMD_BYTE_SHIFT {
+        if count != 2 || !VectorOf(op, *operands[0], *a) {
+            return Fail(message, "takes an integer vector and a constant byte count")
+        }
+        if operands[1].is_constant == 0 || operands[1].value < 0 || operands[1].value > 16 {
+            return Fail(message, "takes a constant byte count from 0 to 16")
+        }
+        return a.name
+    }
+    if op.shape == .SIMD_ALIGN {
+        if count != 3 || !VectorOf(op, *operands[0], *a) || strcmp(operands[0].type, operands[1].type) != 0 {
+            return Fail(message, "takes two integer vectors of one type and a constant byte count")
+        }
+        if operands[2].is_constant == 0 || operands[2].value < 0 || operands[2].value > 16 {
+            return Fail(message, "takes a constant byte count from 0 to 16")
+        }
+        return a.name
+    }
+    if op.shape == .SIMD_MAKE {
+        kind := SimdLaneKind(*r)
+        if (op.lanes & (cast(u32)1 << cast(u32)kind)) == 0 { return Fail(message, unsupported) }
+        if count != r.lanes { return Fail(message, "takes the vector type and one value for each lane") }
+        for i: cast(s32)0..count - 1 {
+            if !LaneOperand(*r, *operands[i]) { return Fail(message, "takes lane values of the vector's lane type") }
+        }
+        return r.name
+    }
+    if op.shape == .SIMD_SPLAT {
+        if count != 1 || !LaneOperand(*r, *operands[0]) {
+            return Fail(message, "takes the vector type and one value of its lane type")
+        }
+        return r.name
+    }
+    if op.shape == .SIMD_ZERO {
+        if count != 0 { return Fail(message, "takes only the vector type") }
+        return r.name
+    }
+    if op.shape == .SIMD_LANE {
+        if count != 2 || !VectorOf(op, *operands[0], *a) {
+            return Fail(message, "takes a vector and a constant lane index")
+        }
+        if operands[1].is_constant == 0 || operands[1].value < 0 || operands[1].value >= cast(s64)a.lanes {
+            return Fail(message, "takes a constant lane index below the lane count")
+        }
+        return a.lane
+    }
+    if op.shape == .SIMD_WITH_LANE {
+        if count != 3 || !VectorOf(op, *operands[0], *a) {
+            return Fail(message, "takes a vector, a constant lane index and a lane value")
+        }
+        if operands[1].is_constant == 0 || operands[1].value < 0 || operands[1].value >= cast(s64)a.lanes {
+            return Fail(message, "takes a constant lane index below the lane count")
+        }
+        if !LaneOperand(*a, *operands[2]) { return Fail(message, "takes a lane value of the vector's lane type") }
+        return a.name
+    }
+    if op.shape == .SIMD_LOAD {
+        if count != 2 || SimdMemory(operands[0].type, *element[0], IR.ZIR_NAME_MAX, null) == 0 ||
+           strcmp(*element[0], r.lane) != 0 || !IntegerScalar(operands[1].type) {
+            return Fail(message, "takes the vector type, a slice, array or pointer of its lane type (or a string for u8 lanes), and an index")
+        }
+        return r.name
+    }
+    if op.shape == .SIMD_STORE {
+        memory: s32 = ifx count == 3 then SimdMemory(operands[0].type, *element[0], IR.ZIR_NAME_MAX, null) else 0
+        if (memory != SIMD_MEMORY_SLICE && memory != SIMD_MEMORY_POINTER) ||
+           !IntegerScalar(operands[1].type) || VectorType(operands[2].type, *a) == 0 ||
+           strcmp(*element[0], a.lane) != 0 {
+            return Fail(message, "takes a slice or pointer of the vector's lane type, an index and the vector")
+        }
+        return CStr("void")
+    }
+    if op.shape == .SIMD_GATHER {
+        if count != 2 || SimdMemory(operands[0].type, *element[0], IR.ZIR_NAME_MAX, null) == 0 ||
+           !VectorOf(op, *operands[1], *a) || a.lane_bits != 32 ||
+           (strcmp(*element[0], CStr("s32")) != 0 && strcmp(*element[0], CStr("u32")) != 0 && strcmp(*element[0], CStr("float32")) != 0) {
+            return Fail(message, "takes a table of s32, u32 or float32 and a vector of s32 or u32 indices")
+        }
+        return VectorTypeName(*element[0], a.lanes)
+    }
+    if op.shape == .SIMD_WIDEN_HALF || op.shape == .SIMD_MUL_WIDE || op.shape == .SIMD_ADD_PAIRS {
+        need: s32 = ifx op.shape == .SIMD_MUL_WIDE then 2 else 1
+        if count != need || !VectorOf(op, *operands[0], *a) ||
+           (count == 2 && strcmp(operands[0].type, operands[1].type) != 0) {
+            msg := ifx op.shape == .SIMD_MUL_WIDE then "takes two integer vectors of one type with lanes up to 32 bits" else "takes an integer vector with lanes up to 32 bits"
+            return Fail(message, msg)
+        }
+        return Wider(*a, a.lanes / 2)
+    }
+    if op.shape == .SIMD_WIDEN {
+        if count != 1 || !VectorOf(op, *operands[0], *a) || a.bytes != 16 {
+            return Fail(message, "takes a 128-bit integer vector with lanes up to 32 bits")
+        }
+        return Wider(*a, a.lanes)
+    }
+    if op.shape == .SIMD_NARROW {
+        if count != 2 || !VectorOf(op, *operands[0], *a) || strcmp(operands[0].type, operands[1].type) != 0 ||
+           r.is_float != 0 || r.lane_bits * 2 != a.lane_bits || r.lanes != a.lanes * 2 {
+            return Fail(message, "takes the narrower result type and two integer vectors of one type")
+        }
+        return r.name
+    }
+    if op.shape == .SIMD_MADD {
+        if count != 2 || !VectorOf(op, *operands[0], *a) || strcmp(operands[0].type, operands[1].type) != 0 {
+            return Fail(message, "takes two s16 vectors of one type")
+        }
+        return VectorTypeName(CStr("s32"), a.lanes / 2)
+    }
+    if op.shape == .SIMD_MADD_SAT {
+        if count != 2 || !VectorOf(op, *operands[0], *a) || VectorType(operands[1].type, *b) == 0 ||
+           strcmp(b.lane, CStr("s8")) != 0 || b.lanes != a.lanes {
+            return Fail(message, "takes a u8 vector and an s8 vector of the same width")
+        }
+        return VectorTypeName(CStr("s16"), a.lanes / 2)
+    }
+    if op.shape == .SIMD_SAD {
+        if count != 2 || !VectorOf(op, *operands[0], *a) || strcmp(operands[0].type, operands[1].type) != 0 {
+            return Fail(message, "takes two u8 vectors of one type")
+        }
+        return VectorTypeName(CStr("u64"), a.lanes / 8)
+    }
+    if op.shape == .SIMD_REDUCE {
+        if count != 1 || !VectorOf(op, *operands[0], *a) { return Fail(message, "takes one integer vector") }
+        return ifx op.id == ZI_OP_REDUCE_MAX_INDEX then CStr("s64") else a.lane
+    }
+    if op.shape == .SIMD_ALL_ZERO {
+        if count != 1 || !VectorOf(op, *operands[0], *a) { return Fail(message, "takes one integer vector") }
+        return CStr("bool")
+    }
+    if op.shape == .SIMD_BYTE_SHUFFLE {
+        if count != 2 || !VectorOf(op, *operands[0], *a) || VectorType(operands[1].type, *b) == 0 ||
+           strcmp(b.lane, CStr("u8")) != 0 || b.lanes != a.lanes {
+            return Fail(message, "takes a u8 or s8 table and u8 indices of the same width")
+        }
+        return a.name
+    }
+    if op.shape == .SIMD_SHUFFLE {
+        if count < 1 || !VectorOf(op, *operands[0], *a) { return Fail(message, "takes a vector and constant lane indices") }
+        block := SimdBlockLanes(*a)
+        if count != block + 1 { return Fail(message, "takes one constant index for each lane of a 128-bit block") }
+        for i: cast(s32)1..count - 1 {
+            if operands[i].is_constant == 0 || operands[i].value < 0 || operands[i].value >= cast(s64)block {
+                return Fail(message, "takes constant lane indices within one 128-bit block")
+            }
+        }
+        return a.name
+    }
+    if op.shape == .SIMD_REINTERPRET {
+        if count != 1 || VectorType(operands[0].type, *a) == 0 || a.bytes != r.bytes {
+            return Fail(message, "takes the result type and a vector of the same width")
+        }
+        return r.name
+    }
+    if op.shape == .SIMD_CONVERT {
+        if count != 1 || VectorType(operands[0].type, *a) == 0 || a.lanes != r.lanes ||
+           a.lane_bits != r.lane_bits || a.is_float == r.is_float {
+            return Fail(message, "converts between integer and float lanes of the same width")
+        }
+        return r.name
+    }
+    if op.shape == .SIMD_HALF {
+        if count != 1 || !VectorOf(op, *operands[0], *a) || a.bytes != 32 {
+            return Fail(message, "takes one 256-bit vector")
+        }
+        return VectorTypeName(a.lane, a.lanes / 2)
+    }
+    if op.shape == .SIMD_COMBINE {
+        if count != 2 || !VectorOf(op, *operands[0], *a) || a.bytes != 16 ||
+           strcmp(operands[0].type, operands[1].type) != 0 {
+            return Fail(message, "takes two 128-bit vectors of one type")
+        }
+        return VectorTypeName(a.lane, a.lanes * 2)
+    }
+    if op.shape == .SIMD_COUNT {
+        need: s32 = ifx op.id == ZI_OP_LANES then 1 else 0
+        if count != need || (count == 1 && (operands[0].is_constant == 0 || operands[0].value < 1 || operands[0].value > 16)) {
+            return Fail(message, "takes one vector type, such as s16xN")
+        }
+        return CStr("s64")
+    }
+    return Fail(message, unsupported)
+}
+
+#scope_export
+
+#program_export "SimdSignature"
+SimdSignature :: (op: *SimdOp, result: *u8, operands: *SimdOperand, count: s32, message: **u8) -> *u8 {
+    vector: SimdVector
+    vectors: s32 = 0
+    natives: s32 = 0
+    if op.shape != .SIMD_COUNT && result != null && VectorType(result, *vector) != 0 {
+        vectors += 1
+        natives += vector.is_native
+    }
+    for i: cast(s32)0..count - 1 {
+        if VectorType(operands[i].type, *vector) != 0 {
+            vectors += 1
+            natives += vector.is_native
+        }
+    }
+    if natives == 0 {
+        return Signature(op, result, operands, count, message)
+    }
+    message.* = CStr("")
+    if natives != vectors {
+        return Fail(message, "takes native vectors, such as s16xN, only with other native vectors")
+    }
+    if op.shape == .SIMD_LANE || op.shape == .SIMD_WITH_LANE || op.shape == .SIMD_WIDEN ||
+       op.shape == .SIMD_HALF || op.shape == .SIMD_COMBINE {
+        return Fail(message, "does not take native vectors, whose lane count the instruction set picks")
+    }
+    blocks: [40]SimdOperand
+    if count > 40 { return Fail(message, "takes too many operands") }
+    for i: cast(s32)0..count - 1 {
+        blocks[i] = operands[i]
+        if VectorType(operands[i].type, *vector) != 0 { blocks[i].type = vector.block }
+    }
+    res := result
+    if res != null && VectorType(res, *vector) != 0 { res = vector.block }
+    type := Signature(op, res, *blocks[0], count, message)
+    if type == null || VectorType(type, *vector) == 0 { return type }
+    return NativeVectorName(vector.lane)
+}
+
+#scope_file
+
+Grown :: (items: *void, used: usize, size: usize) -> *void {
+    bigger := AllocateOrExit(size)
+    if used != 0 { memcpy(bigger, items, used) }
+    free(items)
+    return bigger
+}
+
+NameHash :: (name: *u8, length: usize) -> usize {
+    hash: u64 = 1469598103934665603
+    i: usize = 0
+    while i < length {
+        hash = (hash ^ cast(u64)name[i]) * 1099511628211
+        i += 1
+    }
+    return cast(usize)(hash ^ (hash >> 32))
+}
+
+#scope_export
+
+#program_export "SimdNamesFind"
+SimdNamesFind :: (names: *SimdNames, name: *u8, length: usize, add: s32) -> s64 {
+    if add != 0 && (names.count + 1) * 2 > names.slot_count {
+        slot_count := ifx names.slot_count != 0 then names.slot_count * 2 else cast(usize)256
+        slots := cast(*usize)AllocateOrExit(slot_count * size_of(usize))
+        memset(cast(*void)slots, 0, slot_count * size_of(usize))
+        i: usize = 0
+        while i < names.count {
+            at := NameHash(cast(*u8)names.text[i], names.length[i]) & (slot_count - 1)
+            while slots[at] != 0 { at = (at + 1) & (slot_count - 1) }
+            slots[at] = i + 1
+            i += 1
+        }
+        free(cast(*void)names.slots)
+        names.slots = slots
+        names.slot_count = slot_count
+    }
+    if names.slot_count == 0 { return -1 }
+    mask := names.slot_count - 1
+    at := NameHash(name, length) & mask
+    while true {
+        slot := names.slots[at]
+        if slot != 0 {
+            if names.length[slot - 1] == length && memcmp(cast(*void)names.text[slot - 1], cast(*void)name, length) == 0 {
+                return cast(s64)(slot - 1)
+            }
+            at = (at + 1) & mask
+            continue
+        }
+        if add == 0 { return -1 }
+        if names.count == names.capacity {
+            capacity := ifx names.capacity != 0 then names.capacity * 2 else cast(usize)64
+            names.text = cast(**u8)Grown(cast(*void)names.text, names.count * size_of(*u8), capacity * size_of(*u8))
+            names.length = cast(*usize)Grown(cast(*void)names.length, names.count * size_of(usize), capacity * size_of(usize))
+            names.capacity = capacity
+        }
+        entries := cast(**u8)names.text
+        entries[names.count] = name
+        names.length[names.count] = length
+        names.count += 1
+        names.slots[at] = names.count
+        return cast(s64)(names.count - 1)
+    }
+    return -1
+}
+
+#program_export "SimdNamesFree"
+SimdNamesFree :: (names: *SimdNames) {
+    free(cast(*void)names.text)
+    free(cast(*void)names.length)
+    free(cast(*void)names.slots)
+    memset(cast(*void)names, 0, size_of(SimdNames))
+}
+
+#program_export "SimdHelperWord"
+SimdHelperWord :: (word: **u8, length: *usize) -> s32 {
+    if length.* <= 3 || memcmp(cast(*void)word.*, cast(*void)CStr("zi_"), 3) != 0 { return 0 }
+    word.* = PtrAdd(word.*, 3)
+    length.* -= 3
+    if length.* > 6 && memcmp(cast(*void)word.*, cast(*void)CStr("ssse3_"), 6) == 0 {
+        word.* = PtrAdd(word.*, 6)
+        length.* -= 6
+    } else if length.* > 6 && memcmp(cast(*void)word.*, cast(*void)CStr("sse41_"), 6) == 0 {
+        word.* = PtrAdd(word.*, 6)
+        length.* -= 6
+    } else if length.* > 5 && memcmp(cast(*void)word.*, cast(*void)CStr("avx2_"), 5) == 0 {
+        word.* = PtrAdd(word.*, 5)
+        length.* -= 5
+    }
+    if length.* > 3 && memcmp(cast(*void)PtrAdd(word.*, length.* - 3), cast(*void)CStr("_p_"), 3) == 0 {
+        length.* -= 3
+    }
+    return 1
+}
+
+#program_export "SimdUsesNote"
+SimdUsesNote :: (uses: *ZirSimdUses, word: *u8, length: usize) {
+    w := word
+    l := length
+    if SimdHelperWord(*w, *l) == 0 || SimdNamesFind(*uses.names, w, l, 0) >= 0 { return }
+    copy := cast(*u8)AllocateOrExit(l + 1)
+    memcpy(cast(*void)copy, cast(*void)w, l)
+    copy[l] = 0
+    SimdNamesFind(*uses.names, copy, l, 1)
+}
+
+#program_export "SimdUsesFree"
+SimdUsesFree :: (uses: *ZirSimdUses) {
+    i: usize = 0
+    while i < uses.names.count {
+        free(cast(*void)uses.names.text[i])
+        i += 1
+    }
+    SimdNamesFree(*uses.names)
+    uses.header = 0
+}

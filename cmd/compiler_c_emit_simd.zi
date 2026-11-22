@@ -1,0 +1,502 @@
+// Emission of std/simd operations for C and Go targets.
+using IR :: #import "compiler_ir"
+using Native :: #import "compiler_native_names"
+using Range :: #import "compiler_c_range"
+using Val :: #import "compiler_c_emit_value"
+using Simd :: #import "compiler_simd_metadata"
+
+#scope_file
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+free :: (memory: *void) #foreign libc "free";
+exit :: (status: s32) #foreign libc "exit";
+strlen :: (s: *u8) -> usize #foreign libc "strlen";
+strcmp :: (a: *u8, b: *u8) -> s32 #foreign libc "strcmp";
+strchr :: (s: *u8, c: s32) -> *u8 #foreign libc "strchr";
+strtol :: (s: *u8, end: **u8, base: s32) -> isize #foreign libc "strtol";
+strtoll :: (s: *u8, end: **u8, base: s32) -> s64 #foreign libc "strtoll";
+snprintf :: (out: *u8, size: usize, fmt: *u8, args: ..any) -> s32 #foreign libc "snprintf";
+fprintf :: (stream: *void, fmt: *u8, args: ..any) -> s32 #foreign libc "fprintf";
+fputs :: (s: *u8, stream: *void) -> s32 #foreign libc "fputs";
+
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, fmt: *u8, args: ..any) #foreign compiler "Diagnostic";
+copy_text :: (dst: *u8, size: usize, src: *u8) #foreign compiler "copy_text";
+ScalarByteWidth :: (type: *u8) -> usize #foreign compiler "ScalarByteWidth";
+VectorType :: (type: *u8, vector: *SimdVector) -> s32 #foreign compiler "VectorType";
+VectorTypeName :: (lane: *u8, lanes: s32) -> *u8 #foreign compiler "VectorTypeName";
+NativeVectorName :: (lane: *u8) -> *u8 #foreign compiler "NativeVectorName";
+
+CTargetType :: (type: *u8, target: Native.ZirTarget) -> *u8 #foreign compiler "TargetTypeZiran";
+CVectorTypeHere :: (type: *u8, target: Native.ZirTarget) -> *u8 #foreign compiler "VectorTypeHereZiran";
+CCanonical :: (type: *u8) -> *u8 #foreign compiler "zir_emit_canonical";
+emit_expr :: (e: *Emitter, index: s32, expected: *u8, out: *u8, size: usize) #foreign compiler "zir_emit_emit_expr";
+emit_constant_array_read :: (e: *Emitter, index: s32, out: *u8, size: usize) -> s32 #foreign compiler "zir_emit_emit_constant_array_read";
+
+StaticText :: struct { data: *u8; length: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+PtrAdd :: (base: *u8, offset: usize) -> *u8 { return cast(*u8)(cast(usize)base + offset) }
+
+CheckFormat :: (n: s32, size: usize) -> s32 {
+    if n < 0 || cast(usize)n >= size {
+        span: IR.ZirSourceSpan
+        Diagnostic(span, CStr("zir.output"), CStr("generated expression exceeds output limit"))
+        exit(1)
+    }
+    return n
+}
+
+EmitIndent :: (e: *Emitter) {
+    unit := ifx e.target == .ZIR_GO then CStr("\t") else CStr("    ")
+    for i: cast(s32)0..e.indent - 1 { fputs(unit, e.out) }
+}
+
+EmitChecksAt :: (e: *Emitter, expr: s32) -> bool {
+    return Range.ChecksAt(e.module, e.fn, expr)
+}
+
+IndexInRange :: (e: *Emitter, index: s32, count: s64) -> bool {
+    return Range.IndexInRange(e.ranges, e.fn, e.module, e.target == .ZIR_C, index, count)
+}
+
+RunBelowCount :: (e: *Emitter, index: s32, run: s32, base: s32) -> bool {
+    return Range.RunBelowCount(e.ranges, e.fn, e.module, e.target == .ZIR_C, index, run, base)
+}
+
+g_simd_tier: *u8 = null;
+
+#scope_export
+
+#program_export "zir_emit_EmitSimdTier"
+EmitSimdTier :: () -> *u8 {
+    return g_simd_tier
+}
+
+#program_export "EmitUseSimdTier"
+EmitUseSimdTier :: (tier: *u8, native_blocks: s32) {
+    g_simd_tier = tier
+    Native.SetBlocks(ifx tier != null then native_blocks else 0)
+}
+
+#scope_file
+
+ModuleProcedure :: (module: *IR.ZirModule, name: *u8) -> *IR.ZirFunction {
+    found: *IR.ZirFunction = null
+    if name[0] == 0 || strchr(name, #char ".") != null { return null }
+    for i: cast(s32)0..module.function_count - 1 {
+        if strcmp(*module.functions[i].name[0], name) == 0 {
+            if found != null { return null }
+            found = *module.functions[i]
+        }
+    }
+    return found
+}
+
+#scope_export
+
+#program_export "SimdTierCopied"
+SimdTierCopied :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 {
+    if fn.inlining == 1 && fn.simd_target == 0 && fn.is_template == 0 &&
+       fn.is_extern == 0 && !(fn.assembly_text != null && fn.assembly_text[0] != 0) {
+        return 1
+    }
+    return 0
+}
+
+#program_export "zir_emit_SimdTierCopyCall"
+SimdTierCopyCall :: (e: *Emitter, call: *IR.ZirExpr) -> s32 {
+    if e.target != .ZIR_C || e.simd_tier == null || call.slot_type[0] != 0 { return 0 }
+    callee := ModuleProcedure(e.module, call.name)
+    return ifx callee != null && SimdTierCopied(e.module, callee) != 0 then 1 else 0
+}
+
+#scope_file
+
+HelperPrefix :: (e: *Emitter, op: *SimdOp, out: *u8, size: usize) {
+    macro := op != null && (op.id == ZI_OP_ALIGN_BYTES || op.id == ZI_OP_SHL_BYTES ||
+                            op.id == ZI_OP_SHR_BYTES || op.id == ZI_OP_SHUFFLE)
+    if e.simd_tier != null && !macro {
+        CheckFormat(snprintf(out, size, CStr("zi_%s_"), e.simd_tier), size)
+    } else {
+        CheckFormat(snprintf(out, size, CStr("zi_")), size)
+    }
+}
+
+HelperName :: (e: *Emitter, op: *SimdOp, operand: *u8, result: *u8, native: s32, out: *u8, size: usize) {
+    prefix: [24]u8
+    HelperPrefix(e, op, *prefix[0], 24)
+    if native != 0 && e.target == .ZIR_C && Native.Blocks() == 2 && SimdNativeHelper(op) != 0 {
+        used := strlen(*prefix[0])
+        CheckFormat(snprintf(PtrAdd(*prefix[0], used), 24 - used, CStr("native_")), 24 - used)
+    }
+    if op.shape == .SIMD_NARROW || op.shape == .SIMD_REINTERPRET || op.shape == .SIMD_CONVERT || op.shape == .SIMD_GATHER {
+        CheckFormat(snprintf(out, size, CStr("%s%s_%s_%s"), *prefix[0], op.snake, operand, result), size)
+        return
+    }
+    if op.shape == .SIMD_MAKE || op.shape == .SIMD_SPLAT || op.shape == .SIMD_ZERO || op.shape == .SIMD_LOAD {
+        CheckFormat(snprintf(out, size, CStr("%s%s_%s"), *prefix[0], op.snake, result), size)
+        return
+    }
+    CheckFormat(snprintf(out, size, CStr("%s%s_%s"), *prefix[0], op.snake, operand), size)
+}
+
+NativeVector :: (type: *u8) -> bool {
+    vector: SimdVector
+    return type != null && VectorType(type, *vector) != 0 && vector.is_native != 0
+}
+
+NativeCount :: (e: *Emitter, lanes: isize, out: *u8, size: usize) {
+    if e.target == .ZIR_C && Native.Blocks() == 0 {
+        CheckFormat(snprintf(out, size, CStr("(%ld * ZI_NATIVE_BLOCKS)"), lanes), size)
+    } else {
+        blocks: isize = ifx e.target == .ZIR_C then cast(isize)Native.Blocks() else 1
+        CheckFormat(snprintf(out, size, CStr("%ld"), lanes * blocks), size)
+    }
+}
+
+TouchedLanes :: (e: *Emitter, op: *SimdOp, type: *u8, out: *u8, size: usize) -> s32 {
+    vector: SimdVector
+    VectorType(type, *vector)
+    low := op.id == ZI_OP_LOAD_LOW || op.id == ZI_OP_STORE_LOW
+    if vector.is_native != 0 {
+        half := ifx low then vector.lanes / 2 else vector.lanes
+        NativeCount(e, cast(isize)half, out, size)
+        if e.target == .ZIR_C && Native.Blocks() == 0 { return 0 }
+        blocks: s32 = ifx e.target == .ZIR_C then Native.Blocks() else 1
+        return half * blocks
+    }
+    n := ifx low then 64 / vector.lane_bits else vector.lanes
+    CheckFormat(snprintf(out, size, CStr("%d"), n), size)
+    return n
+}
+
+MemoryOperand :: (e: *Emitter, child: s32, kind: s32, writable: s32, out: *u8, size: usize) {
+    memory := *e.fn.exprs[child]
+    if kind == SIMD_MEMORY_ARRAY && (memory.kind == .IDENT || memory.kind == .MEMBER ||
+                                     memory.kind == .POINTER_MEMBER || memory.kind == .INDEX) {
+        EmitDestination(e, child, out, size)
+        return
+    }
+    if kind == SIMD_MEMORY_ARRAY && writable == 0 && emit_constant_array_read(e, child, out, size) != 0 {
+        return
+    }
+    emit_expr(e, child, memory.type, out, size)
+    if (kind == SIMD_MEMORY_SLICE || kind == SIMD_MEMORY_STRING) && PlainIdentifier(out) == 0 {
+        temporary: [IR.ZIR_NAME_MAX]u8
+        Fresh(e, *temporary[0])
+        Declare(e, *temporary[0], memory.type, out)
+        copy_text(out, size, *temporary[0])
+    }
+}
+
+WholeArraySlice :: (e: *Emitter, child: s32) -> s32 {
+    memory := *e.fn.exprs[child]
+    element: [IR.ZIR_NAME_MAX]u8
+    capacity: s32 = 0
+    if memory.kind != .SLICE || memory.right >= 0 || memory.third >= 0 { return -1 }
+    base := *e.fn.exprs[memory.left]
+    if base.kind != .IDENT && base.kind != .MEMBER && base.kind != .POINTER_MEMBER && base.kind != .INDEX {
+        return -1
+    }
+    if SimdMemory(base.type, *element[0], IR.ZIR_NAME_MAX, *capacity) != SIMD_MEMORY_ARRAY || capacity <= 0 {
+        return -1
+    }
+    return memory.left
+}
+
+CAddress :: (e: *Emitter, memory_child_in: s32, at: s32, index: *u8, lanes: *u8,
+             touched: s32, writable: s32, out: *u8, size: usize) {
+    memory_child := memory_child_in
+    array := WholeArraySlice(e, memory_child)
+    if array >= 0 { memory_child = array }
+    type := e.fn.exprs[memory_child].type
+    element: [IR.ZIR_NAME_MAX]u8
+    base := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    capacity: s32 = 0
+    kind := SimdMemory(type, *element[0], IR.ZIR_NAME_MAX, *capacity)
+    lane := CTargetType(*element[0], .ZIR_C)
+    bytes := cast(u32)ScalarByteWidth(*element[0])
+    if lane == null || bytes == 0 {
+        free(cast(*void)base)
+        Val.Fatal(*e.fn.exprs[memory_child], CStr("SIMD memory needs scalar lanes"))
+    }
+    proven := touched > 0 &&
+        ((kind == SIMD_MEMORY_ARRAY && capacity >= touched &&
+          IndexInRange(e, at, cast(s64)capacity - cast(s64)touched + 1)) ||
+         ((kind == SIMD_MEMORY_SLICE || kind == SIMD_MEMORY_STRING) &&
+          RunBelowCount(e, at, touched, memory_child)))
+    MemoryOperand(e, memory_child, kind, writable, base, IR.ZIR_TEXT_MAX)
+    if kind == SIMD_MEMORY_POINTER || proven {
+        q := ifx writable != 0 then CStr("") else CStr("const ")
+        dot := ifx kind == SIMD_MEMORY_SLICE || kind == SIMD_MEMORY_STRING then CStr(".data") else CStr("")
+        CheckFormat(snprintf(out, size, CStr("(%svoid *)((%s%s *)(%s%s) + (int64_t)(%s))"),
+                             q, q, lane, base, dot, index), size)
+        free(cast(*void)base)
+        return
+    }
+    cast_p := ifx writable != 0 then CStr("(void *)") else CStr("")
+    if kind == SIMD_MEMORY_SLICE || kind == SIMD_MEMORY_STRING {
+        CheckFormat(snprintf(out, size, CStr("%szi_simd_at(%s.data, %s.length, (int64_t)(%s), %s, %u)"),
+                             cast_p, base, base, index, lanes, bytes), size)
+    } else {
+        CheckFormat(snprintf(out, size, CStr("%szi_simd_at(%s, %d, (int64_t)(%s), %s, %u)"),
+                             cast_p, base, capacity, index, lanes, bytes), size)
+    }
+    free(cast(*void)base)
+}
+
+GoMemory :: (e: *Emitter, child: s32, kind: s32, writable: s32, out: *u8, size: usize) {
+    memory := *e.fn.exprs[child]
+    if kind != SIMD_MEMORY_ARRAY {
+        emit_expr(e, child, memory.type, out, size)
+        return
+    }
+    text := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    if memory.kind == .IDENT || memory.kind == .MEMBER || memory.kind == .POINTER_MEMBER || memory.kind == .INDEX {
+        EmitDestination(e, child, text, IR.ZIR_TEXT_MAX)
+    } else if writable != 0 || emit_constant_array_read(e, child, text, IR.ZIR_TEXT_MAX) == 0 {
+        temporary: [IR.ZIR_NAME_MAX]u8
+        emit_expr(e, child, memory.type, text, IR.ZIR_TEXT_MAX)
+        Fresh(e, *temporary[0])
+        Declare(e, *temporary[0], memory.type, text)
+        copy_text(text, IR.ZIR_TEXT_MAX, *temporary[0])
+    }
+    CheckFormat(snprintf(out, size, CStr("%s[:]"), text), size)
+    free(cast(*void)text)
+}
+
+GoName :: (op: *SimdOp, kind: s32, checked: bool, types: *u8, out: *u8, size: usize) {
+    k_str := CStr("")
+    if kind == SIMD_MEMORY_POINTER { k_str = CStr("_ptr") }
+    else if kind == SIMD_MEMORY_STRING { k_str = CStr("_string") }
+    c_str := ifx checked && kind != SIMD_MEMORY_POINTER then CStr("_checked") else CStr("")
+    CheckFormat(snprintf(out, size, CStr("zi_%s%s%s_%s"), op.snake, k_str, c_str, types), size)
+}
+
+CGather :: (e: *Emitter, op: *SimdOp, children: *s32, result: *u8, out: *u8, size: usize) {
+    array := WholeArraySlice(e, children[0])
+    table_child := ifx array >= 0 then array else children[0]
+    table_type := e.fn.exprs[table_child].type
+    index_type := e.fn.exprs[children[1]].type
+    element: [IR.ZIR_NAME_MAX]u8
+    table := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    indices := cast(*u8)AllocateOrExit(IR.ZIR_TEXT_MAX)
+    name: [IR.ZIR_NAME_MAX * 2]u8
+    temporary: [IR.ZIR_NAME_MAX]u8
+    lanes: [48]u8
+    capacity: s32 = 0
+    kind := SimdMemory(table_type, *element[0], IR.ZIR_NAME_MAX, *capacity)
+    index: SimdVector
+    VectorType(index_type, *index)
+    if index.is_native != 0 { NativeCount(e, cast(isize)index.lanes, *lanes[0], 48) }
+    else { CheckFormat(snprintf(*lanes[0], 48, CStr("%d"), index.lanes), 48) }
+    MemoryOperand(e, table_child, kind, 0, table, IR.ZIR_TEXT_MAX)
+    emit_expr(e, children[1], index_type, indices, IR.ZIR_TEXT_MAX)
+    if PlainIdentifier(indices) == 0 {
+        Fresh(e, *temporary[0])
+        Declare(e, *temporary[0], index_type, indices)
+        copy_text(indices, IR.ZIR_TEXT_MAX, *temporary[0])
+    }
+    HelperName(e, op, CVectorTypeHere(index.name, .ZIR_C), result, 0, *name[0], IR.ZIR_NAME_MAX * 2)
+    if kind == SIMD_MEMORY_POINTER {
+        CheckFormat(snprintf(out, size, CStr("%s((const void *)(%s), %s)"), *name[0], table, indices), size)
+        free(cast(*void)table)
+        free(cast(*void)indices)
+        return
+    }
+    checked := EmitChecksAt(e, children[1])
+    if kind == SIMD_MEMORY_SLICE {
+        if checked {
+            EmitIndent(e); fprintf(e.out, CStr("zi_simd_gather_check(&%s, %s, %d, %s.length);\n"),
+                                   indices, *lanes[0], index.is_signed, table)
+        }
+        CheckFormat(snprintf(out, size, CStr("%s(%s.data, %s)"), *name[0], table, indices), size)
+    } else {
+        if checked {
+            EmitIndent(e); fprintf(e.out, CStr("zi_simd_gather_check(&%s, %s, %d, %d);\n"),
+                                   indices, *lanes[0], index.is_signed, capacity)
+        }
+        CheckFormat(snprintf(out, size, CStr("%s(%s, %s)"), *name[0], table, indices), size)
+    }
+    free(cast(*void)table)
+    free(cast(*void)indices)
+}
+
+SimdBuffers :: struct {
+    text: [40 * IR.ZIR_TEXT_MAX]u8
+    arguments: [IR.ZIR_TEXT_MAX * 2]u8
+    index: [IR.ZIR_TEXT_MAX]u8
+    address: [IR.ZIR_TEXT_MAX * 2]u8
+    piece: [IR.ZIR_TEXT_MAX + 64]u8
+    name: [IR.ZIR_NAME_MAX * 2]u8
+}
+
+TextSlot :: (buffers: *SimdBuffers, i: s32) -> *u8 {
+    return PtrAdd(*buffers.text[0], cast(usize)i * IR.ZIR_TEXT_MAX)
+}
+
+GoMemoryCall :: (e: *Emitter, op: *SimdOp, children: *s32, result: *u8,
+                 out: *u8, size: usize, buffers: *SimdBuffers) -> s32 {
+    memory_type := e.fn.exprs[children[0]].type
+    kind := SimdMemory(memory_type, null, 0, null)
+    memory := *buffers.address[0]
+    index := *buffers.index[0]
+    GoMemory(e, children[0], kind, ifx op.shape == .SIMD_STORE then 1 else 0, memory, IR.ZIR_TEXT_MAX * 2)
+    if op.shape == .SIMD_GATHER {
+        index_type := CVectorTypeHere(CCanonical(e.fn.exprs[children[1]].type), .ZIR_GO)
+        emit_expr(e, children[1], index_type, index, IR.ZIR_TEXT_MAX)
+        CheckFormat(snprintf(*buffers.piece[0], IR.ZIR_TEXT_MAX + 64, CStr("%s_%s"), index_type, result), IR.ZIR_TEXT_MAX + 64)
+        GoName(op, kind, EmitChecksAt(e, children[1]), *buffers.piece[0], *buffers.name[0], IR.ZIR_NAME_MAX * 2)
+        CheckFormat(snprintf(out, size, CStr("%s(%s, %s)"), *buffers.name[0], memory, index), size)
+        e.pure = 0
+        return 0
+    }
+    emit_expr(e, children[1], e.fn.exprs[children[1]].type, index, IR.ZIR_TEXT_MAX)
+    if op.shape == .SIMD_STORE {
+        vector := CVectorTypeHere(CCanonical(e.fn.exprs[children[2]].type), .ZIR_GO)
+        emit_expr(e, children[2], e.fn.exprs[children[2]].type, TextSlot(buffers, 0), IR.ZIR_TEXT_MAX)
+        GoName(op, kind, EmitChecksAt(e, children[1]), vector, *buffers.name[0], IR.ZIR_NAME_MAX * 2)
+        EmitIndent(e); fprintf(e.out, CStr("%s(%s, int64(%s), %s)\n"), *buffers.name[0], memory, index, TextSlot(buffers, 0))
+        out[0] = 0
+        e.pure = 0
+        return 1
+    }
+    GoName(op, kind, EmitChecksAt(e, children[1]), result, *buffers.name[0], IR.ZIR_NAME_MAX * 2)
+    CheckFormat(snprintf(out, size, CStr("%s(%s, int64(%s))"), *buffers.name[0], memory, index), size)
+    e.pure = 0
+    return 0
+}
+
+GoCount :: (operand: *IR.ZirExpr, text: *u8, out: *u8, size: usize) {
+    if operand.kind == .INT && text[0] == #char "-" {
+        v := cast(u64)strtoll(text, null, 0)
+        CheckFormat(snprintf(out, size, CStr("uint64(%llu)"), v), size)
+    } else {
+        CheckFormat(snprintf(out, size, CStr("uint64(%s)"), text), size)
+    }
+}
+
+EmitSimdWithBuffers :: (e: *Emitter, expr: *IR.ZirExpr, out: *u8, size: usize, buffers: *SimdBuffers) -> s32 {
+    op := SimdOpChecked(expr.name)
+    children: [40]s32
+    count: s32 = 0
+    child := expr.first_child
+    while child >= 0 && count < 40 {
+        children[count] = child
+        count += 1
+        child = e.fn.exprs[child].next_sibling
+    }
+    if op == null { Val.Fatal(expr, CStr("unknown SIMD operation")) }
+    if e.target != .ZIR_C && e.target != .ZIR_GO {
+        Val.Fatal(expr, CStr("SIMD operations are not supported on this target yet"))
+    }
+    go := e.target == .ZIR_GO
+    if op.shape == .SIMD_COUNT {
+        lanes: isize = ifx op.id == ZI_OP_LANES && count == 1 then strtol(e.fn.exprs[children[0]].text, null, 10) else 1
+        value: [48]u8
+        NativeCount(e, lanes, *value[0], 48)
+        CheckFormat(snprintf(out, size, ifx go then CStr("int64(%s)") else CStr("(int64_t)%s"), *value[0]), size)
+        e.pure = 1
+        return 0
+    }
+    result := CVectorTypeHere(CCanonical(expr.type), e.target)
+    first := ifx count > 0 then CCanonical(e.fn.exprs[children[0]].type) else CStr("")
+    native: s32 = ifx NativeVector(expr.type) || NativeVector(first) then 1 else 0
+    first = CVectorTypeHere(first, e.target)
+    name := *buffers.name[0]
+    pure: s32 = 1
+    buffers.arguments[0] = 0
+
+    if go && (op.shape == .SIMD_GATHER || op.shape == .SIMD_LOAD || op.shape == .SIMD_STORE) {
+        return GoMemoryCall(e, op, *children[0], result, out, size, buffers)
+    }
+    if op.shape == .SIMD_GATHER {
+        CGather(e, op, *children[0], result, out, size)
+        e.pure = 0
+        return 0
+    }
+    if op.shape == .SIMD_LOAD || op.shape == .SIMD_STORE {
+        value: s32 = ifx op.shape == .SIMD_STORE then 2 else -1
+        type := CCanonical(ifx value >= 0 then e.fn.exprs[children[2]].type else expr.type)
+        here := CVectorTypeHere(type, .ZIR_C)
+        lanes: [48]u8
+        emit_expr(e, children[1], e.fn.exprs[children[1]].type, *buffers.index[0], IR.ZIR_TEXT_MAX)
+        if value >= 0 {
+            emit_expr(e, children[2], type, TextSlot(buffers, 0), IR.ZIR_TEXT_MAX)
+        }
+        touched := TouchedLanes(e, op, type, *lanes[0], 48)
+        CAddress(e, children[0], children[1], *buffers.index[0], *lanes[0], touched,
+                 ifx value >= 0 then 1 else 0, *buffers.address[0], IR.ZIR_TEXT_MAX * 2)
+        HelperName(e, op, here, here, ifx NativeVector(type) then 1 else 0, name, IR.ZIR_NAME_MAX * 2)
+        if value >= 0 {
+            EmitIndent(e); fprintf(e.out, CStr("%s(%s, %s);\n"), name, *buffers.address[0], TextSlot(buffers, 0))
+            out[0] = 0
+            e.pure = 0
+            return 1
+        }
+        CheckFormat(snprintf(out, size, CStr("%s(%s)"), name, *buffers.address[0]), size)
+        e.pure = 0
+        return 0
+    }
+
+    for i: cast(s32)0..count - 1 {
+        operand := *e.fn.exprs[children[i]]
+        emit_expr(e, children[i], operand.type, TextSlot(buffers, i), IR.ZIR_TEXT_MAX)
+        pure &= e.pure
+    }
+    if op.shape == .SIMD_REINTERPRET && strcmp(first, result) == 0 {
+        copy_text(out, size, TextSlot(buffers, 0))
+        e.pure = pure
+        return 0
+    }
+    op_first := ifx op.shape == .SIMD_SELECT && count > 1 then CVectorTypeHere(CCanonical(e.fn.exprs[children[1]].type), e.target) else first
+    HelperName(e, op, op_first, result, native, name, IR.ZIR_NAME_MAX * 2)
+    for i: cast(s32)0..count - 1 {
+        value := TextSlot(buffers, i)
+        if op.shape == .SIMD_SELECT && i == 0 {
+            mask: SimdVector
+            VectorType(first, *mask)
+            lane: [8]u8
+            CheckFormat(snprintf(*lane[0], 8, CStr("u%d"), mask.lane_bits), 8)
+            unsigned_mask := ifx mask.is_native != 0 then NativeVectorName(*lane[0]) else VectorTypeName(*lane[0], mask.lanes)
+            if strcmp(first, unsigned_mask) != 0 {
+                prefix: [16]u8
+                HelperPrefix(e, null, *prefix[0], 16)
+                CheckFormat(snprintf(*buffers.piece[0], IR.ZIR_TEXT_MAX + 64, CStr("%sreinterpret_%s_%s(%s)"),
+                                     *prefix[0], first, unsigned_mask, value), IR.ZIR_TEXT_MAX + 64)
+                value = *buffers.piece[0]
+            }
+        } else if op.shape == .SIMD_SHIFT && i == 1 {
+            if go { GoCount(*e.fn.exprs[children[i]], value, *buffers.piece[0], IR.ZIR_TEXT_MAX + 64) }
+            else { CheckFormat(snprintf(*buffers.piece[0], IR.ZIR_TEXT_MAX + 64, CStr("(uint64_t)(%s)"), value), IR.ZIR_TEXT_MAX + 64) }
+            value = *buffers.piece[0]
+        } else if (op.shape == .SIMD_LANE || op.shape == .SIMD_WITH_LANE) && i == 1 {
+            CheckFormat(snprintf(*buffers.piece[0], IR.ZIR_TEXT_MAX + 64, ifx go then CStr("int(%s)") else CStr("(int)(%s)"), value), IR.ZIR_TEXT_MAX + 64)
+            value = *buffers.piece[0]
+        } else if go && (op.shape == .SIMD_MAKE || op.shape == .SIMD_SPLAT || (op.shape == .SIMD_WITH_LANE && i == 2)) {
+            vector: SimdVector
+            VectorType(ifx op.shape == .SIMD_WITH_LANE then first else result, *vector)
+            CheckFormat(snprintf(*buffers.piece[0], IR.ZIR_TEXT_MAX + 64, CStr("%s(%s)"),
+                                 CTargetType(vector.lane, .ZIR_GO), value), IR.ZIR_TEXT_MAX + 64)
+            value = *buffers.piece[0]
+        }
+        used := strlen(*buffers.arguments[0])
+        sep := ifx i != 0 then CStr(", ") else CStr("")
+        CheckFormat(snprintf(PtrAdd(*buffers.arguments[0], used), IR.ZIR_TEXT_MAX * 2 - used, CStr("%s%s"), sep, value), IR.ZIR_TEXT_MAX * 2 - used)
+    }
+    CheckFormat(snprintf(out, size, CStr("%s(%s)"), name, *buffers.arguments[0]), size)
+    e.pure = pure
+    return 0
+}
+
+#scope_export
+
+#program_export "zir_emit_emit_simd_call"
+EmitSimdCall :: (e: *Emitter, expr: *IR.ZirExpr, out: *u8, size: usize) -> s32 {
+    buffers := cast(*SimdBuffers)AllocateOrExit(size_of(SimdBuffers))
+    statement := EmitSimdWithBuffers(e, expr, out, size, buffers)
+    free(cast(*void)buffers)
+    return statement
+}

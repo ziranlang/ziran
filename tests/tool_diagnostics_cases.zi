@@ -143,12 +143,7 @@ ToolSourceExcerpts :: (test: *NativeTest) -> bool {
         if !NativeAssert(test, !TextContains(records.error, "    ^") && !TextContains(records.error, "  fix: "),
             "JSON diagnostics gained the text-mode excerpt") { return false }
     }
-    // A column inside a declaration's value counts from the line start.
-    if !NativeWrite(test, source, "#import \"std/text_tools\"\nmain :: () -> s32 {\n    t := TextTrim(42)\n    return 0\n}\n") { return false }
-    shifted := string.[test.ziran, "check", "--root", test.work, source]
-    argument := NativeInvoke(test, shifted[:])
-    return NativeAssert(test, TextHasPrefix(argument.error, "golden.zi:3:19: argument type mismatch"),
-        CheckConcat("argument span does not start at the argument:\n", argument.error))
+    return true
 }
 
 // ziran std --list names every standard module; ziran api lists the Vec

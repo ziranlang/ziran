@@ -51,8 +51,18 @@ known. Facts are omitted only with explicit metadata truncation.</p>
 type requirement has primary node 0, declaration node 1, and a <code>requires_type</code>
 edge; other relations may be null when the checker has only a related location.
 Empty graphs mean no related fact is available.</p>
+<p>Habits from other languages get one message naming the Ziran spelling
+before they cascade: <code>let</code>/<code>var</code>/<code>const</code> declarations, <code>fn</code>/<code>func</code>/<code>def</code>/
+<code>function</code>/<code>pub</code>, <code>for i in a..b</code>, C <code>for (;;)</code>, <code>*p = value</code>, <code>switch</code>,
+<code>match</code>, <code>.len()</code>/<code>.length</code>/<code>.size</code>, printf conversions such as <code>%d</code> or <code>%s</code>
+in a <code>print</code> or <code>BuilderPrint</code> format, and a loop or slice over a Vec that a
+call returned. Errors about names the compiler generated for a broken loop,
+and about a local whose own declaration already failed, are not repeated.
+Type mismatches print specializations as written, such as <code>Vec(string)</code>.</p>
 <p>Missing-name diagnostics include <code>suggested_name</code> when a close visible name
-exists. <code>alternatives</code> groups independent repairs, each with an ID, message,
+exists, including public procedures of unqualified imports. A name that a
+common standard module declares but the file does not import names the
+<code>#import</code> to add. <code>alternatives</code> groups independent repairs, each with an ID, message,
 and an array of exact, non-overlapping <code>edits</code>. The current checker offers at
 most one <code>replace_name</code> alternative. Each edit supplies zero-based half-open
 UTF-8 byte offsets, one-based line/byte columns, <code>document_sha256</code>, <code>original</code>,

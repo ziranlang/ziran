@@ -65,8 +65,8 @@ names must be unique within their declaring module and a waiver must name a
 visible unknown law, or the gate fails. `theorem` uses a checked `#proof`
 certificate over the full scalar domain. See [Laws and scalar proofs](LAWS.md)
 for supported rules, deterministic budgets, artifact validation, the Lean rule
-model, and the remaining compiler trust boundary. General induction over
-arbitrary arrays and recursive programs remains future work.
+model, and the remaining compiler trust boundary. Open proof work is tracked in
+plans/open-work.md.
 
 ## Parallel computation
 

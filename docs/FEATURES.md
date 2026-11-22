@@ -19,5 +19,5 @@ checked printing, heap allocation, named imports, integer width conformance
 and implicit widening, automatic vector cleanup, local `TextView` mutation
 checks, record-field vector moves, procedure defaults, procedure values, and
 architecture-specific assembly with a portable body.
-It does not yet replace the language reference or claim complete feature
-coverage.
+The registry is intentionally incremental and does not claim complete
+feature coverage; the language reference is docs/LANGUAGE_DIRECTION.md.

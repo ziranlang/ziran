@@ -200,5 +200,5 @@ make check
 ```
 
 The model imports Lean's bundled standard libraries only. There are no
-admitted obligations, custom axioms, or external proof packages. Induction
-over arbitrary sequences and sorting remains future work.
+admitted obligations, custom axioms, or external proof packages. Open proof
+work is tracked in plans/open-work.md.

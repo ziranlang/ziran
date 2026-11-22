@@ -130,7 +130,7 @@ zir_f_2ca801d72b039088_CompilerStandardError(void)
 static void* compiler_context_storage_in(CompilerThread* thread, CompilerContext* context_local, int32_t key, size_t size, S15Callback0 destroy) ZIRAN_MAYBE_UNUSED;
 static void compiler_context_destroy_context(CompilerContext* context_local) ZIRAN_MAYBE_UNUSED;
 static void compiler_context_free_scratch_pools(void* value) ZIRAN_MAYBE_UNUSED;
-static CompilerContext context_shared = {.storage = {}, .lock = 0, .references = 1, .identity = 1ULL};
+static CompilerContext context_shared = {.storage = {0}, .lock = 0, .references = 1, .identity = 1ULL};
 static uint64_t context_next_identity = 2ULL;
 static uint8_t context_identity_lock = {0};
 

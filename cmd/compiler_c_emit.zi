@@ -430,6 +430,15 @@ IsCKeyword :: (name: string) -> bool {
     return false
 }
 
+// Names the generated C's headers or the compiler define as macros: a
+// field or local with one of these names would expand, as `linux` does
+// to 1 under GCC's GNU modes and `bool` to _Bool.
+IsCMacroName :: (name: string) -> bool {
+    words := string.["bool", "true", "false", "linux", "unix", "i386", "NULL", "EOF", "assert", "offsetof"]
+    for w: words { if name == w { return true } }
+    return false
+}
+
 IsCppKeyword :: (name: string) -> bool {
     words: [51]string = .{
         "alignas", "alignof", "asm", "bool", "catch", "class", "constexpr",
@@ -500,7 +509,7 @@ NativeHeaderKeyword :: (name: *u8) -> s32 {
 #program_export
 TargetBindingName :: (fn: *IR.ZirFunction, target: Native.ZirTarget, name: *u8, out: *u8, size: usize) {
     s := IR.CText(name)
-    kw := ifx target == .ZIR_GO then IsGoKeyword(s) else IsCKeyword(s)
+    kw := ifx target == .ZIR_GO then IsGoKeyword(s) else IsCKeyword(s) || IsCMacroName(s)
     rt := ifx fn != null then (ifx target == .ZIR_GO then IsGoRuntimeName(s) else IsCRuntimeName(s)) else false
     reserved := kw || IsCReservedName(target, name) || rt
     if !reserved && (fn == null || FunctionReadsGlobal(fn, name) == 0) {

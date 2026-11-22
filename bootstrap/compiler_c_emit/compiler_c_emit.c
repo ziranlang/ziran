@@ -671,6 +671,7 @@ static int32_t compiler_c_emit_TypeHasZeroArrayDepth(ZirModule* module, uint8_t*
 static int32_t compiler_c_emit_MentionsVector(uint8_t* text) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_c_emit_FunctionReadsGlobal(ZirFunction* fn, uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_IsCKeyword(String name) ZIRAN_MAYBE_UNUSED;
+static bool compiler_c_emit_IsCMacroName(String name) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_IsCppKeyword(String name) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_IsGoKeyword(String name) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_IsCRuntimeName(String name) ZIRAN_MAYBE_UNUSED;
@@ -1472,6 +1473,19 @@ compiler_c_emit_IsCKeyword(String name)
 }
 
 static bool
+compiler_c_emit_IsCMacroName(String name)
+{
+    String words[10] = {StringLiteral("bool"), StringLiteral("true"), StringLiteral("false"), StringLiteral("linux"), StringLiteral("unix"), StringLiteral("i386"), StringLiteral("NULL"), StringLiteral("EOF"), StringLiteral("assert"), StringLiteral("offsetof")};
+    for (int64_t it_index = 0LL; it_index < 10; it_index++) {
+        String w = (words)[it_index];
+        if (StringEqual(name, w)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool
 compiler_c_emit_IsCppKeyword(String name)
 {
     String words[51] = {StringLiteral("alignas"), StringLiteral("alignof"), StringLiteral("asm"), StringLiteral("bool"), StringLiteral("catch"), StringLiteral("class"), StringLiteral("constexpr"), StringLiteral("delete"), StringLiteral("explicit"), StringLiteral("false"), StringLiteral("friend"), StringLiteral("mutable"), StringLiteral("namespace"), StringLiteral("new"), StringLiteral("noexcept"), StringLiteral("nullptr"), StringLiteral("operator"), StringLiteral("private"), StringLiteral("protected"), StringLiteral("public"), StringLiteral("template"), StringLiteral("this"), StringLiteral("throw"), StringLiteral("true"), StringLiteral("try"), StringLiteral("typename"), StringLiteral("using"), StringLiteral("virtual"), StringLiteral("and"), StringLiteral("and_eq"), StringLiteral("bitand"), StringLiteral("bitor"), StringLiteral("char16_t"), StringLiteral("char32_t"), StringLiteral("compl"), StringLiteral("const_cast"), StringLiteral("decltype"), StringLiteral("dynamic_cast"), StringLiteral("export"), StringLiteral("not"), StringLiteral("not_eq"), StringLiteral("or"), StringLiteral("or_eq"), StringLiteral("reinterpret_cast"), StringLiteral("static_assert"), StringLiteral("static_cast"), StringLiteral("thread_local"), StringLiteral("typeid"), StringLiteral("wchar_t"), StringLiteral("xor"), StringLiteral("xor_eq")};
@@ -1590,77 +1604,78 @@ TargetBindingName(ZirFunction* fn, ZirTarget target, uint8_t* name, uint8_t* out
         value_0 = value_1;
     } else {
         bool value_2 = compiler_c_emit_IsCKeyword(s);
-        value_0 = value_2;
+        bool value_3 = value_2 || compiler_c_emit_IsCMacroName(s);
+        value_0 = value_3;
     }
     bool kw = value_0;
-    bool value_3 = false;
+    bool value_4 = false;
     if (fn != ((void *)0)) {
-        bool value_4 = false;
+        bool value_5 = false;
         if (target == ((ZirTarget)(1))) {
-            bool value_5 = compiler_c_emit_IsGoRuntimeName(s);
-            value_4 = value_5;
+            bool value_6 = compiler_c_emit_IsGoRuntimeName(s);
+            value_5 = value_6;
         } else {
-            bool value_6 = compiler_c_emit_IsCRuntimeName(s);
-            value_4 = value_6;
+            bool value_7 = compiler_c_emit_IsCRuntimeName(s);
+            value_5 = value_7;
         }
-        value_3 = value_4;
+        value_4 = value_5;
     } else {
-        value_3 = false;
+        value_4 = false;
     }
-    bool rt = value_3;
-    bool value_7 = kw;
-    if (!value_7) {
-        ZirTarget value_8 = (ZirTarget)(target);
-        uint8_t* value_9 = name;
-        bool value_10 = false;
+    bool rt = value_4;
+    bool value_8 = kw;
+    if (!value_8) {
+        ZirTarget value_9 = (ZirTarget)(target);
+        uint8_t* value_10 = name;
+        bool value_11 = false;
         {
-            ZirTarget target = (ZirTarget)(value_8);
-            uint8_t* name = value_9;
-            value_10 = target == ((ZirTarget)(0)) && name[0] == 95 && name[1] == 95;
+            ZirTarget target = (ZirTarget)(value_9);
+            uint8_t* name = value_10;
+            value_11 = target == ((ZirTarget)(0)) && name[0] == 95 && name[1] == 95;
         }
-        value_7 = value_10;
+        value_8 = value_11;
     }
-    bool reserved = value_7 || rt;
-    bool value_12 = !reserved;
-    if (value_12) {
-        bool value_13 = fn == ((void *)0);
-        bool value_14 = value_13 || compiler_c_emit_FunctionReadsGlobal(fn, name) == 0;
-        value_12 = value_14;
+    bool reserved = value_8 || rt;
+    bool value_13 = !reserved;
+    if (value_13) {
+        bool value_14 = fn == ((void *)0);
+        bool value_15 = value_14 || compiler_c_emit_FunctionReadsGlobal(fn, name) == 0;
+        value_13 = value_15;
     }
-    if (value_12) {
+    if (value_13) {
         zir_f_88c96d1f737973e0_copy_text(out, size, name);
         return;
     }
     int32_t serial = 0;
     while (true) {
-        uint8_t* value_15 = (void *)0;
+        uint8_t* value_16 = (void *)0;
         if (reserved) {
-            String value_16 = StringLiteral("ziran_keyword_%s_%d");
-            uint8_t* value_17 = (void *)0;
+            String value_17 = StringLiteral("ziran_keyword_%s_%d");
+            uint8_t* value_18 = (void *)0;
             {
-                String s = value_16;
-                value_17 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
+                String s = value_17;
+                value_18 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
             }
-            value_15 = value_17;
+            value_16 = value_18;
         } else {
-            String value_19 = StringLiteral("ziran_local_%s_%d");
-            uint8_t* value_20 = (void *)0;
+            String value_20 = StringLiteral("ziran_local_%s_%d");
+            uint8_t* value_21 = (void *)0;
             {
-                String s = value_19;
-                value_20 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
+                String s = value_20;
+                value_21 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
             }
-            value_15 = value_20;
+            value_16 = value_21;
         }
-        uint8_t* fmt = value_15;
+        uint8_t* fmt = value_16;
         compiler_c_emit_CheckFormat(zir_f_88c96d1f737973e0_snprintf(out, size, fmt, name, serial), size);
-        bool value_22 = fn == ((void *)0);
-        bool value_23 = value_22;
-        if (!value_23) {
-            bool value_24 = zir_emit_function_mentions(fn, out) == 0;
-            bool value_25 = value_24 && compiler_c_emit_FunctionReadsGlobal(fn, out) == 0;
-            value_23 = value_25;
+        bool value_23 = fn == ((void *)0);
+        bool value_24 = value_23;
+        if (!value_24) {
+            bool value_25 = zir_emit_function_mentions(fn, out) == 0;
+            bool value_26 = value_25 && compiler_c_emit_FunctionReadsGlobal(fn, out) == 0;
+            value_24 = value_26;
         }
-        if (value_23) {
+        if (value_24) {
             return;
         }
         serial = (int32_t)((uint32_t)serial + 1u);

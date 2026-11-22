@@ -84,6 +84,7 @@ memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memc
 memmove :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memmove";
 memset :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memset";
 normalize_array :: (module: *IR.ZirModule, type: *u8, size: usize) #foreign compiler "private_check_normalize_array";
+normalized_array :: (module: *IR.ZirModule, type: *u8) -> *u8 #foreign compiler "private_check_normalized_array";
 normalize_function_arrays :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 #foreign compiler "private_check_normalize_function_arrays";
 normalize_record_arrays :: (module: *IR.ZirModule, templates_only: s32) -> s32 #foreign compiler "private_check_normalize_record_arrays";
 normalize_type_applications :: (module: *IR.ZirModule) -> s32 #foreign compiler "private_check_normalize_type_applications";
@@ -657,7 +658,8 @@ CheckPrograms_with_buffers :: (programs: **IR.ZirProgram, count: s32, buffers: *
                                     if !((actual)[0] != 0) {
                                         error(*((buffers).initializer), (global).span, CheckCString("cannot infer initializer type"), cast(*u8)(*((global).name)))
                                     } else {
-                                        if !(compatible_checked(*((buffers).initializer), cast(*u8)(*((global).type)), actual) != 0) {
+                                        // [LENGTH]T with a named constant length compares as [12]T.
+                                        if !(compatible_checked(*((buffers).initializer), normalized_array(module, cast(*u8)(*((global).type))), actual) != 0) {
                                             type_error(*((buffers).initializer), (global).span, CheckCString("initializer type mismatch"), cast(*u8)(*((global).name)), cast(*u8)(*((global).type)), actual, (global).span)
                                         }
                                     }

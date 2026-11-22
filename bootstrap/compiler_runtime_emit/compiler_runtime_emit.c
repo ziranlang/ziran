@@ -156,7 +156,7 @@ static bool compiler_runtime_emit_SegmentNamed(String names, SimdNames* used) ZI
 static void compiler_runtime_emit_NeedHelper(int64_t helper, __type_1f00ef809eed7c2e* needed, __type_1f00ef809eed7c2e* work) ZIRAN_MAYBE_UNUSED;
 static void compiler_runtime_emit_NeedCalls(SimdNames* helpers, Segment segment, String full, __type_1f00ef809eed7c2e* needed, __type_1f00ef809eed7c2e* work) ZIRAN_MAYBE_UNUSED;
 static bool compiler_runtime_emit_Cleanup(SimdNames* helpers, __type_2f893a38d978b828* segments, __type_1f00ef809eed7c2e* last, __type_1f00ef809eed7c2e* first, __type_1f00ef809eed7c2e* needed, __type_1f00ef809eed7c2e* work, __type_838711075b90279a* output, bool result) ZIRAN_MAYBE_UNUSED;
-GeneratedPathStore GeneratedPaths = {};
+GeneratedPathStore GeneratedPaths = {0};
 
 bool
 compiler_runtime_emit_RecordPath(String path)

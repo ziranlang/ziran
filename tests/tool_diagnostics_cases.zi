@@ -146,6 +146,36 @@ ToolSourceExcerpts :: (test: *NativeTest) -> bool {
     return true
 }
 
+// A program that passes ziran check also builds as strict ISO C and runs:
+// empty literals, named constant array lengths, and fields or locals named
+// like C keywords or predefined macros.
+BuildCase :: struct { name: string; source: string; code: s32; }
+
+ToolCheckBuildAgree :: (test: *NativeTest) -> bool {
+    cases := BuildCase.[
+        .{"empty_init", "Point :: struct { x: s32; y: s32; }\nHolder :: struct { values: [4]s32; p: Point; }\norigin: Point = .{};\nheld: Holder = .{};\nmain :: () -> s32 {\n    p: Point = .{}\n    a: [3]s32 = .{}\n    return p.x + a[0] + origin.x + held.p.y + 7\n}\n", 7},
+        .{"const_length", "MONTHS :: 12;\ndays: [MONTHS]s32 = .[31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];\nSecond :: (table: [12]s32) -> s32 { return table[1] }\nmain :: () -> s32 {\n    local: [MONTHS]s32 = days\n    return Second(local)\n}\n", 28},
+        .{"c_names", "Flags :: struct { bool: s32; signed: s32; unsigned: s32; true: s32; }\nmain :: () -> s32 {\n    f: Flags\n    f.bool = 1\n    f.unsigned = 2\n    linux := 3\n    unix := 4\n    return f.bool + f.signed + f.unsigned + cast(s32)(linux + unix)\n}\n", 10},
+    ]
+    for build: cases {
+        source := CheckPath(test.work, CheckConcat(build.name, ".zi"))
+        output := CheckPath(test.work, CheckConcat(build.name, "-c"))
+        if !NativeWrite(test, source, build.source) { return false }
+        check := string.[test.ziran, "check", "--root", test.work, source]
+        unused NativeRun(test, check[:])
+        emit := string.[test.ziran, "build", "--target=c", "--exe", "--entry", CheckConcat(build.name, ":main"), "--root", test.work, "-o", output, source]
+        unused NativeRun(test, emit[:])
+        if test.failed { return false }
+        strict := string.[NativeCompiler(), "-std=c11", "-pedantic", "-Werror", "-fsyntax-only", CheckConcat("-I", CheckPath(test.repo, "include")),
+            CheckConcat("-I", output), CheckPath(output, CheckConcat(build.name, ".c"))]
+        unused NativeRun(test, strict[:])
+        program := string.[CheckPath(output, build.name)]
+        unused NativeRun(test, program[:], expected = build.code)
+        if test.failed { return false }
+    }
+    return true
+}
+
 // ziran std --list names every standard module; ziran api lists the Vec
 // operations the compiler implements under std/vec.
 ToolDiscovery :: (test: *NativeTest) -> bool {
@@ -172,7 +202,7 @@ ToolDiscovery :: (test: *NativeTest) -> bool {
 
 ToolCases :: (test: *NativeTest) -> bool {
     if !ToolDeclarationNames(test) { return false }
-    if !ToolAuthoringHints(test) || !ToolSourceExcerpts(test) || !ToolDiscovery(test) { return false }
+    if !ToolAuthoringHints(test) || !ToolSourceExcerpts(test) || !ToolDiscovery(test) || !ToolCheckBuildAgree(test) { return false }
     binary := PathParent(test.ziran); tools := string.["zi2c", "zi2go", "zi2zir", "zi2zx", "zi-api", "zi-inspect", "zi-fmt", "zi-edit"]
     for tool: tools { command := string.[CheckPath(binary, tool), "--unknown", "--diagnostics=json"]; unused ToolDiagnostics(test, command[:], "command.arguments"); if test.failed { return false } }
     unknown := string.[test.ziran, "build", "--target=unknown", "--diagnostics=json"]; unused ToolDiagnostics(test, unknown[:], "package.command")
@@ -266,6 +296,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if test.failed { return 1 }
     defer NativeCleanup(*test)
     if !ToolCases(*test) { return 1 }
-    print("Native tool diagnostics: authoring hints, source excerpts, lint, std and builtin discovery, arguments, inputs, byte paths, forked C emission, bounded compiler output, silent failures and allocation-free OOM local tests passed\n")
+    print("Native tool diagnostics: authoring hints, source excerpts, check/build agreement, lint, std and builtin discovery, arguments, inputs, byte paths, forked C emission, bounded compiler output, silent failures and allocation-free OOM local tests passed\n")
     return 0
 }

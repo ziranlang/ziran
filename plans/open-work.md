@@ -61,6 +61,8 @@ line when the work lands. Keep detail in the referenced plan.
   ambiguity candidates in `module.ambiguous`/`package.ambiguous`; new codes
   enter the explain registry and `tests/explain.sh` must pass; clean-file
   `.zir` output stays byte-identical.
+- Several parse errors per file: a recovery point around each top-level declaration, added where the parser port puts recovery (today ParserWithRecovery in cmd/zir/zir_parse.c covers a whole parse).
+- Exact caret columns inside a declaration's value: re-land the PartSpan span change (reverted in 527c3d0b) once the saved-IR codec stores literal values instead of reparsing statement-text slices.
 - `ziran init` keeps a project's floating `[toolchain] ref` rather than adopting a template's exact pin (as `kryon init` does): the merge rule keeps the project's own values, it already prints "kept ref = ...; the template has ...", and `ziran.lock` pins the commit either way.
 - Owner-gated: a persistent `ziran serve` session (owner-started, explicit
   Exit, never a daemon), only after the check cache lands.

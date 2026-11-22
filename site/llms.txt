@@ -554,5 +554,14 @@ main :: () -> s32 {
 }
 ```
 
+Where several modules cover one job, use: `std/text_tools` to find, split,
+trim and replace, `std/unicode` when case or whitespace must follow Unicode
+(`std/text` folds ASCII only); `std/json_document` to read, change and write
+JSON, `std/json_scan` only to pick values out of large input without a tree;
+`std/date_time_linux` for clocks in a native Linux program, `std/date_time`
+in a portable bundle, `std/calendar` for date arithmetic; `std/net_http` for
+HTTP through a host, `std/net_http_curl_linux` or `std/net_http_linux` in a
+native Linux program; `std/audio` with its `std/audio_decode_*` decoders.
+
 `ziran api --root DIR FILE.zi` prints every checked signature of a module and
 its imports; `ziran explain CODE` explains any diagnostic code.

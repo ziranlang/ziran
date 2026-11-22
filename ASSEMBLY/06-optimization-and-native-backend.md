@@ -17,9 +17,9 @@ Implement a native backend shared by standalone compilation and native ZX execut
 
 ## Existing integration points
 
-- [Scalar contracts](../cmd/zir/zir_scalar.h), [range-analysis behavior](../cmd/zir/zir_emit_range.c), and [SIMD behavior](../cmd/zir/zir_simd.c).
-- [Native planning](../cmd/zir/zir_native.c).
-- [Existing Go assembly translator](../cmd/zi2go/zir_go_amd64.c) for operand/ABI lessons only; Go ABI0 and its runtime assumptions are not Ziran's native ABI.
+- [Scalar contracts](../cmd/zir/zir_scalar.h), [range-analysis behavior](../cmd/compiler_c_range.zi), and [SIMD behavior](../cmd/compiler_vector_x86.zi).
+- [Native planning](../cmd/compiler_machine_elf.zi).
+- [Existing Go assembly translator](../cmd/compiler_go_asm_x64.zi) for operand/ABI lessons only; Go ABI0 and its runtime assumptions are not Ziran's native ABI.
 - [Native and SIMD tests](../tests/simd_native.sh).
 
 Implemented machine-IR modules: `cmd/compiler_machine_ir.zi`, `cmd/compiler_machine_lower.zi`, `cmd/compiler_machine_verify.zi`, `cmd/compiler_abi.zi` (the only module that names target registers), `cmd/compiler_regalloc.zi`, `cmd/compiler_machine_verify_allocated.zi`, and `cmd/compiler_x86_64.zi` with the shared byte encoders in `cmd/compiler_x86_bytes.zi`. Proposed: `cmd/compiler_opt.zi`.

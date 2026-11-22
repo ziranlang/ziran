@@ -56,7 +56,7 @@ What needed to change:
    extensions unless the step-01 matrix names them as maintained rows.
 
 Recorded decision: the checked-IR-to-LIR adapter stays in C
-([`zir_asm_lower.c`](../cmd/zi2zx/zir_asm_lower.c)) because the checker's
+([`compiler_zir_lower.zi`](../cmd/compiler_zir_lower.zi)) because the checker's
 program records are C structures. Everything after LIR (verifier, codec,
 engine, optimizer, machine IR, encoders, container, linker) stays in Ziran.
 Step 03's proposed `compiler_lower*.zi` modules apply only if the checker

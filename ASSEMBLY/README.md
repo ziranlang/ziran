@@ -1,8 +1,9 @@
 # Direct assembly implementation
 
-## Status: experimental backend, not the completed upgrade
+## State
 
-The ten-step plan is **not finished**. `zi2zx` lowers checked source or
+The upgrade is not finished: the M4-M6 rows are open work in
+[plans/open-work.md](../plans/open-work.md). `zi2zx` lowers checked source or
 saved `.zir` to verified, typed SSA, and `zx2native` directly encodes a Linux x86-64 ELF
 executable. Every `.zx` is the [revision-28 executable
 container](zx-executable-format.md) of those verified instructions: `zi2zx`
@@ -265,16 +266,14 @@ encoding and inspection data, without claiming target execution.
 
 ## Still required
 
-No M2–M6 completion gate is closed by this M0/M1 work. Outstanding language and
-runtime work includes resizable owned vectors and other dynamic collections,
-their generated cleanup/move paths, nested or reentrant host-to-bundle calls,
-foreign C/system services, concurrency and the remaining matrix operations.
-The new ZX container still needs complete library composition and capability
-metadata cross-checking; slice shapes outside the checked-token subset, native
-aggregate call forms and arbitrary host trampolines remain gaps.
-The remaining M2 integration,
-relocatable objects and a general linker, other architectures and OS ABIs,
-source/unwind information, profiler/JIT mapping and final cutover remain M2–M6.
+The upgrade is not complete. Outstanding language and runtime work includes
+resizable owned vectors and other dynamic collections, their generated
+cleanup/move paths, nested or reentrant host-to-bundle calls, foreign
+C/system services, concurrency and the remaining matrix operations. The ZX
+container still needs complete library composition and capability metadata
+cross-checking; slice shapes outside the checked-token subset, native
+aggregate call forms and arbitrary host trampolines remain gaps. The open
+M4-M6 rows are tracked in [plans/open-work.md](../plans/open-work.md).
 
 Unsupported constructs fail explicitly; there is no silent fallback to C, Go
 or another engine inside the portable/native assembly route. The C and
@@ -282,10 +281,8 @@ Go backends remain separate source-output routes that can compile platform
 binaries when explicitly selected. Mixed signedness comparisons require explicit
 casts. The bounded revision-28 ZX reader validates container identities, the
 instruction schema, entry and declared capabilities before native lowering.
-The labeled physical-Alpha portable-engine follow-up is documented in
-[the benchmark report](../bench/zx_compare.md#final-pointer-dispatch-cohort-2026-11-13).
-It is not the strict full benchmark campaign, cross-platform execution
-validation or installed-tool verification. An interim portable result does not
+Benchmark receipts live under `bench/results/` and
+[bench/zx_compare.md](../bench/zx_compare.md). An interim result does not
 close the full upgrade's feature or validation gates.
 
 ## Implementation and local tests
@@ -297,7 +294,7 @@ close the full upgrade's feature or validation gates.
 - [Executable container binding](../cmd/compiler_exec_link.zi) and
   [format](zx-executable-format.md); [machine IR](../cmd/compiler_machine_ir.zi),
   [lowering](../cmd/compiler_machine_lower.zi) and [verifier](../cmd/compiler_machine_verify.zi).
-- [Checked-language adapter](../cmd/zi2zx/zir_asm_lower.c),
+- [Checked-language adapter](../cmd/compiler_zir_lower.zi),
   [CLI](../cmd/zi2zx/main.c), [build integration](../assembly.mk).
 - [Source/saved-IR integration tests](../tests/assembly_cases.zi),
   [verifier fixtures](../tests/spec/compiler_lowered_verify_test.zi),
@@ -308,17 +305,14 @@ close the full upgrade's feature or validation gates.
   reporting, not a measured compiler/runtime speedup.
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY build-queue -- sh -eu <<'SH'
-make assembly JOBS=2
+env -u DISPLAY -u WAYLAND_DISPLAY make
 make CHECK_FILTER=direct_assembly check
 make CHECK_FILTER=compiler_lowered_verify check
 sh tests/lowered_serial.sh build/bin/ziran
 make CHECK_FILTER=lowered_exec check
-sh tests/compiler_opt.sh build/bin/ziran
 sh tests/machine_elf.sh build/bin/ziran
 make CHECK_FILTER=assembly_compare check
-make check check-bootstrap JOBS=2 CHECK_JOBS=2
-SH
+make check-bootstrap
 ```
 
 These are local tests, not GitHub CI results. Benchmarks must run directly on

@@ -56,7 +56,7 @@ attachment) source line, and ends that instance; nothing restarts on the
 engine.
 
 With checks on, native data pointers are checked as the engine checks them
-([plan](../plans/2026-11-15-manual-safety.md)). A pointer is a
+(checks are opt-in with `#checks`). A pointer is a
 token naming a slot of the instance's pointer table, version and offset; every
 load, store, byte comparison and platform-service argument resolves it
 against a live slot of the same version, within its size and, for writes,
@@ -88,7 +88,7 @@ so the static executable has no undefined symbols or misleading trap aliases.
 ## Existing integration points
 
 - [Embedding API](../include/ziran_host.h), [bundle lifecycle](../cmd/zir/zir_host.c) and the [engine bridge](../cmd/zir/zir_host_exec.c), which translates host values for the [portable instruction engine](../cmd/compiler_exec.zi) and for the [native ZX loader](../cmd/zir/zir_host_native.c).
-- [Wasm lowering](../cmd/zx2wasm/zx_wasm_lower.h) and [browser integration](../cmd/zir/zir_zx_wasm_web.c).
+- [Wasm lowering](../cmd/compiler_zx_wasm.zi) and [browser integration](../cmd/zir/zir_zx_wasm_web.c).
 - [Package entry](../cmd/package_entry.zi), [options](../cmd/package_options.zi), [bundle run](../cmd/package_bundle_run.zi), and [capability reporting](../cmd/package_capabilities.zi).
 
 Proposed modules: `cmd/compiler_native_load.zi`, `cmd/compiler_native_cache.zi`, `cmd/compiler_exec_instance.zi`, and a native backend command entry integrated into the existing package driver.

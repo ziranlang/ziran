@@ -64,7 +64,7 @@ item below.
 
 ## Tests
 
-Add `tests/lowered_exec_cases.zi` and mutation/fault fixtures. Reuse [portable pointers](../tests/portable_pointers.sh), [host strings](../tests/host_strings.sh), [portable records](../tests/portable_host_records.sh), [VM stack bounds](../tests/vm_stack_bounds.sh), [VM retirement](../tests/vm_retirement.sh), and [concurrent instances](../tests/vm_concurrent_instances.sh).
+Add `tests/lowered_exec_cases.zi` and mutation/fault fixtures. Reuse [portable pointers](../tests/portable_pointers.sh), [portable records](../tests/portable_host_records.sh), [string cases](../tests/simd_string_cases.zi), and the retained portable cases under `tests/`.
 
 Require the same results from source lowering, saved-IR lowering, encoded/decoded executable instructions, and the reference engine. Compare traps and host-call traces as well as final return values. Test allocation failures, malformed host responses, recursive callbacks, repeated failures, and cancellation/resource exhaustion without leaking instance state.
 

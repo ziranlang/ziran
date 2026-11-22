@@ -38,7 +38,7 @@ replace ZX or establish portability/performance completion.
 | Compile-time assertions, `#run`, laws | Working as checked language features on all advertised targets; unsupported proof/effect forms or exhausted budgets are rejected/unknown rather than guessed. | [feature registry](../docs/FEATURES.json), [compile run](../tests/compile_run.sh), [laws](../tests/laws.sh) |
 | Procedure defaults and procedure values | Working for advertised examples on C, Go, ZX; portable verifier checks slot signatures and rejects C callback procedure types. | [feature registry](../docs/FEATURES.json), [defaults](../tests/call_argument_cases.zi) |
 | Print and I/O | Working literal-format print on C, Go, ZX. Rich OS I/O is a library/capability contract, not a portable opcode. | [feature registry](../docs/FEATURES.json), [print](../tests/print.sh) |
-| Named imports and linking | Working; bundles follow direct calls, retain required startup/types/laws, and reject unresolved imports or unreachable unsupported code. | [ZX linker](../docs/ZX.md), [bundle verification](../tests/bundle_verification.sh) |
+| Named imports and linking | Working; bundles follow direct calls, retain required startup/types/laws, and reject unresolved imports or unreachable unsupported code. | [ZX linker](../docs/ZX.md), [bundle provider cases](../tests/bundle_provider_cases.zi) |
 
 ## Memory, ownership, and cleanup
 
@@ -58,7 +58,7 @@ replace ZX or establish portability/performance completion.
 |---|---|---|
 | Argument and compound order | Working: left-to-right call arguments; destination read before compound right side on C, Go, ZX. | [call order](../tests/call_order.sh), [compound order](../tests/compound_order_cases.zi) |
 | Bounded execution | Working by explicit host selection. The engine and Wasm count calls and loop iterations; cumulative limited open includes initialization and every run. | [ZX limits](../docs/ZX.md), [step limit](../tests/bundle_step_limit.sh) |
-| CPU parallel regions | Current baseline: C threads on supported hosts; Go/ZX serial downgrade and reverse-region serialization are assembly-target Gaps. The direct target rejects them until their promised parallel implementation exists. | [parallel test](../tests/parallel.sh), [native parallel](../tests/zx_native_parallel.sh) |
+| CPU parallel regions | Current baseline: C threads on supported hosts; Go/ZX serial downgrade and reverse-region serialization are assembly-target Gaps. The direct target rejects them until their promised parallel implementation exists. | [parallel test](../tests/parallel.sh), [native worker pool](../tests/spec/native_parallel_windows_test.zi) |
 | GPU regions | Every target reports an explicit Gap and rejects GPU selection; there is no CPU fallback. | [capabilities](../docs/CAPABILITIES.md), [assembly blocks](../tests/assembly_blocks.sh) |
 | Runtime traps | Working failure boundary: bounds, unreachable, host/fuel/stack and numeric contract failures stop the run. | [ZX contract](../docs/ZX.md), [engine](../cmd/compiler_exec.zi) |
 | Host capabilities | Working checked module/function ABI with provider preflight, bindings, mutable slice copyback and no overlap. | [host capabilities](../tests/host_capability.sh), [ZX host ABI](../docs/ZX.md) |
@@ -71,7 +71,7 @@ replace ZX or establish portability/performance completion.
 | GNU assembly variants | Current C/Go behavior may use a checked portable body. For the direct assembly target, a missing matching target/feature implementation is a Gap and rejects at preflight; no portable body or cgo bridge satisfies the cell. | [assembly](../tests/assembly.sh), [ZX assembly](../tests/zx_native_asm.sh), [Go assembly](../tests/go_assembly.sh) |
 | C callbacks / `#c_call` | Native C ABI only; Go and ZX target preflight reject it before output. | [capabilities](../docs/CAPABILITIES.md), [compiler inventory](../tests/compiler_inventory_cases.zi) |
 | Go foreign types/maps | Go target extension only; opaque identity and scalar-union checks reject unsupported portable lowering. Renaming does not create a portable layout. | [compiler IR](../cmd/compiler_ir.zi), [capabilities](../docs/CAPABILITIES.md) |
-| OS libraries | Explicit foreign/library dependencies remain allowed; native platform service portability is defined per OS row, not by opcode presence. | [bundle libraries](../tests/bundle_libraries.sh), [architecture](../docs/ARCHITECTURE.md) |
+| OS libraries | Explicit foreign/library dependencies remain allowed; native platform service portability is defined per OS row, not by opcode presence. | [executable bundle](../tests/executable_bundle.sh), [architecture](../docs/ARCHITECTURE.md) |
 | Runtime assembly/C cache | Current native bundle cache is keyed by bundle/libraries/CPU/compiler sources; cached code can bypass program recheck only under documented boundary. | [native execution](../docs/ZX.md) |
 
 ## Maintained platform rows

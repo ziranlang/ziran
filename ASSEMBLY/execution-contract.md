@@ -1,6 +1,6 @@
 # Ziran execution contract
 
-Status: decisions required by [step 01](01-contract-and-completion-matrix.md). This document is normative for the lowered portable instructions of [step 02](02-lowered-ir-and-verifier.md). The implementation is the checked tree represented by [compiler IR](../cmd/compiler_ir.zi), its [lowering](../cmd/zi2zx/zir_asm_lower.c), the [portable instruction engine](../cmd/compiler_exec.zi) that runs every `.zx`, and their retained fixtures.
+Status: decisions required by [step 01](01-contract-and-completion-matrix.md). This document is normative for the lowered portable instructions of [step 02](02-lowered-ir-and-verifier.md). The implementation is the checked tree represented by [compiler IR](../cmd/compiler_ir.zi), its [lowering](../cmd/compiler_zir_lower.zi), the [portable instruction engine](../cmd/compiler_exec.zi) that runs every `.zx`, and their retained fixtures.
 
 The direct target follows the [gap policy](gap-policy.md): target selection is a
 contract, and an unsupported operation fails rather than selecting another
@@ -54,7 +54,7 @@ The checked graph records move and borrow facts. Lowering must make each effect 
 - Indexed and pointer-backed member paths and paths rooted at a global remain rejected as move sources. Assignment over an owned direct or aggregate-held vector is rejected. A fresh vector expression statement drops immediately; a member/index access must first bind the fresh result.
 - `BuilderFinish` consumes the builder. Native C transfers nonempty bytes and retains them for process lifetime; Go copies an immutable snapshot. Empty native storage may be released. `Text` is an owned record wrapping a vector and follows aggregate move/drop rules.
 - Live vector slices and text views restrict mutation, resizing, moving, replacement, and calls whose checked effect summary writes their backing. Checks are field-sensitive where represented: sibling fields remain mutable. Raw foreign declarations have no checked read/write summary and remain the caller's responsibility.
-- Scoped cleanup is a region in the instruction graph, not a source-text transformation in the backend. Returns, breaks, continues, traps, and parallel-region exits follow the same explicit cleanup edge set. The current source pass and tests are in [cleanup lowering](../cmd/zir/zir_cleanup.c) and [owned values](../docs/OWNED_VALUES.md).
+- Scoped cleanup is a region in the instruction graph, not a source-text transformation in the backend. Returns, breaks, continues, traps, and parallel-region exits follow the same explicit cleanup edge set. The current source pass and tests are in [cleanup lowering](../cmd/compiler_ir_cleanup.zi) and [owned values](../docs/OWNED_VALUES.md).
 
 ## Calls, effects, concurrency, and fuel
 

@@ -12,11 +12,11 @@ Translate checked `.zir` into the new portable executable model without recoveri
 
 ## Existing integration points
 
-- [Checked program schema](../cmd/compiler_ir.zi) and [semantic body utilities](../cmd/zir/zir_body.c).
-- [Current statement emission](../cmd/zir/zir_emit_statement.c), [expression emission](../cmd/zir/zir_emit_expr.c), and [call emission](../cmd/zir/zir_emit_call.c) as behavior references, not source-generation dependencies.
-- [Current semantic cleanup implementation](../cmd/zir/zir_cleanup.c).
-- [Current native symbol/layout planning](../cmd/zir/zir_native.c).
-- [Current assembly metadata](../cmd/zir/zir_asm.c) and [SIMD classification](../cmd/zir/zir_simd.c).
+- [Checked program schema](../cmd/compiler_ir.zi) and [semantic body utilities](../cmd/compiler_zir_lower.zi).
+- [Current statement, expression, and call emission](../cmd/compiler_zir_lower.zi) as behavior references, not source-generation dependencies.
+- [Current semantic cleanup implementation](../cmd/compiler_ir_cleanup.zi).
+- [Current native symbol/layout planning](../cmd/compiler_machine_elf.zi).
+- [Current assembly metadata](../cmd/zir/zir_asm.c) and [SIMD classification](../cmd/compiler_simd_metadata.zi).
 
 Proposed modules: `cmd/compiler_lower.zi`, `cmd/compiler_lower_expr.zi`, `cmd/compiler_lower_control.zi`, `cmd/compiler_lower_storage.zi`, and `cmd/compiler_lower_calls.zi`. Split further only when responsibilities require it.
 

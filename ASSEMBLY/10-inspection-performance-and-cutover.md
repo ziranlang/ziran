@@ -8,7 +8,7 @@ Make bottlenecks traceable from source to executed instructions, validate the co
 
 ## Existing integration points
 
-- [Inspection command](../cmd/zir-inspect/main.c), [compiler profiling](../cmd/zir/zir_profile.h), and [package explain](../cmd/package_explain.zi).
+- [Inspection command](../cmd/inspect.zi), [compiler profiling](../cmd/zir/zir_profile.h), and [package explain](../cmd/package_explain.zi).
 - [Compiler command](../cmd/package_entry.zi), [compile-command reporting](../cmd/package_compile_commands.zi), and [feature reporting](../cmd/package_features.zi).
 - [Check discovery](../tests/check_plan.zi), [build/test rules](../Makefile), and [benchmark instructions](../bench/README.md).
 - [Architecture](../docs/ARCHITECTURE.md), [ZIR](../docs/ZIR.md), [ZX](../docs/ZX.md), [usage](../docs/USAGE.md), and [implementation status](../docs/IMPLEMENTATION_STATUS.md).

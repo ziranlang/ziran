@@ -9,7 +9,7 @@ Replace embedded executable `.zir` with the lowered portable instruction program
 ## Existing integration points
 
 - [Container records and codec](../cmd/compiler_bundle.zi).
-- [Bundle linker](../cmd/compiler_link.zi), [bundle implementation](../cmd/zir/zir_bundle.c), and [asset handling](../cmd/zir/zir_bundle_assets.c).
+- [Bundle linker](../cmd/compiler_link.zi), [bundle implementation](../cmd/compiler_bundle.zi), and [asset handling](../tests/bundle_assets.sh).
 - [Bundle command](../cmd/zi2zx/main.c), [package bundle execution](../cmd/package_bundle_run.zi), and [format documentation](../docs/ZX.md).
 - [Law checking](../cmd/compiler_law.zi) and [proof checking](../cmd/compiler_proof.zi).
 
@@ -41,7 +41,7 @@ Proposed modules: `cmd/compiler_exec_serial.zi`, `cmd/compiler_exec_link.zi`, an
 
 ## Tests
 
-Extend [bundle verification](../tests/bundle_verification.sh), [compiler bundle tests](../tests/compiler_bundle.sh), [library composition](../tests/bundle_libraries.sh), [partial modules](../tests/bundle_partial_modules.sh), [global reachability](../tests/bundle_global_reachability.sh), and [portable streaming](../tests/zx_portable_write.sh).
+Extend the retained bundle checks: [provider cases](../tests/bundle_provider_cases.zi), [executable bundles](../tests/executable_bundle.sh), [global reachability](../tests/bundle_global_reachability.sh), and [step limits](../tests/bundle_step_limit.sh).
 
 Add malformed new-section fixtures, required/optional feature mutations, variant incompatibility tests, stripped-bundle execution, deterministic source/saved-IR bytes, and proof-table tampering. Verify functionally identical portable behavior with supported variants selected, masked out, and unavailable.
 

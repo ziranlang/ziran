@@ -61,6 +61,7 @@ line when the work lands. Keep detail in the referenced plan.
   ambiguity candidates in `module.ambiguous`/`package.ambiguous`; new codes
   enter the explain registry and `tests/explain.sh` must pass; clean-file
   `.zir` output stays byte-identical.
+- `ziran init` keeps a project's floating `[toolchain] ref` rather than adopting a template's exact pin (as `kryon init` does): the merge rule keeps the project's own values, it already prints "kept ref = ...; the template has ...", and `ziran.lock` pins the commit either way.
 - Owner-gated: a persistent `ziran serve` session (owner-started, explicit
   Exit, never a daemon), only after the check cache lands.
 - Deferred Lean-study proposals: polymorphic-default postponement,

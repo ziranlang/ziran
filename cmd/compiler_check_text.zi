@@ -1,0 +1,2164 @@
+// Semantic checker: check text.
+// Algorithms are maintained here; foreign calls cross compiler phase or module boundaries.
+using IR :: #import "compiler_ir"
+using State :: #import "compiler_check_types"
+
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+
+CheckStandardError :: () -> *void #foreign compiler "CompilerStandardError";
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+ArrayElementType :: (type: *u8, element: *u8, element_size: usize, capacity: *s32) -> s32 #foreign compiler "ArrayElementType";
+CompilerCalloc :: (count: usize, size: usize) -> *void #foreign compiler "CompilerCalloc";
+CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
+CompilerMalloc :: (size: usize) -> *void #foreign compiler "CompilerMalloc";
+CompilerParseExprTyped :: (arg0: *IR.ZirFunction, arg1: *IR.ZirModule, arg2: *void, arg3: IR.ZirSourceSpan, arg4: *void) -> s32 #foreign compiler "CompilerParseExprTyped";
+CompilerRealloc :: (pointer: *void, size: usize) -> *void #foreign compiler "CompilerRealloc";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, varargs: ..any) #foreign compiler "Diagnostic";
+FindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+FunctionAddExpr :: (fn: *IR.ZirFunction, kind: IR.ZirExprKind, text: *u8, span: IR.ZirSourceSpan) -> *IR.ZirExpr #foreign compiler "FunctionAddExpr";
+KeepName :: (text: *u8) -> *u8 #foreign compiler "KeepName";
+KeepNameFormat :: (format: *u8, varargs: ..any) -> *u8 #foreign compiler "KeepNameFormat";
+KeepText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
+ParametersOf :: (text: *u8) -> *ZirParameters #foreign compiler "ParametersOf";
+ResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunction";
+ResolveQualifiedHostImportAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 #foreign compiler "ResolveQualifiedHostImportAt";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+StandardModuleName :: (name: *u8, leaf: *u8) -> s32 #foreign compiler "StandardModuleName";
+StandardScopedName :: (leaf: *u8, out: *u8, size: usize) -> s32 #foreign compiler "StandardScopedName";
+StmtReset :: (stmt: *IR.ZirStmt) #foreign compiler "StmtReset";
+TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
+fprintf :: (__stream: *void, __format: *u8, varargs: ..any) -> s32 #foreign compiler "fprintf";
+isdigit :: (arg0: s32) -> s32 #foreign libc "isdigit";
+isspace :: (arg0: s32) -> s32 #foreign libc "isspace";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+memmove :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memmove";
+memset :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memset";
+rebuild_conversion_layout :: (fn: *IR.ZirFunction) -> s32 #foreign compiler "private_check_rebuild_conversion_layout";
+skip_ws :: (s: *u8) -> *u8 #foreign compiler "skip_ws";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+strchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strchr";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strcspn :: (__s: *u8, __reject: *u8) -> usize #foreign libc "strcspn";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+strrchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strrchr";
+
+#scope_file
+parents_build :: (fn: *IR.ZirFunction, parents: *Parents) -> s32 {
+    (parents).count = (fn).expr_count
+    (parents).of = cast(*s32)(CompilerMalloc(cast(usize)((cast(u64)(((cast(usize)((fn).expr_count) + cast(usize)(1)))) * cast(u64)size_of(s32)))))
+    pending: *s32 = cast(*s32)(CompilerMalloc(cast(usize)((cast(u64)(((cast(usize)((fn).expr_count) + cast(usize)(1)))) * cast(u64)size_of(s32)))))
+    if (((parents).of == cast(*s32)((null))) || (pending == cast(*s32)((null)))) {
+        CompilerFree(cast(*void)((parents).of))
+        CompilerFree(cast(*void)(pending))
+        (parents).of = null
+        return 0
+    }
+    {
+        i: s32 = 0
+        while check_loop_263 := (i < (fn).expr_count) {
+            ((parents).of)[i] = (-1)
+            CheckPost0(*(i))
+        }
+    }
+    count: s32 = 0
+    {
+        s: s32 = 0
+        while check_loop_264 := (s < (fn).stmt_count) {
+            roots_storage_0 := cast(*CheckArray2_s32)AllocateOrExit(size_of(CheckArray2_s32))
+            defer CompilerFree(cast(*void)roots_storage_0)
+            memset(cast(*void)roots_storage_0, 0, size_of(CheckArray2_s32))
+            roots_storage_0[0] = .{items = .{(((fn).stmts)[s]).expr_root, (((fn).stmts)[s]).lhs_root}}
+            {
+                r: s32 = 0
+                while check_loop_265 := (r < 2) {
+                    if ((((roots_storage_0[0]).items[r] >= 0) && ((roots_storage_0[0]).items[r] < (fn).expr_count)) && (((parents).of)[(roots_storage_0[0]).items[r]] == (-1))) {
+                        ((parents).of)[(roots_storage_0[0]).items[r]] = ((-2) - s)
+                        (pending)[CheckPost0(*(count))] = (roots_storage_0[0]).items[r]
+                    }
+                    CheckPost0(*(r))
+                }
+            }
+            CheckPost0(*(s))
+        }
+    }
+    while check_loop_266 := (count > 0) {
+        index: s32 = (pending)[CheckPre4(*(count))]
+        e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+        children_storage_1 := cast(*CheckArray3_s32)AllocateOrExit(size_of(CheckArray3_s32))
+        defer CompilerFree(cast(*void)children_storage_1)
+        memset(cast(*void)children_storage_1, 0, size_of(CheckArray3_s32))
+        children_storage_1[0] = .{items = .{(e).left, (e).right, (e).third}}
+        {
+            c: s32 = 0
+            while check_loop_267 := (c < 3) {
+                if (((((children_storage_1[0]).items[c] >= 0) && ((children_storage_1[0]).items[c] < (fn).expr_count)) && (((parents).of)[(children_storage_1[0]).items[c]] == (-1))) && (count < (fn).expr_count)) {
+                    ((parents).of)[(children_storage_1[0]).items[c]] = index
+                    (pending)[CheckPost0(*(count))] = (children_storage_1[0]).items[c]
+                }
+                CheckPost0(*(c))
+            }
+        }
+        {
+            child: s32 = (e).first_child
+            while check_loop_268 := ((child >= 0) && (child < (fn).expr_count)) {
+                if ((((parents).of)[child] == (-1)) && (count < (fn).expr_count)) {
+                    ((parents).of)[child] = index
+                    (pending)[CheckPost0(*(count))] = child
+                }
+                child = (((fn).exprs)[child]).next_sibling
+            }
+        }
+    }
+    CompilerFree(cast(*void)(pending))
+    return 1
+}
+
+#scope_file
+comparison :: (op: *u8) -> s32 {
+    return cast(s32)(((((!(strcmp(op, CheckCString("==")) != 0) || !(strcmp(op, CheckCString("!=")) != 0)) || !(strcmp(op, CheckCString("<")) != 0)) || !(strcmp(op, CheckCString("<=")) != 0)) || !(strcmp(op, CheckCString(">")) != 0)) || !(strcmp(op, CheckCString(">=")) != 0))
+}
+
+#scope_file
+combine :: (a: s32, b: s32) -> s32 {
+    if ((a == 0) || (b == 0)) {
+        return 0
+    }
+    return (ifx ((a == 2) || (b == 2)) then 2 else 1)
+}
+
+#scope_file
+reading_foreign :: (module: *IR.ZirModule, name: *u8) -> s32 {
+    {
+        i: s32 = 0
+        while check_loop_269 := (i < (module).import_count) {
+            if (((cast(s32)((((module).imports)[i]).kind) == 3) && ((((module).imports)[i]).reads_arguments != 0)) && !(strcmp(cast(*u8)(*((((module).imports)[i]).name)), name) != 0)) {
+                return 1
+            }
+            CheckPost0(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+reads_slot :: (module: *IR.ZirModule, type: *u8) -> *IR.ZirType {
+    slot: *IR.ZirType = (ifx ((type != cast(*u8)((null))) && ((type)[0] != 0)) then FindType(module, type, null) else null)
+    return (ifx (((slot != cast(*IR.ZirType)((null))) && ((slot).is_procedure_type != 0)) && ((slot).reads_arguments != 0)) then slot else null)
+}
+
+#scope_file
+argument_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, parents: *Parents, call: s32, argument: s32, field: *u8) -> s32 {
+    e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(call) * size_of(IR.ZirExpr))
+    if (reads_slot(module, (e).slot_type) != cast(*IR.ZirType)((null))) {
+        return (ifx (argument != (e).left) then 1 else 0)
+    }
+    if (((((e).left >= 0) || ((e).is_function_value != 0)) || !((e).name != null)) || !(((e).name)[0] != 0)) {
+        return 0
+    }
+    if ((field == cast(*u8)((null))) && (!(strcmp((e).name, CheckCString("print")) != 0) || !(strcmp((e).name, CheckCString("TextCopy")) != 0))) {
+        return 1
+    }
+    if ((field == cast(*u8)((null))) && !(strcmp((e).name, CheckCString("BuilderAppend")) != 0)) {
+        return (ifx ((e).first_child != argument) then 1 else 0)
+    }
+    owner: *IR.ZirModule = null
+    callee: *IR.ZirFunction = null
+    found: s32 = ResolveFunction(module, (e).name, *(owner), *(callee))
+    if ((((found != 1) || (callee == cast(*IR.ZirFunction)((null)))) || (owner == cast(*IR.ZirModule)((null)))) || ((callee).is_extern != 0)) {
+        qualified_host: *IR.ZirImport = null
+        if (((((field == cast(*u8)((null))) && (found == 0)) && (!((e).slot_type != null) || !(((e).slot_type)[0] != 0))) && (ResolveQualifiedHostImportAt(module, (e).name, SpanPath((e).span), *(owner), *(qualified_host)) == 1)) && ((qualified_host).reads_arguments != 0)) {
+            return 1
+        }
+        if (((field == cast(*u8)((null))) && (found != (-1))) && (reading_foreign((ifx ((found == 1) && (owner != null)) then owner else module), (ifx ((found == 1) && (callee != null)) then cast(*u8)(*((callee).name)) else (e).name)) != 0)) {
+            return 1
+        }
+        return 0
+    }
+    if (((callee).is_template != 0) || ((callee).stmt_count == 0)) {
+        return 0
+    }
+    index: s32 = (((fn).exprs)[argument]).argument_index
+    if ((index < 0) || (index >= 64)) {
+        return 0
+    }
+    flow: s32 = parameter_flow(scope, owner, callee, index, field)
+    return (ifx (flow == 2) then value_flow(scope, module, fn, parents, call) else flow)
+}
+
+#scope_file
+value_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, parents: *Parents, value: s32) -> s32 {
+    parent: s32 = ((parents).of)[value]
+    if (parent < (-1)) {
+        s: s32 = ((-2) - parent)
+        st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+        if ((st).expr_root != value) {
+            return 0
+        }
+        if ((cast(s32)((st).kind) == 5) || (cast(s32)((st).kind) == 14)) {
+            return 1
+        }
+        if (cast(s32)((st).kind) == 10) {
+            return 2
+        }
+        if (((((((cast(s32)((st).kind) == 3) && !((st).is_using != 0)) && ((st).lhs_root < 0)) && (((st).names).name != cast(*u8)((null)))) && ((((st).names).name)[0] != 0)) && ((st).type != cast(*u8)((null)))) && !(strcmp((st).type, CheckCString("string")) != 0)) {
+            return local_flow(scope, module, fn, parents, s)
+        }
+        if ((((scope).borrowed != 0) && (cast(s32)((st).kind) == 4)) && !(strcmp(cast(*u8)(*((st).assignment_op)), CheckCString("=")) != 0)) {
+            local: s32 = string_local(fn, (st).lhs_root)
+            if (local < 0) {
+                return 0
+            }
+            {
+                i: s32 = 0
+                while check_loop_270 := (i < (scope).walking_count) {
+                    if ((((((scope).walking).items[i]).fn == fn) && ((((scope).walking).items[i]).s == local)) && ((((scope).walking).items[i]).path == cast(*u8)((null)))) {
+                        return 1
+                    }
+                    CheckPost0(*(i))
+                }
+            }
+            return local_flow(scope, module, fn, parents, local)
+        }
+        return 0
+    }
+    if (parent < 0) {
+        return 0
+    }
+    e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(parent) * size_of(IR.ZirExpr))
+    check_choice_271 := (e).kind
+    while check_switch_271 := true {
+        if check_choice_271 == cast(IR.ZirExprKind)((8)) {
+            return (ifx (((e).left == value) && !(strcmp((e).name, CheckCString("count")) != 0)) then 1 else 0)
+        }
+        else if check_choice_271 == cast(IR.ZirExprKind)((10)) {
+            return (ifx ((e).left == value) then 1 else 0)
+        }
+        else if check_choice_271 == cast(IR.ZirExprKind)((16)) {
+            return (ifx ((e).left == value) then value_flow(scope, module, fn, parents, parent) else 0)
+        }
+        else if check_choice_271 == cast(IR.ZirExprKind)((6)) {
+            return (ifx (comparison(cast(*u8)(*((e).op))) != 0) then 1 else 0)
+        }
+        else if check_choice_271 == cast(IR.ZirExprKind)((14)) {
+            return (ifx (((e).right == value) || ((e).third == value)) then value_flow(scope, module, fn, parents, parent) else 0)
+        }
+        else if check_choice_271 == cast(IR.ZirExprKind)((5)) {
+            return argument_flow(scope, module, fn, parents, parent, value, null)
+        }
+        else if check_choice_271 == cast(IR.ZirExprKind)((15)) {
+            record: s32 = ((parents).of)[parent]
+            if ((((e).right != value) || (record < 0)) || (cast(s32)((((fn).exprs)[record]).kind) != 12)) {
+                return 0
+            }
+            up: s32 = ((parents).of)[record]
+            if ((up < (-1)) && (!((e).name != null) || !(((e).name)[0] != 0))) {
+                s: s32 = ((-2) - up)
+                st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+                if (((((((cast(s32)((st).kind) != 3) || ((st).expr_root != record)) || ((st).is_using != 0)) || ((st).lhs_root >= 0)) || (((st).names).name == cast(*u8)((null)))) || !((((st).names).name)[0] != 0)) || !(string_array_type((st).type) != 0)) {
+                    return 0
+                }
+                return local_flow(scope, module, fn, parents, s)
+            }
+            if (!((e).name != null) || !(((e).name)[0] != 0)) {
+                return 0
+            }
+            return record_flow(scope, module, fn, parents, record, (e).name)
+        }
+        else {
+            return 0
+        }
+        break
+    }
+    unreachable
+}
+
+#scope_file
+value_read_only :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, parents: *Parents, value: s32) -> s32 {
+    return cast(s32)(value_flow(scope, module, fn, parents, value) == 1)
+}
+
+#scope_file
+answer_for :: (scope: *TextScope, fn: *IR.ZirFunction) -> *ScopeAnswer {
+    if (((((scope).count + cast(usize)(1))) * cast(usize)(2)) > (scope).capacity) {
+        capacity: usize = (ifx ((scope).capacity != 0) then ((scope).capacity * cast(usize)(2)) else cast(usize)(256))
+        grown: *ScopeAnswer = cast(*ScopeAnswer)(CompilerCalloc(capacity, cast(usize)(cast(u64)size_of(ScopeAnswer))))
+        if (grown == cast(*ScopeAnswer)((null))) {
+            (scope).failed = 1
+            return null
+        }
+        {
+            i: usize = cast(usize)(0)
+            while check_loop_272 := (i < (scope).capacity) {
+                if ((((scope).answers)[i]).fn == cast(*IR.ZirFunction)((null))) {
+                    CheckPost5(*(i))
+                    continue check_loop_272
+                }
+                slot: usize = cast(usize)((cast(u64)(((cast(usize)((((scope).answers)[i]).fn) >> cast(usize)(4)))) & cast(u64)(((capacity - cast(usize)(1))))))
+                while check_loop_273 := (((grown)[slot]).fn != cast(*IR.ZirFunction)((null))) {
+                    slot = (((slot + cast(usize)(1))) & ((capacity - cast(usize)(1))))
+                }
+                (grown)[slot] = ((scope).answers)[i]
+                CheckPost5(*(i))
+            }
+        }
+        CompilerFree(cast(*void)((scope).answers))
+        (scope).answers = grown
+        (scope).capacity = capacity
+    }
+    mask: usize = ((scope).capacity - cast(usize)(1))
+    slot: usize = cast(usize)((cast(u64)(((cast(usize)(fn) >> cast(usize)(4)))) & cast(u64)(mask)))
+    while check_loop_274 := (((((scope).answers)[slot]).fn != cast(*IR.ZirFunction)((null))) && ((((scope).answers)[slot]).fn != fn)) {
+        slot = (((slot + cast(usize)(1))) & mask)
+    }
+    if ((((scope).answers)[slot]).fn == cast(*IR.ZirFunction)((null))) {
+        (((scope).answers)[slot]).fn = fn
+        CheckPost5(*((scope).count))
+    }
+    return cast(*ScopeAnswer)(cast(usize)((scope).answers) + cast(usize)(slot) * size_of(ScopeAnswer))
+}
+
+#scope_file
+field_answer :: (scope: *TextScope, fn: *IR.ZirFunction, parameter: s32, field: *u8) -> *FieldAnswer {
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_275 := (i < (scope).field_count) {
+            if ((((((scope).fields)[i]).fn == fn) && ((((scope).fields)[i]).parameter == parameter)) && !(strcmp((((scope).fields)[i]).field, field) != 0)) {
+                return cast(*FieldAnswer)(cast(usize)((scope).fields) + cast(usize)(i) * size_of(FieldAnswer))
+            }
+            CheckPost5(*(i))
+        }
+    }
+    if ((scope).field_count == (scope).field_capacity) {
+        capacity: usize = (ifx ((scope).field_capacity != 0) then ((scope).field_capacity * cast(usize)(2)) else cast(usize)(64))
+        grown: *FieldAnswer = cast(*FieldAnswer)(CompilerRealloc(cast(*void)((scope).fields), cast(usize)((cast(u64)(capacity) * cast(u64)size_of(FieldAnswer)))))
+        if (grown == cast(*FieldAnswer)((null))) {
+            (scope).failed = 1
+            return null
+        }
+        (scope).fields = grown
+        (scope).field_capacity = capacity
+    }
+    answer: *FieldAnswer = cast(*FieldAnswer)(cast(usize)((scope).fields) + cast(usize)(CheckPost5(*((scope).field_count))) * size_of(FieldAnswer))
+    CheckSet18(answer, FieldAnswer.{fn, parameter, field, cast(u8)(0)})
+    return answer
+}
+
+#scope_file
+flow_state :: (scope: *TextScope, fn: *IR.ZirFunction, parameter: s32, field: *u8) -> *u8 {
+    if (field != cast(*u8)((null))) {
+        answer: *FieldAnswer = field_answer(scope, fn, parameter, field)
+        return (ifx (answer != null) then *((answer).state) else null)
+    }
+    answer: *ScopeAnswer = answer_for(scope, fn)
+    return (ifx (answer != null) then cast(*u8)(cast(usize)(cast(*u8)(*(((answer).state).items))) + cast(usize)(parameter) * size_of(u8)) else null)
+}
+
+#scope_file
+parameter_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, parameter: s32, field: *u8) -> s32 {
+    state: *u8 = flow_state(scope, fn, parameter, field)
+    if (state == cast(*u8)((null))) {
+        return 0
+    }
+    check_choice_276 := cast(s32)((state)[0])
+    while check_switch_276 := true {
+        if check_choice_276 == (2) {
+            return 1
+        }
+        else if check_choice_276 == (4) {
+            return 2
+        }
+        else if check_choice_276 == (0) {
+            break check_switch_276
+        }
+        else {
+            return 0
+        }
+        break
+    }
+    CheckSet13(state, cast(u8)(1))
+    result: s32 = 0
+    borrowed: s32 = (scope).borrowed
+    (scope).borrowed = 1
+    parameters: *ZirParameters = ParametersOf(FunctionArgs(fn))
+    item: *ZirParameter = (ifx (parameter < (parameters).count) then cast(*ZirParameter)(cast(usize)(cast(*ZirParameter)(*(((parameters).items).items))) + cast(usize)(parameter) * size_of(ZirParameter)) else null)
+    name: *u8 = (ifx (item != null) then ((ifx ((item).binding_name != null) then (item).binding_name else (item).name)) else null)
+    type: *u8 = (ifx (item != null) then ((ifx ((item).value_type != null) then (item).value_type else (item).type)) else null)
+    if (type != cast(*u8)((null))) {
+        type = skip_ws(type)
+    }
+    typed: s32 = cast(s32)((type != cast(*u8)((null))) && ((ifx (field == cast(*u8)((null))) then cast(s32)(!(strcmp(type, CheckCString("string")) != 0)) else cast(s32)((((type)[0] != 0) && (strcmp(type, CheckCString("string")) != 0)) && !(pointer_type(type) != 0))) != 0))
+    if (((name != cast(*u8)((null))) && (typed != 0)) && !((item).is_using != 0)) {
+        result = 1
+        {
+            s: s32 = 0
+            while check_loop_277 := ((result != 0) && (s < (fn).stmt_count)) {
+                if (((cast(s32)((((fn).stmts)[s]).kind) == 3) && (((((fn).stmts)[s]).names).name != null)) && !(strcmp(((((fn).stmts)[s]).names).name, name) != 0)) {
+                    result = 0
+                }
+                CheckPost0(*(s))
+            }
+        }
+        parents: Parents = .{}
+        if ((result != 0) && !(parents_build(fn, *(parents)) != 0)) {
+            (scope).failed = 1
+            result = 0
+        }
+        if ((result != 0) && (field != cast(*u8)((null)))) {
+            result = local_record_flow(scope, module, fn, *(parents), name, (-1), (-1), field)
+        }
+        {
+            x: s32 = 0
+            while check_loop_278 := (((result != 0) && (field == cast(*u8)((null)))) && (x < (fn).expr_count)) {
+                e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(x) * size_of(IR.ZirExpr))
+                if (((((cast(s32)((e).kind) != 1) || ((e).is_this != 0)) || !((e).name != null)) || (strcmp((e).name, name) != 0)) || (((parents).of)[x] == (-1))) {
+                    CheckPost0(*(x))
+                    continue check_loop_278
+                }
+                result = combine(result, value_flow(scope, module, fn, *(parents), x))
+                CheckPost0(*(x))
+            }
+        }
+        CompilerFree(cast(*void)((parents).of))
+    }
+    (scope).borrowed = borrowed
+    state = flow_state(scope, fn, parameter, field)
+    if (state != cast(*u8)((null))) {
+        CheckSet13(state, cast(u8)((ifx (result == 1) then 2 else (ifx (result == 2) then 4 else 3))))
+    }
+    return result
+}
+
+#scope_file
+pointer_type :: (type: *u8) -> s32 {
+    return cast(s32)((type != cast(*u8)((null))) && (cast(s32)(cast(s8)((skip_ws(type))[0])) == 42))
+}
+
+#scope_file
+unary_operand :: (e: *IR.ZirExpr) -> s32 {
+    return (ifx ((e).right >= 0) then (e).right else (ifx ((e).left >= 0) then (e).left else (e).first_child))
+}
+
+#scope_file
+address_of :: (e: *IR.ZirExpr) -> s32 {
+    return cast(s32)((cast(s32)((e).kind) == 7) && !(strcmp(cast(*u8)(*((e).op)), CheckCString("&")) != 0))
+}
+
+#scope_file
+pointer_parameter :: (fn: *IR.ZirFunction, name: *u8) -> s32 {
+    parameters: *ZirParameters = ParametersOf(FunctionArgs(fn))
+    found: s32 = (-1)
+    {
+        p: s32 = 0
+        while check_loop_279 := ((p < (parameters).count) && (p < 64)) {
+            item: *ZirParameter = cast(*ZirParameter)(cast(usize)(cast(*ZirParameter)(*(((parameters).items).items))) + cast(usize)(p) * size_of(ZirParameter))
+            bound: *u8 = (ifx ((item).binding_name != null) then (item).binding_name else (item).name)
+            type: *u8 = (ifx ((item).value_type != null) then (item).value_type else (item).type)
+            if ((bound != cast(*u8)((null))) && !(strcmp(bound, name) != 0)) {
+                found = (ifx (!((item).is_using != 0) && (pointer_type(type) != 0)) then p else (-1))
+            }
+            CheckPost0(*(p))
+        }
+    }
+    {
+        s: s32 = 0
+        while check_loop_280 := ((found >= 0) && (s < (fn).stmt_count)) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+            lhs: s32 = (st).lhs_root
+            if ((((cast(s32)((st).kind) == 3) && (((st).names).name != null)) && !(strcmp(((st).names).name, name) != 0)) || (((((cast(s32)((st).kind) == 4) && (lhs >= 0)) && (cast(s32)((((fn).exprs)[lhs]).kind) == 1)) && ((((fn).exprs)[lhs]).name != null)) && !(strcmp((((fn).exprs)[lhs]).name, name) != 0))) {
+                found = (-1)
+            }
+            CheckPost0(*(s))
+        }
+    }
+    return found
+}
+
+#scope_file
+pointer_reach :: (fn: *IR.ZirFunction, index: s32) -> s32 {
+    e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if (address_of(e) != 0) {
+        return place_reach(fn, unary_operand(e))
+    }
+    if ((((cast(s32)((e).kind) == 1) && !((e).is_global_value != 0)) && !((e).is_this != 0)) && ((e).name != null)) {
+        p: s32 = pointer_parameter(fn, (e).name)
+        if (p >= 0) {
+            return p
+        }
+    }
+    return -1
+}
+
+#scope_file
+place_reach :: (fn: *IR.ZirFunction, index: s32) -> s32 {
+    while check_loop_281 := (index >= 0) {
+        e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+        if (cast(s32)((e).kind) == 1) {
+            return (ifx ((((e).is_global_value != 0) || ((e).is_this != 0)) || !((e).name != null)) then -1 else -2)
+        }
+        if (((cast(s32)((e).kind) == 7) && !(strcmp(cast(*u8)(*((e).op)), CheckCString("*")) != 0)) && (unary_operand(e) >= 0)) {
+            return pointer_reach(fn, unary_operand(e))
+        }
+        if ((((cast(s32)((e).kind) != 8) && (cast(s32)((e).kind) != 10)) && (cast(s32)((e).kind) != 16)) || ((e).left < 0)) {
+            return -1
+        }
+        if (pointer_type((((fn).exprs)[(e).left]).type) != 0) {
+            return pointer_reach(fn, (e).left)
+        }
+        index = (e).left
+    }
+    return -1
+}
+
+#scope_file
+add_reach :: (reach: s32, global: *s32, through: *u64) {
+    if (reach == -1) {
+        CheckSet7(global, 1)
+    } else {
+        if (reach >= 0) {
+            (through)[0] |= (cast(u64)(1) << cast(u64)(reach))
+        }
+    }
+}
+
+#scope_file
+call_writes :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32, global: *s32, through: *u64, local: *s32) {
+    e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if (((((e).left >= 0) || ((e).is_function_value != 0)) || !((e).name != null)) || !(((e).name)[0] != 0)) {
+        CheckSet7(global, 1)
+        return
+    }
+    {
+        arg: s32 = (e).first_child
+        while check_loop_282 := (arg >= 0) {
+            type: *u8 = (ifx ((((fn).exprs)[arg]).type != null) then skip_ws((((fn).exprs)[arg]).type) else CheckCString(""))
+            copied: s32 = cast(s32)((!(strcmp(type, CheckCString("string")) != 0) || !(strcmp(type, CheckCString("bool")) != 0)) || ((((cast(s32)(cast(s8)((type)[0])) == 115) || (cast(s32)(cast(s8)((type)[0])) == 117)) || (cast(s32)(cast(s8)((type)[0])) == 102)) && (isdigit(cast(s32)(cast(u8)((type)[1]))) != 0)))
+            reach: s32 = (ifx ((copied != 0) || (pointer_type(type) != 0)) then -2 else place_reach(fn, arg))
+            if (reach != -2) {
+                add_reach(reach, global, through)
+            }
+            arg = (((fn).exprs)[arg]).next_sibling
+        }
+    }
+    written: u64 = (~cast(u64)(0))
+    owner: *IR.ZirModule = null
+    callee: *IR.ZirFunction = null
+    found: s32 = ResolveFunction(module, (e).name, *(owner), *(callee))
+    if (found != 1) {
+        if (found != 0) {
+            CheckSet7(global, 1)
+            return
+        }
+        {
+            i: s32 = 0
+            while check_loop_283 := (i < (module).import_count) {
+                if ((cast(s32)((((module).imports)[i]).kind) == 3) && !(strcmp(cast(*u8)(*((((module).imports)[i]).name)), (e).name) != 0)) {
+                    CheckSet7(global, 1)
+                    return
+                }
+                CheckPost0(*(i))
+            }
+        }
+    } else {
+        if ((((((callee == cast(*IR.ZirFunction)((null))) || (owner == cast(*IR.ZirModule)((null)))) || ((callee).is_extern != 0)) || ((callee).is_template != 0)) || ((callee).stmt_count == 0)) || (function_writes(scope, owner, callee, *(written)) != 0)) {
+            CheckSet7(global, 1)
+            return
+        }
+    }
+    {
+        arg: s32 = (e).first_child
+        while check_loop_284 := (arg >= 0) {
+            position: s32 = (((fn).exprs)[arg]).argument_index
+            if (!(pointer_type((((fn).exprs)[arg]).type) != 0) || ((((found == 1) && (position >= 0)) && (position < 64)) && !((written & ((cast(u64)(1) << cast(u64)(position)))) != 0))) {
+                arg = (((fn).exprs)[arg]).next_sibling
+                continue check_loop_284
+            }
+            reach: s32 = pointer_reach(fn, arg)
+            if (reach == -2) {
+                CheckSet7(local, 1)
+            } else {
+                add_reach(reach, global, through)
+            }
+            arg = (((fn).exprs)[arg]).next_sibling
+        }
+    }
+}
+
+#scope_file
+call_argument :: (fn: *IR.ZirFunction, arguments: *u8, index: s32) -> s32 {
+    return cast(s32)((((arguments != cast(*u8)((null))) && (index >= 0)) && (index < (fn).expr_count)) && ((arguments)[index] != 0))
+}
+
+#scope_file
+call_arguments :: (fn: *IR.ZirFunction) -> *u8 {
+    arguments: *u8 = cast(*u8)(CompilerCalloc((cast(usize)((fn).expr_count) + cast(usize)(1)), cast(usize)(1)))
+    if (arguments == cast(*u8)((null))) {
+        return null
+    }
+    {
+        x: s32 = 0
+        while check_loop_285 := (x < (fn).expr_count) {
+            if (cast(s32)((((fn).exprs)[x]).kind) == 5) {
+                {
+                    child: s32 = (((fn).exprs)[x]).first_child
+                    while check_loop_286 := ((child >= 0) && (child < (fn).expr_count)) {
+                        (arguments)[child] = cast(u8)(1)
+                        child = (((fn).exprs)[child]).next_sibling
+                    }
+                }
+            }
+            CheckPost0(*(x))
+        }
+    }
+    return arguments
+}
+
+#scope_file
+tree_writes :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32, is_argument: s32, argument: *s32) -> s32 {
+    if (index < 0) {
+        return 0
+    }
+    e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    global: s32 = 0
+    if ((address_of(e) != 0) && !(is_argument != 0)) {
+        global = 1
+    }
+    if (cast(s32)((e).kind) == 5) {
+        through: u64 = cast(u64)(0)
+        local: s32 = 0
+        call_writes(scope, module, fn, index, *(global), *(through), *(local))
+        if ((through != 0) || (local != 0)) {
+            CheckSet7(argument, 1)
+        }
+    }
+    global |= ((tree_writes(scope, module, fn, (e).left, 0, argument) | tree_writes(scope, module, fn, (e).right, 0, argument)) | tree_writes(scope, module, fn, (e).third, 0, argument))
+    {
+        child: s32 = (e).first_child
+        while check_loop_287 := (child >= 0) {
+            global |= tree_writes(scope, module, fn, child, cast(s32)(cast(s32)((e).kind) == 5), argument)
+            child = (((fn).exprs)[child]).next_sibling
+        }
+    }
+    return global
+}
+
+#scope_file
+tree_writes_globals :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32) -> s32 {
+    argument: s32 = 0
+    return cast(s32)((tree_writes(scope, module, fn, index, 0, *(argument)) != 0) || (argument != 0))
+}
+
+#scope_file
+tree_writes_arguments :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32) -> s32 {
+    argument: s32 = 0
+    cast(void)(tree_writes(scope, module, fn, index, 0, *(argument)))
+    return argument
+}
+
+#scope_file
+function_writes :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, through: *u64) -> s32 {
+    CheckSet19(through, cast(u64)(0))
+    answer: *ScopeAnswer = answer_for(scope, fn)
+    if (answer == cast(*ScopeAnswer)((null))) {
+        return 1
+    }
+    if (cast(s32)((answer).writes) != 0) {
+        CheckSet19(through, (answer).through)
+        return cast(s32)(cast(s32)((answer).writes) != 2)
+    }
+    (answer).writes = cast(u8)(1)
+    global: s32 = 0
+    local: s32 = 0
+    bits: u64 = cast(u64)(0)
+    arguments: *u8 = call_arguments(fn)
+    if (arguments == cast(*u8)((null))) {
+        global = 1
+    }
+    {
+        s: s32 = 0
+        while check_loop_288 := (!(global != 0) && (s < (fn).stmt_count)) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+            if (cast(s32)((st).kind) == 4) {
+                add_reach(place_reach(fn, (st).lhs_root), *(global), *(bits))
+            }
+            CheckPost0(*(s))
+        }
+    }
+    {
+        x: s32 = 0
+        while check_loop_289 := (!(global != 0) && (x < (fn).expr_count)) {
+            e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(x) * size_of(IR.ZirExpr))
+            if ((address_of(e) != 0) && !(call_argument(fn, arguments, x) != 0)) {
+                global = 1
+            } else {
+                if (cast(s32)((e).kind) == 5) {
+                    call_writes(scope, module, fn, x, *(global), *(bits), *(local))
+                }
+            }
+            CheckPost0(*(x))
+        }
+    }
+    CompilerFree(cast(*void)(arguments))
+    answer = answer_for(scope, fn)
+    if (answer != cast(*ScopeAnswer)((null))) {
+        (answer).writes = cast(u8)((ifx (global != 0) then 3 else 2))
+        (answer).through = bits
+    }
+    CheckSet19(through, bits)
+    return global
+}
+
+#scope_file
+text_detach_call :: (fn: *IR.ZirFunction, index: s32) -> s32 {
+    e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if (((((cast(s32)((e).kind) != 5) || ((e).name == cast(*u8)((null)))) || ((e).first_child < 0)) || ((((fn).exprs)[(e).first_child]).next_sibling >= 0)) || (cast(s32)((((fn).exprs)[(e).first_child]).kind) != 5)) {
+        return 0
+    }
+    dot: *u8 = strrchr((e).name, 46)
+    if ((dot == cast(*u8)((null))) || (strcmp(dot, CheckCString(".TextDetach")) != 0)) {
+        return 0
+    }
+    owner_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)owner_storage_0)
+    memset(cast(*void)owner_storage_0, 0, size_of(CheckArray128_u8))
+    snprintf(cast(*u8)(*((owner_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("%.*s"), cast(s32)(((cast(s64)(cast(isize)(cast(usize)(dot) - cast(usize)((e).name))) / cast(s64)size_of(u8)))), (e).name)
+    return StandardModuleName(cast(*u8)(*((owner_storage_0[0]).items)), CheckCString("vec"))
+}
+
+#scope_file
+scoped_name :: (name: *u8) -> s32 {
+    return cast(s32)((name != cast(*u8)((null))) && !(strncmp(name, CheckCString("text_scope_"), cast(usize)(cast(u64)(11))) != 0))
+}
+
+#scope_file
+address_taken :: (fn: *IR.ZirFunction, name: *u8) -> s32 {
+    {
+        i: s32 = 0
+        while check_loop_290 := (i < (fn).expr_count) {
+            e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(i) * size_of(IR.ZirExpr))
+            if ((cast(s32)((e).kind) != 7) || ((strcmp(cast(*u8)(*((e).op)), CheckCString("*")) != 0) && (strcmp(cast(*u8)(*((e).op)), CheckCString("&")) != 0))) {
+                CheckPost0(*(i))
+                continue check_loop_290
+            }
+            place: s32 = unary_operand(e)
+            while check_loop_291 := ((place >= 0) && ((cast(s32)((((fn).exprs)[place]).kind) == 8) || (cast(s32)((((fn).exprs)[place]).kind) == 10))) {
+                place = (((fn).exprs)[place]).left
+            }
+            if ((place < 0) || (((cast(s32)((((fn).exprs)[place]).kind) == 1) && ((((fn).exprs)[place]).name != null)) && !(strcmp((((fn).exprs)[place]).name, name) != 0))) {
+                return 1
+            }
+            CheckPost0(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+handed_to_call :: (fn: *IR.ZirFunction, index: s32) -> s32 {
+    {
+        x: s32 = 0
+        while check_loop_292 := (x < (fn).expr_count) {
+            e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(x) * size_of(IR.ZirExpr))
+            if (cast(s32)((e).kind) != 5) {
+                CheckPost0(*(x))
+                continue check_loop_292
+            }
+            {
+                child: s32 = (e).first_child
+                while check_loop_293 := (child >= 0) {
+                    if (child != index) {
+                        child = (((fn).exprs)[child]).next_sibling
+                        continue check_loop_293
+                    }
+                    type: *u8 = (ifx ((e).type != null) then skip_ws((e).type) else CheckCString(""))
+                    dot: *u8 = strrchr(type, 46)
+                    return cast(s32)(((!(strcmp(type, CheckCString("void")) != 0) || !(strcmp(type, CheckCString("string")) != 0)) || !(strcmp((ifx (dot != null) then cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8)) else type), CheckCString("Text")) != 0)) || (scalar_type(type) != 0))
+                    child = (((fn).exprs)[child]).next_sibling
+                }
+            }
+            CheckPost0(*(x))
+        }
+    }
+    return 0
+}
+
+#scope_file
+global_address_taken :: (fn: *IR.ZirFunction) -> s32 {
+    {
+        i: s32 = 0
+        while check_loop_294 := (i < (fn).expr_count) {
+            e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(i) * size_of(IR.ZirExpr))
+            if ((cast(s32)((e).kind) != 7) || ((strcmp(cast(*u8)(*((e).op)), CheckCString("*")) != 0) && (strcmp(cast(*u8)(*((e).op)), CheckCString("&")) != 0))) {
+                CheckPost0(*(i))
+                continue check_loop_294
+            }
+            if (handed_to_call(fn, i) != 0) {
+                CheckPost0(*(i))
+                continue check_loop_294
+            }
+            place: s32 = unary_operand(e)
+            while check_loop_295 := ((place >= 0) && ((cast(s32)((((fn).exprs)[place]).kind) == 8) || (cast(s32)((((fn).exprs)[place]).kind) == 10))) {
+                place = (((fn).exprs)[place]).left
+            }
+            if (((place < 0) || (cast(s32)((((fn).exprs)[place]).kind) != 1)) || ((((fn).exprs)[place]).is_global_value != 0)) {
+                return 1
+            }
+            CheckPost0(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+settled :: (fn: *IR.ZirFunction, index: s32, globals: s32) -> s32 {
+    if (index < 0) {
+        return 1
+    }
+    e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    check_choice_296 := (e).kind
+    while check_switch_296 := true {
+        if check_choice_296 == cast(IR.ZirExprKind)((2)) || check_choice_296 == cast(IR.ZirExprKind)((3)) || check_choice_296 == cast(IR.ZirExprKind)((4)) || check_choice_296 == cast(IR.ZirExprKind)((13)) {
+            return 1
+        }
+        else if check_choice_296 == cast(IR.ZirExprKind)((1)) {
+            return cast(s32)(!((e).is_global_value != 0) || (globals != 0))
+        }
+        else if check_choice_296 == cast(IR.ZirExprKind)((7)) {
+            operand: s32 = unary_operand(e)
+            if ((((!(strcmp(cast(*u8)(*((e).op)), CheckCString("&")) != 0) && (operand >= 0)) && (cast(s32)((((fn).exprs)[operand]).kind) == 1)) && ((((fn).exprs)[operand]).name != cast(*u8)((null)))) && !((((fn).exprs)[operand]).is_function_value != 0)) {
+                return 1
+            }
+            if !(strcmp(cast(*u8)(*((e).op)), CheckCString("*")) != 0) {
+                return cast(s32)((globals != 0) && (settled(fn, operand, globals) != 0))
+            }
+            return cast(s32)((!(strcmp(cast(*u8)(*((e).op)), CheckCString("-")) != 0) || !(strcmp(cast(*u8)(*((e).op)), CheckCString("!")) != 0)) && (settled(fn, operand, globals) != 0))
+        }
+        else if check_choice_296 == cast(IR.ZirExprKind)((5)) {
+            return cast(s32)(((((!(strcmp((e).name, CheckCString("TextView")) != 0) && ((e).first_child >= 0)) && (cast(s32)((((fn).exprs)[(e).first_child]).kind) == 1)) && !((((fn).exprs)[(e).first_child]).is_global_value != 0)) && ((((fn).exprs)[(e).first_child]).name != cast(*u8)((null)))) && ((scoped_name((((fn).exprs)[(e).first_child]).name) != 0) || !(address_taken(fn, (((fn).exprs)[(e).first_child]).name) != 0)))
+        }
+        else if check_choice_296 == cast(IR.ZirExprKind)((8)) || check_choice_296 == cast(IR.ZirExprKind)((10)) || check_choice_296 == cast(IR.ZirExprKind)((16)) || check_choice_296 == cast(IR.ZirExprKind)((6)) || check_choice_296 == cast(IR.ZirExprKind)((11)) || check_choice_296 == cast(IR.ZirExprKind)((15)) || check_choice_296 == cast(IR.ZirExprKind)((12)) {
+            if ((cast(s32)((e).kind) == 6) && (!(strcmp(cast(*u8)(*((e).op)), CheckCString("&&")) != 0) || !(strcmp(cast(*u8)(*((e).op)), CheckCString("||")) != 0))) {
+                return 0
+            }
+            if ((!(settled(fn, (e).left, globals) != 0) || !(settled(fn, (e).right, globals) != 0)) || !(settled(fn, (e).third, globals) != 0)) {
+                return 0
+            }
+            {
+                child: s32 = (e).first_child
+                while check_loop_297 := (child >= 0) {
+                    if !(settled(fn, child, globals) != 0) {
+                        return 0
+                    }
+                    child = (((fn).exprs)[child]).next_sibling
+                }
+            }
+            return 1
+        }
+        else {
+            return 0
+        }
+        break
+    }
+    unreachable
+}
+
+#scope_file
+earlier_settled :: (fn: *IR.ZirFunction, parent: s32, child: s32, globals: s32) -> s32 {
+    e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(parent) * size_of(IR.ZirExpr))
+    if ((cast(s32)((e).kind) == 14) || ((cast(s32)((e).kind) == 6) && (!(strcmp(cast(*u8)(*((e).op)), CheckCString("&&")) != 0) || !(strcmp(cast(*u8)(*((e).op)), CheckCString("||")) != 0)))) {
+        return cast(s32)(child == (e).left)
+    }
+    order_storage_0 := cast(*CheckArray3_s32)AllocateOrExit(size_of(CheckArray3_s32))
+    defer CompilerFree(cast(*void)order_storage_0)
+    memset(cast(*void)order_storage_0, 0, size_of(CheckArray3_s32))
+    order_storage_0[0] = .{items = .{(e).left, (e).right, (e).third}}
+    {
+        i: s32 = 0
+        while check_loop_298 := (i < 3) {
+            if ((order_storage_0[0]).items[i] == child) {
+                return 1
+            }
+            if !(settled(fn, (order_storage_0[0]).items[i], globals) != 0) {
+                return 0
+            }
+            CheckPost0(*(i))
+        }
+    }
+    {
+        sibling: s32 = (e).first_child
+        while check_loop_299 := (sibling >= 0) {
+            if (sibling == child) {
+                return 1
+            }
+            if !(settled(fn, sibling, globals) != 0) {
+                return 0
+            }
+            sibling = (((fn).exprs)[sibling]).next_sibling
+        }
+    }
+    return 0
+}
+
+#scope_file
+hoist_statement :: (fn: *IR.ZirFunction, parents: *Parents, call: s32, globals: s32, else_if: *s32) -> s32 {
+    node: s32 = call
+    CheckSet7(else_if, (-1))
+    while check_loop_300 := (((parents).of)[node] >= 0) {
+        if !(earlier_settled(fn, ((parents).of)[node], node, globals) != 0) {
+            return (-1)
+        }
+        node = ((parents).of)[node]
+    }
+    if (((parents).of)[node] == (-1)) {
+        return (-1)
+    }
+    s: s32 = ((-2) - ((parents).of)[node])
+    st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+    if ((st).expr_root != node) {
+        return (-1)
+    }
+    check_choice_301 := (st).kind
+    while check_switch_301 := true {
+        if check_choice_301 == cast(IR.ZirStmtKind)((5)) || check_choice_301 == cast(IR.ZirStmtKind)((14)) || check_choice_301 == cast(IR.ZirStmtKind)((3)) || check_choice_301 == cast(IR.ZirStmtKind)((10)) {
+            return s
+        }
+        else if check_choice_301 == cast(IR.ZirStmtKind)((6)) {
+            if ((st).is_else != 0) {
+                CheckSet7(else_if, s)
+            }
+            return (ifx ((st).is_else != 0) then (-1) else s)
+        }
+        else if check_choice_301 == cast(IR.ZirStmtKind)((4)) {
+            return (ifx (!((st).for_step != 0) && (settled(fn, (st).lhs_root, globals) != 0)) then s else (-1))
+        }
+        else {
+            return (-1)
+        }
+        break
+    }
+    unreachable
+}
+
+#scope_file
+name_used :: (fn: *IR.ZirFunction, name: *u8) -> s32 {
+    {
+        i: s32 = 0
+        while check_loop_302 := (i < (fn).expr_count) {
+            if (((((fn).exprs)[i]).name != null) && !(strcmp((((fn).exprs)[i]).name, name) != 0)) {
+                return 1
+            }
+            CheckPost0(*(i))
+        }
+    }
+    {
+        s: s32 = 0
+        while check_loop_303 := (s < (fn).stmt_count) {
+            if (((cast(s32)((((fn).stmts)[s]).kind) == 3) && (((((fn).stmts)[s]).names).name != null)) && !(strcmp(((((fn).stmts)[s]).names).name, name) != 0)) {
+                return 1
+            }
+            CheckPost0(*(s))
+        }
+    }
+    return 0
+}
+
+#scope_file
+insert_statements :: (fn: *IR.ZirFunction, s: s32, count: s32) -> *IR.ZirStmt {
+    span: IR.ZirSourceSpan = (ifx (s < (fn).stmt_count) then (((fn).stmts)[s]).span else (ifx ((fn).stmt_count > 0) then (((fn).stmts)[((fn).stmt_count - 1)]).span else (fn).span))
+    if (((fn).stmt_count + count) > (fn).stmt_cap) {
+        capacity: s32 = (ifx ((fn).stmt_cap > 0) then (fn).stmt_cap else 16)
+        while check_loop_304 := (capacity < ((fn).stmt_count + count)) {
+            capacity *= 2
+        }
+        stmts: *IR.ZirStmt = cast(*IR.ZirStmt)(CompilerRealloc(cast(*void)((fn).stmts), cast(usize)((cast(u64)(cast(usize)(capacity)) * cast(u64)size_of(IR.ZirStmt)))))
+        if (stmts == cast(*IR.ZirStmt)((null))) {
+            return null
+        }
+        (fn).stmts = stmts
+        (fn).stmt_cap = capacity
+    }
+    memmove(cast(*void)(cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)((s + count)) * size_of(IR.ZirStmt))), cast(*void)(cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))), cast(usize)((cast(u64)(cast(usize)((((fn).stmt_count - s)))) * cast(u64)size_of(IR.ZirStmt))))
+    (fn).stmt_count += count
+    {
+        i: s32 = 0
+        while check_loop_305 := (i < count) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)((s + i)) * size_of(IR.ZirStmt))
+            StmtReset(st)
+            (st).expr_root = CheckSet7(*((st).lhs_root), (-1))
+            (st).span = span
+            CheckPost0(*(i))
+        }
+    }
+    return cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+}
+
+#scope_file
+fresh_name :: (fn: *IR.ZirFunction, prefix: *u8, serial: *s32, name: *u8, size: usize) {
+    while check_loop_306 := true {
+        snprintf(name, size, CheckCString("%s_%d"), prefix, CheckPre14(serial))
+        if !(name_used(fn, name) != 0) { break check_loop_306 }
+    }
+}
+
+#scope_file
+scope_text :: (fn: *IR.ZirFunction, view_node: s32, call: s32, s: s32, serial: *s32) -> s32 {
+    name_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)name_storage_0)
+    memset(cast(*void)name_storage_0, 0, size_of(CheckArray128_u8))
+    fresh_name(fn, CheckCString("text_scope"), serial, cast(*u8)(*((name_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)))
+    local: *IR.ZirExpr = FunctionAddExpr(fn, cast(IR.ZirExprKind)(1), cast(*u8)(*((name_storage_0[0]).items)), (((fn).exprs)[view_node]).span)
+    if (local == cast(*IR.ZirExpr)((null))) {
+        return 0
+    }
+    (local).name = KeepName(cast(*u8)(*((name_storage_0[0]).items)))
+    (local).type = (((fn).exprs)[call]).type
+    view: s32 = cast(s32)(((cast(s64)(cast(isize)(cast(usize)(local) - cast(usize)((fn).exprs))) / cast(s64)size_of(IR.ZirExpr))))
+    decl: *IR.ZirStmt = insert_statements(fn, s, 1)
+    if (decl == cast(*IR.ZirStmt)((null))) {
+        return 0
+    }
+    (decl).kind = cast(IR.ZirStmtKind)(3)
+    (decl).text = (((fn).exprs)[call]).text
+    ((decl).names).name = KeepName(cast(*u8)(*((name_storage_0[0]).items)))
+    (decl).type = (((fn).exprs)[call]).type
+    (decl).expr_root = call
+    moved: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(call) * size_of(IR.ZirExpr))
+    (moved).next_sibling = (-1)
+    (moved).argument_index = (-1)
+    (moved).argument_name = CheckCString("")
+    (moved).text_owned = 1
+    lent: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(view_node) * size_of(IR.ZirExpr))
+    (lent).name = KeepName(CheckCString("TextView"))
+    (lent).first_child = view
+    return 1
+}
+
+#scope_file
+builder_text_module :: (module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32) -> *u8 {
+    e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if ((((module).standard_name)[0] != 0) && !(strcmp(cast(*u8)(*((module).standard_name)), CheckCString("vec")) != 0)) {
+        return null
+    }
+    if ((((((((cast(s32)((e).kind) != 5) || ((e).left >= 0)) || ((e).name == cast(*u8)((null)))) || (strcmp((e).name, CheckCString("BuilderFinish")) != 0)) || ((e).type == cast(*u8)((null)))) || (strcmp((e).type, CheckCString("string")) != 0)) || ((e).first_child < 0)) || ((((fn).exprs)[(e).first_child]).next_sibling >= 0)) {
+        return null
+    }
+    scoped_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)scoped_storage_0)
+    memset(cast(*void)scoped_storage_0, 0, size_of(CheckArray128_u8))
+    modules_storage_1 := cast(*CheckArray3__u8)AllocateOrExit(size_of(CheckArray3__u8))
+    defer CompilerFree(cast(*void)modules_storage_1)
+    memset(cast(*void)modules_storage_1, 0, size_of(CheckArray3__u8))
+    modules_storage_1[0] = .{items = .{CheckCString("vec"), CheckCString("std_vec"), cast(*u8)(*((scoped_storage_0[0]).items))}}
+    if !(StandardScopedName(CheckCString("vec"), cast(*u8)(*((scoped_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0) {
+        (scoped_storage_0[0]).items[0] = cast(u8)(0)
+    }
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_307 := (cast(u64)(i) < (cast(u64)size_of(CheckArray3__u8) / cast(u64)size_of(*u8))) {
+            qualified_storage_2 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+            defer CompilerFree(cast(*void)qualified_storage_2)
+            memset(cast(*void)qualified_storage_2, 0, size_of(CheckArray128_u8))
+            owner: *IR.ZirModule = null
+            found: *IR.ZirFunction = null
+            if !(((modules_storage_1[0]).items[i])[0] != 0) {
+                CheckPost5(*(i))
+                continue check_loop_307
+            }
+            if !(strcmp(cast(*u8)(*((module).name)), (modules_storage_1[0]).items[i]) != 0) {
+                return null
+            }
+            snprintf(cast(*u8)(*((qualified_storage_2[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("%s.TextFromBuilder"), (modules_storage_1[0]).items[i])
+            if (ResolveFunction(module, cast(*u8)(*((qualified_storage_2[0]).items)), *(owner), *(found)) == 1) {
+                return KeepName((modules_storage_1[0]).items[i])
+            }
+            CheckPost5(*(i))
+        }
+    }
+    return null
+}
+
+#scope_file
+builder_text_call :: (fn: *IR.ZirFunction, finish: s32, vec_module: *u8) -> s32 {
+    name_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)name_storage_0)
+    memset(cast(*void)name_storage_0, 0, size_of(CheckArray128_u8))
+    type_storage_1 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)type_storage_1)
+    memset(cast(*void)type_storage_1, 0, size_of(CheckArray128_u8))
+    snprintf(cast(*u8)(*((name_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("%s.TextFromBuilder"), vec_module)
+    snprintf(cast(*u8)(*((type_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("%s.Text"), vec_module)
+    made: *IR.ZirExpr = FunctionAddExpr(fn, cast(IR.ZirExprKind)(5), (((fn).exprs)[finish]).text, (((fn).exprs)[finish]).span)
+    if (made == cast(*IR.ZirExpr)((null))) {
+        return (-1)
+    }
+    index: s32 = cast(s32)(((cast(s64)(cast(isize)(cast(usize)(made) - cast(usize)((fn).exprs))) / cast(s64)size_of(IR.ZirExpr))))
+    CheckSet16(made, ((fn).exprs)[finish])
+    (made).name = KeepName(cast(*u8)(*((name_storage_0[0]).items)))
+    (made).type = KeepName(cast(*u8)(*((type_storage_1[0]).items)))
+    (((fn).exprs)[(made).first_child]).argument_index = 0
+    (((fn).exprs)[(made).first_child]).is_move = 1
+    (((fn).exprs)[finish]).first_child = (-1)
+    return index
+}
+
+#scope_file
+statement_of :: (parents: *Parents, x: s32) -> s32 {
+    while check_loop_308 := (((parents).of)[x] >= 0) {
+        x = ((parents).of)[x]
+    }
+    return (ifx (((parents).of)[x] < (-1)) then ((-2) - ((parents).of)[x]) else (-1))
+}
+
+#scope_file
+block_end :: (fn: *IR.ZirFunction, s: s32) -> s32 {
+    depth: s32 = 0
+    {
+        t: s32 = (s + 1)
+        while check_loop_309 := (t < (fn).stmt_count) {
+            kind: IR.ZirStmtKind = (((fn).stmts)[t]).kind
+            if (cast(s32)(kind) == 2) {
+                if (depth == 0) {
+                    return t
+                }
+                CheckPost9(*(depth))
+            } else {
+                if ((((cast(s32)(kind) == 1) || (cast(s32)(kind) == 6)) || (cast(s32)(kind) == 7)) || (cast(s32)(kind) == 8)) {
+                    CheckPost0(*(depth))
+                }
+            }
+            CheckPost0(*(t))
+        }
+    }
+    return (fn).stmt_count
+}
+
+#scope_file
+declaration_of :: (fn: *IR.ZirFunction, parents: *Parents, x: s32) -> s32 {
+    at: s32 = statement_of(parents, x)
+    name: *u8 = (((fn).exprs)[x]).name
+    {
+        t: s32 = (at - 1)
+        while check_loop_310 := ((t >= 0) && (name != cast(*u8)((null)))) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(t) * size_of(IR.ZirStmt))
+            if ((((cast(s32)((st).kind) == 3) && (((st).names).name != cast(*u8)((null)))) && !(strcmp(((st).names).name, name) != 0)) && (at < block_end(fn, t))) {
+                return t
+            }
+            CheckPost9(*(t))
+        }
+    }
+    return (-1)
+}
+
+#scope_file
+scalar_type :: (type: *u8) -> s32 {
+    names: CheckArray13__u8 = .{items = .{CheckCString("bool"), CheckCString("s8"), CheckCString("s16"), CheckCString("s32"), CheckCString("s64"), CheckCString("u8"), CheckCString("u16"), CheckCString("u32"), CheckCString("u64"), CheckCString("float32"), CheckCString("float64"), CheckCString("int"), CheckCString("float")}}
+    if (type == cast(*u8)((null))) {
+        return 0
+    }
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_311 := (cast(u64)(i) < (cast(u64)size_of(CheckArray13__u8) / cast(u64)size_of(*u8))) {
+            if !(strcmp(type, (names).items[i]) != 0) {
+                return 1
+            }
+            CheckPost5(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+blocking_arm :: (fn: *IR.ZirFunction, parents: *Parents, node: s32, globals: s32) -> s32 {
+    while check_loop_312 := (((parents).of)[node] >= 0) {
+        parent: s32 = ((parents).of)[node]
+        e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(parent) * size_of(IR.ZirExpr))
+        if !(earlier_settled(fn, parent, node, globals) != 0) {
+            if (node == (e).left) {
+                return (-1)
+            }
+            if ((cast(s32)((e).kind) == 6) && (!(strcmp(cast(*u8)(*((e).op)), CheckCString("&&")) != 0) || !(strcmp(cast(*u8)(*((e).op)), CheckCString("||")) != 0))) {
+                return parent
+            }
+            return (ifx ((cast(s32)((e).kind) == 14) && (scalar_type((e).type) != 0)) then parent else (-1))
+        }
+        node = parent
+    }
+    return (-1)
+}
+
+#scope_file
+local_read :: (fn: *IR.ZirFunction, name: *u8, type: *u8, span: IR.ZirSourceSpan) -> s32 {
+    read: *IR.ZirExpr = FunctionAddExpr(fn, cast(IR.ZirExprKind)(1), name, span)
+    if (read == cast(*IR.ZirExpr)((null))) {
+        return (-1)
+    }
+    (read).name = name
+    (read).type = type
+    return cast(s32)(((cast(s64)(cast(isize)(cast(usize)(read) - cast(usize)((fn).exprs))) / cast(s64)size_of(IR.ZirExpr))))
+}
+
+#scope_file
+rewrite_arm :: (fn: *IR.ZirFunction, arm: s32, s: s32, serial: *s32) -> s32 {
+    local_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)local_storage_0)
+    memset(cast(*void)local_storage_0, 0, size_of(CheckArray128_u8))
+    e: IR.ZirExpr = ((fn).exprs)[arm]
+    conditional: s32 = cast(s32)(cast(s32)((e).kind) == 14)
+    fresh_name(fn, (ifx (conditional != 0) then CheckCString("text_arm") else CheckCString("text_cond")), serial, cast(*u8)(*((local_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)))
+    name: *u8 = KeepName(cast(*u8)(*((local_storage_0[0]).items)))
+    test: s32 = (ifx (conditional != 0) then (e).left else local_read(fn, name, (e).type, (e).span))
+    if (((test >= 0) && !(conditional != 0)) && !(strcmp(cast(*u8)(*((e).op)), CheckCString("||")) != 0)) {
+        negated: *IR.ZirExpr = FunctionAddExpr(fn, cast(IR.ZirExprKind)(7), (e).text, (e).span)
+        if (negated == cast(*IR.ZirExpr)((null))) {
+            return 0
+        }
+        snprintf(cast(*u8)(*((negated).op)), cast(usize)(cast(u64)size_of(CheckArray8_u8)), CheckCString("!"))
+        (negated).right = test
+        (negated).type = (e).type
+        test = cast(s32)(((cast(s64)(cast(isize)(cast(usize)(negated) - cast(usize)((fn).exprs))) / cast(s64)size_of(IR.ZirExpr))))
+    }
+    first: s32 = local_read(fn, name, (e).type, (e).span)
+    second: s32 = (ifx (conditional != 0) then local_read(fn, name, (e).type, (e).span) else 0)
+    st: *IR.ZirStmt = (ifx (((test < 0) || (first < 0)) || (second < 0)) then null else insert_statements(fn, s, (ifx (conditional != 0) then 7 else 4)))
+    if (st == cast(*IR.ZirStmt)((null))) {
+        return 0
+    }
+    text: *u8 = (ifx ((e).text != null) then (e).text else KeepText(name))
+    ((st)[0]).kind = cast(IR.ZirStmtKind)(3)
+    (((st)[0]).names).name = name
+    ((st)[0]).type = (e).type
+    ((st)[0]).text = text
+    ((st)[0]).expr_root = (ifx (conditional != 0) then (-1) else (e).left)
+    ((st)[1]).kind = cast(IR.ZirStmtKind)(6)
+    ((st)[1]).text = text
+    ((st)[1]).expr_root = test
+    ((st)[2]).kind = cast(IR.ZirStmtKind)(4)
+    ((st)[2]).text = text
+    ((st)[2]).lhs_root = first
+    ((st)[2]).expr_root = (e).right
+    snprintf(cast(*u8)(*(((st)[2]).assignment_op)), cast(usize)(cast(u64)size_of(CheckArray4_u8)), CheckCString("="))
+    ((st)[3]).kind = cast(IR.ZirStmtKind)(2)
+    ((st)[3]).text = KeepText(CheckCString("}"))
+    if (conditional != 0) {
+        ((st)[4]).kind = cast(IR.ZirStmtKind)(6)
+        ((st)[4]).is_else = 1
+        ((st)[4]).text = KeepText(CheckCString("else {"))
+        ((st)[5]).kind = cast(IR.ZirStmtKind)(4)
+        ((st)[5]).text = text
+        ((st)[5]).lhs_root = second
+        ((st)[5]).expr_root = (e).third
+        snprintf(cast(*u8)(*(((st)[5]).assignment_op)), cast(usize)(cast(u64)size_of(CheckArray4_u8)), CheckCString("="))
+        ((st)[6]).kind = cast(IR.ZirStmtKind)(2)
+        ((st)[6]).text = KeepText(CheckCString("}"))
+    }
+    read: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(arm) * size_of(IR.ZirExpr))
+    (read).kind = cast(IR.ZirExprKind)(1)
+    (read).name = name
+    (read).text = KeepText(name)
+    ((read).op)[0] = cast(u8)(0)
+    (read).left = CheckSet7(*((read).right), CheckSet7(*((read).third), CheckSet7(*((read).first_child), (-1))))
+    (read).is_global_value = CheckSet7(*((read).is_move), CheckSet7(*((read).text_owned), 0))
+    return 1
+}
+
+#scope_file
+split_else_if :: (fn: *IR.ZirFunction, s: s32) -> s32 {
+    end: s32 = block_end(fn, s)
+    while check_loop_313 := ((((end + 1) < (fn).stmt_count) && (cast(s32)((((fn).stmts)[(end + 1)]).kind) == 6)) && ((((fn).stmts)[(end + 1)]).is_else != 0)) {
+        end = block_end(fn, (end + 1))
+    }
+    if (end >= (fn).stmt_count) {
+        return 0
+    }
+    close: *IR.ZirStmt = insert_statements(fn, (end + 1), 1)
+    if (close == cast(*IR.ZirStmt)((null))) {
+        return 0
+    }
+    (close).kind = cast(IR.ZirStmtKind)(2)
+    (close).text = KeepText(CheckCString("}"))
+    (close).span = (((fn).stmts)[end]).span
+    inner: *IR.ZirStmt = insert_statements(fn, (s + 1), 1)
+    if (inner == cast(*IR.ZirStmt)((null))) {
+        return 0
+    }
+    outer: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+    CheckSet20(inner, (outer)[0])
+    (inner).is_else = 0
+    text: *u8 = (ifx ((inner).text != null) then (inner).text else CheckCString(""))
+    if !(strncmp(text, CheckCString("else"), cast(usize)(cast(u64)(4))) != 0) {
+        text = cast(*u8)(cast(usize)(text) + cast(usize)(4) * size_of(u8))
+        while check_loop_314 := (isspace(cast(s32)(cast(u8)((text)[0]))) != 0) {
+            CheckPost6(*(text))
+        }
+        (inner).text = KeepText(text)
+    }
+    (outer).expr_root = (-1)
+    (outer).text = KeepText(CheckCString("else {"))
+    return 1
+}
+
+#scope_file
+rewrite_condition :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, parents: *Parents, call: s32, globals: s32, else_if: s32, serial: *s32) -> s32 {
+    {
+        node: s32 = call
+        while check_loop_315 := true {
+            if (else_if >= 0) {
+                return (ifx (split_else_if(fn, else_if) != 0) then 1 else (-1))
+            }
+            node = blocking_arm(fn, parents, node, globals)
+            if ((node < 0) || (tree_writes_arguments(scope, module, fn, node) != 0)) {
+                return 0
+            }
+            globals = cast(s32)(!(global_address_taken(fn) != 0) && !(tree_writes_globals(scope, module, fn, node) != 0))
+            if ((scope).failed != 0) {
+                return (-1)
+            }
+            s: s32 = hoist_statement(fn, parents, node, globals, *(else_if))
+            if (s >= 0) {
+                return (ifx (rewrite_arm(fn, node, s, serial) != 0) then 1 else (-1))
+            }
+        }
+    }
+    unreachable
+}
+
+#scope_file
+string_array_type :: (type: *u8) -> s32 {
+    if (((type == cast(*u8)((null))) || (cast(s32)(cast(s8)((CheckPost6(*(type)))[0])) != 91)) || !(isdigit(cast(s32)(cast(u8)((type)[0]))) != 0)) {
+        return 0
+    }
+    while check_loop_316 := (isdigit(cast(s32)(cast(u8)((type)[0]))) != 0) {
+        CheckPost6(*(type))
+    }
+    return cast(s32)(!(strcmp(type, CheckCString("]string")) != 0))
+}
+
+#scope_file
+local_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, parents: *Parents, s: s32) -> s32 {
+    name: *u8 = ((((fn).stmts)[s]).names).name
+    array: s32 = string_array_type((((fn).stmts)[s]).type)
+    end: s32 = block_end(fn, s)
+    {
+        t: s32 = (s + 1)
+        while check_loop_317 := (t < end) {
+            if (cast(s32)((((fn).stmts)[t]).kind) == 13) {
+                return 0
+            }
+            CheckPost0(*(t))
+        }
+    }
+    if ((scope).walking_count == cast(s32)(((cast(u64)size_of(CheckArray16_TextWalking) / cast(u64)size_of(TextWalking))))) {
+        return 0
+    }
+    walking: s32 = CheckPost0(*((scope).walking_count))
+    (((scope).walking).items[walking]).fn = fn
+    (((scope).walking).items[walking]).s = s
+    (((scope).walking).items[walking]).path = null
+    result: s32 = 1
+    {
+        x: s32 = 0
+        while check_loop_318 := ((result != 0) && (x < (fn).expr_count)) {
+            e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(x) * size_of(IR.ZirExpr))
+            if (((((((cast(s32)((e).kind) != 1) || ((e).is_this != 0)) || ((e).is_function_value != 0)) || ((e).name == cast(*u8)((null)))) || (strcmp((e).name, name) != 0)) || (((parents).of)[x] == (-1))) || (declaration_of(fn, parents, x) != s)) {
+                CheckPost0(*(x))
+                continue check_loop_318
+            }
+            at: s32 = statement_of(parents, x)
+            if ((at <= s) || (at >= end)) {
+                result = 0
+                break check_loop_318
+            }
+            if (((((((scope).borrowed != 0) && !(array != 0)) && (((parents).of)[x] == ((-2) - at))) && (cast(s32)((((fn).stmts)[at]).kind) == 4)) && ((((fn).stmts)[at]).lhs_root == x)) && !(strcmp(cast(*u8)(*((((fn).stmts)[at]).assignment_op)), CheckCString("=")) != 0)) {
+                CheckPost0(*(x))
+                continue check_loop_318
+            }
+            if (array != 0) {
+                up: s32 = ((parents).of)[x]
+                if (((up >= 0) && (cast(s32)((((fn).exprs)[up]).kind) == 10)) && ((((fn).exprs)[up]).left == x)) {
+                    result = combine(result, value_flow(scope, module, fn, parents, up))
+                } else {
+                    if ((((up >= 0) && (cast(s32)((((fn).exprs)[up]).kind) == 8)) && ((((fn).exprs)[up]).left == x)) && !(strcmp((((fn).exprs)[up]).name, CheckCString("count")) != 0)) {
+                        CheckPost0(*(x))
+                        continue check_loop_318
+                    } else {
+                        result = 0
+                    }
+                }
+                CheckPost0(*(x))
+                continue check_loop_318
+            }
+            result = combine(result, value_flow(scope, module, fn, parents, x))
+            CheckPost0(*(x))
+        }
+    }
+    (scope).walking_count = walking
+    return result
+}
+
+#scope_file
+string_local :: (fn: *IR.ZirFunction, place: s32) -> s32 {
+    if (((((place < 0) || (cast(s32)((((fn).exprs)[place]).kind) != 1)) || ((((fn).exprs)[place]).is_global_value != 0)) || ((((fn).exprs)[place]).is_this != 0)) || ((((fn).exprs)[place]).name == cast(*u8)((null)))) {
+        return (-1)
+    }
+    found: s32 = (-1)
+    {
+        s: s32 = 0
+        while check_loop_319 := (s < (fn).stmt_count) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+            if (((cast(s32)((st).kind) != 3) || (((st).names).name == cast(*u8)((null)))) || (strcmp(((st).names).name, (((fn).exprs)[place]).name) != 0)) {
+                CheckPost0(*(s))
+                continue check_loop_319
+            }
+            if (((((found >= 0) || ((st).is_using != 0)) || ((st).lhs_root >= 0)) || ((st).type == cast(*u8)((null)))) || (strcmp((st).type, CheckCString("string")) != 0)) {
+                return (-1)
+            }
+            found = s
+            CheckPost0(*(s))
+        }
+    }
+    return found
+}
+
+#scope_file
+enclosing_block :: (fn: *IR.ZirFunction, s: s32) -> s32 {
+    depth: s32 = 0
+    {
+        t: s32 = (s - 1)
+        while check_loop_320 := (t >= 0) {
+            kind: IR.ZirStmtKind = (((fn).stmts)[t]).kind
+            if (cast(s32)(kind) == 2) {
+                CheckPost0(*(depth))
+            } else {
+                if ((((cast(s32)(kind) == 1) || (cast(s32)(kind) == 6)) || (cast(s32)(kind) == 7)) || (cast(s32)(kind) == 8)) {
+                    if (depth == 0) {
+                        return t
+                    }
+                    CheckPost9(*(depth))
+                }
+            }
+            CheckPost9(*(t))
+        }
+    }
+    return (-1)
+}
+
+#scope_file
+record_local :: (fn: *IR.ZirFunction, name: *u8, decl: *s32) -> s32 {
+    CheckSet7(decl, (-1))
+    {
+        s: s32 = 0
+        while check_loop_321 := (s < (fn).stmt_count) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+            if (((cast(s32)((st).kind) != 3) || (((st).names).name == cast(*u8)((null)))) || (strcmp(((st).names).name, name) != 0)) {
+                CheckPost0(*(s))
+                continue check_loop_321
+            }
+            if ((((((((decl)[0] >= 0) || ((st).is_using != 0)) || ((st).lhs_root >= 0)) || ((st).type == cast(*u8)((null)))) || !((skip_ws((st).type))[0] != 0)) || !(strcmp(skip_ws((st).type), CheckCString("string")) != 0)) || (pointer_type((st).type) != 0)) {
+                return 0
+            }
+            CheckSet7(decl, s)
+            CheckPost0(*(s))
+        }
+    }
+    if ((decl)[0] >= 0) {
+        return 1
+    }
+    parameters: *ZirParameters = ParametersOf(FunctionArgs(fn))
+    {
+        p: s32 = 0
+        while check_loop_322 := (p < (parameters).count) {
+            item: *ZirParameter = cast(*ZirParameter)(cast(usize)(cast(*ZirParameter)(*(((parameters).items).items))) + cast(usize)(p) * size_of(ZirParameter))
+            bound: *u8 = (ifx ((item).binding_name != null) then (item).binding_name else (item).name)
+            type: *u8 = (ifx ((item).value_type != null) then (item).value_type else (item).type)
+            if ((bound == cast(*u8)((null))) || (strcmp(bound, name) != 0)) {
+                CheckPost0(*(p))
+                continue check_loop_322
+            }
+            type = (ifx (type != null) then skip_ws(type) else CheckCString(""))
+            return cast(s32)(((!((item).is_using != 0) && ((type)[0] != 0)) && (strcmp(type, CheckCString("string")) != 0)) && !(pointer_type(type) != 0))
+            CheckPost0(*(p))
+        }
+    }
+    return 0
+}
+
+#scope_file
+place_holds :: (fn: *IR.ZirFunction, place: s32, name: *u8, path: *u8) -> s32 {
+    fields_storage_0 := cast(*CheckArray16__u8)AllocateOrExit(size_of(CheckArray16__u8))
+    defer CompilerFree(cast(*void)fields_storage_0)
+    memset(cast(*void)fields_storage_0, 0, size_of(CheckArray16__u8))
+    count: s32 = 0
+    while check_loop_323 := ((place >= 0) && (cast(s32)((((fn).exprs)[place]).kind) == 8)) {
+        if ((count == 16) || ((((fn).exprs)[place]).name == cast(*u8)((null)))) {
+            return 0
+        }
+        (fields_storage_0[0]).items[CheckPost0(*(count))] = (((fn).exprs)[place]).name
+        place = (((fn).exprs)[place]).left
+    }
+    if ((((((place < 0) || (cast(s32)((((fn).exprs)[place]).kind) != 1)) || ((((fn).exprs)[place]).is_global_value != 0)) || ((((fn).exprs)[place]).is_this != 0)) || ((((fn).exprs)[place]).name == cast(*u8)((null)))) || (strcmp((((fn).exprs)[place]).name, name) != 0)) {
+        return 0
+    }
+    while check_loop_324 := (count > 0) {
+        field: *u8 = (fields_storage_0[0]).items[CheckPre4(*(count))]
+        n: usize = cast(usize)(strcspn(path, CheckCString(".")))
+        if ((CheckCStringLength(field) != cast(u64)(n)) || (strncmp(field, path, n) != 0)) {
+            return 0
+        }
+        if !((path)[n] != 0) {
+            return cast(s32)(count == 0)
+        }
+        path = cast(*u8)(cast(usize)(path) + cast(usize)((n + cast(usize)(1))) * size_of(u8))
+    }
+    return 1
+}
+
+#scope_file
+replacing_statement :: (fn: *IR.ZirFunction, name: *u8, from: s32, end: s32, path: *u8) -> s32 {
+    block: s32 = (ifx (from >= 0) then enclosing_block(fn, from) else (-1))
+    {
+        t: s32 = (from + 1)
+        while check_loop_325 := (t < end) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(t) * size_of(IR.ZirStmt))
+            if ((cast(s32)((st).kind) == 11) || (cast(s32)((st).kind) == 12)) {
+                return (-1)
+            }
+            if ((((cast(s32)((st).kind) == 4) && !(strcmp(cast(*u8)(*((st).assignment_op)), CheckCString("=")) != 0)) && (place_holds(fn, (st).lhs_root, name, path) != 0)) && (enclosing_block(fn, t) == block)) {
+                return t
+            }
+            CheckPost0(*(t))
+        }
+    }
+    return (-1)
+}
+
+#scope_file
+local_record_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, parents: *Parents, name: *u8, decl: s32, from: s32, path: *u8) -> s32 {
+    {
+        i: s32 = 0
+        while check_loop_326 := (i < (scope).walking_count) {
+            if (((((((scope).walking).items[i]).fn == fn) && ((((scope).walking).items[i]).s == from)) && ((((scope).walking).items[i]).path != cast(*u8)((null)))) && !(strcmp((((scope).walking).items[i]).path, path) != 0)) {
+                return 1
+            }
+            CheckPost0(*(i))
+        }
+    }
+    if ((scope).walking_count == cast(s32)(((cast(u64)size_of(CheckArray16_TextWalking) / cast(u64)size_of(TextWalking))))) {
+        return 0
+    }
+    end: s32 = (ifx (decl < 0) then (fn).stmt_count else block_end(fn, decl))
+    deferred: s32 = 0
+    {
+        t: s32 = (decl + 1)
+        while check_loop_327 := ((t < end) && !(deferred != 0)) {
+            deferred = cast(s32)(cast(s32)((((fn).stmts)[t]).kind) == 13)
+            CheckPost0(*(t))
+        }
+    }
+    first: s32 = (from + 1)
+    last: s32 = (end - 1)
+    replaced: s32 = (ifx (deferred != 0) then (-1) else replacing_statement(fn, name, from, end, path))
+    if (deferred != 0) {
+        first = (decl + 1)
+    } else {
+        if (replaced >= 0) {
+            last = replaced
+        } else {
+            if (from >= 0) {
+                {
+                    b: s32 = enclosing_block(fn, from)
+                    while check_loop_328 := (b > decl) {
+                        if ((cast(s32)((((fn).stmts)[b]).kind) == 7) || (cast(s32)((((fn).stmts)[b]).kind) == 8)) {
+                            first = b
+                        }
+                        b = enclosing_block(fn, b)
+                    }
+                }
+            }
+        }
+    }
+    walking: s32 = CheckPost0(*((scope).walking_count))
+    (((scope).walking).items[walking]).fn = fn
+    (((scope).walking).items[walking]).s = from
+    (((scope).walking).items[walking]).path = path
+    result: s32 = 1
+    {
+        x: s32 = 0
+        while check_loop_329 := ((result != 0) && (x < (fn).expr_count)) {
+            e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(x) * size_of(IR.ZirExpr))
+            if (((((((cast(s32)((e).kind) != 1) || ((e).is_this != 0)) || ((e).is_function_value != 0)) || ((e).is_global_value != 0)) || ((e).name == cast(*u8)((null)))) || (strcmp((e).name, name) != 0)) || (((parents).of)[x] == (-1))) {
+                CheckPost0(*(x))
+                continue check_loop_329
+            }
+            at: s32 = statement_of(parents, x)
+            if ((at < first) || (at > last)) {
+                CheckPost0(*(x))
+                continue check_loop_329
+            }
+            node: s32 = x
+            other: s32 = 0
+            rest: *u8 = path
+            while check_loop_330 := ((rest)[0] != 0) {
+                up: s32 = ((parents).of)[node]
+                if (((up < 0) || (cast(s32)((((fn).exprs)[up]).kind) != 8)) || ((((fn).exprs)[up]).left != node)) {
+                    break check_loop_330
+                }
+                n: usize = cast(usize)(strcspn(rest, CheckCString(".")))
+                field: *u8 = (((fn).exprs)[up]).name
+                if (((field == cast(*u8)((null))) || (CheckCStringLength(field) != cast(u64)(n))) || (strncmp(field, rest, n) != 0)) {
+                    other = 1
+                    break check_loop_330
+                }
+                node = up
+                rest = cast(*u8)(cast(usize)(rest) + cast(usize)((ifx ((rest)[n] != 0) then (n + cast(usize)(1)) else n)) * size_of(u8))
+            }
+            if (other != 0) {
+                CheckPost0(*(x))
+                continue check_loop_329
+            }
+            up: s32 = ((parents).of)[node]
+            if ((up < (-1)) && ((((fn).stmts)[((-2) - up)]).lhs_root == node)) {
+                st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(((-2) - up)) * size_of(IR.ZirStmt))
+                if ((cast(s32)((st).kind) != 4) || (strcmp(cast(*u8)(*((st).assignment_op)), CheckCString("=")) != 0)) {
+                    result = 0
+                }
+                CheckPost0(*(x))
+                continue check_loop_329
+            }
+            result = combine(result, (ifx ((rest)[0] != 0) then record_flow(scope, module, fn, parents, node, rest) else value_flow(scope, module, fn, parents, node)))
+            CheckPost0(*(x))
+        }
+    }
+    (scope).walking_count = walking
+    return result
+}
+
+#scope_file
+stored_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, parents: *Parents, s: s32, path: *u8) -> s32 {
+    full_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)full_storage_0)
+    memset(cast(*void)full_storage_0, 0, size_of(CheckArray128_u8))
+    joined_storage_1 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)joined_storage_1)
+    memset(cast(*void)joined_storage_1, 0, size_of(CheckArray128_u8))
+    if (snprintf(cast(*u8)(*((full_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("%s"), path) >= cast(s32)(cast(u64)size_of(CheckArray128_u8))) {
+        return 0
+    }
+    place: s32 = (((fn).stmts)[s]).lhs_root
+    while check_loop_331 := ((place >= 0) && (cast(s32)((((fn).exprs)[place]).kind) == 8)) {
+        left: s32 = (((fn).exprs)[place]).left
+        if ((((left < 0) || ((((fn).exprs)[place]).name == cast(*u8)((null)))) || (pointer_type((((fn).exprs)[left]).type) != 0)) || (snprintf(cast(*u8)(*((joined_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("%s.%s"), (((fn).exprs)[place]).name, cast(*u8)(*((full_storage_0[0]).items))) >= cast(s32)(cast(u64)size_of(CheckArray128_u8)))) {
+            return 0
+        }
+        memcpy(cast(*void)(cast(*u8)(*((full_storage_0[0]).items))), cast(*void)(cast(*u8)(*((joined_storage_1[0]).items))), cast(usize)(cast(u64)size_of(CheckArray128_u8)))
+        place = left
+    }
+    root: *IR.ZirExpr = (ifx (place >= 0) then cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(place) * size_of(IR.ZirExpr)) else null)
+    decl: s32
+    if (((((((root == cast(*IR.ZirExpr)((null))) || (cast(s32)((root).kind) != 1)) || ((root).is_global_value != 0)) || ((root).is_this != 0)) || ((root).name == cast(*u8)((null)))) || !(record_local(fn, (root).name, *(decl)) != 0)) || ((decl >= 0) && ((s <= decl) || (s >= block_end(fn, decl))))) {
+        return 0
+    }
+    return local_record_flow(scope, module, fn, parents, (root).name, decl, s, KeepName(cast(*u8)(*((full_storage_0[0]).items))))
+}
+
+#scope_file
+record_flow :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, parents: *Parents, node: s32, path: *u8) -> s32 {
+    parent: s32 = ((parents).of)[node]
+    if (parent < (-1)) {
+        s: s32 = ((-2) - parent)
+        st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+        decl: s32
+        if ((st).expr_root != node) {
+            return 0
+        }
+        if ((cast(s32)((st).kind) == 5) || (cast(s32)((st).kind) == 14)) {
+            return 1
+        }
+        if ((((cast(s32)((st).kind) == 3) && (((st).names).name != cast(*u8)((null)))) && (record_local(fn, ((st).names).name, *(decl)) != 0)) && (decl == s)) {
+            return local_record_flow(scope, module, fn, parents, ((st).names).name, s, s, path)
+        }
+        if ((((scope).borrowed != 0) && (cast(s32)((st).kind) == 4)) && !(strcmp(cast(*u8)(*((st).assignment_op)), CheckCString("=")) != 0)) {
+            return stored_flow(scope, module, fn, parents, s, path)
+        }
+        return 0
+    }
+    if (parent < 0) {
+        return 0
+    }
+    e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(parent) * size_of(IR.ZirExpr))
+    check_choice_332 := (e).kind
+    while check_switch_332 := true {
+        if check_choice_332 == cast(IR.ZirExprKind)((8)) {
+            if ((((e).left != node) || ((e).name == cast(*u8)((null)))) || (pointer_type((((fn).exprs)[node]).type) != 0)) {
+                return 0
+            }
+            n: usize = cast(usize)(strcspn(path, CheckCString(".")))
+            if ((CheckCStringLength((e).name) != cast(u64)(n)) || (strncmp((e).name, path, n) != 0)) {
+                return 1
+            }
+            return (ifx ((path)[n] != 0) then record_flow(scope, module, fn, parents, parent, cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(path) + cast(usize)(n) * size_of(u8))) + cast(usize)(1) * size_of(u8))) else value_flow(scope, module, fn, parents, parent))
+        }
+        else if check_choice_332 == cast(IR.ZirExprKind)((5)) {
+            return argument_flow(scope, module, fn, parents, parent, node, path)
+        }
+        else if check_choice_332 == cast(IR.ZirExprKind)((14)) {
+            return (ifx (((e).right == node) || ((e).third == node)) then record_flow(scope, module, fn, parents, parent, path) else 0)
+        }
+        else if check_choice_332 == cast(IR.ZirExprKind)((15)) {
+            record: s32 = ((parents).of)[parent]
+            if ((((((e).right != node) || ((e).name == cast(*u8)((null)))) || !(((e).name)[0] != 0)) || (record < 0)) || (cast(s32)((((fn).exprs)[record]).kind) != 12)) {
+                return 0
+            }
+            return record_flow(scope, module, fn, parents, record, KeepNameFormat(CheckCString("%s.%s"), (e).name, path))
+        }
+        else {
+            return 0
+        }
+        break
+    }
+    unreachable
+}
+
+#scope_file
+local_read_only :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, parents: *Parents, s: s32) -> s32 {
+    return cast(s32)(local_flow(scope, module, fn, parents, s) == 1)
+}
+
+#scope_file
+keep_local_text :: (fn: *IR.ZirFunction, parents: *Parents, s: s32, call: s32) -> s32 {
+    name: *u8 = ((((fn).stmts)[s]).names).name
+    count: s32 = (fn).expr_count
+    {
+        x: s32 = 0
+        while check_loop_333 := (x < count) {
+            if ((((((cast(s32)((((fn).exprs)[x]).kind) != 1) || ((((fn).exprs)[x]).is_this != 0)) || ((((fn).exprs)[x]).name == cast(*u8)((null)))) || (strcmp((((fn).exprs)[x]).name, name) != 0)) || (((parents).of)[x] == (-1))) || (declaration_of(fn, parents, x) != s)) {
+                CheckPost0(*(x))
+                continue check_loop_333
+            }
+            local: *IR.ZirExpr = FunctionAddExpr(fn, cast(IR.ZirExprKind)(1), (((fn).exprs)[x]).text, (((fn).exprs)[x]).span)
+            if (local == cast(*IR.ZirExpr)((null))) {
+                return 0
+            }
+            CheckSet16(local, ((fn).exprs)[x])
+            (local).type = (((fn).exprs)[call]).type
+            (local).next_sibling = (-1)
+            (local).argument_index = (-1)
+            (local).argument_name = CheckCString("")
+            view: s32 = cast(s32)(((cast(s64)(cast(isize)(cast(usize)(local) - cast(usize)((fn).exprs))) / cast(s64)size_of(IR.ZirExpr))))
+            lent: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(x) * size_of(IR.ZirExpr))
+            (lent).kind = cast(IR.ZirExprKind)(5)
+            (lent).name = KeepName(CheckCString("TextView"))
+            (lent).slot_type = CheckCString("")
+            (lent).left = CheckSet7(*((lent).right), CheckSet7(*((lent).third), (-1)))
+            (lent).first_child = view
+            CheckPost0(*(x))
+        }
+    }
+    kept: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(call) * size_of(IR.ZirExpr))
+    (kept).next_sibling = (-1)
+    (kept).argument_index = (-1)
+    (kept).argument_name = CheckCString("")
+    (kept).text_owned = 1
+    (((fn).stmts)[s]).type = (kept).type
+    (((fn).stmts)[s]).expr_root = call
+    return 1
+}
+
+#scope_file
+infer_local_texts :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction, changed: *s32) -> s32 {
+    parents: Parents = .{}
+    {
+        s: s32 = 0
+        while check_loop_334 := (s < (fn).stmt_count) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+            root: s32 = (st).expr_root
+            vec_module: *u8 = null
+            if (((((((((cast(s32)((st).kind) != 3) || ((st).is_using != 0)) || (((st).names).name == cast(*u8)((null)))) || !((((st).names).name)[0] != 0)) || ((st).type == cast(*u8)((null)))) || (strcmp((st).type, CheckCString("string")) != 0)) || (root < 0)) || ((st).lhs_root >= 0)) || (!(text_detach_call(fn, root) != 0) && ((CheckSet12(*(vec_module), builder_text_module(module, fn, root))) == cast(*u8)((null))))) {
+                CheckPost0(*(s))
+                continue check_loop_334
+            }
+            if (((parents).of == cast(*s32)((null))) && !(parents_build(fn, *(parents)) != 0)) {
+                return 0
+            }
+            if !(local_read_only(scope, module, fn, *(parents), s) != 0) {
+                CheckPost0(*(s))
+                continue check_loop_334
+            }
+            call: s32 = (ifx (vec_module != null) then builder_text_call(fn, root, vec_module) else (((fn).exprs)[root]).first_child)
+            if ((call < 0) || !(keep_local_text(fn, *(parents), s, call) != 0)) {
+                CompilerFree(cast(*void)((parents).of))
+                return 0
+            }
+            CompilerFree(cast(*void)((parents).of))
+            (parents).of = null
+            CheckSet7(changed, 1)
+            CheckPost0(*(s))
+        }
+    }
+    CompilerFree(cast(*void)((parents).of))
+    return 1
+}
+
+#scope_file
+scope_function :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 {
+    serial: s32 = 0
+    inferred: s32 = 0
+    if !(infer_local_texts(scope, module, fn, *(inferred)) != 0) {
+        return 0
+    }
+    {
+        while check_loop_335 := true {
+            parents: Parents = .{}
+            if !(parents_build(fn, *(parents)) != 0) {
+                return 0
+            }
+            done: s32 = 1
+            {
+                x: s32 = 0
+                while check_loop_336 := ((x < (fn).expr_count) && (done != 0)) {
+                    vec_module: *u8 = null
+                    if ((((parents).of)[x] < 0) || (!(text_detach_call(fn, x) != 0) && ((CheckSet12(*(vec_module), builder_text_module(module, fn, x))) == cast(*u8)((null))))) {
+                        CheckPost0(*(x))
+                        continue check_loop_336
+                    }
+                    if !(value_read_only(scope, module, fn, *(parents), x) != 0) {
+                        CheckPost0(*(x))
+                        continue check_loop_336
+                    }
+                    moved: s32 = (ifx (vec_module != null) then x else (((fn).exprs)[x]).first_child)
+                    if (tree_writes_arguments(scope, module, fn, moved) != 0) {
+                        CheckPost0(*(x))
+                        continue check_loop_336
+                    }
+                    globals: s32 = cast(s32)(!(global_address_taken(fn) != 0) && !(tree_writes_globals(scope, module, fn, moved) != 0))
+                    if ((scope).failed != 0) {
+                        CompilerFree(cast(*void)((parents).of))
+                        return 0
+                    }
+                    else_if: s32
+                    s: s32 = hoist_statement(fn, *(parents), x, globals, *(else_if))
+                    if (s < 0) {
+                        rewritten: s32 = rewrite_condition(scope, module, fn, *(parents), x, globals, else_if, *(serial))
+                        if (rewritten < 0) {
+                            CompilerFree(cast(*void)((parents).of))
+                            return 0
+                        }
+                        done = cast(s32)(!(rewritten != 0))
+                        CheckPost0(*(x))
+                        continue check_loop_336
+                    }
+                    call: s32 = (ifx (vec_module != null) then builder_text_call(fn, x, vec_module) else (((fn).exprs)[x]).first_child)
+                    if ((call < 0) || !(scope_text(fn, x, call, s, *(serial)) != 0)) {
+                        CompilerFree(cast(*void)((parents).of))
+                        return 0
+                    }
+                    done = 0
+                    CheckPost0(*(x))
+                }
+            }
+            CompilerFree(cast(*void)((parents).of))
+            if (done != 0) {
+                return cast(s32)(((serial == 0) && !(inferred != 0)) || (rebuild_conversion_layout(fn) != 0))
+            }
+        }
+    }
+    unreachable
+}
+
+#scope_file
+fields_read_only :: (scope: *TextScope, owner: *IR.ZirModule, fn: *IR.ZirFunction, p: s32, types: *IR.ZirModule, record: *IR.ZirType, prefix: *u8, kept: *u8, size: usize, depth: s32) -> s32 {
+    if ((((((record).is_enum != 0) || ((record).is_procedure_type != 0)) || ((record).is_extern != 0)) || ((record).is_record_template != 0)) || (depth > 8)) {
+        return 1
+    }
+    offset: usize = cast(usize)(0)
+    field: IR.ZirTypeField
+    while check_loop_337 := (TypeNextField(record, *(offset), *(field)) == 1) {
+        type: *u8 = skip_ws(cast(*u8)(*((field).type)))
+        at_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+        defer CompilerFree(cast(*void)at_storage_0)
+        memset(cast(*void)at_storage_0, 0, size_of(CheckArray128_u8))
+        if (snprintf(cast(*u8)(*((at_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("%s.%s"), prefix, cast(*u8)(*((field).name))) >= cast(s32)(cast(u64)size_of(CheckArray128_u8))) {
+            snprintf(kept, size, CheckCString("%s"), prefix)
+            return 0
+        }
+        if !(strcmp(type, CheckCString("string")) != 0) {
+            if ((((p >= 64) || ((fn).is_extern != 0)) || ((fn).is_template != 0)) || (parameter_flow(scope, owner, fn, p, KeepName(cast(*u8)(cast(usize)(strchr(cast(*u8)(*((at_storage_0[0]).items)), 46)) + cast(usize)(1) * size_of(u8)))) != 1)) {
+                snprintf(kept, size, CheckCString("%s"), cast(*u8)(*((at_storage_0[0]).items)))
+                return 0
+            }
+            continue check_loop_337
+        }
+        inner_types: *IR.ZirModule = null
+        inner: *IR.ZirType = (ifx (pointer_type(type) != 0) then null else FindType(types, type, *(inner_types)))
+        if ((inner != cast(*IR.ZirType)((null))) && !(fields_read_only(scope, owner, fn, p, (ifx (inner_types != null) then inner_types else types), inner, cast(*u8)(*((at_storage_0[0]).items)), kept, size, (depth + 1)) != 0)) {
+            return 0
+        }
+    }
+    return 1
+}
+
+#scope_file
+reads_only :: (scope: *TextScope, owner: *IR.ZirModule, fn: *IR.ZirFunction, kept: *u8, size: usize) -> s32 {
+    parameters: *ZirParameters = ParametersOf(FunctionArgs(fn))
+    {
+        p: s32 = 0
+        while check_loop_338 := (p < (parameters).count) {
+            item: *ZirParameter = cast(*ZirParameter)(cast(usize)(cast(*ZirParameter)(*(((parameters).items).items))) + cast(usize)(p) * size_of(ZirParameter))
+            name: *u8 = (ifx ((item).binding_name != null) then (item).binding_name else (item).name)
+            type: *u8 = skip_ws((ifx ((item).value_type != null) then (item).value_type else (item).type))
+            record_owner: *IR.ZirModule = null
+            record: *IR.ZirType = null
+            if !(strcmp(type, CheckCString("string")) != 0) {
+                if ((((p >= 64) || ((fn).is_extern != 0)) || ((fn).is_template != 0)) || (parameter_flow(scope, owner, fn, p, null) != 1)) {
+                    if (!((fn).is_extern != 0) || !(reading_foreign(owner, cast(*u8)(*((fn).name))) != 0)) {
+                        snprintf(kept, size, CheckCString("%s"), name)
+                        return 0
+                    }
+                }
+                CheckPost0(*(p))
+                continue check_loop_338
+            }
+            if ((pointer_type(type) != 0) || ((CheckSet11(*(record), FindType(owner, type, *(record_owner)))) == cast(*IR.ZirType)((null)))) {
+                CheckPost0(*(p))
+                continue check_loop_338
+            }
+            if !(fields_read_only(scope, owner, fn, p, (ifx (record_owner != null) then record_owner else owner), record, name, kept, size, 0) != 0) {
+                return 0
+            }
+            CheckPost0(*(p))
+        }
+    }
+    return 1
+}
+
+#scope_file
+check_reads_slots :: (scope: *TextScope, module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 {
+    ok: s32 = 1
+    {
+        x: s32 = 0
+        while check_loop_339 := (x < (fn).expr_count) {
+            e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(x) * size_of(IR.ZirExpr))
+            slot: *IR.ZirType = (ifx (((e).is_function_value != 0) && ((e).name != null)) then reads_slot(module, (e).type) else null)
+            owner: *IR.ZirModule = null
+            callee: *IR.ZirFunction = null
+            kept_storage_0 := cast(*CheckArray4096_u8)AllocateOrExit(size_of(CheckArray4096_u8))
+            defer CompilerFree(cast(*void)kept_storage_0)
+            memset(cast(*void)kept_storage_0, 0, size_of(CheckArray4096_u8))
+            if (((((slot == cast(*IR.ZirType)((null))) || (ResolveFunction(module, (e).name, *(owner), *(callee)) != 1)) || (callee == cast(*IR.ZirFunction)((null)))) || (owner == cast(*IR.ZirModule)((null)))) || (reads_only(scope, owner, callee, cast(*u8)(*((kept_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8))) != 0)) {
+                CheckPost0(*(x))
+                continue check_loop_339
+            }
+            Diagnostic((e).span, CheckCString("check.slot_signature"), CheckCString("%s keeps its parameter %s, but %s is #reads"), (e).name, cast(*u8)(*((kept_storage_0[0]).items)), cast(*u8)(*((slot).name)))
+            ok = 0
+            CheckPost0(*(x))
+        }
+    }
+    return ok
+}
+
+#scope_file
+holds_reads_slot :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
+    element_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)element_storage_0)
+    memset(cast(*void)element_storage_0, 0, size_of(CheckArray128_u8))
+    owner: *IR.ZirModule = null
+    record: *IR.ZirType
+    if ((type == cast(*u8)((null))) || (depth > 16)) {
+        return 0
+    }
+    type = skip_ws(type)
+    if (reads_slot(module, type) != cast(*IR.ZirType)((null))) {
+        return 1
+    }
+    if (ArrayElementType(type, cast(*u8)(*((element_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), null) != 0) {
+        return holds_reads_slot(module, cast(*u8)(*((element_storage_0[0]).items)), (depth + 1))
+    }
+    record = (ifx (pointer_type(type) != 0) then null else FindType(module, type, *(owner)))
+    if (((((record == cast(*IR.ZirType)((null))) || ((record).is_enum != 0)) || ((record).is_procedure_type != 0)) || ((record).is_extern != 0)) || ((record).is_record_template != 0)) {
+        return 0
+    }
+    offset: usize = cast(usize)(0)
+    field: IR.ZirTypeField
+    while check_loop_340 := (TypeNextField(record, *(offset), *(field)) == 1) {
+        if (holds_reads_slot((ifx (owner != null) then owner else module), cast(*u8)(*((field).type)), (depth + 1)) != 0) {
+            return 1
+        }
+    }
+    return 0
+}
+
+#scope_file
+check_reads_initializer :: (scope: *TextScope, scope_module: *IR.ZirModule, types: *IR.ZirModule, probe: *IR.ZirFunction, index: s32, type: *u8, global: *IR.ZirGlobal, depth: s32) -> s32 {
+    element_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)element_storage_0)
+    memset(cast(*void)element_storage_0, 0, size_of(CheckArray128_u8))
+    if ((((index < 0) || (index >= (probe).expr_count)) || (type == cast(*u8)((null)))) || (depth > 16)) {
+        return 1
+    }
+    e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((probe).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    type = skip_ws(type)
+    slot: *IR.ZirType = reads_slot(types, type)
+    if (slot != cast(*IR.ZirType)((null))) {
+        owner: *IR.ZirModule = null
+        callee: *IR.ZirFunction = null
+        kept_storage_1 := cast(*CheckArray4096_u8)AllocateOrExit(size_of(CheckArray4096_u8))
+        defer CompilerFree(cast(*void)kept_storage_1)
+        memset(cast(*void)kept_storage_1, 0, size_of(CheckArray4096_u8))
+        name: *u8 = (ifx (((e).text != null) && (((e).text)[0] != 0)) then (e).text else (e).name)
+        if (((((((cast(s32)((e).kind) != 1) && (cast(s32)((e).kind) != 8)) || (name == cast(*u8)((null)))) || (ResolveFunction(scope_module, name, *(owner), *(callee)) != 1)) || (callee == cast(*IR.ZirFunction)((null)))) || (owner == cast(*IR.ZirModule)((null)))) || (reads_only(scope, owner, callee, cast(*u8)(*((kept_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8))) != 0)) {
+            return 1
+        }
+        Diagnostic((global).span, CheckCString("check.slot_signature"), CheckCString("%s keeps its parameter %s, but %s is #reads"), name, cast(*u8)(*((kept_storage_1[0]).items)), cast(*u8)(*((slot).name)))
+        return 0
+    }
+    if (cast(s32)((e).kind) != 12) {
+        return 1
+    }
+    ok: s32 = 1
+    if (ArrayElementType(type, cast(*u8)(*((element_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), null) != 0) {
+        {
+            child: s32 = (e).first_child
+            while check_loop_341 := (child >= 0) {
+                if ((cast(s32)((((probe).exprs)[child]).kind) == 15) && !(check_reads_initializer(scope, scope_module, types, probe, (((probe).exprs)[child]).right, cast(*u8)(*((element_storage_0[0]).items)), global, (depth + 1)) != 0)) {
+                    ok = 0
+                }
+                child = (((probe).exprs)[child]).next_sibling
+            }
+        }
+        return ok
+    }
+    owner: *IR.ZirModule = null
+    record: *IR.ZirType = (ifx (pointer_type(type) != 0) then null else FindType(types, type, *(owner)))
+    if (((((record == cast(*IR.ZirType)((null))) || ((record).is_enum != 0)) || ((record).is_procedure_type != 0)) || ((record).is_extern != 0)) || ((record).is_record_template != 0)) {
+        return 1
+    }
+    ordinal: s32 = 0
+    {
+        child: s32 = (e).first_child
+        while check_loop_342 := (child >= 0) {
+            entry: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((probe).exprs) + cast(usize)(child) * size_of(IR.ZirExpr))
+            if (cast(s32)((entry).kind) != 15) {
+                child = (((probe).exprs)[child]).next_sibling
+                CheckPost0(*(ordinal))
+                continue check_loop_342
+            }
+            offset: usize = cast(usize)(0)
+            field: IR.ZirTypeField
+            position: s32 = 0
+            found: s32 = 0
+            while check_loop_343 := (!(found != 0) && (TypeNextField(record, *(offset), *(field)) == 1)) {
+                found = (ifx (((entry).name != null) && (((entry).name)[0] != 0)) then cast(s32)(!(strcmp(cast(*u8)(*((field).name)), (entry).name) != 0)) else cast(s32)(CheckPost0(*(position)) == ordinal))
+            }
+            if ((found != 0) && !(check_reads_initializer(scope, scope_module, (ifx (owner != null) then owner else types), probe, (entry).right, cast(*u8)(*((field).type)), global, (depth + 1)) != 0)) {
+                ok = 0
+            }
+            child = (((probe).exprs)[child]).next_sibling
+            CheckPost0(*(ordinal))
+        }
+    }
+    return ok
+}
+
+#scope_export
+#program_export "private_check_ScopeTextArguments"
+ScopeTextArguments :: (programs: **IR.ZirProgram, count: s32) -> s32 {
+    scope_storage_0 := cast(*TextScope)AllocateOrExit(size_of(TextScope))
+    defer CompilerFree(cast(*void)scope_storage_0)
+    memset(cast(*void)scope_storage_0, 0, size_of(TextScope))
+    scope_storage_0[0] = .{}
+    ok: s32 = 1
+    kept: s32 = 0
+    {
+        p: s32 = 0
+        while check_loop_344 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_345 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        f: s32 = 0
+                        while check_loop_346 := (f < (module).function_count) {
+                            if (!((((module).functions)[f]).is_template != 0) && !(check_reads_slots(*(scope_storage_0[0]), module, cast(*IR.ZirFunction)(cast(usize)((module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))) != 0)) {
+                                kept = 1
+                            }
+                            CheckPost0(*(f))
+                        }
+                    }
+                    {
+                        g: s32 = 0
+                        while check_loop_347 := (g < (module).global_count) {
+                            global: *IR.ZirGlobal = cast(*IR.ZirGlobal)(cast(usize)((module).globals) + cast(usize)(g) * size_of(IR.ZirGlobal))
+                            if ((((global).init == cast(*u8)((null))) || !(((global).init)[0] != 0)) || !(holds_reads_slot(module, cast(*u8)(*((global).type)), 0) != 0)) {
+                                CheckPost0(*(g))
+                                continue check_loop_347
+                            }
+                            probe: *IR.ZirFunction = cast(*IR.ZirFunction)(CompilerCalloc(cast(usize)(1), cast(usize)(cast(u64)size_of(IR.ZirFunction))))
+                            if (probe == cast(*IR.ZirFunction)((null))) {
+                                (scope_storage_0[0]).failed = 1
+                                break check_loop_347
+                            }
+                            root: s32 = ParseExprTyped(probe, module, (global).init, (global).span, cast(*u8)(*((global).type)))
+                            if !(check_reads_initializer(*(scope_storage_0[0]), module, module, probe, root, cast(*u8)(*((global).type)), global, 0) != 0) {
+                                kept = 1
+                            }
+                            CompilerFree(cast(*void)((probe).exprs))
+                            CompilerFree(cast(*void)(probe))
+                            CheckPost0(*(g))
+                        }
+                    }
+                    CheckPost0(*(m))
+                }
+            }
+            CheckPost0(*(p))
+        }
+    }
+    if (kept != 0) {
+        CompilerFree(cast(*void)((scope_storage_0[0]).answers))
+        CompilerFree(cast(*void)((scope_storage_0[0]).fields))
+        return 0
+    }
+    {
+        p: s32 = 0
+        while check_loop_348 := ((ok != 0) && (p < count)) {
+            {
+                m: s32 = 0
+                while check_loop_349 := ((ok != 0) && (m < ((programs)[p]).module_count)) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        f: s32 = 0
+                        while check_loop_350 := ((ok != 0) && (f < (module).function_count)) {
+                            fn: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
+                            if ((((fn).is_template != 0) || ((fn).is_extern != 0)) || ((fn).stmt_count == 0)) {
+                                CheckPost0(*(f))
+                                continue check_loop_350
+                            }
+                            if (!(scope_function(*(scope_storage_0[0]), module, fn) != 0) || ((scope_storage_0[0]).failed != 0)) {
+                                ok = 0
+                            }
+                            CheckPost0(*(f))
+                        }
+                    }
+                    CheckPost0(*(m))
+                }
+            }
+            CheckPost0(*(p))
+        }
+    }
+    CompilerFree(cast(*void)((scope_storage_0[0]).answers))
+    CompilerFree(cast(*void)((scope_storage_0[0]).fields))
+    if !(ok != 0) {
+        fprintf(CheckStandardError(), CheckCString("ziran: out of memory scoping text arguments\n"))
+    }
+    return ok
+}
+
+#scope_file
+FunctionArgs :: (fn: *IR.ZirFunction) -> *u8 {
+    return (ifx ((fn).args_text != null) then (fn).args_text else CheckCString(""))
+}
+
+#scope_file
+ParseExprTyped :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan, expected_type: *u8) -> s32 {
+    return CompilerParseExprTyped(fn, cast(*IR.ZirModule)(module), cast(*void)(text), span, cast(*void)(expected_type))
+}

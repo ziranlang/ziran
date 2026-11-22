@@ -16,7 +16,7 @@ old paths below remain dated evidence. For implementation, translate
 `cmd/zir-zx` to the consolidated `cmd/zi2zx`. The deletion steps delete those
 new live C paths, not already-removed compatibility directories.
 
-## C and SIMD integration status
+## Compiler integration status
 
 The S4–S8 implementations are maintained in `cmd/compiler_c_*.zi`,
 `cmd/compiler_scalar.zi`, `cmd/compiler_simd_metadata.zi`, and
@@ -24,15 +24,22 @@ The S4–S8 implementations are maintained in `cmd/compiler_c_*.zi`,
 build compiles the matching `bootstrap/compiler_*/` files. The old handwritten
 C emitter, SIMD metadata and C lowering implementations have been removed.
 `zi2c` reads the generated C backend ABI. The remaining C clients use
-`zir_emit.h` for the legacy Go and inline assembly boundary and thin headers
+`zir_emit.h` for the inline assembly boundary and thin headers
 for scalar and SIMD calls. Go SIMD body text comes from the existing Ziran
 SIMD header generator and is exposed to the emitter by the host services.
 
-S9's build and cache modules were already integrated. S10–S18 remain open.
-They cover the Go backend, checker, parser, frontend services, portable ZX and
-host interfaces, inline assembly and tool drivers, and the stage-0 through
-stage-2 fixed-point proof. The current `check-bootstrap` compares generated
-modules against the checked-in seed.
+S9's build and cache modules were already integrated. S10 uses
+`compiler_go_backend`, `compiler_go_asm`, and `compiler_go_asm_x64` for Go
+lowering and assembly. The `zi2go` CLI driver reads the generated backend
+header. S11 uses the six `compiler_check*` modules for checker setup, value,
+statement, expression, and text passes and their shared records. The remaining
+C checker passes use the existing private checker declarations and share the
+same prefixed private symbols with the Ziran modules.
+
+S12–S18 remain open. They cover the remaining checker passes, parser, frontend
+services, portable ZX and host interfaces, inline assembly and tool drivers,
+and the stage-0 through stage-2 fixed-point proof. The current `check-bootstrap`
+compares generated modules against the checked-in seed.
 
 ## Why staged bootstrap is mandatory
 
@@ -421,22 +428,25 @@ No step commits before its implementation and proof are complete.
   `GoAssemblyOpen:121`, `GoAssemblyFunction:242`, `GoAssemblyBlock:287`,
   `GoAmd64Prepare:478`, `GoAmd64Write:524`, `GoAmd64Cpu:563`, and
   `GoAmd64Close:590`.
-- Change `cmd/zir-go/main.c:31` and Makefile tool link `Makefile:473-474`; add
-  bootstrap modules.
-- Delete the entire `cmd/zir-go` folder.
-- Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=go_fields`.
+- Link the three generated modules into `zi2go` and register their bootstrap
+  seeds. Keep `cmd/zi2go/main.c` as the CLI driver until S17.
+- Delete the handwritten lowering and assembly sources and headers from
+  `cmd/zi2go`.
+- Proof: `env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=go_fields`.
 
 ### S11 — checker value, statement and expression passes
 
 - Add `cmd/compiler_check_value.zi`, `cmd/compiler_check_statement.zi`,
-  `cmd/compiler_check_expr.zi`, and `cmd/compiler_check.zi`; port
+  `cmd/compiler_check_expr.zi`, `cmd/compiler_check_text.zi`,
+  `cmd/compiler_check_types.zi`, and `cmd/compiler_check.zi`; port
   `cmd/zir/zir_check_value.c`, `zir_check_statement.c`, `zir_check_expr.c`,
   `zir_check_text.c`, and `zir_check.c`. Preserve the `Checker` record ABI
   declared by `cmd/zir/zir_check_internal.h` while C callers remain.
-- Change S12/S13 callers to the generated checker interfaces.
-- Delete `zir_check.c`, `zir_check.h`, `zir_check_value.c`,
+- Keep the public and private C checker headers available to the S12/S13
+  callers while they migrate.
+- Delete `zir_check.c`, `zir_check_value.c`,
   `zir_check_statement.c`, `zir_check_expr.c`, and `zir_check_text.c`.
-- Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=safe_inference`.
+- Proof: `env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=safe_inference`.
 
 ### S12 — checker functions, programs, links, borrow and SIMD
 

@@ -1,0 +1,1100 @@
+// Plan Go assembly sites and emit direct ABI0 and cgo companions.
+// Unsupported variants retain their checked Go body. Pointer-bearing storage
+// stays on that path until a pinning and lifetime contract can represent it.
+using IR :: #import "compiler_ir"
+using Native :: #import "compiler_native_names"
+X64 :: #import "compiler_go_asm_x64"
+
+#scope_export
+GoAssemblyOperandResolver :: #type (p0: *void, p1: s32, p2: *u8, p3: usize) #c_call;
+GoAssemblySite :: struct {
+    function: *IR.ZirFunction
+    statement: s32
+    by_value: s32
+    storage: [30]u8
+    variant: X64.AssemblyVariant
+    direct: **X64.GoAmd64Plan
+    direct_count: s32
+    name: [128]u8
+}
+
+GoAssembly :: struct {
+    module: *IR.ZirModule
+    count: s32
+    sites: *GoAssemblySite
+}
+
+#scope_file
+ZirParameter :: struct {
+    text: *u8
+    name: *u8
+    type: *u8
+    binding_name: *u8
+    value_type: *u8
+    default_value: *u8
+    is_using: s32
+}
+
+ZirParameters :: struct {
+    count: s32
+    items: [1]ZirParameter
+}
+
+#scope_file
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+ArrayAbiName :: (fn: *IR.ZirFunction, parameter: s32, out: *u8, size: usize) #foreign compiler "ArrayAbiName";
+ArrayElementType :: (type: *u8, element: *u8, element_size: usize, capacity: *s32) -> s32 #foreign compiler "ArrayElementType";
+AssemblyInputNeedsStorage :: (constraint: *u8) -> s32 #foreign compiler "AssemblyInputNeedsStorage";
+AssemblyVariantNext :: (module: *IR.ZirModule, function: *IR.ZirFunction, statement: s32, cursor: **u8, variant: *X64.AssemblyVariant) -> s32 #foreign compiler "AssemblyVariantNext";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, args: ..any) #foreign compiler "Diagnostic";
+EmitAssemblyAvailable :: (out: *void, function: *IR.ZirFunction, statement: s32) #foreign compiler "EmitAssemblyAvailable";
+EmitAssemblyBlockHelpersAt :: (out: *void, module: *IR.ZirModule, function: *IR.ZirFunction, statement: s32) #foreign compiler "EmitAssemblyBlockHelpersAt";
+EmitAssemblyBlockMapped :: (out: *void, module: *IR.ZirModule, function: *IR.ZirFunction, statement: s32, resolve: GoAssemblyOperandResolver, context: *void) -> s32 #foreign compiler "EmitAssemblyBlockMapped";
+EmitAssemblyTry :: (out: *void, module: *IR.ZirModule, function: *IR.ZirFunction, target: s32, result_type: *u8, available: *u8) #foreign compiler "EmitAssemblyTry";
+EmitAssemblyTryHelpers :: (out: *void, module: *IR.ZirModule, function: *IR.ZirFunction, target: s32, result_type: *u8, args: *u8, available: *u8) #foreign compiler "EmitAssemblyTryHelpers";
+CFindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+GeneratedOutputRecord :: (path: *u8) #foreign compiler "GeneratedOutputRecord";
+GoAmd64Close :: (plan: *X64.GoAmd64Plan) #foreign compiler "GoAmd64Close";
+GoAmd64Cpu :: (declarations: *void, instructions: *void, prefix: *u8) #foreign compiler "GoAmd64Cpu";
+GoAmd64Features :: (plan: *X64.GoAmd64Plan) -> u64 #foreign compiler "GoAmd64Features";
+GoAmd64Prepare :: (variant: *X64.AssemblyVariant, block: s32, by_value: s32, storage: *u8) -> *X64.GoAmd64Plan #foreign compiler "GoAmd64Prepare";
+GoAmd64Supported :: (plan: *X64.GoAmd64Plan) -> s32 #foreign compiler "GoAmd64Supported";
+GoAmd64Write :: (declarations: *void, instructions: *void, plan: *X64.GoAmd64Plan, name: *u8) #foreign compiler "GoAmd64Write";
+NativeGoFunctionName :: (programs: **IR.ZirProgram, count: s32, module: *IR.ZirModule, fn: *IR.ZirFunction, out: *u8, size: usize) #foreign compiler "NativeGoFunctionName";
+NativeGoType :: (module: *IR.ZirModule, type: *u8, out: *u8, size: usize) -> s32 #foreign compiler "NativeGoType";
+NativeTypeName :: (owner: *IR.ZirModule, type: *IR.ZirType, out: *u8, size: usize) #foreign compiler "NativeTypeName";
+ParametersOf :: (text: *u8) -> *ZirParameters #foreign compiler "ParametersOf";
+ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
+TargetBindingName :: (fn: *IR.ZirFunction, target: s32, name: *u8, out: *u8, size: usize) #foreign compiler "TargetBindingName";
+TargetDefineName :: (module: *IR.ZirModule, target: s32, name: *u8, out: *u8, size: usize) #foreign compiler "TargetDefineName";
+TargetFieldName :: (record: *IR.ZirType, target: s32, name: *u8, out: *u8, size: usize) #foreign compiler "TargetFieldName";
+TargetGlobalName :: (module: *IR.ZirModule, target: s32, name: *u8, out: *u8, size: usize) #foreign compiler "TargetGlobalName";
+TargetTypeZiran :: (type: *void, target: s32) -> *void #foreign compiler "TargetTypeZiran";
+TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+abort :: () #foreign libc "abort";
+camel_ident :: (s: *u8, dst: *u8, dst_size: usize) #foreign compiler "camel_ident";
+exit :: (__status: s32) #foreign libc "exit";
+fclose :: (__stream: *void) -> s32 #foreign libc "fclose";
+ferror :: (__stream: *void) -> s32 #foreign libc "ferror";
+fopen :: (__filename: *u8, __modes: *u8) -> *void #foreign libc "fopen";
+fprintf :: (__stream: *void, __format: *u8, args: ..any) -> s32 #foreign libc "fprintf";
+fputc :: (__c: s32, __stream: *void) -> s32 #foreign libc "fputc";
+fputs :: (__s: *u8, __stream: *void) -> s32 #foreign libc "fputs";
+free :: (__ptr: *void) #foreign libc "free";
+memset :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memset";
+realloc :: (__ptr: *void, __size: usize) -> *void #foreign libc "realloc";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, args: ..any) -> s32 #foreign libc "snprintf";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+strrchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strrchr";
+
+StaticText :: struct { data: *u8; length: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+FunctionArgs :: (fn: *IR.ZirFunction) -> *u8 { return ifx fn.args_text != null then fn.args_text else CStr("") }
+StatementHasAssembly :: (st: *IR.ZirStmt) -> s32 { return cast(s32)(st.kind == .BLOCK_OPEN && st.assembly_text != null && st.assembly_text[0] != 0) }
+
+
+
+// cgo may borrow scalar-only storage; never disable its pointer checks.
+pointer_free :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
+    if ((((depth >= 32) || ((type)[0] == #char "*")) || !((strcmp(type, CStr("string")) != 0))) || !((strcmp(type, CStr("void")) != 0))) {
+        return 0
+    }
+    if ((ScalarType(type))[0] != 0) {
+        return 1
+    }
+    element: [128]u8
+    capacity: s32
+    if (ArrayElementType(type, *(element)[0], size_of([128]u8), *(capacity)) != 0) {
+        return cast(s32)(((capacity >= 0) && (pointer_free(module, *(element)[0], (depth + 1)) != 0)))
+    }
+    owner: *IR.ZirModule = cast(*IR.ZirModule)(null)
+    record: *IR.ZirType = CFindType(module, type, *(owner))
+    if ((((((record == cast(*IR.ZirType)(null)) || ((record).is_extern != 0)) || ((record).is_procedure_type != 0)) || ((record).is_map != 0)) || ((record).is_owned_vec != 0)) || (((record).foreign_target)[0] != 0)) {
+        return 0
+    }
+    if ((record).is_enum != 0) {
+        return 1
+    }
+    offset: usize = cast(usize)(0)
+    field: IR.ZirTypeField
+    status: s32
+    while true {
+        status = TypeNextField(record, *(offset), *(field))
+        if !((status == 1)) { break }
+        if !((pointer_free((ifx (owner != null) then owner else module), *((field).type)[0], (depth + 1)) != 0)) {
+            return 0
+        }
+    }
+    return cast(s32)((status == 0))
+}
+
+bridge_type :: (module: *IR.ZirModule, type: *u8) -> s32 {
+    return (ifx ((type)[0] == #char "*") then pointer_free(module, cast(*u8)(cast(usize)(type) + cast(usize)(1) * size_of(u8)), 0) else cast(s32)(((((ScalarType(type))[0] != 0) && (strcmp(type, CStr("string")) != 0)) && (strcmp(type, CStr("void")) != 0))))
+}
+
+c_type :: (type: *u8, out: *u8, size: usize) {
+    native: *u8 = (ifx ((type)[0] == #char "*") then CStr("void *") else cast(*u8)(TargetTypeZiran(cast(*void)(ScalarType(type)), cast(s32)(Native.ZirTarget.ZIR_C))))
+    if (native == cast(*u8)(null)) {
+        abort()
+    }
+    snprintf(out, size, CStr("%s"), native)
+}
+
+go_type :: (module: *IR.ZirModule, type: *u8, out: *u8, size: usize) {
+    if !((NativeGoType(module, type, out, size) != 0)) {
+        abort()
+    }
+}
+
+name_used :: (programs: **IR.ZirProgram, count: s32, name: *u8) -> s32 {
+    native: [512]u8
+    {
+        p: s32 = 0
+        while true {
+            if !((p < count)) { break }
+            {
+                m: s32 = 0
+                while true {
+                    if !((m < ((programs)[p]).module_count)) { break }
+                    module: *IR.ZirModule = *((((programs)[p]).modules)[m])
+                    {
+                        f: s32 = 0
+                        while true {
+                            if !((f < (module).function_count)) { break }
+                            fn: *IR.ZirFunction = *(((module).functions)[f])
+                            NativeGoFunctionName(programs, count, module, fn, *(native)[0], size_of([512]u8))
+                            if (!((strncmp(*(native)[0], name, strlen(name)) != 0)) || !((strncmp(*((fn).export_symbol)[0], name, strlen(name)) != 0))) {
+                                return 1
+                            }
+                            f += 1
+                        }
+                    }
+                    {
+                        g: s32 = 0
+                        while true {
+                            if !((g < (module).global_count)) { break }
+                            TargetGlobalName(module, cast(s32)(Native.ZirTarget.ZIR_GO), *((((module).globals)[g]).name)[0], *(native)[0], size_of([512]u8))
+                            if !((strncmp(*(native)[0], name, strlen(name)) != 0)) {
+                                return 1
+                            }
+                            g += 1
+                        }
+                    }
+                    {
+                        t: s32 = 0
+                        while true {
+                            if !((t < (module).type_count)) { break }
+                            NativeTypeName(module, *(((module).types)[t]), *(native)[0], size_of([512]u8))
+                            if !((strncmp(*(native)[0], name, strlen(name)) != 0)) {
+                                return 1
+                            }
+                            t += 1
+                        }
+                    }
+                    {
+                        d: s32 = 0
+                        while true {
+                            if !((d < (module).define_count)) { break }
+                            TargetDefineName(module, cast(s32)(Native.ZirTarget.ZIR_GO), *((((module).defines)[d]).name)[0], *(native)[0], size_of([512]u8))
+                            if !((strncmp(*(native)[0], name, strlen(name)) != 0)) {
+                                return 1
+                            }
+                            d += 1
+                        }
+                    }
+                    m += 1
+                }
+            }
+            p += 1
+        }
+    }
+    return 0
+}
+
+local_name_used :: (fn: *IR.ZirFunction, name: *u8) -> s32 {
+    native: [512]u8
+    parameters: *ZirParameters = ParametersOf(FunctionArgs(fn))
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (parameters).count)) { break }
+            TargetBindingName(fn, cast(s32)(Native.ZirTarget.ZIR_GO), (((parameters).items)[i]).name, *(native)[0], size_of([512]u8))
+            if !((strcmp(*(native)[0], name) != 0)) {
+                return 1
+            }
+            i += 1
+        }
+    }
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (fn).stmt_count)) { break }
+            if ((((fn).stmts)[i]).kind == IR.ZirStmtKind.DECL) {
+                TargetBindingName(fn, cast(s32)(Native.ZirTarget.ZIR_GO), (((fn).stmts)[i]).name, *(native)[0], size_of([512]u8))
+                if !((strcmp(*(native)[0], name) != 0)) {
+                    return 1
+                }
+            }
+            i += 1
+        }
+    }
+    return 0
+}
+
+#scope_export
+#program_export "GoAssemblyOpen"
+GoAssemblyOpen :: (programs: **IR.ZirProgram, count: s32, module: *IR.ZirModule) -> *GoAssembly {
+    assembly: *GoAssembly = cast(*GoAssembly)(AllocateOrExit(size_of(GoAssembly)))
+    memset(cast(*void)(assembly), 0, size_of(GoAssembly))
+    (assembly).module = module
+    capacity: s32 = 0
+    global: s32 = 0
+    {
+        p: s32 = 0
+        while true {
+            if !((p < count)) { break }
+            {
+                m: s32 = 0
+                while true {
+                    if !((m < ((programs)[p]).module_count)) { break }
+                    current: *IR.ZirModule = *((((programs)[p]).modules)[m])
+                    if (current != module) {
+                        global = (global + (current).function_count)
+                        m += 1
+                        continue
+                    }
+                    {
+                        f: s32 = 0
+                        while true {
+                            if !((f < (current).function_count)) { break }
+                            fn: *IR.ZirFunction = *(((current).functions)[f])
+                            if (((fn).is_template != 0) || ((fn).is_extern != 0)) {
+                                f += 1
+                                global += 1
+                                continue
+                            }
+                            {
+                                statement: s32 = -(1)
+                                while true {
+                                    if !((statement < (fn).stmt_count)) { break }
+                                    cursor: *u8 = (ifx (statement < 0) then (fn).assembly_text else (ifx (StatementHasAssembly(*(((fn).stmts)[statement])) != 0) then (((fn).stmts)[statement]).assembly_text else cast(*u8)(null)))
+                                    if ((cursor == cast(*u8)(null)) || !(((cursor)[0] != 0))) {
+                                        statement += 1
+                                        continue
+                                    }
+                                    candidate: GoAssemblySite = .{}
+                                    site: *GoAssemblySite = *(candidate)
+                                    if (AssemblyVariantNext(module, fn, statement, *(cursor), *((site).variant)) != 1) {
+                                        abort()
+                                    }
+                                    eligible: s32 = 1
+                                    (site).by_value = 1
+                                    variant: X64.AssemblyVariant = (site).variant
+                                    while true {
+                                        {
+                                            i: s32 = 0
+                                            while true {
+                                                if !((i < ((variant).outputs + (variant).inputs))) { break }
+                                                operand: *X64.AssemblyOperand = *(((variant).operands)[i])
+                                                eligible = (eligible & bridge_type(module, (operand).type))
+                                                if (statement >= 0) {
+                                                    if (i < (variant).outputs) {
+                                                        if ((strcmp((operand).constraint, CStr("=r")) != 0) && (strcmp((operand).constraint, CStr("=&r")) != 0)) {
+                                                            (site).by_value = 0
+                                                        }
+                                                        if (((operand).type)[0] == #char "*") {
+                                                            eligible = 0
+                                                        }
+                                                    } else {
+                                                        if (AssemblyInputNeedsStorage((operand).constraint) != 0) {
+                                                            ((site).storage)[i] = cast(u8)(1)
+                                                            if (((operand).type)[0] == #char "*") {
+                                                                eligible = 0
+                                                            }
+                                                        }
+                                                    }
+                                                    if ((((operand).type)[0] == #char "*") && (((operand).type)[1] == #char "[")) {
+                                                        eligible = 0
+                                                    }
+                                                }
+                                                i += 1
+                                            }
+                                        }
+                                        if !((AssemblyVariantNext(module, fn, statement, *(cursor), *(variant)) == 1)) { break }
+                                    }
+                                    if !((eligible != 0)) {
+                                        statement += 1
+                                        continue
+                                    }
+                                    cursor = (ifx (statement < 0) then (fn).assembly_text else (((fn).stmts)[statement]).assembly_text)
+                                    while true {
+                                        if !((AssemblyVariantNext(module, fn, statement, *(cursor), *(variant)) == 1)) { break }
+                                        plan: *X64.GoAmd64Plan = GoAmd64Prepare(*(variant), cast(s32)((statement >= 0)), (site).by_value, *((site).storage)[0])
+                                        if (plan == cast(*X64.GoAmd64Plan)(null)) {
+                                            continue
+                                        }
+                                        plans: **X64.GoAmd64Plan = cast(**X64.GoAmd64Plan)(realloc(cast(*void)((site).direct), (cast(usize)(((site).direct_count + 1)) * size_of(*X64.GoAmd64Plan))))
+                                        if (plans == cast(**X64.GoAmd64Plan)(null)) {
+                                            GoAmd64Close(plan)
+                                            break
+                                        }
+                                        (site).direct = plans
+                                        post1: s32 = (site).direct_count
+                                        (site).direct_count += 1
+                                        ((site).direct)[post1] = plan
+                                    }
+                                    (site).function = fn
+                                    (site).statement = statement
+                                    {
+                                        serial: s32 = 0
+                                        while true {
+                                            handler: [136]u8
+                                            snprintf(*((site).name)[0], size_of([128]u8), CStr("__ziranAssembly%d_%d_%d"), global, (statement + 1), serial)
+                                            snprintf(*(handler)[0], size_of([136]u8), CStr("%sNative"), *((site).name)[0])
+                                            if ((!((name_used(programs, count, *((site).name)[0]) != 0)) && !((name_used(programs, count, *(handler)[0]) != 0))) && !((local_name_used(fn, *((site).name)[0]) != 0))) {
+                                                break
+                                            }
+                                            serial += 1
+                                        }
+                                    }
+                                    if ((assembly).count == capacity) {
+                                        capacity = (ifx (capacity != 0) then (capacity * 2) else 8)
+                                        sites: *GoAssemblySite = cast(*GoAssemblySite)(realloc(cast(*void)((assembly).sites), (cast(usize)(capacity) * size_of(GoAssemblySite))))
+                                        if (sites == cast(*GoAssemblySite)(null)) {
+                                            Diagnostic((module).span, CStr("zir_go.body"), CStr("out of memory preparing assembly bridges"))
+                                            exit(1)
+                                        }
+                                        (assembly).sites = sites
+                                    }
+                                    post2: s32 = (assembly).count
+                                    (assembly).count += 1
+                                    ((assembly).sites)[post2] = candidate
+                                    statement += 1
+                                }
+                            }
+                            f += 1
+                            global += 1
+                        }
+                    }
+                    m += 1
+                }
+            }
+            p += 1
+        }
+    }
+    return assembly
+}
+#scope_file
+
+find_site :: (assembly: *GoAssembly, function: *IR.ZirFunction, statement: s32) -> *GoAssemblySite {
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (assembly).count)) { break }
+            if (((((assembly).sites)[i]).function == function) && ((((assembly).sites)[i]).statement == statement)) {
+                return *(((assembly).sites)[i])
+            }
+            i += 1
+        }
+    }
+    return cast(*GoAssemblySite)(null)
+}
+
+bridge_go_type :: (type: *u8, out: *u8, size: usize) {
+    native: *u8 = (ifx ((type)[0] == #char "*") then CStr("unsafe.Pointer") else cast(*u8)(TargetTypeZiran(cast(*void)(ScalarType(type)), cast(s32)(Native.ZirTarget.ZIR_GO))))
+    if (native == cast(*u8)(null)) {
+        abort()
+    }
+    snprintf(out, size, CStr("%s"), native)
+}
+
+go_signature :: (out: *void, module: *IR.ZirModule, site: *GoAssemblySite, named: s32) {
+    v: *X64.AssemblyVariant = *((site).variant)
+    block: s32 = cast(s32)(((site).statement >= 0))
+    first: s32 = (ifx ((block != 0) && !(((site).by_value != 0))) then 0 else (v).outputs)
+    {
+        i: s32 = first
+        while true {
+            if !((i < ((v).outputs + (v).inputs))) { break }
+            type: [512]u8
+            bridge_go_type((((v).operands)[i]).type, *(type)[0], size_of([512]u8))
+            fprintf(out, CStr("%s"), (ifx (i > first) then CStr(", ") else CStr("")))
+            if (named != 0) {
+                fprintf(out, CStr("a%d "), i)
+            }
+            fprintf(out, CStr("%s%s"), (ifx ((block != 0) && ((i < (v).outputs) || (((site).storage)[i] != 0))) then CStr("*") else CStr("")), *(type)[0])
+            i += 1
+        }
+    }
+    if ((!((block != 0)) || ((site).by_value != 0)) && ((v).outputs != 0)) {
+        fputs(CStr(") ("), out)
+        {
+            i: s32 = 0
+            while true {
+                if !((i < (v).outputs)) { break }
+                type: [512]u8
+                bridge_go_type((((v).operands)[i]).type, *(type)[0], size_of([512]u8))
+                fprintf(out, CStr("%s, "), *(type)[0])
+                i += 1
+            }
+        }
+        fputs(CStr("bool)"), out)
+    } else {
+        fputs(CStr(") bool"), out)
+    }
+}
+
+#scope_export
+#program_export "GoAssemblyFunction"
+GoAssemblyFunction :: (out: *void, assembly: *GoAssembly, function: *IR.ZirFunction) {
+    site: *GoAssemblySite = find_site(assembly, function, -(1))
+    if (site == cast(*GoAssemblySite)(null)) {
+        return
+    }
+    v: *X64.AssemblyVariant = *((site).variant)
+    available: [128]u8
+    ArrayAbiName(function, 600000, *(available)[0], size_of([128]u8))
+    fprintf(out, CStr("    if zirGoAssemblyEnabled && %s != nil {\n        if "), *((site).name)[0])
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (v).outputs)) { break }
+            value: [128]u8
+            ArrayAbiName(function, (600001 + i), *(value)[0], size_of([128]u8))
+            fprintf(out, CStr("%s, "), *(value)[0])
+            i += 1
+        }
+    }
+    fprintf(out, CStr("%s := %s("), *(available)[0], *((site).name)[0])
+    parameters: *ZirParameters = ParametersOf(FunctionArgs(function))
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (parameters).count)) { break }
+            name: [512]u8
+            TargetBindingName(function, cast(s32)(Native.ZirTarget.ZIR_GO), (((parameters).items)[i]).name, *(name)[0], size_of([512]u8))
+            fprintf(out, CStr("%s%s%s%s"), (ifx (i != 0) then CStr(", ") else CStr("")), (ifx (((((parameters).items)[i]).type)[0] == #char "*") then CStr("unsafe.Pointer(") else CStr("")), *(name)[0], (ifx (((((parameters).items)[i]).type)[0] == #char "*") then CStr(")") else CStr("")))
+            i += 1
+        }
+    }
+    fprintf(out, CStr("); %s { return"), *(available)[0])
+    if ((v).record != 0) {
+        type: [512]u8
+        go_type((assembly).module, *((function).return_type)[0], *(type)[0], size_of([512]u8))
+        fprintf(out, CStr(" %s{"), *(type)[0])
+    }
+    owner: *IR.ZirModule = cast(*IR.ZirModule)(null)
+    if ((v).record != 0) {
+        CFindType((assembly).module, *((function).return_type)[0], *(owner))
+    }
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (v).outputs)) { break }
+            value: [128]u8
+            type: [512]u8
+            ArrayAbiName(function, (600001 + i), *(value)[0], size_of([128]u8))
+            if ((v).record != 0) {
+                field: [128]u8
+                camel_ident((((v).operands)[i]).binding, *(field)[0], size_of([128]u8))
+                fprintf(out, CStr("%s%s: "), (ifx (i != 0) then CStr(", ") else CStr("")), *(field)[0])
+            } else {
+                fputc(cast(s32)(#char " "), out)
+            }
+            if (((((v).operands)[i]).type)[0] == #char "*") {
+                go_type((ifx (owner != null) then owner else (assembly).module), (((v).operands)[i]).type, *(type)[0], size_of([512]u8))
+                fprintf(out, CStr("(%s)(%s)"), *(type)[0], *(value)[0])
+            } else {
+                fputs(*(value)[0], out)
+            }
+            i += 1
+        }
+    }
+    if ((v).record != 0) {
+        fputc(cast(s32)(#char "}"), out)
+    }
+    fputs(CStr(" }\n    }\n"), out)
+}
+#scope_file
+
+#scope_export
+#program_export "GoAssemblyBlock"
+GoAssemblyBlock :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, statement: s32, context: *void) -> s32 {
+    site: *GoAssemblySite = find_site(cast(*GoAssembly)(context), fn, statement)
+    if (site == cast(*GoAssemblySite)(null)) {
+        return 0
+    }
+    v: *X64.AssemblyVariant = *((site).variant)
+    done: [128]u8
+    ok: [128]u8
+    ArrayAbiName(fn, (700000 + (statement * 32)), *(done)[0], size_of([128]u8))
+    ArrayAbiName(fn, (700001 + (statement * 32)), *(ok)[0], size_of([128]u8))
+    fprintf(out, CStr("    {\n        %s := false\n        if zirGoAssemblyEnabled && %s != nil {\n            "), *(done)[0], *((site).name)[0])
+    if ((site).by_value != 0) {
+        {
+            i: s32 = 0
+            while true {
+                if !((i < (v).outputs)) { break }
+                value: [128]u8
+                ArrayAbiName(fn, ((700002 + (statement * 32)) + i), *(value)[0], size_of([128]u8))
+                fprintf(out, CStr("%s, "), *(value)[0])
+                i += 1
+            }
+        }
+    }
+    fprintf(out, CStr("%s := %s("), *(ok)[0], *((site).name)[0])
+    first: s32 = (ifx ((site).by_value != 0) then (v).outputs else 0)
+    {
+        i: s32 = first
+        while true {
+            if !((i < ((v).outputs + (v).inputs))) { break }
+            name: [512]u8
+            TargetBindingName(fn, cast(s32)(Native.ZirTarget.ZIR_GO), (((v).operands)[i]).binding, *(name)[0], size_of([512]u8))
+            fprintf(out, CStr("%s%s%s%s"), (ifx (i > first) then CStr(", ") else CStr("")), (ifx ((i < (v).outputs) || (((site).storage)[i] != 0)) then CStr("&") else (ifx (((((v).operands)[i]).type)[0] == #char "*") then CStr("unsafe.Pointer(") else CStr(""))), *(name)[0], (ifx (((((v).operands)[i]).type)[0] == #char "*") then CStr(")") else CStr("")))
+            i += 1
+        }
+    }
+    fprintf(out, CStr(")\n            if %s {\n"), *(ok)[0])
+    if ((site).by_value != 0) {
+        {
+            i: s32 = 0
+            while true {
+                if !((i < (v).outputs)) { break }
+                value: [128]u8
+                name: [512]u8
+                ArrayAbiName(fn, ((700002 + (statement * 32)) + i), *(value)[0], size_of([128]u8))
+                TargetBindingName(fn, cast(s32)(Native.ZirTarget.ZIR_GO), (((v).operands)[i]).binding, *(name)[0], size_of([512]u8))
+                fprintf(out, CStr("                %s = %s\n"), *(name)[0], *(value)[0])
+                i += 1
+            }
+        }
+    }
+    fprintf(out, CStr("                %s = true\n            }\n        }\n        if !%s {\n"), *(done)[0], *(done)[0])
+    return 1
+}
+#scope_file
+
+native_record :: (out: *void, module: *IR.ZirModule, site: *GoAssemblySite, type: *u8, size: usize) {
+    if !((((site).variant).record != 0)) {
+        c_type(*(((site).function).return_type)[0], type, size)
+        return
+    }
+    owner: *IR.ZirModule = cast(*IR.ZirModule)(null)
+    record: *IR.ZirType = CFindType(module, *(((site).function).return_type)[0], *(owner))
+    NativeTypeName((ifx (owner != null) then owner else module), record, type, size)
+    fprintf(out, CStr("#ifndef %s_DEFINED\n#define %s_DEFINED\ntypedef struct %s {\n"), type, type, type)
+    offset: usize = cast(usize)(0)
+    field: IR.ZirTypeField
+    while true {
+        if !((TypeNextField(record, *(offset), *(field)) == 1)) { break }
+        scalar: [128]u8
+        name: [512]u8
+        c_type(*((field).type)[0], *(scalar)[0], size_of([128]u8))
+        TargetFieldName(record, cast(s32)(Native.ZirTarget.ZIR_C), *((field).name)[0], *(name)[0], size_of([512]u8))
+        fprintf(out, CStr("    %s %s;\n"), *(scalar)[0], *(name)[0])
+    }
+    fprintf(out, CStr("} %s;\n#endif\n"), type)
+}
+
+c_function :: (out: *void, module: *IR.ZirModule, site: *GoAssemblySite) {
+    fn: *IR.ZirFunction = (site).function
+    parameters: *ZirParameters = ParametersOf(FunctionArgs(fn))
+    result_type: [512]u8
+    available: [128]u8
+    native_record(out, module, site, *(result_type)[0], size_of([512]u8))
+    ArrayAbiName(fn, 900000, *(available)[0], size_of([128]u8))
+    args: *u8 = cast(*u8)(AllocateOrExit(cast(usize)(((30 * 128) * 5))))
+    (args)[0] = cast(u8)(0)
+    used: usize = cast(usize)(0)
+    capacity: usize = cast(usize)(((30 * 128) * 5))
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (parameters).count)) { break }
+            type: [128]u8
+            name: [512]u8
+            c_type((((parameters).items)[i]).type, *(type)[0], size_of([128]u8))
+            TargetBindingName(fn, cast(s32)(Native.ZirTarget.ZIR_C), (((parameters).items)[i]).name, *(name)[0], size_of([512]u8))
+            n: s32 = snprintf(cast(*u8)(cast(usize)(args) + cast(usize)(used) * size_of(u8)), (capacity - used), CStr("%s%s %s"), (ifx (i != 0) then CStr(", ") else CStr("")), *(type)[0], *(name)[0])
+            if ((n < 0) || (cast(usize)(n) >= (capacity - used))) {
+                abort()
+            }
+            used = (used + cast(usize)(n))
+            i += 1
+        }
+    }
+    snprintf(cast(*u8)(cast(usize)(args) + cast(usize)(used) * size_of(u8)), (capacity - used), CStr("%sint *%s"), (ifx (used != 0) then CStr(", ") else CStr("")), *(available)[0])
+    EmitAssemblyTryHelpers(out, module, fn, cast(s32)(Native.ZirTarget.ZIR_C), *(result_type)[0], args, *(available)[0])
+    fprintf(out, CStr("static %s %sAsm(%s) {\n    *%s = 0;\n"), *(result_type)[0], *((site).name)[0], args, *(available)[0])
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (parameters).count)) { break }
+            name: [512]u8
+            TargetBindingName(fn, cast(s32)(Native.ZirTarget.ZIR_C), (((parameters).items)[i]).name, *(name)[0], size_of([512]u8))
+            fprintf(out, CStr("    (void)%s;\n"), *(name)[0])
+            i += 1
+        }
+    }
+    EmitAssemblyTry(out, module, fn, cast(s32)(Native.ZirTarget.ZIR_C), *(result_type)[0], *(available)[0])
+    if !((strcmp(*((fn).return_type)[0], CStr("void")) != 0)) {
+        fputs(CStr("    return;\n}\n"), out)
+    } else {
+        fprintf(out, CStr("    return (%s){0};\n}\n"), *(result_type)[0])
+    }
+    fprintf(out, CStr("typedef struct { int available;\n"))
+    {
+        i: s32 = 0
+        while true {
+            if !((i < ((site).variant).outputs)) { break }
+            type: [128]u8
+            c_type(((((site).variant).operands)[i]).type, *(type)[0], size_of([128]u8))
+            fprintf(out, CStr("    %s v%d;\n"), *(type)[0], i)
+            i += 1
+        }
+    }
+    fprintf(out, CStr("} %sResult;\nstatic %sResult %sC("), *((site).name)[0], *((site).name)[0], *((site).name)[0])
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (parameters).count)) { break }
+            type: [128]u8
+            c_type((((parameters).items)[i]).type, *(type)[0], size_of([128]u8))
+            fprintf(out, CStr("%s%s a%d"), (ifx (i != 0) then CStr(", ") else CStr("")), *(type)[0], i)
+            i += 1
+        }
+    }
+    if !(((parameters).count != 0)) {
+        fputs(CStr("void"), out)
+    }
+    fprintf(out, CStr(") {\n    %sResult result = {0};\n    "), *((site).name)[0])
+    if (((site).variant).outputs != 0) {
+        fprintf(out, CStr("%s value = "), *(result_type)[0])
+    }
+    fprintf(out, CStr("%sAsm("), *((site).name)[0])
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (parameters).count)) { break }
+            fprintf(out, CStr("a%d, "), i)
+            i += 1
+        }
+    }
+    fputs(CStr("&result.available);\n"), out)
+    {
+        i: s32 = 0
+        while true {
+            if !((i < ((site).variant).outputs)) { break }
+            fprintf(out, CStr("    result.v%d = value"), i)
+            if (((site).variant).record != 0) {
+                record: *IR.ZirType = CFindType(module, *((fn).return_type)[0], cast(**IR.ZirModule)(null))
+                name: [512]u8
+                TargetFieldName(record, cast(s32)(Native.ZirTarget.ZIR_C), ((((site).variant).operands)[i]).binding, *(name)[0], size_of([512]u8))
+                fprintf(out, CStr(".%s"), *(name)[0])
+            }
+            fputs(CStr(";\n"), out)
+            i += 1
+        }
+    }
+    fputs(CStr("    return result;\n}\n\n"), out)
+    free(cast(*void)(args))
+}
+
+go_conversion :: (out: *void, module: *IR.ZirModule, type: *u8, i: s32) {
+    native: [512]u8
+    bridge_go_type(type, *(native)[0], size_of([512]u8))
+    if ((type)[0] == #char "*") {
+        fprintf(out, CStr("(%s)(unsafe.Pointer(result.v%d))"), *(native)[0], i)
+    } else {
+        fprintf(out, CStr("%s(result.v%d)"), *(native)[0], i)
+    }
+}
+
+block_parameter :: (fn: *IR.ZirFunction, statement: s32, operand: s32, out: *u8, size: usize) {
+    ArrayAbiName(fn, ((800000 + (statement * 32)) + operand), out, size)
+}
+
+block_operand :: (context: *void, operand: s32, out: *u8, size: usize) {
+    site: *GoAssemblySite = cast(*GoAssemblySite)(context)
+    name: [128]u8
+    output: s32 = cast(s32)((operand < ((site).variant).outputs))
+    block_parameter((site).function, (site).statement, (ifx ((output != 0) && ((site).by_value != 0)) then (30 + operand) else operand), *(name)[0], size_of([128]u8))
+    snprintf(out, size, CStr("%s%s%s"), (ifx (((output != 0) && !(((site).by_value != 0))) || (((site).storage)[operand] != 0)) then CStr("(*") else CStr("")), *(name)[0], (ifx (((output != 0) && !(((site).by_value != 0))) || (((site).storage)[operand] != 0)) then CStr(")") else CStr("")))
+}
+
+c_block :: (out: *void, module: *IR.ZirModule, site: *GoAssemblySite) {
+    fn: *IR.ZirFunction = (site).function
+    v: *X64.AssemblyVariant = *((site).variant)
+    {
+        i: s32 = (v).outputs
+        while true {
+            if !((i < ((v).outputs + (v).inputs))) { break }
+            type: *u8 = (((v).operands)[i]).type
+            if ((type)[0] != #char "*") {
+                i += 1
+                continue
+            }
+            owner: *IR.ZirModule = cast(*IR.ZirModule)(null)
+            record: *IR.ZirType = CFindType(module, cast(*u8)(cast(usize)(type) + cast(usize)(1) * size_of(u8)), *(owner))
+            if (record != null) {
+                native: [512]u8
+                NativeTypeName((ifx (owner != null) then owner else module), record, *(native)[0], size_of([512]u8))
+                fprintf(out, CStr("#ifndef %s_DECLARED\n#define %s_DECLARED\ntypedef struct %s %s;\n#endif\n"), *(native)[0], *(native)[0], *(native)[0], *(native)[0])
+            }
+            i += 1
+        }
+    }
+    EmitAssemblyBlockHelpersAt(out, module, fn, (site).statement)
+    fprintf(out, CStr("typedef struct { int available;\n"))
+    if ((site).by_value != 0) {
+        {
+            i: s32 = 0
+            while true {
+                if !((i < (v).outputs)) { break }
+                type: [128]u8
+                c_type((((v).operands)[i]).type, *(type)[0], size_of([128]u8))
+                fprintf(out, CStr("    %s v%d;\n"), *(type)[0], i)
+                i += 1
+            }
+        }
+    }
+    fprintf(out, CStr("} %sResult;\nstatic %sResult %sC("), *((site).name)[0], *((site).name)[0], *((site).name)[0])
+    first: s32 = (ifx ((site).by_value != 0) then (v).outputs else 0)
+    {
+        i: s32 = first
+        while true {
+            if !((i < ((v).outputs + (v).inputs))) { break }
+            type: [128]u8
+            name: [128]u8
+            c_type((((v).operands)[i]).type, *(type)[0], size_of([128]u8))
+            block_parameter(fn, (site).statement, i, *(name)[0], size_of([128]u8))
+            fprintf(out, CStr("%s%s %s%s"), (ifx (i > first) then CStr(", ") else CStr("")), *(type)[0], (ifx ((i < (v).outputs) || (((site).storage)[i] != 0)) then CStr("*") else CStr("")), *(name)[0])
+            i += 1
+        }
+    }
+    if (first == ((v).outputs + (v).inputs)) {
+        fputs(CStr("void"), out)
+    }
+    fprintf(out, CStr(") {\n"))
+    if ((site).by_value != 0) {
+        {
+            i: s32 = 0
+            while true {
+                if !((i < (v).outputs)) { break }
+                type: [128]u8
+                name: [128]u8
+                c_type((((v).operands)[i]).type, *(type)[0], size_of([128]u8))
+                block_parameter(fn, (site).statement, (30 + i), *(name)[0], size_of([128]u8))
+                fprintf(out, CStr("    %s %s = {0};\n"), *(type)[0], *(name)[0])
+                i += 1
+            }
+        }
+    }
+    {
+        i: s32 = first
+        while true {
+            if !((i < ((v).outputs + (v).inputs))) { break }
+            parameter: [128]u8
+            block_parameter(fn, (site).statement, i, *(parameter)[0], size_of([128]u8))
+            fprintf(out, CStr("    (void)%s;\n"), *(parameter)[0])
+            i += 1
+        }
+    }
+    if !((EmitAssemblyBlockMapped(out, module, fn, (site).statement, block_operand, cast(*void)(site)) != 0)) {
+        abort()
+    }
+    fprintf(out, CStr("            return (%sResult){0};\n    }\n    }\n"), *((site).name)[0])
+    fprintf(out, CStr("    return (%sResult){1"), *((site).name)[0])
+    if ((site).by_value != 0) {
+        {
+            i: s32 = 0
+            while true {
+                if !((i < (v).outputs)) { break }
+                name: [128]u8
+                block_parameter(fn, (site).statement, (30 + i), *(name)[0], size_of([128]u8))
+                fprintf(out, CStr(", %s"), *(name)[0])
+                i += 1
+            }
+        }
+    }
+    fputs(CStr("};\n"), out)
+    fputs(CStr("}\n\n"), out)
+}
+
+write_direct :: (assembly: *GoAssembly, path: *u8, package: *u8) -> s32 {
+    first: *GoAssemblySite = cast(*GoAssemblySite)(null)
+    {
+        i: s32 = 0
+        while true {
+            if !(((i < (assembly).count) && (first == cast(*GoAssemblySite)(null)))) { break }
+            {
+                j: s32 = 0
+                while true {
+                    if !((j < (((assembly).sites)[i]).direct_count)) { break }
+                    if (GoAmd64Supported(((((assembly).sites)[i]).direct)[j]) != 0) {
+                        first = *(((assembly).sites)[i])
+                        break
+                    }
+                    j += 1
+                }
+            }
+            i += 1
+        }
+    }
+    if (first == cast(*GoAssemblySite)(null)) {
+        return 0
+    }
+    declaration: [1024]u8
+    instruction: [1024]u8
+    length: usize = strlen(path)
+    if ((length < cast(usize)(3)) || ((length + cast(usize)(40)) >= size_of([1024]u8))) {
+        return 1
+    }
+    snprintf(*(declaration)[0], size_of([1024]u8), CStr("%.*s.assembly_direct_amd64.go"), (cast(s32)(length) - 3), path)
+    snprintf(*(instruction)[0], size_of([1024]u8), CStr("%.*s.assembly_direct_amd64.s"), (cast(s32)(length) - 3), path)
+    GeneratedOutputRecord(*(declaration)[0])
+    GeneratedOutputRecord(*(instruction)[0])
+    go: *void = fopen(*(declaration)[0], CStr("wb"))
+    native: *void = fopen(*(instruction)[0], CStr("wb"))
+    if ((go == null) || (native == null)) {
+        if (go != null) {
+            fclose(go)
+        }
+        if (native != null) {
+            fclose(native)
+        }
+        Diagnostic(((assembly).module).span, CStr("zir_go.body"), CStr("cannot create direct assembly companions"))
+        return 1
+    }
+    fprintf(go, CStr("// Code generated by zi2go from %s. DO NOT EDIT.\n//go:build !cgo && ziran_asm && amd64\n\npackage %s\n\n"), *(((assembly).module).source_path)[0], package)
+    fprintf(native, CStr("// Code generated by zi2go from %s. DO NOT EDIT.\n//go:build !cgo && ziran_asm && amd64\n\n#include \"textflag.h\"\n\n"), *(((assembly).module).source_path)[0])
+    GoAmd64Cpu(go, native, *((first).name)[0])
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (assembly).count)) { break }
+            site: *GoAssemblySite = *(((assembly).sites)[i])
+            if !(((site).direct_count != 0)) {
+                i += 1
+                continue
+            }
+            supported: s32 = 0
+            {
+                j: s32 = 0
+                while true {
+                    if !((j < (site).direct_count)) { break }
+                    if (GoAmd64Supported(((site).direct)[j]) != 0) {
+                        name: [160]u8
+                        snprintf(*(name)[0], size_of([160]u8), CStr("%sDirectAmd64%d"), *((site).name)[0], j)
+                        GoAmd64Write(go, native, ((site).direct)[j], *(name)[0])
+                        supported = 1
+                    }
+                    j += 1
+                }
+            }
+            if !((supported != 0)) {
+                i += 1
+                continue
+            }
+            fputs(CStr("var _ = func() bool {\n"), go)
+            {
+                j: s32 = 0
+                while true {
+                    if !((j < (site).direct_count)) { break }
+                    mask: u64 = GoAmd64Features(((site).direct)[j])
+                    fprintf(go, CStr("    %sif %sFeatures & 0x%llx == 0x%llx {\n"), (ifx (j != 0) then CStr("} else ") else CStr("")), *((first).name)[0], mask, mask)
+                    if (GoAmd64Supported(((site).direct)[j]) != 0) {
+                        fprintf(go, CStr("        %s = %sDirectAmd64%d\n"), *((site).name)[0], *((site).name)[0], j)
+                    }
+                    j += 1
+                }
+            }
+            fputs(CStr("    }\n    return true\n}()\n\n"), go)
+            i += 1
+        }
+    }
+    failed: s32 = cast(s32)(((ferror(go) != 0) || (ferror(native) != 0)))
+    failed = (failed | cast(s32)((fclose(go) != 0)))
+    failed = (failed | cast(s32)((fclose(native) != 0)))
+    if (failed != 0) {
+        Diagnostic(((assembly).module).span, CStr("zir_go.body"), CStr("cannot finish direct assembly companions"))
+    }
+    return failed
+}
+
+#scope_export
+#program_export "GoAssemblyWrite"
+GoAssemblyWrite :: (assembly: *GoAssembly, path: *u8, package: *u8) -> s32 {
+    if !(((assembly).count != 0)) {
+        return 0
+    }
+    header: [1024]u8
+    companion: [1024]u8
+    dispatch: [1024]u8
+    length: usize = strlen(path)
+    if ((length < cast(usize)(3)) || ((length + cast(usize)(24)) >= size_of([1024]u8))) {
+        return 1
+    }
+    snprintf(*(header)[0], size_of([1024]u8), CStr("%.*s.assembly.h"), (cast(s32)(length) - 3), path)
+    snprintf(*(companion)[0], size_of([1024]u8), CStr("%.*s.assembly.go"), (cast(s32)(length) - 3), path)
+    snprintf(*(dispatch)[0], size_of([1024]u8), CStr("%.*s.assembly_dispatch.go"), (cast(s32)(length) - 3), path)
+    GeneratedOutputRecord(*(header)[0])
+    GeneratedOutputRecord(*(companion)[0])
+    GeneratedOutputRecord(*(dispatch)[0])
+    c: *void = fopen(*(header)[0], CStr("wb"))
+    go: *void = fopen(*(companion)[0], CStr("wb"))
+    decl: *void = fopen(*(dispatch)[0], CStr("wb"))
+    if (((c == null) || (go == null)) || (decl == null)) {
+        if (c != null) {
+            fclose(c)
+        }
+        if (go != null) {
+            fclose(go)
+        }
+        if (decl != null) {
+            fclose(decl)
+        }
+        Diagnostic(((assembly).module).span, CStr("zir_go.body"), CStr("cannot create assembly companions"))
+        return 1
+    }
+    fprintf(c, CStr("// Code generated by zi2go from %s. DO NOT EDIT.\n#include <stdint.h>\n#include <stddef.h>\n#include <stdbool.h>\n"), *(((assembly).module).source_path)[0])
+    base: *u8 = strrchr(*(header)[0], cast(s32)(#char "/"))
+    base = (ifx (base != null) then cast(*u8)(cast(usize)(base) + cast(usize)(1) * size_of(u8)) else *(header)[0])
+    fprintf(go, CStr("// Code generated by zi2go from %s. DO NOT EDIT.\n//go:build cgo && ziran_asm\n\npackage %s\n\n/*\n#include \"%s\"\n*/\nimport \"C\"\nimport \"unsafe\"\n\nvar _ unsafe.Pointer\n\n"), *(((assembly).module).source_path)[0], package, base)
+    fprintf(decl, CStr("// Code generated by zi2go from %s. DO NOT EDIT.\npackage %s\n\nimport \"unsafe\"\nvar _ unsafe.Pointer\n\n"), *(((assembly).module).source_path)[0], package)
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (assembly).count)) { break }
+            site: *GoAssemblySite = *(((assembly).sites)[i])
+            fprintf(decl, CStr("// Native assembly is installed only when a variant is available.\nvar %s func("), *((site).name)[0])
+            go_signature(decl, (assembly).module, site, 0)
+            fputs(CStr("\n\n"), decl)
+            v: *X64.AssemblyVariant = *((site).variant)
+            if ((site).statement < 0) {
+                c_function(c, (assembly).module, site)
+            } else {
+                c_block(c, (assembly).module, site)
+            }
+            fprintf(c, CStr("static int %sAvailable(void) {\n"), *((site).name)[0])
+            EmitAssemblyAvailable(c, (site).function, (site).statement)
+            fputs(CStr("}\n\n"), c)
+            fprintf(go, CStr("var _ = func() bool { if C.%sAvailable() != 0 { %s = %sNative }; return true }()\nfunc %sNative("), *((site).name)[0], *((site).name)[0], *((site).name)[0], *((site).name)[0])
+            go_signature(go, (assembly).module, site, 1)
+            fprintf(go, CStr(" {\n    result := C.%sC("), *((site).name)[0])
+            block: s32 = cast(s32)(((site).statement >= 0))
+            first: s32 = (ifx ((block != 0) && !(((site).by_value != 0))) then 0 else (v).outputs)
+            {
+                p: s32 = first
+                while true {
+                    if !((p < ((v).outputs + (v).inputs))) { break }
+                    type: *u8 = (((v).operands)[p]).type
+                    if (p > first) {
+                        fputs(CStr(", "), go)
+                    }
+                    if ((block != 0) && ((p < (v).outputs) || (((site).storage)[p] != 0))) {
+                        native: [128]u8
+                        c_type(type, *(native)[0], size_of([128]u8))
+                        fprintf(go, CStr("(*C.%s)(unsafe.Pointer(a%d))"), *(native)[0], p)
+                    } else {
+                        if ((type)[0] == #char "*") {
+                            fprintf(go, CStr("unsafe.Pointer(a%d)"), p)
+                        } else {
+                            native: [128]u8
+                            c_type(type, *(native)[0], size_of([128]u8))
+                            fprintf(go, CStr("C.%s(a%d)"), *(native)[0], p)
+                        }
+                    }
+                    p += 1
+                }
+            }
+            fputs(CStr(")\n    return "), go)
+            if (!((block != 0)) || ((site).by_value != 0)) {
+                {
+                    p: s32 = 0
+                    while true {
+                        if !((p < (v).outputs)) { break }
+                        go_conversion(go, (assembly).module, (((v).operands)[p]).type, p)
+                        fputs(CStr(", "), go)
+                        p += 1
+                    }
+                }
+            }
+            fputs(CStr("result.available != 0\n}\n\n"), go)
+            i += 1
+        }
+    }
+    failed: s32 = cast(s32)((((ferror(c) != 0) || (ferror(go) != 0)) || (ferror(decl) != 0)))
+    failed = (failed | cast(s32)((fclose(c) != 0)))
+    failed = (failed | cast(s32)((fclose(go) != 0)))
+    failed = (failed | cast(s32)((fclose(decl) != 0)))
+    if (failed != 0) {
+        Diagnostic(((assembly).module).span, CStr("zir_go.body"), CStr("cannot finish assembly companions"))
+    }
+    return cast(s32)(((failed != 0) || (write_direct(assembly, path, package) != 0)))
+}
+#scope_file
+
+#scope_export
+#program_export "GoAssemblyClose"
+GoAssemblyClose :: (assembly: *GoAssembly) {
+    if (assembly != null) {
+        {
+            i: s32 = 0
+            while true {
+                if !((i < (assembly).count)) { break }
+                site: *GoAssemblySite = *(((assembly).sites)[i])
+                {
+                    j: s32 = 0
+                    while true {
+                        if !((j < (site).direct_count)) { break }
+                        GoAmd64Close(((site).direct)[j])
+                        j += 1
+                    }
+                }
+                free(cast(*void)((site).direct))
+                i += 1
+            }
+        }
+        free(cast(*void)((assembly).sites))
+        free(cast(*void)(assembly))
+    }
+}
+#scope_file
+
+#scope_export
+#program_export "GoAssemblyAvailability"
+GoAssemblyAvailability :: (directory: *u8, package: *u8, span: IR.ZirSourceSpan) -> s32 {
+    {
+        enabled: s32 = 0
+        while true {
+            if !((enabled <= 1)) { break }
+            path: [1024]u8
+            n: s32 = snprintf(*(path)[0], size_of([1024]u8), CStr("%s/zi2go.assembly_%s.go"), directory, (ifx (enabled != 0) then CStr("enabled") else CStr("disabled")))
+            if ((n < 0) || (cast(usize)(n) >= size_of([1024]u8))) {
+                Diagnostic(span, CStr("zir_go.body"), CStr("assembly availability path exceeds limit"))
+                return 1
+            }
+            GeneratedOutputRecord(*(path)[0])
+            out: *void = fopen(*(path)[0], CStr("wb"))
+            if (out == null) {
+                Diagnostic(span, CStr("zir_go.body"), CStr("cannot create assembly availability: %s"), *(path)[0])
+                return 1
+            }
+            fprintf(out, CStr("// Code generated by zi2go from assembly availability. DO NOT EDIT.\n//go:build %s\n\npackage %s\n\nconst zirGoAssemblyEnabled = %s\n"), (ifx (enabled != 0) then CStr("ziran_asm && (cgo || amd64)") else CStr("!ziran_asm || (!cgo && !amd64)")), package, (ifx (enabled != 0) then CStr("true") else CStr("false")))
+            failed: s32 = cast(s32)((ferror(out) != 0))
+            failed = (failed | cast(s32)((fclose(out) != 0)))
+            if (failed != 0) {
+                Diagnostic(span, CStr("zir_go.body"), CStr("cannot finish assembly availability: %s"), *(path)[0])
+                return 1
+            }
+            enabled += 1
+        }
+    }
+    return 0
+}
+#scope_file

@@ -19,6 +19,20 @@ int ZiranInspectRewind(FILE *file) { return fseek(file, 0, SEEK_SET); }
 const char *ZiranInspectIOError(void) { return strerror(errno); }
 int ZiranInspectOutputError(void) { return ferror(stdout); }
 
+void *CompilerStandardError(void) { return stderr; }
+
+/* Measure an open input and position it at the start for reading. */
+int64_t
+CompilerFileSize(FILE *file)
+{
+    if(fseek(file, 0, SEEK_END) != 0)
+        return -1;
+    long bytes = ftell(file);
+    if(bytes < 0 || fseek(file, 0, SEEK_SET) != 0)
+        return -1;
+    return bytes;
+}
+
 static char *
 terminated(String text)
 {

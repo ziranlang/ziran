@@ -10,7 +10,7 @@
 #include "zir_load.h"
 #include "zir_link.h"
 #include "zir_emit.h"
-#include "zir_go_lower.h"
+#include "compiler_go_backend.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -130,7 +130,8 @@ main(int argc, char **argv)
         const ZirProgram *only = linked;
         if(!CheckTargetCapabilities(only, "go"))
             goto done;
-        result = go_lower(&only, 1, root, out_dir, pkg, no_main) != 0;
+        result = go_lower(&linked, 1, (uint8_t *)root, (uint8_t *)out_dir,
+                          (uint8_t *)pkg, no_main) != 0;
         if(result == 0 && executable) {
             const ZirModule *module = NULL;
             const ZirFunction *function = NULL;
@@ -195,8 +196,8 @@ main(int argc, char **argv)
         for(int index = 0; index < file_count; index++)
             if(!CheckTargetCapabilities(progs[index], "go"))
                 goto done;
-        result = go_lower((const ZirProgram *const *)progs, file_count,
-                          root, out_dir, pkg, no_main) != 0;
+        result = go_lower(progs, file_count, (uint8_t *)root,
+                          (uint8_t *)out_dir, (uint8_t *)pkg, no_main) != 0;
     }
 done:
     ProgramsFree(&set);

@@ -1,0 +1,1128 @@
+// Translate checked GNU operands into leaf Go ABI0 assembly.
+// Only represented instructions are emitted; unsupported variants keep the
+// checked body. Runtime contract: https://go.dev/doc/asm#runtime-coordination
+using IR :: #import "compiler_ir"
+using Native :: #import "compiler_native_names"
+
+#scope_export
+
+AssemblyOperand :: struct {
+    constraint: *u8
+    alias: *u8
+    binding: *u8
+    type: *u8
+}
+
+AssemblyVariant :: struct {
+    target: *u8
+    text: *u8
+    clobbers: *u8
+    options: *u8
+    outputs: s32
+    inputs: s32
+    record: s32
+    operands: [30]AssemblyOperand
+}
+
+GoOperand :: struct {
+    width: s32
+    reg: s32
+    tied: s32
+    floating: s32
+    offset: s32
+    storage: s32
+}
+
+GoLabel :: struct {
+    name: *u8
+    position: usize
+}
+
+GoAmd64Plan :: struct {
+    source: AssemblyVariant
+    operands: [30]GoOperand
+    labels: *GoLabel
+    label_count: s32
+    supported: s32
+    arguments: s32
+    available: s32
+    features: u64
+    text: *u8
+    normalized: *u8
+}
+
+GoArgument :: struct {
+    text: [128]u8
+    width: s32
+    reg: s32
+    immediate: s32
+    memory: s32
+}
+
+GoConditionMapping :: struct {
+    gnu: *u8
+    go: *u8
+}
+
+GoInstructionMapping :: struct {
+    gnu: *u8
+    go: *u8
+}
+
+TextStream :: struct {
+    file: *void
+    data: *u8
+    length: usize
+    text: **u8
+    size: *usize
+}
+
+#scope_file
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+AssemblyAlternativeCount :: (variant: *AssemblyVariant) -> s32 #foreign compiler "AssemblyAlternativeCount";
+AssemblyConstraintAlternative :: (constraint: *u8, column: s32) -> *u8 #foreign compiler "AssemblyConstraintAlternative";
+AssemblyTiedOutput :: (variant: *AssemblyVariant, constraint: *u8) -> s32 #foreign compiler "AssemblyTiedOutput";
+ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
+ScalarWidthZiran :: (type: *void) -> u32 #foreign compiler "ScalarWidthZiran";
+TargetTypeZiran :: (type: *void, target: s32) -> *void #foreign compiler "TargetTypeZiran";
+TextStreamClose :: (stream: *TextStream) -> s32 #foreign compiler "ZirTextStreamClose";
+TextStreamOpen :: (stream: *TextStream, text: **u8, size: *usize) -> *void #foreign compiler "ZirTextStreamOpen";
+calloc :: (__nmemb: usize, __size: usize) -> *void #foreign libc "calloc";
+fprintf :: (__stream: *void, __format: *u8, args: ..any) -> s32 #foreign libc "fprintf";
+fputc :: (__c: s32, __stream: *void) -> s32 #foreign libc "fputc";
+fputs :: (__s: *u8, __stream: *void) -> s32 #foreign libc "fputs";
+free :: (__ptr: *void) #foreign libc "free";
+isalnum :: (arg0: s32) -> s32 #foreign libc "isalnum";
+isdigit :: (arg0: s32) -> s32 #foreign libc "isdigit";
+isspace :: (arg0: s32) -> s32 #foreign libc "isspace";
+malloc :: (__size: usize) -> *void #foreign libc "malloc";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+realloc :: (__ptr: *void, __size: usize) -> *void #foreign libc "realloc";
+skip_ws :: (s: *u8) -> *u8 #foreign compiler "skip_ws";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, args: ..any) -> s32 #foreign libc "snprintf";
+strchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strchr";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strcpy :: (__dest: *u8, __src: *u8) -> *u8 #foreign libc "strcpy";
+strdup :: (__s: *u8) -> *u8 #foreign libc "strdup";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+strpbrk :: (__s: *u8, __accept: *u8) -> *u8 #foreign libc "strpbrk";
+strrchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strrchr";
+strtol :: (__nptr: *u8, __endptr: **u8, __base: s32) -> s64 #foreign libc "strtol";
+strtoull :: (__nptr: *u8, __endptr: **u8, __base: s32) -> u64 #foreign libc "strtoull";
+toupper :: (__c: s32) -> s32 #foreign libc "toupper";
+trim_in_place :: (s: *u8) -> *u8 #foreign compiler "trim_in_place";
+
+StaticText :: struct { data: *u8; length: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+registers: [27]*u8 = .{CStr("AX"), CStr("BX"), CStr("CX"), CStr("DX"), CStr("SI"), CStr("DI"), CStr("R8"), CStr("R9"), CStr("R10"), CStr("R11"), CStr("R12"), CStr("R13"), CStr("X0"), CStr("X1"), CStr("X2"), CStr("X3"), CStr("X4"), CStr("X5"), CStr("X6"), CStr("X7"), CStr("X8"), CStr("X9"), CStr("X10"), CStr("X11"), CStr("X12"), CStr("X13"), CStr("X14")};
+feature_names: [14]*u8 = .{CStr("popcnt"), CStr("sse2"), CStr("ssse3"), CStr("sse4.1"), CStr("sse4.2"), CStr("avx"), CStr("avx2"), CStr("avx512f"), CStr("bmi"), CStr("bmi2"), CStr("lzcnt"), CStr("fma"), CStr("aes"), CStr("pclmul")};
+
+
+width :: (type: *u8) -> s32 {
+    if ((type)[0] == #char "*") {
+        return 0
+    }
+    if !((strcmp(type, CStr("bool")) != 0)) {
+        return 8
+    }
+    if !((strcmp(type, CStr("float32")) != 0)) {
+        return 32
+    }
+    if (!((strcmp(type, CStr("float64")) != 0)) || !((strcmp(type, CStr("real")) != 0))) {
+        return 64
+    }
+    if (!((strcmp(type, CStr("isize")) != 0)) || !((strcmp(type, CStr("usize")) != 0))) {
+        return 64
+    }
+    bits: s32 = cast(s32)(ScalarWidthZiran(cast(*void)(type)))
+    return (ifx ((((bits == 8) || (bits == 16)) || (bits == 32)) || (bits == 64)) then bits else 0)
+}
+
+floating :: (type: *u8) -> s32 {
+    return cast(s32)(((!((strcmp(type, CStr("float32")) != 0)) || !((strcmp(type, CStr("float64")) != 0))) || !((strcmp(type, CStr("real")) != 0))))
+}
+
+physical :: (name: *u8, bits: *s32) -> s32 {
+    aliases: [12][4]*u8 = .{.{CStr("al"), CStr("ax"), CStr("eax"), CStr("rax")}, .{CStr("bl"), CStr("bx"), CStr("ebx"), CStr("rbx")}, .{CStr("cl"), CStr("cx"), CStr("ecx"), CStr("rcx")}, .{CStr("dl"), CStr("dx"), CStr("edx"), CStr("rdx")}, .{CStr("sil"), CStr("si"), CStr("esi"), CStr("rsi")}, .{CStr("dil"), CStr("di"), CStr("edi"), CStr("rdi")}, .{CStr("r8b"), CStr("r8w"), CStr("r8d"), CStr("r8")}, .{CStr("r9b"), CStr("r9w"), CStr("r9d"), CStr("r9")}, .{CStr("r10b"), CStr("r10w"), CStr("r10d"), CStr("r10")}, .{CStr("r11b"), CStr("r11w"), CStr("r11d"), CStr("r11")}, .{CStr("r12b"), CStr("r12w"), CStr("r12d"), CStr("r12")}, .{CStr("r13b"), CStr("r13w"), CStr("r13d"), CStr("r13")}}
+    {
+        r: s32 = 0
+        while true {
+            if !((r < 12)) { break }
+            {
+                w: s32 = 0
+                while true {
+                    if !((w < 4)) { break }
+                    if !((strcmp(name, ((aliases)[r])[w]) != 0)) {
+                        (bits)[0] = (8 << w)
+                        return r
+                    }
+                    w += 1
+                }
+            }
+            r += 1
+        }
+    }
+    {
+        r: s32 = 0
+        while true {
+            if !((r < 15)) { break }
+            xmm: [16]u8
+            snprintf(*(xmm)[0], size_of([16]u8), CStr("xmm%d"), r)
+            if !((strcmp(name, *(xmm)[0]) != 0)) {
+                (bits)[0] = 128
+                return (12 + r)
+            }
+            r += 1
+        }
+    }
+    return -(1)
+}
+
+feature_mask :: (target: *u8, mask: *u64) -> s32 {
+    next: *u8 = strchr(target, cast(s32)(#char "+"))
+    arch: usize = (ifx (next != null) then cast(usize)(cast(isize)(cast(usize)(next) - cast(usize)(target)) / cast(isize)size_of(u8)) else strlen(target))
+    if ((arch != cast(usize)(6)) || (strncmp(target, CStr("x86_64"), cast(usize)(6)) != 0)) {
+        return 0
+    }
+    (mask)[0] = cast(u64)(0)
+    while true {
+        if !((next != null)) { break }
+        start: *u8 = cast(*u8)(cast(usize)(next) + cast(usize)(1) * size_of(u8))
+        next = strchr(start, cast(s32)(#char "+"))
+        length: usize = (ifx (next != null) then cast(usize)(cast(isize)(cast(usize)(next) - cast(usize)(start)) / cast(isize)size_of(u8)) else strlen(start))
+        found: s32 = 0
+        {
+            i: usize = cast(usize)(0)
+            while true {
+                if !((i < (size_of([14]*u8) / size_of(*u8)))) { break }
+                if ((strlen((feature_names)[i]) == length) && !((strncmp(start, (feature_names)[i], length) != 0))) {
+                    (mask)[0] = ((mask)[0] | cast(u64)((cast(usize)(1) << i)))
+                    found = 1
+                    break
+                }
+                i += 1
+            }
+        }
+        if !((found != 0)) {
+            return 0
+        }
+    }
+    return 1
+}
+
+allocate_operands :: (plan: *GoAmd64Plan, column: s32) -> s32 {
+    excluded: u32 = cast(u32)(0)
+    literal: u32 = cast(u32)(0)
+    used: u32 = cast(u32)(0)
+    source: *AssemblyVariant = *((plan).source)
+    list: [1024]u8
+    if (strlen((source).clobbers) >= size_of([1024]u8)) {
+        return 0
+    }
+    strcpy(*(list)[0], (source).clobbers)
+    {
+        item: *u8 = *(list)[0]
+        while true {
+            if !(((item != null) && ((item)[0] != 0))) { break }
+            end: *u8 = strchr(item, cast(s32)(#char ";"))
+            if (end != null) {
+                (end)[0] = cast(u8)(0)
+            }
+            name: *u8 = trim_in_place(item)
+            if ((strcmp(name, CStr("cc")) != 0) && (strcmp(name, CStr("memory")) != 0)) {
+                bits: s32
+                reg: s32 = physical(name, *(bits))
+                if (reg < 0) {
+                    return 0
+                }
+                excluded = (excluded | cast(u32)((1 << reg)))
+            }
+            item = (ifx (end != null) then cast(*u8)(cast(usize)(end) + cast(usize)(1) * size_of(u8)) else cast(*u8)(null))
+        }
+    }
+    {
+        at: *u8 = (plan).normalized
+        while true {
+            if !(((at)[0] != 0)) { break }
+            if (((at)[0] != #char "%") || ((at)[1] != #char "%")) {
+                at = cast(*u8)(cast(usize)(at) + size_of(u8))
+                continue
+            }
+            at = cast(*u8)(cast(usize)(at) + cast(usize)(2) * size_of(u8))
+            start: *u8 = at
+            while true {
+                if !((isalnum(cast(s32)((at)[0])) != 0)) { break }
+                at = cast(*u8)(cast(usize)(at) + size_of(u8))
+            }
+            length: usize = cast(usize)(cast(isize)(cast(usize)(at) - cast(usize)(start)) / cast(isize)size_of(u8))
+            name: [16]u8
+            if ((length == cast(usize)(0)) || (length >= size_of([16]u8))) {
+                return 0
+            }
+            memcpy(cast(*void)(*(name)[0]), cast(*void)(start), length)
+            (name)[length] = cast(u8)(0)
+            bits: s32
+            reg: s32 = physical(*(name)[0], *(bits))
+            if (reg < 0) {
+                return 0
+            }
+            literal = (literal | cast(u32)((1 << reg)))
+            at = cast(*u8)(cast(usize)(at) - size_of(u8))
+            at = cast(*u8)(cast(usize)(at) + size_of(u8))
+        }
+    }
+    {
+        i: s32 = 0
+        while true {
+            if !((i < ((source).outputs + (source).inputs))) { break }
+            operand: *GoOperand = *(((plan).operands)[i])
+            (operand).tied = -(1)
+            (operand).reg = (operand).tied
+            constraint: *u8 = AssemblyConstraintAlternative((((source).operands)[i]).constraint, column)
+            while true {
+                if !((((constraint)[0] != 0) && (strchr(CStr("=&%!*?"), cast(s32)((constraint)[0])) != null))) { break }
+                constraint = cast(*u8)(cast(usize)(constraint) + size_of(u8))
+            }
+            if (i >= (source).outputs) {
+                (operand).tied = AssemblyTiedOutput(source, constraint)
+                if ((operand).tied >= 0) {
+                    output: *GoOperand = *(((plan).operands)[(operand).tied])
+                    if (((output).width != (operand).width) || ((output).floating != (operand).floating)) {
+                        return 0
+                    }
+                    {
+                        prior: s32 = (source).outputs
+                        while true {
+                            if !((prior < i)) { break }
+                            if ((((plan).operands)[prior]).tied == (operand).tied) {
+                                return 0
+                            }
+                            prior += 1
+                        }
+                    }
+                    i += 1
+                    continue
+                }
+            }
+            reg: s32 = -(1)
+            if (strlen(constraint) == cast(usize)(1)) {
+                classes: *u8 = CStr("abcdSD")
+                fixed: *u8 = (ifx ((constraint)[0] != 0) then strchr(classes, cast(s32)((constraint)[0])) else cast(*u8)(null))
+                if (fixed != null) {
+                    reg = cast(s32)(cast(isize)(cast(usize)(fixed) - cast(usize)(classes)) / cast(isize)size_of(u8))
+                }
+            }
+            if (reg >= 0) {
+                if (((operand).floating != 0) || (((excluded | used) & cast(u32)((1 << reg))) != 0)) {
+                    return 0
+                }
+                (operand).reg = reg
+                used = (used | cast(u32)((1 << reg)))
+            } else {
+                if (ifx ((operand).floating != 0) then ((strcmp(constraint, CStr("x")) != 0) && (strcmp(constraint, CStr("v")) != 0)) else !((strpbrk(constraint, CStr("rgXqQ")) != null))) {
+                    return 0
+                }
+            }
+            if ((operand).storage != 0) {
+                literal = (literal | cast(u32)((1 << 11)))
+            }
+            i += 1
+        }
+    }
+    {
+        i: s32 = 0
+        while true {
+            if !((i < ((source).outputs + (source).inputs))) { break }
+            operand: *GoOperand = *(((plan).operands)[i])
+            if ((operand).tied >= 0) {
+                (operand).reg = (((plan).operands)[(operand).tied]).reg
+                if ((operand).reg < 0) {
+                    return 0
+                }
+                i += 1
+                continue
+            }
+            if ((operand).reg >= 0) {
+                i += 1
+                continue
+            }
+            {
+                reg: s32 = (ifx ((operand).floating != 0) then 12 else 0)
+                while true {
+                    if !((reg < (ifx ((operand).floating != 0) then 27 else 12))) { break }
+                    if ((((excluded | literal) | used) & cast(u32)((1 << reg))) != 0) {
+                        reg += 1
+                        continue
+                    }
+                    (operand).reg = reg
+                    used = (used | cast(u32)((1 << reg)))
+                    break
+                    reg += 1
+                }
+            }
+            if ((operand).reg < 0) {
+                return 0
+            }
+            i += 1
+        }
+    }
+    return 1
+}
+
+// Select the AT&T arm of GNU dialect braces before splitting instructions.
+dialect :: (text: *u8) -> *u8 {
+    result: *u8 = cast(*u8)(malloc((strlen(text) + cast(usize)(1))))
+    if (result == cast(*u8)(null)) {
+        return cast(*u8)(null)
+    }
+    used: usize = cast(usize)(0)
+    {
+        at: *u8 = text
+        while true {
+            if !(((at)[0] != 0)) { break }
+            if ((at)[0] == #char "#") {
+                while true {
+                    if !((((at)[0] != 0) && ((at)[0] != #char "\n"))) { break }
+                    at = cast(*u8)(cast(usize)(at) + size_of(u8))
+                }
+                continue
+            }
+            if (((at)[0] == #char "/") && ((at)[1] == #char "*")) {
+                free(cast(*void)result)
+                return null
+            }
+            if ((at)[0] == #char "{") {
+                at = cast(*u8)(cast(usize)(at) + size_of(u8))
+                while true {
+                    if !(((((at)[0] != 0) && ((at)[0] != #char "|")) && ((at)[0] != #char "}"))) { break }
+                    if ((at)[0] == #char "#") {
+                        while true {
+                            if !((((at)[0] != 0) && ((at)[0] != #char "\n"))) { break }
+                            at = cast(*u8)(cast(usize)(at) + size_of(u8))
+                        }
+                        continue
+                    }
+                    if ((at)[0] == #char "{") {
+                        free(cast(*void)result)
+                        return null
+                    }
+                    post1: usize = used
+                    used += 1
+                    post2: *u8 = at
+                    at = cast(*u8)(cast(usize)(at) + size_of(u8))
+                    (result)[post1] = (post2)[0]
+                }
+                if ((at)[0] == #char "|") {
+                    while true {
+                        if !((((at)[0] != 0) && ((at)[0] != #char "}"))) { break }
+                        if ((at)[0] == #char "{") {
+                            free(cast(*void)result)
+                            return null
+                        }
+                        at = cast(*u8)(cast(usize)(at) + size_of(u8))
+                    }
+                }
+                if ((at)[0] != #char "}") {
+                    free(cast(*void)result)
+                    return null
+                }
+                at = cast(*u8)(cast(usize)(at) + size_of(u8))
+            } else {
+                if ((at)[0] == #char "}") {
+                    free(cast(*void)result)
+                    return null
+                }
+                post3: usize = used
+                used += 1
+                post4: *u8 = at
+                at = cast(*u8)(cast(usize)(at) + size_of(u8))
+                (result)[post3] = (post4)[0]
+            }
+        }
+    }
+    (result)[used] = cast(u8)(0)
+    return result
+    return cast(*u8)(null)
+}
+
+label_token :: (start: *u8, length: usize) -> s32 {
+    if (length == cast(usize)(0)) {
+        return 0
+    }
+    {
+        i: usize = cast(usize)(0)
+        while true {
+            if !((i < length)) { break }
+            if (((isalnum(cast(s32)((start)[i])) != 0) || ((start)[i] == #char ".")) || ((start)[i] == #char "_")) {
+                i += 1
+                continue
+            }
+            if ((((start)[i] == #char "%") && ((i + cast(usize)(1)) < length)) && ((start)[(i + cast(usize)(1))] == #char "=")) {
+                i += 1
+                i += 1
+                continue
+            }
+            return 0
+            i += 1
+        }
+    }
+    return 1
+}
+
+labels :: (plan: *GoAmd64Plan, text: *u8) -> s32 {
+    {
+        at: *u8 = text
+        while true {
+            if !(((at)[0] != 0)) { break }
+            while true {
+                if !(((isspace(cast(s32)((at)[0])) != 0) || ((at)[0] == #char ";"))) { break }
+                at = cast(*u8)(cast(usize)(at) + size_of(u8))
+            }
+            begin: *u8 = at
+            end: *u8 = at
+            while true {
+                if !((((((end)[0] != 0) && ((end)[0] != #char ":")) && !((isspace(cast(s32)((end)[0])) != 0))) && ((end)[0] != #char ";"))) { break }
+                end = cast(*u8)(cast(usize)(end) + size_of(u8))
+            }
+            colon: *u8 = skip_ws(end)
+            if (((colon)[0] == #char ":") && (label_token(begin, cast(usize)(cast(isize)(cast(usize)(end) - cast(usize)(begin)) / cast(isize)size_of(u8))) != 0)) {
+                if ((plan).label_count >= 128) {
+                    return 0
+                }
+                length: usize = cast(usize)(cast(isize)(cast(usize)(end) - cast(usize)(begin)) / cast(isize)size_of(u8))
+                name: *u8 = cast(*u8)(malloc((length + cast(usize)(1))))
+                if (name == cast(*u8)(null)) {
+                    return 0
+                }
+                items: *GoLabel = cast(*GoLabel)(realloc(cast(*void)((plan).labels), (cast(usize)(((plan).label_count + 1)) * size_of(GoLabel))))
+                if (items == cast(*GoLabel)(null)) {
+                    free(cast(*void)(name))
+                    return 0
+                }
+                (plan).labels = items
+                memcpy(cast(*void)(name), cast(*void)(begin), length)
+                (name)[length] = cast(u8)(0)
+                post5: s32 = (plan).label_count
+                (plan).label_count += 1
+                ((plan).labels)[post5] = .{name = name, position = cast(usize)(cast(isize)(cast(usize)(begin) - cast(usize)(text)) / cast(isize)size_of(u8))}
+                at = cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))
+            } else {
+                while true {
+                    if !(((((at)[0] != 0) && ((at)[0] != #char "\n")) && ((at)[0] != #char ";"))) { break }
+                    at = cast(*u8)(cast(usize)(at) + size_of(u8))
+                }
+            }
+        }
+    }
+    return 1
+}
+
+label_reference :: (plan: *GoAmd64Plan, name: *u8, position: usize) -> s32 {
+    length: usize = strlen(name)
+    direction: s32 = cast(s32)((ifx ((length > cast(usize)(1)) && (isdigit(cast(s32)((name)[0])) != 0)) then (name)[(length - cast(usize)(1))] else cast(u8)(0)))
+    if ((direction != cast(s32)(#char "b")) && (direction != cast(s32)(#char "f"))) {
+        direction = 0
+    }
+    if (!((direction != 0)) && (isdigit(cast(s32)((name)[0])) != 0)) {
+        return -(1)
+    }
+    result: s32 = -(1)
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (plan).label_count)) { break }
+            label: *GoLabel = *(((plan).labels)[i])
+            if ((strlen((label).name) != (length - cast(usize)((direction != 0)))) || (strncmp((label).name, name, (length - cast(usize)((direction != 0)))) != 0)) {
+                i += 1
+                continue
+            }
+            if !((direction != 0)) {
+                if (result >= 0) {
+                    return -(1)
+                }
+                result = i
+            } else {
+                if (((direction == cast(s32)(#char "b")) && ((label).position < position)) && ((result < 0) || ((label).position > (((plan).labels)[result]).position))) {
+                    result = i
+                } else {
+                    if (((direction == cast(s32)(#char "f")) && ((label).position > position)) && ((result < 0) || ((label).position < (((plan).labels)[result]).position))) {
+                        result = i
+                    }
+                }
+            }
+            i += 1
+        }
+    }
+    return result
+}
+
+argument :: (plan: *GoAmd64Plan, source: *u8, argument: *GoArgument) -> s32 {
+    (argument)[0] = .{reg = -(1)}
+    if ((source)[0] == #char "$") {
+        end: *u8
+        strtoull(cast(*u8)(cast(usize)(source) + cast(usize)(1) * size_of(u8)), *(end), 0)
+        if (((end == cast(*u8)(cast(usize)(source) + cast(usize)(1) * size_of(u8))) || ((end)[0] != 0)) || (strlen(source) >= size_of([128]u8))) {
+            return 0
+        }
+        strcpy(*((argument).text)[0], source)
+        (argument).immediate = 1
+        return 1
+    }
+    reg: s32 = -(1)
+    bits: s32 = 0
+    high: s32 = 0
+    if (((source)[0] == #char "%") && ((source)[1] == #char "%")) {
+        reg = physical(cast(*u8)(cast(usize)(source) + cast(usize)(2) * size_of(u8)), *(bits))
+    } else {
+        if ((source)[0] == #char "%") {
+            at: *u8 = cast(*u8)(cast(usize)(source) + cast(usize)(1) * size_of(u8))
+            if (((at)[0] != 0) && (strchr(CStr("bwhkq"), cast(s32)((at)[0])) != null)) {
+                high = cast(s32)(((at)[0] == #char "h"))
+                bits = (ifx (((at)[0] == #char "b") || (high != 0)) then 8 else (ifx ((at)[0] == #char "w") then 16 else (ifx ((at)[0] == #char "k") then 32 else 64)))
+                at = cast(*u8)(cast(usize)(at) + size_of(u8))
+            }
+            index: s32 = -(1)
+            if ((at)[0] == #char "[") {
+                length: usize = strlen(at)
+                if ((length < cast(usize)(3)) || ((at)[(length - cast(usize)(1))] != #char "]")) {
+                    return 0
+                }
+                {
+                    i: s32 = 0
+                    while true {
+                        if !((i < (((plan).source).outputs + ((plan).source).inputs))) { break }
+                        if ((strlen(((((plan).source).operands)[i]).alias) == (length - cast(usize)(2))) && !((strncmp(((((plan).source).operands)[i]).alias, cast(*u8)(cast(usize)(at) + cast(usize)(1) * size_of(u8)), (length - cast(usize)(2))) != 0))) {
+                            index = i
+                            break
+                        }
+                        i += 1
+                    }
+                }
+            } else {
+                end: *u8
+                number: s64 = strtol(at, *(end), 10)
+                if ((((end == at) || ((end)[0] != 0)) || (number < cast(s64)(0))) || (number >= cast(s64)(30))) {
+                    return 0
+                }
+                index = cast(s32)(number)
+            }
+            if ((index < 0) || (index >= (((plan).source).outputs + ((plan).source).inputs))) {
+                return 0
+            }
+            reg = (((plan).operands)[index]).reg
+            if !((bits != 0)) {
+                bits = (((plan).operands)[index]).width
+            }
+        }
+    }
+    if ((reg < 0) || ((high != 0) && (reg >= 4))) {
+        return 0
+    }
+    snprintf(*((argument).text)[0], size_of([128]u8), CStr("%s"), (registers)[reg])
+    if (high != 0) {
+        ((argument).text)[1] = #char "H"
+    }
+    (argument).reg = reg
+    (argument).width = bits
+    return 1
+}
+
+condition :: (name: *u8) -> *u8 {
+    conditions: [24]GoConditionMapping = .{.{gnu = CStr("e"), go = CStr("EQ")}, .{gnu = CStr("z"), go = CStr("EQ")}, .{gnu = CStr("ne"), go = CStr("NE")}, .{gnu = CStr("nz"), go = CStr("NE")}, .{gnu = CStr("l"), go = CStr("LT")}, .{gnu = CStr("ge"), go = CStr("GE")}, .{gnu = CStr("le"), go = CStr("LE")}, .{gnu = CStr("g"), go = CStr("GT")}, .{gnu = CStr("b"), go = CStr("CS")}, .{gnu = CStr("c"), go = CStr("CS")}, .{gnu = CStr("nae"), go = CStr("CS")}, .{gnu = CStr("ae"), go = CStr("CC")}, .{gnu = CStr("nb"), go = CStr("CC")}, .{gnu = CStr("nc"), go = CStr("CC")}, .{gnu = CStr("be"), go = CStr("LS")}, .{gnu = CStr("na"), go = CStr("LS")}, .{gnu = CStr("a"), go = CStr("HI")}, .{gnu = CStr("nbe"), go = CStr("HI")}, .{gnu = CStr("s"), go = CStr("MI")}, .{gnu = CStr("ns"), go = CStr("PL")}, .{gnu = CStr("o"), go = CStr("OS")}, .{gnu = CStr("no"), go = CStr("OC")}, .{gnu = CStr("p"), go = CStr("PS")}, .{gnu = CStr("np"), go = CStr("PC")}}
+    {
+        i: usize = cast(usize)(0)
+        while true {
+            if !((i < (size_of([24]GoConditionMapping) / size_of(GoConditionMapping)))) { break }
+            if !((strcmp(name, ((conditions)[i]).gnu) != 0)) {
+                return ((conditions)[i]).go
+            }
+            i += 1
+        }
+    }
+    return cast(*u8)(null)
+}
+
+arity :: (name: *u8) -> s32 {
+    unary: [8]*u8 = .{CStr("inc"), CStr("dec"), CStr("neg"), CStr("not"), CStr("div"), CStr("idiv"), CStr("mul"), CStr("bswap")}
+    binary: [23]*u8 = .{CStr("mov"), CStr("add"), CStr("sub"), CStr("adc"), CStr("sbb"), CStr("and"), CStr("or"), CStr("xor"), CStr("cmp"), CStr("test"), CStr("lea"), CStr("imul"), CStr("shl"), CStr("shr"), CStr("sar"), CStr("rol"), CStr("ror"), CStr("popcnt"), CStr("lzcnt"), CStr("tzcnt"), CStr("bsf"), CStr("bsr"), CStr("xchg")}
+    {
+        i: usize = cast(usize)(0)
+        while true {
+            if !((i < (size_of([8]*u8) / size_of(*u8)))) { break }
+            if !((strcmp(name, (unary)[i]) != 0)) {
+                return 1
+            }
+            i += 1
+        }
+    }
+    {
+        i: usize = cast(usize)(0)
+        while true {
+            if !((i < (size_of([23]*u8) / size_of(*u8)))) { break }
+            if !((strcmp(name, (binary)[i]) != 0)) {
+                return 2
+            }
+            i += 1
+        }
+    }
+    return 0
+}
+
+instruction :: (plan: *GoAmd64Plan, out: *void, line: *u8, position: usize) -> s32 {
+    at: *u8 = line
+    while true {
+        if !((((at)[0] != 0) && !((isspace(cast(s32)((at)[0])) != 0)))) { break }
+        at = cast(*u8)(cast(usize)(at) + size_of(u8))
+    }
+    if (cast(usize)(cast(isize)(cast(usize)(at) - cast(usize)(line)) / cast(isize)size_of(u8)) >= cast(usize)(32)) {
+        return 0
+    }
+    mnemonic: [32]u8
+    memcpy(cast(*void)(*(mnemonic)[0]), cast(*void)(line), cast(usize)(cast(isize)(cast(usize)(at) - cast(usize)(line)) / cast(isize)size_of(u8)))
+    (mnemonic)[cast(isize)(cast(usize)(at) - cast(usize)(line)) / cast(isize)size_of(u8)] = cast(u8)(0)
+    at = trim_in_place(at)
+    if ((mnemonic)[0] == #char "j") {
+        suffix: *u8 = (ifx !((strcmp(*(mnemonic)[0], CStr("jmp")) != 0)) then CStr("MP") else condition(cast(*u8)(cast(usize)(*(mnemonic)[0]) + cast(usize)(1) * size_of(u8))))
+        label: s32 = label_reference(plan, at, position)
+        if ((suffix == cast(*u8)(null)) || (label < 0)) {
+            return 0
+        }
+        fprintf(out, CStr("\tJ%s zlabel%d\n"), suffix, label)
+        return 1
+    }
+    if ((((!((strcmp(*(mnemonic)[0], CStr("nop")) != 0)) || !((strcmp(*(mnemonic)[0], CStr("pause")) != 0))) || !((strcmp(*(mnemonic)[0], CStr("lfence")) != 0))) || !((strcmp(*(mnemonic)[0], CStr("mfence")) != 0))) || !((strcmp(*(mnemonic)[0], CStr("sfence")) != 0))) {
+        if ((at)[0] != 0) {
+            return 0
+        }
+        {
+            p: *u8 = *(mnemonic)[0]
+            while true {
+                if !(((p)[0] != 0)) { break }
+                (p)[0] = cast(u8)(toupper(cast(s32)((p)[0])))
+                p = cast(*u8)(cast(usize)(p) + size_of(u8))
+            }
+        }
+        fprintf(out, CStr("\t%s\n"), *(mnemonic)[0])
+        return 1
+    }
+    args: [3]GoArgument
+    count: s32 = 0
+    while true {
+        if !(((at)[0] != 0)) { break }
+        end: *u8 = at
+        nesting: s32 = 0
+        {
+            while true {
+                if !(((end)[0] != 0)) { break }
+                if ((end)[0] == #char "(") {
+                    nesting += 1
+                }
+                if ((end)[0] == #char ")") {
+                    nesting -= 1
+                }
+                if (((end)[0] == #char ",") && (nesting == 0)) {
+                    break
+                }
+                end = cast(*u8)(cast(usize)(end) + size_of(u8))
+            }
+        }
+        if ((count >= 3) || (nesting != 0)) {
+            return 0
+        }
+        more: s32 = cast(s32)(((end)[0] != cast(u8)(0)))
+        if (more != 0) {
+            (end)[0] = cast(u8)(0)
+        }
+        part: *u8 = trim_in_place(at)
+        if (!((strncmp(*(mnemonic)[0], CStr("lea"), cast(usize)(3)) != 0)) && (count == 0)) {
+            open: *u8 = strchr(part, cast(s32)(#char "("))
+            close: *u8 = strrchr(part, cast(s32)(#char ")"))
+            if (((open == cast(*u8)(null)) || (close == cast(*u8)(null))) || ((close)[1] != 0)) {
+                return 0
+            }
+            (close)[0] = cast(u8)(0)
+            (open)[0] = (close)[0]
+            tail: *u8
+            strtol(part, *(tail), 0)
+            if ((tail == part) || ((tail)[0] != 0)) {
+                return 0
+            }
+            base: GoArgument
+            if ((!((argument(plan, cast(*u8)(cast(usize)(open) + cast(usize)(1) * size_of(u8)), *(base)) != 0)) || ((base).reg < 0)) || ((base).reg >= 12)) {
+                return 0
+            }
+            (args)[count] = .{reg = -(1), width = 64, memory = 1}
+            if (snprintf(*(((args)[count]).text)[0], size_of([128]u8), CStr("%s(%s)"), part, *((base).text)[0]) >= cast(s32)(size_of([128]u8))) {
+                return 0
+            }
+        } else {
+            if !((argument(plan, part, *((args)[count])) != 0)) {
+                return 0
+            }
+        }
+        count += 1
+        at = (ifx (more != 0) then trim_in_place(cast(*u8)(cast(usize)(end) + cast(usize)(1) * size_of(u8))) else end)
+    }
+    op: [32]u8
+    if !((strncmp(*(mnemonic)[0], CStr("set"), cast(usize)(3)) != 0)) {
+        suffix: *u8 = condition(cast(*u8)(cast(usize)(*(mnemonic)[0]) + cast(usize)(3) * size_of(u8)))
+        if ((((suffix == cast(*u8)(null)) || (count != 1)) || (((args)[0]).reg < 0)) || (((args)[0]).reg >= 12)) {
+            return 0
+        }
+        snprintf(*(op)[0], size_of([32]u8), CStr("SET%s"), suffix)
+    } else {
+        special: [21]GoInstructionMapping = .{.{gnu = CStr("movzbl"), go = CStr("MOVBLZX")}, .{gnu = CStr("movzbq"), go = CStr("MOVBQZX")}, .{gnu = CStr("movzwl"), go = CStr("MOVWLZX")}, .{gnu = CStr("movzwq"), go = CStr("MOVWQZX")}, .{gnu = CStr("movsbl"), go = CStr("MOVBLSX")}, .{gnu = CStr("movsbq"), go = CStr("MOVBQSX")}, .{gnu = CStr("movswl"), go = CStr("MOVWLSX")}, .{gnu = CStr("movswq"), go = CStr("MOVWQSX")}, .{gnu = CStr("movslq"), go = CStr("MOVLQSX")}, .{gnu = CStr("movss"), go = CStr("MOVSS")}, .{gnu = CStr("movsd"), go = CStr("MOVSD")}, .{gnu = CStr("addss"), go = CStr("ADDSS")}, .{gnu = CStr("addsd"), go = CStr("ADDSD")}, .{gnu = CStr("subss"), go = CStr("SUBSS")}, .{gnu = CStr("subsd"), go = CStr("SUBSD")}, .{gnu = CStr("mulss"), go = CStr("MULSS")}, .{gnu = CStr("mulsd"), go = CStr("MULSD")}, .{gnu = CStr("divss"), go = CStr("DIVSS")}, .{gnu = CStr("divsd"), go = CStr("DIVSD")}, .{gnu = CStr("sqrtss"), go = CStr("SQRTSS")}, .{gnu = CStr("sqrtsd"), go = CStr("SQRTSD")}}
+        mapped: *u8 = cast(*u8)(null)
+        {
+            i: usize = cast(usize)(0)
+            while true {
+                if !((i < (size_of([21]GoInstructionMapping) / size_of(GoInstructionMapping)))) { break }
+                if !((strcmp(*(mnemonic)[0], ((special)[i]).gnu) != 0)) {
+                    mapped = ((special)[i]).go
+                }
+                i += 1
+            }
+        }
+        if (mapped != null) {
+            if (count != 2) {
+                return 0
+            }
+            snprintf(*(op)[0], size_of([32]u8), CStr("%s"), mapped)
+        } else {
+            bits: s32 = (ifx (count != 0) then ((args)[(count - 1)]).width else 0)
+            n: usize = strlen(*(mnemonic)[0])
+            operands: s32 = arity(*(mnemonic)[0])
+            if ((!((operands != 0)) && (n != 0)) && (strchr(CStr("bwlq"), cast(s32)((mnemonic)[(n - cast(usize)(1))])) != null)) {
+                bits = (ifx ((mnemonic)[(n - cast(usize)(1))] == #char "b") then 8 else (ifx ((mnemonic)[(n - cast(usize)(1))] == #char "w") then 16 else (ifx ((mnemonic)[(n - cast(usize)(1))] == #char "l") then 32 else 64)))
+                n -= 1
+                (mnemonic)[n] = cast(u8)(0)
+                operands = arity(*(mnemonic)[0])
+            }
+            if ((!((operands != 0)) || (count != operands)) || ((((bits != 8) && (bits != 16)) && (bits != 32)) && (bits != 64))) {
+                return 0
+            }
+            if ((((((!((strcmp(*(mnemonic)[0], CStr("shl")) != 0)) || !((strcmp(*(mnemonic)[0], CStr("shr")) != 0))) || !((strcmp(*(mnemonic)[0], CStr("sar")) != 0))) || !((strcmp(*(mnemonic)[0], CStr("rol")) != 0))) || !((strcmp(*(mnemonic)[0], CStr("ror")) != 0))) && !((((args)[0]).immediate != 0))) && (((args)[0]).reg != 2)) {
+                return 0
+            }
+            if !((strcmp(*(mnemonic)[0], CStr("cmp")) != 0)) {
+                swap: GoArgument = (args)[0]
+                (args)[0] = (args)[1]
+                (args)[1] = swap
+            }
+            {
+                i: usize = cast(usize)(0)
+                while true {
+                    if !((i < n)) { break }
+                    (op)[i] = cast(u8)(toupper(cast(s32)((mnemonic)[i])))
+                    i += 1
+                }
+            }
+            post6: usize = n
+            n += 1
+            (op)[post6] = (ifx (bits == 8) then #char "B" else (ifx (bits == 16) then #char "W" else (ifx (bits == 32) then #char "L" else #char "Q")))
+            (op)[n] = cast(u8)(0)
+        }
+    }
+    fprintf(out, CStr("\t%s "), *(op)[0])
+    {
+        i: s32 = 0
+        while true {
+            if !((i < count)) { break }
+            fprintf(out, CStr("%s%s"), (ifx (i != 0) then CStr(", ") else CStr("")), *(((args)[i]).text)[0])
+            i += 1
+        }
+    }
+    fputc(cast(s32)(#char "\n"), out)
+    return 1
+}
+
+translate :: (plan: *GoAmd64Plan) -> s32 {
+    text: *u8 = strdup((plan).normalized)
+    if ((text == cast(*u8)(null)) || !((labels(plan, text) != 0))) {
+        free(cast(*void)(text))
+        return 0
+    }
+    output: *u8 = cast(*u8)(null)
+    length: usize
+    stream: TextStream
+    out: *void = TextStreamOpen(*(stream), *(output), *(length))
+    if (out == null) {
+        free(cast(*void)(text))
+        return 0
+    }
+    valid: s32 = 1
+    {
+        at: *u8 = text
+        while true {
+            if !(((valid != 0) && ((at)[0] != 0))) { break }
+            while true {
+                if !(((isspace(cast(s32)((at)[0])) != 0) || ((at)[0] == #char ";"))) { break }
+                at = cast(*u8)(cast(usize)(at) + size_of(u8))
+            }
+            if !(((at)[0] != 0)) {
+                break
+            }
+            if ((at)[0] == #char "#") {
+                while true {
+                    if !((((at)[0] != 0) && ((at)[0] != #char "\n"))) { break }
+                    at = cast(*u8)(cast(usize)(at) + size_of(u8))
+                }
+                continue
+            }
+            end: *u8 = at
+            while true {
+                if !((((((end)[0] != 0) && !((isspace(cast(s32)((end)[0])) != 0))) && ((end)[0] != #char ":")) && ((end)[0] != #char ";"))) { break }
+                end = cast(*u8)(cast(usize)(end) + size_of(u8))
+            }
+            colon: *u8 = end
+            while true {
+                if !((((colon)[0] == #char " ") || ((colon)[0] == #char "\t"))) { break }
+                colon = cast(*u8)(cast(usize)(colon) + size_of(u8))
+            }
+            if (((colon)[0] == #char ":") && (label_token(at, cast(usize)(cast(isize)(cast(usize)(end) - cast(usize)(at)) / cast(isize)size_of(u8))) != 0)) {
+                id: s32 = -(1)
+                {
+                    i: s32 = 0
+                    while true {
+                        if !((i < (plan).label_count)) { break }
+                        if ((((plan).labels)[i]).position == cast(usize)(cast(isize)(cast(usize)(at) - cast(usize)(text)) / cast(isize)size_of(u8))) {
+                            id = i
+                            break
+                        }
+                        i += 1
+                    }
+                }
+                if (id < 0) {
+                    valid = 0
+                    break
+                }
+                fprintf(out, CStr("zlabel%d:\n"), id)
+                at = cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))
+                continue
+            }
+            end = at
+            while true {
+                if !((((((end)[0] != 0) && ((end)[0] != #char "\n")) && ((end)[0] != #char ";")) && ((end)[0] != #char "#"))) { break }
+                end = cast(*u8)(cast(usize)(end) + size_of(u8))
+            }
+            saved: u8 = (end)[0]
+            (end)[0] = cast(u8)(0)
+            valid = instruction(plan, out, trim_in_place(at), cast(usize)(cast(isize)(cast(usize)(at) - cast(usize)(text)) / cast(isize)size_of(u8)))
+            (end)[0] = saved
+            at = end
+            if ((at)[0] == #char "#") {
+                while true {
+                    if !((((at)[0] != 0) && ((at)[0] != #char "\n"))) { break }
+                    at = cast(*u8)(cast(usize)(at) + size_of(u8))
+                }
+            }
+        }
+    }
+    if (TextStreamClose(*(stream)) != 0) {
+        valid = 0
+    }
+    free(cast(*void)(text))
+    if (valid != 0) {
+        (plan).text = output
+    } else {
+        free(cast(*void)(output))
+    }
+    return valid
+}
+
+#scope_export
+#program_export "GoAmd64Prepare"
+GoAmd64Prepare :: (source: *AssemblyVariant, block: s32, by_value: s32, storage: *u8) -> *GoAmd64Plan {
+    features: u64
+    if !((feature_mask((source).target, *(features)) != 0)) {
+        return cast(*GoAmd64Plan)(null)
+    }
+    plan: *GoAmd64Plan = cast(*GoAmd64Plan)(calloc(cast(usize)(1), size_of(GoAmd64Plan)))
+    if (plan == cast(*GoAmd64Plan)(null)) {
+        return cast(*GoAmd64Plan)(null)
+    }
+    (plan).source = (source)[0]
+    (plan).features = features
+    if ((block != 0) && !((by_value != 0))) {
+        return plan
+    }
+    bytes: s32 = 0
+    {
+        i: s32 = 0
+        while true {
+            if !((i < ((source).outputs + (source).inputs))) { break }
+            operand: *GoOperand = *(((plan).operands)[i])
+            (operand).width = width((((source).operands)[i]).type)
+            (operand).floating = floating((((source).operands)[i]).type)
+            (operand).storage = cast(s32)((((block != 0) && (i >= (source).outputs)) && ((storage)[i] != 0)))
+            if !(((operand).width != 0)) {
+                return plan
+            }
+            i += 1
+        }
+    }
+    {
+        i: s32 = (source).outputs
+        while true {
+            if !((i < ((source).outputs + (source).inputs))) { break }
+            operand: *GoOperand = *(((plan).operands)[i])
+            size: s32 = (ifx ((operand).storage != 0) then 8 else ((operand).width / 8))
+            bytes = (((bytes + size) - 1) & -(size))
+            (operand).offset = bytes
+            bytes = (bytes + size)
+            i += 1
+        }
+    }
+    bytes = ((bytes + 7) & -(8))
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (source).outputs)) { break }
+            operand: *GoOperand = *(((plan).operands)[i])
+            size: s32 = ((operand).width / 8)
+            bytes = (((bytes + size) - 1) & -(size))
+            (operand).offset = bytes
+            bytes = (bytes + size)
+            i += 1
+        }
+    }
+    post7: s32 = bytes
+    bytes += 1
+    (plan).available = post7
+    (plan).arguments = bytes
+    (plan).normalized = dialect((source).text)
+    if ((plan).normalized == cast(*u8)(null)) {
+        return plan
+    }
+    alternatives: s32 = AssemblyAlternativeCount(source)
+    {
+        column: s32 = 0
+        while true {
+            if !((column < alternatives)) { break }
+            if ((allocate_operands(plan, column) != 0) && (translate(plan) != 0)) {
+                (plan).supported = 1
+                break
+            }
+            {
+                i: s32 = 0
+                while true {
+                    if !((i < (plan).label_count)) { break }
+                    free(cast(*void)((((plan).labels)[i]).name))
+                    i += 1
+                }
+            }
+            free(cast(*void)((plan).labels))
+            (plan).labels = cast(*GoLabel)(null)
+            (plan).label_count = 0
+            column += 1
+        }
+    }
+    return plan
+}
+#scope_file
+
+#scope_export
+#program_export "GoAmd64Supported"
+GoAmd64Supported :: (plan: *GoAmd64Plan) -> s32 {
+    return (plan).supported
+}
+#scope_file
+
+#scope_export
+#program_export "GoAmd64Features"
+GoAmd64Features :: (plan: *GoAmd64Plan) -> u64 {
+    return (plan).features
+}
+#scope_file
+
+#scope_export
+#program_export "GoAmd64Write"
+GoAmd64Write :: (go: *void, assembly: *void, plan: *GoAmd64Plan, name: *u8) {
+    source: *AssemblyVariant = *((plan).source)
+    fputs(CStr("//go:noescape\nfunc "), go)
+    fputs(name, go)
+    fputc(cast(s32)(#char "("), go)
+    {
+        i: s32 = (source).outputs
+        while true {
+            if !((i < ((source).outputs + (source).inputs))) { break }
+            fprintf(go, CStr("%sa%d %s%s"), (ifx (i > (source).outputs) then CStr(", ") else CStr("")), i, (ifx ((((plan).operands)[i]).storage != 0) then CStr("*") else CStr("")), cast(*u8)(TargetTypeZiran(cast(*void)(ScalarType((((source).operands)[i]).type)), cast(s32)(Native.ZirTarget.ZIR_GO))))
+            i += 1
+        }
+    }
+    fputs(CStr(") ("), go)
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (source).outputs)) { break }
+            fprintf(go, CStr("r%d %s, "), i, cast(*u8)(TargetTypeZiran(cast(*void)(ScalarType((((source).operands)[i]).type)), cast(s32)(Native.ZirTarget.ZIR_GO))))
+            i += 1
+        }
+    }
+    fputs(CStr("ok bool)\n\n"), go)
+    fprintf(assembly, CStr("TEXT ·%s(SB), NOSPLIT, $0-%d\n"), name, (plan).arguments)
+    {
+        i: s32 = (source).outputs
+        while true {
+            if !((i < ((source).outputs + (source).inputs))) { break }
+            operand: *GoOperand = *(((plan).operands)[i])
+            input: [64]u8
+            snprintf(*(input)[0], size_of([64]u8), CStr("a%d+%d(FP)"), i, (operand).offset)
+            if ((operand).storage != 0) {
+                fprintf(assembly, CStr("\tMOVQ %s, R13\n"), *(input)[0])
+                strcpy(*(input)[0], CStr("0(R13)"))
+            }
+            load: *u8 = (ifx ((operand).floating != 0) then (ifx ((operand).width == 32) then CStr("MOVSS") else CStr("MOVSD")) else (ifx ((operand).width == 8) then CStr("MOVBQZX") else (ifx ((operand).width == 16) then CStr("MOVWQZX") else (ifx ((operand).width == 32) then CStr("MOVL") else CStr("MOVQ")))))
+            fprintf(assembly, CStr("\t%s %s, %s\n"), load, *(input)[0], (registers)[(operand).reg])
+            i += 1
+        }
+    }
+    fputs((plan).text, assembly)
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (source).outputs)) { break }
+            operand: *GoOperand = *(((plan).operands)[i])
+            if !((strcmp((((source).operands)[i]).type, CStr("bool")) != 0)) {
+                fprintf(assembly, CStr("\tTESTB %s, %s\n\tSETNE %s\n"), (registers)[(operand).reg], (registers)[(operand).reg], (registers)[(operand).reg])
+            }
+            store: *u8 = (ifx ((operand).floating != 0) then (ifx ((operand).width == 32) then CStr("MOVSS") else CStr("MOVSD")) else (ifx ((operand).width == 8) then CStr("MOVB") else (ifx ((operand).width == 16) then CStr("MOVW") else (ifx ((operand).width == 32) then CStr("MOVL") else CStr("MOVQ")))))
+            fprintf(assembly, CStr("\t%s %s, r%d+%d(FP)\n"), store, (registers)[(operand).reg], i, (operand).offset)
+            i += 1
+        }
+    }
+    fprintf(assembly, CStr("\tMOVB $1, ok+%d(FP)\n\tRET\n\n"), (plan).available)
+}
+#scope_file
+
+#scope_export
+#program_export "GoAmd64Cpu"
+GoAmd64Cpu :: (go: *void, assembly: *void, prefix: *u8) {
+    fprintf(go, CStr("func %sCpuid(leaf, sub uint32) (ra, rb, rc, rd uint32)\nfunc %sXgetbv() uint64\n"), prefix, prefix)
+    fprintf(go, CStr("var %sFeatures = func() uint64 {\n    var flags uint64\n    maximum, _, _, _ := %sCpuid(0, 0)\n    var avx bool\n    var xcr uint64\n    if maximum >= 1 {\n        _, _, c, d := %sCpuid(1, 0)\n        for _, feature := range []struct{bit uint; mask uint64}{{23,1<<0},{9,1<<2},{19,1<<3},{20,1<<4},{25,1<<12},{1,1<<13}} { if c&(1<<feature.bit)!=0 {flags |= feature.mask} }\n        if d&(1<<26)!=0 {flags |= 1<<1}\n        if c&(1<<26|1<<27)==1<<26|1<<27 {xcr=%sXgetbv()}\n        avx = c&(1<<28)!=0 && xcr&6==6\n        if avx {flags |= 1<<5; if c&(1<<12)!=0 {flags |= 1<<11}}\n    }\n    if maximum >= 7 {\n        _, b, _, _ := %sCpuid(7, 0)\n        if b&(1<<3)!=0 {flags |= 1<<8}; if b&(1<<8)!=0 {flags |= 1<<9}\n        if avx && b&(1<<5)!=0 {flags |= 1<<6}\n        if avx && xcr&0xe6==0xe6 && b&(1<<16)!=0 {flags |= 1<<7}\n    }\n    maximum, _, _, _ = %sCpuid(0x80000000, 0)\n    if maximum >= 0x80000001 {_, _, c, _ := %sCpuid(0x80000001, 0); if c&(1<<5)!=0 {flags |= 1<<10}}\n    return flags\n}()\n\n"), prefix, prefix, prefix, prefix, prefix, prefix, prefix)
+    fprintf(assembly, CStr("TEXT ·%sCpuid(SB), NOSPLIT, $0-24\n\tMOVL leaf+0(FP), AX\n\tMOVL sub+4(FP), CX\n\tCPUID\n\tMOVL AX, ra+8(FP)\n\tMOVL BX, rb+12(FP)\n\tMOVL CX, rc+16(FP)\n\tMOVL DX, rd+20(FP)\n\tRET\n\nTEXT ·%sXgetbv(SB), NOSPLIT, $0-8\n\tXORL CX, CX\n\tXGETBV\n\tSHLQ $32, DX\n\tORQ DX, AX\n\tMOVQ AX, ret+0(FP)\n\tRET\n\n"), prefix, prefix)
+}
+#scope_file
+
+#scope_export
+#program_export "GoAmd64Close"
+GoAmd64Close :: (plan: *GoAmd64Plan) {
+    if (plan == cast(*GoAmd64Plan)(null)) {
+        return
+    }
+    {
+        i: s32 = 0
+        while true {
+            if !((i < (plan).label_count)) { break }
+            free(cast(*void)((((plan).labels)[i]).name))
+            i += 1
+        }
+    }
+    free(cast(*void)((plan).labels))
+    free(cast(*void)((plan).text))
+    free(cast(*void)((plan).normalized))
+    free(cast(*void)(plan))
+}
+#scope_file

@@ -4,6 +4,8 @@
 
 - The C backend and the C and Go SIMD emitters now build from Ziran source. Bootstrapping uses generated C seeds.
 
+- The Go backend, its x86-64 assembly emitter, and the checker's expression, statement, and value passes now build from Ziran source.
+
 - Compile hot packed ZX integer instruction runs on Linux i386 with bounded executable storage and the interpreter's work, fuel and failure locations.
 
 - Speed up large record and array loads in the ZX instruction engine.

@@ -1,0 +1,2504 @@
+// Semantic checker: check statement.
+// Algorithms are maintained here; foreign calls cross compiler phase or module boundaries.
+using IR :: #import "compiler_ir"
+using State :: #import "compiler_check_types"
+
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+ArrayElementType :: (type: *u8, element: *u8, element_size: usize, capacity: *s32) -> s32 #foreign compiler "ArrayElementType";
+BuiltinType :: (name: *u8) -> *IR.ZirType #foreign compiler "BuiltinType";
+BuiltinTypeName :: (name: *u8) -> s32 #foreign compiler "BuiltinTypeName";
+CompilerCalloc :: (count: usize, size: usize) -> *void #foreign compiler "CompilerCalloc";
+CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
+CompilerRealloc :: (pointer: *void, size: usize) -> *void #foreign compiler "CompilerRealloc";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, varargs: ..any) #foreign compiler "Diagnostic";
+EnumMemberValue :: (type: *IR.ZirType, name: *u8, value: *s64) -> s32 #foreign compiler "EnumMemberValue";
+ExprReset :: (expr: *IR.ZirExpr) #foreign compiler "ExprReset";
+FindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+FunctionAddExpr :: (fn: *IR.ZirFunction, kind: IR.ZirExprKind, text: *u8, span: IR.ZirSourceSpan) -> *IR.ZirExpr #foreign compiler "FunctionAddExpr";
+FunctionAddStmt :: (fn: *IR.ZirFunction, kind: IR.ZirStmtKind, text: *u8, span: IR.ZirSourceSpan) -> *IR.ZirStmt #foreign compiler "FunctionAddStmt";
+GoCHeader :: (package: *u8, header: *u8, header_size: usize) -> s32 #foreign compiler "GoCHeader";
+GoForeignCallParts :: (target: *u8, package: *u8, package_size: usize, receiver: *u8, receiver_size: usize, symbol: *u8, symbol_size: usize) -> s32 #foreign compiler "GoForeignCallParts";
+KeepName :: (text: *u8) -> *u8 #foreign compiler "KeepName";
+KeepText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
+MapKeyComparable :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 #foreign compiler "MapKeyComparable";
+MapTypeParts :: (module: *IR.ZirModule, name: *u8, key: *u8, key_size: usize, value: *u8, value_size: usize) -> s32 #foreign compiler "MapTypeParts";
+ModuleAddFunction :: (module: *IR.ZirModule, name: *u8, args: *u8, return_type: *u8, exported: s32, span: IR.ZirSourceSpan) -> *IR.ZirFunction #foreign compiler "ModuleAddFunction";
+OwnedTextType :: (module: *IR.ZirModule, type: *u8) -> s32 #foreign compiler "OwnedTextType";
+ParametersOf :: (text: *u8) -> *ZirParameters #foreign compiler "ParametersOf";
+ResolveFunctionAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunctionAt";
+ResolveQualifiedHostImportAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, declaration: **IR.ZirImport) -> s32 #foreign compiler "ResolveQualifiedHostImportAt";
+ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
+SliceElementType :: (type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "SliceElementType";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+StmtReset :: (stmt: *IR.ZirStmt) #foreign compiler "StmtReset";
+SubstituteGenericType :: (source: *u8, output: *u8, capacity: usize, params: *CheckArray128_u8, actual: *CheckArray128_u8, count: s32) -> s32 #foreign compiler "SubstituteGenericType";
+TargetTypeZiran :: (type: *void, target: s32) -> *void #foreign compiler "TargetTypeZiran";
+TypeFieldLine :: (field: *IR.ZirTypeField, type: *u8, out: *u8, size: usize) -> s32 #foreign compiler "TypeFieldLine";
+TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+VecElementType :: (module: *IR.ZirModule, type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "VecElementType";
+array_capacity :: (module: *IR.ZirModule, type: *u8, capacity: *s32) -> s32 #foreign compiler "private_check_array_capacity";
+callback_type_equal :: (left_module: *IR.ZirModule, left: *u8, right_module: *IR.ZirModule, right: *u8, depth: s32) -> s32 #foreign compiler "private_check_callback_type_equal";
+compatible :: (to: *u8, from: *u8) -> s32 #foreign compiler "private_check_compatible";
+compatible_checked :: (c: *Checker, to: *u8, from: *u8) -> s32 #foreign compiler "private_check_compatible_checked";
+contains_vec :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 #foreign compiler "private_check_contains_vec";
+copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
+error :: (c: *Checker, span: IR.ZirSourceSpan, message: *u8, detail: *u8) #foreign compiler "private_check_error";
+expression_type :: (c: *Checker, index: s32) -> *u8 #foreign compiler "private_check_expression_type";
+global_owned_place :: (c: *Checker, index: s32) -> s32 #foreign compiler "private_check_global_owned_place";
+in_lookup_file :: (module: *IR.ZirModule, is_file_private: s32, span: IR.ZirSourceSpan) -> s32 #foreign compiler "private_check_in_lookup_file";
+integer_type :: (type: *u8) -> s32 #foreign compiler "private_check_integer_type";
+isalnum :: (arg0: s32) -> s32 #foreign libc "isalnum";
+isalpha :: (arg0: s32) -> s32 #foreign libc "isalpha";
+isspace :: (arg0: s32) -> s32 #foreign libc "isspace";
+lexical_owned_binding :: (c: *Checker, index: s32) -> *Binding #foreign compiler "private_check_lexical_owned_binding";
+lexical_vec_binding :: (c: *Checker, index: s32) -> *Binding #foreign compiler "private_check_lexical_vec_binding";
+mark_moved_member_path :: (c: *Checker, index: s32) -> s32 #foreign compiler "private_check_mark_moved_member_path";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+memmove :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memmove";
+memset :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memset";
+normalize_array :: (module: *IR.ZirModule, type: *u8, size: usize) #foreign compiler "private_check_normalize_array";
+normalize_function_arrays :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 #foreign compiler "private_check_normalize_function_arrays";
+normalize_template_array :: (module: *IR.ZirModule, type: *u8, size: usize, parameters: *u8) #foreign compiler "private_check_normalize_template_array";
+numeric :: (type: *u8) -> s32 #foreign compiler "private_check_numeric";
+select_lookup_file :: (module: *IR.ZirModule, span: IR.ZirSourceSpan) #foreign compiler "private_check_select_lookup_file";
+skip_ws :: (s: *u8) -> *u8 #foreign compiler "skip_ws";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+split_top_level :: (s: *u8, parts: *u8, max: s32, part_size: usize) -> s32 #foreign compiler "split_top_level";
+strchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strchr";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+strrchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strrchr";
+strstr :: (__haystack: *u8, __needle: *u8) -> *u8 #foreign libc "strstr";
+trim_in_place :: (s: *u8) -> *u8 #foreign compiler "trim_in_place";
+widens_losslessly :: (to: *u8, from: *u8) -> s32 #foreign compiler "private_check_widens_losslessly";
+ScratchKey_declared_application_valid: u8;
+ScratchKey_check_type_declarations: u8;
+ScratchKey_normalize_record_arrays: u8;
+ScratchKey_lower_if_case: u8;
+
+#scope_file
+record_declaration_error :: (record: *IR.ZirType, message: *u8, field: *u8) -> s32 {
+    shown_storage_0 := cast(*CheckArray4096_u8)AllocateOrExit(size_of(CheckArray4096_u8))
+    defer CompilerFree(cast(*void)shown_storage_0)
+    memset(cast(*void)shown_storage_0, 0, size_of(CheckArray4096_u8))
+    if ((((record).template_name)[0] != 0) && (((record).template_args)[0] != 0)) {
+        snprintf(cast(*u8)(*((shown_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("%s(%s)"), cast(*u8)(*((record).template_name)), cast(*u8)(*((record).template_args)))
+    } else {
+        copy_text(cast(*u8)(*((shown_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), cast(*u8)(*((record).name)))
+    }
+    Diagnostic((record).span, CheckCString("check.record"), CheckCString("%s: %s%s%s"), message, cast(*u8)(*((shown_storage_0[0]).items)), (ifx ((field != null) && ((field)[0] != 0)) then CheckCString(".") else CheckCString("")), (ifx (field != null) then field else CheckCString("")))
+    return 0
+}
+
+#scope_export
+#program_export "private_check_storage_type_error"
+storage_type_error :: (module: *IR.ZirModule, source: *u8, path: *RecordPath, indirect: s32, checked: *ValidatedRecords, detail: *u8, detail_capacity: usize) -> *u8 {
+    type_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)type_storage_0)
+    memset(cast(*void)type_storage_0, 0, size_of(CheckArray128_u8))
+    element_storage_1 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)element_storage_1)
+    memset(cast(*void)element_storage_1, 0, size_of(CheckArray128_u8))
+    owner: *IR.ZirModule = null
+    record: *IR.ZirType
+    capacity: s32
+    copy_text(cast(*u8)(*((type_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), source)
+    trim_in_place(cast(*u8)(*((type_storage_0[0]).items)))
+    normalize_array(module, cast(*u8)(*((type_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)))
+    if !(strcmp(cast(*u8)(*((type_storage_0[0]).items)), CheckCString("void")) != 0) {
+        return (ifx (indirect != 0) then null else CheckCString("stored values cannot have void type"))
+    }
+    slice_element_storage_2 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)slice_element_storage_2)
+    memset(cast(*void)slice_element_storage_2, 0, size_of(CheckArray128_u8))
+    if (SliceElementType(cast(*u8)(*((type_storage_0[0]).items)), cast(*u8)(*((slice_element_storage_2[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0) {
+        if (((SliceElementType(cast(*u8)(*((slice_element_storage_2[0]).items)), null, cast(usize)(0)) != 0) || !(strcmp(cast(*u8)(*((slice_element_storage_2[0]).items)), CheckCString("char")) != 0)) || !(strcmp(cast(*u8)(*((slice_element_storage_2[0]).items)), CheckCString("const char")) != 0)) {
+            return CheckCString("nested slice descriptors are not storable")
+        }
+        return storage_type_error(module, cast(*u8)(*((slice_element_storage_2[0]).items)), path, 1, checked, detail, detail_capacity)
+    }
+    if ((cast(s32)(cast(s8)((ScalarType(cast(*u8)(*((type_storage_0[0]).items))))[0])) != 0) || ((cast(*u8)(TargetTypeZiran(cast(*void)(cast(*u8)(*(((type_storage_0[0])).items))), 0))) != cast(*u8)((null)))) {
+        return null
+    }
+    if (cast(s32)(cast(s8)((type_storage_0[0]).items[0])) == 42) {
+        pointee: *u8 = skip_ws(cast(*u8)(cast(usize)(cast(*u8)(*((type_storage_0[0]).items))) + cast(usize)(1) * size_of(u8)))
+        if !((pointee)[0] != 0) {
+            return CheckCString("pointer requires an element type")
+        }
+        if (((path != cast(*RecordPath)((null))) && (cast(s32)(cast(s8)((pointee)[0])) == 91)) && (cast(s32)(cast(s8)((pointee)[1])) != 93)) {
+            return CheckCString("pointers to fixed arrays, and Vecs of them, are not supported; wrap the array in a record")
+        }
+        return storage_type_error(module, pointee, path, 1, checked, detail, detail_capacity)
+    }
+    if (cast(s32)(cast(s8)((type_storage_0[0]).items[0])) == 91) {
+        if (cast(s32)(cast(s8)((type_storage_0[0]).items[1])) == 93) {
+            return CheckCString("slices do not yet have portable storage semantics")
+        }
+        if !(ArrayElementType(cast(*u8)(*((type_storage_0[0]).items)), cast(*u8)(*((element_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), *(capacity)) != 0) {
+            return CheckCString("malformed fixed array type")
+        }
+        if (capacity < 0) {
+            status: s32 = array_capacity(module, cast(*u8)(*((type_storage_0[0]).items)), *(capacity))
+            if (status < 0) {
+                return CheckCString("array capacity is not a valid bounded integer constant")
+            }
+            if (status == 0) {
+                return CheckCString("array capacity requires a known integer constant")
+            }
+        }
+        return storage_type_error(module, cast(*u8)(*((element_storage_1[0]).items)), path, indirect, checked, detail, detail_capacity)
+    }
+    length: usize = cast(usize)(CheckCStringLength(cast(*u8)(*((type_storage_0[0]).items))))
+    if ((length > cast(usize)(0)) && (cast(s32)(cast(s8)((type_storage_0[0]).items[(length - cast(usize)(1))])) == 42)) {
+        (type_storage_0[0]).items[(length - cast(usize)(1))] = cast(u8)(0)
+        trim_in_place(cast(*u8)(*((type_storage_0[0]).items)))
+        if !(strncmp(cast(*u8)(*((type_storage_0[0]).items)), CheckCString("const "), cast(usize)(cast(u64)(6))) != 0) {
+            memmove(cast(*void)(cast(*u8)(*((type_storage_0[0]).items))), cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(*((type_storage_0[0]).items))) + cast(usize)(6) * size_of(u8))), cast(usize)((CheckCStringLength(cast(*u8)(cast(usize)(cast(*u8)(*((type_storage_0[0]).items))) + cast(usize)(6) * size_of(u8))) + cast(u64)(1))))
+        }
+        return storage_type_error(module, cast(*u8)(*((type_storage_0[0]).items)), path, 1, checked, detail, detail_capacity)
+    }
+    record = FindType(module, cast(*u8)(*((type_storage_0[0]).items)), *(owner))
+    if (record == cast(*IR.ZirType)((null))) {
+        if ((indirect != 0) && (declared_application_valid(module, cast(*u8)(*((type_storage_0[0]).items)), 0) != 0)) {
+            return null
+        }
+        if ((detail != cast(*u8)((null))) && (detail_capacity > cast(usize)(0))) {
+            copy_text(detail, detail_capacity, cast(*u8)(*((type_storage_0[0]).items)))
+        }
+        return CheckCString("unknown stored type")
+    }
+    if ((record).is_record_template != 0) {
+        return CheckCString("generic types require a concrete specialization")
+    }
+    if ((record).is_procedure_type != 0) {
+        return null
+    }
+    if ((((record).is_enum != 0) || ((record).is_map != 0)) || (indirect != 0)) {
+        return null
+    }
+    {
+        ancestor: *RecordPath = path
+        while check_loop_114 := (ancestor != cast(*RecordPath)((null))) {
+            if ((ancestor).record == record) {
+                return CheckCString("record has a recursive value layout")
+            }
+            ancestor = (ancestor).parent
+        }
+    }
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_115 := (i < (checked).count) {
+            if (((checked).items)[i] == record) {
+                return null
+            }
+            CheckPost5(*(i))
+        }
+    }
+    if ((path != cast(*RecordPath)((null))) && ((path).depth >= 128)) {
+        return CheckCString("record nesting exceeds the portable limit")
+    }
+    current: RecordPath = .{record, path, (ifx (path == cast(*RecordPath)((null))) then 1 else ((path).depth + 1))}
+    field: IR.ZirTypeField
+    offset: usize = cast(usize)(0)
+    status: s32
+    while check_loop_116 := ((CheckSet7(*(status), TypeNextField(record, *(offset), *(field)))) == 1) {
+        error: *u8 = storage_type_error(owner, cast(*u8)(*((field).type)), *(current), 0, checked, detail, detail_capacity)
+        if (error != cast(*u8)((null))) {
+            return error
+        }
+    }
+    if (status < 0) {
+        return CheckCString("malformed record field")
+    }
+    items: **IR.ZirType = cast(**IR.ZirType)(CompilerRealloc(cast(*void)((checked).items), cast(usize)((cast(u64)((((checked).count + cast(usize)(1)))) * cast(u64)size_of(*IR.ZirType)))))
+    if (items == cast(**IR.ZirType)((null))) {
+        return CheckCString("cannot allocate record type validation state")
+    }
+    (checked).items = items
+    ((checked).items)[CheckPost5(*((checked).count))] = record
+    return null
+}
+
+#scope_export
+#program_export "private_check_local_storage_error"
+local_storage_error :: (module: *IR.ZirModule, type: *u8) -> *u8 {
+    checked: ValidatedRecords = .{}
+    element_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)element_storage_0)
+    memset(cast(*void)element_storage_0, 0, size_of(CheckArray128_u8))
+    slice: s32 = SliceElementType(type, cast(*u8)(*((element_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)))
+    problem: *u8
+    if ((slice != 0) && (((cast(s32)(cast(s8)((element_storage_0[0]).items[0])) == 91) || !(strcmp(cast(*u8)(*((element_storage_0[0]).items)), CheckCString("char")) != 0)) || !(strcmp(cast(*u8)(*((element_storage_0[0]).items)), CheckCString("const char")) != 0))) {
+        problem = CheckCString("unsupported slice element type")
+    } else {
+        problem = storage_type_error(module, (ifx (slice != 0) then cast(*u8)(*((element_storage_0[0]).items)) else type), null, 0, *(checked), null, cast(usize)(0))
+    }
+    CompilerFree(cast(*void)((checked).items))
+    return problem
+}
+
+#scope_file
+declared_application_valid_with_buffers :: (module: *IR.ZirModule, text: *u8, depth: s32, buffers: *DeclaredApplicationValidBuffers) -> s32 {
+    name_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)name_storage_0)
+    memset(cast(*void)name_storage_0, 0, size_of(CheckArray128_u8))
+    length: usize = cast(usize)(0)
+    cursor: *u8 = skip_ws(text)
+    if (depth > 16) {
+        return 0
+    }
+    while check_loop_117 := (((isalnum(cast(s32)(cast(u8)((cursor)[0]))) != 0) || (cast(s32)(cast(s8)((cursor)[0])) == 95)) && (cast(u64)((length + cast(usize)(1))) < cast(u64)size_of(CheckArray128_u8))) {
+        (name_storage_0[0]).items[CheckPost5(*(length))] = (CheckPost6(*(cursor)))[0]
+    }
+    (name_storage_0[0]).items[length] = cast(u8)(0)
+    cursor = skip_ws(cursor)
+    if ((length == cast(usize)(0)) || (cast(s32)(cast(s8)((CheckPost6(*(cursor)))[0])) != 40)) {
+        return 0
+    }
+    start: *u8 = cursor
+    nesting: s32 = 1
+    while check_loop_118 := (((cursor)[0] != 0) && (nesting != 0)) {
+        if (cast(s32)(cast(s8)((cursor)[0])) == 40) {
+            CheckPost0(*(nesting))
+        } else {
+            if (cast(s32)(cast(s8)((cursor)[0])) == 41) {
+                CheckPost9(*(nesting))
+            }
+        }
+        if (nesting != 0) {
+            CheckPost6(*(cursor))
+        }
+    }
+    if (((nesting != 0) || (cast(s32)(cast(s8)((skip_ws(cast(*u8)(cast(usize)(cursor) + cast(usize)(1) * size_of(u8))))[0])) != 0)) || (cast(u64)(cast(usize)(((cast(s64)(cast(isize)(cast(usize)(cursor) - cast(usize)(start))) / cast(s64)size_of(u8))))) >= cast(u64)size_of(CheckArray4096_u8))) {
+        return 0
+    }
+    memcpy(cast(*void)(cast(*u8)(*(((buffers).arguments).items))), cast(*void)(start), cast(usize)(((cast(s64)(cast(isize)(cast(usize)(cursor) - cast(usize)(start))) / cast(s64)size_of(u8)))))
+    ((buffers).arguments).items[(cast(s64)(cast(isize)(cast(usize)(cursor) - cast(usize)(start))) / cast(s64)size_of(u8))] = cast(u8)(0)
+    generic: *IR.ZirType = FindType(module, cast(*u8)(*((name_storage_0[0]).items)), null)
+    if ((generic == cast(*IR.ZirType)((null))) || !((generic).is_record_template != 0)) {
+        return 0
+    }
+    expected: s32 = split_top_level(cast(*u8)(*((generic).template_params)), cast(*u8)(*((((buffers).parameters).items[0]).items)), 16, cast(usize)(cast(u64)size_of(CheckArray128_u8)))
+    count: s32 = split_top_level(cast(*u8)(*(((buffers).arguments).items)), cast(*u8)(*((((buffers).actual).items[0]).items)), 16, cast(usize)(cast(u64)size_of(CheckArray128_u8)))
+    if (((count != expected) || (count < 1)) || (count >= 16)) {
+        return 0
+    }
+    {
+        i: s32 = 0
+        while check_loop_119 := (i < count) {
+            if (!(declared_application_valid(module, cast(*u8)(*((((buffers).actual).items[i]).items)), (depth + 1)) != 0) && (local_storage_error(module, cast(*u8)(*((((buffers).actual).items[i]).items))) != cast(*u8)((null)))) {
+                return 0
+            }
+            CheckPost0(*(i))
+        }
+    }
+    return 1
+}
+
+#scope_file
+declared_application_valid :: (module: *IR.ZirModule, text: *u8, depth: s32) -> s32 {
+    buffers := cast(*DeclaredApplicationValidBuffers)CheckScratchTake(*ScratchKey_declared_application_valid, size_of(DeclaredApplicationValidBuffers))
+    defer CheckScratchRelease(*ScratchKey_declared_application_valid, cast(*void)buffers)
+    return declared_application_valid_with_buffers(module, text, depth, buffers)
+}
+
+#scope_file
+go_getter_contains_owned :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
+    if (depth > 128) {
+        return 1
+    }
+    if (cast(s32)(cast(s8)((type)[0])) == 42) {
+        return 0
+    }
+    if (VecElementType(module, type, null, cast(usize)(0)) != 0) {
+        return 1
+    }
+    element_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)element_storage_0)
+    memset(cast(*void)element_storage_0, 0, size_of(CheckArray128_u8))
+    if ((SliceElementType(type, cast(*u8)(*((element_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0) || (ArrayElementType(type, cast(*u8)(*((element_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), null) != 0)) {
+        return go_getter_contains_owned(module, cast(*u8)(*((element_storage_0[0]).items)), (depth + 1))
+    }
+    owner: *IR.ZirModule = null
+    record: *IR.ZirType = FindType(module, type, *(owner))
+    if (((((record == cast(*IR.ZirType)((null))) || ((record).is_extern != 0)) || ((record).is_enum != 0)) || ((record).is_procedure_type != 0)) || ((record).is_record_template != 0)) {
+        return 0
+    }
+    offset: usize = cast(usize)(0)
+    field: IR.ZirTypeField
+    while check_loop_120 := (TypeNextField(record, *(offset), *(field)) == 1) {
+        if (go_getter_contains_owned((ifx (owner != null) then owner else module), cast(*u8)(*((field).type)), (depth + 1)) != 0) {
+            return 1
+        }
+    }
+    return 0
+}
+
+#scope_file
+check_go_callback :: (module: *IR.ZirModule, binding: *IR.ZirImport, parameters: *CheckArray4096_u8, count: s32) -> s32 {
+    colon: *u8 = (ifx (count > 0) then strchr(cast(*u8)(*(((parameters)[0]).items)), 58) else null)
+    owner: *IR.ZirModule = null
+    slot: *IR.ZirType = (ifx (colon != null) then FindType(module, skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))), *(owner)) else null)
+    if ((!(slot != null) || !((slot).is_procedure_type != 0)) || ((slot).is_c_call != 0)) {
+        return 0
+    }
+    if !(owner != null) {
+        owner = module
+    }
+    if (!(callback_type_equal(owner, cast(*u8)(*((slot).procedure_return_type)), module, cast(*u8)(*((binding).return_type)), 0) != 0) || (go_getter_contains_owned(owner, cast(*u8)(*((slot).procedure_return_type)), 0) != 0)) {
+        return 0
+    }
+    arguments: *CheckArray4096_u8 = cast(*CheckArray4096_u8)(CompilerCalloc(cast(usize)(64), cast(usize)(cast(u64)size_of(CheckArray4096_u8))))
+    if !(arguments != null) {
+        return 0
+    }
+    expected: s32 = (ifx ((skip_ws(cast(*u8)(*((slot).body))))[0] != 0) then split_top_level(cast(*u8)(*((slot).body)), cast(*u8)(*(((arguments)[0]).items)), 64, cast(usize)(4096)) else 0)
+    valid: s32 = cast(s32)(count == (expected + 1))
+    {
+        i: s32 = 0
+        while check_loop_121 := ((i < expected) && (valid != 0)) {
+            declared: *u8 = strchr(cast(*u8)(*(((arguments)[i]).items)), 58)
+            supplied: *u8 = strchr(cast(*u8)(*(((parameters)[(i + 1)]).items)), 58)
+            valid = cast(s32)((((declared != null) && (supplied != null)) && (callback_type_equal(owner, skip_ws(cast(*u8)(cast(usize)(declared) + cast(usize)(1) * size_of(u8))), module, skip_ws(cast(*u8)(cast(usize)(supplied) + cast(usize)(1) * size_of(u8))), 0) != 0)) && !(go_getter_contains_owned(owner, skip_ws(cast(*u8)(cast(usize)(declared) + cast(usize)(1) * size_of(u8))), 0) != 0))
+            CheckPost0(*(i))
+        }
+    }
+    CompilerFree(cast(*void)(arguments))
+    return valid
+}
+
+#scope_file
+check_go_bind :: (module: *IR.ZirModule, binding: *IR.ZirImport, parameters: *CheckArray4096_u8, count: s32) -> s32 {
+    if ((((((count < 2) || ((binding).go_results != 0)) || ((binding).go_field != 0)) || ((binding).go_defer != 0)) || ((binding).go_variadic != 0)) || ((binding).is_varargs != 0)) {
+        return 0
+    }
+    colon: *u8 = strchr(cast(*u8)(*(((parameters)[0]).items)), 58)
+    input_owner: *IR.ZirModule = null
+    output_owner: *IR.ZirModule = null
+    input: *IR.ZirType = (ifx (colon != null) then FindType(module, skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))), *(input_owner)) else null)
+    output: *IR.ZirType = FindType(module, cast(*u8)(*((binding).return_type)), *(output_owner))
+    if (((((!(input != null) || !(output != null)) || !((input).is_procedure_type != 0)) || !((output).is_procedure_type != 0)) || ((input).is_c_call != 0)) || ((output).is_c_call != 0)) {
+        return 0
+    }
+    if !(input_owner != null) {
+        input_owner = module
+    }
+    if !(output_owner != null) {
+        output_owner = module
+    }
+    if (!(callback_type_equal(input_owner, cast(*u8)(*((input).procedure_return_type)), output_owner, cast(*u8)(*((output).procedure_return_type)), 0) != 0) || (go_getter_contains_owned(input_owner, cast(*u8)(*((input).procedure_return_type)), 0) != 0)) {
+        return 0
+    }
+    input_args: *CheckArray4096_u8 = cast(*CheckArray4096_u8)(CompilerCalloc(cast(usize)(64), cast(usize)(cast(u64)size_of(CheckArray4096_u8))))
+    output_args: *CheckArray4096_u8 = cast(*CheckArray4096_u8)(CompilerCalloc(cast(usize)(64), cast(usize)(cast(u64)size_of(CheckArray4096_u8))))
+    if (!(input_args != null) || !(output_args != null)) {
+        CompilerFree(cast(*void)(input_args))
+        CompilerFree(cast(*void)(output_args))
+        return 0
+    }
+    input_count: s32 = (ifx ((skip_ws(cast(*u8)(*((input).body))))[0] != 0) then split_top_level(cast(*u8)(*((input).body)), cast(*u8)(*(((input_args)[0]).items)), 64, cast(usize)(4096)) else 0)
+    output_count: s32 = (ifx ((skip_ws(cast(*u8)(*((output).body))))[0] != 0) then split_top_level(cast(*u8)(*((output).body)), cast(*u8)(*(((output_args)[0]).items)), 64, cast(usize)(4096)) else 0)
+    captures: s32 = (count - 1)
+    valid: s32 = cast(s32)(input_count == (captures + output_count))
+    {
+        i: s32 = 0
+        while check_loop_122 := ((i < input_count) && (valid != 0)) {
+            declared: *u8 = strchr(cast(*u8)(*(((input_args)[i]).items)), 58)
+            supplied: *u8 = strchr((ifx (i < captures) then cast(*u8)(*(((parameters)[(i + 1)]).items)) else cast(*u8)(*(((output_args)[(i - captures)]).items))), 58)
+            valid = cast(s32)((((declared != null) && (supplied != null)) && (callback_type_equal(input_owner, skip_ws(cast(*u8)(cast(usize)(declared) + cast(usize)(1) * size_of(u8))), (ifx (i < captures) then module else output_owner), skip_ws(cast(*u8)(cast(usize)(supplied) + cast(usize)(1) * size_of(u8))), 0) != 0)) && !(go_getter_contains_owned(input_owner, skip_ws(cast(*u8)(cast(usize)(declared) + cast(usize)(1) * size_of(u8))), 0) != 0))
+            CheckPost0(*(i))
+        }
+    }
+    CompilerFree(cast(*void)(input_args))
+    CompilerFree(cast(*void)(output_args))
+    return valid
+}
+
+#scope_file
+check_go_binding :: (module: *IR.ZirModule, binding: *IR.ZirImport, parameters: *CheckArray4096_u8) -> s32 {
+    if ((cast(s32)((binding).kind) != 3) || (cast(s32)((binding).extern_kind) != 2)) {
+        return 1
+    }
+    package_storage_0 := cast(*CheckArray1024_u8)AllocateOrExit(size_of(CheckArray1024_u8))
+    defer CompilerFree(cast(*void)package_storage_0)
+    memset(cast(*void)package_storage_0, 0, size_of(CheckArray1024_u8))
+    receiver_storage_1 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)receiver_storage_1)
+    memset(cast(*void)receiver_storage_1, 0, size_of(CheckArray128_u8))
+    symbol_storage_2 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)symbol_storage_2)
+    memset(cast(*void)symbol_storage_2, 0, size_of(CheckArray128_u8))
+    if !(GoForeignCallParts(cast(*u8)(*((binding).target)), cast(*u8)(*((package_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray1024_u8)), cast(*u8)(*((receiver_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), cast(*u8)(*((symbol_storage_2[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0) {
+        Diagnostic((binding).span, CheckCString("check.foreign"), CheckCString("invalid Go foreign target"))
+        return 0
+    }
+    count: s32 = (ifx ((skip_ws(cast(*u8)(*((binding).args))))[0] != 0) then split_top_level(cast(*u8)(*((binding).args)), cast(*u8)(*(((parameters)[0]).items)), 64, cast(usize)(4096)) else 0)
+    if !(strncmp(cast(*u8)(*((package_storage_0[0]).items)), CheckCString("C/"), cast(usize)(cast(u64)(2))) != 0) {
+        valid: s32 = cast(s32)((((((GoCHeader(cast(*u8)(*((package_storage_0[0]).items)), null, cast(usize)(0)) != 0) && !((binding).go_results != 0)) && !((binding).go_variadic != 0)) && !((binding).is_varargs != 0)) && (!((receiver_storage_1[0]).items[0] != 0) || ((binding).go_field != 0))) && ((go_c_abi_type(module, cast(*u8)(*((binding).return_type)), 1) != 0) || ((((binding).go_field != 0) && !((receiver_storage_1[0]).items[0] != 0)) && !(strcmp(cast(*u8)(*((binding).return_type)), CheckCString("string")) != 0))))
+        {
+            i: s32 = 0
+            while check_loop_123 := ((valid != 0) && (i < count)) {
+                colon: *u8 = strchr(cast(*u8)(*(((parameters)[i]).items)), 58)
+                valid = cast(s32)((colon != null) && (go_c_abi_type(module, skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))), 0) != 0))
+                CheckPost0(*(i))
+            }
+        }
+        if !(valid != 0) {
+            Diagnostic((binding).span, CheckCString("check.foreign"), CheckCString("cgo header bindings require a relative header path and scalar or C-pointer ABI types without result packing, variadics or methods"))
+            return 0
+        }
+    }
+    if ((strncmp(cast(*u8)(*((package_storage_0[0]).items)), CheckCString("C/"), cast(usize)(cast(u64)(2))) != 0) && !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("init")) != 0)) {
+        valid: s32 = cast(s32)((((((((((strcmp(cast(*u8)(*((package_storage_0[0]).items)), CheckCString("builtin")) != 0) && (strcmp(cast(*u8)(*((package_storage_0[0]).items)), CheckCString("C")) != 0)) && !((receiver_storage_1[0]).items[0] != 0)) && (count == 0)) && !(strcmp(cast(*u8)(*((binding).return_type)), CheckCString("void")) != 0)) && !((binding).go_results != 0)) && !((binding).go_field != 0)) && !((binding).go_defer != 0)) && !((binding).go_variadic != 0)) && !((binding).is_varargs != 0))
+        if !(valid != 0) {
+            Diagnostic((binding).span, CheckCString("check.foreign"), CheckCString("Go package initialization requires a nullary void binding without modifiers or a receiver"))
+            return 0
+        }
+    }
+    if ((binding).go_variadic != 0) {
+        colon: *u8 = (ifx (count > 0) then strchr(cast(*u8)(*(((parameters)[(count - 1)]).items)), 58) else null)
+        last: *u8 = (ifx (colon != null) then skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))) else CheckCString(""))
+        if ((((((count <= ((ifx ((receiver_storage_1[0]).items[0] != 0) then 1 else 0))) || ((binding).go_field != 0)) || ((binding).is_varargs != 0)) || !(strcmp(cast(*u8)(*((package_storage_0[0]).items)), CheckCString("builtin")) != 0)) || !(SliceElementType(last, null, cast(usize)(0)) != 0)) || (go_getter_contains_owned(module, last, 0) != 0)) {
+            Diagnostic((binding).span, CheckCString("check.foreign"), CheckCString("#go_variadic requires a final slice parameter without owned storage on a Go package function or method"))
+            return 0
+        }
+    }
+    if ((binding).go_defer != 0) {
+        valid: s32 = cast(s32)((((!((binding).go_results != 0) && !((binding).go_field != 0)) && !((binding).is_varargs != 0)) && !(strcmp(cast(*u8)(*((binding).return_type)), CheckCString("void")) != 0)) && ((strcmp(cast(*u8)(*((package_storage_0[0]).items)), CheckCString("builtin")) != 0) || (!((receiver_storage_1[0]).items[0] != 0) && !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("call")) != 0))))
+        {
+            parameter: s32 = 0
+            while check_loop_124 := ((parameter < count) && (valid != 0)) {
+                colon: *u8 = strchr(cast(*u8)(*(((parameters)[parameter]).items)), 58)
+                valid = cast(s32)((colon != null) && !(contains_vec(module, skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))), 0) != 0))
+                CheckPost0(*(parameter))
+            }
+        }
+        if !(valid != 0) {
+            Diagnostic((binding).span, CheckCString("check.foreign"), CheckCString("#go_defer requires a void Go procedure without owned arguments"))
+            return 0
+        }
+    }
+    if ((binding).go_field != 0) {
+        setter: s32 = cast(s32)(!(strcmp(cast(*u8)(*((binding).return_type)), CheckCString("void")) != 0))
+        valid: s32 = cast(s32)((!((binding).is_varargs != 0) && !((binding).go_results != 0)) && (count == (((ifx ((receiver_storage_1[0]).items[0] != 0) then 1 else 0)) + setter)))
+        if (setter != 0) {
+            colon: *u8 = (ifx (count > 0) then strchr(cast(*u8)(*(((parameters)[(count - 1)]).items)), 58) else null)
+            value: *u8 = (ifx (colon != null) then skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))) else CheckCString(""))
+            valid = cast(s32)((((((valid != 0) && (colon != null)) && ((value)[0] != 0)) && (strcmp(value, CheckCString("void")) != 0)) && (!((receiver_storage_1[0]).items[0] != 0) || (cast(s32)(cast(s8)((receiver_storage_1[0]).items[0])) == 42))) && !(go_getter_contains_owned(module, value, 0) != 0))
+        } else {
+            valid = cast(s32)((valid != 0) && !(go_getter_contains_owned(module, cast(*u8)(*((binding).return_type)), 0) != 0))
+        }
+        if !(valid != 0) {
+            Diagnostic((binding).span, CheckCString("check.foreign"), CheckCString("#go_field requires a getter or void setter without owned storage; setters require a pointer receiver or package variable and one value"))
+            return 0
+        }
+    }
+    if ((binding).go_results != 0) {
+        record: *IR.ZirType = FindType(module, cast(*u8)(*((binding).return_type)), null)
+        offset: usize = cast(usize)(0)
+        field: IR.ZirTypeField
+        fields: s32 = 0
+        status: s32 = (-1)
+        if (((((((((record != null) && !((record).is_extern != 0)) && !((record).is_enum != 0)) && !((record).is_union != 0)) && !((record).is_owned_vec != 0)) && !((record).is_map != 0)) && !((record).is_record_template != 0)) && !((record).is_procedure_type != 0)) && !(contains_vec(module, cast(*u8)(*((record).name)), 0) != 0)) {
+            while check_loop_125 := ((CheckSet7(*(status), TypeNextField(record, *(offset), *(field)))) == 1) {
+                if (((field).is_using != 0) || !(strcmp(cast(*u8)(*((field).name)), CheckCString("_")) != 0)) {
+                    status = (-1)
+                    break check_loop_125
+                }
+                CheckPost0(*(fields))
+            }
+        }
+        assertion: s32 = cast(s32)((!(strcmp(cast(*u8)(*((package_storage_0[0]).items)), CheckCString("builtin")) != 0) && !((receiver_storage_1[0]).items[0] != 0)) && !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("assert")) != 0))
+        if (((!(fields != 0) || (status != 0)) || ((binding).is_varargs != 0)) || (!(strcmp(cast(*u8)(*((package_storage_0[0]).items)), CheckCString("builtin")) != 0) && !(assertion != 0))) {
+            Diagnostic((binding).span, CheckCString("check.foreign"), CheckCString("#go_results requires a concrete result record without owned storage"))
+            return 0
+        }
+    }
+    if ((receiver_storage_1[0]).items[0] != 0) {
+        colon: *u8 = (ifx (count > 0) then strchr(cast(*u8)(*(((parameters)[0]).items)), 58) else null)
+        type: *u8 = (ifx (colon != null) then skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))) else CheckCString(""))
+        if ((cast(s32)(cast(s32)(cast(s8)((type)[0])) == 42)) != (cast(s32)(cast(s32)(cast(s8)((receiver_storage_1[0]).items[0])) == 42))) {
+            Diagnostic((binding).span, CheckCString("check.foreign"), CheckCString("Go method requires its declared receiver as the first parameter"))
+            return 0
+        }
+        declared: *IR.ZirType = FindType(module, cast(*u8)(cast(usize)(type) + cast(usize)((cast(s32)(cast(s32)(cast(s8)((type)[0])) == 42))) * size_of(u8)), null)
+        target_storage_3 := cast(*CheckArray1024_u8)AllocateOrExit(size_of(CheckArray1024_u8))
+        defer CompilerFree(cast(*void)target_storage_3)
+        memset(cast(*void)target_storage_3, 0, size_of(CheckArray1024_u8))
+        snprintf(cast(*u8)(*((target_storage_3[0]).items)), cast(usize)(cast(u64)size_of(CheckArray1024_u8)), CheckCString("go:%s.%s"), cast(*u8)(*((package_storage_0[0]).items)), cast(*u8)(cast(usize)(cast(*u8)(*((receiver_storage_1[0]).items))) + cast(usize)((cast(s32)(cast(s32)(cast(s8)((receiver_storage_1[0]).items[0])) == 42))) * size_of(u8)))
+        if (!(declared != null) || (strcmp(cast(*u8)(*((declared).foreign_target)), cast(*u8)(*((target_storage_3[0]).items))) != 0)) {
+            Diagnostic((binding).span, CheckCString("check.foreign"), CheckCString("Go method receiver does not match its foreign type"))
+            return 0
+        }
+    }
+    if (!(strcmp(cast(*u8)(*((package_storage_0[0]).items)), CheckCString("builtin")) != 0) && !((receiver_storage_1[0]).items[0] != 0)) {
+        result: *u8 = skip_ws(cast(*u8)(*((binding).return_type)))
+        allocation: s32 = cast(s32)((((!(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("new")) != 0) && (count == 0)) && (cast(s32)(cast(s8)((result)[0])) == 42)) && (strcmp(skip_ws(cast(*u8)(cast(usize)(result) + cast(usize)(1) * size_of(u8))), CheckCString("void")) != 0)) && (local_storage_error(module, cast(*u8)(cast(usize)(result) + cast(usize)(1) * size_of(u8))) == cast(*u8)((null))))
+        if !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("make")) != 0) {
+            allocation = (ifx (SliceElementType(result, null, cast(usize)(0)) != 0) then cast(s32)((count == 1) || (count == 2)) else cast(s32)((MapTypeParts(module, result, null, cast(usize)(0), null, cast(usize)(0)) != 0) && ((count == 0) || (count == 1))))
+            {
+                i: s32 = 0
+                while check_loop_126 := ((i < count) && (allocation != 0)) {
+                    colon: *u8 = strchr(cast(*u8)(*(((parameters)[i]).items)), 58)
+                    allocation = cast(s32)((colon != null) && (integer_type(skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8)))) != 0))
+                    CheckPost0(*(i))
+                }
+            }
+            allocation = cast(s32)((allocation != 0) && (local_storage_error(module, result) == cast(*u8)((null))))
+        }
+        if !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("string")) != 0) {
+            colon: *u8 = (ifx (count == 1) then strchr(cast(*u8)(*(((parameters)[0]).items)), 58) else null)
+            allocation = cast(s32)(((colon != null) && !(strcmp(skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))), CheckCString("[]u8")) != 0)) && !(strcmp(result, CheckCString("string")) != 0))
+        }
+        if !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("len")) != 0) {
+            colon: *u8 = (ifx (count == 1) then strchr(cast(*u8)(*(((parameters)[0]).items)), 58) else null)
+            value_type: *u8 = (ifx (colon != null) then skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))) else CheckCString(""))
+            foreign: *IR.ZirType = FindType(module, value_type, null)
+            allocation = cast(s32)(((colon != null) && !(strcmp(result, CheckCString("isize")) != 0)) && ((((!(strcmp(value_type, CheckCString("string")) != 0) || (SliceElementType(value_type, null, cast(usize)(0)) != 0)) || (ArrayElementType(value_type, null, cast(usize)(0), null) != 0)) || (MapTypeParts(module, value_type, null, cast(usize)(0), null, cast(usize)(0)) != 0)) || ((((foreign != null) && ((foreign).is_extern != 0)) && (((foreign).foreign_target)[0] != 0)) && (strncmp(cast(*u8)(*((foreign).foreign_target)), CheckCString("go:builtin."), cast(usize)(cast(u64)(11))) != 0))))
+        }
+        if !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("append")) != 0) {
+            slice_colon: *u8 = (ifx (count == 2) then strchr(cast(*u8)(*(((parameters)[0]).items)), 58) else null)
+            value_colon: *u8 = (ifx (count == 2) then strchr(cast(*u8)(*(((parameters)[1]).items)), 58) else null)
+            element_storage_4 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+            defer CompilerFree(cast(*void)element_storage_4)
+            memset(cast(*void)element_storage_4, 0, size_of(CheckArray128_u8))
+            allocation = cast(s32)((((((slice_colon != null) && (value_colon != null)) && !(strcmp(skip_ws(cast(*u8)(cast(usize)(slice_colon) + cast(usize)(1) * size_of(u8))), result) != 0)) && (SliceElementType(result, cast(*u8)(*((element_storage_4[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0)) && !(strcmp(skip_ws(cast(*u8)(cast(usize)(value_colon) + cast(usize)(1) * size_of(u8))), cast(*u8)(*((element_storage_4[0]).items))) != 0)) && !(contains_vec(module, cast(*u8)(*((element_storage_4[0]).items)), 0) != 0))
+        }
+        if !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("is_nil")) != 0) {
+            colon: *u8 = (ifx (count == 1) then strchr(cast(*u8)(*(((parameters)[0]).items)), 58) else null)
+            value: *u8 = (ifx (colon != null) then skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))) else CheckCString(""))
+            element_storage_5 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+            defer CompilerFree(cast(*void)element_storage_5)
+            memset(cast(*void)element_storage_5, 0, size_of(CheckArray128_u8))
+            allocation = cast(s32)((((((((colon != null) && !(strcmp(result, CheckCString("bool")) != 0)) && !((binding).go_results != 0)) && !((binding).go_field != 0)) && !((binding).is_varargs != 0)) && (SliceElementType(value, cast(*u8)(*((element_storage_5[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0)) && (local_storage_error(module, value) == cast(*u8)((null)))) && !(contains_vec(module, cast(*u8)(*((element_storage_5[0]).items)), 0) != 0))
+        }
+        if !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("panic")) != 0) {
+            colon: *u8 = (ifx (count == 1) then strchr(cast(*u8)(*(((parameters)[0]).items)), 58) else null)
+            value: *u8 = (ifx (colon != null) then skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))) else CheckCString(""))
+            allocation = cast(s32)(((((colon != null) && !(strcmp(result, CheckCString("void")) != 0)) && (strcmp(value, CheckCString("void")) != 0)) && (local_storage_error(module, value) == cast(*u8)((null)))) && !(contains_vec(module, value, 0) != 0))
+        }
+        if !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("call")) != 0) {
+            allocation = check_go_callback(module, binding, parameters, count)
+        }
+        if !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("bind")) != 0) {
+            allocation = check_go_bind(module, binding, parameters, count)
+        }
+        if !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("retain")) != 0) {
+            colon: *u8 = (ifx (count == 1) then strchr(cast(*u8)(*(((parameters)[0]).items)), 58) else null)
+            value: *u8 = (ifx (colon != null) then skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))) else CheckCString(""))
+            allocation = cast(s32)((((((((((colon != null) && (strcmp(result, CheckCString("void")) != 0)) && !((binding).go_results != 0)) && !((binding).go_field != 0)) && !((binding).go_defer != 0)) && !((binding).go_variadic != 0)) && !((binding).is_varargs != 0)) && (callback_type_equal(module, value, module, result, 0) != 0)) && (local_storage_error(module, value) == cast(*u8)((null)))) && !(go_getter_contains_owned(module, value, 0) != 0))
+        }
+        if !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("cgo_enabled")) != 0) {
+            allocation = cast(s32)(((((((count == 0) && !(strcmp(result, CheckCString("bool")) != 0)) && !((binding).go_results != 0)) && !((binding).go_field != 0)) && !((binding).go_defer != 0)) && !((binding).go_variadic != 0)) && !((binding).is_varargs != 0))
+        }
+        if !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("spawn")) != 0) {
+            allocation = cast(s32)(!(strcmp(result, CheckCString("void")) != 0) && (check_go_callback(module, binding, parameters, count) != 0))
+        }
+        if !(strcmp(cast(*u8)(*((symbol_storage_2[0]).items)), CheckCString("assert")) != 0) {
+            colon: *u8 = (ifx (count == 1) then strchr(cast(*u8)(*(((parameters)[0]).items)), 58) else null)
+            input: *IR.ZirType = (ifx (colon != null) then FindType(module, skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))), null) else null)
+            record: *IR.ZirType = FindType(module, result, null)
+            offset: usize = cast(usize)(0)
+            value: IR.ZirTypeField
+            present: IR.ZirTypeField
+            extra: IR.ZirTypeField
+            allocation = cast(s32)((input != null) && !(strcmp(cast(*u8)(*((input).foreign_target)), CheckCString("go:builtin.any")) != 0))
+            if ((binding).go_results != 0) {
+                allocation = cast(s32)((((((allocation != 0) && (record != null)) && (TypeNextField(record, *(offset), *(value)) == 1)) && (TypeNextField(record, *(offset), *(present)) == 1)) && (TypeNextField(record, *(offset), *(extra)) == 0)) && !(strcmp(cast(*u8)(*((present).type)), CheckCString("bool")) != 0))
+            } else {
+                allocation = cast(s32)((((allocation != 0) && (strcmp(result, CheckCString("void")) != 0)) && (local_storage_error(module, result) == cast(*u8)((null)))) && !(contains_vec(module, result, 0) != 0))
+            }
+        }
+        if !(allocation != 0) {
+            Diagnostic((binding).span, CheckCString("check.foreign"), CheckCString("Go builtin requires a valid new, make, string, len, append, is_nil, panic, call, bind, retain, cgo_enabled, spawn or assert signature"))
+            return 0
+        }
+    }
+    return 1
+}
+
+#scope_file
+go_c_abi_type :: (module: *IR.ZirModule, source: *u8, allow_void: s32) -> s32 {
+    depth: s32 = 0
+    while check_loop_127 := (cast(s32)(cast(s8)((source)[0])) == 42) {
+        CheckPost0(*(depth))
+        CheckPost6(*(source))
+    }
+    if !(strcmp(source, CheckCString("void")) != 0) {
+        return cast(s32)((depth != 0) || (allow_void != 0))
+    }
+    if ((((!(strcmp(source, CheckCString("bool")) != 0) || !(strcmp(source, CheckCString("char")) != 0)) || (integer_type(source) != 0)) || !(strcmp(source, CheckCString("float32")) != 0)) || !(strcmp(source, CheckCString("float64")) != 0)) {
+        return 1
+    }
+    type: *IR.ZirType = FindType(module, source, null)
+    package_storage_0 := cast(*CheckArray1024_u8)AllocateOrExit(size_of(CheckArray1024_u8))
+    defer CompilerFree(cast(*void)package_storage_0)
+    memset(cast(*void)package_storage_0, 0, size_of(CheckArray1024_u8))
+    return cast(s32)((((depth != 0) && (type != null)) && (GoForeignCallParts(cast(*u8)(*((type).foreign_target)), cast(*u8)(*((package_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray1024_u8)), null, cast(usize)(0), null, cast(usize)(0)) != 0)) && (GoCHeader(cast(*u8)(*((package_storage_0[0]).items)), null, cast(usize)(0)) != 0))
+}
+
+#scope_file
+check_type_declarations_with_buffers :: (module: *IR.ZirModule, buffers: *CheckTypeDeclarationsBuffers) -> s32 {
+    {
+        i: s32 = 0
+        while check_loop_128 := (i < (module).type_count) {
+            record: *IR.ZirType = cast(*IR.ZirType)(cast(usize)((module).types) + cast(usize)(i) * size_of(IR.ZirType))
+            select_lookup_file(module, (record).span)
+            offset: usize = cast(usize)(0)
+            status: s32
+            field: IR.ZirTypeField
+            if (cast(s32)(cast(s8)(((record).name)[0])) == 35) {
+                return record_declaration_error(record, CheckCString("retired compiler-generated type"), null)
+            }
+            if ((BuiltinType(cast(*u8)(*((record).name))) != cast(*IR.ZirType)((null))) || (BuiltinTypeName(cast(*u8)(*((record).name))) != 0)) {
+                return record_declaration_error(record, CheckCString("built-in type cannot be redeclared"), null)
+            }
+            {
+                previous: s32 = 0
+                while check_loop_129 := (previous < i) {
+                    other: *IR.ZirType = cast(*IR.ZirType)(cast(usize)((module).types) + cast(usize)(previous) * size_of(IR.ZirType))
+                    if ((strcmp(cast(*u8)(*((record).name)), cast(*u8)(*((other).name))) == 0) && !((strcmp(SpanPath((record).span), SpanPath((other).span)) != 0) && (((record).is_file_private != 0) || ((other).is_file_private != 0)))) {
+                        return record_declaration_error(record, CheckCString("duplicate type declaration"), null)
+                    }
+                    CheckPost0(*(previous))
+                }
+            }
+            if ((record).is_record_template != 0) {
+                parameter_count: s32 = split_top_level(cast(*u8)(*((record).template_params)), cast(*u8)(*((((buffers).parameters).items[0]).items)), 16, cast(usize)(cast(u64)size_of(CheckArray128_u8)))
+                if ((parameter_count < 1) || (parameter_count >= 16)) {
+                    return record_declaration_error(record, CheckCString("invalid generic type parameters"), null)
+                }
+                {
+                    parameter: s32 = 0
+                    while check_loop_130 := (parameter < parameter_count) {
+                        name: *u8 = cast(*u8)(cast(*u8)(*((((buffers).parameters).items[parameter]).items)))
+                        if (!(isalpha(cast(s32)((name)[0])) != 0) && (cast(s32)((name)[0]) != 95)) {
+                            return record_declaration_error(record, CheckCString("invalid generic type parameter"), cast(*u8)(*((((buffers).parameters).items[parameter]).items)))
+                        }
+                        {
+                            CheckPost6(*(name))
+                            while check_loop_131 := ((name)[0] != 0) {
+                                if (!(isalnum(cast(s32)((name)[0])) != 0) && (cast(s32)((name)[0]) != 95)) {
+                                    return record_declaration_error(record, CheckCString("invalid generic type parameter"), cast(*u8)(*((((buffers).parameters).items[parameter]).items)))
+                                }
+                                CheckPost6(*(name))
+                            }
+                        }
+                        {
+                            earlier: s32 = 0
+                            while check_loop_132 := (earlier < parameter) {
+                                if !(strcmp(cast(*u8)(*((((buffers).parameters).items[earlier]).items)), cast(*u8)(*((((buffers).parameters).items[parameter]).items))) != 0) {
+                                    return record_declaration_error(record, CheckCString("duplicate generic type parameter"), cast(*u8)(*((((buffers).parameters).items[parameter]).items)))
+                                }
+                                CheckPost0(*(earlier))
+                            }
+                        }
+                        copy_text(cast(*u8)(*((((buffers).concrete).items[parameter]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("s32"))
+                        CheckPost0(*(parameter))
+                    }
+                }
+                members: s32 = 0
+                member_offset: usize = cast(usize)(0)
+                item: IR.ZirTypeField
+                previous: IR.ZirTypeField
+                while check_loop_133 := ((CheckSet7(*(status), TypeNextField(record, *(member_offset), *(item)))) == 1) {
+                    prior_offset: usize = cast(usize)(0)
+                    while check_loop_134 := (prior_offset < member_offset) {
+                        if (TypeNextField(record, *(prior_offset), *(previous)) != 1) {
+                            return record_declaration_error(record, CheckCString("malformed generic record field"), null)
+                        }
+                        if (prior_offset == member_offset) {
+                            break check_loop_134
+                        }
+                        if !(strcmp(cast(*u8)(*((previous).name)), cast(*u8)(*((item).name))) != 0) {
+                            return record_declaration_error(record, CheckCString("duplicate generic record field"), cast(*u8)(*((item).name)))
+                        }
+                    }
+                    resolved_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+                    defer CompilerFree(cast(*void)resolved_storage_0)
+                    memset(cast(*void)resolved_storage_0, 0, size_of(CheckArray128_u8))
+                    if !(SubstituteGenericType(cast(*u8)(*((item).type)), cast(*u8)(*((resolved_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), cast(*CheckArray128_u8)(*(((buffers).parameters).items)), cast(*CheckArray128_u8)(*(((buffers).concrete).items)), parameter_count) != 0) {
+                        return record_declaration_error(record, CheckCString("generic record field type exceeds size limit"), cast(*u8)(*((item).name)))
+                    }
+                    problem: *u8 = local_storage_error(module, cast(*u8)(*((resolved_storage_0[0]).items)))
+                    if ((problem != cast(*u8)((null))) && !(declared_application_valid(module, cast(*u8)(*((resolved_storage_0[0]).items)), 0) != 0)) {
+                        return record_declaration_error(record, problem, cast(*u8)(*((item).name)))
+                    }
+                    CheckPost0(*(members))
+                }
+                if ((status < 0) || (members == 0)) {
+                    return record_declaration_error(record, CheckCString("invalid generic type declaration"), null)
+                }
+                CheckPost0(*(i))
+                continue check_loop_128
+            }
+            if ((record).is_enum != 0) {
+                CheckPost0(*(i))
+                continue check_loop_128
+            }
+            if ((record).is_map != 0) {
+                key_storage_1 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+                defer CompilerFree(cast(*void)key_storage_1)
+                memset(cast(*void)key_storage_1, 0, size_of(CheckArray128_u8))
+                value_storage_2 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+                defer CompilerFree(cast(*void)value_storage_2)
+                memset(cast(*void)value_storage_2, 0, size_of(CheckArray128_u8))
+                if (!(MapTypeParts(module, cast(*u8)(*((record).name)), cast(*u8)(*((key_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), cast(*u8)(*((value_storage_2[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0) || !(MapKeyComparable(module, cast(*u8)(*((key_storage_1[0]).items)), 0) != 0)) {
+                    return record_declaration_error(record, CheckCString("map key must be comparable"), null)
+                }
+                key_problem: *u8 = local_storage_error(module, cast(*u8)(*((key_storage_1[0]).items)))
+                if (key_problem != cast(*u8)((null))) {
+                    return record_declaration_error(record, key_problem, CheckCString("key"))
+                }
+                problem: *u8 = local_storage_error(module, cast(*u8)(*((value_storage_2[0]).items)))
+                if ((problem != cast(*u8)((null))) || (contains_vec(module, cast(*u8)(*((value_storage_2[0]).items)), 0) != 0)) {
+                    return record_declaration_error(record, (ifx (problem != null) then problem else CheckCString("map values cannot own Vec storage")), null)
+                }
+                CheckPost0(*(i))
+                continue check_loop_128
+            }
+            if ((record).is_procedure_type != 0) {
+                result: *IR.ZirType = FindType(module, cast(*u8)(*((record).procedure_return_type)), null)
+                result_base: *u8 = cast(*u8)(*((record).procedure_return_type))
+                while check_loop_135 := (cast(s32)(cast(s8)((result_base)[0])) == 42) {
+                    CheckPost6(*(result_base))
+                }
+                result_base_type: *IR.ZirType = (ifx (result != cast(*IR.ZirType)((null))) then result else FindType(module, result_base, null))
+                if ((!(((record).procedure_return_type)[0] != 0) || ((ifx ((record).is_c_call != 0) then (cast(s32)((strcmp(cast(*u8)(*((record).procedure_return_type)), CheckCString("void")) != 0) && (local_storage_error(module, cast(*u8)(*((record).procedure_return_type))) != cast(*u8)((null))))) else (cast(s32)((((cast(*u8)(TargetTypeZiran(cast(*void)(cast(*u8)(*(((record).procedure_return_type)))), 0))) == cast(*u8)((null))) && ((cast(*u8)(TargetTypeZiran(cast(*void)((result_base)), 0))) == cast(*u8)((null)))) && (result_base_type == cast(*IR.ZirType)((null)))))) != 0)) || ((result_base_type != null) && ((result_base_type).is_procedure_type != 0))) {
+                    return record_declaration_error(record, CheckCString("invalid procedure type result"), cast(*u8)(*((record).procedure_return_type)))
+                }
+                count: s32 = (ifx ((skip_ws(cast(*u8)(*((record).body))))[0] != 0) then split_top_level(cast(*u8)(*((record).body)), cast(*u8)(*((((buffers).parameters_2).items[0]).items)), 64, cast(usize)(cast(u64)size_of(CheckArray4096_u8))) else 0)
+                {
+                    parameter: s32 = 0
+                    while check_loop_136 := (parameter < count) {
+                        colon: *u8 = strchr(cast(*u8)(*((((buffers).parameters_2).items[parameter]).items)), 58)
+                        if (colon == cast(*u8)((null))) {
+                            return record_declaration_error(record, CheckCString("slot parameters require name: type"), null)
+                        }
+                        CheckSet13(CheckPost6(*(colon)), cast(u8)(0))
+                        trim_in_place(cast(*u8)(*((((buffers).parameters_2).items[parameter]).items)))
+                        trim_in_place(colon)
+                        base: *u8 = colon
+                        while check_loop_137 := (cast(s32)(cast(s8)((base)[0])) == 42) {
+                            CheckPost6(*(base))
+                        }
+                        type: *IR.ZirType = FindType(module, colon, null)
+                        base_type: *IR.ZirType = (ifx (type != cast(*IR.ZirType)((null))) then type else FindType(module, base, null))
+                        if (((!((cast(*u8)(*((((buffers).parameters_2).items[parameter]).items)))[0] != 0) || !(strcmp(colon, CheckCString("void")) != 0)) || ((ifx ((record).is_c_call != 0) then cast(s32)(local_storage_error(module, colon) != cast(*u8)((null))) else (cast(s32)((((cast(*u8)(TargetTypeZiran(cast(*void)((colon)), 0))) == cast(*u8)((null))) && ((cast(*u8)(TargetTypeZiran(cast(*void)((base)), 0))) == cast(*u8)((null)))) && (base_type == cast(*IR.ZirType)((null)))))) != 0)) || ((base_type != null) && ((base_type).is_procedure_type != 0))) {
+                            return record_declaration_error(record, CheckCString("invalid slot parameter"), cast(*u8)(*((((buffers).parameters_2).items[parameter]).items)))
+                        }
+                        {
+                            previous: s32 = 0
+                            while check_loop_138 := (previous < parameter) {
+                                if !(strcmp(cast(*u8)(*((((buffers).parameters_2).items[previous]).items)), cast(*u8)(*((((buffers).parameters_2).items[parameter]).items))) != 0) {
+                                    return record_declaration_error(record, CheckCString("duplicate slot parameter"), cast(*u8)(*((((buffers).parameters_2).items[parameter]).items)))
+                                }
+                                CheckPost0(*(previous))
+                            }
+                        }
+                        CheckPost0(*(parameter))
+                    }
+                }
+                CheckPost0(*(i))
+                continue check_loop_128
+            }
+            while check_loop_139 := ((CheckSet7(*(status), TypeNextField(record, *(offset), *(field)))) == 1) {
+                previous_offset: usize = cast(usize)(0)
+                previous: IR.ZirTypeField
+                if (strcmp(cast(*u8)(*((field).type)), CheckCString("void")) == 0) {
+                    return record_declaration_error(record, CheckCString("record field cannot have void type"), cast(*u8)(*((field).name)))
+                }
+                if ((field).is_using != 0) {
+                    nested_name: *u8 = skip_ws(cast(*u8)(*((field).type)))
+                    if (cast(s32)(cast(s8)((nested_name)[0])) == 42) {
+                        nested_name = skip_ws(cast(*u8)(cast(usize)(nested_name) + cast(usize)(1) * size_of(u8)))
+                    }
+                    nested: *IR.ZirType = FindType(module, nested_name, null)
+                    if (((((nested == cast(*IR.ZirType)((null))) || ((nested).is_enum != 0)) || ((nested).is_procedure_type != 0)) || ((nested).is_record_template != 0)) || ((nested).is_map != 0)) {
+                        return record_declaration_error(record, CheckCString("using field requires a concrete record type"), cast(*u8)(*((field).name)))
+                    }
+                }
+                while check_loop_140 := ((TypeNextField(record, *(previous_offset), *(previous)) == 1) && (previous_offset < offset)) {
+                    if (strcmp(cast(*u8)(*((previous).name)), cast(*u8)(*((field).name))) == 0) {
+                        return record_declaration_error(record, CheckCString("duplicate record field"), cast(*u8)(*((field).name)))
+                    }
+                }
+            }
+            if (status < 0) {
+                return record_declaration_error(record, CheckCString("malformed record field"), null)
+            }
+            checked: ValidatedRecords = .{}
+            detail_storage_3 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+            defer CompilerFree(cast(*void)detail_storage_3)
+            memset(cast(*void)detail_storage_3, 0, size_of(CheckArray128_u8))
+            copy_text(cast(*u8)detail_storage_3, size_of(CheckArray128_u8), CheckCString(""))
+            error: *u8 = storage_type_error(module, cast(*u8)(*((record).name)), null, 0, *(checked), cast(*u8)(*((detail_storage_3[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)))
+            CompilerFree(cast(*void)((checked).items))
+            if (error != cast(*u8)((null))) {
+                return record_declaration_error(record, error, (ifx ((detail_storage_3[0]).items[0] != 0) then cast(*u8)(*((detail_storage_3[0]).items)) else null))
+            }
+            CheckPost0(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while check_loop_141 := (i < (module).import_count) {
+            select_lookup_file(module, (((module).imports)[i]).span)
+            if !(check_go_binding(module, cast(*IR.ZirImport)(cast(usize)((module).imports) + cast(usize)(i) * size_of(IR.ZirImport)), cast(*CheckArray4096_u8)(*(((buffers).parameters_2).items))) != 0) {
+                return 0
+            }
+            CheckPost0(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while check_loop_142 := (i < (module).type_count) {
+            package_storage_4 := cast(*CheckArray1024_u8)AllocateOrExit(size_of(CheckArray1024_u8))
+            defer CompilerFree(cast(*void)package_storage_4)
+            memset(cast(*void)package_storage_4, 0, size_of(CheckArray1024_u8))
+            type: *IR.ZirType = cast(*IR.ZirType)(cast(usize)((module).types) + cast(usize)(i) * size_of(IR.ZirType))
+            if ((GoForeignCallParts(cast(*u8)(*((type).foreign_target)), cast(*u8)(*((package_storage_4[0]).items)), cast(usize)(cast(u64)size_of(CheckArray1024_u8)), null, cast(usize)(0), null, cast(usize)(0)) != 0) && !(strncmp(cast(*u8)(*((package_storage_4[0]).items)), CheckCString("C/"), cast(usize)(cast(u64)(2))) != 0)) {
+                if !(GoCHeader(cast(*u8)(*((package_storage_4[0]).items)), null, cast(usize)(0)) != 0) {
+                    return record_declaration_error(type, CheckCString("invalid relative cgo header path"), null)
+                }
+            }
+            CheckPost0(*(i))
+        }
+    }
+    return 1
+}
+
+#scope_export
+#program_export "private_check_check_type_declarations"
+check_type_declarations :: (module: *IR.ZirModule) -> s32 {
+    buffers := cast(*CheckTypeDeclarationsBuffers)CheckScratchTake(*ScratchKey_check_type_declarations, size_of(CheckTypeDeclarationsBuffers))
+    defer CheckScratchRelease(*ScratchKey_check_type_declarations, cast(*void)buffers)
+    return check_type_declarations_with_buffers(module, buffers)
+}
+
+#scope_file
+normalize_record_arrays_with_buffers :: (module: *IR.ZirModule, templates_only: s32, buffers: *NormalizeRecordArraysBuffers) -> s32 {
+    {
+        i: s32 = 0
+        while check_loop_143 := (i < (module).type_count) {
+            record: *IR.ZirType = cast(*IR.ZirType)(cast(usize)((module).types) + cast(usize)(i) * size_of(IR.ZirType))
+            select_lookup_file(module, (record).span)
+            if ((((record).is_procedure_type != 0) || ((record).is_enum != 0)) || ((templates_only != 0) && !((record).is_record_template != 0))) {
+                CheckPost0(*(i))
+                continue check_loop_143
+            }
+            offset: usize = cast(usize)(0)
+            field: IR.ZirTypeField
+            status: s32
+            changed: s32 = 0
+            while check_loop_144 := ((CheckSet7(*(status), TypeNextField(record, *(offset), *(field)))) == 1) {
+                copy_text(cast(*u8)(*(((buffers).normalized).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), cast(*u8)(*((field).type)))
+                normalize_template_array(module, cast(*u8)(*(((buffers).normalized).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), (ifx ((record).is_record_template != 0) then cast(*u8)(*((record).template_params)) else null))
+                if (strcmp(cast(*u8)(*(((buffers).normalized).items)), cast(*u8)(*((field).type))) != 0) {
+                    changed = 1
+                }
+            }
+            if ((status < 0) && (templates_only != 0)) {
+                return record_declaration_error(record, CheckCString("malformed generic record field"), null)
+            }
+            if (status < 0) {
+                return 0
+            }
+            if !(changed != 0) {
+                CheckPost0(*(i))
+                continue check_loop_143
+            }
+            ((buffers).body).items[0] = cast(u8)(0)
+            used: usize = cast(usize)(0)
+            offset = cast(usize)(0)
+            while check_loop_145 := ((CheckSet7(*(status), TypeNextField(record, *(offset), *(field)))) == 1) {
+                normalize_template_array(module, cast(*u8)(*((field).type)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), (ifx ((record).is_record_template != 0) then cast(*u8)(*((record).template_params)) else null))
+                length: s32 = TypeFieldLine(*(field), cast(*u8)(*((field).type)), cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).body).items))) + cast(usize)(used) * size_of(u8)), cast(usize)((cast(u64)size_of(CheckArray8192_u8) - cast(u64)(used))))
+                if ((length < 0) || (cast(u64)(cast(usize)(length)) >= (cast(u64)size_of(CheckArray8192_u8) - cast(u64)(used)))) {
+                    Diagnostic((record).span, CheckCString("check.record"), CheckCString("normalized record is too large: %s"), cast(*u8)(*((record).name)))
+                    return 0
+                }
+                used += cast(usize)(length)
+            }
+            if (status < 0) {
+                return 0
+            }
+            copy_text(cast(*u8)(*((record).body)), cast(usize)(cast(u64)size_of(CheckArray8192_u8)), cast(*u8)(*(((buffers).body).items)))
+            CheckPost0(*(i))
+        }
+    }
+    return 1
+}
+
+#scope_export
+#program_export "private_check_normalize_record_arrays"
+normalize_record_arrays :: (module: *IR.ZirModule, templates_only: s32) -> s32 {
+    buffers := cast(*NormalizeRecordArraysBuffers)CheckScratchTake(*ScratchKey_normalize_record_arrays, size_of(NormalizeRecordArraysBuffers))
+    defer CheckScratchRelease(*ScratchKey_normalize_record_arrays, cast(*void)buffers)
+    return normalize_record_arrays_with_buffers(module, templates_only, buffers)
+}
+
+#scope_file
+return_block_end :: (fn: *IR.ZirFunction, begin: s32, end: s32) -> s32 {
+    depth: s32 = 1
+    {
+        i: s32 = (begin + 1)
+        while check_loop_146 := (i < end) {
+            kind: IR.ZirStmtKind = (((fn).stmts)[i]).kind
+            if (((cast(s32)(kind) == 6) || (cast(s32)(kind) == 7)) || (cast(s32)(kind) == 1)) {
+                CheckPost0(*(depth))
+            }
+            if ((cast(s32)(kind) == 2) && (CheckPre4(*(depth)) == 0)) {
+                return i
+            }
+            CheckPost0(*(i))
+        }
+    }
+    return end
+}
+
+#scope_file
+branch_returns :: (fn: *IR.ZirFunction, begin: s32, end: s32, last: *s32) -> s32 {
+    CheckSet7(last, return_block_end(fn, begin, end))
+    returns: s32 = sequence_returns(fn, (begin + 1), (last)[0])
+    if ((((fn).stmts)[begin]).expr_root < 0) {
+        return returns
+    }
+    next: s32 = ((last)[0] + 1)
+    if (((next < end) && (cast(s32)((((fn).stmts)[next]).kind) == 6)) && ((((fn).stmts)[next]).is_else != 0)) {
+        alternative: s32 = branch_returns(fn, next, end, last)
+        return cast(s32)((returns != 0) && (alternative != 0))
+    }
+    return 0
+}
+
+#scope_export
+#program_export "private_check_all_arms_return"
+all_arms_return :: (fn: *IR.ZirFunction, begin: s32, last: *s32) -> s32 {
+    arms: s32 = 0
+    index: s32 = begin
+    while check_loop_147 := (((index < (fn).stmt_count) && (cast(s32)((((fn).stmts)[index]).kind) == 6)) && ((arms == 0) || ((((fn).stmts)[index]).is_else != 0))) {
+        close: s32 = return_block_end(fn, index, (fn).stmt_count)
+        if ((close <= (index + 1)) || !(sequence_returns(fn, (index + 2), close) != 0)) {
+            return 0
+        }
+        CheckSet7(last, close)
+        index = (close + 1)
+        CheckPost0(*(arms))
+    }
+    return cast(s32)(arms > 0)
+}
+
+#scope_file
+while_diverges :: (fn: *IR.ZirFunction, begin: s32, close: s32) -> s32 {
+    header: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(begin) * size_of(IR.ZirStmt))
+    if (((header).expr_root < 0) || ((header).expr_root >= (fn).expr_count)) {
+        return 0
+    }
+    condition: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((header).expr_root) * size_of(IR.ZirExpr))
+    if ((cast(s32)((condition).kind) != 1) || (strcmp((condition).name, CheckCString("true")) != 0)) {
+        return 0
+    }
+    loops: *s32 = cast(*s32)(CompilerCalloc(cast(usize)((((close - begin) + 1))), cast(usize)(cast(u64)size_of(s32))))
+    opened: *s32 = cast(*s32)(CompilerCalloc(cast(usize)((((close - begin) + 1))), cast(usize)(cast(u64)size_of(s32))))
+    if ((loops == cast(*s32)((null))) || (opened == cast(*s32)((null)))) {
+        CompilerFree(cast(*void)(loops))
+        CompilerFree(cast(*void)(opened))
+        return 0
+    }
+    depth: s32 = 0
+    nested: s32 = 0
+    diverges: s32 = 1
+    {
+        i: s32 = (begin + 1)
+        while check_loop_148 := ((i < close) && (diverges != 0)) {
+            statement: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))
+            if ((cast(s32)((statement).kind) == 2) && (depth > 0)) {
+                CheckPost9(*(depth))
+                if ((opened)[depth] != 0) {
+                    CheckPost9(*(nested))
+                }
+                CheckPost0(*(i))
+                continue check_loop_148
+            }
+            if ((cast(s32)((statement).kind) == 11) || (cast(s32)((statement).kind) == 12)) {
+                inner: s32 = 0
+                {
+                    loop: s32 = 0
+                    while check_loop_149 := (loop < nested) {
+                        inner |= cast(s32)(((statement).target_id != 0) && ((loops)[loop] == (statement).target_id))
+                        CheckPost0(*(loop))
+                    }
+                }
+                if ((statement).target_id == 0) {
+                    inner = cast(s32)(nested > 0)
+                } else {
+                    if (((header).loop_id != 0) && ((statement).target_id == (header).loop_id)) {
+                        inner = cast(s32)(cast(s32)((statement).kind) == 12)
+                    }
+                }
+                if (!(inner != 0) && ((cast(s32)((statement).kind) == 11) || ((statement).target_id != 0))) {
+                    diverges = 0
+                }
+            }
+            if (((cast(s32)((statement).kind) == 6) || (cast(s32)((statement).kind) == 7)) || (cast(s32)((statement).kind) == 1)) {
+                (opened)[depth] = cast(s32)(cast(s32)((statement).kind) == 7)
+                if ((opened)[depth] != 0) {
+                    (loops)[CheckPost0(*(nested))] = (statement).loop_id
+                }
+                CheckPost0(*(depth))
+            }
+            CheckPost0(*(i))
+        }
+    }
+    CompilerFree(cast(*void)(loops))
+    CompilerFree(cast(*void)(opened))
+    return diverges
+}
+
+#scope_export
+#program_export "private_check_sequence_returns"
+sequence_returns :: (fn: *IR.ZirFunction, begin: s32, end: s32) -> s32 {
+    {
+        i: s32 = begin
+        while check_loop_150 := (i < end) {
+            kind: IR.ZirStmtKind = (((fn).stmts)[i]).kind
+            if ((cast(s32)(kind) == 10) || (cast(s32)(kind) == 15)) {
+                return 1
+            }
+            if ((cast(s32)(kind) == 11) || (cast(s32)(kind) == 12)) {
+                return 0
+            }
+            if (cast(s32)(kind) == 6) {
+                last: s32
+                if (branch_returns(fn, i, end, *(last)) != 0) {
+                    return 1
+                }
+                i = last
+            } else {
+                if ((cast(s32)(kind) == 7) || (cast(s32)(kind) == 1)) {
+                    last: s32 = return_block_end(fn, i, end)
+                    if ((cast(s32)(kind) == 1) && (sequence_returns(fn, (i + 1), last) != 0)) {
+                        return 1
+                    }
+                    if ((cast(s32)(kind) == 7) && (while_diverges(fn, i, last) != 0)) {
+                        return 1
+                    }
+                    i = last
+                }
+            }
+            CheckPost0(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_export
+#program_export "private_check_starts_word"
+starts_word :: (source: *u8, word: *u8) -> s32 {
+    length: usize = cast(usize)(CheckCStringLength(word))
+    return cast(s32)((strncmp(source, word, length) == 0) && ((cast(s32)(cast(s8)((source)[length])) == 0) || (isspace(cast(s32)(cast(u8)((source)[length]))) != 0)))
+}
+
+#scope_file
+if_case_opens_block :: (kind: IR.ZirStmtKind) -> s32 {
+    return cast(s32)(((((cast(s32)(kind) == 6) || (cast(s32)(kind) == 7)) || (cast(s32)(kind) == 8)) || (cast(s32)(kind) == 16)) || (cast(s32)(kind) == 1))
+}
+
+#scope_file
+if_case_generated :: (statement: *IR.ZirStmt, kind: IR.ZirStmtKind, text: *u8, span: IR.ZirSourceSpan) {
+    StmtReset(statement)
+    (statement).kind = kind
+    (statement).text = KeepText(text)
+    (statement).expr_root = CheckSet7(*((statement).lhs_root), (-1))
+    (statement).span = span
+}
+
+#scope_export
+#program_export "private_check_if_case_error"
+if_case_error :: (c: *Checker, span: IR.ZirSourceSpan, message: *u8, detail: *u8) {
+    CheckPost0(*((c).errors))
+    (c).failed = 1
+    Diagnostic(span, CheckCString("check.if_case"), CheckCString("%s%s%s"), message, (ifx ((detail != null) && ((detail)[0] != 0)) then CheckCString(": ") else CheckCString("")), (ifx (detail != null) then detail else CheckCString("")))
+}
+
+#scope_file
+if_case_through :: (c: *Checker, fn: *IR.ZirFunction, cases: *s32, case_count: s32, close: s32, through: *u8) -> s32 {
+    has_through: s32 = 0
+    {
+        arm: s32 = 0
+        while check_loop_151 := (arm < case_count) {
+            arm_end: s32 = (ifx ((arm + 1) < case_count) then (cases)[(arm + 1)] else close)
+            nested: s32 = 0
+            {
+                i: s32 = ((cases)[arm] + 1)
+                while check_loop_152 := (i < arm_end) {
+                    statement: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))
+                    if (cast(s32)((statement).kind) == 16) {
+                        inner_depth: s32 = 1
+                        while check_loop_153 := ((CheckPre14(*(i)) < arm_end) && (inner_depth > 0)) {
+                            if (if_case_opens_block((((fn).stmts)[i]).kind) != 0) {
+                                CheckPost0(*(inner_depth))
+                            }
+                            if (cast(s32)((((fn).stmts)[i]).kind) == 2) {
+                                CheckPost9(*(inner_depth))
+                            }
+                        }
+                        if (inner_depth != 0) {
+                            if_case_error(c, (statement).span, CheckCString("unterminated nested if-case"), CheckCString(""))
+                            return (-1)
+                        }
+                        CheckPost0(*(i))
+                        continue check_loop_152
+                    }
+                    if ((strcmp((statement).text, CheckCString("#through")) == 0) || (strcmp((statement).text, CheckCString("#through;")) == 0)) {
+                        if (((nested != 0) || (i != (arm_end - 1))) || (arm == (case_count - 1))) {
+                            if_case_error(c, (statement).span, CheckCString("#through must end a case before another case"), CheckCString(""))
+                            return (-1)
+                        }
+                        (through)[arm] = cast(u8)(CheckSet7(*(has_through), 1))
+                    }
+                    if (if_case_opens_block((statement).kind) != 0) {
+                        CheckPost0(*(nested))
+                    }
+                    if (cast(s32)((statement).kind) == 2) {
+                        CheckPost9(*(nested))
+                    }
+                    CheckPost0(*(i))
+                }
+            }
+            CheckPost0(*(arm))
+        }
+    }
+    return has_through
+}
+
+#scope_file
+if_cases_return :: (fn: *IR.ZirFunction, cases: *s32, case_count: s32, close: s32, through: *u8) -> s32 {
+    next_returns: s32 = 0
+    all_return: s32 = 1
+    {
+        arm: s32 = (case_count - 1)
+        while check_loop_154 := (arm >= 0) {
+            end: s32 = (ifx ((arm + 1) < case_count) then (cases)[(arm + 1)] else close)
+            if ((through)[arm] != 0) {
+                CheckPost9(*(end))
+            }
+            escapes: s32 = 0
+            {
+                i: s32 = ((cases)[arm] + 1)
+                while check_loop_155 := (i < end) {
+                    escapes |= cast(s32)(((cast(s32)((((fn).stmts)[i]).kind) == 11) || (cast(s32)((((fn).stmts)[i]).kind) == 12)) || (cast(s32)((((fn).stmts)[i]).kind) == 16))
+                    CheckPost0(*(i))
+                }
+            }
+            returns: s32 = cast(s32)(!(escapes != 0) && (sequence_returns(fn, ((cases)[arm] + 1), end) != 0))
+            if ((!(returns != 0) && !(escapes != 0)) && ((through)[arm] != 0)) {
+                returns = next_returns
+            }
+            all_return &= returns
+            next_returns = returns
+            CheckPost9(*(arm))
+        }
+    }
+    return all_return
+}
+
+#scope_file
+scalar_case_label :: (statement: *IR.ZirStmt, label: *u8, capacity: usize) -> s32 {
+    cursor: *u8 = skip_ws((statement).text)
+    if ((strncmp(cursor, CheckCString("case"), cast(usize)(cast(u64)(4))) != 0) || ((cast(s32)(cast(s8)((cursor)[4])) != 59) && !(isspace(cast(s32)(cast(u8)((cursor)[4]))) != 0))) {
+        return 0
+    }
+    cursor = skip_ws(cast(*u8)(cast(usize)(cursor) + cast(usize)(4) * size_of(u8)))
+    length: usize = cast(usize)(CheckCStringLength(cursor))
+    while check_loop_156 := ((length != 0) && (isspace(cast(s32)(cast(u8)((cursor)[(length - cast(usize)(1))]))) != 0)) {
+        CheckPost15(*(length))
+    }
+    if (((length == cast(usize)(0)) || (cast(s32)(cast(s8)((cursor)[(length - cast(usize)(1))])) != 59)) || (length >= capacity)) {
+        return 0
+    }
+    memcpy(cast(*void)(label), cast(*void)(cursor), (length - cast(usize)(1)))
+    (label)[(length - cast(usize)(1))] = cast(u8)(0)
+    trim_in_place(label)
+    return 1
+}
+
+#scope_export
+#program_export "private_check_scalar_case_type"
+scalar_case_type :: (type: *u8) -> s32 {
+    return cast(s32)((!(strcmp(type, CheckCString("bool")) != 0) || !(strcmp(type, CheckCString("string")) != 0)) || (numeric(type) != 0))
+}
+
+#scope_file
+enum_case_members :: (enumeration: *IR.ZirType, names: *CheckArray128_u8, capacity: s32) -> s32 {
+    cursor: *u8 = cast(*u8)(*((enumeration).body))
+    count: s32 = 0
+    while check_loop_157 := ((cursor)[0] != 0) {
+        while check_loop_158 := (((isspace(cast(s32)(cast(u8)((cursor)[0]))) != 0) || (cast(s32)(cast(s8)((cursor)[0])) == 44)) || (cast(s32)(cast(s8)((cursor)[0])) == 59)) {
+            CheckPost6(*(cursor))
+        }
+        if !((cursor)[0] != 0) {
+            break check_loop_157
+        }
+        start: *u8 = cursor
+        if (!(isalpha(cast(s32)(cast(u8)((cursor)[0]))) != 0) && (cast(s32)(cast(s8)((cursor)[0])) != 95)) {
+            return (-1)
+        }
+        while check_loop_159 := ((isalnum(cast(s32)(cast(u8)((cursor)[0]))) != 0) || (cast(s32)(cast(s8)((cursor)[0])) == 95)) {
+            CheckPost6(*(cursor))
+        }
+        length: usize = cast(usize)(((cast(s64)(cast(isize)(cast(usize)(cursor) - cast(usize)(start))) / cast(s64)size_of(u8))))
+        if ((count >= capacity) || (length >= cast(usize)(128))) {
+            return (-1)
+        }
+        memcpy(cast(*void)(cast(*u8)(*(((names)[count]).items))), cast(*void)(start), length)
+        ((names)[CheckPost0(*(count))]).items[length] = cast(u8)(0)
+        while check_loop_160 := (((((cursor)[0] != 0) && (cast(s32)(cast(s8)((cursor)[0])) != 44)) && (cast(s32)(cast(s8)((cursor)[0])) != 59)) && (cast(s32)(cast(s8)((cursor)[0])) != 10)) {
+            CheckPost6(*(cursor))
+        }
+    }
+    return count
+}
+
+#scope_file
+enum_case_member :: (enumeration: *IR.ZirType, label: *u8, member: *u8, capacity: usize) -> s32 {
+    start: *u8 = label
+    if (cast(s32)(cast(s8)((start)[0])) == 46) {
+        CheckPost6(*(start))
+    } else {
+        length: usize = cast(usize)(CheckCStringLength(cast(*u8)(*((enumeration).name))))
+        if ((strncmp(start, cast(*u8)(*((enumeration).name)), length) != 0) || (cast(s32)(cast(s8)((start)[length])) != 46)) {
+            return 0
+        }
+        start = cast(*u8)(cast(usize)(start) + cast(usize)((length + cast(usize)(1))) * size_of(u8))
+    }
+    if (!(isalpha(cast(s32)(cast(u8)((start)[0]))) != 0) && (cast(s32)(cast(s8)((start)[0])) != 95)) {
+        return 0
+    }
+    end: *u8 = cast(*u8)(cast(usize)(start) + cast(usize)(1) * size_of(u8))
+    while check_loop_161 := ((isalnum(cast(s32)(cast(u8)((end)[0]))) != 0) || (cast(s32)(cast(s8)((end)[0])) == 95)) {
+        CheckPost6(*(end))
+    }
+    length: usize = cast(usize)(((cast(s64)(cast(isize)(cast(usize)(end) - cast(usize)(start))) / cast(s64)size_of(u8))))
+    if (((end)[0] != 0) || (length >= capacity)) {
+        return 0
+    }
+    memcpy(cast(*void)(member), cast(*void)(start), length)
+    (member)[length] = cast(u8)(0)
+    return EnumMemberValue(enumeration, member, null)
+}
+
+#scope_file
+lower_if_case_with_buffers :: (c: *Checker, index: s32, checked_type: *u8, buffers: *LowerIfCaseBuffers) -> s32 {
+    fn: *IR.ZirFunction
+    head: *IR.ZirStmt
+    enumeration: *IR.ZirType
+    complete: s32
+    cases: *s32
+    through: *u8
+    member_capacity: s32
+    members: *CheckArray128_u8
+    seen: *u8
+    member_count: s32
+    output: *IR.ZirStmt
+    count: s32
+    depth: s32
+    close: s32
+    default_arm: s32
+    ok: s32
+    temporary_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)temporary_storage_0)
+    memset(cast(*void)temporary_storage_0, 0, size_of(CheckArray128_u8))
+    active_storage_1 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)active_storage_1)
+    memset(cast(*void)active_storage_1, 0, size_of(CheckArray128_u8))
+    matched_name_storage_2 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)matched_name_storage_2)
+    memset(cast(*void)matched_name_storage_2, 0, size_of(CheckArray128_u8))
+    length: s32
+    has_through: s32
+    all_return: s32
+    equals: *u8
+    value: *u8
+    serial: s32
+    collision: s32
+    capacity: s32
+    next: s32
+    storage: *u8
+    while goto_done := true {
+        while goto_too_long := true {
+            fn = (c).fn
+            head = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(index) * size_of(IR.ZirStmt))
+            enumeration = FindType((c).module, checked_type, null)
+            complete = cast(s32)((enumeration != cast(*IR.ZirType)((null))) && (starts_word(skip_ws(cast(*u8)(cast(usize)((head).text) + cast(usize)(2) * size_of(u8))), CheckCString("#complete")) != 0))
+            cases = cast(*s32)(CompilerCalloc((cast(usize)((fn).stmt_count) + cast(usize)(1)), cast(usize)(cast(u64)size_of(s32))))
+            through = cast(*u8)(CompilerCalloc((cast(usize)((fn).stmt_count) + cast(usize)(1)), cast(usize)(cast(u64)size_of(u8))))
+            member_capacity = (ifx (enumeration != cast(*IR.ZirType)((null))) then (cast(s32)(CheckCStringLength(cast(*u8)(*((enumeration).body)))) + 1) else 0)
+            members = cast(*CheckArray128_u8)((ifx (enumeration != cast(*IR.ZirType)((null))) then CompilerCalloc(cast(usize)(member_capacity), cast(usize)(cast(u64)size_of(CheckArray128_u8))) else (null)))
+            seen = cast(*u8)((ifx (enumeration != cast(*IR.ZirType)((null))) then CompilerCalloc(cast(usize)(member_capacity), cast(usize)(cast(u64)size_of(u8))) else (null)))
+            member_count = (ifx (enumeration != cast(*IR.ZirType)((null))) then ((ifx ((members != cast(*CheckArray128_u8)((null))) && (seen != cast(*u8)((null)))) then enum_case_members(enumeration, members, member_capacity) else (-1))) else 0)
+            output = null
+            count = 0
+            depth = 1
+            close = (-1)
+            default_arm = (-1)
+            ok = 0
+            if (((cases == cast(*s32)((null))) || (through == cast(*u8)((null)))) || ((enumeration != cast(*IR.ZirType)((null))) && (member_count <= 0))) {
+                if_case_error(c, (head).span, CheckCString("out of memory lowering if-case"), CheckCString(""))
+                break goto_done
+            }
+            {
+                i: s32 = (index + 1)
+                while check_loop_162 := (i < (fn).stmt_count) {
+                    statement: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))
+                    if (cast(s32)((statement).kind) == 2) {
+                        if (CheckPre4(*(depth)) == 0) {
+                            close = i
+                            break check_loop_162
+                        }
+                    } else {
+                        if ((depth == 1) && (cast(s32)((statement).kind) == 9)) {
+                            if !(scalar_case_label(statement, cast(*u8)(*(((buffers).label).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8))) != 0) {
+                                if_case_error(c, (statement).span, CheckCString("scalar case requires 'case expression;' or 'case;'"), (statement).text)
+                                break goto_done
+                            }
+                            if ((enumeration != cast(*IR.ZirType)((null))) && (cast(s32)(cast(s8)(((buffers).label).items[0])) != 0)) {
+                                member_storage_3 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+                                defer CompilerFree(cast(*void)member_storage_3)
+                                memset(cast(*void)member_storage_3, 0, size_of(CheckArray128_u8))
+                                if !(enum_case_member(enumeration, cast(*u8)(*(((buffers).label).items)), cast(*u8)(*((member_storage_3[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0) {
+                                    if_case_error(c, (statement).span, CheckCString("enum case requires 'case .Member;' or 'case Enum.Member;'"), (statement).text)
+                                    break goto_done
+                                }
+                                selected: s32 = (-1)
+                                {
+                                    m: s32 = 0
+                                    while check_loop_163 := (m < member_count) {
+                                        if !(strcmp(cast(*u8)(*((member_storage_3[0]).items)), cast(*u8)(*(((members)[m]).items))) != 0) {
+                                            selected = m
+                                            break check_loop_163
+                                        }
+                                        CheckPost0(*(m))
+                                    }
+                                }
+                                if ((selected < 0) || ((seen)[selected] != 0)) {
+                                    if_case_error(c, (statement).span, (ifx (selected < 0) then CheckCString("case is not a member of the selected enum") else CheckCString("duplicate if-case member")), cast(*u8)(*((member_storage_3[0]).items)))
+                                    break goto_done
+                                }
+                                (seen)[selected] = cast(u8)(1)
+                            }
+                            if (default_arm >= 0) {
+                                if_case_error(c, (statement).span, CheckCString("default case must be last"), CheckCString(""))
+                                break goto_done
+                            }
+                            if (cast(s32)(cast(s8)(((buffers).label).items[0])) == 0) {
+                                default_arm = count
+                            }
+                            (cases)[CheckPost0(*(count))] = i
+                        } else {
+                            if ((depth == 1) && (count == 0)) {
+                                if_case_error(c, (statement).span, CheckCString("if-case body must begin with a case"), CheckCString(""))
+                                break goto_done
+                            }
+                        }
+                    }
+                    if (if_case_opens_block((statement).kind) != 0) {
+                        CheckPost0(*(depth))
+                    }
+                    CheckPost0(*(i))
+                }
+            }
+            if ((close < 0) || (count == 0)) {
+                if_case_error(c, (head).span, CheckCString("unterminated or empty if-case"), CheckCString(""))
+                break goto_done
+            }
+            {
+                m: s32 = 0
+                while check_loop_164 := ((complete != 0) && (m < member_count)) {
+                    if !((seen)[m] != 0) {
+                        if_case_error(c, (head).span, CheckCString("non-exhaustive if-case; missing case"), cast(*u8)(*(((members)[m]).items)))
+                        break goto_done
+                    }
+                    CheckPost0(*(m))
+                }
+            }
+            has_through = if_case_through(c, fn, cases, count, close, through)
+            if (has_through < 0) {
+                break goto_done
+            }
+            all_return = cast(s32)(((has_through != 0) && ((default_arm >= 0) || (complete != 0))) && (if_cases_return(fn, cases, count, close, through) != 0))
+            copy_text(cast(*u8)(*(((buffers).source).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), (head).text)
+            equals = strstr(cast(*u8)(*(((buffers).source).items)), CheckCString("=="))
+            if (equals == cast(*u8)((null))) {
+                if_case_error(c, (head).span, CheckCString("if-case requires a block"), CheckCString(""))
+                break goto_done
+            }
+            CheckSet13(equals, cast(u8)(0))
+            value = skip_ws(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).source).items))) + cast(usize)(2) * size_of(u8)))
+            if (complete != 0) {
+                value = skip_ws(cast(*u8)(cast(usize)(value) + cast(usize)(CheckCStringLength(CheckCString("#complete"))) * size_of(u8)))
+            }
+            trim_in_place(cast(*u8)(value))
+            if !((value)[0] != 0) {
+                if_case_error(c, (head).span, CheckCString("if-case requires a value"), CheckCString(""))
+                break goto_done
+            }
+            serial = index
+            while check_loop_165 := true {
+                snprintf(cast(*u8)(*((temporary_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("case_value_%d"), CheckPost0(*(serial)))
+                collision = cast(s32)(strstr(FunctionArgs(fn), cast(*u8)(*((temporary_storage_0[0]).items))) != cast(*u8)((null)))
+                {
+                    i: s32 = 0
+                    while check_loop_166 := (i < (fn).stmt_count) {
+                        collision |= cast(s32)((strstr((((fn).stmts)[i]).text, cast(*u8)(*((temporary_storage_0[0]).items))) != cast(*u8)((null))) || (strcmp(((((fn).stmts)[i]).names).name, cast(*u8)(*((temporary_storage_0[0]).items))) == 0))
+                        CheckPost0(*(i))
+                    }
+                }
+                if !(collision != 0) { break check_loop_165 }
+            }
+            length = snprintf(cast(*u8)(*((active_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("%s_active"), cast(*u8)(*((temporary_storage_0[0]).items)))
+            if ((length < 0) || (cast(u64)(cast(usize)(length)) >= cast(u64)size_of(CheckArray128_u8))) {
+                break goto_too_long
+            }
+            length = snprintf(cast(*u8)(*((matched_name_storage_2[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("%s_matched"), cast(*u8)(*((temporary_storage_0[0]).items)))
+            if ((length < 0) || (cast(u64)(cast(usize)(length)) >= cast(u64)size_of(CheckArray128_u8))) {
+                break goto_too_long
+            }
+            capacity = (((fn).stmt_count + (count * 4)) + 8)
+            output = cast(*IR.ZirStmt)(CompilerCalloc(cast(usize)(capacity), cast(usize)(cast(u64)size_of(IR.ZirStmt))))
+            if (output == cast(*IR.ZirStmt)((null))) {
+                if_case_error(c, (head).span, CheckCString("out of memory lowering if-case"), CheckCString(""))
+                break goto_done
+            }
+            next = 0
+            {
+                i: s32 = 0
+                while check_loop_167 := (i < index) {
+                    (output)[CheckPost0(*(next))] = ((fn).stmts)[i]
+                    CheckPost0(*(i))
+                }
+            }
+            storage = (ifx !(strcmp(checked_type, CheckCString("integer")) != 0) then CheckCString("s64") else (ifx !(strcmp(checked_type, CheckCString("real")) != 0) then CheckCString("float64") else checked_type))
+            length = snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("%s: %s = %s"), cast(*u8)(*((temporary_storage_0[0]).items)), storage, value)
+            if ((length < 0) || (cast(u64)(cast(usize)(length)) >= cast(u64)size_of(CheckArray4096_u8))) {
+                break goto_too_long
+            }
+            if_case_generated(cast(*IR.ZirStmt)(cast(usize)(output) + cast(usize)(CheckPost0(*(next))) * size_of(IR.ZirStmt)), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), (head).span)
+            if (has_through != 0) {
+                length = snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("%s: bool = false"), cast(*u8)(*((active_storage_1[0]).items)))
+                if ((length < 0) || (cast(u64)(cast(usize)(length)) >= cast(u64)size_of(CheckArray4096_u8))) {
+                    break goto_too_long
+                }
+                if_case_generated(cast(*IR.ZirStmt)(cast(usize)(output) + cast(usize)(CheckPost0(*(next))) * size_of(IR.ZirStmt)), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), (head).span)
+                if ((default_arm >= 0) || (complete != 0)) {
+                    length = snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("%s: bool = false"), cast(*u8)(*((matched_name_storage_2[0]).items)))
+                    if ((length < 0) || (cast(u64)(cast(usize)(length)) >= cast(u64)size_of(CheckArray4096_u8))) {
+                        break goto_too_long
+                    }
+                    if_case_generated(cast(*IR.ZirStmt)(cast(usize)(output) + cast(usize)(CheckPost0(*(next))) * size_of(IR.ZirStmt)), cast(IR.ZirStmtKind)(3), cast(*u8)(*(((buffers).line).items)), (head).span)
+                }
+            }
+            {
+                arm: s32 = 0
+                while check_loop_168 := (arm < count) {
+                    span: IR.ZirSourceSpan = (((fn).stmts)[(cases)[arm]]).span
+                    if !(scalar_case_label(cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)((cases)[arm]) * size_of(IR.ZirStmt)), cast(*u8)(*(((buffers).label).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8))) != 0) {
+                        break goto_done
+                    }
+                    if ((enumeration != cast(*IR.ZirType)((null))) && (cast(s32)(cast(s8)(((buffers).label).items[0])) != 0)) {
+                        member_storage_4 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+                        defer CompilerFree(cast(*void)member_storage_4)
+                        memset(cast(*void)member_storage_4, 0, size_of(CheckArray128_u8))
+                        if !(enum_case_member(enumeration, cast(*u8)(*(((buffers).label).items)), cast(*u8)(*((member_storage_4[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0) {
+                            break goto_done
+                        }
+                        length = snprintf(cast(*u8)(*(((buffers).label).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("cast(%s) %s.%s"), cast(*u8)(*((enumeration).name)), cast(*u8)(*((enumeration).name)), cast(*u8)(*((member_storage_4[0]).items)))
+                        if ((length < 0) || (cast(u64)(cast(usize)(length)) >= cast(u64)size_of(CheckArray4096_u8))) {
+                            break goto_too_long
+                        }
+                    }
+                    length = (ifx (enumeration == cast(*IR.ZirType)((null))) then snprintf(cast(*u8)(*(((buffers).comparison).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("(%s)"), cast(*u8)(*(((buffers).label).items))) else snprintf(cast(*u8)(*(((buffers).comparison).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("%s"), cast(*u8)(*(((buffers).label).items))))
+                    if ((length < 0) || (cast(u64)(cast(usize)(length)) >= cast(u64)size_of(CheckArray4096_u8))) {
+                        break goto_too_long
+                    }
+                    if (cast(s32)(cast(s8)(((buffers).label).items[0])) == 0) {
+                        length = (ifx (has_through != 0) then snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("if %s || !%s {"), cast(*u8)(*((active_storage_1[0]).items)), cast(*u8)(*((matched_name_storage_2[0]).items))) else snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("else {")))
+                    } else {
+                        length = (ifx (has_through != 0) then snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("if %s || %s == %s {"), cast(*u8)(*((active_storage_1[0]).items)), cast(*u8)(*((temporary_storage_0[0]).items)), cast(*u8)(*(((buffers).comparison).items))) else snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("%s %s == %s {"), (ifx (arm != 0) then CheckCString("else if") else CheckCString("if")), cast(*u8)(*((temporary_storage_0[0]).items)), cast(*u8)(*(((buffers).comparison).items))))
+                    }
+                    if ((length < 0) || (cast(u64)(cast(usize)(length)) >= cast(u64)size_of(CheckArray4096_u8))) {
+                        break goto_too_long
+                    }
+                    if_case_generated(cast(*IR.ZirStmt)(cast(usize)(output) + cast(usize)(CheckPost0(*(next))) * size_of(IR.ZirStmt)), cast(IR.ZirStmtKind)(6), cast(*u8)(*(((buffers).line).items)), span)
+                    if ((has_through != 0) && ((default_arm >= 0) || (complete != 0))) {
+                        length = snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("%s = true"), cast(*u8)(*((matched_name_storage_2[0]).items)))
+                        if ((length < 0) || (cast(u64)(cast(usize)(length)) >= cast(u64)size_of(CheckArray4096_u8))) {
+                            break goto_too_long
+                        }
+                        if_case_generated(cast(*IR.ZirStmt)(cast(usize)(output) + cast(usize)(CheckPost0(*(next))) * size_of(IR.ZirStmt)), cast(IR.ZirStmtKind)(4), cast(*u8)(*(((buffers).line).items)), span)
+                    }
+                    arm_end: s32 = (ifx ((arm + 1) < count) then (cases)[(arm + 1)] else close)
+                    {
+                        i: s32 = ((cases)[arm] + 1)
+                        while check_loop_169 := (i < arm_end) {
+                            if !(((through)[arm] != 0) && (i == (arm_end - 1))) {
+                                (output)[CheckPost0(*(next))] = ((fn).stmts)[i]
+                            }
+                            CheckPost0(*(i))
+                        }
+                    }
+                    if (has_through != 0) {
+                        length = snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("%s = %s"), cast(*u8)(*((active_storage_1[0]).items)), (ifx ((through)[arm] != 0) then CheckCString("true") else CheckCString("false")))
+                        if ((length < 0) || (cast(u64)(cast(usize)(length)) >= cast(u64)size_of(CheckArray4096_u8))) {
+                            break goto_too_long
+                        }
+                        if_case_generated(cast(*IR.ZirStmt)(cast(usize)(output) + cast(usize)(CheckPost0(*(next))) * size_of(IR.ZirStmt)), cast(IR.ZirStmtKind)(4), cast(*u8)(*(((buffers).line).items)), span)
+                    }
+                    if_case_generated(cast(*IR.ZirStmt)(cast(usize)(output) + cast(usize)(CheckPost0(*(next))) * size_of(IR.ZirStmt)), cast(IR.ZirStmtKind)(2), CheckCString("}"), span)
+                    CheckPost0(*(arm))
+                }
+            }
+            if (complete != 0) {
+                length = (ifx (has_through != 0) then snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("if !%s {"), cast(*u8)(*((matched_name_storage_2[0]).items))) else snprintf(cast(*u8)(*(((buffers).line).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("else {")))
+                if ((length < 0) || (cast(u64)(cast(usize)(length)) >= cast(u64)size_of(CheckArray4096_u8))) {
+                    break goto_too_long
+                }
+                if_case_generated(cast(*IR.ZirStmt)(cast(usize)(output) + cast(usize)(CheckPost0(*(next))) * size_of(IR.ZirStmt)), cast(IR.ZirStmtKind)(6), cast(*u8)(*(((buffers).line).items)), (head).span)
+                if_case_generated(cast(*IR.ZirStmt)(cast(usize)(output) + cast(usize)(CheckPost0(*(next))) * size_of(IR.ZirStmt)), cast(IR.ZirStmtKind)(15), CheckCString("unreachable"), (head).span)
+                if_case_generated(cast(*IR.ZirStmt)(cast(usize)(output) + cast(usize)(CheckPost0(*(next))) * size_of(IR.ZirStmt)), cast(IR.ZirStmtKind)(2), CheckCString("}"), (head).span)
+            }
+            if (all_return != 0) {
+                if_case_generated(cast(*IR.ZirStmt)(cast(usize)(output) + cast(usize)(CheckPost0(*(next))) * size_of(IR.ZirStmt)), cast(IR.ZirStmtKind)(15), CheckCString("unreachable"), (head).span)
+            }
+            {
+                i: s32 = (close + 1)
+                while check_loop_170 := (i < (fn).stmt_count) {
+                    (output)[CheckPost0(*(next))] = ((fn).stmts)[i]
+                    CheckPost0(*(i))
+                }
+            }
+            if (next > capacity) {
+                if_case_error(c, (head).span, CheckCString("internal if-case lowering overflow"), CheckCString(""))
+                break goto_done
+            }
+            CompilerFree(cast(*void)((fn).stmts))
+            (fn).stmts = output
+            (fn).stmt_count = CheckSet7(*((fn).stmt_cap), next)
+            output = null
+            ok = 1
+            break goto_done
+            break
+        }
+        if_case_error(c, (head).span, CheckCString("if-case expression exceeds statement limit"), CheckCString(""))
+        break
+    }
+    CompilerFree(cast(*void)(output))
+    CompilerFree(cast(*void)(cases))
+    CompilerFree(cast(*void)(through))
+    CompilerFree(cast(*void)(members))
+    CompilerFree(cast(*void)(seen))
+    return ok
+}
+
+#scope_export
+#program_export "private_check_lower_if_case"
+lower_if_case :: (c: *Checker, index: s32, checked_type: *u8) -> s32 {
+    buffers := cast(*LowerIfCaseBuffers)CheckScratchTake(*ScratchKey_lower_if_case, size_of(LowerIfCaseBuffers))
+    defer CheckScratchRelease(*ScratchKey_lower_if_case, cast(*void)buffers)
+    return lower_if_case_with_buffers(c, index, checked_type, buffers)
+}
+
+#scope_export
+#program_export "private_check_validate_loop_targets"
+validate_loop_targets :: (c: *Checker, fn: *IR.ZirFunction) -> s32 {
+    depth: s32 = 0
+    ok: s32 = 1
+    scopes: *s32 = cast(*s32)(CompilerCalloc((cast(usize)((fn).stmt_count) + cast(usize)(1)), cast(usize)(cast(u64)size_of(s32))))
+    seen: *u8 = cast(*u8)(CompilerCalloc((cast(usize)((fn).stmt_count) + cast(usize)(1)), cast(usize)(cast(u64)size_of(u8))))
+    if ((scopes == cast(*s32)((null))) || (seen == cast(*u8)((null)))) {
+        CompilerFree(cast(*void)(scopes))
+        CompilerFree(cast(*void)(seen))
+        error(c, (fn).span, CheckCString("out of memory checking loop targets"), CheckCString(""))
+        (c).failed = 1
+        return 0
+    }
+    {
+        i: s32 = 0
+        while check_loop_171 := (i < (fn).stmt_count) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))
+            if (cast(s32)((st).kind) == 2) {
+                if (depth == 0) {
+                    error(c, (st).span, CheckCString("unexpected block close"), CheckCString(""))
+                    ok = 0
+                    break check_loop_171
+                }
+                CheckPost9(*(depth))
+            }
+            if ((((((((((st).loop_id < 0) || ((st).target_id < 0)) || (((st).loop_id != 0) && (cast(s32)((st).kind) != 7))) || ((st).for_form < 0)) || ((st).for_form > 2)) || (((st).for_form != 0) && !((st).loop_id != 0))) || ((st).for_step < 0)) || (((st).for_step != 0) && (cast(s32)((st).kind) != 4))) || ((((st).target_id != 0) && (cast(s32)((st).kind) != 11)) && (cast(s32)((st).kind) != 12))) {
+                error(c, (st).span, CheckCString("invalid loop control metadata"), CheckCString(""))
+                ok = 0
+                break check_loop_171
+            }
+            if ((cast(s32)((st).kind) == 11) || (cast(s32)((st).kind) == 12)) {
+                found: s32 = 0
+                {
+                    scope: s32 = (depth - 1)
+                    while check_loop_172 := (scope >= 0) {
+                        if ((ifx ((st).target_id != 0) then cast(s32)((scopes)[scope] == (st).target_id) else cast(s32)((scopes)[scope] != 0)) != 0) {
+                            found = 1
+                            break check_loop_172
+                        }
+                        CheckPost9(*(scope))
+                    }
+                }
+                if !(found != 0) {
+                    error(c, (st).span, CheckCString("loop control requires an enclosing target"), (st).text)
+                    ok = 0
+                    break check_loop_171
+                }
+            }
+            if (cast(s32)((st).kind) == 7) {
+                if (((st).loop_id > (fn).stmt_count) || (((st).loop_id != 0) && ((seen)[(st).loop_id] != 0))) {
+                    error(c, (st).span, CheckCString("duplicate or invalid loop target"), (st).text)
+                    ok = 0
+                    break check_loop_171
+                }
+                if ((st).loop_id != 0) {
+                    (seen)[(st).loop_id] = cast(u8)(1)
+                }
+                (scopes)[CheckPost0(*(depth))] = (ifx ((st).loop_id != 0) then (st).loop_id else (-1))
+            } else {
+                if ((cast(s32)((st).kind) == 6) || (cast(s32)((st).kind) == 1)) {
+                    (scopes)[CheckPost0(*(depth))] = 0
+                }
+            }
+            CheckPost0(*(i))
+        }
+    }
+    if ((ok != 0) && (depth != 0)) {
+        error(c, (fn).span, CheckCString("unclosed block in function"), cast(*u8)(*((fn).name)))
+        ok = 0
+    }
+    CompilerFree(cast(*void)(scopes))
+    CompilerFree(cast(*void)(seen))
+    if !(ok != 0) {
+        (c).failed = 1
+    }
+    return ok
+}
+
+#scope_file
+call_must_use :: (c: *Checker, call: *IR.ZirExpr) -> s32 {
+    owner: *IR.ZirModule = null
+    callee: *IR.ZirFunction = null
+    name: *u8 = strrchr((call).name, 46)
+    if (((call).slot_type)[0] != 0) {
+        return 0
+    }
+    if ((ResolveFunctionAt((c).module, (call).name, SpanPath((call).span), *(owner), *(callee)) == 1) && (callee != cast(*IR.ZirFunction)((null)))) {
+        return (callee).must_use
+    }
+    name = (ifx (name != cast(*u8)((null))) then cast(*u8)(cast(usize)(name) + cast(usize)(1) * size_of(u8)) else (call).name)
+    {
+        i: s32 = 0
+        while check_loop_173 := (i < (c).specialization_count) {
+            request: *SpecializationRequest = cast(*SpecializationRequest)(cast(usize)((c).specializations) + cast(usize)(i) * size_of(SpecializationRequest))
+            if (strcmp(cast(*u8)(*(((request).name).items)), name) == 0) {
+                return ((((request).template_owner).functions)[(request).template_index]).must_use
+            }
+            CheckPost0(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while check_loop_174 := (i < ((c).module).import_count) {
+            import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)(((c).module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
+            if (((cast(s32)((import_local).kind) == 3) && (in_lookup_file((c).module, (import_local).is_file_private, (import_local).span) != 0)) && (strcmp(cast(*u8)(*((import_local).name)), (call).name) == 0)) {
+                return (import_local).must_use
+            }
+            CheckPost0(*(i))
+        }
+    }
+    qualified_host: *IR.ZirImport = null
+    return cast(s32)((ResolveQualifiedHostImportAt((c).module, (call).name, SpanPath((call).span), *(owner), *(qualified_host)) == 1) && ((qualified_host).must_use != 0))
+}
+
+#scope_export
+#program_export "private_check_discarded_must_call"
+discarded_must_call :: (c: *Checker, index: s32) -> s32 {
+    if (index < 0) {
+        return (-1)
+    }
+    expression: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)(((c).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if (cast(s32)((expression).kind) == 5) {
+        return (ifx (call_must_use(c, expression) != 0) then index else (-1))
+    }
+    found: s32 = discarded_must_call(c, (expression).left)
+    if (found >= 0) {
+        return found
+    }
+    found = discarded_must_call(c, (expression).right)
+    if (found >= 0) {
+        return found
+    }
+    found = discarded_must_call(c, (expression).third)
+    if (found >= 0) {
+        return found
+    }
+    {
+        child: s32 = (expression).first_child
+        while check_loop_175 := (child >= 0) {
+            found = discarded_must_call(c, child)
+            if (found >= 0) {
+                return found
+            }
+            child = ((((c).fn).exprs)[child]).next_sibling
+        }
+    }
+    return (-1)
+}
+
+#scope_file
+conversion_matches :: (c: *Checker, conversion: *IR.ZirFunction, from: *u8, to: *u8) -> s32 {
+    if ((((conversion).is_template != 0) || ((conversion).is_extern != 0)) || (strcmp(cast(*u8)(*((conversion).return_type)), to) != 0)) {
+        return 0
+    }
+    parameters: *ZirParameters = ParametersOf(FunctionArgs(conversion))
+    if (((parameters).count != 1) || ((((parameters).items).items[0]).type == cast(*u8)((null)))) {
+        return 0
+    }
+    return compatible((((parameters).items).items[0]).type, from)
+}
+
+#scope_export
+#program_export "private_check_instantiate_enum_names"
+instantiate_enum_names :: (c: *Checker) -> s32 {
+    {
+        r: s32 = 0
+        while check_loop_176 := (r < (c).enum_name_count) {
+            request: *EnumNameRequest = cast(*EnumNameRequest)(cast(usize)((c).enum_names) + cast(usize)(r) * size_of(EnumNameRequest))
+            owner: *IR.ZirModule = (request).owner
+            if ((request).statements != cast(*u8)((null))) {
+                fn: *IR.ZirFunction = ModuleAddFunction(owner, cast(*u8)(*(((request).function).items)), (request).args, CheckCString("void"), 0, (request).span)
+                if ((fn == cast(*IR.ZirFunction)((null))) || !(normalize_function_arrays(owner, fn) != 0)) {
+                    return 0
+                }
+                (fn).is_public = 1
+                (fn).is_specialization = 1
+                copy_text(cast(*u8)(*((fn).template_param)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("T"))
+                copy_text(cast(*u8)(*((fn).specialization_type)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), cast(*u8)(*(((request).type).items)))
+                {
+                    line: *u8 = (request).statements
+                    while check_loop_177 := ((line)[0] != 0) {
+                        end: *u8 = strchr(line, 10)
+                        if (end != cast(*u8)((null))) {
+                            CheckSet13(end, cast(u8)(0))
+                        }
+                        if (FunctionAddStmt(fn, cast(IR.ZirStmtKind)(5), line, (request).span) == cast(*IR.ZirStmt)((null))) {
+                            return 0
+                        }
+                        if (end == cast(*u8)((null))) {
+                            break check_loop_177
+                        }
+                        line = cast(*u8)(cast(usize)(end) + cast(usize)(1) * size_of(u8))
+                    }
+                }
+                CompilerFree(cast(*void)((request).args))
+                CompilerFree(cast(*void)((request).statements))
+                (request).args = CheckSet12(*((request).statements), null)
+                CheckPost0(*(r))
+                continue check_loop_176
+            }
+            enumeration: *IR.ZirType = null
+            {
+                t: s32 = 0
+                while check_loop_178 := ((t < (owner).type_count) && (enumeration == cast(*IR.ZirType)((null)))) {
+                    if !(strcmp(cast(*u8)(*((((owner).types)[t]).name)), cast(*u8)(*(((request).type).items))) != 0) {
+                        enumeration = cast(*IR.ZirType)(cast(usize)((owner).types) + cast(usize)(t) * size_of(IR.ZirType))
+                    }
+                    CheckPost0(*(t))
+                }
+            }
+            if (enumeration == cast(*IR.ZirType)((null))) {
+                return 0
+            }
+            body: *u8 = cast(*u8)(AllocateOrExit(cast(usize)((4096 * 2))))
+            copy_text(body, cast(usize)((4096 * 2)), cast(*u8)(*((enumeration).body)))
+            args_storage_0 := cast(*CheckArray4096_u8)AllocateOrExit(size_of(CheckArray4096_u8))
+            defer CompilerFree(cast(*void)args_storage_0)
+            memset(cast(*void)args_storage_0, 0, size_of(CheckArray4096_u8))
+            snprintf(cast(*u8)(*((args_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("value: %s"), cast(*u8)(*(((request).type).items)))
+            fn: *IR.ZirFunction = ModuleAddFunction(owner, cast(*u8)(*(((request).function).items)), cast(*u8)(*((args_storage_0[0]).items)), CheckCString("string"), 0, (request).span)
+            if (fn == cast(*IR.ZirFunction)((null))) {
+                CompilerFree(cast(*void)(body))
+                return 0
+            }
+            (fn).is_public = 1
+            (fn).is_specialization = 1
+            copy_text(cast(*u8)(*((fn).template_param)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("T"))
+            copy_text(cast(*u8)(*((fn).specialization_type)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), cast(*u8)(*(((request).type).items)))
+            line_storage_1 := cast(*CheckArray4096_u8)AllocateOrExit(size_of(CheckArray4096_u8))
+            defer CompilerFree(cast(*void)line_storage_1)
+            memset(cast(*void)line_storage_1, 0, size_of(CheckArray4096_u8))
+            {
+                cursor: *u8 = body
+                while check_loop_179 := ((cursor)[0] != 0) {
+                    while check_loop_180 := ((cast(s32)(cast(s8)((cursor)[0])) == 44) || (isspace(cast(s32)(cast(u8)((cursor)[0]))) != 0)) {
+                        CheckPost6(*(cursor))
+                    }
+                    member: *u8 = cursor
+                    while check_loop_181 := ((isalnum(cast(s32)(cast(u8)((cursor)[0]))) != 0) || (cast(s32)(cast(s8)((cursor)[0])) == 95)) {
+                        CheckPost6(*(cursor))
+                    }
+                    length: usize = cast(usize)(((cast(s64)(cast(isize)(cast(usize)(cursor) - cast(usize)(member))) / cast(s64)size_of(u8))))
+                    while check_loop_182 := ((((cursor)[0] != 0) && (cast(s32)(cast(s8)((cursor)[0])) != 44)) && (cast(s32)(cast(s8)((cursor)[0])) != 10)) {
+                        CheckPost6(*(cursor))
+                    }
+                    if (length == cast(usize)(0)) {
+                        continue check_loop_179
+                    }
+                    snprintf(cast(*u8)(*((line_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("if value == %s.%.*s {"), cast(*u8)(*(((request).type).items)), cast(s32)(length), member)
+                    added: s32 = cast(s32)(FunctionAddStmt(fn, cast(IR.ZirStmtKind)(6), cast(*u8)(*((line_storage_1[0]).items)), (request).span) != cast(*IR.ZirStmt)((null)))
+                    snprintf(cast(*u8)(*((line_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("return \"%.*s\";"), cast(s32)(length), member)
+                    added = cast(s32)(((added != 0) && (FunctionAddStmt(fn, cast(IR.ZirStmtKind)(10), cast(*u8)(*((line_storage_1[0]).items)), (request).span) != cast(*IR.ZirStmt)((null)))) && (FunctionAddStmt(fn, cast(IR.ZirStmtKind)(2), CheckCString("}"), (request).span) != cast(*IR.ZirStmt)((null))))
+                    if !(added != 0) {
+                        CompilerFree(cast(*void)(body))
+                        return 0
+                    }
+                }
+            }
+            CompilerFree(cast(*void)(body))
+            snprintf(cast(*u8)(*((line_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("return \"(invalid %s)\";"), cast(*u8)(*(((request).type).items)))
+            if (FunctionAddStmt(fn, cast(IR.ZirStmtKind)(10), cast(*u8)(*((line_storage_1[0]).items)), (request).span) == cast(*IR.ZirStmt)((null))) {
+                return 0
+            }
+            CheckPost0(*(r))
+        }
+    }
+    (c).enum_name_count = 0
+    return 1
+}
+
+#scope_export
+#program_export "private_check_results_first_type"
+results_first_type :: (c: *Checker, type: *u8, out: *u8, size: usize) -> *u8 {
+    record: *IR.ZirType = (ifx ((type)[0] != 0) then FindType((c).module, type, null) else null)
+    if ((record == cast(*IR.ZirType)((null))) || !((record).is_results != 0)) {
+        return null
+    }
+    field: IR.ZirTypeField
+    offset: usize = cast(usize)(0)
+    if (TypeNextField(record, *(offset), *(field)) != 1) {
+        return null
+    }
+    copy_text(out, size, cast(*u8)(*((field).type)))
+    return out
+}
+
+#scope_export
+#program_export "private_check_select_first_result"
+select_first_result :: (c: *Checker, index: s32) -> *u8 {
+    fn: *IR.ZirFunction = (c).fn
+    first_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)first_storage_0)
+    memset(cast(*void)first_storage_0, 0, size_of(CheckArray128_u8))
+    if ((index < 0) || (results_first_type(c, (((fn).exprs)[index]).type, cast(*u8)(*((first_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) == cast(*u8)((null)))) {
+        return null
+    }
+    if ((c).inference_only != 0) {
+        return KeepText(cast(*u8)(*((first_storage_0[0]).items)))
+    }
+    name_storage_1 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)name_storage_1)
+    memset(cast(*void)name_storage_1, 0, size_of(CheckArray128_u8))
+    copy_text(cast(*u8)(*((name_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), (((fn).exprs)[index]).name)
+    copy_slot: *IR.ZirExpr = FunctionAddExpr(fn, (((fn).exprs)[index]).kind, cast(*u8)(*((name_storage_1[0]).items)), (((fn).exprs)[index]).span)
+    if (copy_slot == cast(*IR.ZirExpr)((null))) {
+        (c).failed = 1
+        return null
+    }
+    saved: IR.ZirExpr = ((fn).exprs)[index]
+    copy_index: s32 = cast(s32)(((cast(s64)(cast(isize)(cast(usize)(copy_slot) - cast(usize)((fn).exprs))) / cast(s64)size_of(IR.ZirExpr))))
+    CheckSet16(copy_slot, saved)
+    (copy_slot).next_sibling = (-1)
+    (copy_slot).argument_index = (-1)
+    (copy_slot).argument_name = CheckCString("")
+    member: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    ExprReset(member)
+    (member).kind = cast(IR.ZirExprKind)(8)
+    (member).text = (saved).text
+    (member).name = KeepName(CheckCString("value_0"))
+    copy_text(cast(*u8)(*((member).op)), cast(usize)(cast(u64)size_of(CheckArray8_u8)), CheckCString("."))
+    (member).type = KeepName(cast(*u8)(*((first_storage_0[0]).items)))
+    (member).argument_name = (saved).argument_name
+    (member).argument_index = (saved).argument_index
+    (member).left = copy_index
+    (member).right = CheckSet7(*((member).first_child), CheckSet7(*((member).third), (-1)))
+    (member).next_sibling = (saved).next_sibling
+    (member).span = (saved).span
+    (c).conversions_applied = 1
+    return (member).type
+}
+
+#scope_file
+vec_place_path :: (fn: *IR.ZirFunction, index: s32) -> s32 {
+    while check_loop_183 := ((index >= 0) && ((cast(s32)((((fn).exprs)[index]).kind) == 8) || (cast(s32)((((fn).exprs)[index]).kind) == 9))) {
+        index = (((fn).exprs)[index]).left
+    }
+    return cast(s32)((index >= 0) && (cast(s32)((((fn).exprs)[index]).kind) == 1))
+}
+
+#scope_file
+clone_place :: (c: *Checker, index: s32) -> s32 {
+    fn: *IR.ZirFunction = (c).fn
+    left: s32 = (-1)
+    if ((cast(s32)((((fn).exprs)[index]).kind) != 1) && ((CheckSet7(*(left), clone_place(c, (((fn).exprs)[index]).left))) < 0)) {
+        return (-1)
+    }
+    saved: IR.ZirExpr = ((fn).exprs)[index]
+    added: *IR.ZirExpr = FunctionAddExpr(fn, (saved).kind, (saved).name, (saved).span)
+    if (added == cast(*IR.ZirExpr)((null))) {
+        (c).failed = 1
+        return (-1)
+    }
+    CheckSet16(added, saved)
+    (added).left = left
+    (added).next_sibling = (-1)
+    (added).argument_index = (-1)
+    (added).argument_name = CheckCString("")
+    return cast(s32)(((cast(s64)(cast(isize)(cast(usize)(added) - cast(usize)((fn).exprs))) / cast(s64)size_of(IR.ZirExpr))))
+}
+
+#scope_file
+vec_slice_call :: (c: *Checker, index: s32, place: s32, low: s32, high: s32) -> *u8 {
+    fn: *IR.ZirFunction = (c).fn
+    span: IR.ZirSourceSpan = (((fn).exprs)[index]).span
+    if (low < 0) {
+        zero: *IR.ZirExpr = FunctionAddExpr(fn, cast(IR.ZirExprKind)(2), CheckCString("0"), span)
+        if (zero == cast(*IR.ZirExpr)((null))) {
+            (c).failed = 1
+            return CheckCString("")
+        }
+        (zero).name = CheckCString("")
+        (zero).type = KeepName(CheckCString("s64"))
+        low = cast(s32)(((cast(s64)(cast(isize)(cast(usize)(zero) - cast(usize)((fn).exprs))) / cast(s64)size_of(IR.ZirExpr))))
+    }
+    if (high < 0) {
+        again: s32 = clone_place(c, place)
+        count: *IR.ZirExpr = (ifx (again < 0) then null else FunctionAddExpr(fn, cast(IR.ZirExprKind)(8), CheckCString("count"), span))
+        if (count == cast(*IR.ZirExpr)((null))) {
+            (c).failed = 1
+            return CheckCString("")
+        }
+        (count).name = KeepName(CheckCString("count"))
+        copy_text(cast(*u8)(*((count).op)), cast(usize)(cast(u64)size_of(CheckArray8_u8)), CheckCString("."))
+        (count).type = KeepName(CheckCString("s64"))
+        (count).left = again
+        high = cast(s32)(((cast(s64)(cast(isize)(cast(usize)(count) - cast(usize)((fn).exprs))) / cast(s64)size_of(IR.ZirExpr))))
+    }
+    saved: IR.ZirExpr = ((fn).exprs)[index]
+    bounds_storage_0 := cast(*CheckArray3_s32)AllocateOrExit(size_of(CheckArray3_s32))
+    defer CompilerFree(cast(*void)bounds_storage_0)
+    memset(cast(*void)bounds_storage_0, 0, size_of(CheckArray3_s32))
+    bounds_storage_0[0] = .{items = .{place, low, high}}
+    {
+        i: s32 = 0
+        while check_loop_184 := (i < 3) {
+            (((fn).exprs)[(bounds_storage_0[0]).items[i]]).next_sibling = (ifx (i < 2) then (bounds_storage_0[0]).items[(i + 1)] else (-1))
+            (((fn).exprs)[(bounds_storage_0[0]).items[i]]).argument_index = (-1)
+            (((fn).exprs)[(bounds_storage_0[0]).items[i]]).argument_name = CheckCString("")
+            CheckPost0(*(i))
+        }
+    }
+    call: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    ExprReset(call)
+    (call).kind = cast(IR.ZirExprKind)(5)
+    (call).text = (saved).text
+    (call).name = KeepName(CheckCString("VecSlice"))
+    (call).argument_name = (saved).argument_name
+    (call).argument_index = (saved).argument_index
+    (call).first_child = place
+    (call).left = CheckSet7(*((call).right), CheckSet7(*((call).third), (-1)))
+    (call).next_sibling = (saved).next_sibling
+    (call).span = span
+    (c).conversions_applied = 1
+    return expression_type(c, index)
+}
+
+#scope_export
+#program_export "private_check_slice_vec_place"
+slice_vec_place :: (c: *Checker, index: s32, vector: *u8) -> *u8 {
+    fn: *IR.ZirFunction = (c).fn
+    element_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)element_storage_0)
+    memset(cast(*void)element_storage_0, 0, size_of(CheckArray128_u8))
+    slice_storage_1 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)slice_storage_1)
+    memset(cast(*void)slice_storage_1, 0, size_of(CheckArray128_u8))
+    if (!(VecElementType((c).module, vector, cast(*u8)(*((element_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0) || (snprintf(cast(*u8)(*((slice_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("[]%s"), cast(*u8)(*((element_storage_0[0]).items))) >= cast(s32)(cast(u64)size_of(CheckArray128_u8)))) {
+        return CheckCString("")
+    }
+    if !(vec_place_path(fn, (((fn).exprs)[index]).left) != 0) {
+        error(c, (((fn).exprs)[index]).span, CheckCString("a Vec slice views a named Vec place"), (((fn).exprs)[index]).text)
+        return CheckCString("")
+    }
+    if ((c).inference_only != 0) {
+        return KeepName(cast(*u8)(*((slice_storage_1[0]).items)))
+    }
+    e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    return vec_slice_call(c, index, (e).left, (e).right, (e).third)
+}
+
+#scope_file
+lend_vec_as_slice :: (c: *Checker, index: s32, to: *u8) -> *u8 {
+    fn: *IR.ZirFunction = (c).fn
+    element_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)element_storage_0)
+    memset(cast(*void)element_storage_0, 0, size_of(CheckArray128_u8))
+    wanted_storage_1 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)wanted_storage_1)
+    memset(cast(*void)wanted_storage_1, 0, size_of(CheckArray128_u8))
+    if ((((((cast(s32)((((fn).exprs)[index]).kind) != 1) || !(VecElementType((c).module, (((fn).exprs)[index]).type, cast(*u8)(*((element_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0)) || !(SliceElementType(to, cast(*u8)(*((wanted_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != 0)) || !(compatible_checked(c, cast(*u8)(*((wanted_storage_1[0]).items)), cast(*u8)(*((element_storage_0[0]).items))) != 0)) || !(compatible_checked(c, cast(*u8)(*((element_storage_0[0]).items)), cast(*u8)(*((wanted_storage_1[0]).items))) != 0)) || (lexical_vec_binding(c, index) == cast(*Binding)((null)))) {
+        return null
+    }
+    if ((c).inference_only != 0) {
+        return to
+    }
+    place: s32 = clone_place(c, index)
+    if (place < 0) {
+        return null
+    }
+    return vec_slice_call(c, index, place, (-1), (-1))
+}
+
+#scope_file
+lend_text_as_string :: (c: *Checker, index: s32, to: *u8) -> *u8 {
+    fn: *IR.ZirFunction = (c).fn
+    kind: IR.ZirExprKind = (((fn).exprs)[index]).kind
+    if (((strcmp(to, CheckCString("string")) != 0) || !(OwnedTextType((c).module, (((fn).exprs)[index]).type) != 0)) || ((((cast(s32)(kind) != 1) && (cast(s32)(kind) != 8)) && (cast(s32)(kind) != 9)) && (cast(s32)(kind) != 10))) {
+        return null
+    }
+    if ((c).inference_only != 0) {
+        return to
+    }
+    name_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)name_storage_0)
+    memset(cast(*void)name_storage_0, 0, size_of(CheckArray128_u8))
+    copy_text(cast(*u8)(*((name_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), (((fn).exprs)[index]).name)
+    added: *IR.ZirExpr = FunctionAddExpr(fn, kind, cast(*u8)(*((name_storage_0[0]).items)), (((fn).exprs)[index]).span)
+    if (added == cast(*IR.ZirExpr)((null))) {
+        (c).failed = 1
+        return null
+    }
+    place: s32 = cast(s32)(((cast(s64)(cast(isize)(cast(usize)(added) - cast(usize)((fn).exprs))) / cast(s64)size_of(IR.ZirExpr))))
+    saved: IR.ZirExpr = ((fn).exprs)[index]
+    ((fn).exprs)[place] = saved
+    (((fn).exprs)[place]).next_sibling = (-1)
+    (((fn).exprs)[place]).argument_index = (-1)
+    (((fn).exprs)[place]).argument_name = CheckCString("")
+    call: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    ExprReset(call)
+    (call).kind = cast(IR.ZirExprKind)(5)
+    (call).text = (saved).text
+    (call).name = KeepName(CheckCString("TextView"))
+    (call).argument_name = (saved).argument_name
+    (call).argument_index = (saved).argument_index
+    (call).first_child = place
+    (call).left = CheckSet7(*((call).right), CheckSet7(*((call).third), (-1)))
+    (call).next_sibling = (saved).next_sibling
+    (call).span = (saved).span
+    (c).conversions_applied = 1
+    return expression_type(c, index)
+}
+
+#scope_export
+#program_export "private_check_widen_expression"
+widen_expression :: (c: *Checker, index: s32, to: *u8) -> *u8 {
+    fn: *IR.ZirFunction = (c).fn
+    target_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)target_storage_0)
+    memset(cast(*void)target_storage_0, 0, size_of(CheckArray128_u8))
+    copy_text(cast(*u8)(*((target_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), to)
+    name_storage_1 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)name_storage_1)
+    memset(cast(*void)name_storage_1, 0, size_of(CheckArray128_u8))
+    copy_text(cast(*u8)(*((name_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), (((fn).exprs)[index]).name)
+    copy_slot: *IR.ZirExpr = FunctionAddExpr(fn, (((fn).exprs)[index]).kind, cast(*u8)(*((name_storage_1[0]).items)), (((fn).exprs)[index]).span)
+    if (copy_slot == cast(*IR.ZirExpr)((null))) {
+        (c).failed = 1
+        return null
+    }
+    saved: IR.ZirExpr = ((fn).exprs)[index]
+    copy_index: s32 = cast(s32)(((cast(s64)(cast(isize)(cast(usize)(copy_slot) - cast(usize)((fn).exprs))) / cast(s64)size_of(IR.ZirExpr))))
+    CheckSet16(copy_slot, saved)
+    (copy_slot).next_sibling = (-1)
+    (copy_slot).argument_index = (-1)
+    (copy_slot).argument_name = CheckCString("")
+    cast_local: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    ExprReset(cast_local)
+    (cast_local).kind = cast(IR.ZirExprKind)(11)
+    (cast_local).text = (saved).text
+    (cast_local).name = KeepName(cast(*u8)(*((target_storage_0[0]).items)))
+    (cast_local).type = KeepName(cast(*u8)(*((target_storage_0[0]).items)))
+    (cast_local).argument_name = (saved).argument_name
+    (cast_local).argument_index = (saved).argument_index
+    (cast_local).left = CheckSet7(*((cast_local).first_child), CheckSet7(*((cast_local).third), (-1)))
+    (cast_local).right = copy_index
+    (cast_local).next_sibling = (saved).next_sibling
+    (cast_local).span = (saved).span
+    (c).conversions_applied = 1
+    return (cast_local).type
+}
+
+#scope_export
+#program_export "private_check_try_conversion"
+try_conversion :: (c: *Checker, index: s32, to: *u8, span: IR.ZirSourceSpan) -> *u8 {
+    from: *u8 = ((((c).fn).exprs)[index]).type
+    conversion: *IR.ZirFunction = null
+    owner: *IR.ZirModule = null
+    first_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)first_storage_0)
+    memset(cast(*void)first_storage_0, 0, size_of(CheckArray128_u8))
+    if (((strcmp(from, to) != 0) && (results_first_type(c, from, cast(*u8)(*((first_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8))) != cast(*u8)((null)))) && ((compatible_checked(c, to, cast(*u8)(*((first_storage_0[0]).items))) != 0) || (widens_losslessly(to, cast(*u8)(*((first_storage_0[0]).items))) != 0))) {
+        target_storage_1 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+        defer CompilerFree(cast(*void)target_storage_1)
+        memset(cast(*void)target_storage_1, 0, size_of(CheckArray128_u8))
+        copy_text(cast(*u8)(*((target_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), to)
+        selected: *u8 = select_first_result(c, index)
+        if ((selected == cast(*u8)((null))) || (compatible_checked(c, cast(*u8)(*((target_storage_1[0]).items)), selected) != 0)) {
+            return selected
+        }
+        return (ifx ((c).inference_only != 0) then KeepText(cast(*u8)(*((target_storage_1[0]).items))) else widen_expression(c, index, cast(*u8)(*((target_storage_1[0]).items))))
+    }
+    if (((from)[0] != 0) && (widens_losslessly(to, from) != 0)) {
+        return (ifx ((c).inference_only != 0) then to else widen_expression(c, index, to))
+    }
+    lent: *u8 = lend_vec_as_slice(c, index, to)
+    if (lent == cast(*u8)((null))) {
+        lent = lend_text_as_string(c, index, to)
+    }
+    if (lent != cast(*u8)((null))) {
+        return lent
+    }
+    if ((!((from)[0] != 0) || !(strcmp(from, to) != 0)) || ((c).inference_only != 0)) {
+        return null
+    }
+    {
+        pass: s32 = 0
+        while check_loop_185 := (pass < 2) {
+            scope: *IR.ZirModule = (ifx (pass == 0) then (c).module else null)
+            if (pass != 0) {
+                {
+                    i: s32 = 0
+                    while check_loop_186 := (i < ((c).module).import_count) {
+                        import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)(((c).module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
+                        if (((cast(s32)((import_local).kind) != 1) && !((cast(s32)((import_local).kind) == 2) && ((import_local).is_using != 0))) || ((import_local).resolved_module == cast(*IR.ZirModule)((null)))) {
+                            CheckPost0(*(i))
+                            continue check_loop_186
+                        }
+                        {
+                            f: s32 = 0
+                            while check_loop_187 := (f < ((import_local).resolved_module).function_count) {
+                                candidate: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)(((import_local).resolved_module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
+                                if ((((candidate).is_conversion != 0) && ((candidate).is_public != 0)) && (conversion_matches(c, candidate, from, to) != 0)) {
+                                    if ((conversion != cast(*IR.ZirFunction)((null))) && (conversion != candidate)) {
+                                        error(c, span, CheckCString("ambiguous #as conversion"), to)
+                                        return null
+                                    }
+                                    conversion = candidate
+                                    owner = (import_local).resolved_module
+                                }
+                                CheckPost0(*(f))
+                            }
+                        }
+                        CheckPost0(*(i))
+                    }
+                }
+                CheckPost0(*(pass))
+                continue check_loop_185
+            }
+            {
+                f: s32 = 0
+                while check_loop_188 := (f < (scope).function_count) {
+                    candidate: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((scope).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
+                    if (!((candidate).is_conversion != 0) || !(conversion_matches(c, candidate, from, to) != 0)) {
+                        CheckPost0(*(f))
+                        continue check_loop_188
+                    }
+                    if ((conversion != cast(*IR.ZirFunction)((null))) && (conversion != candidate)) {
+                        error(c, span, CheckCString("ambiguous #as conversion"), to)
+                        return null
+                    }
+                    conversion = candidate
+                    owner = scope
+                    CheckPost0(*(f))
+                }
+            }
+            CheckPost0(*(pass))
+        }
+    }
+    if (conversion == cast(*IR.ZirFunction)((null))) {
+        return null
+    }
+    (c).conversions_applied = 1
+    cast(void)(owner)
+    chain_next: s32 = ((((c).fn).exprs)[index]).next_sibling
+    saved_argument: s32 = ((((c).fn).exprs)[index]).argument_index
+    moved_name_storage_2 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+    defer CompilerFree(cast(*void)moved_name_storage_2)
+    memset(cast(*void)moved_name_storage_2, 0, size_of(CheckArray128_u8))
+    copy_text(cast(*u8)(*((moved_name_storage_2[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), ((((c).fn).exprs)[index]).name)
+    copy_slot: *IR.ZirExpr = FunctionAddExpr((c).fn, ((((c).fn).exprs)[index]).kind, cast(*u8)(*((moved_name_storage_2[0]).items)), ((((c).fn).exprs)[index]).span)
+    call: *IR.ZirExpr
+    saved: IR.ZirExpr
+    copy_index: s32
+    if (copy_slot == cast(*IR.ZirExpr)((null))) {
+        (c).failed = 1
+        return null
+    }
+    saved = (((c).fn).exprs)[index]
+    CheckSet16(copy_slot, saved)
+    (copy_slot).next_sibling = (-1)
+    (copy_slot).argument_index = 0
+    copy_index = cast(s32)(((cast(s64)(cast(isize)(cast(usize)(copy_slot) - cast(usize)(((c).fn).exprs))) / cast(s64)size_of(IR.ZirExpr))))
+    call = cast(*IR.ZirExpr)(cast(usize)(((c).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    ExprReset(call)
+    (call).kind = cast(IR.ZirExprKind)(5)
+    (call).name = KeepName(cast(*u8)(*((conversion).name)))
+    (call).argument_index = saved_argument
+    (call).first_child = copy_index
+    (call).left = (-1)
+    (call).right = (-1)
+    (call).third = (-1)
+    (call).next_sibling = chain_next
+    (call).span = (saved).span
+    (call).type = KeepName(cast(*u8)(*((conversion).return_type)))
+    argument: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)(((c).fn).exprs) + cast(usize)(copy_index) * size_of(IR.ZirExpr))
+    colon: *u8 = strchr(FunctionArgs(conversion), 58)
+    context: *u8 = (ifx (colon != cast(*u8)((null))) then ScalarType(skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8)))) else CheckCString(""))
+    if (((context)[0] != 0) && (!(strcmp((argument).type, CheckCString("integer")) != 0) || !(strcmp((argument).type, CheckCString("real")) != 0))) {
+        (argument).type = KeepName(context)
+    }
+    return (call).type
+}
+
+#scope_file
+rebuild_postorder :: (fn: *IR.ZirFunction, index: s32, out: *IR.ZirExpr, count: *s32, remap: *s32) -> s32 {
+    self: s32
+    node: *IR.ZirExpr
+    if ((index < 0) || (index >= (fn).expr_count)) {
+        return 1
+    }
+    if ((remap)[index] >= 0) {
+        return 1
+    }
+    node = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    left: s32 = (node).left
+    right: s32 = (node).right
+    third: s32 = (node).third
+    child: s32 = (node).first_child
+    if ((!(rebuild_postorder(fn, left, out, count, remap) != 0) || !(rebuild_postorder(fn, right, out, count, remap) != 0)) || !(rebuild_postorder(fn, third, out, count, remap) != 0)) {
+        return 0
+    }
+    while check_loop_189 := (child >= 0) {
+        next: s32 = (((fn).exprs)[child]).next_sibling
+        if !(rebuild_postorder(fn, child, out, count, remap) != 0) {
+            return 0
+        }
+        child = next
+    }
+    self = (count)[0]
+    (out)[self] = ((fn).exprs)[index]
+    (remap)[index] = self
+    node = cast(*IR.ZirExpr)(cast(usize)(out) + cast(usize)(self) * size_of(IR.ZirExpr))
+    (node).left = (ifx ((node).left >= 0) then (remap)[(node).left] else (-1))
+    (node).right = (ifx ((node).right >= 0) then (remap)[(node).right] else (-1))
+    (node).third = (ifx ((node).third >= 0) then (remap)[(node).third] else (-1))
+    (node).first_child = (ifx ((node).first_child >= 0) then (remap)[(node).first_child] else (-1))
+    (node).next_sibling = (-1)
+    {
+        child: s32 = (((fn).exprs)[index]).first_child
+        while check_loop_190 := (child >= 0) {
+            next: s32 = (((fn).exprs)[child]).next_sibling
+            ((out)[(remap)[child]]).next_sibling = (ifx (next >= 0) then (remap)[next] else (-1))
+            child = (((fn).exprs)[child]).next_sibling
+        }
+    }
+    CheckPost0(count)
+    return 1
+}
+
+#scope_export
+#program_export "private_check_rebuild_conversion_layout"
+rebuild_conversion_layout :: (fn: *IR.ZirFunction) -> s32 {
+    out: *IR.ZirExpr = cast(*IR.ZirExpr)(CompilerCalloc(cast(usize)((fn).expr_count), cast(usize)(cast(u64)size_of(IR.ZirExpr))))
+    remap: *s32 = cast(*s32)(CompilerCalloc(cast(usize)((fn).expr_count), cast(usize)(cast(u64)size_of(s32))))
+    count: s32 = 0
+    if ((out == cast(*IR.ZirExpr)((null))) || (remap == cast(*s32)((null)))) {
+        CompilerFree(cast(*void)(out))
+        CompilerFree(cast(*void)(remap))
+        return 0
+    }
+    {
+        i: s32 = 0
+        while check_loop_191 := (i < (fn).expr_count) {
+            (remap)[i] = (-1)
+            CheckPost0(*(i))
+        }
+    }
+    {
+        s: s32 = 0
+        while check_loop_192 := (s < (fn).stmt_count) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+            if (!(rebuild_postorder(fn, (st).expr_root, out, *(count), remap) != 0) || !(rebuild_postorder(fn, (st).lhs_root, out, *(count), remap) != 0)) {
+                CompilerFree(cast(*void)(out))
+                CompilerFree(cast(*void)(remap))
+                return 0
+            }
+            CheckPost0(*(s))
+        }
+    }
+    {
+        s: s32 = 0
+        while check_loop_193 := (s < (fn).stmt_count) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+            if ((st).expr_root >= 0) {
+                (st).expr_root = (remap)[(st).expr_root]
+            }
+            if ((st).lhs_root >= 0) {
+                (st).lhs_root = (remap)[(st).lhs_root]
+            }
+            CheckPost0(*(s))
+        }
+    }
+    memcpy(cast(*void)((fn).exprs), cast(*void)(out), cast(usize)((cast(u64)(cast(usize)(count)) * cast(u64)size_of(IR.ZirExpr))))
+    (fn).expr_count = count
+    CompilerFree(cast(*void)(out))
+    CompilerFree(cast(*void)(remap))
+    return 1
+}
+
+#scope_file
+vec_primitive_name :: (name: *u8) -> s32 {
+    return cast(s32)(((((((((((!(strcmp(name, CheckCString("VecPush")) != 0) || !(strcmp(name, CheckCString("VecReserve")) != 0)) || (!(strcmp(name, CheckCString("VecResize")) != 0) || !(strcmp(name, CheckCString("VecResizeBounded")) != 0))) || !(strcmp(name, CheckCString("VecClear")) != 0)) || !(strcmp(name, CheckCString("VecFree")) != 0)) || !(strcmp(name, CheckCString("VecSwap")) != 0)) || !(strcmp(name, CheckCString("VecPop")) != 0)) || !(strcmp(name, CheckCString("VecGet")) != 0)) || !(strcmp(name, CheckCString("VecClone")) != 0)) || !(strcmp(name, CheckCString("VecSlice")) != 0)) || !(strcmp(name, CheckCString("BuilderAppend")) != 0)) || !(strcmp(name, CheckCString("BuilderFinish")) != 0))
+}
+
+#scope_export
+#program_export "private_check_mark_expr_moves"
+mark_expr_moves :: (c: *Checker, index: s32) {
+    e: *IR.ZirExpr
+    primitive: s32
+    if ((index < 0) || (index >= ((c).fn).expr_count)) {
+        return
+    }
+    e = cast(*IR.ZirExpr)(cast(usize)(((c).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if ((cast(s32)((e).kind) == 15) && (contains_vec((c).module, (e).type, 0) != 0)) {
+        right: s32 = (e).right
+        binding: *Binding = lexical_owned_binding(c, right)
+        if (binding != cast(*Binding)((null))) {
+            if (((binding).moved != 0) || ((binding).moved_path_count != 0)) {
+                error(c, ((((c).fn).exprs)[right]).span, CheckCString("owned binding is used after moving"), cast(*u8)(*(((binding).name).items)))
+                return
+            }
+            if ((binding).borrow_count > 0) {
+                error(c, (e).span, CheckCString("cannot move a Vec with a live borrowed view"), cast(*u8)(*(((binding).name).items)))
+                return
+            }
+            (binding).moved = 1
+            ((((c).fn).exprs)[right]).is_move = 1
+            return
+        }
+        if (mark_moved_member_path(c, right) != 0) {
+            return
+        }
+        if (global_owned_place(c, right) != 0) {
+            ((((c).fn).exprs)[right]).is_move = 1
+            return
+        }
+        if ((cast(s32)(((((c).fn).exprs)[right]).kind) == 12) || (cast(s32)(((((c).fn).exprs)[right]).kind) == 5)) {
+            mark_expr_moves(c, right)
+            return
+        }
+        error(c, ((((c).fn).exprs)[right]).span, CheckCString("owned record field moves a binding or takes a call result"), (e).name)
+        return
+    }
+    if (cast(s32)((e).kind) == 1) {
+        binding: *Binding = lexical_vec_binding(c, index)
+        if ((binding != cast(*Binding)((null))) && ((binding).moved != 0)) {
+            error(c, (e).span, CheckCString("Vec binding is used after moving"), (e).name)
+        }
+        return
+    }
+    primitive = cast(s32)((cast(s32)((e).kind) == 5) && ((vec_primitive_name((e).name) != 0) || !(strcmp((e).name, CheckCString("TextView")) != 0)))
+    storage: *Binding = (ifx ((primitive != 0) && ((e).first_child >= 0)) then lexical_vec_binding(c, (e).first_child) else null)
+    storage_was_moved: s32 = cast(s32)((storage != cast(*Binding)((null))) && ((storage).moved != 0))
+    {
+        child: s32 = (e).first_child
+        while check_loop_194 := (child >= 0) {
+            binding: *Binding = (ifx (cast(s32)((e).kind) == 5) then lexical_owned_binding(c, child) else null)
+            pushed: s32 = cast(s32)((((primitive != 0) && !(strcmp((e).name, CheckCString("VecPush")) != 0)) && (child != (e).first_child)) && (contains_vec((c).module, ((((c).fn).exprs)[child]).type, 0) != 0))
+            consumes: s32 = cast(s32)(((!(primitive != 0) || (pushed != 0)) || !(strcmp((e).name, CheckCString("VecFree")) != 0)) || !(strcmp((e).name, CheckCString("BuilderFinish")) != 0))
+            if ((binding != cast(*Binding)((null))) && (consumes != 0)) {
+                if (((binding).moved != 0) || ((binding).moved_path_count != 0)) {
+                    error(c, ((((c).fn).exprs)[child]).span, CheckCString("owned binding is used after moving"), cast(*u8)(*(((binding).name).items)))
+                    child = ((((c).fn).exprs)[child]).next_sibling
+                    continue check_loop_194
+                }
+                if ((binding).borrow_count > 0) {
+                    error(c, (e).span, CheckCString("cannot move a Vec with a live borrowed view"), cast(*u8)(*(((binding).name).items)))
+                }
+                (binding).moved = 1
+                if (!(primitive != 0) || (pushed != 0)) {
+                    ((((c).fn).exprs)[child]).is_move = 1
+                }
+            } else {
+                if ((consumes != 0) && (mark_moved_member_path(c, child) != 0)) {
+                    child = ((((c).fn).exprs)[child]).next_sibling
+                    continue check_loop_194
+                } else {
+                    mark_expr_moves(c, child)
+                }
+            }
+            child = ((((c).fn).exprs)[child]).next_sibling
+        }
+    }
+    if ((((((primitive != 0) && (storage != cast(*Binding)((null)))) && !(storage_was_moved != 0)) && ((storage).moved != 0)) && (strcmp((e).name, CheckCString("VecFree")) != 0)) && (strcmp((e).name, CheckCString("BuilderFinish")) != 0)) {
+        error(c, (e).span, CheckCString("Vec operation moves its storage in an argument"), cast(*u8)(*(((storage).name).items)))
+    }
+    mark_expr_moves(c, (e).left)
+    mark_expr_moves(c, (e).right)
+    mark_expr_moves(c, (e).third)
+}
+
+#scope_export
+#program_export "private_check_check_vec_call_results"
+check_vec_call_results :: (c: *Checker, index: s32, transferred: s32, discarded: s32) {
+    if ((index < 0) || (index >= ((c).fn).expr_count)) {
+        return
+    }
+    expr: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)(((c).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if ((((cast(s32)((expr).kind) == 5) && (contains_vec((c).module, (expr).type, 0) != 0)) && !(transferred != 0)) && !(discarded != 0)) {
+        error(c, (expr).span, CheckCString("temporary owned result must be bound or passed to an owning call"), (expr).name)
+    }
+    {
+        child: s32 = (expr).first_child
+        while check_loop_195 := (child >= 0) {
+            child_transfer: s32 = cast(s32)((((cast(s32)((expr).kind) == 5) && (!(vec_primitive_name((expr).name) != 0) || (!(strcmp((expr).name, CheckCString("VecPush")) != 0) && (child != (expr).first_child)))) && (contains_vec((c).module, ((((c).fn).exprs)[child]).type, 0) != 0)) || (((cast(s32)((expr).kind) == 12) && (cast(s32)(((((c).fn).exprs)[child]).kind) == 15)) && (contains_vec((c).module, ((((c).fn).exprs)[child]).type, 0) != 0)))
+            check_vec_call_results(c, child, child_transfer, 0)
+            child = ((((c).fn).exprs)[child]).next_sibling
+        }
+    }
+    check_vec_call_results(c, (expr).left, 0, 0)
+    check_vec_call_results(c, (expr).right, cast(s32)((cast(s32)((expr).kind) == 15) && (transferred != 0)), 0)
+    check_vec_call_results(c, (expr).third, 0, 0)
+}
+
+#scope_file
+FunctionArgs :: (fn: *IR.ZirFunction) -> *u8 {
+    return (ifx ((fn).args_text != null) then (fn).args_text else CheckCString(""))
+}

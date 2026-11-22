@@ -92,7 +92,8 @@ ExplainSecondArgument :: (text: string, open: Code.Scan) -> Code.Scan {
 
 ExplainDiagnosticCode :: (text: string, open: Code.Scan) -> string {
     literal := ExplainSecondArgument(text, open)
-    wrapped := literal.kind == .Ident && text[literal.begin:literal.end] == "CStr"
+    name := text[literal.begin:literal.end]
+    wrapped := literal.kind == .Ident && (name == "CStr" || name == "CheckCString")
     if wrapped {
         wrapper := ExplainNextToken(text, literal)
         if text[wrapper.begin:wrapper.end] != "(" { return "" }
@@ -127,7 +128,7 @@ ExplainZiDiagnostics :: (test: *NativeTest, source: string, codes: *Vec(string))
     while token.kind != .Eof {
         name := text[token.begin:token.end]
         open := ExplainNextToken(text, token)
-        if token.kind == .Ident && name == "Diagnostic" && text[open.begin:open.end] == "(" {
+        if token.kind == .Ident && (name == "Diagnostic" || name == "DiagnosticDetailed") && text[open.begin:open.end] == "(" {
             value := ExplainDiagnosticCode(text, open)
             if value != "" { ExplainAdd(codes, value) }
         }
@@ -149,6 +150,7 @@ Emit :: (span: IR.ZirSourceSpan) {
     Diagnostic(SpanOf(.[span, span], 0),
         CStr /* code */ ("fixture.wrapped"), CStr("fixture.message"))
     Diagnostic(span, "fixture.literal", "message")
+    DiagnosticDetailed(span, CheckCString("fixture.detailed"), details, "message")
     Diagnostic(span, code, CStr("fixture.computed"))
 }
 ZI
@@ -156,7 +158,7 @@ ZI
     if !NativeWrite(test, module, source) { return false }
     codes: Vec(string)
     if !ExplainZiDiagnostics(test, NativeRead(test, module), *codes) { return false }
-    return NativeAssert(test, codes.count == 2 && codes[0] == "fixture.wrapped" && codes[1] == "fixture.literal",
+    return NativeAssert(test, codes.count == 3 && codes[0] == "fixture.wrapped" && codes[1] == "fixture.literal" && codes[2] == "fixture.detailed",
         "modular diagnostics must discover only literal code arguments")
 }
 

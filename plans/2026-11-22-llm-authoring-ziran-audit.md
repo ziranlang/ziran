@@ -200,10 +200,7 @@ them up is the open half.
 
 ## Top gaps
 
-Landed: 1 (docs/REFERENCE.md, site/llms.txt), 8 (its "Moves and views" section),
-3 (foreign-syntax hints), 4 and 10 (name and #import suggestions), 5 (Vec builtins
-in `ziran api`), 7, 11, most of 2, 9 and 12. Gap 6 waits for the self-host
-port of cmd/zir/zir_diagnostic.c to Ziran.
+Everything else in the original list has landed; what remains open:
 
 2. Multi-error parse recovery (lean-language P2) is still open: a parse error
    stops the file, so a second mistake shows only on the next run. The
@@ -211,9 +208,12 @@ port of cmd/zir/zir_diagnostic.c to Ziran.
    Found while landing gap 3: a file-scope initializer whose string literal
    contains `::` is misread as a declaration ("invalid file-scope constant");
    tests/tool_diagnostics_cases.zi keeps its hint table local for that reason.
-6. Text-mode diagnostics drop expected/actual and quickfix (lean-tooling:135-137)
-   - finish P4: caret line + expected/actual suffix + fix in the same message;
-   files: cmd/zir/zir_diagnostic.c; test: diagnostic_format.sh goldens.
+6. Text-mode diagnostics show no source line, caret, expected/actual or fix
+   (JSON carries them). To be added in cmd/compiler_diagnostic.zi once the
+   self-host lane lands it on master, replacing cmd/zir/zir_diagnostic.c:
+   the first "path:line:col: message" line stays, followed by the source
+   line, a caret under the span, "expected X, found Y" and "fix: ...";
+   JSON output unchanged; goldens in tests/diagnostic_format.sh.
 9. `TextInteger` still accepts at most 18 digits, so not the whole s64 range
    (docs/REFERENCE.md section 16 says so). `S64_MIN` already prints correctly
    on C, the engine and native (tests/spec/std_number_text.zi); `--lint` now

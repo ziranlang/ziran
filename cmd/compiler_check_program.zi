@@ -1,0 +1,1623 @@
+// Semantic checker: check program.
+// Algorithms are maintained here; foreign calls cross compiler phase or module boundaries.
+using IR :: #import "compiler_ir"
+using State :: #import "compiler_check_types"
+using S12 :: #import "compiler_check_s12_types"
+
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+ArrayTypeAlias :: (value: *u8) -> s32 #foreign compiler "ArrayTypeAlias";
+CheckAssembly :: (module: *IR.ZirModule, function: *IR.ZirFunction) -> s32 #foreign compiler "CheckAssembly";
+CheckLawGates :: (programs: **IR.ZirProgram, count: s32) -> s32 #foreign compiler "CheckLawGates";
+CheckParallelRegions :: (programs: **IR.ZirProgram, count: s32) -> s32 #foreign compiler "CheckParallelRegions";
+CheckSliceLifetimes :: (programs: **IR.ZirProgram, count: s32) -> s32 #foreign compiler "CheckSliceLifetimes";
+CompilerCalloc :: (count: usize, size: usize) -> *void #foreign compiler "CompilerCalloc";
+CompilerContextCurrent :: () -> *u8 #foreign compiler "CompilerContextCurrent";
+CompilerContextSelect :: (context: *u8) -> *u8 #foreign compiler "CompilerContextSelect";
+CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
+CompilerLexerInit :: (lexer: *IR.ZirLexer, source: *void, path: *void) #foreign compiler "CompilerLexerInit";
+CompilerMalloc :: (size: usize) -> *void #foreign compiler "CompilerMalloc";
+CompilerParseExpr :: (arg0: *IR.ZirFunction, arg1: *IR.ZirModule, arg2: *void, arg3: IR.ZirSourceSpan) -> s32 #foreign compiler "CompilerParseExpr";
+CompilerParseExprNoDefaults :: (arg0: *IR.ZirFunction, arg1: *IR.ZirModule, arg2: *void, arg3: IR.ZirSourceSpan) -> s32 #foreign compiler "CompilerParseExprNoDefaults";
+CompilerParseExprTyped :: (arg0: *IR.ZirFunction, arg1: *IR.ZirModule, arg2: *void, arg3: IR.ZirSourceSpan, arg4: *void) -> s32 #foreign compiler "CompilerParseExprTyped";
+DeriveEffectClasses :: (programs: **IR.ZirProgram, count: s32) #foreign compiler "DeriveEffectClasses";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, varargs: ..any) #foreign compiler "Diagnostic";
+EvaluateCompileExpression :: (module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan, executing: s32, value: *s64) -> s32 #foreign compiler "EvaluateCompileExpression";
+EvaluateCompileLiteral :: (module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan, executing: s32, literal: **u8, type_owner: **IR.ZirModule) -> s32 #foreign compiler "EvaluateCompileLiteral";
+EvaluateCompileRun :: (module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan, literal: **u8, type_owner: **IR.ZirModule, exhausted: *s32) -> s32 #foreign compiler "EvaluateCompileRun";
+FindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+FunctionAddStmt :: (fn: *IR.ZirFunction, kind: IR.ZirStmtKind, text: *u8, span: IR.ZirSourceSpan) -> *IR.ZirStmt #foreign compiler "FunctionAddStmt";
+HoldsNativeVector :: (type: *u8) -> s32 #foreign compiler "HoldsNativeVector";
+InstantiateGenericRecordAt :: (instance: *IR.ZirType, generic: *IR.ZirType, owner: *IR.ZirModule, user: *IR.ZirModule) -> s32 #foreign compiler "InstantiateGenericRecordAt";
+LexerNext :: (lx: *IR.ZirLexer) -> IR.ZirToken #foreign compiler "LexerNext";
+LinkImports :: (programs: **IR.ZirProgram, count: s32) -> s32 #foreign compiler "LinkImports";
+LowerFileScopeUsing :: (module: *IR.ZirModule, source: *u8, capacity: usize, span: IR.ZirSourceSpan) -> s32 #foreign compiler "LowerFileScopeUsing";
+LowerLinkedCompileExpressions :: (module: *IR.ZirModule, allow_deferred: s32) -> s32 #foreign compiler "LowerLinkedCompileExpressions";
+MapPrimitiveName :: (name: *u8) -> s32 #foreign compiler "MapPrimitiveName";
+ModuleAddFunction :: (module: *IR.ZirModule, name: *u8, args: *u8, return_type: *u8, exported: s32, span: IR.ZirSourceSpan) -> *IR.ZirFunction #foreign compiler "ModuleAddFunction";
+ModuleAddType :: (module: *IR.ZirModule, name: *u8, span: IR.ZirSourceSpan) -> *IR.ZirType #foreign compiler "ModuleAddType";
+ParametersOf :: (text: *u8) -> *State.ZirParameters #foreign compiler "ParametersOf";
+ProfileEnd :: (phase: *u8, started: u64) #foreign compiler "ProfileEnd";
+ProfileStart :: () -> u64 #foreign compiler "ProfileStart";
+ResolveAssemblyConstants :: (module: *IR.ZirModule) -> s32 #foreign compiler "ResolveAssemblyConstants";
+ResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunction";
+ResolveGlobalAt :: (module: *IR.ZirModule, name: *u8, source_path: *u8, owner: **IR.ZirModule, global: **IR.ZirGlobal) -> s32 #foreign compiler "ResolveGlobalAt";
+ScopeTextArguments :: (programs: **IR.ZirProgram, count: s32) -> s32 #foreign compiler "private_check_ScopeTextArguments";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+SymbolLookupsChanged :: () #foreign compiler "SymbolLookupsChanged";
+TextEditBegin :: (text: *u8, capacity: *usize) -> *u8 #foreign compiler "TextEditBegin";
+TextEditEnd :: (buffer: *u8) -> *u8 #foreign compiler "TextEditEnd";
+TypeNextFieldShared :: (record: *IR.ZirType, offset: *usize, field: **IR.ZirTypeField) -> s32 #foreign compiler "TypeNextFieldShared";
+VectorType :: (type: *u8, vector: *State.ZirVector) -> s32 #foreign compiler "VectorType";
+Warning :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, varargs: ..any) #foreign compiler "Warning";
+activate_using_filtered :: (c: *State.Checker, path: *u8, filter: *u8, span: IR.ZirSourceSpan) #foreign compiler "private_check_activate_using_filtered";
+bound_compound_constant :: (module: *IR.ZirModule, name: *u8, depth: s32, result: *State.CompoundConstant) -> s32 #foreign compiler "private_check_bound_compound_constant";
+check_file_private_expression :: (module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan) -> s32 #foreign compiler "private_check_check_file_private_expression";
+check_file_scope_enum_names :: (module: *IR.ZirModule, expression: *IR.ZirFunction, span: IR.ZirSourceSpan) -> s32 #foreign compiler "private_check_check_file_scope_enum_names";
+check_foreign_slice_returns :: (programs: **IR.ZirProgram, count: s32) -> s32 #foreign compiler "private_check_check_foreign_slice_returns";
+check_function :: (c: *State.Checker, fn: *IR.ZirFunction) -> s32 #foreign compiler "private_check_check_function";
+check_go_method :: (c: *State.Checker, fn: *IR.ZirFunction) -> s32 #foreign compiler "private_check_check_go_method";
+check_template_declaration :: (c: *State.Checker, fn: *IR.ZirFunction) -> s32 #foreign compiler "private_check_check_template_declaration";
+check_type_declarations :: (module: *IR.ZirModule) -> s32 #foreign compiler "private_check_check_type_declarations";
+compatible_checked :: (c: *State.Checker, to: *u8, from: *u8) -> s32 #foreign compiler "private_check_compatible_checked";
+compiler_link_CheckInline :: (programs: **IR.ZirProgram, count: s32) -> bool #foreign compiler "compiler_link_CheckInline";
+compiler_link_NamePrivate :: (module: *IR.ZirModule) -> bool #foreign compiler "compiler_link_NamePrivate";
+compound_qualifier_for_global :: (compound: *State.CompoundConstant, expected_type: *u8) #foreign compiler "private_check_compound_qualifier_for_global";
+contains_vec :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 #foreign compiler "private_check_contains_vec";
+copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
+error :: (c: *State.Checker, span: IR.ZirSourceSpan, message: *u8, detail: *u8) #foreign compiler "private_check_error";
+evaluate_global_startup_literal :: (module: *IR.ZirModule, before: s32, source: *u8, span: IR.ZirSourceSpan, literal: **u8, type_owner: **IR.ZirModule) -> s32 #foreign compiler "private_check_evaluate_global_startup_literal";
+expression_type :: (c: *State.Checker, index: s32) -> *u8 #foreign compiler "private_check_expression_type";
+instantiate_enum_names :: (c: *State.Checker) -> s32 #foreign compiler "private_check_instantiate_enum_names";
+instantiate_specializations :: (checker: *State.Checker) -> s32 #foreign compiler "private_check_instantiate_specializations";
+integer_type :: (type: *u8) -> s32 #foreign compiler "private_check_integer_type";
+isalnum :: (arg0: s32) -> s32 #foreign libc "isalnum";
+isdigit :: (arg0: s32) -> s32 #foreign libc "isdigit";
+isxdigit :: (arg0: s32) -> s32 #foreign libc "isxdigit";
+jai_module_types :: (module: *IR.ZirModule) -> s32 #foreign compiler "private_check_jai_module_types";
+lower_compound_global :: (module: *IR.ZirModule, global: *IR.ZirGlobal, compound: *State.CompoundConstant) -> *u8 #foreign compiler "private_check_lower_compound_global";
+lower_file_record_using :: (module: *IR.ZirModule, source: *u8, capacity: usize, span: IR.ZirSourceSpan) -> s32 #foreign compiler "private_check_lower_file_record_using";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+memmove :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memmove";
+memset :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memset";
+normalize_array :: (module: *IR.ZirModule, type: *u8, size: usize) #foreign compiler "private_check_normalize_array";
+normalize_function_arrays :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 #foreign compiler "private_check_normalize_function_arrays";
+normalize_record_arrays :: (module: *IR.ZirModule, templates_only: s32) -> s32 #foreign compiler "private_check_normalize_record_arrays";
+normalize_type_applications :: (module: *IR.ZirModule) -> s32 #foreign compiler "private_check_normalize_type_applications";
+opened_file_enum :: (module: *IR.ZirModule, name: *u8, span: IR.ZirSourceSpan, value: *s64) -> s32 #foreign compiler "private_check_opened_file_enum";
+order_local_types :: (module: *IR.ZirModule) -> s32 #foreign compiler "private_check_order_local_types";
+reserve_compound_constants :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 #foreign compiler "private_check_reserve_compound_constants";
+rewrite_type_applications :: (module: *IR.ZirModule, source: *u8, output: *u8, capacity: usize, span: IR.ZirSourceSpan, recursion: s32) -> s32 #foreign compiler "private_check_rewrite_type_applications";
+select_lookup_file :: (module: *IR.ZirModule, span: IR.ZirSourceSpan) #foreign compiler "private_check_select_lookup_file";
+skip_ws :: (s: *u8) -> *u8 #foreign compiler "skip_ws";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+starts_word :: (source: *u8, word: *u8) -> s32 #foreign compiler "private_check_starts_word";
+storage_type_error :: (module: *IR.ZirModule, source: *u8, path: *State.RecordPath, indirect: s32, checked: *State.ValidatedRecords, detail: *u8, detail_capacity: usize) -> *u8 #foreign compiler "private_check_storage_type_error";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+strrchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strrchr";
+strstr :: (__haystack: *u8, __needle: *u8) -> *u8 #foreign libc "strstr";
+strtoll :: (__nptr: *u8, __endptr: **u8, __base: s32) -> s64 #foreign libc "strtoll";
+type_error :: (c: *State.Checker, span: IR.ZirSourceSpan, message: *u8, subject: *u8, expected: *u8, actual: *u8, declaration: IR.ZirSourceSpan) #foreign compiler "private_check_type_error";
+widens_losslessly :: (to: *u8, from: *u8) -> s32 #foreign compiler "private_check_widens_losslessly";
+ScratchKey_CheckPrograms: u8;
+
+#scope_file
+native_type :: (type: *u8) -> s32 {
+    vector: State.ZirVector
+    return cast(s32)((HoldsNativeVector(type) != 0) || ((VectorType(type, *(vector)) != 0) && ((vector).is_native != 0)))
+}
+
+#scope_file
+check_native_storage :: (module: *IR.ZirModule) -> s32 {
+    message_storage_0 := cast(*S12Array91_u8)AllocateOrExit(size_of(S12Array91_u8))
+    defer CompilerFree(cast(*void)message_storage_0)
+    memset(cast(*void)message_storage_0, 0, size_of(S12Array91_u8))
+    copy_text(cast(*u8)message_storage_0, size_of(S12Array91_u8), CheckCString("a native vector, such as s16xN, is a plain value: a global or record field cannot hold one"))
+    {
+        g: s32 = 0
+        while check_loop_32 := (g < (module).global_count) {
+            global: *IR.ZirGlobal = cast(*IR.ZirGlobal)(cast(usize)((module).globals) + cast(usize)(g) * size_of(IR.ZirGlobal))
+            if (native_type(cast(*u8)(*((global).type))) != 0) {
+                Diagnostic((global).span, CheckCString("check.storage"), CheckCString("%s: %s"), cast(*u8)(*((message_storage_0[0]).items)), cast(*u8)(*((global).name)))
+                return 0
+            }
+            S12Post2(*(g))
+        }
+    }
+    {
+        t: s32 = 0
+        while check_loop_33 := (t < (module).type_count) {
+            record: *IR.ZirType = cast(*IR.ZirType)(cast(usize)((module).types) + cast(usize)(t) * size_of(IR.ZirType))
+            if (((((record).is_enum != 0) || ((record).is_procedure_type != 0)) || ((record).is_record_template != 0)) || ((record).is_extern != 0)) {
+                S12Post2(*(t))
+                continue check_loop_33
+            }
+            offset: usize = cast(usize)(0)
+            field: *IR.ZirTypeField
+            while check_loop_34 := (TypeNextFieldShared(record, *(offset), *(field)) == 1) {
+                if (native_type(cast(*u8)(*((field).type))) != 0) {
+                    Diagnostic((record).span, CheckCString("check.storage"), CheckCString("%s: %s.%s"), cast(*u8)(*((message_storage_0[0]).items)), cast(*u8)(*((record).name)), cast(*u8)(*((field).name)))
+                    return 0
+                }
+            }
+            S12Post2(*(t))
+        }
+    }
+    {
+        i: s32 = 0
+        while check_loop_35 := (i < (module).import_count) {
+            import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
+            if (cast(s32)((import_local).kind) != 3) {
+                S12Post2(*(i))
+                continue check_loop_35
+            }
+            crosses: s32 = native_type(cast(*u8)(*((import_local).return_type)))
+            parameters: *State.ZirParameters = ParametersOf(cast(*u8)(*((import_local).args)))
+            {
+                a: s32 = 0
+                while check_loop_36 := ((a < (parameters).count) && !(crosses != 0)) {
+                    crosses = native_type((((parameters).items).items[a]).type)
+                    S12Post2(*(a))
+                }
+            }
+            if (crosses != 0) {
+                Diagnostic((import_local).span, CheckCString("check.foreign"), CheckCString("a #foreign procedure cannot take or return a native vector, such as s16xN: %s"), cast(*u8)(*((import_local).name)))
+                return 0
+            }
+            S12Post2(*(i))
+        }
+    }
+    return 1
+}
+
+#scope_file
+generated_helper_name :: (name: *u8) -> s32 {
+    prefix_storage_0 := cast(*S12Array12_u8)AllocateOrExit(size_of(S12Array12_u8))
+    defer CompilerFree(cast(*void)prefix_storage_0)
+    memset(cast(*void)prefix_storage_0, 0, size_of(S12Array12_u8))
+    copy_text(cast(*u8)prefix_storage_0, size_of(S12Array12_u8), CheckCString("zi_default_"))
+    at: usize = cast(usize)((cast(u64)size_of(S12Array12_u8) - cast(u64)(1)))
+    length: usize = cast(usize)(cast(u64)(strlen(name)))
+    if ((length < (at + cast(usize)(16))) || (strncmp(name, cast(*u8)(*((prefix_storage_0[0]).items)), at) != 0)) {
+        return 0
+    }
+    {
+        i: usize = at
+        while check_loop_37 := (i < (at + cast(usize)(16))) {
+            if !(isxdigit(cast(s32)(cast(u8)((name)[i]))) != 0) {
+                return 0
+            }
+            S12Post5(*(i))
+        }
+    }
+    if (length == (at + cast(usize)(16))) {
+        return 1
+    }
+    if (strncmp(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(name) + cast(usize)(at) * size_of(u8))) + cast(usize)(16) * size_of(u8)), CheckCString("_field_"), cast(usize)(cast(u64)(7))) != 0) {
+        return 0
+    }
+    {
+        i: usize = ((at + cast(usize)(16)) + cast(usize)(7))
+        while check_loop_38 := (i < length) {
+            if !(isdigit(cast(s32)(cast(u8)((name)[i]))) != 0) {
+                return 0
+            }
+            S12Post5(*(i))
+        }
+    }
+    return cast(s32)(length > ((at + cast(usize)(16)) + cast(usize)(7)))
+}
+
+#scope_file
+reserved_declaration :: (module: *IR.ZirModule) -> s32 {
+    prefix_storage_0 := cast(*S12Array12_u8)AllocateOrExit(size_of(S12Array12_u8))
+    defer CompilerFree(cast(*void)prefix_storage_0)
+    memset(cast(*void)prefix_storage_0, 0, size_of(S12Array12_u8))
+    copy_text(cast(*u8)prefix_storage_0, size_of(S12Array12_u8), CheckCString("zi_default_"))
+    at: usize = cast(usize)((cast(u64)size_of(S12Array12_u8) - cast(u64)(1)))
+    {
+        i: s32 = 0
+        while check_loop_39 := (i < (module).function_count) {
+            name: *u8 = cast(*u8)(*((((module).functions)[i]).name))
+            if ((strncmp(name, cast(*u8)(*((prefix_storage_0[0]).items)), at) == 0) && !(generated_helper_name(name) != 0)) {
+                Diagnostic((((module).functions)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's generated-helper prefix: %s"), name)
+                return 0
+            }
+            S12Post2(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while check_loop_40 := (i < (module).global_count) {
+            name: *u8 = cast(*u8)(*((((module).globals)[i]).name))
+            if ((strncmp(name, cast(*u8)(*((prefix_storage_0[0]).items)), at) == 0) && !(generated_helper_name(name) != 0)) {
+                Diagnostic((((module).globals)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's generated-helper prefix: %s"), name)
+                return 0
+            }
+            S12Post2(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while check_loop_41 := (i < (module).define_count) {
+            name: *u8 = cast(*u8)(*((((module).defines)[i]).name))
+            if ((strncmp(name, cast(*u8)(*((prefix_storage_0[0]).items)), at) == 0) && !(generated_helper_name(name) != 0)) {
+                Diagnostic((((module).defines)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's generated-helper prefix: %s"), name)
+                return 0
+            }
+            S12Post2(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while check_loop_42 := (i < (module).type_count) {
+            name: *u8 = cast(*u8)(*((((module).types)[i]).name))
+            if ((strncmp(name, cast(*u8)(*((prefix_storage_0[0]).items)), at) == 0) && !(generated_helper_name(name) != 0)) {
+                Diagnostic((((module).types)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's generated-helper prefix: %s"), name)
+                return 0
+            }
+            S12Post2(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while check_loop_43 := (i < (module).import_count) {
+            name: *u8 = cast(*u8)(*((((module).imports)[i]).name))
+            if ((strncmp(name, cast(*u8)(*((prefix_storage_0[0]).items)), at) == 0) && !(generated_helper_name(name) != 0)) {
+                Diagnostic((((module).imports)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's generated-helper prefix: %s"), name)
+                return 0
+            }
+            S12Post2(*(i))
+        }
+    }
+    return 1
+}
+
+#scope_file
+CheckPrograms_with_buffers :: (programs: **IR.ZirProgram, count: s32, buffers: *CheckProgramsBuffers) -> s32 {
+    memset(cast(*void)(*((buffers).c)), 0, cast(usize)(cast(u64)size_of(State.Checker)))
+    ((buffers).c).programs = programs
+    ((buffers).c).program_count = count
+    if !(LinkImports(programs, count) != 0) {
+        return 0
+    }
+    {
+        p: s32 = 0
+        while check_loop_44 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_45 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    copy_text(cast(*u8)(*(((buffers).saved_path).items)), cast(usize)(cast(u64)size_of(S12Array1024_u8)), cast(*u8)(*((module).lookup_path)))
+                    {
+                        i: s32 = 0
+                        while check_loop_46 := (i < (module).using_count) {
+                            using_local: *IR.ZirUsing = cast(*IR.ZirUsing)(cast(usize)((module).usings) + cast(usize)(i) * size_of(IR.ZirUsing))
+                            select_lookup_file(module, (using_local).span)
+                            type: *IR.ZirType = FindType(module, cast(*u8)(*((using_local).path)), null)
+                            if ((type != cast(*IR.ZirType)((null))) && !((type).is_enum != 0)) {
+                                Diagnostic((using_local).span, CheckCString("check.enum_scope"), CheckCString("top-level using requires an enum type: %s"), cast(*u8)(*((using_local).path)))
+                                return 0
+                            }
+                            if (type == cast(*IR.ZirType)((null))) {
+                                memset(cast(*void)(*((buffers).scope)), 0, cast(usize)(cast(u64)size_of(State.Checker)))
+                                ((buffers).scope).module = module
+                                activate_using_filtered(*((buffers).scope), cast(*u8)(*((using_local).path)), cast(*u8)(*((using_local).filter)), (using_local).span)
+                                CompilerFree(cast(*void)(((buffers).scope).bindings))
+                                if ((((buffers).scope).errors != 0) || (((buffers).scope).failed != 0)) {
+                                    return 0
+                                }
+                            }
+                            S12Post2(*(i))
+                        }
+                    }
+                    copy_text(cast(*u8)(*((module).lookup_path)), cast(usize)(cast(u64)size_of(S12Array1024_u8)), cast(*u8)(*(((buffers).saved_path).items)))
+                    SymbolLookupsChanged()
+                    if !(check_native_storage(module) != 0) {
+                        return 0
+                    }
+                    if !(reserved_declaration(module) != 0) {
+                        return 0
+                    }
+                    {
+                        g: s32 = 0
+                        while check_loop_47 := (g < (module).global_count) {
+                            init_capacity: usize
+                            init_edit: *u8 = TextEditBegin((((module).globals)[g]).init, *(init_capacity))
+                            init_ok: s32 = cast(s32)((lower_file_record_using(module, init_edit, init_capacity, (((module).globals)[g]).span) != 0) && (LowerFileScopeUsing(module, init_edit, init_capacity, (((module).globals)[g]).span) != 0))
+                            (((module).globals)[g]).init = TextEditEnd(init_edit)
+                            if !(init_ok != 0) {
+                                return 0
+                            }
+                            S12Post2(*(g))
+                        }
+                    }
+                    {
+                        d: s32 = 0
+                        while check_loop_48 := (d < (module).define_count) {
+                            definition: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((module).defines) + cast(usize)(d) * size_of(IR.ZirDefine))
+                            if ((definition).requires_open_enum != 0) {
+                                value: s64 = cast(s64)(0)
+                                select_lookup_file(module, (definition).span)
+                                opened: s32 = opened_file_enum(module, (definition).value, (definition).span, *(value))
+                                copy_text(cast(*u8)(*((module).lookup_path)), cast(usize)(cast(u64)size_of(S12Array1024_u8)), cast(*u8)(*(((buffers).saved_path).items)))
+                                SymbolLookupsChanged()
+                                if (opened <= 0) {
+                                    if (opened == 0) {
+                                        Diagnostic((definition).span, CheckCString("check.enum_scope"), CheckCString("unresolved opened enum member: %s"), (definition).value)
+                                    }
+                                    return 0
+                                }
+                            }
+                            value_capacity: usize
+                            value_edit: *u8 = TextEditBegin((definition).value, *(value_capacity))
+                            value_ok: s32 = cast(s32)((lower_file_record_using(module, value_edit, value_capacity, (definition).span) != 0) && (LowerFileScopeUsing(module, value_edit, value_capacity, (definition).span) != 0))
+                            (definition).value = TextEditEnd(value_edit)
+                            if !(value_ok != 0) {
+                                return 0
+                            }
+                            (definition).requires_open_enum = 0
+                            S12Post2(*(d))
+                        }
+                    }
+                    {
+                        a: s32 = 0
+                        while check_loop_49 := (a < (module).assert_count) {
+                            if (!(lower_file_record_using(module, cast(*u8)(*((((module).asserts)[a]).condition)), cast(usize)(cast(u64)size_of(S12Array4096_u8)), (((module).asserts)[a]).span) != 0) || !(LowerFileScopeUsing(module, cast(*u8)(*((((module).asserts)[a]).condition)), cast(usize)(cast(u64)size_of(S12Array4096_u8)), (((module).asserts)[a]).span) != 0)) {
+                                return 0
+                            }
+                            S12Post2(*(a))
+                        }
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_50 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_51 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        d: s32 = 0
+                        while check_loop_52 := (d < (module).define_count) {
+                            definition: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((module).defines) + cast(usize)(d) * size_of(IR.ZirDefine))
+                            if (starts_word((definition).value, CheckCString("#run")) != 0) {
+                                S12Post2(*(d))
+                                continue check_loop_52
+                            }
+                            lexer: IR.ZirLexer
+                            LexerInit(*(lexer), (definition).value, SpanPath((definition).span))
+                            {
+                                while check_loop_53 := true {
+                                    (buffers).token = LexerNext(*(lexer))
+                                    if (((buffers).token).kind == 0) {
+                                        break check_loop_53
+                                    }
+                                    if ((((buffers).token).kind == 6) && (strcmp(cast(*u8)(*(((buffers).token).text)), CheckCString("#compile_time")) == 0)) {
+                                        Diagnostic((definition).span, CheckCString("check.compile_time"), CheckCString("#compile_time cannot be used as a constant"))
+                                        return 0
+                                    }
+                                }
+                            }
+                            S12Post2(*(d))
+                        }
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        pass: s32 = 0
+        while check_loop_54 := (pass < 128) {
+            pending: s32 = 0
+            progress: s32 = 0
+            {
+                p: s32 = 0
+                while check_loop_55 := (p < count) {
+                    {
+                        m: s32 = 0
+                        while check_loop_56 := (m < ((programs)[p]).module_count) {
+                            progress += LowerLinkedCompileExpressions(cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule)), 1)
+                            S12Post2(*(m))
+                        }
+                    }
+                    S12Post2(*(p))
+                }
+            }
+            {
+                p: s32 = 0
+                while check_loop_57 := (p < count) {
+                    {
+                        m: s32 = 0
+                        while check_loop_58 := (m < ((programs)[p]).module_count) {
+                            module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                            {
+                                d: s32 = 0
+                                while check_loop_59 := (d < (module).define_count) {
+                                    definition: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((module).defines) + cast(usize)(d) * size_of(IR.ZirDefine))
+                                    if !(starts_word((definition).value, CheckCString("#run")) != 0) {
+                                        S12Post2(*(d))
+                                        continue check_loop_59
+                                    }
+                                    S12Post2(*(pending))
+                                    expression: *u8 = skip_ws(cast(*u8)(cast(usize)((definition).value) + cast(usize)(4) * size_of(u8)))
+                                    literal: *u8 = null
+                                    exhausted: s32 = 0
+                                    if !(EvaluateCompileRun(module, expression, (definition).span, *(literal), null, *(exhausted)) != 0) {
+                                        if !(exhausted != 0) {
+                                            S12Post2(*(d))
+                                            continue check_loop_59
+                                        }
+                                        Diagnostic((definition).span, CheckCString("check.consteval"), CheckCString("#run expression ran more than %d steps: %s"), 8000000, expression)
+                                        return 0
+                                    }
+                                    (definition).value = literal
+                                    S12Post2(*(progress))
+                                    S12Post2(*(d))
+                                }
+                            }
+                            S12Post2(*(m))
+                        }
+                    }
+                    S12Post2(*(p))
+                }
+            }
+            if (progress == 0) {
+                if (pending == 0) {
+                    break check_loop_54
+                }
+                {
+                    p: s32 = 0
+                    while check_loop_60 := (p < count) {
+                        {
+                            m: s32 = 0
+                            while check_loop_61 := (m < ((programs)[p]).module_count) {
+                                module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                                {
+                                    d: s32 = 0
+                                    while check_loop_62 := (d < (module).define_count) {
+                                        definition: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((module).defines) + cast(usize)(d) * size_of(IR.ZirDefine))
+                                        if !(starts_word((definition).value, CheckCString("#run")) != 0) {
+                                            S12Post2(*(d))
+                                            continue check_loop_62
+                                        }
+                                        Diagnostic((definition).span, CheckCString("check.consteval"), CheckCString("#run expression is not a constant: %s"), skip_ws(cast(*u8)(cast(usize)((definition).value) + cast(usize)(4) * size_of(u8))))
+                                        return 0
+                                        S12Post2(*(d))
+                                    }
+                                }
+                                S12Post2(*(m))
+                            }
+                        }
+                        S12Post2(*(p))
+                    }
+                }
+            }
+            if (pass == 127) {
+                Diagnostic(IR.ZirSourceSpan.{}, CheckCString("check.consteval"), CheckCString("too many linked compile-time evaluation passes"))
+                return 0
+            }
+            S12Post2(*(pass))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_63 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_64 := (m < ((programs)[p]).module_count) {
+                    LowerLinkedCompileExpressions(cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule)), 0)
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_65 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_66 := (m < ((programs)[p]).module_count) {
+                    if !(ResolveAssemblyConstants(cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))) != 0) {
+                        return 0
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_67 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_68 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        a: s32 = 0
+                        while check_loop_69 := (a < (module).assert_count) {
+                            assertion: *IR.ZirAssert = cast(*IR.ZirAssert)(cast(usize)((module).asserts) + cast(usize)(a) * size_of(IR.ZirAssert))
+                            value: s64 = cast(s64)(0)
+                            if !(EvaluateCompileExpression(module, cast(*u8)(*((assertion).condition)), (assertion).span, 0, *(value)) != 0) {
+                                literal: *u8 = null
+                                if (!(EvaluateCompileLiteral(module, cast(*u8)(*((assertion).condition)), (assertion).span, 0, *(literal), null) != 0) || ((strcmp(literal, CheckCString("0")) != 0) && (strcmp(literal, CheckCString("1")) != 0))) {
+                                    Diagnostic((assertion).span, CheckCString("check.assert"), CheckCString("#assert requires a compile-time constant condition"))
+                                    return 0
+                                }
+                                value = cast(s64)(cast(s32)(cast(s32)(cast(s8)((literal)[0])) == 49))
+                            }
+                            snprintf(cast(*u8)(*((assertion).condition)), cast(usize)(cast(u64)size_of(S12Array4096_u8)), CheckCString("%d"), cast(s32)(value != cast(s64)(0)))
+                            if !(value != 0) {
+                                Diagnostic((assertion).span, CheckCString("check.assert"), CheckCString("#assert failed: %s"), cast(*u8)(*((assertion).message)))
+                                return 0
+                            }
+                            S12Post2(*(a))
+                        }
+                    }
+                    {
+                        g: s32 = 0
+                        while check_loop_70 := (g < (module).global_count) {
+                            global: *IR.ZirGlobal = cast(*IR.ZirGlobal)(cast(usize)((module).globals) + cast(usize)(g) * size_of(IR.ZirGlobal))
+                            if !(((global).init)[0] != 0) {
+                                S12Post2(*(g))
+                                continue check_loop_70
+                            }
+                            select_lookup_file(module, (global).span)
+                            memset(cast(*void)(*((buffers).raw)), 0, cast(usize)(cast(u64)size_of(IR.ZirFunction)))
+                            raw_root: s32 = ParseExpr(*((buffers).raw), module, (global).init, (global).span)
+                            literal_initializer: s32 = cast(s32)((raw_root >= 0) && (cast(s32)(((((buffers).raw).exprs)[raw_root]).kind) == 12))
+                            if (((raw_root >= 0) && (cast(s32)(((((buffers).raw).exprs)[raw_root]).kind) == 4)) && (cast(u64)(strlen(((((buffers).raw).exprs)[raw_root]).text)) >= cast(u64)((4096 / 2)))) {
+                                literal_initializer = 1
+                            }
+                            constant_name_storage_0 := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
+                            defer CompilerFree(cast(*void)constant_name_storage_0)
+                            memset(cast(*void)constant_name_storage_0, 0, size_of(S12Array128_u8))
+                            copy_text(cast(*u8)constant_name_storage_0, size_of(S12Array128_u8), CheckCString(""))
+                            if ((raw_root >= 0) && (cast(s32)(((((buffers).raw).exprs)[raw_root]).kind) == 1)) {
+                                copy_text(cast(*u8)(*((constant_name_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), ((((buffers).raw).exprs)[raw_root]).name)
+                            } else {
+                                if ((((raw_root >= 0) && (cast(s32)(((((buffers).raw).exprs)[raw_root]).kind) == 8)) && (((((buffers).raw).exprs)[raw_root]).left >= 0)) && (cast(s32)(((((buffers).raw).exprs)[((((buffers).raw).exprs)[raw_root]).left]).kind) == 1)) {
+                                    base: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)(((buffers).raw).exprs) + cast(usize)(((((buffers).raw).exprs)[raw_root]).left) * size_of(IR.ZirExpr))
+                                    written: s32 = snprintf(cast(*u8)(*((constant_name_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), CheckCString("%s.%s"), (base).name, ((((buffers).raw).exprs)[raw_root]).name)
+                                    if ((written < 0) || (cast(u64)(cast(usize)(written)) >= cast(u64)size_of(S12Array128_u8))) {
+                                        (constant_name_storage_0[0]).items[0] = cast(u8)(0)
+                                    }
+                                }
+                            }
+                            if ((constant_name_storage_0[0]).items[0] != 0) {
+                                compound: State.CompoundConstant = .{}
+                                if (bound_compound_constant(module, cast(*u8)(*((constant_name_storage_0[0]).items)), 0, *(compound)) == 1) {
+                                    lowered: *u8 = lower_compound_global(module, global, *(compound))
+                                    if (lowered == cast(*u8)((null))) {
+                                        Diagnostic((global).span, CheckCString("check.constant_type"), CheckCString("aggregate constant type is unavailable or mismatched: %s"), cast(*u8)(*((constant_name_storage_0[0]).items)))
+                                        CompilerFree(cast(*void)(((buffers).raw).exprs))
+                                        return 0
+                                    }
+                                    (global).init = lowered
+                                    literal_initializer = 1
+                                }
+                            }
+                            CompilerFree(cast(*void)(((buffers).raw).exprs))
+                            folded_owner: *IR.ZirModule = null
+                            folded: *u8 = null
+                            if ((!(literal_initializer != 0) && (strcmp(cast(*u8)(*((global).type)), CheckCString("bool")) != 0)) && ((EvaluateCompileLiteral(module, (global).init, (global).span, 0, *(folded), *(folded_owner)) != 0) || (evaluate_global_startup_literal(module, g, (global).init, (global).span, *(folded), *(folded_owner)) != 0))) {
+                                if (folded_owner != cast(*IR.ZirModule)((null))) {
+                                    compound: State.CompoundConstant = .{}
+                                    (compound).literal = folded
+                                    (compound).owner = folded_owner
+                                    compound_qualifier_for_global(*(compound), cast(*u8)(*((global).type)))
+                                    lowered: *u8 = lower_compound_global(module, global, *(compound))
+                                    if (lowered == cast(*u8)((null))) {
+                                        Diagnostic((global).span, CheckCString("check.constant_type"), CheckCString("aggregate initializer type is unavailable or mismatched: %s"), (global).init)
+                                        return 0
+                                    }
+                                    (global).init = lowered
+                                } else {
+                                    (global).init = folded
+                                }
+                            }
+                            if !(check_file_private_expression(module, (global).init, (global).span) != 0) {
+                                return 0
+                            }
+                            memset(cast(*void)(*((buffers).expression)), 0, cast(usize)(cast(u64)size_of(IR.ZirFunction)))
+                            root: s32 = ParseExprTyped(*((buffers).expression), module, (global).init, (global).span, cast(*u8)(*((global).type)))
+                            valid: s32 = cast(s32)((root >= 0) && (cast(s32)(((((buffers).expression).exprs)[root]).kind) != 0))
+                            if ((valid != 0) && !(check_file_scope_enum_names(module, *((buffers).expression), (global).span) != 0)) {
+                                CompilerFree(cast(*void)(((buffers).expression).exprs))
+                                return 0
+                            }
+                            if (valid != 0) {
+                                memset(cast(*void)(*((buffers).initializer)), 0, cast(usize)(cast(u64)size_of(State.Checker)))
+                                ((buffers).initializer).module = module
+                                ((buffers).initializer).fn = *((buffers).expression)
+                                ((buffers).initializer).programs = programs
+                                ((buffers).initializer).program_count = count
+                                copy_text(cast(*u8)(*((((buffers).initializer).expected_type).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), cast(*u8)(*((global).type)))
+                                if !(reserve_compound_constants(module, *((buffers).expression)) != 0) {
+                                    Diagnostic((global).span, CheckCString("check.global"), CheckCString("global initializer expression is too large"))
+                                    CompilerFree(cast(*void)(((buffers).expression).exprs))
+                                    return 0
+                                }
+                                actual: *u8 = expression_type(*((buffers).initializer), root)
+                                if (((buffers).initializer).errors == 0) {
+                                    if !((actual)[0] != 0) {
+                                        error(*((buffers).initializer), (global).span, CheckCString("cannot infer initializer type"), cast(*u8)(*((global).name)))
+                                    } else {
+                                        if !(compatible_checked(*((buffers).initializer), cast(*u8)(*((global).type)), actual) != 0) {
+                                            type_error(*((buffers).initializer), (global).span, CheckCString("initializer type mismatch"), cast(*u8)(*((global).name)), cast(*u8)(*((global).type)), actual, (global).span)
+                                        }
+                                    }
+                                }
+                                typed_valid: s32 = cast(s32)((((buffers).initializer).errors == 0) && !(((buffers).initializer).failed != 0))
+                                {
+                                    i: s32 = 0
+                                    while check_loop_71 := (i < ((buffers).initializer).restore_count) {
+                                        CompilerFree(cast(*void)(((((buffers).initializer).restores).items[i]).states))
+                                        S12Post2(*(i))
+                                    }
+                                }
+                                CompilerFree(cast(*void)(((buffers).initializer).bindings))
+                                CompilerFree(cast(*void)(((buffers).initializer).specializations))
+                                if !(typed_valid != 0) {
+                                    if (((buffers).initializer).errors == 0) {
+                                        Diagnostic((global).span, CheckCString("check.global"), CheckCString("cannot check file-scope initializer: %s"), cast(*u8)(*((global).name)))
+                                    }
+                                    CompilerFree(cast(*void)(((buffers).expression).exprs))
+                                    return 0
+                                }
+                            }
+                            runtime_initializer: s32 = 0
+                            if (valid != 0) {
+                                {
+                                    e: s32 = 0
+                                    while check_loop_72 := (e < ((buffers).expression).expr_count) {
+                                        node: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)(((buffers).expression).exprs) + cast(usize)(e) * size_of(IR.ZirExpr))
+                                        owner: *IR.ZirModule = null
+                                        referenced: *IR.ZirGlobal = null
+                                        if ((cast(s32)((node).kind) == 5) || ((cast(s32)((node).kind) == 1) && (ResolveGlobalAt(module, (node).name, SpanPath((global).span), *(owner), *(referenced)) == 1))) {
+                                            runtime_initializer = 1
+                                            break check_loop_72
+                                        }
+                                        S12Post2(*(e))
+                                    }
+                                }
+                            }
+                            CompilerFree(cast(*void)(((buffers).expression).exprs))
+                            if !(valid != 0) {
+                                Diagnostic((global).span, CheckCString("check.global"), CheckCString("invalid file-scope initializer: %s"), (global).init)
+                                return 0
+                            }
+                            if (runtime_initializer != 0) {
+                                name_storage_1 := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
+                                defer CompilerFree(cast(*void)name_storage_1)
+                                memset(cast(*void)name_storage_1, 0, size_of(S12Array128_u8))
+                                serial: s32 = 0
+                                collision: s32
+                                while check_loop_73 := true {
+                                    snprintf(cast(*u8)(*((name_storage_1[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), CheckCString("__global_init_%d_%d"), g, S12Post2(*(serial)))
+                                    collision = 0
+                                    {
+                                        f: s32 = 0
+                                        while check_loop_74 := (f < (module).function_count) {
+                                            collision |= cast(s32)(strcmp(cast(*u8)(*((((module).functions)[f]).name)), cast(*u8)(*((name_storage_1[0]).items))) == 0)
+                                            S12Post2(*(f))
+                                        }
+                                    }
+                                    if !(collision != 0) { break check_loop_73 }
+                                }
+                                written: s32 = snprintf(cast(*u8)(*(((buffers).assignment).items)), cast(usize)(cast(u64)size_of(S12Array4096_u8)), CheckCString("%s = %s"), cast(*u8)(*((global).name)), (global).init)
+                                if ((written < 0) || (cast(u64)(cast(usize)(written)) >= cast(u64)size_of(S12Array4096_u8))) {
+                                    Diagnostic((global).span, CheckCString("check.global"), CheckCString("global initializer expression is too large"))
+                                    return 0
+                                }
+                                startup: *IR.ZirFunction = ModuleAddFunction(module, cast(*u8)(*((name_storage_1[0]).items)), CheckCString(""), CheckCString("void"), 0, (global).span)
+                                if ((startup == cast(*IR.ZirFunction)((null))) || (FunctionAddStmt(startup, cast(IR.ZirStmtKind)(4), cast(*u8)(*(((buffers).assignment).items)), (global).span) == cast(*IR.ZirStmt)((null)))) {
+                                    return 0
+                                }
+                                (startup).is_global_initializer = 1
+                                (startup).is_file_private = 1
+                                (global).init = CheckCString("")
+                            }
+                            S12Post2(*(g))
+                        }
+                    }
+                    {
+                        d: s32 = 0
+                        while check_loop_75 := (d < (module).define_count) {
+                            if !(check_file_private_expression(module, (((module).defines)[d]).value, (((module).defines)[d]).span) != 0) {
+                                return 0
+                            }
+                            S12Post2(*(d))
+                        }
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_76 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_77 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        d: s32 = 0
+                        while check_loop_78 := (d < (module).define_count) {
+                            def: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((module).defines) + cast(usize)(d) * size_of(IR.ZirDefine))
+                            select_lookup_file(module, (def).span)
+                            value: *u8 = skip_ws((def).value)
+                            cursor: *u8 = value
+                            base_storage_2 := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
+                            defer CompilerFree(cast(*void)base_storage_2)
+                            memset(cast(*void)base_storage_2, 0, size_of(S12Array128_u8))
+                            length: usize = cast(usize)(0)
+                            while check_loop_79 := (((isalnum(cast(s32)(cast(u8)((cursor)[0]))) != 0) || (cast(s32)(cast(s8)((cursor)[0])) == 95)) && (cast(u64)((length + cast(usize)(1))) < cast(u64)size_of(S12Array128_u8))) {
+                                (base_storage_2[0]).items[S12Post5(*(length))] = (S12Post1(*(cursor)))[0]
+                            }
+                            (base_storage_2[0]).items[length] = cast(u8)(0)
+                            cursor = skip_ws(cursor)
+                            if ((length == cast(usize)(0)) || (cast(s32)(cast(s8)((cursor)[0])) != 40)) {
+                                S12Post2(*(d))
+                                continue check_loop_78
+                            }
+                            start: *u8 = S12Pre6(*(cursor))
+                            depth: s32 = 1
+                            while check_loop_80 := (((cursor)[0] != 0) && (depth != 0)) {
+                                if (cast(s32)(cast(s8)((cursor)[0])) == 40) {
+                                    S12Post2(*(depth))
+                                } else {
+                                    if (cast(s32)(cast(s8)((cursor)[0])) == 41) {
+                                        S12Post0(*(depth))
+                                    }
+                                }
+                                if (depth != 0) {
+                                    S12Post1(*(cursor))
+                                }
+                            }
+                            tail: *u8 = skip_ws(cast(*u8)(cast(usize)(cursor) + cast(usize)(1) * size_of(u8)))
+                            if (cast(s32)(cast(s8)((tail)[0])) == 59) {
+                                tail = skip_ws(cast(*u8)(cast(usize)(tail) + cast(usize)(1) * size_of(u8)))
+                            }
+                            if (((depth != 0) || (cursor == start)) || (cast(s32)(cast(s8)((tail)[0])) != 0)) {
+                                S12Post2(*(d))
+                                continue check_loop_78
+                            }
+                            generic: *IR.ZirType = FindType(module, cast(*u8)(*((base_storage_2[0]).items)), null)
+                            if ((generic == cast(*IR.ZirType)((null))) || !((generic).is_record_template != 0)) {
+                                S12Post2(*(d))
+                                continue check_loop_78
+                            }
+                            instance: *IR.ZirType = ModuleAddType(module, cast(*u8)(*((def).name)), (def).span)
+                            if (instance == cast(*IR.ZirType)((null))) {
+                                return 0
+                            }
+                            (instance).is_public = (def).is_public
+                            (instance).is_file_private = (def).is_file_private
+                            (instance).is_type_instance = 1
+                            copy_text(cast(*u8)(*((instance).template_name)), cast(usize)(cast(u64)size_of(S12Array128_u8)), cast(*u8)(*((base_storage_2[0]).items)))
+                            if (cast(u64)(cast(usize)(((cast(s64)(cast(isize)(cast(usize)(cursor) - cast(usize)(start))) / cast(s64)size_of(u8))))) >= cast(u64)size_of(S12Array4096_u8)) {
+                                return 0
+                            }
+                            memcpy(cast(*void)(cast(*u8)(*((instance).template_args))), cast(*void)(start), cast(usize)(((cast(s64)(cast(isize)(cast(usize)(cursor) - cast(usize)(start))) / cast(s64)size_of(u8)))))
+                            ((instance).template_args)[(cast(s64)(cast(isize)(cast(usize)(cursor) - cast(usize)(start))) / cast(s64)size_of(u8))] = cast(u8)(0)
+                            memmove(cast(*void)(def), cast(*void)(cast(*IR.ZirDefine)(cast(usize)(def) + cast(usize)(1) * size_of(IR.ZirDefine))), cast(usize)((cast(u64)(cast(usize)(((((module).define_count - d) - 1)))) * cast(u64)size_of(IR.ZirDefine))))
+                            S12Post0(*((module).define_count))
+                            SymbolLookupsChanged()
+                        }
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_81 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_82 := (m < ((programs)[p]).module_count) {
+                    if !(normalize_record_arrays(cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule)), 1) != 0) {
+                        return 0
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_83 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_84 := (m < ((programs)[p]).module_count) {
+                    if !(normalize_type_applications(cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))) != 0) {
+                        return 0
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    if (!(check_foreign_slice_returns(programs, count) != 0) || !(compiler_link_CheckInline(programs, count) != false)) {
+        return 0
+    }
+    {
+        p: s32 = 0
+        while check_loop_85 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_86 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        g: s32 = 0
+                        while check_loop_87 := (g < (module).global_count) {
+                            if ((((((module).globals)[g]).init)[0] != 0) && (contains_vec(module, cast(*u8)(*((((module).globals)[g]).type)), 0) != 0)) {
+                                Diagnostic((((module).globals)[g]).span, CheckCString("check.vec_copy"), CheckCString("Vec globals require default initialization"))
+                                return 0
+                            }
+                            S12Post2(*(g))
+                        }
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_88 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_89 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        t: s32 = 0
+                        while check_loop_90 := (t < (module).type_count) {
+                            type: *IR.ZirType = cast(*IR.ZirType)(cast(usize)((module).types) + cast(usize)(t) * size_of(IR.ZirType))
+                            select_lookup_file(module, (type).span)
+                            if ((type).is_type_instance != 0) {
+                                generic_owner: *IR.ZirModule = null
+                                generic: *IR.ZirType = FindType(module, cast(*u8)(*((type).template_name)), *(generic_owner))
+                                if (((generic == cast(*IR.ZirType)((null))) || !((generic).is_record_template != 0)) || !(InstantiateGenericRecordAt(type, generic, generic_owner, module) != 0)) {
+                                    Diagnostic((type).span, CheckCString("check.specialize"), CheckCString("invalid generic type specialization: %s"), cast(*u8)(*((type).name)))
+                                    return 0
+                                }
+                                type = cast(*IR.ZirType)(cast(usize)((module).types) + cast(usize)(t) * size_of(IR.ZirType))
+                                if (((type).body)[0] != 0) {
+                                    copy_text(cast(*u8)(*(((buffers).body).items)), cast(usize)(cast(u64)size_of(S12Array8192_u8)), cast(*u8)(*((type).body)))
+                                    if !(rewrite_type_applications(module, cast(*u8)(*(((buffers).body).items)), cast(*u8)(*(((buffers).expanded).items)), cast(usize)(cast(u64)size_of(S12Array8192_u8)), (type).span, 0) != 0) {
+                                        return 0
+                                    }
+                                    copy_text(cast(*u8)(*((((module).types)[t]).body)), cast(usize)(cast(u64)size_of(S12Array8192_u8)), cast(*u8)(*(((buffers).expanded).items)))
+                                }
+                            }
+                            type = cast(*IR.ZirType)(cast(usize)((module).types) + cast(usize)(t) * size_of(IR.ZirType))
+                            S12Post2(*(t))
+                        }
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_91 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_92 := (m < ((programs)[p]).module_count) {
+                    if !(order_local_types(cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))) != 0) {
+                        return 0
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_93 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_94 := (m < ((programs)[p]).module_count) {
+                    if !(jai_module_types(cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))) != 0) {
+                        return 0
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_95 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_96 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        d: s32 = 0
+                        while check_loop_97 := (d < (module).define_count) {
+                            definition: *IR.ZirDefine = cast(*IR.ZirDefine)(cast(usize)((module).defines) + cast(usize)(d) * size_of(IR.ZirDefine))
+                            value: *u8 = skip_ws((definition).value)
+                            memset(cast(*void)(*((buffers).expression)), 0, cast(usize)(cast(u64)size_of(IR.ZirFunction)))
+                            root: s32
+                            valid: s32
+                            if (ArrayTypeAlias(value) != 0) {
+                                S12Post2(*(d))
+                                continue check_loop_97
+                            }
+                            root = ParseExprNoDefaults(*((buffers).expression), module, (definition).value, (definition).span)
+                            valid = cast(s32)((root >= 0) && (cast(s32)(((((buffers).expression).exprs)[root]).kind) != 0))
+                            CompilerFree(cast(*void)(((buffers).expression).exprs))
+                            if !(valid != 0) {
+                                Diagnostic((definition).span, CheckCString("check.constant"), CheckCString("invalid file-scope constant: %s"), (definition).value)
+                                return 0
+                            }
+                            S12Post2(*(d))
+                        }
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_98 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_99 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        f: s32 = 0
+                        while check_loop_100 := (f < (module).function_count) {
+                            copy_text(cast(*u8)(*(((buffers).saved_path).items)), cast(usize)(cast(u64)size_of(S12Array1024_u8)), cast(*u8)(*((module).lookup_path)))
+                            select_lookup_file(module, (((module).functions)[f]).span)
+                            normalized: s32 = normalize_function_arrays(module, cast(*IR.ZirFunction)(cast(usize)((module).functions) + cast(usize)(f) * size_of(IR.ZirFunction)))
+                            copy_text(cast(*u8)(*((module).lookup_path)), cast(usize)(cast(u64)size_of(S12Array1024_u8)), cast(*u8)(*(((buffers).saved_path).items)))
+                            SymbolLookupsChanged()
+                            if !(normalized != 0) {
+                                return 0
+                            }
+                            S12Post2(*(f))
+                        }
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_101 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_102 := (m < ((programs)[p]).module_count) {
+                    if (!(check_type_declarations(cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))) != 0) || !(normalize_record_arrays(cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule)), 0) != 0)) {
+                        return 0
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_103 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_104 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    copy_text(cast(*u8)(*(((buffers).saved_path).items)), cast(usize)(cast(u64)size_of(S12Array1024_u8)), cast(*u8)(*((module).lookup_path)))
+                    {
+                        g: s32 = 0
+                        while check_loop_105 := (g < (module).global_count) {
+                            global: *IR.ZirGlobal = cast(*IR.ZirGlobal)(cast(usize)((module).globals) + cast(usize)(g) * size_of(IR.ZirGlobal))
+                            select_lookup_file(module, (global).span)
+                            normalize_array(module, cast(*u8)(*((global).type)), cast(usize)(cast(u64)size_of(S12Array4096_u8)))
+                            S12Post2(*(g))
+                        }
+                    }
+                    copy_text(cast(*u8)(*((module).lookup_path)), cast(usize)(cast(u64)size_of(S12Array1024_u8)), cast(*u8)(*(((buffers).saved_path).items)))
+                    SymbolLookupsChanged()
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_106 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_107 := (m < ((programs)[p]).module_count) {
+                    ((buffers).c).module = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        i: s32 = 0
+                        while check_loop_108 := (i < (((buffers).c).module).global_count) {
+                            select_lookup_file(((buffers).c).module, (((((buffers).c).module).globals)[i]).span)
+                            type: *u8 = cast(*u8)(*((((((buffers).c).module).globals)[i]).type))
+                            checked: State.ValidatedRecords = .{}
+                            error: *u8 = storage_type_error(((buffers).c).module, type, null, 0, *(checked), null, cast(usize)(0))
+                            CompilerFree(cast(*void)((checked).items))
+                            if (error != cast(*u8)((null))) {
+                                span: IR.ZirSourceSpan = (((((buffers).c).module).globals)[i]).span
+                                Diagnostic(span, CheckCString("check.storage"), CheckCString("%s: %s"), error, type)
+                                CompilerFree(cast(*void)(((buffers).c).bindings))
+                                return 0
+                            }
+                            S12Post2(*(i))
+                        }
+                    }
+                    {
+                        f: s32 = 0
+                        while check_loop_109 := (f < (((buffers).c).module).function_count) {
+                            if !(check_go_method(*((buffers).c), cast(*IR.ZirFunction)(cast(usize)((((buffers).c).module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))) != 0) {
+                                CompilerFree(cast(*void)(((buffers).c).bindings))
+                                CompilerFree(cast(*void)(((buffers).c).specializations))
+                                CompilerFree(cast(*void)(((buffers).c).enum_names))
+                                return 0
+                            }
+                            if ((((((buffers).c).module).functions)[f]).is_template != 0) {
+                                if (!(CheckAssembly(((buffers).c).module, cast(*IR.ZirFunction)(cast(usize)((((buffers).c).module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))) != 0) || !(check_template_declaration(*((buffers).c), cast(*IR.ZirFunction)(cast(usize)((((buffers).c).module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))) != 0)) {
+                                    CompilerFree(cast(*void)(((buffers).c).bindings))
+                                    CompilerFree(cast(*void)(((buffers).c).specializations))
+                                    CompilerFree(cast(*void)(((buffers).c).enum_names))
+                                    return 0
+                                }
+                                S12Post2(*(f))
+                                continue check_loop_109
+                            }
+                            if !(check_function(*((buffers).c), cast(*IR.ZirFunction)(cast(usize)((((buffers).c).module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))) != 0) {
+                                CompilerFree(cast(*void)(((buffers).c).bindings))
+                                CompilerFree(cast(*void)(((buffers).c).specializations))
+                                CompilerFree(cast(*void)(((buffers).c).enum_names))
+                                return 0
+                            }
+                            S12Post2(*(f))
+                        }
+                    }
+                    ((((buffers).c).module).lookup_path)[0] = cast(u8)(0)
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        while check_loop_110 := true {
+            pending: s32 = (((buffers).c).specialization_count + ((buffers).c).enum_name_count)
+            if (pending == 0) {
+                break check_loop_110
+            }
+            if (!(instantiate_enum_names(*((buffers).c)) != 0) || !(instantiate_specializations(*((buffers).c)) != 0)) {
+                CompilerFree(cast(*void)(((buffers).c).bindings))
+                CompilerFree(cast(*void)(((buffers).c).specializations))
+                CompilerFree(cast(*void)(((buffers).c).enum_names))
+                return 0
+            }
+            {
+                p: s32 = 0
+                while check_loop_111 := (p < count) {
+                    {
+                        m: s32 = 0
+                        while check_loop_112 := (m < ((programs)[p]).module_count) {
+                            ((buffers).c).module = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                            {
+                                f: s32 = 0
+                                while check_loop_113 := (f < (((buffers).c).module).function_count) {
+                                    instance: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((((buffers).c).module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
+                                    if (!((instance).is_specialization != 0) || ((instance).checked != 0)) {
+                                        S12Post2(*(f))
+                                        continue check_loop_113
+                                    }
+                                    if !(check_function(*((buffers).c), instance) != 0) {
+                                        CompilerFree(cast(*void)(((buffers).c).bindings))
+                                        CompilerFree(cast(*void)(((buffers).c).specializations))
+                                        CompilerFree(cast(*void)(((buffers).c).enum_names))
+                                        return 0
+                                    }
+                                    S12Post2(*(f))
+                                }
+                            }
+                            ((((buffers).c).module).lookup_path)[0] = cast(u8)(0)
+                            S12Post2(*(m))
+                        }
+                    }
+                    S12Post2(*(p))
+                }
+            }
+        }
+    }
+    changed: s32
+    while check_loop_114 := true {
+        changed = 0
+        {
+            p: s32 = 0
+            while check_loop_115 := (p < count) {
+                {
+                    m: s32 = 0
+                    while check_loop_116 := (m < ((programs)[p]).module_count) {
+                        module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                        {
+                            f: s32 = 0
+                            while check_loop_117 := (f < (module).function_count) {
+                                fn: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
+                                if ((fn).uses_host != 0) {
+                                    S12Post2(*(f))
+                                    continue check_loop_117
+                                }
+                                {
+                                    x: s32 = 0
+                                    while check_loop_118 := (x < (fn).expr_count) {
+                                        callee: *IR.ZirFunction = null
+                                        owner: *IR.ZirModule = null
+                                        if ((((cast(s32)((((fn).exprs)[x]).kind) == 5) || ((((fn).exprs)[x]).is_function_value != 0)) && (ResolveFunction(module, (((fn).exprs)[x]).name, *(owner), *(callee)) == 1)) && ((callee).uses_host != 0)) {
+                                            (fn).uses_host = 1
+                                            changed = 1
+                                            break check_loop_118
+                                        }
+                                        S12Post2(*(x))
+                                    }
+                                }
+                                S12Post2(*(f))
+                            }
+                        }
+                        S12Post2(*(m))
+                    }
+                }
+                S12Post2(*(p))
+            }
+        }
+        if !(changed != 0) { break check_loop_114 }
+    }
+    CompilerFree(cast(*void)(((buffers).c).bindings))
+    CompilerFree(cast(*void)(((buffers).c).specializations))
+    CompilerFree(cast(*void)(((buffers).c).enum_names))
+    if ((((((buffers).c).failed != 0) || (((buffers).c).errors != 0)) || !(CheckSliceLifetimes(programs, count) != 0)) || !(ScopeTextArguments(programs, count) != 0)) {
+        return 0
+    }
+    {
+        p: s32 = 0
+        while check_loop_119 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_120 := (m < ((programs)[p]).module_count) {
+                    if !(compiler_link_NamePrivate(cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))) != false) {
+                        return 0
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    DeriveEffectClasses(programs, count)
+    if !(CheckParallelRegions(programs, count) != 0) {
+        return 0
+    }
+    if !(CheckLawGates(programs, count) != 0) {
+        return 0
+    }
+    return 1
+}
+
+#scope_file
+CheckPrograms_in_context :: (programs: **IR.ZirProgram, count: s32) -> s32 {
+    profile_started := ProfileStart()
+    buffers := cast(*CheckProgramsBuffers)CheckScratchTake(*ScratchKey_CheckPrograms, size_of(CheckProgramsBuffers))
+    returned := CheckPrograms_with_buffers(programs, count, buffers)
+    CheckScratchRelease(*ScratchKey_CheckPrograms, cast(*void)buffers)
+    ProfileEnd(CheckCString("check"), profile_started)
+    return returned
+}
+
+#scope_file
+written_cast :: (fn: *IR.ZirFunction, index: s32) -> s32 {
+    if ((index < 0) || (index >= (fn).expr_count)) {
+        return 0
+    }
+    cast_local: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    return cast(s32)(((((((cast(s32)((cast_local).kind) == 11) && ((cast_local).right >= 0)) && ((cast_local).text != cast(*u8)((null)))) && (strncmp(skip_ws((cast_local).text), CheckCString("cast"), cast(usize)(cast(u64)(4))) == 0)) && (((((fn).exprs)[(cast_local).right]).text == cast(*u8)((null))) || (strcmp((cast_local).text, (((fn).exprs)[(cast_local).right]).text) != 0))) && (cast(s32)((((fn).exprs)[(cast_local).right]).kind) != 2)) && (cast(s32)((((fn).exprs)[(cast_local).right]).kind) != 3))
+}
+
+#scope_file
+lint_cast :: (fn: *IR.ZirFunction, index: s32, whole_value: s32) -> s32 {
+    if !(written_cast(fn, index) != 0) {
+        return 0
+    }
+    cast_local: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    from: *u8 = (((fn).exprs)[(cast_local).right]).type
+    if (!((from)[0] != 0) || !(((cast_local).name)[0] != 0)) {
+        return 0
+    }
+    if !(strcmp((cast_local).name, from) != 0) {
+        Warning((cast_local).span, CheckCString("lint.cast"), CheckCString("cast(%s) is not needed: the value is already %s"), (cast_local).name, from)
+        return 1
+    }
+    if ((whole_value != 0) && (widens_losslessly((cast_local).name, from) != 0)) {
+        Warning((cast_local).span, CheckCString("lint.cast"), CheckCString("cast(%s) is not needed: %s widens to %s implicitly"), (cast_local).name, from, (cast_local).name)
+        return 1
+    }
+    return 0
+}
+
+#scope_file
+holds_number_token :: (text: *u8, number: *u8) -> s32 {
+    length: usize = cast(usize)(cast(u64)(strlen(number)))
+    {
+        at: *u8 = strstr(text, number)
+        while check_loop_121 := (at != cast(*u8)((null))) {
+            if ((((at == text) || !(isalnum(cast(s32)(cast(u8)((at)[(-1)]))) != 0)) && !(isalnum(cast(s32)(cast(u8)((at)[length]))) != 0)) && (cast(s32)(cast(s8)((at)[length])) != 46)) {
+                return 1
+            }
+            at = strstr(cast(*u8)(cast(usize)(at) + cast(usize)(1) * size_of(u8)), number)
+        }
+    }
+    return 0
+}
+
+#scope_file
+lint_character :: (fn: *IR.ZirFunction, index: s32) -> s32 {
+    compare: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    ops: S12Array7__u8 = .{items = .{CheckCString("=="), CheckCString("!="), CheckCString("<"), CheckCString("<="), CheckCString(">"), CheckCString(">="), null}}
+    comparison: s32 = 0
+    {
+        i: s32 = 0
+        while check_loop_122 := ((ops).items[i] != cast(*u8)((null))) {
+            comparison |= cast(s32)(!(strcmp(cast(*u8)(*((compare).op)), (ops).items[i]) != 0))
+            S12Post2(*(i))
+        }
+    }
+    if ((((((cast(s32)((compare).kind) != 6) || !(comparison != 0)) || ((compare).left < 0)) || ((compare).right < 0)) || ((compare).text == cast(*u8)((null)))) || (strstr((compare).text, CheckCString("#char")) != null)) {
+        return 0
+    }
+    left: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((compare).left) * size_of(IR.ZirExpr))
+    right: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((compare).right) * size_of(IR.ZirExpr))
+    number: *IR.ZirExpr = (ifx (cast(s32)((left).kind) == 2) then left else (ifx (cast(s32)((right).kind) == 2) then right else null))
+    byte: *IR.ZirExpr = (ifx (number == left) then right else left)
+    if ((((number == cast(*IR.ZirExpr)((null))) || (cast(s32)((byte).kind) == 2)) || (strcmp((byte).type, CheckCString("u8")) != 0)) || ((number).text == cast(*u8)((null)))) {
+        return 0
+    }
+    end: *u8 = null
+    value: s64 = strtoll((number).text, *(end), 10)
+    if (((((end == (number).text) || (cast(s32)(cast(s8)((end)[0])) != 0)) || (value < cast(s64)(32))) || (value > cast(s64)(126))) || !(holds_number_token((compare).text, (number).text) != 0)) {
+        return 0
+    }
+    spelled_storage_0 := cast(*S12Array8_u8)AllocateOrExit(size_of(S12Array8_u8))
+    defer CompilerFree(cast(*void)spelled_storage_0)
+    memset(cast(*void)spelled_storage_0, 0, size_of(S12Array8_u8))
+    if ((value == cast(s64)(34)) || (value == cast(s64)(92))) {
+        snprintf(cast(*u8)(*((spelled_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array8_u8)), CheckCString("\\%c"), cast(s32)(value))
+    } else {
+        snprintf(cast(*u8)(*((spelled_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array8_u8)), CheckCString("%c"), cast(s32)(value))
+    }
+    Warning((compare).span, CheckCString("lint.char"), CheckCString("compare with #char \"%s\" rather than %d"), cast(*u8)(*((spelled_storage_0[0]).items)), cast(s32)value)
+    return 1
+}
+
+#scope_file
+variadic_callee :: (module: *IR.ZirModule, name: *u8) -> s32 {
+    dot: *u8 = strrchr(name, 46)
+    base: *u8 = (ifx (dot != cast(*u8)((null))) then cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8)) else name)
+    {
+        m: s32 = (-1)
+        while check_loop_123 := (m < (module).import_count) {
+            scope: *IR.ZirModule = (ifx (m < 0) then module else (((module).imports)[m]).resolved_module)
+            if (scope == cast(*IR.ZirModule)((null))) {
+                S12Post2(*(m))
+                continue check_loop_123
+            }
+            {
+                f: s32 = 0
+                while check_loop_124 := (f < (scope).function_count) {
+                    if ((!(strcmp(cast(*u8)(*((((scope).functions)[f]).name)), base) != 0) || !(strcmp(cast(*u8)(*((((scope).functions)[f]).overload_name)), base) != 0)) && (strstr(FunctionArgs(cast(*IR.ZirFunction)(cast(usize)((scope).functions) + cast(usize)(f) * size_of(IR.ZirFunction))), CheckCString("..")) != cast(*u8)((null)))) {
+                        return 1
+                    }
+                    S12Post2(*(f))
+                }
+            }
+            {
+                i: s32 = 0
+                while check_loop_125 := (i < (scope).import_count) {
+                    if (((cast(s32)((((scope).imports)[i]).kind) == 3) && !(strcmp(cast(*u8)(*((((scope).imports)[i]).name)), base) != 0)) && (strstr(cast(*u8)(*((((scope).imports)[i]).args)), CheckCString("..")) != cast(*u8)((null)))) {
+                        return 1
+                    }
+                    S12Post2(*(i))
+                }
+            }
+            S12Post2(*(m))
+        }
+    }
+    return 0
+}
+
+#scope_file
+declared_type_written :: (st: *IR.ZirStmt) -> s32 {
+    if !(strncmp(((st).names).name, CheckCString("range_"), cast(usize)(cast(u64)(6))) != 0) {
+        return 0
+    }
+    text: *u8 = (ifx ((st).text != cast(*u8)((null))) then skip_ws((st).text) else CheckCString(""))
+    length: usize = cast(usize)(cast(u64)(strlen(((st).names).name)))
+    if (strncmp(text, ((st).names).name, length) != 0) {
+        return 0
+    }
+    text = skip_ws(cast(*u8)(cast(usize)(text) + cast(usize)(length) * size_of(u8)))
+    return cast(s32)((cast(s32)(cast(s8)((text)[0])) == 58) && (cast(s32)(cast(s8)((text)[1])) != 61))
+}
+
+#scope_file
+flag_value :: (fn: *IR.ZirFunction, index: s32) -> s32 {
+    if ((index < 0) || (index >= (fn).expr_count)) {
+        return 0
+    }
+    e: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if ((cast(s32)((e).kind) == 2) && ((e).text != cast(*u8)((null)))) {
+        return cast(s32)(!(strcmp((e).text, CheckCString("0")) != 0) || !(strcmp((e).text, CheckCString("1")) != 0))
+    }
+    return cast(s32)(((cast(s32)((e).kind) == 11) && ((e).right >= 0)) && !(strcmp((((fn).exprs)[(e).right]).type, CheckCString("bool")) != 0))
+}
+
+#scope_file
+lint_flags :: (fn: *IR.ZirFunction) -> s32 {
+    warnings: s32 = 0
+    parent: *s32 = cast(*s32)(CompilerMalloc(cast(usize)((cast(u64)(cast(usize)(((ifx ((fn).expr_count != 0) then (fn).expr_count else 1)))) * cast(u64)size_of(s32)))))
+    if (parent == cast(*s32)((null))) {
+        return 0
+    }
+    {
+        e: s32 = 0
+        while check_loop_126 := (e < (fn).expr_count) {
+            (parent)[e] = (-1)
+            S12Post2(*(e))
+        }
+    }
+    {
+        e: s32 = 0
+        while check_loop_127 := (e < (fn).expr_count) {
+            x: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(e) * size_of(IR.ZirExpr))
+            if (((x).left >= 0) && ((x).left < (fn).expr_count)) {
+                (parent)[(x).left] = e
+            }
+            if (((x).right >= 0) && ((x).right < (fn).expr_count)) {
+                (parent)[(x).right] = e
+            }
+            if (((x).third >= 0) && ((x).third < (fn).expr_count)) {
+                (parent)[(x).third] = e
+            }
+            {
+                child: s32 = (x).first_child
+                while check_loop_128 := ((child >= 0) && (child < (fn).expr_count)) {
+                    (parent)[child] = e
+                    child = (((fn).exprs)[child]).next_sibling
+                }
+            }
+            S12Post2(*(e))
+        }
+    }
+    {
+        d: s32 = 0
+        while check_loop_129 := (d < (fn).stmt_count) {
+            decl: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(d) * size_of(IR.ZirStmt))
+            if (((((((cast(s32)((decl).kind) != 3) || !(integer_type((decl).type) != 0)) || !(strcmp((decl).type, CheckCString("bool")) != 0)) || !(strncmp(((decl).names).name, CheckCString("range_"), cast(usize)(cast(u64)(6))) != 0)) || !(strncmp(((decl).names).name, CheckCString("case_value_"), cast(usize)(cast(u64)(11))) != 0)) || !(declared_type_written(decl) != 0)) || (((decl).expr_root >= 0) && !(flag_value(fn, (decl).expr_root) != 0))) {
+                S12Post2(*(d))
+                continue check_loop_129
+            }
+            ok: s32 = 1
+            reads: s32 = 0
+            {
+                other: s32 = 0
+                while check_loop_130 := ((other < (fn).stmt_count) && (ok != 0)) {
+                    if (((other != d) && (cast(s32)((((fn).stmts)[other]).kind) == 3)) && !(strcmp(((((fn).stmts)[other]).names).name, ((decl).names).name) != 0)) {
+                        ok = 0
+                    }
+                    S12Post2(*(other))
+                }
+            }
+            needle_storage_0 := cast(*S12Array130_u8)AllocateOrExit(size_of(S12Array130_u8))
+            defer CompilerFree(cast(*void)needle_storage_0)
+            memset(cast(*void)needle_storage_0, 0, size_of(S12Array130_u8))
+            snprintf(cast(*u8)(*((needle_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array130_u8)), CheckCString("%s:"), ((decl).names).name)
+            if (strstr(FunctionArgs(fn), cast(*u8)(*((needle_storage_0[0]).items))) != cast(*u8)((null))) {
+                ok = 0
+            }
+            {
+                s: s32 = 0
+                while check_loop_131 := ((s < (fn).stmt_count) && (ok != 0)) {
+                    st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+                    if (((((cast(s32)((st).kind) == 4) && ((st).lhs_root >= 0)) && (cast(s32)((((fn).exprs)[(st).lhs_root]).kind) == 1)) && !(strcmp((((fn).exprs)[(st).lhs_root]).name, ((decl).names).name) != 0)) && ((strcmp(cast(*u8)(*((st).assignment_op)), CheckCString("=")) != 0) || !(flag_value(fn, (st).expr_root) != 0))) {
+                        ok = 0
+                    }
+                    S12Post2(*(s))
+                }
+            }
+            {
+                e: s32 = 0
+                while check_loop_132 := ((e < (fn).expr_count) && (ok != 0)) {
+                    x: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(e) * size_of(IR.ZirExpr))
+                    if ((cast(s32)((x).kind) != 1) || (strcmp((x).name, ((decl).names).name) != 0)) {
+                        S12Post2(*(e))
+                        continue check_loop_132
+                    }
+                    assigned: s32 = 0
+                    {
+                        s: s32 = 0
+                        while check_loop_133 := (s < (fn).stmt_count) {
+                            if ((cast(s32)((((fn).stmts)[s]).kind) == 4) && ((((fn).stmts)[s]).lhs_root == e)) {
+                                assigned = 1
+                            }
+                            S12Post2(*(s))
+                        }
+                    }
+                    if (assigned != 0) {
+                        S12Post2(*(e))
+                        continue check_loop_132
+                    }
+                    p: s32 = (parent)[e]
+                    if (p < 0) {
+                        ok = 0
+                        break check_loop_132
+                    }
+                    compare: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(p) * size_of(IR.ZirExpr))
+                    other: s32 = (ifx ((compare).left == e) then (compare).right else (compare).left)
+                    if ((((((cast(s32)((compare).kind) != 6) || ((strcmp(cast(*u8)(*((compare).op)), CheckCString("==")) != 0) && (strcmp(cast(*u8)(*((compare).op)), CheckCString("!=")) != 0))) || (other < 0)) || (cast(s32)((((fn).exprs)[other]).kind) != 2)) || ((((fn).exprs)[other]).text == cast(*u8)((null)))) || ((strcmp((((fn).exprs)[other]).text, CheckCString("0")) != 0) && (strcmp((((fn).exprs)[other]).text, CheckCString("1")) != 0))) {
+                        ok = 0
+                    }
+                    S12Post2(*(reads))
+                    S12Post2(*(e))
+                }
+            }
+            if ((ok != 0) && (reads > 0)) {
+                Warning((decl).span, CheckCString("lint.bool"), CheckCString("%s holds only 0 or 1 and is only compared with them; declare it bool"), ((decl).names).name)
+                S12Post2(*(warnings))
+            }
+            S12Post2(*(d))
+        }
+    }
+    CompilerFree(cast(*void)(parent))
+    return warnings
+}
+
+#scope_export
+#program_export "LintPrograms"
+LintPrograms :: (programs: **IR.ZirProgram, count: s32) -> s32 {
+    warnings: s32 = 0
+    root: *u8 = (ifx ((count > 0) && (((programs)[0]).module_count > 0)) then cast(*u8)(*(((((programs)[0]).modules)[0]).source_root)) else CheckCString(""))
+    {
+        p: s32 = 0
+        while check_loop_134 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_135 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    if (strcmp(cast(*u8)(*((module).source_root)), root) != 0) {
+                        S12Post2(*(m))
+                        continue check_loop_135
+                    }
+                    {
+                        f: s32 = 0
+                        while check_loop_136 := (f < (module).function_count) {
+                            fn: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
+                            if ((((!((fn).checked != 0) || ((fn).from_ir != 0)) || ((fn).is_template != 0)) || ((fn).is_specialization != 0)) || !(strncmp(cast(*u8)(*((fn).name)), CheckCString("zi_"), cast(usize)(cast(u64)(3))) != 0)) {
+                                S12Post2(*(f))
+                                continue check_loop_136
+                            }
+                            whole: *u8 = cast(*u8)(CompilerCalloc((cast(usize)((fn).expr_count) + cast(usize)(1)), cast(usize)(1)))
+                            if (whole == cast(*u8)((null))) {
+                                return warnings
+                            }
+                            {
+                                s: s32 = 0
+                                while check_loop_137 := (s < (fn).stmt_count) {
+                                    st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+                                    if (((st).expr_root < 0) || ((st).expr_root >= (fn).expr_count)) {
+                                        S12Post2(*(s))
+                                        continue check_loop_137
+                                    }
+                                    if ((((cast(s32)((st).kind) == 3) && (declared_type_written(st) != 0)) || ((cast(s32)((st).kind) == 4) && !(strcmp(cast(*u8)(*((st).assignment_op)), CheckCString("=")) != 0))) || (cast(s32)((st).kind) == 10)) {
+                                        (whole)[(st).expr_root] = cast(u8)(1)
+                                    }
+                                    S12Post2(*(s))
+                                }
+                            }
+                            {
+                                e: s32 = 0
+                                while check_loop_138 := (e < (fn).expr_count) {
+                                    call: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(e) * size_of(IR.ZirExpr))
+                                    if ((((((((((cast(s32)((call).kind) != 5) || !(((call).name)[0] != 0)) || (strstr((call).name, CheckCString("__overload_")) != null)) || (strstr((call).name, CheckCString("__zi_spec")) != null)) || !(strncmp((call).name, CheckCString("zi_"), cast(usize)(cast(u64)(3))) != 0)) || !(strcmp((call).name, CheckCString("print")) != 0)) || !(strncmp((call).name, CheckCString("Vec"), cast(usize)(cast(u64)(3))) != 0)) || !(strncmp((call).name, CheckCString("Builder"), cast(usize)(cast(u64)(7))) != 0)) || (MapPrimitiveName((call).name) != 0)) || (variadic_callee(module, (call).name) != 0)) {
+                                        S12Post2(*(e))
+                                        continue check_loop_138
+                                    }
+                                    {
+                                        child: s32 = (call).first_child
+                                        while check_loop_139 := (child >= 0) {
+                                            (whole)[child] = cast(u8)(1)
+                                            child = (((fn).exprs)[child]).next_sibling
+                                        }
+                                    }
+                                    S12Post2(*(e))
+                                }
+                            }
+                            {
+                                e: s32 = 0
+                                while check_loop_140 := (e < (fn).expr_count) {
+                                    warnings += (lint_cast(fn, e, cast(s32)(cast(s8)((whole)[e]))) + lint_character(fn, e))
+                                    S12Post2(*(e))
+                                }
+                            }
+                            warnings += lint_flags(fn)
+                            CompilerFree(cast(*void)(whole))
+                            S12Post2(*(f))
+                        }
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    return warnings
+}
+
+#scope_export
+#program_export "CheckPrograms"
+CheckPrograms :: (programs: **IR.ZirProgram, count: s32) -> s32 {
+    previous: *u8 = CompilerContextSelect((ifx (((count > 0) && (programs != null)) && ((programs)[0] != null)) then ((programs)[0]).context else CompilerContextCurrent()))
+    result: s32 = CheckPrograms_in_context(programs, count)
+    CompilerContextSelect(previous)
+    return result
+}
+
+#scope_file
+LexerInit :: (lexer: *IR.ZirLexer, source: *u8, path: *u8) {
+    CompilerLexerInit(lexer, cast(*void)(source), cast(*void)(path))
+}
+
+#scope_file
+ParseExpr :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan) -> s32 {
+    return CompilerParseExpr(fn, cast(*IR.ZirModule)(module), cast(*void)(text), span)
+}
+
+#scope_file
+ParseExprTyped :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan, expected_type: *u8) -> s32 {
+    return CompilerParseExprTyped(fn, cast(*IR.ZirModule)(module), cast(*void)(text), span, cast(*void)(expected_type))
+}
+
+#scope_file
+ParseExprNoDefaults :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan) -> s32 {
+    return CompilerParseExprNoDefaults(fn, cast(*IR.ZirModule)(module), cast(*void)(text), span)
+}
+
+#scope_file
+FunctionArgs :: (fn: *IR.ZirFunction) -> *u8 {
+    return (ifx ((fn).args_text != null) then (fn).args_text else CheckCString(""))
+}

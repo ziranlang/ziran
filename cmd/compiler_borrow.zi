@@ -1,0 +1,2146 @@
+// Semantic checker: borrow.
+// Algorithms are maintained here; foreign calls cross compiler phase or module boundaries.
+using IR :: #import "compiler_ir"
+using State :: #import "compiler_check_types"
+using S12 :: #import "compiler_check_s12_types"
+
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+ArrayElementType :: (type: *u8, element: *u8, element_size: usize, capacity: *s32) -> s32 #foreign compiler "ArrayElementType";
+BitBuiltin :: (checked_name: *u8) -> s32 #foreign compiler "BitBuiltin";
+CompilerCalloc :: (count: usize, size: usize) -> *void #foreign compiler "CompilerCalloc";
+CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
+CompilerRealloc :: (pointer: *void, size: usize) -> *void #foreign compiler "CompilerRealloc";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, varargs: ..any) #foreign compiler "Diagnostic";
+DiagnosticDetailed :: (span: IR.ZirSourceSpan, code: *u8, details: *State.DiagnosticDetails, format: *u8, varargs: ..any) #foreign compiler "DiagnosticDetailed";
+FindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+OwnedTextType :: (module: *IR.ZirModule, type: *u8) -> s32 #foreign compiler "OwnedTextType";
+ParametersOf :: (text: *u8) -> *State.ZirParameters #foreign compiler "ParametersOf";
+ProfileEnd :: (phase: *u8, started: u64) #foreign compiler "ProfileEnd";
+ProfileStart :: () -> u64 #foreign compiler "ProfileStart";
+ResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunction";
+ResolveGlobal :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, global: **IR.ZirGlobal) -> s32 #foreign compiler "ResolveGlobal";
+SimdOpChecked :: (name: *u8) -> *SimdOp #foreign compiler "SimdOpChecked";
+SliceElementType :: (type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "SliceElementType";
+TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+VecElementType :: (module: *IR.ZirModule, type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "VecElementType";
+copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
+memset :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memset";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+strchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strchr";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+
+#scope_file
+pointer_hash :: (key: *void, second: *void) -> u64 {
+    hash: u64 = (((cast(u64)(cast(usize)(key)) ^ ((cast(u64)(cast(usize)(second)) * 31)))) * 11400714819323198485)
+    return (hash ^ ((hash >> cast(u64)(29))))
+}
+
+#scope_file
+pointer_index_get :: (index: *PointerIndex, key: *void, second: *void) -> s32 {
+    if ((index).capacity == cast(usize)(0)) {
+        return (-1)
+    }
+    mask: usize = ((index).capacity - cast(usize)(1))
+    {
+        slot: usize = cast(usize)((pointer_hash(key, second) & cast(u64)(mask)))
+        while check_loop_197 := ((((index).slots)[slot]).key != (null)) {
+            if (((((index).slots)[slot]).key == key) && ((((index).slots)[slot]).second == second)) {
+                return (((index).slots)[slot]).value
+            }
+            slot = (((slot + cast(usize)(1))) & mask)
+        }
+    }
+    return (-1)
+}
+
+#scope_file
+pointer_index_put :: (index: *PointerIndex, key: *void, second: *void, value: s32) -> s32 {
+    if (((((index).count + cast(usize)(1))) * cast(usize)(4)) > ((index).capacity * cast(usize)(3))) {
+        capacity: usize = (ifx ((index).capacity != 0) then ((index).capacity * cast(usize)(2)) else cast(usize)(256))
+        grown: *PointerSlot = cast(*PointerSlot)(CompilerCalloc(capacity, cast(usize)(cast(u64)size_of(PointerSlot))))
+        if (grown == cast(*PointerSlot)((null))) {
+            return 0
+        }
+        {
+            i: usize = cast(usize)(0)
+            while check_loop_198 := (i < (index).capacity) {
+                old: *PointerSlot = cast(*PointerSlot)(cast(usize)((index).slots) + cast(usize)(i) * size_of(PointerSlot))
+                if ((old).key == (null)) {
+                    S12Post5(*(i))
+                    continue check_loop_198
+                }
+                slot: usize = cast(usize)((pointer_hash((old).key, (old).second) & cast(u64)(((capacity - cast(usize)(1))))))
+                while check_loop_199 := (((grown)[slot]).key != (null)) {
+                    slot = (((slot + cast(usize)(1))) & ((capacity - cast(usize)(1))))
+                }
+                (grown)[slot] = (old)[0]
+                S12Post5(*(i))
+            }
+        }
+        CompilerFree(cast(*void)((index).slots))
+        (index).slots = grown
+        (index).capacity = capacity
+    }
+    mask: usize = ((index).capacity - cast(usize)(1))
+    slot: usize = cast(usize)((pointer_hash(key, second) & cast(u64)(mask)))
+    while check_loop_200 := ((((index).slots)[slot]).key != (null)) {
+        if (((((index).slots)[slot]).key == key) && ((((index).slots)[slot]).second == second)) {
+            return 1
+        }
+        slot = (((slot + cast(usize)(1))) & mask)
+    }
+    ((index).slots)[slot] = PointerSlot.{key, second, value}
+    S12Post5(*((index).count))
+    return 1
+}
+
+#scope_file
+reject :: (check: *BorrowCheck, span: IR.ZirSourceSpan, message: *u8) {
+    if !((check).failed != 0) {
+        Diagnostic(span, CheckCString("check.slice_lifetime"), CheckCString("%s"), message)
+    }
+    (check).failed = 1
+}
+
+#scope_file
+list_index :: (check: *BorrowCheck, list: *IndexList, index: s32) {
+    if ((list).count == (list).capacity) {
+        capacity: s32 = (ifx ((list).capacity != 0) then ((list).capacity * 2) else 8)
+        grown: *s32 = cast(*s32)(CompilerRealloc(cast(*void)((list).items), cast(usize)((cast(u64)(cast(usize)(capacity)) * cast(u64)size_of(s32)))))
+        if (grown == cast(*s32)((null))) {
+            reject(check, (((check).current).fn).span, CheckCString("out of memory checking slice lifetimes"))
+            return
+        }
+        (list).items = grown
+        (list).capacity = capacity
+    }
+    ((list).items)[S12Post2(*((list).count))] = index
+}
+
+#scope_file
+read_global :: (check: *BorrowCheck, index: s32) {
+    global: *BorrowBinding = cast(*BorrowBinding)(cast(usize)((check).globals) + cast(usize)(index) * size_of(BorrowBinding))
+    if ((global).listed_by == (check).checks) {
+        return
+    }
+    (global).listed_by = (check).checks
+    list_index(check, *(((check).current).globals_read), index)
+}
+
+#scope_file
+function_summary :: (check: *BorrowCheck, fn: *IR.ZirFunction) -> *BorrowFunction {
+    index: s32 = (ifx (fn != cast(*IR.ZirFunction)((null))) then pointer_index_get(*((check).function_index), cast(*void)(fn), null) else (-1))
+    if (index < 0) {
+        return null
+    }
+    summary: *BorrowFunction = cast(*BorrowFunction)(cast(usize)((check).functions) + cast(usize)(index) * size_of(BorrowFunction))
+    if ((summary).listed_by != (check).checks) {
+        (summary).listed_by = (check).checks
+        list_index(check, *(((check).current).callees), index)
+    }
+    return summary
+}
+
+#scope_file
+summary_changed :: (check: *BorrowCheck) {
+    ((check).current).summary_changed_at = S12Pre13(*((check).clock))
+}
+
+#scope_file
+list_view_global :: (check: *BorrowCheck, index: s32) {
+    view: *BorrowBinding = cast(*BorrowBinding)(cast(usize)((check).globals) + cast(usize)(index) * size_of(BorrowBinding))
+    if ((view).view_listed != 0) {
+        return
+    }
+    if ((check).view_global_count == (check).view_global_capacity) {
+        capacity: s32 = (ifx ((check).view_global_capacity != 0) then ((check).view_global_capacity * 2) else 64)
+        grown: *s32 = cast(*s32)(CompilerRealloc(cast(*void)((check).view_globals), cast(usize)((cast(u64)(cast(usize)(capacity)) * cast(u64)size_of(s32)))))
+        if (grown == cast(*s32)((null))) {
+            reject(check, ((view).global).span, CheckCString("out of memory checking global text aliases"))
+            return
+        }
+        (check).view_globals = grown
+        (check).view_global_capacity = capacity
+    }
+    position: s32 = S12Post2(*((check).view_global_count))
+    while check_loop_201 := ((position > 0) && (((check).view_globals)[(position - 1)] > index)) {
+        ((check).view_globals)[position] = ((check).view_globals)[(position - 1)]
+        S12Post0(*(position))
+    }
+    ((check).view_globals)[position] = index
+    (view).view_listed = 1
+    (check).views_changed_at = S12Pre13(*((check).clock))
+}
+
+#scope_file
+new_global_bits :: (check: *BorrowCheck) -> *u64 {
+    word_bytes: usize = size_of(u64)
+    header_bytes: usize = size_of(GlobalBits) - word_bytes
+    bytes := header_bytes + (check).global_words * word_bytes
+    bits := cast(*GlobalBits)CompilerCalloc(1, bytes)
+    if (bits == cast(*GlobalBits)((null))) {
+        reject(check, (((check).current).fn).span, CheckCString("out of memory checking global text aliases"))
+        return null
+    }
+    (bits).next = (check).global_bits
+    (check).global_bits = bits
+    return cast(*u64)(cast(usize)bits + header_bytes)
+}
+
+#scope_file
+global_bit :: (check: *BorrowCheck, index: s32) -> *u64 {
+    bits: *u64 = new_global_bits(check)
+    if (bits != cast(*u64)((null))) {
+        (bits)[(cast(usize)(index) / cast(usize)(64))] = (1 << cast(u64)(((index % 64))))
+    }
+    return bits
+}
+
+#scope_file
+has_global :: (origin: Origin, index: s32) -> s32 {
+    return cast(s32)(((origin).globals != cast(*u64)((null))) && (((((origin).globals)[(cast(usize)(index) / cast(usize)(64))] & ((1 << cast(u64)(((index % 64))))))) != cast(u64)(0)))
+}
+
+#scope_file
+merge :: (check: *BorrowCheck, a: Origin, b: Origin) -> Origin {
+    result_storage_0 := cast(*Origin)AllocateOrExit(size_of(Origin))
+    defer CompilerFree(cast(*void)result_storage_0)
+    memset(cast(*void)result_storage_0, 0, size_of(Origin))
+    result_storage_0[0] = a
+    (result_storage_0[0]).parameters |= (b).parameters
+    (result_storage_0[0]).pointees |= (b).pointees
+    (result_storage_0[0]).lent |= (b).lent
+    (result_storage_0[0]).lent_vec |= (b).lent_vec
+    (result_storage_0[0]).global_vec |= (b).global_vec
+    if ((b).depth > (result_storage_0[0]).depth) {
+        (result_storage_0[0]).depth = (b).depth
+    }
+    (result_storage_0[0]).invalid |= (b).invalid
+    (result_storage_0[0]).unknown |= (b).unknown
+    if ((a).globals == cast(*u64)((null))) {
+        (result_storage_0[0]).globals = (b).globals
+    } else {
+        if (((b).globals != cast(*u64)((null))) && ((a).globals != (b).globals)) {
+            a_extra: s32 = 0
+            b_extra: s32 = 0
+            {
+                i: usize = cast(usize)(0)
+                while check_loop_202 := (i < (check).global_words) {
+                    a_extra |= cast(s32)(((((a).globals)[i] & (~((b).globals)[i]))) != cast(u64)(0))
+                    b_extra |= cast(s32)(((((b).globals)[i] & (~((a).globals)[i]))) != cast(u64)(0))
+                    S12Post5(*(i))
+                }
+            }
+            if !(b_extra != 0) {
+                (result_storage_0[0]).globals = (a).globals
+            } else {
+                if !(a_extra != 0) {
+                    (result_storage_0[0]).globals = (b).globals
+                } else {
+                    bits: *u64 = new_global_bits(check)
+                    if (bits != cast(*u64)((null))) {
+                        {
+                            i: usize = cast(usize)(0)
+                            while check_loop_203 := (i < (check).global_words) {
+                                (bits)[i] = (((a).globals)[i] | ((b).globals)[i])
+                                S12Post5(*(i))
+                            }
+                        }
+                    }
+                    (result_storage_0[0]).globals = bits
+                }
+            }
+        }
+    }
+    return result_storage_0[0]
+}
+
+#scope_file
+same_origin :: (left: Origin, right: Origin) -> s32 {
+    return cast(s32)((((((((((left).parameters == (right).parameters) && ((left).pointees == (right).pointees)) && ((left).lent == (right).lent)) && ((left).lent_vec == (right).lent_vec)) && ((left).global_vec == (right).global_vec)) && ((left).depth == (right).depth)) && ((left).invalid == (right).invalid)) && ((left).unknown == (right).unknown)) && ((left).globals == (right).globals))
+}
+
+#scope_file
+accumulate :: (check: *BorrowCheck, destination: *Origin, source: Origin) -> s32 {
+    next_storage_0 := cast(*Origin)AllocateOrExit(size_of(Origin))
+    defer CompilerFree(cast(*void)next_storage_0)
+    memset(cast(*void)next_storage_0, 0, size_of(Origin))
+    next_storage_0[0] = merge(check, (destination)[0], source)
+    if (same_origin(next_storage_0[0], (destination)[0]) != 0) {
+        return 0
+    }
+    S12Set14(destination, next_storage_0[0])
+    (check).changed = 1
+    return 1
+}
+
+#scope_file
+root_place :: (binding: *BorrowBinding) -> BorrowPlace {
+    return BorrowPlace.{binding, null}
+}
+
+#scope_file
+append_place :: (check: *BorrowCheck, place: BorrowPlace, field: *u8, index: s32) -> BorrowPlace {
+    if ((place).root == cast(*BorrowBinding)((null))) {
+        return place
+    }
+    path: *BorrowPath = cast(*BorrowPath)(CompilerCalloc(cast(usize)(1), cast(usize)(cast(u64)size_of(BorrowPath))))
+    if (path == cast(*BorrowPath)((null))) {
+        reject(check, (((check).current).fn).span, CheckCString("out of memory checking text borrow paths"))
+        return BorrowPlace.{}
+    }
+    (path).parent = (place).path
+    (path).depth = (ifx ((place).path == cast(*BorrowPath)((null))) then 1 else (((place).path).depth + 1))
+    (path).field = field
+    (path).index = index
+    (path).next_allocation = (check).paths
+    (check).paths = path
+    (place).path = path
+    return place
+}
+
+#scope_file
+paths_overlap :: (left: *BorrowPath, right: *BorrowPath) -> s32 {
+    if ((left == cast(*BorrowPath)((null))) || (right == cast(*BorrowPath)((null)))) {
+        return 1
+    }
+    while check_loop_204 := ((left).depth > (right).depth) {
+        left = (left).parent
+    }
+    while check_loop_205 := ((right).depth > (left).depth) {
+        right = (right).parent
+    }
+    if (left == right) {
+        return 1
+    }
+    if !(paths_overlap((left).parent, (right).parent) != 0) {
+        return 0
+    }
+    return cast(s32)((((left).index != 0) || ((right).index != 0)) || (strcmp((left).field, (right).field) == 0))
+}
+
+#scope_file
+places_overlap :: (left: BorrowPlace, right: BorrowPlace) -> s32 {
+    if (((left).root == cast(*BorrowBinding)((null))) || ((right).root == cast(*BorrowBinding)((null)))) {
+        return 0
+    }
+    if ((left).root == (right).root) {
+        return paths_overlap((left).path, (right).path)
+    }
+    if ((((((left).root).parameter >= 0) && (((right).root).parameter >= 0)) && ((cast(s32)(cast(s8)((((left).root).type).items[0])) == 42) || (SliceElementType(cast(*u8)(*((((left).root).type).items)), null, cast(usize)(0)) != 0))) && ((cast(s32)(cast(s8)((((right).root).type).items[0])) == 42) || (SliceElementType(cast(*u8)(*((((right).root).type).items)), null, cast(usize)(0)) != 0))) {
+        return cast(s32)(!(strcmp(cast(*u8)(*((((left).root).type).items)), cast(*u8)(*((((right).root).type).items))) != 0) && (paths_overlap((left).path, (right).path) != 0))
+    }
+    return 0
+}
+
+#scope_file
+path_within :: (outer: *BorrowPath, inner: *BorrowPath) -> s32 {
+    if (outer == cast(*BorrowPath)((null))) {
+        return 1
+    }
+    if ((inner == cast(*BorrowPath)((null))) || ((inner).depth < (outer).depth)) {
+        return 0
+    }
+    while check_loop_206 := ((inner).depth > (outer).depth) {
+        inner = (inner).parent
+    }
+    return paths_overlap(outer, inner)
+}
+
+#scope_file
+place_within :: (outer: BorrowPlace, inner: BorrowPlace) -> s32 {
+    if (((outer).root == cast(*BorrowBinding)((null))) || ((inner).root == cast(*BorrowBinding)((null)))) {
+        return 0
+    }
+    if ((outer).root == (inner).root) {
+        return path_within((outer).path, (inner).path)
+    }
+    if ((((((outer).root).parameter >= 0) && (((inner).root).parameter >= 0)) && ((cast(s32)(cast(s8)((((outer).root).type).items[0])) == 42) || (SliceElementType(cast(*u8)(*((((outer).root).type).items)), null, cast(usize)(0)) != 0))) && ((cast(s32)(cast(s8)((((inner).root).type).items[0])) == 42) || (SliceElementType(cast(*u8)(*((((inner).root).type).items)), null, cast(usize)(0)) != 0))) {
+        return cast(s32)(!(strcmp(cast(*u8)(*((((outer).root).type).items)), cast(*u8)(*((((inner).root).type).items))) != 0) && (path_within((outer).path, (inner).path) != 0))
+    }
+    return 0
+}
+
+#scope_file
+same_path :: (left: *BorrowPath, right: *BorrowPath) -> s32 {
+    if (left == right) {
+        return 1
+    }
+    if (((left == cast(*BorrowPath)((null))) || (right == cast(*BorrowPath)((null)))) || ((left).index != (right).index)) {
+        return 0
+    }
+    if (!((left).index != 0) && (strcmp((left).field, (right).field) != 0)) {
+        return 0
+    }
+    return same_path((left).parent, (right).parent)
+}
+
+#scope_file
+same_place :: (left: BorrowPlace, right: BorrowPlace) -> s32 {
+    return cast(s32)(((left).root == (right).root) && (same_path((left).path, (right).path) != 0))
+}
+
+#scope_file
+global_state_differs :: (before: *BorrowBinding, after: *BorrowBinding) -> s32 {
+    return cast(s32)((((((!(same_origin((before).origin, (after).origin) != 0) || ((before).global_backing_state != (after).global_backing_state)) || !(same_place((before).text_backing, (after).text_backing) != 0)) || ((before).text_backings != (after).text_backings)) || !(same_place((before).address_backing, (after).address_backing) != 0)) || ((before).address_known != (after).address_known)) || ((before).view_listed != (after).view_listed))
+}
+
+#scope_file
+add_source :: (check: *BorrowCheck, sources: *BorrowSource, place: BorrowPlace) -> *BorrowSource {
+    if ((place).root == cast(*BorrowBinding)((null))) {
+        return sources
+    }
+    {
+        source: *BorrowSource = sources
+        while check_loop_207 := (source != cast(*BorrowSource)((null))) {
+            if (same_place((source).place, place) != 0) {
+                return sources
+            }
+            source = (source).next
+        }
+    }
+    source: *BorrowSource = cast(*BorrowSource)(CompilerCalloc(cast(usize)(1), cast(usize)(cast(u64)size_of(BorrowSource))))
+    if (source == cast(*BorrowSource)((null))) {
+        reject(check, (((check).current).fn).span, CheckCString("out of memory checking text borrow sources"))
+        return sources
+    }
+    (source).place = place
+    (source).next = sources
+    (source).next_allocation = (check).sources
+    (check).sources = source
+    return source
+}
+
+#scope_file
+merge_sources :: (check: *BorrowCheck, destination: *BorrowSource, sources: *BorrowSource) -> *BorrowSource {
+    {
+        source: *BorrowSource = sources
+        while check_loop_208 := (source != cast(*BorrowSource)((null))) {
+            destination = add_source(check, destination, (source).place)
+            source = (source).next
+        }
+    }
+    return destination
+}
+
+#scope_file
+first_source :: (sources: *BorrowSource) -> BorrowPlace {
+    return (ifx (sources == cast(*BorrowSource)((null))) then BorrowPlace.{} else (sources).place)
+}
+
+#scope_file
+only_global :: (check: *BorrowCheck, origin: Origin, index: s32) -> s32 {
+    if ((index < 0) || !(has_global(origin, index) != 0)) {
+        return 0
+    }
+    {
+        word: usize = cast(usize)(0)
+        while check_loop_209 := (word < (check).global_words) {
+            expected: u64 = (ifx (word == (cast(usize)(index) / cast(usize)(64))) then (1 << cast(u64)(((index % 64)))) else cast(u64)(0))
+            if (((origin).globals)[word] != expected) {
+                return 0
+            }
+            S12Post5(*(word))
+        }
+    }
+    return 1
+}
+
+#scope_file
+text_backing_conflict :: (check: *BorrowCheck, destination: BorrowPlace) -> s32 {
+    {
+        i: s32 = 0
+        while check_loop_210 := (i < (check).active_count) {
+            if (!((((check).active)[i]).vec != 0) && (places_overlap((((check).active)[i]).backing, destination) != 0)) {
+                return 1
+            }
+            S12Post2(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+vec_view_conflict :: (check: *BorrowCheck, destination: BorrowPlace) -> s32 {
+    {
+        i: s32 = 0
+        while check_loop_211 := (i < (check).active_count) {
+            if (((((check).active)[i]).vec != 0) && (place_within(destination, (((check).active)[i]).backing) != 0)) {
+                return 1
+            }
+            S12Post2(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+add_active_vec_borrow :: (check: *BorrowCheck, index: s32, depth: s32) {
+    fn: *IR.ZirFunction = ((check).current).fn
+    if (((index < 0) || (cast(s32)((((fn).exprs)[index]).kind) != 5)) || !(SliceElementType((((fn).exprs)[index]).type, null, cast(usize)(0)) != 0)) {
+        return
+    }
+    direct_storage_0 := cast(*BorrowSource)AllocateOrExit(size_of(BorrowSource))
+    defer CompilerFree(cast(*void)direct_storage_0)
+    memset(cast(*void)direct_storage_0, 0, size_of(BorrowSource))
+    direct_storage_0[0] = .{}
+    sources: *BorrowSource = null
+    precise_vec: s32 = cast(s32)(!(strcmp((((fn).exprs)[index]).name, CheckCString("VecSlice")) != 0))
+    if (precise_vec != 0) {
+        (direct_storage_0[0]).place = storage_place(check, (((fn).exprs)[index]).first_child, 1)
+        sources = *(direct_storage_0[0])
+    } else {
+        sources = text_view_backings(check, index)
+    }
+    first: s32 = (check).active_count
+    add_active_text_borrows(check, sources, depth)
+    if (precise_vec != 0) {
+        {
+            i: s32 = first
+            while check_loop_212 := (i < (check).active_count) {
+                (((check).active)[i]).vec = 1
+                S12Post2(*(i))
+            }
+        }
+    }
+}
+
+#scope_file
+add_active_text_borrows :: (check: *BorrowCheck, sources: *BorrowSource, depth: s32) {
+    {
+        source: *BorrowSource = sources
+        while check_loop_213 := (source != cast(*BorrowSource)((null))) {
+            if ((check).active_count == (check).active_capacity) {
+                capacity: s32 = ((check).active_capacity * 2)
+                active: *ActiveTextBorrow = cast(*ActiveTextBorrow)(CompilerRealloc(cast(*void)((check).active), cast(usize)((cast(u64)(cast(usize)(capacity)) * cast(u64)size_of(ActiveTextBorrow)))))
+                if (active == cast(*ActiveTextBorrow)((null))) {
+                    reject(check, (((check).current).fn).span, CheckCString("out of memory checking active text borrows"))
+                    return
+                }
+                (check).active = active
+                (check).active_capacity = capacity
+            }
+            (((check).active)[(check).active_count]).backing = (source).place
+            (((check).active)[(check).active_count]).depth = depth
+            (((check).active)[(check).active_count]).vec = 0
+            S12Post2(*((check).active_count))
+            source = (source).next
+        }
+    }
+}
+
+#scope_file
+release_active_text_borrows :: (check: *BorrowCheck, depth: s32) {
+    kept: s32 = 0
+    {
+        i: s32 = 0
+        while check_loop_214 := (i < (check).active_count) {
+            if ((((check).active)[i]).depth == depth) {
+                S12Post2(*(i))
+                continue check_loop_214
+            }
+            ((check).active)[S12Post2(*(kept))] = ((check).active)[i]
+            S12Post2(*(i))
+        }
+    }
+    (check).active_count = kept
+}
+
+#scope_file
+global_binding :: (check: *BorrowCheck, name: *u8) -> *BorrowBinding {
+    owner: *IR.ZirModule = null
+    global: *IR.ZirGlobal = null
+    if (ResolveGlobal(((check).current).module, name, *(owner), *(global)) != 1) {
+        return null
+    }
+    i: s32 = pointer_index_get(*((check).global_index), cast(*void)(owner), cast(*void)(global))
+    if (i < 0) {
+        return null
+    }
+    read_global(check, i)
+    return cast(*BorrowBinding)(cast(usize)((check).globals) + cast(usize)(i) * size_of(BorrowBinding))
+}
+
+#scope_file
+binding :: (check: *BorrowCheck, name: *u8) -> *BorrowBinding {
+    {
+        i: s32 = ((check).binding_count - 1)
+        while check_loop_215 := (i >= 0) {
+            if !(strcmp(cast(*u8)(*(((((check).bindings)[i]).name).items)), name) != 0) {
+                return cast(*BorrowBinding)(cast(usize)((check).bindings) + cast(usize)(i) * size_of(BorrowBinding))
+            }
+            S12Post0(*(i))
+        }
+    }
+    return global_binding(check, name)
+}
+
+#scope_file
+contains_view :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
+    if ((((depth > 32) || (type == cast(*u8)((null)))) || !((type)[0] != 0)) || (cast(s32)(cast(s8)((type)[0])) == 42)) {
+        return 0
+    }
+    if (!(strcmp(type, CheckCString("string")) != 0) || (SliceElementType(type, null, cast(usize)(0)) != 0)) {
+        return 1
+    }
+    element_storage_0 := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
+    defer CompilerFree(cast(*void)element_storage_0)
+    memset(cast(*void)element_storage_0, 0, size_of(S12Array128_u8))
+    if (ArrayElementType(type, cast(*u8)(*((element_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), null) != 0) {
+        return contains_view(module, cast(*u8)(*((element_storage_0[0]).items)), (depth + 1))
+    }
+    owner: *IR.ZirModule = null
+    record: *IR.ZirType = FindType(module, type, *(owner))
+    if (((((record == cast(*IR.ZirType)((null))) || ((record).is_enum != 0)) || ((record).is_procedure_type != 0)) || ((record).is_record_template != 0)) || ((record).is_extern != 0)) {
+        return 0
+    }
+    offset: usize = cast(usize)(0)
+    field: IR.ZirTypeField
+    while check_loop_216 := (TypeNextField(record, *(offset), *(field)) == 1) {
+        if (contains_view((ifx (owner != null) then owner else module), cast(*u8)(*((field).type)), (depth + 1)) != 0) {
+            return 1
+        }
+    }
+    return 0
+}
+
+#scope_file
+view_type :: (check: *BorrowCheck, type: *u8) -> s32 {
+    return contains_view(((check).current).module, type, 0)
+}
+
+#scope_file
+contains_text :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
+    if ((((depth > 32) || (type == cast(*u8)((null)))) || !((type)[0] != 0)) || (cast(s32)(cast(s8)((type)[0])) == 42)) {
+        return 0
+    }
+    if !(strcmp(type, CheckCString("string")) != 0) {
+        return 1
+    }
+    element_storage_0 := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
+    defer CompilerFree(cast(*void)element_storage_0)
+    memset(cast(*void)element_storage_0, 0, size_of(S12Array128_u8))
+    if ((SliceElementType(type, cast(*u8)(*((element_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8))) != 0) || (ArrayElementType(type, cast(*u8)(*((element_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), null) != 0)) {
+        return contains_text(module, cast(*u8)(*((element_storage_0[0]).items)), (depth + 1))
+    }
+    owner: *IR.ZirModule = null
+    record: *IR.ZirType = FindType(module, type, *(owner))
+    if (((((record == cast(*IR.ZirType)((null))) || ((record).is_enum != 0)) || ((record).is_procedure_type != 0)) || ((record).is_record_template != 0)) || ((record).is_extern != 0)) {
+        return 0
+    }
+    offset: usize = cast(usize)(0)
+    field: IR.ZirTypeField
+    while check_loop_217 := (TypeNextField(record, *(offset), *(field)) == 1) {
+        if (contains_text((ifx (owner != null) then owner else module), cast(*u8)(*((field).type)), (depth + 1)) != 0) {
+            return 1
+        }
+    }
+    return 0
+}
+
+#scope_file
+text_type_hash :: (module: *IR.ZirModule, type: *u8) -> u64 {
+    hash: u64 = (14695981039346656037 ^ cast(u64)(cast(usize)(module)))
+    {
+        p: *u8 = cast(*u8)(type)
+        while check_loop_218 := ((p)[0] != 0) {
+            hash = (((hash ^ cast(u64)((p)[0]))) * 1099511628211)
+            S12Post1(*(p))
+        }
+    }
+    return hash
+}
+
+#scope_file
+cached_contains_text :: (check: *BorrowCheck, module: *IR.ZirModule, type: *u8) -> s32 {
+    if ((module == cast(*IR.ZirModule)((null))) || (type == cast(*u8)((null)))) {
+        return contains_text(module, type, 0)
+    }
+    if (cast(u64)(strlen(type)) >= cast(u64)(128)) {
+        return contains_text(module, type, 0)
+    }
+    if (((((check).text_type_count + cast(usize)(1))) * cast(usize)(4)) > ((check).text_type_capacity * cast(usize)(3))) {
+        capacity: usize = (ifx ((check).text_type_capacity != 0) then ((check).text_type_capacity * cast(usize)(2)) else cast(usize)(1024))
+        grown: *TextTypeAnswer = cast(*TextTypeAnswer)(CompilerCalloc(capacity, cast(usize)(cast(u64)size_of(TextTypeAnswer))))
+        if (grown == cast(*TextTypeAnswer)((null))) {
+            return contains_text(module, type, 0)
+        }
+        {
+            i: usize = cast(usize)(0)
+            while check_loop_219 := (i < (check).text_type_capacity) {
+                old: *TextTypeAnswer = cast(*TextTypeAnswer)(cast(usize)((check).text_types) + cast(usize)(i) * size_of(TextTypeAnswer))
+                if ((old).module == cast(*IR.ZirModule)((null))) {
+                    S12Post5(*(i))
+                    continue check_loop_219
+                }
+                slot: usize = cast(usize)((text_type_hash((old).module, cast(*u8)(*(((old).type).items))) & cast(u64)(((capacity - cast(usize)(1))))))
+                while check_loop_220 := (((grown)[slot]).module != cast(*IR.ZirModule)((null))) {
+                    slot = (((slot + cast(usize)(1))) & ((capacity - cast(usize)(1))))
+                }
+                (grown)[slot] = (old)[0]
+                S12Post5(*(i))
+            }
+        }
+        CompilerFree(cast(*void)((check).text_types))
+        (check).text_types = grown
+        (check).text_type_capacity = capacity
+    }
+    mask: usize = ((check).text_type_capacity - cast(usize)(1))
+    slot: usize = cast(usize)((text_type_hash(module, type) & cast(u64)(mask)))
+    while check_loop_221 := ((((check).text_types)[slot]).module != cast(*IR.ZirModule)((null))) {
+        answer: *TextTypeAnswer = cast(*TextTypeAnswer)(cast(usize)((check).text_types) + cast(usize)(slot) * size_of(TextTypeAnswer))
+        if (((answer).module == module) && !(strcmp(cast(*u8)(*(((answer).type).items)), type) != 0)) {
+            return (answer).holds_text
+        }
+        slot = (((slot + cast(usize)(1))) & mask)
+    }
+    answer: *TextTypeAnswer = cast(*TextTypeAnswer)(cast(usize)((check).text_types) + cast(usize)(slot) * size_of(TextTypeAnswer))
+    (answer).module = module
+    copy_text(cast(*u8)(*(((answer).type).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), type)
+    (answer).holds_text = contains_text(module, type, 0)
+    S12Post5(*((check).text_type_count))
+    return (answer).holds_text
+}
+
+#scope_file
+text_view_type :: (check: *BorrowCheck, type: *u8) -> s32 {
+    return cached_contains_text(check, ((check).current).module, type)
+}
+
+#scope_file
+destination_root :: (fn: *IR.ZirFunction, index: s32) -> *IR.ZirExpr {
+    while check_loop_222 := (index >= 0) {
+        expression: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+        if (cast(s32)((expression).kind) == 1) {
+            return expression
+        }
+        if (((cast(s32)((expression).kind) != 8) && (cast(s32)((expression).kind) != 9)) && (cast(s32)((expression).kind) != 10)) {
+            return null
+        }
+        index = (expression).left
+    }
+    return null
+}
+
+#scope_file
+storage_place :: (check: *BorrowCheck, index: s32, follow_address: s32) -> BorrowPlace {
+    if (index < 0) {
+        return BorrowPlace.{}
+    }
+    expression: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((((check).current).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if (cast(s32)((expression).kind) == 1) {
+        source: *BorrowBinding = binding(check, (expression).name)
+        if ((((source != cast(*BorrowBinding)((null))) && (follow_address != 0)) && ((source).address_known != 0)) && (((source).address_backing).root != cast(*BorrowBinding)((null)))) {
+            return (source).address_backing
+        }
+        return root_place(source)
+    }
+    if ((cast(s32)((expression).kind) == 8) || (cast(s32)((expression).kind) == 9)) {
+        return append_place(check, storage_place(check, (expression).left, 1), (expression).name, 0)
+    }
+    if (cast(s32)((expression).kind) == 10) {
+        return append_place(check, storage_place(check, (expression).left, 1), null, 1)
+    }
+    if ((cast(s32)((expression).kind) == 7) && (!(strcmp(cast(*u8)(*((expression).op)), CheckCString("&")) != 0) || !(strcmp(cast(*u8)(*((expression).op)), CheckCString("*")) != 0))) {
+        return storage_place(check, (expression).right, 1)
+    }
+    if (cast(s32)((expression).kind) == 16) {
+        return storage_place(check, (expression).left, 1)
+    }
+    return BorrowPlace.{}
+}
+
+#scope_file
+join_path :: (check: *BorrowCheck, base: *BorrowPath, suffix: *BorrowPath) -> *BorrowPath {
+    if (suffix == cast(*BorrowPath)((null))) {
+        return base
+    }
+    place_storage_0 := cast(*BorrowPlace)AllocateOrExit(size_of(BorrowPlace))
+    defer CompilerFree(cast(*void)place_storage_0)
+    memset(cast(*void)place_storage_0, 0, size_of(BorrowPlace))
+    place_storage_0[0] = .{null, join_path(check, base, (suffix).parent)}
+    (place_storage_0[0]).root = (check).bindings
+    return (append_place(check, place_storage_0[0], (suffix).field, (suffix).index)).path
+}
+
+#scope_file
+reference_parameter :: (check: *BorrowCheck, place: BorrowPlace) -> s32 {
+    if (((place).root == cast(*BorrowBinding)((null))) || (((place).root).parameter < 0)) {
+        return 0
+    }
+    type_storage_0 := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
+    defer CompilerFree(cast(*void)type_storage_0)
+    memset(cast(*void)type_storage_0, 0, size_of(S12Array128_u8))
+    copy_text(cast(*u8)(*((type_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), cast(*u8)(*((((place).root).type).items)))
+    parts_storage_1 := cast(*S12Array64__BorrowPath)AllocateOrExit(size_of(S12Array64__BorrowPath))
+    defer CompilerFree(cast(*void)parts_storage_1)
+    memset(cast(*void)parts_storage_1, 0, size_of(S12Array64__BorrowPath))
+    count: s32 = 0
+    {
+        part: *BorrowPath = (place).path
+        while check_loop_223 := ((part != cast(*BorrowPath)((null))) && (count < 64)) {
+            (parts_storage_1[0]).items[S12Post2(*(count))] = part
+            part = (part).parent
+        }
+    }
+    {
+        i: s32 = count
+        while check_loop_224 := true {
+            if ((cast(s32)(cast(s8)((type_storage_0[0]).items[0])) == 42) || (SliceElementType(cast(*u8)(*((type_storage_0[0]).items)), null, cast(usize)(0)) != 0)) {
+                return 1
+            }
+            if (i == 0) {
+                return 0
+            }
+            part: *BorrowPath = (parts_storage_1[0]).items[(i - 1)]
+            if ((part).index != 0) {
+                element_storage_2 := cast(*S12Array128_u8)AllocateOrExit(size_of(S12Array128_u8))
+                defer CompilerFree(cast(*void)element_storage_2)
+                memset(cast(*void)element_storage_2, 0, size_of(S12Array128_u8))
+                if !(ArrayElementType(cast(*u8)(*((type_storage_0[0]).items)), cast(*u8)(*((element_storage_2[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), null) != 0) {
+                    return 0
+                }
+                copy_text(cast(*u8)(*((type_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), cast(*u8)(*((element_storage_2[0]).items)))
+            } else {
+                record: *IR.ZirType = FindType(((check).current).module, cast(*u8)(*((type_storage_0[0]).items)), null)
+                field: IR.ZirTypeField
+                cursor: usize = cast(usize)(0)
+                found: s32 = 0
+                if (record != cast(*IR.ZirType)((null))) {
+                    while check_loop_225 := (TypeNextField(record, *(cursor), *(field)) == 1) {
+                        if !(strcmp(cast(*u8)(*((field).name)), (part).field) != 0) {
+                            found = 1
+                            break check_loop_225
+                        }
+                    }
+                }
+                if !(found != 0) {
+                    return 0
+                }
+                copy_text(cast(*u8)(*((type_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), cast(*u8)(*((field).type)))
+            }
+            S12Post0(*(i))
+        }
+    }
+    unreachable
+}
+
+#scope_file
+mutation_root :: (function: *BorrowFunction, parameter: s32, global: s32) -> *MutationRoot {
+    mask: usize = ((function).mutation_root_capacity - cast(usize)(1))
+    hash: u64 = ((((cast(u64)(cast(u32)(global)) << cast(u64)(32)) | cast(u64)(cast(u32)(parameter)))) * 11400714819323198485)
+    slot: usize = (cast(usize)(((hash ^ ((hash >> cast(u64)(29)))))) & mask)
+    while check_loop_226 := (((((function).mutation_roots)[slot]).items != cast(*BorrowMutation)((null))) && ((((((function).mutation_roots)[slot]).items).parameter != parameter) || (((((function).mutation_roots)[slot]).items).global != global))) {
+        slot = (((slot + cast(usize)(1))) & mask)
+    }
+    return cast(*MutationRoot)(cast(usize)((function).mutation_roots) + cast(usize)(slot) * size_of(MutationRoot))
+}
+
+#scope_file
+reserve_mutation_root :: (function: *BorrowFunction) -> s32 {
+    if (((((function).mutation_root_count + cast(usize)(1))) * cast(usize)(4)) <= ((function).mutation_root_capacity * cast(usize)(3))) {
+        return 1
+    }
+    old: *MutationRoot = (function).mutation_roots
+    old_capacity: usize = (function).mutation_root_capacity
+    capacity: usize = (ifx (old_capacity != 0) then (old_capacity * cast(usize)(2)) else cast(usize)(16))
+    grown: *MutationRoot = cast(*MutationRoot)(CompilerCalloc(capacity, cast(usize)(cast(u64)size_of(MutationRoot))))
+    if (grown == cast(*MutationRoot)((null))) {
+        return 0
+    }
+    (function).mutation_roots = grown
+    (function).mutation_root_capacity = capacity
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_227 := (i < old_capacity) {
+            if (((old)[i]).items != cast(*BorrowMutation)((null))) {
+                S12Set15(mutation_root(function, (((old)[i]).items).parameter, (((old)[i]).items).global), (old)[i])
+            }
+            S12Post5(*(i))
+        }
+    }
+    CompilerFree(cast(*void)(old))
+    return 1
+}
+
+#scope_file
+record_mutation :: (check: *BorrowCheck, place: BorrowPlace) {
+    if ((place).root == cast(*BorrowBinding)((null))) {
+        return
+    }
+    global: s32 = ((place).root).global_index
+    parameter: s32 = (ifx (reference_parameter(check, place) != 0) then ((place).root).parameter else (-1))
+    if ((global < 0) && (parameter < 0)) {
+        return
+    }
+    path: *BorrowPath = (place).path
+    if ((path != cast(*BorrowPath)((null))) && ((path).depth > 32)) {
+        path = null
+    }
+    function: *BorrowFunction = (check).current
+    root: *MutationRoot = (ifx ((function).mutation_root_capacity != cast(usize)(0)) then mutation_root(function, parameter, global) else null)
+    {
+        known: *BorrowMutation = (ifx (root != cast(*MutationRoot)((null))) then (root).items else null)
+        while check_loop_228 := (known != cast(*BorrowMutation)((null))) {
+            if (((known).path == cast(*BorrowPath)((null))) || (same_path((known).path, path) != 0)) {
+                return
+            }
+            known = (known).next_same_root
+        }
+    }
+    item: *BorrowMutation = null
+    if ((root != cast(*MutationRoot)((null))) && ((root).items != cast(*BorrowMutation)((null)))) {
+        item = cast(*BorrowMutation)(CompilerCalloc(cast(usize)(1), cast(usize)(cast(u64)size_of(BorrowMutation))))
+    } else {
+        if (reserve_mutation_root(function) != 0) {
+            root = mutation_root(function, parameter, global)
+            item = cast(*BorrowMutation)(CompilerCalloc(cast(usize)(1), cast(usize)(cast(u64)size_of(BorrowMutation))))
+        }
+    }
+    if (item == cast(*BorrowMutation)((null))) {
+        reject(check, ((function).fn).span, CheckCString("out of memory checking text mutation effects"))
+        return
+    }
+    S12Set16(item, BorrowMutation.{parameter, global, path, (function).mutations, (root).items})
+    if ((root).items == cast(*BorrowMutation)((null))) {
+        S12Post5(*((function).mutation_root_count))
+    }
+    (root).items = item
+    (function).mutations = item
+    (check).changed = 1
+    summary_changed(check)
+}
+
+#scope_file
+check_mutation :: (check: *BorrowCheck, destination: BorrowPlace, span: IR.ZirSourceSpan) {
+    record_mutation(check, destination)
+    if ((destination).root == cast(*BorrowBinding)((null))) {
+        return
+    }
+    if (vec_view_conflict(check, destination) != 0) {
+        reject(check, span, CheckCString("cannot mutate a Vec with a live borrowed view"))
+        return
+    }
+    if (text_backing_conflict(check, destination) != 0) {
+        reject(check, span, CheckCString("mutating text backing storage while its view is live"))
+        return
+    }
+    backing_global: s32 = ((destination).root).global_index
+    if (backing_global < 0) {
+        return
+    }
+    ((check).current).scanned_views = 1
+    {
+        v: s32 = 0
+        while check_loop_229 := (v < (check).view_global_count) {
+            g: s32 = ((check).view_globals)[v]
+            read_global(check, g)
+            view: *BorrowBinding = cast(*BorrowBinding)(cast(usize)((check).globals) + cast(usize)(g) * size_of(BorrowBinding))
+            if !(has_global(((check).global_origins)[g], backing_global) != 0) {
+                S12Post2(*(v))
+                continue check_loop_229
+            }
+            if !(cached_contains_text(check, (view).module, cast(*u8)(*(((view).type).items))) != 0) {
+                S12Post2(*(v))
+                continue check_loop_229
+            }
+            if ((((view).global_backing_state == 1) && (((view).text_backing).root == (destination).root)) && !(places_overlap((view).text_backing, destination) != 0)) {
+                S12Post2(*(v))
+                continue check_loop_229
+            }
+            if !((check).failed != 0) {
+                details: State.DiagnosticDetails = .{}
+                (details).related_span = ((view).global).span
+                (details).related_message = CheckCString("global value retains a text view of this backing storage")
+                DiagnosticDetailed(span, CheckCString("check.slice_lifetime"), *(details), CheckCString("mutating text backing storage while its view is live (backing %s.%s, view %s.%s)"), cast(*u8)(*((((destination).root).module).name)), cast(*u8)(*((((destination).root).name).items)), cast(*u8)(*(((view).module).name)), cast(*u8)(*(((view).name).items)))
+            }
+            (check).failed = 1
+            S12Post2(*(v))
+        }
+    }
+}
+
+#scope_file
+foreign_call_visit :: (module: *IR.ZirModule, name: *u8, visited: *PointerIndex) -> s32 {
+    if (module == cast(*IR.ZirModule)((null))) {
+        return 0
+    }
+    if (pointer_index_get(visited, cast(*void)(module), cast(*void)(name)) >= 0) {
+        return 0
+    }
+    if !(pointer_index_put(visited, cast(*void)(module), cast(*void)(name), 1) != 0) {
+        return 0
+    }
+    dot: *u8 = strchr(name, 46)
+    {
+        i: s32 = 0
+        while check_loop_230 := (i < (module).import_count) {
+            import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
+            if (((dot == cast(*u8)((null))) && (cast(s32)((import_local).kind) == 3)) && !(strcmp(cast(*u8)(*((import_local).name)), name) != 0)) {
+                return 1
+            }
+            if ((((dot != cast(*u8)((null))) && ((import_local).resolved_module != cast(*IR.ZirModule)((null)))) && (cast(u64)(strlen(cast(*u8)(*((import_local).name)))) == cast(u64)(cast(usize)(((cast(s64)(cast(isize)(cast(usize)(dot) - cast(usize)(name))) / cast(s64)size_of(u8))))))) && !(strncmp(cast(*u8)(*((import_local).name)), name, cast(usize)(((cast(s64)(cast(isize)(cast(usize)(dot) - cast(usize)(name))) / cast(s64)size_of(u8))))) != 0)) {
+                return foreign_call_visit((import_local).resolved_module, cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8)), visited)
+            }
+            if (((dot == cast(*u8)((null))) && (cast(s32)((import_local).kind) == 1)) && (foreign_call_visit((import_local).resolved_module, name, visited) != 0)) {
+                return 1
+            }
+            S12Post2(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+foreign_call_uncached :: (module: *IR.ZirModule, name: *u8) -> s32 {
+    visited_storage_0 := cast(*PointerIndex)AllocateOrExit(size_of(PointerIndex))
+    defer CompilerFree(cast(*void)visited_storage_0)
+    memset(cast(*void)visited_storage_0, 0, size_of(PointerIndex))
+    visited_storage_0[0] = .{}
+    found: s32 = foreign_call_visit(module, name, *(visited_storage_0[0]))
+    CompilerFree(cast(*void)((visited_storage_0[0]).slots))
+    return found
+}
+
+#scope_file
+foreign_call :: (check: *BorrowCheck, module: *IR.ZirModule, name: *u8) -> s32 {
+    if ((module == cast(*IR.ZirModule)((null))) || (cast(u64)(strlen(name)) >= cast(u64)(128))) {
+        return foreign_call_uncached(module, name)
+    }
+    if (((((check).foreign_count + cast(usize)(1))) * cast(usize)(4)) > ((check).foreign_capacity * cast(usize)(3))) {
+        capacity: usize = (ifx ((check).foreign_capacity != 0) then ((check).foreign_capacity * cast(usize)(2)) else cast(usize)(256))
+        grown: *ForeignAnswer = cast(*ForeignAnswer)(CompilerCalloc(capacity, cast(usize)(cast(u64)size_of(ForeignAnswer))))
+        if (grown == cast(*ForeignAnswer)((null))) {
+            return foreign_call_uncached(module, name)
+        }
+        {
+            i: usize = cast(usize)(0)
+            while check_loop_231 := (i < (check).foreign_capacity) {
+                old: *ForeignAnswer = cast(*ForeignAnswer)(cast(usize)((check).foreign_answers) + cast(usize)(i) * size_of(ForeignAnswer))
+                if ((old).module == cast(*IR.ZirModule)((null))) {
+                    S12Post5(*(i))
+                    continue check_loop_231
+                }
+                slot: usize = cast(usize)((text_type_hash((old).module, cast(*u8)(*(((old).name).items))) & cast(u64)(((capacity - cast(usize)(1))))))
+                while check_loop_232 := (((grown)[slot]).module != cast(*IR.ZirModule)((null))) {
+                    slot = (((slot + cast(usize)(1))) & ((capacity - cast(usize)(1))))
+                }
+                (grown)[slot] = (old)[0]
+                S12Post5(*(i))
+            }
+        }
+        CompilerFree(cast(*void)((check).foreign_answers))
+        (check).foreign_answers = grown
+        (check).foreign_capacity = capacity
+    }
+    mask: usize = ((check).foreign_capacity - cast(usize)(1))
+    slot: usize = cast(usize)((text_type_hash(module, name) & cast(u64)(mask)))
+    while check_loop_233 := ((((check).foreign_answers)[slot]).module != cast(*IR.ZirModule)((null))) {
+        answer: *ForeignAnswer = cast(*ForeignAnswer)(cast(usize)((check).foreign_answers) + cast(usize)(slot) * size_of(ForeignAnswer))
+        if (((answer).module == module) && !(strcmp(cast(*u8)(*(((answer).name).items)), name) != 0)) {
+            return (answer).found
+        }
+        slot = (((slot + cast(usize)(1))) & mask)
+    }
+    answer: *ForeignAnswer = cast(*ForeignAnswer)(cast(usize)((check).foreign_answers) + cast(usize)(slot) * size_of(ForeignAnswer))
+    (answer).module = module
+    copy_text(cast(*u8)(*(((answer).name).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), name)
+    (answer).found = foreign_call_uncached(module, name)
+    S12Post5(*((check).foreign_count))
+    return (answer).found
+}
+
+#scope_file
+check_call_mutations :: (check: *BorrowCheck, expression: *IR.ZirExpr) {
+    fn: *IR.ZirFunction = ((check).current).fn
+    name: *u8 = (expression).name
+    if ((((((!(strcmp(name, CheckCString("print")) != 0) || !(strcmp(name, CheckCString("assert")) != 0)) || !(strcmp(name, CheckCString("TextView")) != 0)) || !(strcmp(name, CheckCString("VecSlice")) != 0)) || !(strcmp(name, CheckCString("VecGet")) != 0)) || !(strcmp(name, CheckCString("zi_sqrt")) != 0)) || (BitBuiltin(name) != 0)) {
+        return
+    }
+    if (SimdOpChecked(cast(*u8)((name))) != cast(*SimdOp)((null))) {
+        op: *SimdOp = SimdOpChecked(cast(*u8)((name)))
+        if ((op).shape == 14) {
+            check_mutation(check, storage_place(check, (expression).first_child, 1), (expression).span)
+        }
+        return
+    }
+    if (((((((((!(strcmp(name, CheckCString("VecPush")) != 0) || !(strcmp(name, CheckCString("VecReserve")) != 0)) || (!(strcmp(name, CheckCString("VecResize")) != 0) || !(strcmp(name, CheckCString("VecResizeBounded")) != 0))) || !(strcmp(name, CheckCString("VecPop")) != 0)) || !(strcmp(name, CheckCString("VecClear")) != 0)) || !(strcmp(name, CheckCString("VecFree")) != 0)) || !(strcmp(name, CheckCString("VecSwap")) != 0)) || !(strcmp(name, CheckCString("VecClone")) != 0)) || !(strcmp(name, CheckCString("BuilderAppend")) != 0)) || !(strcmp(name, CheckCString("BuilderFinish")) != 0)) {
+        argument: s32 = (expression).first_child
+        check_mutation(check, storage_place(check, argument, 1), (expression).span)
+        if (!(strcmp(name, CheckCString("VecSwap")) != 0) && (argument >= 0)) {
+            check_mutation(check, storage_place(check, (((fn).exprs)[argument]).next_sibling, 1), (expression).span)
+        }
+        return
+    }
+    callee: *IR.ZirFunction = null
+    owner: *IR.ZirModule = null
+    ResolveFunction(((check).current).module, name, *(owner), *(callee))
+    if (((callee != cast(*IR.ZirFunction)((null))) && ((callee).is_extern != 0)) || (((callee == cast(*IR.ZirFunction)((null))) && (binding(check, name) == cast(*BorrowBinding)((null)))) && (foreign_call(check, ((check).current).module, name) != 0))) {
+        return
+    }
+    summary: *BorrowFunction = function_summary(check, callee)
+    if ((summary != cast(*BorrowFunction)((null))) && !((callee).is_extern != 0)) {
+        {
+            item: *BorrowMutation = (summary).mutations
+            while check_loop_234 := (item != cast(*BorrowMutation)((null))) {
+                destination_storage_0 := cast(*BorrowPlace)AllocateOrExit(size_of(BorrowPlace))
+                defer CompilerFree(cast(*void)destination_storage_0)
+                memset(cast(*void)destination_storage_0, 0, size_of(BorrowPlace))
+                destination_storage_0[0] = .{}
+                if ((item).global >= 0) {
+                    (destination_storage_0[0]).root = cast(*BorrowBinding)(cast(usize)((check).globals) + cast(usize)((item).global) * size_of(BorrowBinding))
+                } else {
+                    {
+                        child: s32 = (expression).first_child
+                        while check_loop_235 := (child >= 0) {
+                            if ((((fn).exprs)[child]).argument_index == (item).parameter) {
+                                destination_storage_0[0] = storage_place(check, child, 1)
+                                break check_loop_235
+                            }
+                            child = (((fn).exprs)[child]).next_sibling
+                        }
+                    }
+                }
+                (destination_storage_0[0]).path = join_path(check, (destination_storage_0[0]).path, (item).path)
+                check_mutation(check, destination_storage_0[0], (expression).span)
+                item = (item).next
+            }
+        }
+        return
+    }
+    {
+        child: s32 = (expression).first_child
+        while check_loop_236 := (child >= 0) {
+            if ((cast(s32)(cast(s8)(((((fn).exprs)[child]).type)[0])) == 42) || (SliceElementType((((fn).exprs)[child]).type, null, cast(usize)(0)) != 0)) {
+                check_mutation(check, storage_place(check, child, 1), (expression).span)
+            }
+            child = (((fn).exprs)[child]).next_sibling
+        }
+    }
+}
+
+#scope_file
+address_backing :: (check: *BorrowCheck, index: s32, known: *s32) -> BorrowPlace {
+    S12Set9(known, 0)
+    if (index < 0) {
+        return BorrowPlace.{}
+    }
+    expression: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((((check).current).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if ((cast(s32)((expression).kind) == 7) && !(strcmp(cast(*u8)(*((expression).op)), CheckCString("&")) != 0)) {
+        backing_storage_0 := cast(*BorrowPlace)AllocateOrExit(size_of(BorrowPlace))
+        defer CompilerFree(cast(*void)backing_storage_0)
+        memset(cast(*void)backing_storage_0, 0, size_of(BorrowPlace))
+        backing_storage_0[0] = storage_place(check, (expression).right, 1)
+        S12Set9(known, cast(s32)((backing_storage_0[0]).root != cast(*BorrowBinding)((null))))
+        return backing_storage_0[0]
+    }
+    if (cast(s32)((expression).kind) != 1) {
+        return BorrowPlace.{}
+    }
+    source: *BorrowBinding = binding(check, (expression).name)
+    if ((source == cast(*BorrowBinding)((null))) || (cast(s32)(cast(s8)(((source).type).items[0])) != 42)) {
+        return BorrowPlace.{}
+    }
+    S12Set9(known, (source).address_known)
+    if ((source).address_known != 0) {
+        return (source).address_backing
+    }
+    if (((source).local < 0) && (((source).origin).depth == 1)) {
+        S12Set9(known, 1)
+        return root_place(source)
+    }
+    return (ifx ((source).global_index >= 0) then root_place(source) else BorrowPlace.{})
+}
+
+#scope_file
+direct_pointer_parameter :: (source: *BorrowBinding) -> s32 {
+    return cast(s32)(((((((source != cast(*BorrowBinding)((null))) && (cast(s32)(cast(s8)(((source).type).items[0])) == 42)) && ((source).parameter >= 0)) && ((source).parameter < 64)) && ((source).local < 0)) && (((source).origin).depth == 1)) && !(((source).origin).invalid != 0))
+}
+
+#scope_file
+pointee_binding :: (check: *BorrowCheck, index: s32) -> *BorrowBinding {
+    expression: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((((check).current).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if ((cast(s32)((expression).kind) == 7) && (!(strcmp(cast(*u8)(*((expression).op)), CheckCString("&")) != 0) || !(strcmp(cast(*u8)(*((expression).op)), CheckCString("*")) != 0))) {
+        return (storage_place(check, (expression).right, 1)).root
+    }
+    if ((cast(s32)((expression).kind) != 1) || (cast(s32)(cast(s8)(((expression).type)[0])) != 42)) {
+        return null
+    }
+    source: *BorrowBinding = binding(check, (expression).name)
+    if (((source != cast(*BorrowBinding)((null))) && ((source).address_known != 0)) && (((source).address_backing).root != cast(*BorrowBinding)((null)))) {
+        return ((source).address_backing).root
+    }
+    return source
+}
+
+#scope_file
+pointee_parameter :: (check: *BorrowCheck, index: s32) -> s32 {
+    fn: *IR.ZirFunction = ((check).current).fn
+    if !(view_type(check, (((fn).exprs)[index]).type) != 0) {
+        return (-1)
+    }
+    root: *IR.ZirExpr = destination_root(fn, index)
+    if ((root == cast(*IR.ZirExpr)((null))) || (cast(s32)(cast(s8)(((root).type)[0])) != 42)) {
+        return (-1)
+    }
+    source: *BorrowBinding = binding(check, (root).name)
+    if (((source != cast(*BorrowBinding)((null))) && ((source).address_known != 0)) && (((source).address_backing).root != cast(*BorrowBinding)((null)))) {
+        source = ((source).address_backing).root
+    }
+    return (ifx (direct_pointer_parameter(source) != 0) then (source).parameter else (-1))
+}
+
+#scope_file
+pointee_view_origin :: (check: *BorrowCheck, index: s32) -> Origin {
+    source: *BorrowBinding = pointee_binding(check, index)
+    if (direct_pointer_parameter(source) != 0) {
+        origin_storage_0 := cast(*Origin)AllocateOrExit(size_of(Origin))
+        defer CompilerFree(cast(*void)origin_storage_0)
+        memset(cast(*void)origin_storage_0, 0, size_of(Origin))
+        origin_storage_0[0] = .{}
+        (origin_storage_0[0]).pointees = (1 << cast(u64)((source).parameter))
+        return origin_storage_0[0]
+    }
+    if (((source != cast(*BorrowBinding)((null))) && (cast(s32)(cast(s8)(((source).type).items[0])) != 42)) && (view_type(check, cast(*u8)(*(((source).type).items))) != 0)) {
+        return (ifx ((source).local >= 0) then (((check).current).locals)[(source).local] else (source).origin)
+    }
+    return expression_origin(check, index)
+}
+
+#scope_file
+text_view_backings :: (check: *BorrowCheck, index: s32) -> *BorrowSource {
+    fn: *IR.ZirFunction = ((check).current).fn
+    expression: *IR.ZirExpr = (ifx (index < 0) then null else cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr)))
+    if (expression == cast(*IR.ZirExpr)((null))) {
+        return null
+    }
+    if (cast(s32)((expression).kind) == 1) {
+        source: *BorrowBinding = binding(check, (expression).name)
+        if (source == cast(*BorrowBinding)((null))) {
+            return null
+        }
+        if (((source).address_known != 0) && (((source).address_backing).root != cast(*BorrowBinding)((null)))) {
+            return add_source(check, null, (source).address_backing)
+        }
+        if ((source).text_backings != cast(*BorrowSource)((null))) {
+            return (source).text_backings
+        }
+        if ((((source).address_backing).root != cast(*BorrowBinding)((null))) && ((((source).address_backing).root).local < 0)) {
+            return add_source(check, null, (source).address_backing)
+        }
+        if (cached_contains_text(check, (ifx ((source).module != cast(*IR.ZirModule)((null))) then (source).module else ((check).current).module), cast(*u8)(*(((source).type).items))) != 0) {
+            return null
+        }
+        return (ifx (((source).local < 0) || ((source).parameter >= 0)) then add_source(check, null, root_place(source)) else null)
+    }
+    if (((cast(s32)((expression).kind) == 8) || (cast(s32)((expression).kind) == 9)) || (cast(s32)((expression).kind) == 10)) {
+        if (text_view_type(check, (expression).type) != 0) {
+            root: *IR.ZirExpr = destination_root(fn, index)
+            source: *BorrowBinding = (ifx (root == cast(*IR.ZirExpr)((null))) then null else binding(check, (root).name))
+            return (ifx (source == cast(*BorrowBinding)((null))) then null else (source).text_backings)
+        }
+        result: *BorrowSource = null
+        sources: *BorrowSource = text_view_backings(check, (expression).left)
+        {
+            source: *BorrowSource = sources
+            while check_loop_237 := (source != cast(*BorrowSource)((null))) {
+                result = add_source(check, result, append_place(check, (source).place, (ifx (cast(s32)((expression).kind) == 10) then null else (expression).name), cast(s32)(cast(s32)((expression).kind) == 10)))
+                source = (source).next
+            }
+        }
+        return result
+    }
+    if (cast(s32)((expression).kind) == 16) {
+        sources: *BorrowSource = text_view_backings(check, (expression).left)
+        if (sources != cast(*BorrowSource)((null))) {
+            return sources
+        }
+        base: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((expression).left) * size_of(IR.ZirExpr))
+        return (ifx (ArrayElementType((base).type, null, cast(usize)(0), null) != 0) then add_source(check, null, storage_place(check, (expression).left, 1)) else null)
+    }
+    if (cast(s32)((expression).kind) == 14) {
+        return merge_sources(check, text_view_backings(check, (expression).right), text_view_backings(check, (expression).third))
+    }
+    if (cast(s32)((expression).kind) == 15) {
+        return text_view_backings(check, (expression).right)
+    }
+    if (cast(s32)((expression).kind) == 12) {
+        result: *BorrowSource = null
+        {
+            child: s32 = (expression).first_child
+            while check_loop_238 := (child >= 0) {
+                if (view_type(check, (((fn).exprs)[child]).type) != 0) {
+                    result = merge_sources(check, result, text_view_backings(check, child))
+                }
+                child = (((fn).exprs)[child]).next_sibling
+            }
+        }
+        return result
+    }
+    if (cast(s32)((expression).kind) != 5) {
+        return null
+    }
+    if (!(strcmp((expression).name, CheckCString("TextView")) != 0) || !(strcmp((expression).name, CheckCString("VecSlice")) != 0)) {
+        if (((expression).first_child < 0) || ((((fn).exprs)[(expression).first_child]).next_sibling >= 0)) {
+            return null
+        }
+        sources: *BorrowSource = text_view_backings(check, (expression).first_child)
+        if (sources != cast(*BorrowSource)((null))) {
+            return sources
+        }
+        argument: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((expression).first_child) * size_of(IR.ZirExpr))
+        return (ifx !(view_type(check, (argument).type) != 0) then add_source(check, null, storage_place(check, (expression).first_child, 1)) else null)
+    }
+    if (!(strcmp((expression).name, CheckCString("BuilderFinish")) != 0) || !(view_type(check, (expression).type) != 0)) {
+        return null
+    }
+    owner: *IR.ZirModule = null
+    callee: *IR.ZirFunction = null
+    if (ResolveFunction(((check).current).module, (expression).name, *(owner), *(callee)) <= 0) {
+        return null
+    }
+    summary: *BorrowFunction = function_summary(check, callee)
+    if (summary == cast(*BorrowFunction)((null))) {
+        return null
+    }
+    result: *BorrowSource = null
+    {
+        child: s32 = (expression).first_child
+        while check_loop_239 := (child >= 0) {
+            parameter: s32 = (((fn).exprs)[child]).argument_index
+            if ((parameter < 0) || (parameter >= 64)) {
+                child = (((fn).exprs)[child]).next_sibling
+                continue check_loop_239
+            }
+            if ((((summary).returned).pointees & ((1 << cast(u64)(parameter)))) != 0) {
+                pointee: *BorrowBinding = pointee_binding(check, child)
+                if (pointee != cast(*BorrowBinding)((null))) {
+                    result = merge_sources(check, result, (pointee).text_backings)
+                }
+            }
+            if ((((((summary).returned).lent | ((summary).returned).lent_vec)) & ((1 << cast(u64)(parameter)))) != 0) {
+                pointee: *BorrowBinding = pointee_binding(check, child)
+                if (pointee != cast(*BorrowBinding)((null))) {
+                    result = add_source(check, result, root_place(pointee))
+                }
+            }
+            if !((((summary).returned).parameters & ((1 << cast(u64)(parameter)))) != 0) {
+                child = (((fn).exprs)[child]).next_sibling
+                continue check_loop_239
+            }
+            candidate: *BorrowSource = text_view_backings(check, child)
+            if ((candidate == cast(*BorrowSource)((null))) && !(view_type(check, (((fn).exprs)[child]).type) != 0)) {
+                candidate = add_source(check, null, storage_place(check, child, 1))
+            }
+            result = merge_sources(check, result, candidate)
+            child = (((fn).exprs)[child]).next_sibling
+        }
+    }
+    return result
+}
+
+#scope_file
+call_origin :: (check: *BorrowCheck, expression: *IR.ZirExpr) -> Origin {
+    owner: *IR.ZirModule = null
+    callee: *IR.ZirFunction = null
+    if (ResolveFunction(((check).current).module, (expression).name, *(owner), *(callee)) <= 0) {
+        return Origin.{cast(u64)(0), 0, 1}
+    }
+    summary: *BorrowFunction = function_summary(check, callee)
+    if (summary == cast(*BorrowFunction)((null))) {
+        return Origin.{cast(u64)(0), 0, 1}
+    }
+    result_storage_0 := cast(*Origin)AllocateOrExit(size_of(Origin))
+    defer CompilerFree(cast(*void)result_storage_0)
+    memset(cast(*void)result_storage_0, 0, size_of(Origin))
+    result_storage_0[0] = .{}
+    (result_storage_0[0]).depth = ((summary).returned).depth
+    (result_storage_0[0]).invalid = ((summary).returned).invalid
+    (result_storage_0[0]).unknown = ((summary).returned).unknown
+    (result_storage_0[0]).globals = ((summary).returned).globals
+    {
+        child: s32 = (expression).first_child
+        while check_loop_240 := (child >= 0) {
+            parameter: s32 = (((((check).current).fn).exprs)[child]).argument_index
+            if ((parameter < 0) || (parameter >= 64)) {
+                child = (((((check).current).fn).exprs)[child]).next_sibling
+                continue check_loop_240
+            }
+            if ((((summary).returned).parameters & ((1 << cast(u64)(parameter)))) != 0) {
+                result_storage_0[0] = merge(check, result_storage_0[0], expression_origin(check, child))
+            }
+            if ((((summary).returned).pointees & ((1 << cast(u64)(parameter)))) != 0) {
+                result_storage_0[0] = merge(check, result_storage_0[0], pointee_view_origin(check, child))
+            }
+            if ((((summary).returned).lent & ((1 << cast(u64)(parameter)))) != 0) {
+                pointee: *BorrowBinding = pointee_binding(check, child)
+                if (pointee == cast(*BorrowBinding)((null))) {
+                    unknown_storage_1 := cast(*Origin)AllocateOrExit(size_of(Origin))
+                    defer CompilerFree(cast(*void)unknown_storage_1)
+                    memset(cast(*void)unknown_storage_1, 0, size_of(Origin))
+                    unknown_storage_1[0] = .{}
+                    (unknown_storage_1[0]).unknown = 1
+                    result_storage_0[0] = merge(check, result_storage_0[0], unknown_storage_1[0])
+                } else {
+                    origin_storage_2 := cast(*Origin)AllocateOrExit(size_of(Origin))
+                    defer CompilerFree(cast(*void)origin_storage_2)
+                    memset(cast(*void)origin_storage_2, 0, size_of(Origin))
+                    origin_storage_2[0] = .{}
+                    (origin_storage_2[0]).depth = (pointee).depth
+                    if ((pointee).global_index >= 0) {
+                        (origin_storage_2[0]).globals = global_bit(check, (pointee).global_index)
+                    }
+                    if (direct_pointer_parameter(pointee) != 0) {
+                        (origin_storage_2[0]).lent = (1 << cast(u64)((pointee).parameter))
+                    }
+                    result_storage_0[0] = merge(check, result_storage_0[0], origin_storage_2[0])
+                }
+            }
+            if ((((summary).returned).lent_vec & ((1 << cast(u64)(parameter)))) != 0) {
+                pointee: *BorrowBinding = pointee_binding(check, child)
+                if (pointee == cast(*BorrowBinding)((null))) {
+                    unknown_storage_3 := cast(*Origin)AllocateOrExit(size_of(Origin))
+                    defer CompilerFree(cast(*void)unknown_storage_3)
+                    memset(cast(*void)unknown_storage_3, 0, size_of(Origin))
+                    unknown_storage_3[0] = .{}
+                    (unknown_storage_3[0]).unknown = 1
+                    result_storage_0[0] = merge(check, result_storage_0[0], unknown_storage_3[0])
+                } else {
+                    origin_storage_4 := cast(*Origin)AllocateOrExit(size_of(Origin))
+                    defer CompilerFree(cast(*void)origin_storage_4)
+                    memset(cast(*void)origin_storage_4, 0, size_of(Origin))
+                    origin_storage_4[0] = .{}
+                    (origin_storage_4[0]).depth = (pointee).depth
+                    if ((pointee).global_index >= 0) {
+                        (origin_storage_4[0]).globals = global_bit(check, (pointee).global_index)
+                    }
+                    if (direct_pointer_parameter(pointee) != 0) {
+                        (origin_storage_4[0]).lent_vec = (1 << cast(u64)((pointee).parameter))
+                    }
+                    result_storage_0[0] = merge(check, result_storage_0[0], origin_storage_4[0])
+                }
+            }
+            child = (((((check).current).fn).exprs)[child]).next_sibling
+        }
+    }
+    return result_storage_0[0]
+}
+
+#scope_file
+storage_origin :: (check: *BorrowCheck, index: s32) -> Origin {
+    backing_storage_0 := cast(*Origin)AllocateOrExit(size_of(Origin))
+    defer CompilerFree(cast(*void)backing_storage_0)
+    memset(cast(*void)backing_storage_0, 0, size_of(Origin))
+    backing_storage_0[0] = expression_origin(check, index)
+    if ((backing_storage_0[0]).unknown != 0) {
+        return backing_storage_0[0]
+    }
+    place_storage_1 := cast(*BorrowPlace)AllocateOrExit(size_of(BorrowPlace))
+    defer CompilerFree(cast(*void)place_storage_1)
+    memset(cast(*void)place_storage_1, 0, size_of(BorrowPlace))
+    place_storage_1[0] = storage_place(check, index, 1)
+    if ((place_storage_1[0]).root == cast(*BorrowBinding)((null))) {
+        return backing_storage_0[0]
+    }
+    origin_storage_2 := cast(*Origin)AllocateOrExit(size_of(Origin))
+    defer CompilerFree(cast(*void)origin_storage_2)
+    memset(cast(*void)origin_storage_2, 0, size_of(Origin))
+    origin_storage_2[0] = .{}
+    (origin_storage_2[0]).depth = ((place_storage_1[0]).root).depth
+    if (((place_storage_1[0]).root).global_index >= 0) {
+        (origin_storage_2[0]).globals = global_bit(check, ((place_storage_1[0]).root).global_index)
+    }
+    if (direct_pointer_parameter((place_storage_1[0]).root) != 0) {
+        (origin_storage_2[0]).lent = (1 << cast(u64)(((place_storage_1[0]).root).parameter))
+    }
+    return origin_storage_2[0]
+}
+
+#scope_file
+expression_origin :: (check: *BorrowCheck, index: s32) -> Origin {
+    if (index < 0) {
+        return Origin.{}
+    }
+    fn: *IR.ZirFunction = ((check).current).fn
+    expression: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    check_choice_241 := (expression).kind
+    while check_switch_241 := true {
+        if check_choice_241 == cast(IR.ZirExprKind)((1)) {
+            source: *BorrowBinding = binding(check, (expression).name)
+            if ((cast(s32)(cast(s8)(((expression).type)[0])) != 91) && (strchr((expression).type, 42) != cast(*u8)((null)))) {
+                if ((((source != cast(*BorrowBinding)((null))) && ((source).local < 0)) && (((source).origin).depth == 1)) && !(((source).origin).invalid != 0)) {
+                    pointee_storage_0 := cast(*Origin)AllocateOrExit(size_of(Origin))
+                    defer CompilerFree(cast(*void)pointee_storage_0)
+                    memset(cast(*void)pointee_storage_0, 0, size_of(Origin))
+                    pointee_storage_0[0] = (source).origin
+                    if (direct_pointer_parameter(source) != 0) {
+                        (pointee_storage_0[0]).lent = (1 << cast(u64)((source).parameter))
+                    }
+                    return pointee_storage_0[0]
+                }
+                if (((source != cast(*BorrowBinding)((null))) && ((source).address_known != 0)) && (((source).address_backing).root != cast(*BorrowBinding)((null)))) {
+                    pointee_storage_1 := cast(*Origin)AllocateOrExit(size_of(Origin))
+                    defer CompilerFree(cast(*void)pointee_storage_1)
+                    memset(cast(*void)pointee_storage_1, 0, size_of(Origin))
+                    pointee_storage_1[0] = .{}
+                    (pointee_storage_1[0]).depth = (((source).address_backing).root).depth
+                    if ((((source).address_backing).root).global_index >= 0) {
+                        (pointee_storage_1[0]).globals = global_bit(check, (((source).address_backing).root).global_index)
+                    }
+                    if (direct_pointer_parameter(((source).address_backing).root) != 0) {
+                        (pointee_storage_1[0]).lent = (1 << cast(u64)((((source).address_backing).root).parameter))
+                    }
+                    return pointee_storage_1[0]
+                }
+                unknown_storage_2 := cast(*Origin)AllocateOrExit(size_of(Origin))
+                defer CompilerFree(cast(*void)unknown_storage_2)
+                memset(cast(*void)unknown_storage_2, 0, size_of(Origin))
+                unknown_storage_2[0] = .{}
+                (unknown_storage_2[0]).unknown = 1
+                return unknown_storage_2[0]
+            }
+            if (source == cast(*BorrowBinding)((null))) {
+                return Origin.{}
+            }
+            if (view_type(check, cast(*u8)(*(((source).type).items))) != 0) {
+                return (ifx ((source).local >= 0) then (((check).current).locals)[(source).local] else (source).origin)
+            }
+            return Origin.{cast(u64)(0), (source).depth, 0}
+        }
+        else if check_choice_241 == cast(IR.ZirExprKind)((8)) || check_choice_241 == cast(IR.ZirExprKind)((9)) || check_choice_241 == cast(IR.ZirExprKind)((10)) {
+            parameter: s32 = pointee_parameter(check, index)
+            if (parameter >= 0) {
+                origin_storage_3 := cast(*Origin)AllocateOrExit(size_of(Origin))
+                defer CompilerFree(cast(*void)origin_storage_3)
+                memset(cast(*void)origin_storage_3, 0, size_of(Origin))
+                origin_storage_3[0] = .{}
+                (origin_storage_3[0]).pointees = (1 << cast(u64)(parameter))
+                return origin_storage_3[0]
+            }
+            return expression_origin(check, (expression).left)
+        }
+        else if check_choice_241 == cast(IR.ZirExprKind)((16)) {
+            base: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((expression).left) * size_of(IR.ZirExpr))
+            backing_storage_4 := cast(*Origin)AllocateOrExit(size_of(Origin))
+            defer CompilerFree(cast(*void)backing_storage_4)
+            memset(cast(*void)backing_storage_4, 0, size_of(Origin))
+            backing_storage_4[0] = expression_origin(check, (expression).left)
+            if ((backing_storage_4[0]).unknown != 0) {
+                return backing_storage_4[0]
+            }
+            if ((ArrayElementType((base).type, null, cast(usize)(0), null) != 0) && ((storage_place(check, (expression).left, 1)).root != cast(*BorrowBinding)((null)))) {
+                return storage_origin(check, (expression).left)
+            }
+            return backing_storage_4[0]
+        }
+        else if check_choice_241 == cast(IR.ZirExprKind)((14)) {
+            return merge(check, expression_origin(check, (expression).right), expression_origin(check, (expression).third))
+        }
+        else if check_choice_241 == cast(IR.ZirExprKind)((15)) {
+            return expression_origin(check, (expression).right)
+        }
+        else if check_choice_241 == cast(IR.ZirExprKind)((11)) {
+            source: *IR.ZirType = (ifx ((expression).right >= 0) then FindType(((check).current).module, (((fn).exprs)[(expression).right]).type, null) else null)
+            if (((SliceElementType((expression).type, null, cast(usize)(0)) != 0) && (source != null)) && !(strncmp(cast(*u8)(*((source).foreign_target)), CheckCString("go:"), cast(usize)(cast(u64)(3))) != 0)) {
+                return Origin.{}
+            }
+            return expression_origin(check, (expression).right)
+        }
+        else if check_choice_241 == cast(IR.ZirExprKind)((12)) {
+            result_storage_5 := cast(*Origin)AllocateOrExit(size_of(Origin))
+            defer CompilerFree(cast(*void)result_storage_5)
+            memset(cast(*void)result_storage_5, 0, size_of(Origin))
+            result_storage_5[0] = .{}
+            {
+                child: s32 = (expression).first_child
+                while check_loop_242 := (child >= 0) {
+                    if (view_type(check, (((fn).exprs)[child]).type) != 0) {
+                        result_storage_5[0] = merge(check, result_storage_5[0], expression_origin(check, child))
+                    }
+                    child = (((fn).exprs)[child]).next_sibling
+                }
+            }
+            return result_storage_5[0]
+        }
+        else if check_choice_241 == cast(IR.ZirExprKind)((5)) {
+            if !(strcmp((expression).name, CheckCString("TextView")) != 0) {
+                argument: s32 = (expression).first_child
+                if ((argument >= 0) && (OwnedTextType(((check).current).module, (((fn).exprs)[argument]).type) != 0)) {
+                    return storage_origin(check, argument)
+                }
+                return expression_origin(check, argument)
+            }
+            if !(strcmp((expression).name, CheckCString("BuilderFinish")) != 0) {
+                return Origin.{}
+            }
+            if !(strcmp((expression).name, CheckCString("VecSlice")) != 0) {
+                origin_storage_6 := cast(*Origin)AllocateOrExit(size_of(Origin))
+                defer CompilerFree(cast(*void)origin_storage_6)
+                memset(cast(*void)origin_storage_6, 0, size_of(Origin))
+                origin_storage_6[0] = expression_origin(check, (expression).first_child)
+                place_storage_7 := cast(*BorrowPlace)AllocateOrExit(size_of(BorrowPlace))
+                defer CompilerFree(cast(*void)place_storage_7)
+                memset(cast(*void)place_storage_7, 0, size_of(BorrowPlace))
+                place_storage_7[0] = storage_place(check, (expression).first_child, 1)
+                if (direct_pointer_parameter((place_storage_7[0]).root) != 0) {
+                    parameter: u64 = (1 << cast(u64)(((place_storage_7[0]).root).parameter))
+                    (origin_storage_6[0]).lent &= (~parameter)
+                    (origin_storage_6[0]).lent_vec |= parameter
+                }
+                if ((!((origin_storage_6[0]).unknown != 0) && ((place_storage_7[0]).root != cast(*BorrowBinding)((null)))) && (((place_storage_7[0]).root).global_index >= 0)) {
+                    if ((origin_storage_6[0]).depth < (check).depth) {
+                        (origin_storage_6[0]).depth = (check).depth
+                    }
+                    (origin_storage_6[0]).global_vec = 1
+                }
+                return origin_storage_6[0]
+            }
+            if (view_type(check, (expression).type) != 0) {
+                owner: *IR.ZirModule = null
+                callee: *IR.ZirFunction = null
+                if (ResolveFunction(((check).current).module, (expression).name, *(owner), *(callee)) <= 0) {
+                    return Origin.{}
+                }
+                return call_origin(check, expression)
+            }
+            return Origin.{cast(u64)(0), 0, 1}
+        }
+        else if check_choice_241 == cast(IR.ZirExprKind)((4)) {
+            return Origin.{}
+        }
+        else {
+            return Origin.{cast(u64)(0), 0, 1}
+        }
+        break
+    }
+    unreachable
+}
+
+#scope_file
+check_ranges :: (check: *BorrowCheck, index: s32) {
+    if ((index < 0) || ((check).failed != 0)) {
+        return
+    }
+    expression: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((((check).current).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if (((cast(s32)((expression).kind) == 5) && !(strcmp((expression).name, CheckCString("TextView")) != 0)) && ((expression_origin(check, (expression).first_child)).unknown != 0)) {
+        reject(check, (expression).span, CheckCString("text view backing lifetime cannot be proved through an opaque pointer; copy bytes into owned storage first"))
+    }
+    if (((cast(s32)((expression).kind) == 16) && (strcmp((((((check).current).fn).exprs)[(expression).left]).type, CheckCString("string")) != 0)) && ((expression_origin(check, index)).invalid != 0)) {
+        reject(check, (expression).span, CheckCString("slice range requires live owned backing storage"))
+    }
+    if (((expression).is_move != 0) && (text_backing_conflict(check, storage_place(check, index, 1)) != 0)) {
+        reject(check, (expression).span, CheckCString("moving owned storage while its text view is live"))
+    }
+    check_ranges(check, (expression).left)
+    check_ranges(check, (expression).right)
+    check_ranges(check, (expression).third)
+    saved_active: s32 = (check).active_count
+    {
+        child: s32 = (expression).first_child
+        while check_loop_243 := (child >= 0) {
+            check_ranges(check, child)
+            type: *u8 = (((((check).current).fn).exprs)[child]).type
+            if (((((cast(s32)((expression).kind) == 5) && (cast(s32)(cast(s8)((type)[0])) != 42)) && !(SliceElementType(type, null, cast(usize)(0)) != 0)) && !(VecElementType(((check).current).module, type, null, cast(usize)(0)) != 0)) && (text_view_type(check, type) != 0)) {
+                add_active_text_borrows(check, text_view_backings(check, child), (check).depth)
+            }
+            child = (((((check).current).fn).exprs)[child]).next_sibling
+        }
+    }
+    if (cast(s32)((expression).kind) == 5) {
+        check_call_mutations(check, expression)
+    }
+    (check).active_count = saved_active
+}
+
+#scope_file
+add_binding :: (check: *BorrowCheck, name: *u8, type: *u8, origin: Origin, local: s32, depth: s32, captured: s32) -> *BorrowBinding {
+    item: *BorrowBinding = cast(*BorrowBinding)(cast(usize)((check).bindings) + cast(usize)(S12Post2(*((check).binding_count))) * size_of(BorrowBinding))
+    memset(cast(*void)(item), 0, cast(usize)(cast(u64)size_of(BorrowBinding)))
+    copy_text(cast(*u8)(*(((item).name).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), name)
+    copy_text(cast(*u8)(*(((item).type).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), type)
+    (item).origin = origin
+    (item).local = local
+    (item).depth = depth
+    (item).captured = captured
+    (item).global_index = (-1)
+    (item).parameter = (-1)
+    return item
+}
+
+#scope_file
+reject_return :: (check: *BorrowCheck, span: IR.ZirSourceSpan, source: Origin) {
+    fn: *IR.ZirFunction = ((check).current).fn
+    kind: *u8 = (ifx !(strcmp(cast(*u8)(*((fn).return_type)), CheckCString("string")) != 0) then CheckCString("text view") else (ifx (SliceElementType(cast(*u8)(*((fn).return_type)), null, cast(usize)(0)) != 0) then CheckCString("slice") else CheckCString("value")))
+    if ((check).failed != 0) {
+        return
+    }
+    parameters: *State.ZirParameters = ParametersOf(FunctionArgs(fn))
+    lent: s32 = (-1)
+    {
+        i: s32 = 0
+        while check_loop_244 := (((i < 64) && (i < (parameters).count)) && (lent < 0)) {
+            if (((source).lent & ((1 << cast(u64)(i)))) != 0) {
+                lent = i
+            }
+            S12Post2(*(i))
+        }
+    }
+    if ((((lent >= 0) && !((source).invalid != 0)) && !((source).unknown != 0)) && ((source).depth <= 1)) {
+        related_storage_0 := cast(*S12Array192_u8)AllocateOrExit(size_of(S12Array192_u8))
+        defer CompilerFree(cast(*void)related_storage_0)
+        memset(cast(*void)related_storage_0, 0, size_of(S12Array192_u8))
+        snprintf(cast(*u8)(*((related_storage_0[0]).items)), cast(usize)(cast(u64)size_of(S12Array192_u8)), CheckCString("pointer parameter %s is declared here"), (((parameters).items).items[lent]).name)
+        details: State.DiagnosticDetails = .{}
+        (details).related_span = (fn).span
+        (details).related_message = cast(*u8)(*((related_storage_0[0]).items))
+        DiagnosticDetailed(span, CheckCString("check.slice_lifetime"), *(details), CheckCString("returned %s borrows backing storage behind pointer parameter %s, which the caller lends only for this call; pass that storage as a slice parameter and return a view of it, or copy the elements"), kind, (((parameters).items).items[lent]).name)
+        (check).failed = 1
+        return
+    }
+    if ((!((source).invalid != 0) && ((source).unknown != 0)) && ((source).depth == 0)) {
+        Diagnostic(span, CheckCString("check.slice_lifetime"), CheckCString("returned %s borrows backing storage through a pointer whose lifetime cannot be proved; pass that storage as a slice parameter and return a view of it, or copy the elements"), kind)
+        (check).failed = 1
+        return
+    }
+    if ((!((source).invalid != 0) && !((source).unknown != 0)) && ((source).global_vec != 0)) {
+        Diagnostic(span, CheckCString("check.slice_lifetime"), CheckCString("returned %s views a global Vec, which a later push or free may move; take the view in the caller or copy the elements"), kind)
+        (check).failed = 1
+        return
+    }
+    Diagnostic(span, CheckCString("check.slice_lifetime"), CheckCString("returned %s borrows local or temporary storage"), kind)
+    (check).failed = 1
+}
+
+#scope_file
+inputs_changed :: (check: *BorrowCheck, function: *BorrowFunction) -> s32 {
+    if (((function).stale != 0) || (((function).scanned_views != 0) && ((check).views_changed_at > (function).checked_at))) {
+        return 1
+    }
+    {
+        i: s32 = 0
+        while check_loop_245 := (i < ((function).callees).count) {
+            if ((((check).functions)[(((function).callees).items)[i]]).summary_changed_at > (function).checked_at) {
+                return 1
+            }
+            S12Post2(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while check_loop_246 := (i < ((function).globals_read).count) {
+            if ((((check).globals)[(((function).globals_read).items)[i]]).changed_at > (function).checked_at) {
+                return 1
+            }
+            S12Post2(*(i))
+        }
+    }
+    return 0
+}
+
+#scope_file
+check_function :: (check: *BorrowCheck, function: *BorrowFunction) {
+    fn: *IR.ZirFunction = (function).fn
+    (check).current = function
+    (function).checked_at = (check).clock
+    ((function).callees).count = 0
+    ((function).globals_read).count = 0
+    (function).scanned_views = 0
+    S12Post17(*((check).checks))
+    (check).binding_count = 0
+    (check).active_count = 0
+    (check).depth = 1
+    (check).bindings = cast(*BorrowBinding)(CompilerCalloc((cast(usize)((fn).stmt_count) + cast(usize)(65)), cast(usize)(cast(u64)size_of(BorrowBinding))))
+    if ((check).bindings == cast(*BorrowBinding)((null))) {
+        reject(check, (fn).span, CheckCString("out of memory checking slice lifetimes"))
+        return
+    }
+    (check).active = cast(*ActiveTextBorrow)(CompilerCalloc((cast(usize)((fn).stmt_count) + cast(usize)(1)), cast(usize)(cast(u64)size_of(ActiveTextBorrow))))
+    if ((check).active == cast(*ActiveTextBorrow)((null))) {
+        CompilerFree(cast(*void)((check).bindings))
+        (check).bindings = null
+        reject(check, (fn).span, CheckCString("out of memory checking text borrows"))
+        return
+    }
+    (check).active_capacity = ((fn).stmt_count + 1)
+    parameters: *State.ZirParameters = ParametersOf(FunctionArgs(fn))
+    {
+        i: s32 = 0
+        while check_loop_247 := (i < (parameters).count) {
+            name: *u8 = (((parameters).items).items[i]).name
+            colon: *u8 = (((parameters).items).items[i]).type
+            if (colon == cast(*u8)((null))) {
+                S12Post2(*(i))
+                continue check_loop_247
+            }
+            origin_storage_0 := cast(*Origin)AllocateOrExit(size_of(Origin))
+            defer CompilerFree(cast(*void)origin_storage_0)
+            memset(cast(*void)origin_storage_0, 0, size_of(Origin))
+            origin_storage_0[0] = .{}
+            local: s32 = (-1)
+            if (view_type(check, colon) != 0) {
+                (origin_storage_0[0]).parameters = (1 << cast(u64)(i))
+                local = ((fn).stmt_count + i)
+                accumulate(check, cast(*Origin)(cast(usize)((function).locals) + cast(usize)(local) * size_of(Origin)), origin_storage_0[0])
+            } else {
+                if (cast(s32)(cast(s8)((colon)[0])) == 42) {
+                    (origin_storage_0[0]).depth = 1
+                }
+            }
+            parameter: *BorrowBinding = add_binding(check, name, colon, origin_storage_0[0], local, 1, 0)
+            (parameter).parameter = i
+            S12Post2(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while check_loop_248 := ((i < (fn).stmt_count) && !((check).failed != 0)) {
+            statement: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt))
+            if (cast(s32)((statement).kind) == 2) {
+                release_active_text_borrows(check, (check).depth)
+                while check_loop_249 := (((check).binding_count != 0) && ((((check).bindings)[((check).binding_count - 1)]).depth == (check).depth)) {
+                    S12Post0(*((check).binding_count))
+                }
+                S12Post0(*((check).depth))
+                S12Post2(*(i))
+                continue check_loop_248
+            }
+            check_ranges(check, (statement).lhs_root)
+            check_ranges(check, (statement).expr_root)
+            if ((cast(s32)((statement).kind) == 4) && ((statement).lhs_root >= 0)) {
+                destination_storage_1 := cast(*BorrowPlace)AllocateOrExit(size_of(BorrowPlace))
+                defer CompilerFree(cast(*void)destination_storage_1)
+                memset(cast(*void)destination_storage_1, 0, size_of(BorrowPlace))
+                destination_storage_1[0] = storage_place(check, (statement).lhs_root, 0)
+                left: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((statement).lhs_root) * size_of(IR.ZirExpr))
+                if !(((((destination_storage_1[0]).root != cast(*BorrowBinding)((null))) && (((destination_storage_1[0]).root).parameter >= 0)) && (cast(s32)((left).kind) == 1)) && ((cast(s32)(cast(s8)(((left).type)[0])) == 42) || (SliceElementType((left).type, null, cast(usize)(0)) != 0))) {
+                    check_mutation(check, destination_storage_1[0], (statement).span)
+                }
+            }
+            if (cast(s32)((statement).kind) == 3) {
+                if (view_type(check, (statement).type) != 0) {
+                    source_storage_2 := cast(*Origin)AllocateOrExit(size_of(Origin))
+                    defer CompilerFree(cast(*void)source_storage_2)
+                    memset(cast(*void)source_storage_2, 0, size_of(Origin))
+                    source_storage_2[0] = expression_origin(check, (statement).expr_root)
+                    direct_view: s32 = cast(s32)((SliceElementType((statement).type, null, cast(usize)(0)) != 0) || !(strcmp((statement).type, CheckCString("string")) != 0))
+                    accumulate(check, cast(*Origin)(cast(usize)((function).locals) + cast(usize)(i) * size_of(Origin)), source_storage_2[0])
+                    if ((((source_storage_2[0]).invalid != 0) && (direct_view != 0)) || ((source_storage_2[0]).depth > (check).depth)) {
+                        reject(check, (statement).span, (ifx !(strcmp((statement).type, CheckCString("string")) != 0) then CheckCString("text view initializer outlives its backing storage") else (ifx (SliceElementType((statement).type, null, cast(usize)(0)) != 0) then CheckCString("slice initializer outlives its backing storage") else CheckCString("view initializer outlives its backing storage"))))
+                    }
+                }
+                declared: *BorrowBinding = add_binding(check, ((statement).names).name, (statement).type, Origin.{}, i, (check).depth, 0)
+                (declared).text_backings = text_view_backings(check, (statement).expr_root)
+                (declared).text_backing = first_source((declared).text_backings)
+                (declared).address_backing = (ifx (cast(s32)(cast(s8)(((statement).type)[0])) == 42) then address_backing(check, (statement).expr_root, *((declared).address_known)) else BorrowPlace.{})
+                if (text_view_type(check, (statement).type) != 0) {
+                    add_active_text_borrows(check, (declared).text_backings, (check).depth)
+                }
+                add_active_vec_borrow(check, (statement).expr_root, (check).depth)
+            } else {
+                if ((cast(s32)((statement).kind) == 4) && ((statement).lhs_root >= 0)) {
+                    destination: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((statement).lhs_root) * size_of(IR.ZirExpr))
+                    assignment_root: *IR.ZirExpr = destination_root(fn, (statement).lhs_root)
+                    assignment_target: *BorrowBinding = (ifx (assignment_root == cast(*IR.ZirExpr)((null))) then null else binding(check, (assignment_root).name))
+                    if (((cast(s32)((destination).kind) == 1) && (cast(s32)(cast(s8)(((destination).type)[0])) == 42)) && (assignment_target != cast(*BorrowBinding)((null)))) {
+                        before_storage_3 := cast(*BorrowBinding)AllocateOrExit(size_of(BorrowBinding))
+                        defer CompilerFree(cast(*void)before_storage_3)
+                        memset(cast(*void)before_storage_3, 0, size_of(BorrowBinding))
+                        before_storage_3[0] = (assignment_target)[0]
+                        (assignment_target).address_backing = address_backing(check, (statement).expr_root, *((assignment_target).address_known))
+                        if ((((assignment_target).global_index >= 0) && (((assignment_target).address_backing).root != cast(*BorrowBinding)((null)))) && ((((assignment_target).address_backing).root).global_index < 0)) {
+                            (assignment_target).address_backing = BorrowPlace.{}
+                            (assignment_target).address_known = 0
+                        }
+                        if (((assignment_target).global_index >= 0) && (global_state_differs(*(before_storage_3[0]), assignment_target) != 0)) {
+                            (assignment_target).changed_at = S12Pre13(*((check).clock))
+                        }
+                    }
+                    if (view_type(check, (destination).type) != 0) {
+                        root: *IR.ZirExpr = destination_root(fn, (statement).lhs_root)
+                        target: *BorrowBinding = (ifx (root == cast(*IR.ZirExpr)((null))) then null else binding(check, (root).name))
+                        source_storage_4 := cast(*Origin)AllocateOrExit(size_of(Origin))
+                        defer CompilerFree(cast(*void)source_storage_4)
+                        memset(cast(*void)source_storage_4, 0, size_of(Origin))
+                        source_storage_4[0] = expression_origin(check, (statement).expr_root)
+                        static_storage: s32 = cast(s32)((((!((source_storage_4[0]).invalid != 0) && !((source_storage_4[0]).unknown != 0)) && ((source_storage_4[0]).depth == 0)) && ((source_storage_4[0]).parameters == cast(u64)(0))) && ((source_storage_4[0]).pointees == cast(u64)(0)))
+                        direct_view: s32 = cast(s32)((cast(s32)((destination).kind) == 1) && ((SliceElementType((destination).type, null, cast(usize)(0)) != 0) || !(strcmp((destination).type, CheckCString("string")) != 0)))
+                        source_depth: s32 = (ifx (((source_storage_4[0]).pointees != cast(u64)(0)) && ((source_storage_4[0]).depth < 1)) then 1 else (source_storage_4[0]).depth)
+                        if (!(static_storage != 0) && ((((target == cast(*BorrowBinding)((null))) || (((target).captured != 0) && ((target).global_index < 0))) || (((source_storage_4[0]).invalid != 0) && (direct_view != 0))) || (source_depth > (target).depth))) {
+                            reject(check, (statement).span, (ifx !(strcmp((destination).type, CheckCString("string")) != 0) then CheckCString("text view assignment may escape its backing storage") else (ifx (SliceElementType((destination).type, null, cast(usize)(0)) != 0) then CheckCString("slice assignment may escape its backing storage") else CheckCString("view assignment may escape its backing storage"))))
+                        } else {
+                            if ((target != cast(*BorrowBinding)((null))) && ((target).local >= 0)) {
+                                accumulate(check, cast(*Origin)(cast(usize)((function).locals) + cast(usize)((target).local) * size_of(Origin)), source_storage_4[0])
+                                (target).text_backings = merge_sources(check, (target).text_backings, text_view_backings(check, (statement).expr_root))
+                                (target).text_backing = first_source((target).text_backings)
+                            } else {
+                                if (((target != cast(*BorrowBinding)((null))) && ((target).global_index >= 0)) && (static_storage != 0)) {
+                                    before_storage_5 := cast(*BorrowBinding)AllocateOrExit(size_of(BorrowBinding))
+                                    defer CompilerFree(cast(*void)before_storage_5)
+                                    memset(cast(*void)before_storage_5, 0, size_of(BorrowBinding))
+                                    before_storage_5[0] = (target)[0]
+                                    before_origin_storage_6 := cast(*Origin)AllocateOrExit(size_of(Origin))
+                                    defer CompilerFree(cast(*void)before_origin_storage_6)
+                                    memset(cast(*void)before_origin_storage_6, 0, size_of(Origin))
+                                    before_origin_storage_6[0] = ((check).global_origins)[(target).global_index]
+                                    backings: *BorrowSource = text_view_backings(check, (statement).expr_root)
+                                    backing_storage_7 := cast(*BorrowPlace)AllocateOrExit(size_of(BorrowPlace))
+                                    defer CompilerFree(cast(*void)backing_storage_7)
+                                    memset(cast(*void)backing_storage_7, 0, size_of(BorrowPlace))
+                                    backing_storage_7[0] = first_source(backings)
+                                    accumulate(check, cast(*Origin)(cast(usize)((check).global_origins) + cast(usize)((target).global_index) * size_of(Origin)), source_storage_4[0])
+                                    (target).origin = ((check).global_origins)[(target).global_index]
+                                    if (((target).origin).globals != cast(*u64)((null))) {
+                                        list_view_global(check, (target).global_index)
+                                    }
+                                    if ((source_storage_4[0]).globals != cast(*u64)((null))) {
+                                        precise: s32 = cast(s32)(((backings != cast(*BorrowSource)((null))) && ((backings).next == cast(*BorrowSource)((null)))) && (only_global(check, source_storage_4[0], ((backing_storage_7[0]).root).global_index) != 0))
+                                        if !(precise != 0) {
+                                            (target).global_backing_state = 2
+                                        } else {
+                                            if ((target).global_backing_state == 0) {
+                                                (target).text_backing = backing_storage_7[0]
+                                                (target).global_backing_state = 1
+                                            } else {
+                                                if (((target).global_backing_state == 1) && !(same_place((target).text_backing, backing_storage_7[0]) != 0)) {
+                                                    (target).global_backing_state = 2
+                                                }
+                                            }
+                                        }
+                                    }
+                                    (target).text_backings = merge_sources(check, (target).text_backings, backings)
+                                    if (!(same_origin(before_origin_storage_6[0], ((check).global_origins)[(target).global_index]) != 0) || (global_state_differs(*(before_storage_5[0]), target) != 0)) {
+                                        (target).changed_at = S12Pre13(*((check).clock))
+                                    }
+                                }
+                            }
+                        }
+                        if ((((text_view_type(check, (destination).type) != 0) && (!(static_storage != 0) || ((source_storage_4[0]).globals != cast(*u64)((null))))) && (target != cast(*BorrowBinding)((null)))) && !(((target).captured != 0) && ((target).global_index < 0))) {
+                            add_active_text_borrows(check, text_view_backings(check, (statement).expr_root), (target).depth)
+                        }
+                    }
+                } else {
+                    if ((cast(s32)((statement).kind) == 10) && (view_type(check, cast(*u8)(*((fn).return_type))) != 0)) {
+                        source_storage_8 := cast(*Origin)AllocateOrExit(size_of(Origin))
+                        defer CompilerFree(cast(*void)source_storage_8)
+                        memset(cast(*void)source_storage_8, 0, size_of(Origin))
+                        source_storage_8[0] = expression_origin(check, (statement).expr_root)
+                        if ((((((source_storage_8[0]).lent == cast(u64)(0)) && ((source_storage_8[0]).lent_vec != cast(u64)(0))) && !((source_storage_8[0]).invalid != 0)) && !((source_storage_8[0]).unknown != 0)) && ((source_storage_8[0]).depth <= 1)) {
+                            (source_storage_8[0]).depth = 0
+                        }
+                        if ((((source_storage_8[0]).invalid != 0) || ((source_storage_8[0]).unknown != 0)) || ((source_storage_8[0]).depth > 0)) {
+                            reject_return(check, (statement).span, source_storage_8[0])
+                        }
+                        if (accumulate(check, *((function).returned), source_storage_8[0]) != 0) {
+                            summary_changed(check)
+                        }
+                    }
+                }
+            }
+            if (((cast(s32)((statement).kind) == 6) || (cast(s32)((statement).kind) == 7)) || (cast(s32)((statement).kind) == 1)) {
+                S12Post2(*((check).depth))
+            }
+            S12Post2(*(i))
+        }
+    }
+    CompilerFree(cast(*void)((check).bindings))
+    (check).bindings = null
+    CompilerFree(cast(*void)((check).active))
+    (check).active = null
+    (check).active_capacity = 0
+}
+
+#scope_file
+check_slice_lifetimes :: (programs: **IR.ZirProgram, count: s32) -> s32 {
+    check_storage_0 := cast(*BorrowCheck)AllocateOrExit(size_of(BorrowCheck))
+    defer CompilerFree(cast(*void)check_storage_0)
+    memset(cast(*void)check_storage_0, 0, size_of(BorrowCheck))
+    check_storage_0[0] = .{}
+    {
+        p: s32 = 0
+        while check_loop_250 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_251 := (m < ((programs)[p]).module_count) {
+                    (check_storage_0[0]).count += ((((programs)[p]).modules)[m]).function_count
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    (check_storage_0[0]).functions = cast(*BorrowFunction)(CompilerCalloc(cast(usize)((check_storage_0[0]).count), cast(usize)(cast(u64)size_of(BorrowFunction))))
+    if (((check_storage_0[0]).functions == cast(*BorrowFunction)((null))) && ((check_storage_0[0]).count != 0)) {
+        return 0
+    }
+    {
+        p: s32 = 0
+        while check_loop_252 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_253 := (m < ((programs)[p]).module_count) {
+                    (check_storage_0[0]).global_count += ((((programs)[p]).modules)[m]).global_count
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    (check_storage_0[0]).global_words = (((cast(usize)((check_storage_0[0]).global_count) + cast(usize)(63))) / cast(usize)(64))
+    (check_storage_0[0]).globals = cast(*BorrowBinding)(CompilerCalloc(cast(usize)((check_storage_0[0]).global_count), cast(usize)(cast(u64)size_of(BorrowBinding))))
+    (check_storage_0[0]).global_origins = cast(*Origin)(CompilerCalloc(cast(usize)((check_storage_0[0]).global_count), cast(usize)(cast(u64)size_of(Origin))))
+    if ((((check_storage_0[0]).globals == cast(*BorrowBinding)((null))) || ((check_storage_0[0]).global_origins == cast(*Origin)((null)))) && ((check_storage_0[0]).global_count != 0)) {
+        CompilerFree(cast(*void)((check_storage_0[0]).functions))
+        CompilerFree(cast(*void)((check_storage_0[0]).globals))
+        CompilerFree(cast(*void)((check_storage_0[0]).global_origins))
+        return 0
+    }
+    global_index: s32 = 0
+    {
+        p: s32 = 0
+        while check_loop_254 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_255 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        g: s32 = 0
+                        while check_loop_256 := (g < (module).global_count) {
+                            item: *BorrowBinding = cast(*BorrowBinding)(cast(usize)((check_storage_0[0]).globals) + cast(usize)(global_index) * size_of(BorrowBinding))
+                            (item).module = module
+                            (item).global = cast(*IR.ZirGlobal)(cast(usize)((module).globals) + cast(usize)(g) * size_of(IR.ZirGlobal))
+                            copy_text(cast(*u8)(*(((item).name).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), cast(*u8)(*((((module).globals)[g]).name)))
+                            copy_text(cast(*u8)(*(((item).type).items)), cast(usize)(cast(u64)size_of(S12Array128_u8)), cast(*u8)(*((((module).globals)[g]).type)))
+                            (item).local = (-1)
+                            (item).captured = 1
+                            (item).parameter = (-1)
+                            if !(pointer_index_put(*((check_storage_0[0]).global_index), cast(*void)(module), cast(*void)((item).global), global_index) != 0) {
+                                (check_storage_0[0]).failed = 1
+                            }
+                            (item).global_index = S12Post2(*(global_index))
+                            S12Post2(*(g))
+                        }
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    index: s32 = 0
+    {
+        p: s32 = 0
+        while check_loop_257 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_258 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        f: s32 = 0
+                        while check_loop_259 := (f < (module).function_count) {
+                            function: *BorrowFunction = cast(*BorrowFunction)(cast(usize)((check_storage_0[0]).functions) + cast(usize)(index) * size_of(BorrowFunction))
+                            (function).module = module
+                            (function).fn = cast(*IR.ZirFunction)(cast(usize)((module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
+                            if !(pointer_index_put(*((check_storage_0[0]).function_index), cast(*void)((function).fn), null, index) != 0) {
+                                (check_storage_0[0]).failed = 1
+                            }
+                            S12Post2(*(index))
+                            (function).locals = cast(*Origin)(CompilerCalloc((cast(usize)(((function).fn).stmt_count) + cast(usize)(64)), cast(usize)(cast(u64)size_of(Origin))))
+                            if ((function).locals == cast(*Origin)((null))) {
+                                (check_storage_0[0]).failed = 1
+                            }
+                            S12Post2(*(f))
+                        }
+                    }
+                    S12Post2(*(m))
+                }
+            }
+            S12Post2(*(p))
+        }
+    }
+    {
+        i: s32 = 0
+        while check_loop_260 := (i < (check_storage_0[0]).count) {
+            (((check_storage_0[0]).functions)[i]).stale = 1
+            S12Post2(*(i))
+        }
+    }
+    while check_loop_261 := true {
+        (check_storage_0[0]).changed = 0
+        {
+            i: s32 = 0
+            while check_loop_262 := ((i < (check_storage_0[0]).count) && !((check_storage_0[0]).failed != 0)) {
+                function: *BorrowFunction = cast(*BorrowFunction)(cast(usize)((check_storage_0[0]).functions) + cast(usize)(i) * size_of(BorrowFunction))
+                if ((!(((function).fn).checked != 0) || (((function).fn).is_extern != 0)) || !(inputs_changed(*(check_storage_0[0]), function) != 0)) {
+                    S12Post2(*(i))
+                    continue check_loop_262
+                }
+                changed: s32 = (check_storage_0[0]).changed
+                (check_storage_0[0]).changed = 0
+                check_function(*(check_storage_0[0]), function)
+                (function).stale = (check_storage_0[0]).changed
+                (check_storage_0[0]).changed |= changed
+                S12Post2(*(i))
+            }
+        }
+        if !(((check_storage_0[0]).changed != 0) && !((check_storage_0[0]).failed != 0)) { break check_loop_261 }
+    }
+    {
+        i: s32 = 0
+        while check_loop_263 := (i < (check_storage_0[0]).count) {
+            CompilerFree(cast(*void)((((check_storage_0[0]).functions)[i]).locals))
+            while check_loop_264 := ((((check_storage_0[0]).functions)[i]).mutations != cast(*BorrowMutation)((null))) {
+                next: *BorrowMutation = ((((check_storage_0[0]).functions)[i]).mutations).next
+                CompilerFree(cast(*void)((((check_storage_0[0]).functions)[i]).mutations))
+                (((check_storage_0[0]).functions)[i]).mutations = next
+            }
+            CompilerFree(cast(*void)((((check_storage_0[0]).functions)[i]).mutation_roots))
+            CompilerFree(cast(*void)(((((check_storage_0[0]).functions)[i]).callees).items))
+            CompilerFree(cast(*void)(((((check_storage_0[0]).functions)[i]).globals_read).items))
+            S12Post2(*(i))
+        }
+    }
+    while check_loop_265 := ((check_storage_0[0]).global_bits != cast(*GlobalBits)((null))) {
+        next: *GlobalBits = ((check_storage_0[0]).global_bits).next
+        CompilerFree(cast(*void)((check_storage_0[0]).global_bits))
+        (check_storage_0[0]).global_bits = next
+    }
+    while check_loop_266 := ((check_storage_0[0]).paths != cast(*BorrowPath)((null))) {
+        next: *BorrowPath = ((check_storage_0[0]).paths).next_allocation
+        CompilerFree(cast(*void)((check_storage_0[0]).paths))
+        (check_storage_0[0]).paths = next
+    }
+    while check_loop_267 := ((check_storage_0[0]).sources != cast(*BorrowSource)((null))) {
+        next: *BorrowSource = ((check_storage_0[0]).sources).next_allocation
+        CompilerFree(cast(*void)((check_storage_0[0]).sources))
+        (check_storage_0[0]).sources = next
+    }
+    CompilerFree(cast(*void)((check_storage_0[0]).functions))
+    CompilerFree(cast(*void)((check_storage_0[0]).globals))
+    CompilerFree(cast(*void)((check_storage_0[0]).global_origins))
+    CompilerFree(cast(*void)((check_storage_0[0]).text_types))
+    CompilerFree(cast(*void)((check_storage_0[0]).foreign_answers))
+    CompilerFree(cast(*void)(((check_storage_0[0]).function_index).slots))
+    CompilerFree(cast(*void)(((check_storage_0[0]).global_index).slots))
+    CompilerFree(cast(*void)((check_storage_0[0]).view_globals))
+    return cast(s32)(!((check_storage_0[0]).failed != 0))
+}
+
+#scope_export
+#program_export "CheckSliceLifetimes"
+CheckSliceLifetimes :: (programs: **IR.ZirProgram, count: s32) -> s32 {
+    started: u64 = ProfileStart()
+    passed: s32 = check_slice_lifetimes(programs, count)
+    ProfileEnd(CheckCString("check.slice_lifetimes"), started)
+    return passed
+}
+
+#scope_file
+FunctionArgs :: (fn: *IR.ZirFunction) -> *u8 {
+    return (ifx ((fn).args_text != null) then (fn).args_text else CheckCString(""))
+}

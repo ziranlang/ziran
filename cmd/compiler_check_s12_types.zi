@@ -1,0 +1,336 @@
+// Checker S12 state and C ABI records.
+using IR :: #import "compiler_ir"
+using State :: #import "compiler_check_types"
+
+S12Callback0 :: #type (a0: *void, a1: *u8) -> *u8 #c_call;
+BorrowPlace :: struct {
+    root: *BorrowBinding
+    path: *BorrowPath
+}
+
+ActiveTextBorrow :: struct {
+    backing: BorrowPlace
+    depth: s32
+    vec: s32
+}
+
+S12Array128_u8 :: struct {
+    items: [128]u8
+}
+
+Origin :: struct {
+    parameters: u64
+    depth: s32
+    invalid: s32
+    unknown: s32
+    globals: *u64
+    pointees: u64
+    lent: u64
+    lent_vec: u64
+    global_vec: s32
+}
+
+BorrowBinding :: struct {
+    module: *IR.ZirModule
+    global: *IR.ZirGlobal
+    name: S12Array128_u8
+    type: S12Array128_u8
+    origin: Origin
+    local: s32
+    depth: s32
+    captured: s32
+    global_index: s32
+    global_backing_state: s32
+    text_backing: BorrowPlace
+    text_backings: *BorrowSource
+    address_backing: BorrowPlace
+    address_known: s32
+    parameter: s32
+    view_listed: s32
+    changed_at: u64
+    listed_by: u64
+}
+
+PointerIndex :: struct {
+    slots: *PointerSlot
+    capacity: usize
+    count: usize
+}
+
+BorrowCheck :: struct {
+    text_types: *TextTypeAnswer
+    text_type_capacity: usize
+    text_type_count: usize
+    foreign_answers: *ForeignAnswer
+    foreign_capacity: usize
+    foreign_count: usize
+    function_index: PointerIndex
+    global_index: PointerIndex
+    view_globals: *s32
+    view_global_count: s32
+    view_global_capacity: s32
+    functions: *BorrowFunction
+    count: s32
+    current: *BorrowFunction
+    bindings: *BorrowBinding
+    binding_count: s32
+    globals: *BorrowBinding
+    global_count: s32
+    global_words: usize
+    global_origins: *Origin
+    global_bits: *GlobalBits
+    active: *ActiveTextBorrow
+    active_count: s32
+    active_capacity: s32
+    paths: *BorrowPath
+    sources: *BorrowSource
+    depth: s32
+    changed: s32
+    failed: s32
+    clock: u64
+    views_changed_at: u64
+    checks: u64
+}
+
+IndexList :: struct {
+    items: *s32
+    count: s32
+    capacity: s32
+}
+
+BorrowFunction :: struct {
+    module: *IR.ZirModule
+    fn: *IR.ZirFunction
+    returned: Origin
+    locals: *Origin
+    mutations: *BorrowMutation
+    mutation_roots: *MutationRoot
+    mutation_root_capacity: usize
+    mutation_root_count: usize
+    checked_at: u64
+    callees: IndexList
+    globals_read: IndexList
+    scanned_views: s32
+    stale: s32
+    summary_changed_at: u64
+    listed_by: u64
+}
+
+BorrowMutation :: struct {
+    parameter: s32
+    global: s32
+    path: *BorrowPath
+    next: *BorrowMutation
+    next_same_root: *BorrowMutation
+}
+
+BorrowPath :: struct {
+    parent: *BorrowPath
+    next_allocation: *BorrowPath
+    field: *u8
+    depth: s32
+    index: s32
+}
+
+BorrowSource :: struct {
+    place: BorrowPlace
+    next: *BorrowSource
+    next_allocation: *BorrowSource
+}
+
+S12Array4096_u8 :: struct {
+    items: [4096]u8
+}
+
+S12Array64_S12Array4096_u8 :: struct {
+    items: [64]S12Array4096_u8
+}
+
+CheckFunctionBuffers :: struct {
+    params: S12Array64_S12Array4096_u8
+    parameters: S12Array64_S12Array4096_u8
+}
+
+S12Array1024_u8 :: struct {
+    items: [1024]u8
+}
+
+S12Array8192_u8 :: struct {
+    items: [8192]u8
+}
+
+CheckProgramsBuffers :: struct {
+    c: State.Checker
+    saved_path: S12Array1024_u8
+    scope: State.Checker
+    token: IR.ZirToken
+    raw: IR.ZirFunction
+    expression: IR.ZirFunction
+    initializer: State.Checker
+    assignment: S12Array4096_u8
+    body: S12Array8192_u8
+    expanded: S12Array8192_u8
+}
+
+ForeignAnswer :: struct {
+    module: *IR.ZirModule
+    name: S12Array128_u8
+    found: s32
+}
+
+GlobalBits :: struct {
+    next: *GlobalBits
+    // The first word sets the tail alignment on hosts with narrower pointers.
+    first_word: u64
+}
+
+InstantiateSpecializationsBuffers :: struct {
+    original: IR.ZirFunction
+}
+
+JaiParameterTypesBuffers :: struct {
+    parameters: S12Array64_S12Array4096_u8
+}
+
+MutationRoot :: struct {
+    items: *BorrowMutation
+}
+
+NormalizeFunctionArraysBuffers :: struct {
+    parts: S12Array64_S12Array4096_u8
+    arguments: S12Array4096_u8
+    original_type: S12Array4096_u8
+    normalized: S12Array4096_u8
+}
+
+NormalizeTypeApplicationsBuffers :: struct {
+    expanded: S12Array8192_u8
+    arguments: S12Array4096_u8
+    canonical: S12Array4096_u8
+    body: S12Array8192_u8
+}
+
+OrderLocalTypesBuffers :: struct {
+    needed: IR.ZirType
+}
+
+PointerSlot :: struct {
+    key: *void
+    second: *void
+    value: s32
+}
+
+RewriteFunctionTypeApplicationsBuffers :: struct {
+    expanded: S12Array8192_u8
+}
+
+RewriteTypeApplicationsBuffers :: struct {
+    arguments: S12Array4096_u8
+    expanded: S12Array4096_u8
+    canonical: S12Array4096_u8
+}
+
+SimdOp :: struct {
+    id: s32
+    name: *u8
+    snake: *u8
+    checked: *u8
+    shape: s32
+    lanes: u32
+    type_argument: s32
+}
+
+SimdOperand :: struct {
+    type: *u8
+    is_constant: s32
+    value: s64
+}
+
+TextTypeAnswer :: struct {
+    module: *IR.ZirModule
+    type: S12Array128_u8
+    holds_text: s32
+}
+
+S12Array27__u8 :: struct {
+    items: [27]*u8
+}
+
+S12Array32_S12Array128_u8 :: struct {
+    items: [32]S12Array128_u8
+}
+
+S12Array91_u8 :: struct {
+    items: [91]u8
+}
+
+S12Array12_u8 :: struct {
+    items: [12]u8
+}
+
+S12Array7__u8 :: struct {
+    items: [7]*u8
+}
+
+S12Array8_u8 :: struct {
+    items: [8]u8
+}
+
+S12Array130_u8 :: struct {
+    items: [130]u8
+}
+
+S12Array32_u8 :: struct {
+    items: [32]u8
+}
+
+S12Array136_u8 :: struct {
+    items: [136]u8
+}
+
+S12Array34_s32 :: struct {
+    items: [34]s32
+}
+
+S12Array33_S12Array128_u8 :: struct {
+    items: [33]S12Array128_u8
+}
+
+S12Array33_SimdOperand :: struct {
+    items: [33]SimdOperand
+}
+
+S12Array256_u8 :: struct {
+    items: [256]u8
+}
+
+S12Array122_u8 :: struct {
+    items: [122]u8
+}
+
+S12Array64__BorrowPath :: struct {
+    items: [64]*BorrowPath
+}
+
+S12Array192_u8 :: struct {
+    items: [192]u8
+}
+
+S12Post0 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] - 1; return old }
+S12Post1 :: (p: **u8) -> *u8 { old := p[0]; p[0] = cast(*u8)(cast(usize)p[0] + size_of(u8)); return old }
+S12Post2 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] + 1; return old }
+S12Pre3 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] - 1; return p[0] }
+S12Set4 :: (p: *u8, value: u8) -> u8 { p[0] = value; return value }
+S12Post5 :: (p: *usize) -> usize { old := p[0]; p[0] = p[0] + 1; return old }
+S12Pre6 :: (p: **u8) -> *u8 { old := p[0]; p[0] = cast(*u8)(cast(usize)p[0] + size_of(u8)); return p[0] }
+S12Post7 :: (p: **u8) -> *u8 { old := p[0]; p[0] = cast(*u8)(cast(usize)p[0] - size_of(u8)); return old }
+S12Post8 :: (p: *usize) -> usize { old := p[0]; p[0] = p[0] - 1; return old }
+S12Set9 :: (p: *s32, value: s32) -> s32 { p[0] = value; return value }
+S12Set10 :: (p: **u8, value: *u8) -> *u8 { p[0] = value; return value }
+S12Set11 :: (p: *IR.ZirFunction, value: IR.ZirFunction) -> IR.ZirFunction { p[0] = value; return value }
+S12Set12 :: (p: **SimdOp, value: *SimdOp) -> *SimdOp { p[0] = value; return value }
+S12Pre13 :: (p: *u64) -> u64 { old := p[0]; p[0] = p[0] + 1; return p[0] }
+S12Set14 :: (p: *Origin, value: Origin) -> Origin { p[0] = value; return value }
+S12Set15 :: (p: *MutationRoot, value: MutationRoot) -> MutationRoot { p[0] = value; return value }
+S12Set16 :: (p: *BorrowMutation, value: BorrowMutation) -> BorrowMutation { p[0] = value; return value }
+S12Post17 :: (p: *u64) -> u64 { old := p[0]; p[0] = p[0] + 1; return old }

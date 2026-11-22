@@ -32,14 +32,16 @@ S9's build and cache modules were already integrated. S10 uses
 `compiler_go_backend`, `compiler_go_asm`, and `compiler_go_asm_x64` for Go
 lowering and assembly. The `zi2go` CLI driver reads the generated backend
 header. S11 uses the six `compiler_check*` modules for checker setup, value,
-statement, expression, and text passes and their shared records. The remaining
-C checker passes use the existing private checker declarations and share the
-same prefixed private symbols with the Ziran modules.
+statement, expression, and text passes and their shared records. S12 ports
+function and whole-program checking, generic linking, SIMD rules, and borrow
+analysis. The build links the Ziran checker modules directly, with generated C
+seeds for bootstrapping and prefixed names for private calls. The remaining C
+parser and tool drivers use the public declarations in `zir_check.h`.
 
-S12–S18 remain open. They cover the remaining checker passes, parser, frontend
-services, portable ZX and host interfaces, inline assembly and tool drivers,
-and the stage-0 through stage-2 fixed-point proof. The current `check-bootstrap`
-compares generated modules against the checked-in seed.
+S13–S18 remain open. They cover the parser, frontend services, portable ZX and
+host interfaces, inline assembly and tool drivers, and the stage-0 through
+stage-2 fixed-point proof. The current `check-bootstrap` compares generated
+modules against the checked-in seed.
 
 ## Why staged bootstrap is mandatory
 
@@ -442,8 +444,8 @@ No step commits before its implementation and proof are complete.
   `cmd/zir/zir_check_value.c`, `zir_check_statement.c`, `zir_check_expr.c`,
   `zir_check_text.c`, and `zir_check.c`. Preserve the `Checker` record ABI
   declared by `cmd/zir/zir_check_internal.h` while C callers remain.
-- Keep the public and private C checker headers available to the S12/S13
-  callers while they migrate.
+- Keep the public C checker header for parser and tool callers. S12 removes
+  the private C checker header after porting its last consumers.
 - Delete `zir_check.c`, `zir_check_value.c`,
   `zir_check_statement.c`, `zir_check_expr.c`, and `zir_check_text.c`.
 - Proof: `env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=safe_inference`.
@@ -452,16 +454,17 @@ No step commits before its implementation and proof are complete.
 
 - Add `cmd/compiler_check_function.zi`, `cmd/compiler_check_program.zi`,
   `cmd/compiler_check_link.zi`, `cmd/compiler_check_simd.zi`, and
-  `cmd/compiler_borrow.zi`; port `CheckPrograms_with_buffers:76`,
+  `cmd/compiler_borrow.zi` with `cmd/compiler_check_s12_types.zi` for shared
+  records and helpers. Port `CheckPrograms_with_buffers:76`,
   `LintPrograms:985`, generated-link calls `:520`, `:737`,
   `compiler_link` bridge `zir_check_link.c:874`, SIMD checks from
   `zir_check_simd.c:14`, and `CheckSliceLifetimes:2001`.
-- Change parser/tool callers to the new whole-program API; remove the merged
-  C object special cases in `Makefile:320-365` as their last consumers vanish.
+- Link the generated checker objects directly. Keep the public whole-program
+  ABI for current parser and tool callers.
 - Delete `zir_check_function.c`, `zir_check_program.c`, `zir_check_link.c`,
   `zir_check_simd.c`, `zir_check_internal.h`, `zir_borrow.c`, and
   `zir_borrow.h`.
-- Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=parser_recovery`.
+- Proof: `env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=parser_recovery`.
 
 ### S13 — source/discovery parser
 

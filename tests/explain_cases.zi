@@ -111,7 +111,7 @@ ExplainDiagnosticCode :: (text: string, open: Code.Scan) -> string {
 }
 
 ExplainZiDiagnostics :: (test: *NativeTest, source: string, codes: *Vec(string)) -> bool {
-    if TextFind(source, "Diagnostic", 0) < 0 { return true }
+    if TextFind(source, "Diagnostic", 0) < 0 && TextFind(source, "Warning", 0) < 0 { return true }
     text := source
     rewritten: Vec(u8)
     defer VecFree(rewritten)
@@ -128,7 +128,7 @@ ExplainZiDiagnostics :: (test: *NativeTest, source: string, codes: *Vec(string))
     while token.kind != .Eof {
         name := text[token.begin:token.end]
         open := ExplainNextToken(text, token)
-        if token.kind == .Ident && (name == "Diagnostic" || name == "DiagnosticDetailed") && text[open.begin:open.end] == "(" {
+        if token.kind == .Ident && (name == "Diagnostic" || name == "DiagnosticDetailed" || name == "Warning") && text[open.begin:open.end] == "(" {
             value := ExplainDiagnosticCode(text, open)
             if value != "" { ExplainAdd(codes, value) }
         }
@@ -151,6 +151,7 @@ Emit :: (span: IR.ZirSourceSpan) {
         CStr /* code */ ("fixture.wrapped"), CStr("fixture.message"))
     Diagnostic(span, "fixture.literal", "message")
     DiagnosticDetailed(span, CheckCString("fixture.detailed"), details, "message")
+    Warning(span, CheckCString("fixture.warning"), "message")
     Diagnostic(span, code, CStr("fixture.computed"))
 }
 ZI
@@ -158,7 +159,7 @@ ZI
     if !NativeWrite(test, module, source) { return false }
     codes: Vec(string)
     if !ExplainZiDiagnostics(test, NativeRead(test, module), *codes) { return false }
-    return NativeAssert(test, codes.count == 3 && codes[0] == "fixture.wrapped" && codes[1] == "fixture.literal" && codes[2] == "fixture.detailed",
+    return NativeAssert(test, codes.count == 4 && codes[0] == "fixture.wrapped" && codes[1] == "fixture.literal" && codes[2] == "fixture.detailed" && codes[3] == "fixture.warning",
         "modular diagnostics must discover only literal code arguments")
 }
 

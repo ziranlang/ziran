@@ -2174,8 +2174,8 @@ Addressable :: (program: *AssemblyProgram, function: *AssemblyFunction, index: s
         base := function.source.exprs[expression.left].type
         // A borrowed view's elements live behind its checked data pointer,
         // whatever holds the view itself.
-        if IR.CText(base) == "string" || CSliceElementType(base, null, 0) != 0 ||
-           SourceVec(function, base) != 0 {
+        if IR.CText(base) == "string" || base[0] == cast(u8)42 ||
+           CSliceElementType(base, null, 0) != 0 || SourceVec(function, base) != 0 {
             return 1
         }
         return ifx CArrayValueType(base) != 0 then Addressable(program, function, expression.left, depth + 1) else 0
@@ -2249,6 +2249,30 @@ AddressOf :: (program: *AssemblyProgram, function: *AssemblyFunction, index: s32
         operands[2] = count
         return Emit(program, function, LirOp.ElementAddress,
             PointerType(program, element, expression.span), operands, 3, -1, expression.span)
+    }
+    if expression.kind == ZirExprKind.INDEX && expression.left >= 0 &&
+       expression.left < function.source.expr_count &&
+       function.source.exprs[expression.left].type[0] == cast(u8)42 {
+        address := Expression(program, function, expression.left, depth + 1)
+        ordinal := Expression(program, function, expression.right, depth + 1)
+        if program.failed != 0 { return -1 }
+        if TypeAt(program, function.values.data[address]).kind != LirTypeKind.Pointer ||
+           TypeAt(program, function.values.data[ordinal]).kind != LirTypeKind.Integer {
+            return Fail(program, expression.span, "pointer indexing requires a pointer and an integer")
+        }
+        // A raw pointer has no declared length. Require just the prefix up
+        // to and including the index; checked backends bound it by the
+        // pointer's actual extent. A wrapping count also fails the index check.
+        operands := cast(*s32)Allocate(program, 3, size_of(s32))
+        if operands == null { return -1 }
+        operands[0] = address
+        operands[1] = Convert(program, function, ordinal, 9, expression.span)
+        prefix: [2]s32
+        prefix[0] = operands[1]
+        prefix[1] = Constant(program, function, 9, 1, expression.span)
+        operands[2] = Emit(program, function, LirOp.Add, 9, *prefix[0], 2, -1, expression.span)
+        return Emit(program, function, LirOp.ElementAddress, function.values.data[address],
+            operands, 3, -1, expression.span)
     }
     if expression.kind == ZirExprKind.INDEX {
         address := Address(program, function, expression.left, depth + 1)

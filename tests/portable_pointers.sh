@@ -21,6 +21,12 @@ total: s32 = 0;
 
 Bump :: (p: *Point) { p.x += 1; (<<p).y += 2; }
 Set :: (value: *s32, to: s32) { <<value = to; }
+ReadByte :: (base: *s8, index: s32) -> s8 { return base[index]; }
+WriteByte :: (base: *s8, index: s32, value: s8) { base[index] = value; }
+AddWord :: (base: *s64, index: s32, value: s64) -> s64 {
+    base[index] += value;
+    return base[index];
+}
 Pick :: (a: *Point, b: *Point, first: bool) -> *Point {
     if first { return a; }
     return b;
@@ -53,7 +59,25 @@ Answer :: () -> s32 {
     copy := <<holder.target;
     copy.x = 100;
     if p.x != 2 { return 10; }
+    bytes: [3]s8 = s8.[11, 22, 33];
+    WriteByte(*bytes[0], 1, -7);
+    if ReadByte(*bytes[0], 1) != -7 || bytes[0] != 11 || bytes[2] != 33 { return 11; }
+    words: [3]s64 = s64.[11, 22, 33];
+    if AddWord(*words[1], 1, 4294967296) != 4294967329 ||
+       words[0] != 11 || words[1] != 22 || words[2] != 4294967329 { return 12; }
     return 42;
+}
+
+#program_export
+ReadPastEnd :: () -> s8 {
+    bytes: [2]s8 = s8.[11, 22];
+    return ReadByte(*bytes[1], 1);
+}
+
+#program_export
+ReadNegativeIndex :: () -> s8 {
+    bytes: [2]s8 = s8.[11, 22];
+    return ReadByte(*bytes[1], -1);
 }
 ZI
 
@@ -85,7 +109,7 @@ for input in source saved; do
         root=$work/ir
     fi
     "$ziran" bundle --root "$root" --entry app:Answer -o "$work/$input.zx" "$module"
-    test "$("$ziran" run "$work/$input.zx")" = 42
+    test "$("$ziran" run --backend engine "$work/$input.zx")" = 42
     output="$work/c-$input"
     "$ziran" build --target=c --exe --entry app:Answer --root "$root" -o "$output" "$module"
     status=0
@@ -100,3 +124,11 @@ GO
     GO111MODULE=off go run "$output"/*.go
 done
 cmp "$work/source.zx" "$work/saved.zx"
+
+for entry in ReadPastEnd ReadNegativeIndex; do
+    "$ziran" bundle --root "$work" --entry "app:$entry" -o "$work/$entry.zx" "$work/app.zi"
+    if "$ziran" run --backend engine "$work/$entry.zx" > "$work/$entry.out" 2>&1; then
+        echo "invalid pointer index executed: $entry" >&2
+        exit 1
+    fi
+done

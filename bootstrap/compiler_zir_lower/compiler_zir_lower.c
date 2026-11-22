@@ -6068,48 +6068,50 @@ compiler_zir_lower_Addressable(AssemblyProgram* program, AssemblyFunction* funct
     if (((ZirExprKind)(expression->kind)) == ((ZirExprKind)(10))) {
         uint8_t* base = (uint8_t*)(function->source->exprs[expression->left]).type;
         bool value_20 = StringEqual(compiler_ir_CText(base), StringLiteral("string"));
-        bool value_21 = value_20 || zir_f_0fe5ce4064831140_CSliceElementType(base, (void *)0, 0) != 0;
-        bool value_22 = value_21;
-        if (!value_22) {
-            AssemblyFunction* value_23 = function;
-            int32_t value_24 = 0;
+        bool value_21 = value_20 || base[0] == 42;
+        bool value_22 = value_21 || zir_f_0fe5ce4064831140_CSliceElementType(base, (void *)0, 0) != 0;
+        bool value_23 = value_22;
+        bool value_24 = value_23;
+        if (!value_24) {
+            AssemblyFunction* value_25 = function;
+            int32_t value_26 = 0;
             {
-                AssemblyFunction* function = value_23;
+                AssemblyFunction* function = value_25;
                 uint8_t* name = base;
                 ZirModule* owner = function->module;
                 ZirType* record = (void *)0;
-                bool value_26 = name != ((void *)0);
-                bool value_27 = value_26;
-                if (value_27) {
-                    String value_28 = compiler_ir_CText(name);
-                    int64_t value_29 = (int64_t)(value_28).length;
-                    value_27 = (value_29 > 0LL);
+                bool value_28 = name != ((void *)0);
+                bool value_29 = value_28;
+                if (value_29) {
+                    String value_30 = compiler_ir_CText(name);
+                    int64_t value_31 = (int64_t)(value_30).length;
+                    value_29 = (value_31 > 0LL);
                 }
-                if (value_27) {
-                    ZirModule* value_30 = function->module;
-                    record = compiler_services_FindType(value_30, compiler_ir_CText(name), &(owner));
+                if (value_29) {
+                    ZirModule* value_32 = function->module;
+                    record = compiler_services_FindType(value_32, compiler_ir_CText(name), &(owner));
                 }
                 if (record != ((void *)0) && record->is_owned_vec != 0) {
-                    value_24 = 1;
-                    goto value_25;
+                    value_26 = 1;
+                    goto value_27;
                 }
-                value_24 = 0;
-            value_25: ;
+                value_26 = 0;
+            value_27: ;
             }
-            value_22 = (value_24 != 0);
+            value_24 = (value_26 != 0);
         }
-        if (value_22) {
+        if (value_24) {
             return 1;
         }
-        bool value_31 = zir_f_0fe5ce4064831140_CArrayValueType(base) != 0;
-        int32_t value_32 = 0;
-        if (value_31) {
-            int32_t value_33 = compiler_zir_lower_Addressable(program, function, expression->left, (int32_t)((uint32_t)depth + 1u));
-            value_32 = value_33;
+        bool value_33 = zir_f_0fe5ce4064831140_CArrayValueType(base) != 0;
+        int32_t value_34 = 0;
+        if (value_33) {
+            int32_t value_35 = compiler_zir_lower_Addressable(program, function, expression->left, (int32_t)((uint32_t)depth + 1u));
+            value_34 = value_35;
         } else {
-            value_32 = 0;
+            value_34 = 0;
         }
-        return value_32;
+        return value_34;
     }
     if (((ZirExprKind)(expression->kind)) == ((ZirExprKind)(8))) {
         return compiler_zir_lower_Addressable(program, function, expression->left, (int32_t)((uint32_t)depth + 1u));
@@ -6620,192 +6622,311 @@ compiler_zir_lower_AddressOf(AssemblyProgram* program, AssemblyFunction* functio
         int32_t value_156 = compiler_zir_lower_PointerType(program, element, expression->span);
         return compiler_zir_lower_Emit(value_154, value_155, (LirOp)(34), value_156, operands, 3, -1, expression->span);
     }
-    if (((ZirExprKind)(expression->kind)) == ((ZirExprKind)(10))) {
-        AssemblyProgram* value_157 = program;
-        AssemblyFunction* value_158 = function;
-        int32_t value_159 = expression->left;
-        int32_t value_160 = (int32_t)((uint32_t)depth + 1u);
-        int32_t value_161 = 0;
+    bool value_157 = ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(10)) && expression->left >= 0 && expression->left < function->source->expr_count;
+    if (value_157 && ((uint8_t*)(function->source->exprs[expression->left]).type)[0] == 42) {
+        AssemblyProgram* value_158 = program;
+        AssemblyFunction* value_159 = function;
+        int32_t value_160 = expression->left;
+        int32_t value_161 = (int32_t)((uint32_t)depth + 1u);
+        int32_t value_162 = 0;
         {
-            AssemblyProgram* program = value_157;
-            AssemblyFunction* function = value_158;
-            int32_t index = value_159;
-            int32_t depth = value_160;
+            AssemblyProgram* program = value_158;
+            AssemblyFunction* function = value_159;
+            int32_t root = value_160;
+            int32_t depth = value_161;
+            bool saved = function->checking;
+            if (root >= 0 && root < function->source->expr_count && (function->source->exprs[root]).checked != 0) {
+                bool* value_164 = &(function->checking);
+                (*value_164) = true;
+            }
+            int32_t value = compiler_zir_lower_ExpressionValue(program, function, root, depth);
+            bool* value_165 = &(function->checking);
+            (*value_165) = saved;
+            if (program->failed != 0 || value < 0 || root < 0 || root >= function->source->expr_count || (function->source->exprs[root]).is_move == 0) {
+                value_162 = value;
+                goto value_163;
+            }
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            value_162 = value;
+        value_163: ;
+        }
+        int32_t address = value_162;
+        AssemblyProgram* value_166 = program;
+        AssemblyFunction* value_167 = function;
+        int32_t value_168 = expression->right;
+        int32_t value_169 = (int32_t)((uint32_t)depth + 1u);
+        int32_t value_170 = 0;
+        {
+            AssemblyProgram* program = value_166;
+            AssemblyFunction* function = value_167;
+            int32_t root = value_168;
+            int32_t depth = value_169;
+            bool saved = function->checking;
+            if (root >= 0 && root < function->source->expr_count && (function->source->exprs[root]).checked != 0) {
+                bool* value_172 = &(function->checking);
+                (*value_172) = true;
+            }
+            int32_t value = compiler_zir_lower_ExpressionValue(program, function, root, depth);
+            bool* value_173 = &(function->checking);
+            (*value_173) = saved;
+            if (program->failed != 0 || value < 0 || root < 0 || root >= function->source->expr_count || (function->source->exprs[root]).is_move == 0) {
+                value_170 = value;
+                goto value_171;
+            }
+            compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
+            value_170 = value;
+        value_171: ;
+        }
+        int32_t ordinal = value_170;
+        if (program->failed != 0) {
+            return -1;
+        }
+        AssemblyProgram* value_174 = program;
+        int32_t value_175 = function->values.data[address];
+        LirType* value_176 = (void *)0;
+        {
+            AssemblyProgram* program = value_174;
+            int32_t identity = value_175;
+            value_176 = &(program->types.data[identity]);
+        }
+        bool value_178 = ((LirTypeKind)(value_176->kind)) != ((LirTypeKind)(5));
+        bool value_179 = value_178;
+        if (!value_179) {
+            AssemblyProgram* value_180 = program;
+            int32_t value_181 = function->values.data[ordinal];
+            LirType* value_182 = (void *)0;
+            {
+                AssemblyProgram* program = value_180;
+                int32_t identity = value_181;
+                value_182 = &(program->types.data[identity]);
+            }
+            value_179 = (((LirTypeKind)(value_182->kind)) != ((LirTypeKind)(3)));
+        }
+        if (value_179) {
+            AssemblyProgram* value_184 = program;
+            ZirSourceSpan value_185 = expression->span;
+            String value_186 = StringLiteral("pointer indexing requires a pointer and an integer");
+            int32_t value_187 = 0;
+            {
+                AssemblyProgram* program = value_184;
+                ZirSourceSpan span = value_185;
+                String message = value_186;
+                if (program->failed == 0) {
+                    compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
+                }
+                int32_t* value_189 = &(program->failed);
+                (*value_189) = 1;
+                value_187 = -1;
+            }
+            return value_187;
+        }
+        void* value_190 = compiler_zir_lower_Allocate(program, 3, sizeof(int32_t));
+        int32_t* operands = (int32_t*)(value_190);
+        if (operands == ((void *)0)) {
+            return -1;
+        }
+        int32_t* value_191 = &(operands[0]);
+        (*value_191) = address;
+        int32_t* value_192 = &(operands[1]);
+        int32_t value_193 = compiler_zir_lower_Convert(program, function, ordinal, 9, expression->span);
+        (*value_192) = value_193;
+        int32_t prefix[2];
+        int32_t* value_194 = &(prefix[0]);
+        (*value_194) = operands[1];
+        int32_t* value_195 = &(prefix[1]);
+        int32_t value_196 = compiler_zir_lower_Constant(program, function, 9, 1ULL, expression->span);
+        (*value_195) = value_196;
+        int32_t* value_197 = &(operands[2]);
+        int32_t value_198 = compiler_zir_lower_Emit(program, function, (LirOp)(5), 9, &(prefix[0]), 2, -1, expression->span);
+        (*value_197) = value_198;
+        return compiler_zir_lower_Emit(program, function, (LirOp)(34), function->values.data[address], operands, 3, -1, expression->span);
+    }
+    if (((ZirExprKind)(expression->kind)) == ((ZirExprKind)(10))) {
+        AssemblyProgram* value_199 = program;
+        AssemblyFunction* value_200 = function;
+        int32_t value_201 = expression->left;
+        int32_t value_202 = (int32_t)((uint32_t)depth + 1u);
+        int32_t value_203 = 0;
+        {
+            AssemblyProgram* program = value_199;
+            AssemblyFunction* function = value_200;
+            int32_t index = value_201;
+            int32_t depth = value_202;
             bool saved = function->checking;
             if (index >= 0 && index < function->source->expr_count && (function->source->exprs[index]).checked != 0) {
-                bool* value_163 = &(function->checking);
-                (*value_163) = true;
+                bool* value_205 = &(function->checking);
+                (*value_205) = true;
             }
             int32_t result = compiler_zir_lower_AddressOf(program, function, index, depth);
-            bool* value_164 = &(function->checking);
-            (*value_164) = saved;
-            value_161 = result;
+            bool* value_206 = &(function->checking);
+            (*value_206) = saved;
+            value_203 = result;
         }
-        int32_t address = value_161;
+        int32_t address = value_203;
         if (program->failed != 0) {
             return -1;
         }
         int32_t pointer = function->values.data[address];
-        AssemblyProgram* value_165 = program;
-        LirType* value_166 = (void *)0;
+        AssemblyProgram* value_207 = program;
+        LirType* value_208 = (void *)0;
         {
-            AssemblyProgram* program = value_165;
+            AssemblyProgram* program = value_207;
             int32_t identity = pointer;
-            value_166 = &(program->types.data[identity]);
+            value_208 = &(program->types.data[identity]);
         }
-        LirType* ty = value_166;
-        bool value_168 = ((LirTypeKind)(ty->kind)) != ((LirTypeKind)(5));
-        bool value_169 = value_168;
-        if (!value_169) {
-            AssemblyProgram* value_170 = program;
-            int32_t value_171 = ty->element;
-            LirType* value_172 = (void *)0;
+        LirType* ty = value_208;
+        bool value_210 = ((LirTypeKind)(ty->kind)) != ((LirTypeKind)(5));
+        bool value_211 = value_210;
+        if (!value_211) {
+            AssemblyProgram* value_212 = program;
+            int32_t value_213 = ty->element;
+            LirType* value_214 = (void *)0;
             {
-                AssemblyProgram* program = value_170;
-                int32_t identity = value_171;
-                value_172 = &(program->types.data[identity]);
+                AssemblyProgram* program = value_212;
+                int32_t identity = value_213;
+                value_214 = &(program->types.data[identity]);
             }
-            value_169 = (((LirTypeKind)(value_172->kind)) != ((LirTypeKind)(6)));
+            value_211 = (((LirTypeKind)(value_214->kind)) != ((LirTypeKind)(6)));
         }
-        if (value_169) {
-            AssemblyProgram* value_174 = program;
-            ZirSourceSpan value_175 = expression->span;
-            String value_176 = StringLiteral("element address requires a fixed-array pointer");
-            int32_t value_177 = 0;
+        if (value_211) {
+            AssemblyProgram* value_216 = program;
+            ZirSourceSpan value_217 = expression->span;
+            String value_218 = StringLiteral("element address requires a fixed-array pointer");
+            int32_t value_219 = 0;
             {
-                AssemblyProgram* program = value_174;
-                ZirSourceSpan span = value_175;
-                String message = value_176;
+                AssemblyProgram* program = value_216;
+                ZirSourceSpan span = value_217;
+                String message = value_218;
                 if (program->failed == 0) {
                     compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                 }
-                int32_t* value_179 = &(program->failed);
-                (*value_179) = 1;
-                value_177 = -1;
+                int32_t* value_221 = &(program->failed);
+                (*value_221) = 1;
+                value_219 = -1;
             }
-            return value_177;
+            return value_219;
         }
-        AssemblyProgram* value_180 = program;
-        int32_t value_181 = ty->element;
-        LirType* value_182 = (void *)0;
+        AssemblyProgram* value_222 = program;
+        int32_t value_223 = ty->element;
+        LirType* value_224 = (void *)0;
         {
-            AssemblyProgram* program = value_180;
-            int32_t identity = value_181;
-            value_182 = &(program->types.data[identity]);
+            AssemblyProgram* program = value_222;
+            int32_t identity = value_223;
+            value_224 = &(program->types.data[identity]);
         }
-        LirType* array_shape = value_182;
+        LirType* array_shape = value_224;
         int32_t element = array_shape->element;
-        AssemblyProgram* value_184 = program;
-        AssemblyFunction* value_185 = function;
-        int32_t value_186 = expression->right;
-        int32_t value_187 = (int32_t)((uint32_t)depth + 1u);
-        int32_t value_188 = 0;
+        AssemblyProgram* value_226 = program;
+        AssemblyFunction* value_227 = function;
+        int32_t value_228 = expression->right;
+        int32_t value_229 = (int32_t)((uint32_t)depth + 1u);
+        int32_t value_230 = 0;
         {
-            AssemblyProgram* program = value_184;
-            AssemblyFunction* function = value_185;
-            int32_t root = value_186;
-            int32_t depth = value_187;
+            AssemblyProgram* program = value_226;
+            AssemblyFunction* function = value_227;
+            int32_t root = value_228;
+            int32_t depth = value_229;
             bool saved = function->checking;
             if (root >= 0 && root < function->source->expr_count && (function->source->exprs[root]).checked != 0) {
-                bool* value_190 = &(function->checking);
-                (*value_190) = true;
+                bool* value_232 = &(function->checking);
+                (*value_232) = true;
             }
             int32_t value = compiler_zir_lower_ExpressionValue(program, function, root, depth);
-            bool* value_191 = &(function->checking);
-            (*value_191) = saved;
+            bool* value_233 = &(function->checking);
+            (*value_233) = saved;
             if (program->failed != 0 || value < 0 || root < 0 || root >= function->source->expr_count || (function->source->exprs[root]).is_move == 0) {
-                value_188 = value;
-                goto value_189;
+                value_230 = value;
+                goto value_231;
             }
             compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
-            value_188 = value;
-        value_189: ;
+            value_230 = value;
+        value_231: ;
         }
-        int32_t ordinal = value_188;
+        int32_t ordinal = value_230;
         if (program->failed != 0) {
             return -1;
         }
-        AssemblyProgram* value_192 = program;
-        int32_t value_193 = function->values.data[ordinal];
-        LirType* value_194 = (void *)0;
+        AssemblyProgram* value_234 = program;
+        int32_t value_235 = function->values.data[ordinal];
+        LirType* value_236 = (void *)0;
         {
-            AssemblyProgram* program = value_192;
-            int32_t identity = value_193;
-            value_194 = &(program->types.data[identity]);
+            AssemblyProgram* program = value_234;
+            int32_t identity = value_235;
+            value_236 = &(program->types.data[identity]);
         }
-        if (((LirTypeKind)(value_194->kind)) != ((LirTypeKind)(3))) {
-            AssemblyProgram* value_196 = program;
-            ZirSourceSpan value_197 = expression->span;
-            String value_198 = StringLiteral("element address requires a fixed integer index");
-            int32_t value_199 = 0;
+        if (((LirTypeKind)(value_236->kind)) != ((LirTypeKind)(3))) {
+            AssemblyProgram* value_238 = program;
+            ZirSourceSpan value_239 = expression->span;
+            String value_240 = StringLiteral("element address requires a fixed integer index");
+            int32_t value_241 = 0;
             {
-                AssemblyProgram* program = value_196;
-                ZirSourceSpan span = value_197;
-                String message = value_198;
+                AssemblyProgram* program = value_238;
+                ZirSourceSpan span = value_239;
+                String message = value_240;
                 if (program->failed == 0) {
                     compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                 }
-                int32_t* value_201 = &(program->failed);
-                (*value_201) = 1;
-                value_199 = -1;
+                int32_t* value_243 = &(program->failed);
+                (*value_243) = 1;
+                value_241 = -1;
             }
-            return value_199;
+            return value_241;
         }
         int32_t result_type = compiler_zir_lower_PointerType(program, element, expression->span);
-        void* value_202 = compiler_zir_lower_Allocate(program, 2, sizeof(int32_t));
-        int32_t* operands = (int32_t*)(value_202);
+        void* value_244 = compiler_zir_lower_Allocate(program, 2, sizeof(int32_t));
+        int32_t* operands = (int32_t*)(value_244);
         if (operands == ((void *)0)) {
             return -1;
         }
-        int32_t* value_203 = &(operands[0]);
-        (*value_203) = address;
-        int32_t* value_204 = &(operands[1]);
-        (*value_204) = ordinal;
+        int32_t* value_245 = &(operands[0]);
+        (*value_245) = address;
+        int32_t* value_246 = &(operands[1]);
+        (*value_246) = ordinal;
         return compiler_zir_lower_Emit(program, function, (LirOp)(34), result_type, operands, 2, -1, expression->span);
     }
     if (((ZirExprKind)(expression->kind)) == ((ZirExprKind)(8))) {
-        AssemblyProgram* value_205 = program;
-        AssemblyFunction* value_206 = function;
-        int32_t value_207 = expression->left;
-        int32_t value_208 = (int32_t)((uint32_t)depth + 1u);
-        int32_t value_209 = 0;
+        AssemblyProgram* value_247 = program;
+        AssemblyFunction* value_248 = function;
+        int32_t value_249 = expression->left;
+        int32_t value_250 = (int32_t)((uint32_t)depth + 1u);
+        int32_t value_251 = 0;
         {
-            AssemblyProgram* program = value_205;
-            AssemblyFunction* function = value_206;
-            int32_t index = value_207;
-            int32_t depth = value_208;
+            AssemblyProgram* program = value_247;
+            AssemblyFunction* function = value_248;
+            int32_t index = value_249;
+            int32_t depth = value_250;
             bool saved = function->checking;
             if (index >= 0 && index < function->source->expr_count && (function->source->exprs[index]).checked != 0) {
-                bool* value_211 = &(function->checking);
-                (*value_211) = true;
+                bool* value_253 = &(function->checking);
+                (*value_253) = true;
             }
             int32_t result = compiler_zir_lower_AddressOf(program, function, index, depth);
-            bool* value_212 = &(function->checking);
-            (*value_212) = saved;
-            value_209 = result;
+            bool* value_254 = &(function->checking);
+            (*value_254) = saved;
+            value_251 = result;
         }
-        int32_t address = value_209;
+        int32_t address = value_251;
         if (program->failed != 0) {
             return -1;
         }
         return compiler_zir_lower_FieldAddress(program, function, address, (uint8_t*)expression->name, expression->span);
     }
-    AssemblyProgram* value_213 = program;
-    ZirSourceSpan value_214 = expression->span;
-    String value_215 = StringLiteral("only globals, dereferenced pointers and their fields or fixed-array elements have lowered addresses yet");
-    int32_t value_216 = 0;
+    AssemblyProgram* value_255 = program;
+    ZirSourceSpan value_256 = expression->span;
+    String value_257 = StringLiteral("only globals, dereferenced pointers and their fields or fixed-array elements have lowered addresses yet");
+    int32_t value_258 = 0;
     {
-        AssemblyProgram* program = value_213;
-        ZirSourceSpan span = value_214;
-        String message = value_215;
+        AssemblyProgram* program = value_255;
+        ZirSourceSpan span = value_256;
+        String message = value_257;
         if (program->failed == 0) {
             compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
         }
-        int32_t* value_218 = &(program->failed);
-        (*value_218) = 1;
-        value_216 = -1;
+        int32_t* value_260 = &(program->failed);
+        (*value_260) = 1;
+        value_258 = -1;
     }
-    return value_216;
+    return value_258;
 }
 
 static int32_t

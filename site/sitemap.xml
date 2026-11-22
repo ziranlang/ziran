@@ -64,6 +64,7 @@
   <url><loc>https://ziran-lang.org/std/base64</loc></url>
   <url><loc>https://ziran-lang.org/std/binary</loc></url>
   <url><loc>https://ziran-lang.org/std/binary_linux</loc></url>
+  <url><loc>https://ziran-lang.org/std/bundle_guest</loc></url>
   <url><loc>https://ziran-lang.org/std/bundle_host</loc></url>
   <url><loc>https://ziran-lang.org/std/byte_text</loc></url>
   <url><loc>https://ziran-lang.org/std/byte_text_linux</loc></url>

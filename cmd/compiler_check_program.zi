@@ -1326,6 +1326,28 @@ lint_character :: (fn: *IR.ZirFunction, index: s32) -> s32 {
 }
 
 #scope_file
+// `value / -1` and `value % -1` overflow for the smallest integer of the
+// type: the native targets wrap or trap, as C does. Arithmetic keeps no
+// runtime check, so --lint names the constant divisor instead.
+lint_divide_by_minus_one :: (fn: *IR.ZirFunction, index: s32) -> s32 {
+    divide: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if cast(s32)((divide).kind) != 6 || (divide).right < 0 { return 0 }
+    quotient := strcmp(cast(*u8)*((divide).op), CheckCString("/")) == 0
+    remainder := strcmp(cast(*u8)*((divide).op), CheckCString("%")) == 0
+    if !quotient && !remainder { return 0 }
+    divisor: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((divide).right) * size_of(IR.ZirExpr))
+    if (divisor).text == null { return 0 }
+    spelled := skip_ws((divisor).text)
+    if strcmp(spelled, CheckCString("-1")) != 0 && strcmp(spelled, CheckCString("(-1)")) != 0 { return 0 }
+    if quotient {
+        Warning((divide).span, CheckCString("lint.divide"), CheckCString("dividing by -1 overflows for the smallest integer; negate the value instead and check that it is not the minimum"))
+    } else {
+        Warning((divide).span, CheckCString("lint.divide"), CheckCString("x %% -1 is always 0 and overflows for the smallest integer; write 0"))
+    }
+    return 1
+}
+
+#scope_file
 variadic_callee :: (module: *IR.ZirModule, name: *u8) -> s32 {
     dot: *u8 = strrchr(name, 46)
     base: *u8 = (ifx (dot != cast(*u8)((null))) then cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8)) else name)
@@ -1570,7 +1592,7 @@ LintPrograms :: (programs: **IR.ZirProgram, count: s32) -> s32 {
                             {
                                 e: s32 = 0
                                 while check_loop_140 := (e < (fn).expr_count) {
-                                    warnings += (lint_cast(fn, e, cast(s32)(cast(s8)((whole)[e]))) + lint_character(fn, e))
+                                    warnings += (lint_cast(fn, e, cast(s32)(cast(s8)((whole)[e]))) + lint_character(fn, e) + lint_divide_by_minus_one(fn, e))
                                     S12Post2(*(e))
                                 }
                             }

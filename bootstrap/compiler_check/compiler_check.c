@@ -837,6 +837,7 @@ static int32_t compiler_check_LowerFileScopeUsing_with_buffers(ZirModule* module
 static int32_t compiler_check_align_size(size_t value, size_t alignment, size_t* rounded) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_layout_type_with_buffers(ZirModule* module, uint8_t* source, int32_t depth, size_t* size, size_t* alignment, LayoutTypeBuffers* buffers) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_check_display_type(ZirModule* module, uint8_t* name, TypeDisplayName* storage) ZIRAN_MAYBE_UNUSED;
+static uint8_t* compiler_check_parameter_list(CheckArray4096_u8* parts, int32_t count, uint8_t* default_args, ParameterList* out) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_check_apply_using_filter(uint8_t* filter, uint8_t* name, uint8_t* buffer, size_t size) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_opened_file_record(Checker* scope, uint8_t* name, ZirSourceSpan span, uint8_t* path, size_t capacity) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_lower_file_record_using_with_buffers(ZirModule* module, uint8_t* source, size_t capacity, ZirSourceSpan span, LowerFileRecordUsingBuffers* buffers) ZIRAN_MAYBE_UNUSED;
@@ -2631,9 +2632,58 @@ private_check_bind_varargs_call(Checker* c, ZirExpr* call, CheckArray4096_u8* pa
     return cleanup_return_3;
 }
 
+static uint8_t*
+compiler_check_parameter_list(CheckArray4096_u8* parts, int32_t count, uint8_t* default_args, ParameterList* out)
+{
+    uint8_t* text = (uint8_t*)(&(out->text));
+    if (default_args != ((void *)0) && default_args[0] != 0) {
+        uint8_t* value_0 = text;
+        uint8_t* value_1 = compiler_check_types_CheckCString(StringLiteral("(%s)"));
+        zir_f_db75f2f733e13c03_snprintf(value_0, 1024, value_1, default_args);
+        return text;
+    }
+    uint8_t* value_2 = text;
+    int32_t used = zir_f_db75f2f733e13c03_snprintf(value_2, 1024, compiler_check_types_CheckCString(StringLiteral("(")));
+    {
+        int32_t range_first_6 = 0;
+        int32_t range_last_6 = (int32_t)((uint32_t)count - 1u);
+        int32_t i = range_first_6;
+        if (i <= range_last_6) for (;;) {
+            if (used <= 0 || used >= 1000) {
+                break;
+            }
+            int32_t value_3 = used;
+            uint8_t* value_4 = (uint8_t*)(((size_t)(text) + (size_t)(used)));
+            size_t value_5 = (size_t)(((int32_t)(1024u - (uint32_t)used)));
+            uint8_t* value_6 = compiler_check_types_CheckCString(StringLiteral("%s%s"));
+            uint8_t* value_7 = (void *)0;
+            if (i == 0) {
+                uint8_t* value_8 = compiler_check_types_CheckCString(StringLiteral(""));
+                value_7 = value_8;
+            } else {
+                uint8_t* value_9 = compiler_check_types_CheckCString(StringLiteral(", "));
+                value_7 = value_9;
+            }
+            int32_t value_10 = zir_f_db75f2f733e13c03_snprintf(value_4, value_5, value_6, value_7, (uint8_t*)(&((parts[i]).items)));
+            used = (int32_t)((uint32_t)value_3 + (uint32_t)value_10);
+            if (i == range_last_6) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
+    if (used > 0 && used < 1023) {
+        uint8_t* value_11 = (uint8_t*)(((size_t)(text) + (size_t)(used)));
+        size_t value_12 = (size_t)(((int32_t)(1024u - (uint32_t)used)));
+        zir_f_db75f2f733e13c03_snprintf(value_11, value_12, compiler_check_types_CheckCString(StringLiteral(")")));
+    }
+    return text;
+}
+
 int32_t
 private_check_bind_call_arguments(Checker* c, ZirExpr* call, CheckArray4096_u8* parts, int32_t expected, uint8_t* display_name, uint8_t* default_args)
 {
+    ParameterList signature = {0};
     void* value_0 = zir_f_db75f2f733e13c03_AllocateOrExit(sizeof(CheckArray64_u8));
     CheckArray64_u8* used_storage_0 = (CheckArray64_u8*)(value_0);
     zir_f_db75f2f733e13c03_memset((void*)(used_storage_0), 0, sizeof(CheckArray64_u8));
@@ -2728,7 +2778,7 @@ private_check_bind_call_arguments(Checker* c, ZirExpr* call, CheckArray4096_u8* 
                     void* value_10 = zir_f_db75f2f733e13c03_AllocateOrExit(sizeof(CheckArray4096_u8));
                     CheckArray4096_u8* detail_storage_1 = (CheckArray4096_u8*)(value_10);
                     zir_f_db75f2f733e13c03_memset((void*)(detail_storage_1), 0, sizeof(CheckArray4096_u8));
-                    uint8_t* value_11 = compiler_check_types_CheckCString(StringLiteral("%s (takes %d argument%s)"));
+                    uint8_t* value_11 = compiler_check_types_CheckCString(StringLiteral("%s (takes %d argument%s: %s)"));
                     uint8_t* value_12 = (void *)0;
                     if (expected == 1) {
                         uint8_t* value_13 = compiler_check_types_CheckCString(StringLiteral(""));
@@ -2737,9 +2787,10 @@ private_check_bind_call_arguments(Checker* c, ZirExpr* call, CheckArray4096_u8* 
                         uint8_t* value_14 = compiler_check_types_CheckCString(StringLiteral("s"));
                         value_12 = value_14;
                     }
-                    zir_f_db75f2f733e13c03_snprintf((uint8_t*)(&((detail_storage_1[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray4096_u8))), value_11, display_name, expected, value_12);
-                    ZirSourceSpan value_15 = argument->span;
-                    private_check_signature_error(c, value_15, compiler_check_types_CheckCString(StringLiteral("argument count mismatch")), (uint8_t*)(&((detail_storage_1[0]).items)));
+                    uint8_t* value_15 = value_12;
+                    zir_f_db75f2f733e13c03_snprintf((uint8_t*)(&((detail_storage_1[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray4096_u8))), value_11, display_name, expected, value_15, compiler_check_parameter_list(parts, expected, default_args, &(signature)));
+                    ZirSourceSpan value_16 = argument->span;
+                    private_check_signature_error(c, value_16, compiler_check_types_CheckCString(StringLiteral("argument count mismatch")), (uint8_t*)(&((detail_storage_1[0]).items)));
                     int32_t cleanup_return_2 = 0;
                     zir_f_db75f2f733e13c03_CompilerFree((void*)(detail_storage_1));
                     zir_f_db75f2f733e13c03_CompilerFree((void*)(used_storage_0));
@@ -2747,17 +2798,17 @@ private_check_bind_call_arguments(Checker* c, ZirExpr* call, CheckArray4096_u8* 
                 }
             }
             if (((used_storage_0[0]).items)[index] != 0) {
-                ZirSourceSpan value_16 = argument->span;
-                uint8_t* value_17 = compiler_check_types_CheckCString(StringLiteral("duplicate call argument"));
-                private_check_signature_error(c, value_16, value_17, (uint8_t*)argument->argument_name);
+                ZirSourceSpan value_17 = argument->span;
+                uint8_t* value_18 = compiler_check_types_CheckCString(StringLiteral("duplicate call argument"));
+                private_check_signature_error(c, value_17, value_18, (uint8_t*)argument->argument_name);
                 int32_t cleanup_return_3 = 0;
                 zir_f_db75f2f733e13c03_CompilerFree((void*)(used_storage_0));
                 return cleanup_return_3;
             }
-            uint8_t* value_18 = &(((used_storage_0[0]).items)[index]);
-            (*value_18) = 1;
-            int32_t* value_19 = &(argument->argument_index);
-            (*value_19) = index;
+            uint8_t* value_19 = &(((used_storage_0[0]).items)[index]);
+            (*value_19) = 1;
+            int32_t* value_20 = &(argument->argument_index);
+            (*value_20) = index;
             compiler_check_types_CheckPost0(&(actual));
             child = (c->fn->exprs[child]).next_sibling;
         }
@@ -2765,21 +2816,21 @@ private_check_bind_call_arguments(Checker* c, ZirExpr* call, CheckArray4096_u8* 
     if (actual != expected) {
         int32_t complete = 0;
         if (c->inference_only != 0 && default_args != (uint8_t*)(((void *)0)) && default_args[0] != 0) {
-            void* value_20 = zir_f_db75f2f733e13c03_CompilerCalloc((size_t)(64LL), (size_t)((uint64_t)(sizeof(CheckArray4096_u8))));
-            CheckArray4096_u8* defaults = (CheckArray4096_u8*)(value_20);
+            void* value_21 = zir_f_db75f2f733e13c03_CompilerCalloc((size_t)(64LL), (size_t)((uint64_t)(sizeof(CheckArray4096_u8))));
+            CheckArray4096_u8* defaults = (CheckArray4096_u8*)(value_21);
             if (defaults == (CheckArray4096_u8*)(((void *)0))) {
-                int32_t* value_21 = &(c->failed);
-                (*value_21) = 1;
+                int32_t* value_22 = &(c->failed);
+                (*value_22) = 1;
                 int32_t cleanup_return_4 = 0;
                 zir_f_db75f2f733e13c03_CompilerFree((void*)(used_storage_0));
                 return cleanup_return_4;
             }
-            bool value_22 = zir_f_db75f2f733e13c03_split_top_level(default_args, (uint8_t*)(&((defaults[0]).items)), 64, (size_t)((uint64_t)(sizeof(CheckArray4096_u8)))) == expected;
-            int32_t value_23 = 0;
-            if (value_22) {
-                value_23 = 1;
+            bool value_23 = zir_f_db75f2f733e13c03_split_top_level(default_args, (uint8_t*)(&((defaults[0]).items)), 64, (size_t)((uint64_t)(sizeof(CheckArray4096_u8)))) == expected;
+            int32_t value_24 = 0;
+            if (value_23) {
+                value_24 = 1;
             }
-            complete = value_23;
+            complete = value_24;
             {
                 int32_t i = 0;
                 while (true) {
@@ -2787,13 +2838,13 @@ private_check_bind_call_arguments(Checker* c, ZirExpr* call, CheckArray4096_u8* 
                     if (!check_loop_38) {
                         break;
                     }
-                    bool value_24 = !(((used_storage_0[0]).items)[i] != 0);
-                    bool value_25 = value_24;
-                    if (value_25) {
-                        uint8_t* value_26 = zir_f_db75f2f733e13c03_top_level_assignment((uint8_t*)(&((defaults[i]).items)));
-                        value_25 = (value_26 == (uint8_t*)(((void *)0)));
+                    bool value_25 = !(((used_storage_0[0]).items)[i] != 0);
+                    bool value_26 = value_25;
+                    if (value_26) {
+                        uint8_t* value_27 = zir_f_db75f2f733e13c03_top_level_assignment((uint8_t*)(&((defaults[i]).items)));
+                        value_26 = (value_27 == (uint8_t*)(((void *)0)));
                     }
-                    if (value_25) {
+                    if (value_26) {
                         complete = 0;
                     }
                     compiler_check_types_CheckPost0(&(i));
@@ -2802,12 +2853,13 @@ private_check_bind_call_arguments(Checker* c, ZirExpr* call, CheckArray4096_u8* 
             zir_f_db75f2f733e13c03_CompilerFree((void*)(defaults));
         }
         if (!(complete != 0)) {
-            void* value_27 = zir_f_db75f2f733e13c03_AllocateOrExit(sizeof(CheckArray4096_u8));
-            CheckArray4096_u8* detail_storage_2 = (CheckArray4096_u8*)(value_27);
+            void* value_28 = zir_f_db75f2f733e13c03_AllocateOrExit(sizeof(CheckArray4096_u8));
+            CheckArray4096_u8* detail_storage_2 = (CheckArray4096_u8*)(value_28);
             zir_f_db75f2f733e13c03_memset((void*)(detail_storage_2), 0, sizeof(CheckArray4096_u8));
-            zir_f_db75f2f733e13c03_snprintf((uint8_t*)(&((detail_storage_2[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray4096_u8))), compiler_check_types_CheckCString(StringLiteral("%s (a required argument is missing)")), display_name);
-            ZirSourceSpan value_28 = call->span;
-            private_check_signature_error(c, value_28, compiler_check_types_CheckCString(StringLiteral("argument count mismatch")), (uint8_t*)(&((detail_storage_2[0]).items)));
+            uint8_t* value_29 = compiler_check_types_CheckCString(StringLiteral("%s (a required argument is missing; it takes %s)"));
+            zir_f_db75f2f733e13c03_snprintf((uint8_t*)(&((detail_storage_2[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray4096_u8))), value_29, display_name, compiler_check_parameter_list(parts, expected, default_args, &(signature)));
+            ZirSourceSpan value_30 = call->span;
+            private_check_signature_error(c, value_30, compiler_check_types_CheckCString(StringLiteral("argument count mismatch")), (uint8_t*)(&((detail_storage_2[0]).items)));
             int32_t cleanup_return_5 = 0;
             zir_f_db75f2f733e13c03_CompilerFree((void*)(detail_storage_2));
             zir_f_db75f2f733e13c03_CompilerFree((void*)(used_storage_0));

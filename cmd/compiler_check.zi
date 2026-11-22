@@ -912,9 +912,31 @@ bind_varargs_call :: (c: *Checker, call: *IR.ZirExpr, parts: *CheckArray4096_u8,
     return 1
 }
 
+
+#scope_file
+ParameterList :: struct { text: [1024]u8; }
+
+// "(a: s32, b: s32)" for a signature-count message: the declared parameters
+// with their defaults when the declaration has any.
+parameter_list :: (parts: *CheckArray4096_u8, count: s32, default_args: *u8, out: *ParameterList) -> *u8 {
+    text: *u8 = cast(*u8)*((out).text)
+    if default_args != null && (default_args)[0] != 0 {
+        snprintf(text, 1024, CheckCString("(%s)"), default_args)
+        return text
+    }
+    used: s32 = snprintf(text, 1024, CheckCString("("))
+    for i: 0..count - 1 {
+        if used <= 0 || used >= 1000 { break }
+        used += snprintf(cast(*u8)(cast(usize)text + cast(usize)used), cast(usize)(1024 - used), CheckCString("%s%s"),
+            ifx i == 0 then CheckCString("") else CheckCString(", "), cast(*u8)*((parts[i]).items))
+    }
+    if used > 0 && used < 1023 { snprintf(cast(*u8)(cast(usize)text + cast(usize)used), cast(usize)(1024 - used), CheckCString(")")) }
+    return text
+}
 #scope_export
 #program_export "private_check_bind_call_arguments"
 bind_call_arguments :: (c: *Checker, call: *IR.ZirExpr, parts: *CheckArray4096_u8, expected: s32, display_name: *u8, default_args: *u8) -> s32 {
+    signature: ParameterList
     used_storage_0 := cast(*CheckArray64_u8)AllocateOrExit(size_of(CheckArray64_u8))
     defer CompilerFree(cast(*void)used_storage_0)
     memset(cast(*void)used_storage_0, 0, size_of(CheckArray64_u8))
@@ -969,7 +991,7 @@ bind_call_arguments :: (c: *Checker, call: *IR.ZirExpr, parts: *CheckArray4096_u
                     detail_storage_1 := cast(*CheckArray4096_u8)AllocateOrExit(size_of(CheckArray4096_u8))
                     defer CompilerFree(cast(*void)detail_storage_1)
                     memset(cast(*void)detail_storage_1, 0, size_of(CheckArray4096_u8))
-                    snprintf(cast(*u8)(*((detail_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("%s (takes %d argument%s)"), display_name, expected, (ifx (expected == 1) then CheckCString("") else CheckCString("s")))
+                    snprintf(cast(*u8)(*((detail_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("%s (takes %d argument%s: %s)"), display_name, expected, (ifx (expected == 1) then CheckCString("") else CheckCString("s")), parameter_list(parts, expected, default_args, *signature))
                     signature_error(c, (argument).span, CheckCString("argument count mismatch"), cast(*u8)(*((detail_storage_1[0]).items)))
                     return 0
                 }
@@ -1008,7 +1030,7 @@ bind_call_arguments :: (c: *Checker, call: *IR.ZirExpr, parts: *CheckArray4096_u
             detail_storage_2 := cast(*CheckArray4096_u8)AllocateOrExit(size_of(CheckArray4096_u8))
             defer CompilerFree(cast(*void)detail_storage_2)
             memset(cast(*void)detail_storage_2, 0, size_of(CheckArray4096_u8))
-            snprintf(cast(*u8)(*((detail_storage_2[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("%s (a required argument is missing)"), display_name)
+            snprintf(cast(*u8)(*((detail_storage_2[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8)), CheckCString("%s (a required argument is missing; it takes %s)"), display_name, parameter_list(parts, expected, default_args, *signature))
             signature_error(c, (call).span, CheckCString("argument count mismatch"), cast(*u8)(*((detail_storage_2[0]).items)))
             return 0
         }

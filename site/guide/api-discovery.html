@@ -44,6 +44,12 @@ symbol IDs, checked ownership, module laws, exact known source anchors and
 checked usage examples when supplied by a module. Use <code>ziran capabilities
 --json</code> for target-wide limits and <a href="diagnostics.html"><code>ziran explain</code></a> to decode
 diagnostic codes.</p>
+<p>The <code>std/vec</code> module also lists the Vec and builder operations the compiler
+implements itself, such as <code>VecPush</code>, <code>VecPop</code> and <code>BuilderFinish</code>: text output
+prints them as <code>builtin</code> lines, and JSON adds a <code>builtins</code> array of <code>name</code>,
+<code>parameters</code>, <code>return_type</code> and <code>summary</code> to that module. <code>ziran std --list
+[--json]</code> names every standard module with the first sentence of its leading
+comment.</p>
 <h2 id="checked-usage-examples">Checked usage examples</h2>
 <p>Put <code>library.zi.examples</code> beside the source module <code>library.zi</code>. The first
 line is <code>ziran-api-examples-v1</code>. Each subsequent row has three fields separated

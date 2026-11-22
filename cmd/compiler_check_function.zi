@@ -761,7 +761,11 @@ check_function_with_buffers :: (c: *State.Checker, fn: *IR.ZirFunction, buffers:
                                 }
                             } else {
                                 if ((cast(s32)((st).kind) == 0) || (cast(s32)((st).kind) == 8)) {
-                                    error(c, (st).span, CheckCString("statement is not supported by language checking"), (st).text)
+                                    if (st).text != null && strncmp(skip_ws((st).text), CheckCString("<<"), 2) == 0 && strchr((st).text, 61) == null {
+                                        error(c, (st).span, CheckCString("reading through a pointer alone does nothing; store with <<p = value or read with value := <<p"), (st).text)
+                                    } else {
+                                        error(c, (st).span, CheckCString("statement is not supported by language checking"), (st).text)
+                                    }
                                 }
                             }
                         }

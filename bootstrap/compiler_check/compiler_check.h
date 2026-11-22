@@ -14,10 +14,19 @@ extern "C" {
 typedef struct TypeDisplayName TypeDisplayName;
 #endif
 #ifdef ZIRAN_COMPILER_CHECK_H_PRIVATE
+typedef struct ParameterList ParameterList;
+#endif
+#ifdef ZIRAN_COMPILER_CHECK_H_PRIVATE
 
 struct TypeDisplayName {
     uint8_t text[512];
     uint8_t inner[256];
+};
+#endif
+#ifdef ZIRAN_COMPILER_CHECK_H_PRIVATE
+
+struct ParameterList {
+    uint8_t text[1024];
 };
 #endif
 void private_check_select_lookup_file(ZirModule* module, ZirSourceSpan span);

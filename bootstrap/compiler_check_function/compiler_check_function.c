@@ -2576,17 +2576,37 @@ compiler_check_function_check_function_with_buffers(Checker* c, ZirFunction* fn,
                                         }
                                     } else {
                                         if ((int32_t)(((ZirStmtKind)(st->kind))) == 0 || (int32_t)(((ZirStmtKind)(st->kind))) == 8) {
-                                            Checker* value_327 = c;
-                                            ZirSourceSpan value_328 = st->span;
-                                            uint8_t* value_329 = compiler_check_types_CheckCString(StringLiteral("statement is not supported by language checking"));
-                                            zir_f_e940cb8c644594fc_error(value_327, value_328, value_329, (uint8_t*)st->text);
+                                            bool value_327 = ((uint8_t*)st->text) != ((void *)0);
+                                            bool value_328 = value_327;
+                                            if (value_328) {
+                                                uint8_t* value_329 = zir_f_e940cb8c644594fc_skip_ws((uint8_t*)st->text);
+                                                bool value_330 = zir_f_e940cb8c644594fc_strncmp(value_329, compiler_check_types_CheckCString(StringLiteral("<<")), 2) == 0;
+                                                value_328 = value_330;
+                                            }
+                                            bool value_331 = value_328;
+                                            bool value_332 = value_331;
+                                            if (value_332) {
+                                                uint8_t* value_333 = zir_f_e940cb8c644594fc_strchr((uint8_t*)st->text, 61);
+                                                value_332 = (value_333 == ((void *)0));
+                                            }
+                                            if (value_332) {
+                                                Checker* value_334 = c;
+                                                ZirSourceSpan value_335 = st->span;
+                                                uint8_t* value_336 = compiler_check_types_CheckCString(StringLiteral("reading through a pointer alone does nothing; store with <<p = value or read with value := <<p"));
+                                                zir_f_e940cb8c644594fc_error(value_334, value_335, value_336, (uint8_t*)st->text);
+                                            } else {
+                                                Checker* value_337 = c;
+                                                ZirSourceSpan value_338 = st->span;
+                                                uint8_t* value_339 = compiler_check_types_CheckCString(StringLiteral("statement is not supported by language checking"));
+                                                zir_f_e940cb8c644594fc_error(value_337, value_338, value_339, (uint8_t*)st->text);
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                        bool value_330 = (int32_t)(((ZirStmtKind)(st->kind))) == 1 || (int32_t)(((ZirStmtKind)(st->kind))) == 6 || (int32_t)(((ZirStmtKind)(st->kind))) == 7;
-                        if (value_330 || (int32_t)(((ZirStmtKind)(st->kind))) == 8) {
+                        bool value_340 = (int32_t)(((ZirStmtKind)(st->kind))) == 1 || (int32_t)(((ZirStmtKind)(st->kind))) == 6 || (int32_t)(((ZirStmtKind)(st->kind))) == 7;
+                        if (value_340 || (int32_t)(((ZirStmtKind)(st->kind))) == 8) {
                             compiler_check_s12_types_S12Post2(&(c->depth));
                         }
                         compiler_check_s12_types_S12Post2(&(i));
@@ -2595,61 +2615,61 @@ compiler_check_function_check_function_with_buffers(Checker* c, ZirFunction* fn,
                 }
                 zir_loop_break_6: ;
             }
-            bool value_331 = !(fn->is_extern != 0);
-            bool value_332 = value_331 && zir_f_e940cb8c644594fc_strcmp((uint8_t*)(&(fn->return_type)), compiler_check_types_CheckCString(StringLiteral("void"))) != 0;
-            bool value_333 = value_332;
-            bool value_334 = value_333;
-            if (value_334) {
-                bool value_335 = zir_f_e940cb8c644594fc_sequence_returns(fn, 0, fn->stmt_count) != 0;
-                value_334 = !value_335;
+            bool value_341 = !(fn->is_extern != 0);
+            bool value_342 = value_341 && zir_f_e940cb8c644594fc_strcmp((uint8_t*)(&(fn->return_type)), compiler_check_types_CheckCString(StringLiteral("void"))) != 0;
+            bool value_343 = value_342;
+            bool value_344 = value_343;
+            if (value_344) {
+                bool value_345 = zir_f_e940cb8c644594fc_sequence_returns(fn, 0, fn->stmt_count) != 0;
+                value_344 = !value_345;
             }
-            if (value_334) {
-                Checker* value_336 = c;
-                ZirSourceSpan value_337 = fn->span;
-                zir_f_e940cb8c644594fc_error(value_336, value_337, compiler_check_types_CheckCString(StringLiteral("missing return: every path must return a value")), (uint8_t*)(&(fn->name)));
+            if (value_344) {
+                Checker* value_346 = c;
+                ZirSourceSpan value_347 = fn->span;
+                zir_f_e940cb8c644594fc_error(value_346, value_347, compiler_check_types_CheckCString(StringLiteral("missing return: every path must return a value")), (uint8_t*)(&(fn->name)));
             }
-            bool value_338 = c->conversions_applied != 0;
-            bool value_339 = value_338;
-            if (value_339) {
-                bool value_340 = zir_f_e940cb8c644594fc_rebuild_conversion_layout(fn) != 0;
-                value_339 = !value_340;
+            bool value_348 = c->conversions_applied != 0;
+            bool value_349 = value_348;
+            if (value_349) {
+                bool value_350 = zir_f_e940cb8c644594fc_rebuild_conversion_layout(fn) != 0;
+                value_349 = !value_350;
             }
-            if (value_339) {
-                Checker* value_341 = c;
-                ZirSourceSpan value_342 = fn->span;
-                zir_f_e940cb8c644594fc_error(value_341, value_342, compiler_check_types_CheckCString(StringLiteral("cannot reorder #as conversion graph")), (uint8_t*)(&(fn->name)));
+            if (value_349) {
+                Checker* value_351 = c;
+                ZirSourceSpan value_352 = fn->span;
+                zir_f_e940cb8c644594fc_error(value_351, value_352, compiler_check_types_CheckCString(StringLiteral("cannot reorder #as conversion graph")), (uint8_t*)(&(fn->name)));
                 return 0;
             }
-            int32_t* value_343 = &(c->conversions_applied);
-            (*value_343) = 0;
-            bool value_344 = zir_f_e940cb8c644594fc_validate_loop_targets(c, fn) != 0;
-            if (!value_344) {
+            int32_t* value_353 = &(c->conversions_applied);
+            (*value_353) = 0;
+            bool value_354 = zir_f_e940cb8c644594fc_validate_loop_targets(c, fn) != 0;
+            if (!value_354) {
                 return 0;
             }
-            bool value_345 = c->using_rewritten != 0 || c->aggregate_rewritten != 0;
-            bool value_346 = value_345;
-            if (value_346) {
-                bool value_347 = zir_f_e940cb8c644594fc_order_using_expressions(fn) != 0;
-                value_346 = !value_347;
+            bool value_355 = c->using_rewritten != 0 || c->aggregate_rewritten != 0;
+            bool value_356 = value_355;
+            if (value_356) {
+                bool value_357 = zir_f_e940cb8c644594fc_order_using_expressions(fn) != 0;
+                value_356 = !value_357;
             }
-            if (value_346) {
-                Checker* value_348 = c;
-                ZirSourceSpan value_349 = fn->span;
-                zir_f_e940cb8c644594fc_error(value_348, value_349, compiler_check_types_CheckCString(StringLiteral("cannot order checked expressions")), (uint8_t*)(&(fn->name)));
+            if (value_356) {
+                Checker* value_358 = c;
+                ZirSourceSpan value_359 = fn->span;
+                zir_f_e940cb8c644594fc_error(value_358, value_359, compiler_check_types_CheckCString(StringLiteral("cannot order checked expressions")), (uint8_t*)(&(fn->name)));
                 return 0;
             }
             if (c->errors == errors_before) {
                 zir_f_e940cb8c644594fc_check_simd_procedure(c, fn);
             }
-            int32_t* value_350 = &(c->fn->checked);
-            int32_t value_351 = 0;
+            int32_t* value_360 = &(c->fn->checked);
+            int32_t value_361 = 0;
             if (c->errors == errors_before) {
-                value_351 = 1;
+                value_361 = 1;
             }
-            (*value_350) = value_351;
+            (*value_360) = value_361;
             if (c->fn->checked != 0) {
-                uint64_t* value_352 = &(fn->using_parameters);
-                (*value_352) = 0ULL;
+                uint64_t* value_362 = &(fn->using_parameters);
+                (*value_362) = 0ULL;
                 {
                     int32_t i = 0;
                     while (true) {
@@ -2657,17 +2677,17 @@ compiler_check_function_check_function_with_buffers(Checker* c, ZirFunction* fn,
                         if (!check_loop_23) {
                             break;
                         }
-                        int32_t* value_353 = &((fn->stmts[i]).is_using);
-                        (*value_353) = 0;
+                        int32_t* value_363 = &((fn->stmts[i]).is_using);
+                        (*value_363) = 0;
                         compiler_check_s12_types_S12Post2(&(i));
                     }
                 }
             }
-            int32_t value_354 = 0;
+            int32_t value_364 = 0;
             if (!(c->failed != 0)) {
-                value_354 = 1;
+                value_364 = 1;
             }
-            return value_354;
+            return value_364;
         }
         zir_loop_continue_1: ;
     }

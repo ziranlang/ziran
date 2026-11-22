@@ -1,10 +1,14 @@
 #import "package_common"
+#import "file"
+#import "file_tree_linux"
+#import "sort"
 
 Guide :: (arguments: []string) -> s32 {
     if arguments.count != 0 { return PkgFail("usage: ziran guide") }
     PkgPrint("Ziran guide (this compiler)\n\n", false)
     PkgPrint("Language by example, mistakes from C/Go/Rust/JS, std signatures:\n", false)
-    PkgPrint("  docs/REFERENCE.md (https://ziran-lang.org/llms.txt).\n\n", false)
+    PkgPrint("  docs/REFERENCE.md (https://ziran-lang.org/llms.txt).\n", false)
+    PkgPrint("  ziran std --list names every standard module and its purpose.\n\n", false)
     PkgPrint("Start a project: ziran new hello, then cd hello && ziran run.\n", false)
     PkgPrint("  ziran new NAME --template lib|OWNER/REPO[:TEMPLATE] picks a template;\n", false)
     PkgPrint("  ziran init --template SOURCE adds one to the current project.\n", false)
@@ -55,4 +59,94 @@ Guide :: (arguments: []string) -> s32 {
     PkgPrint("  GPU selections report an explicit device Gap.\n\n", false)
     PkgPrint("See docs/IMPLEMENTATION_STATUS.md and docs/OWNED_VALUES.md for details.\n", false)
     return 0
+}
+
+// ziran std --list [--json]: every standard module with the first sentence
+// of its leading comment, read from the std folder this toolchain uses.
+StdModules :: (launcher: string, arguments: []string) -> s32 {
+    json := false
+    listed := false
+    for argument: arguments {
+        if argument == "--json" { json = true }
+        else if argument == "--list" { listed = true }
+        else { return PkgFail("usage: ziran std --list [--json]") }
+    }
+    if !listed { return PkgFail("usage: ziran std --list [--json]") }
+    directory := StdDirectory(launcher)
+    if directory.count == 0 { return PkgFail("cannot find the standard library; set ZIRAN_STD") }
+    names: Vec(string)
+    if !ListDirectory(directory, *names) { return PkgFail(PkgJoin("cannot list ", directory)) }
+    modules: Vec(string)
+    for name: names {
+        if PkgEndsWith(name, ".zi") { VecPush(modules, name[0:name.count - 3]) }
+    }
+    SortText(modules[:])
+    if json { PkgPrint("{\"schema_version\":1,\"modules\":[", false) }
+    for module, index: modules {
+        text, ok := ReadEntireFile(PkgJoin(PkgJoin(directory, "/"), PkgJoin(module, ".zi")))
+        purpose := ifx ok then ModulePurpose(text) else ""
+        if json {
+            if index > 0 { PkgPrint(",", false) }
+            PkgPrint("{\"name\":", false); PkgJsonString(PkgJoin("std/", module))
+            PkgPrint(",\"purpose\":", false); PkgJsonString(purpose)
+            PkgPrint("}", false)
+        } else {
+            line: Vec(u8)
+            BuilderPrint(*line, "std/%", module)
+            while line.count < 28 { BuilderAppend(line, " ") }
+            BuilderPrint(*line, "%\n", purpose)
+            PkgPrint(BuilderFinish(line), false)
+        }
+    }
+    if json { PkgPrint("]}\n", false) }
+    return 0
+}
+
+#scope_file
+// ZIRAN_STD, or std beside the build directory holding this launcher, as
+// `make` and `make install-user` lay it out.
+StdDirectory :: (launcher: string) -> string {
+    configured := PkgGetenv("ZIRAN_STD")
+    if configured.count > 0 { return configured }
+    binaries := PkgLauncherDirectory(launcher)
+    candidates := string.["/../../std", "/../../../std", "/../std"]
+    for candidate: candidates {
+        directory := PkgJoin(binaries, candidate)
+        if DirectoryExists(directory) { return directory }
+    }
+    return ""
+}
+
+// The first sentence of a module's leading comment, before its first
+// declaration; "" when it has none.
+ModulePurpose :: (text: string) -> string {
+    out: Vec(u8)
+    at: s64 = 0
+    while at < text.count {
+        end := at
+        while end < text.count && text[end] != #char "\n" { end += 1 }
+        line := text[at:end]
+        at = end + 1
+        if line.count >= 2 && line[0] == #char "/" && line[1] == #char "/" {
+            words := ifx line.count > 2 && line[2] == #char " " then line[3:] else line[2:]
+            if out.count > 0 { BuilderAppend(out, " ") }
+            stop := SentenceEnd(words)
+            if stop >= 0 {
+                BuilderAppend(out, words[0:stop + 1])
+                return BuilderFinish(out)
+            }
+            BuilderAppend(out, words)
+            continue
+        }
+        if out.count > 0 || (line.count > 0 && line[0] != #char "#") { break }
+    }
+    return BuilderFinish(out)
+}
+
+// The index of the period that ends the first sentence in TEXT, or -1.
+SentenceEnd :: (text: string) -> s64 {
+    for index: 0..text.count - 1 {
+        if text[index] == #char "." && (index + 1 == text.count || text[index + 1] == #char " ") { return index }
+    }
+    return -1
 }

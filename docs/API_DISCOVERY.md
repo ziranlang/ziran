@@ -48,6 +48,13 @@ checked usage examples when supplied by a module. Use `ziran capabilities
 --json` for target-wide limits and [`ziran explain`](DIAGNOSTICS.md) to decode
 diagnostic codes.
 
+The `std/vec` module also lists the Vec and builder operations the compiler
+implements itself, such as `VecPush`, `VecPop` and `BuilderFinish`: text output
+prints them as `builtin` lines, and JSON adds a `builtins` array of `name`,
+`parameters`, `return_type` and `summary` to that module. `ziran std --list
+[--json]` names every standard module with the first sentence of its leading
+comment.
+
 ## Checked usage examples
 
 Put `library.zi.examples` beside the source module `library.zi`. The first

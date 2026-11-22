@@ -81,6 +81,8 @@ ToolAuthoringHints :: (test: *NativeTest) -> bool {
         .{"#import \"std/text_tools\"\nmain :: () -> s32 { for TextLines(\"a b\") { } return 0 }\n", "a Vec returned by a call must be bound to a local"},
         .{"#import \"std/text_tools\"\nmain :: () -> s32 { t := TextLins(\"a b\"); return 0 }\n", "unresolved function: TextLins (did you mean TextLines?)"},
         .{"main :: () -> s32 { parts := TextSplit(\"a,b\", \",\"); return cast(s32)parts.count }\n", "add #import \"std/text_tools\""},
+        .{"#import \"std/text_tools\"\nmain :: () -> s32 { f := TextFind(\"abc\"); return 0 }\n", "it takes (text: string, needle: string, from: s64 = 0)"},
+        .{"main :: () -> s32 { x: s64 = 1; p := *x; <<p; return 0 }\n", "reading through a pointer alone does nothing; store with <<p = value"},
     ]
     source := CheckPath(test.work, "hint.zi")
     for hint: hints {
@@ -102,14 +104,45 @@ ToolAuthoringHints :: (test: *NativeTest) -> bool {
     // Ziran spellings that look similar stay valid.
     valid := "main :: () -> s32 {\n    fn := 3\n    total := 0\n    for i: 0..fn { total += i }\n    print(\"100%% %days\\n\", total)\n    print(\"% (%s%)\\n\", 1, 2, 3)\n    print(\"v%.4s %x%\\n\", 1, 2, 3)\n    return 0\n}\n"
     if !NativeWrite(test, source, valid) { return false }
-    check := string.[test.ziran, "check", "--root", test.work, source]
+    // One file without --root checks with its folder as the root.
+    check := string.[test.ziran, "check", source]
     unused NativeRun(test, check[:])
-    return !test.failed
+    if test.failed { return false }
+    // --lint names a constant -1 divisor; the program still checks.
+    if !NativeWrite(test, source, "main :: () -> s32 { x: s64 = 5; return cast(s32)(x / -1 + x % -1) }\n") { return false }
+    lint := string.[test.ziran, "check", "--lint", "--root", test.work, source]
+    linted := NativeInvoke(test, lint[:])
+    return NativeAssert(test, linted.code == 0 && TextContains(linted.error, "dividing by -1 overflows") &&
+        TextContains(linted.error, "% -1 is always 0"), CheckConcat("--lint missed a -1 divisor:\n", linted.error))
+}
+
+// ziran std --list names every standard module; ziran api lists the Vec
+// operations the compiler implements under std/vec.
+ToolDiscovery :: (test: *NativeTest) -> bool {
+    listing := string.[test.ziran, "std", "--list", "--json"]
+    result := NativeInvoke(test, listing[:])
+    document: JsonDocument
+    if !NativeAssert(test, result.code == 0 && JsonRead(*document, result.output), "ziran std --list --json is not JSON") { return false }
+    modules := JsonMember(*document, document.root, "modules")
+    files := NativeFiles(CheckPath(test.repo, "std"), ".zi")
+    text_tools := false
+    for index: cast(s32)0..JsonCount(*document, modules) - 1 {
+        item := JsonElement(*document, modules, index)
+        text_tools = text_tools || CheckField(*document, item, "name") == "std/text_tools" && CheckField(*document, item, "purpose") != ""
+    }
+    if !NativeAssert(test, JsonCount(*document, modules) == files.count && text_tools,
+        "ziran std --list must name every std module with its purpose") { return false }
+    source := CheckPath(test.work, "builtins.zi")
+    if !NativeWrite(test, source, "main :: () -> s32 { v: Vec(s64); VecPush(v, 1); return 0 }\n") { return false }
+    api := string.[test.ziran, "api", "--root", test.work, source]
+    listed := NativeInvoke(test, api[:])
+    return NativeAssert(test, listed.code == 0 && TextContains(listed.output, "builtin VecPush :: (values: Vec($T), value: T) -> bool") &&
+        TextContains(listed.output, "builtin VecPop"), CheckConcat("ziran api omitted the Vec builtins:\n", listed.output))
 }
 
 ToolCases :: (test: *NativeTest) -> bool {
     if !ToolDeclarationNames(test) { return false }
-    if !ToolAuthoringHints(test) { return false }
+    if !ToolAuthoringHints(test) || !ToolDiscovery(test) { return false }
     binary := PathParent(test.ziran); tools := string.["zi2c", "zi2go", "zi2zir", "zi2zx", "zi-api", "zi-inspect", "zi-fmt", "zi-edit"]
     for tool: tools { command := string.[CheckPath(binary, tool), "--unknown", "--diagnostics=json"]; unused ToolDiagnostics(test, command[:], "command.arguments"); if test.failed { return false } }
     unknown := string.[test.ziran, "build", "--target=unknown", "--diagnostics=json"]; unused ToolDiagnostics(test, unknown[:], "package.command")
@@ -191,6 +224,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if test.failed { return 1 }
     defer NativeCleanup(*test)
     if !ToolCases(*test) { return 1 }
-    print("Native tool diagnostics: authoring hints, arguments, inputs, byte paths, forked C emission, bounded compiler output, silent failures and allocation-free OOM local tests passed\n")
+    print("Native tool diagnostics: authoring hints, lint, std and builtin discovery, arguments, inputs, byte paths, forked C emission, bounded compiler output, silent failures and allocation-free OOM local tests passed\n")
     return 0
 }

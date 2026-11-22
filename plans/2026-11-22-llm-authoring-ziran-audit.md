@@ -201,7 +201,9 @@ them up is the open half.
 ## Top gaps
 
 Landed: 1 (docs/REFERENCE.md, site/llms.txt), 8 (its "Moves and views" section),
-3 (foreign-syntax hints), 4 and 10 (name and #import suggestions), most of 2 and 7.
+3 (foreign-syntax hints), 4 and 10 (name and #import suggestions), 5 (Vec builtins
+in `ziran api`), 7, 11, most of 2, 9 and 12. Gap 6 waits for the self-host
+port of cmd/zir/zir_diagnostic.c to Ziran.
 
 2. Multi-error parse recovery (lean-language P2) is still open: a parse error
    stops the file, so a second mistake shows only on the next run. The
@@ -209,24 +211,15 @@ Landed: 1 (docs/REFERENCE.md, site/llms.txt), 8 (its "Moves and views" section),
    Found while landing gap 3: a file-scope initializer whose string literal
    contains `::` is misread as a declaration ("invalid file-scope constant");
    tests/tool_diagnostics_cases.zi keeps its hint table local for that reason.
-5. Compiler builtins (`VecPush`, `VecClear`) invisible to `ziran api` (section 4)
-   - expose builtins in api/features output; files: cmd/zir api tooling, docs;
-   test: api schema golden.
 6. Text-mode diagnostics drop expected/actual and quickfix (lean-tooling:135-137)
    - finish P4: caret line + expected/actual suffix + fix in the same message;
    files: cmd/zir/zir_diagnostic.c; test: diagnostic_format.sh goldens.
-7. The pointer-store message for a bare `<<p;` statement still says
-   "statement is not supported ... <<p;"; files: compiler_check_function.zi.
-9. Silent wrong-output edges: `S64_MIN` prints `-`, `MIN % -1` wraps (SKILL.md:160,162;
-   bench:126) - keep low level: fix `FormatInteger`/`BuilderPrint` spelling and add
-   a `check --lint` warning on `/`/`%` with constant -1; files: number_text.zi,
-   zir_check_program.c; test: std_float_text-style edge suite.
-11. Project workflow errors lack the fix command (`cannot read ziran.lock`,
-    SKILL.md:23; bench:23-25) - message should say "run `ziran lock`"; files:
-    cmd/package.zi; test: package launcher cases.
-12. No command lists std modules and doc site is HTML-only for agents (section 4)
-    - add `ziran std --list [--json]` (names + one-line purpose) and llms.txt
-    mirrors; files: cmd/package.zi, site; test: schema golden + count = 134.
+9. `TextInteger` still accepts at most 18 digits, so not the whole s64 range
+   (docs/REFERENCE.md section 16 says so). `S64_MIN` already prints correctly
+   on C, the engine and native (tests/spec/std_number_text.zi); `--lint` now
+   warns on a constant -1 divisor.
+12. 25 of the 134 std modules have no leading comment, so `ziran std --list`
+    shows no purpose for them (std/audio_types, std/calendar, std/file_linux, ...).
 
 Evidence commands (sections 3/4) were run against `ziran 0.8.0` with scratch
 files in `/tmp/ziran-llm-audit`; no repository file other than this report was

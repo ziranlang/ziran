@@ -311,8 +311,8 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     }
     extra: s64 = 0
     if current != null { extra = current.export_count }
-    child := PkgStrings(arguments.count + extra + 8)
-    if child.count != arguments.count + extra + 8 { return PkgFail("cannot allocate arguments") }
+    child := PkgStrings(arguments.count + extra + 10)
+    if child.count != arguments.count + extra + 10 { return PkgFail("cannot allocate arguments") }
     count: s32 = 0
     child[count] = binary
     count += 1
@@ -352,6 +352,18 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
         count += 1
         child[count] = PkgJoin3(root, "/", current.roots[0])
         count += 1
+    }
+    // `ziran check FILE.zi` outside a project checks FILE's folder as the
+    // root, as `ziran build FILE.zi` does.
+    if check && !project && !PkgHasArgument(arguments, "--root") {
+        for part: arguments {
+            if PkgEndsWith(part, ".zi") || PkgEndsWith(part, ".zir") {
+                child[count] = "--root"
+                child[count + 1] = ParentDirectory(part)
+                count += 2
+                break
+            }
+        }
     }
     has_source: bool = false
     index: s32 = 0
@@ -758,6 +770,7 @@ PkgGeneratedRoots :: (root: string, locked: *PkgLock, current: *PkgManifest, fol
 PkgUsage :: (command: string) -> string {
     if command == "version" { return "usage: ziran version\n" }
     if command == "guide" { return "usage: ziran guide\n" }
+    if command == "std" { return "usage: ziran std --list [--json]\n" }
     if command == "features" { return "usage: ziran features [--json] [--id FEATURE_ID]\n" }
     if command == "capabilities" { return "usage: ziran capabilities [--target=c|go|zx] [--json]\n" }
     if command == "explain" { return "usage: ziran explain CODE [--json] | ziran explain --list [--json]\n" }
@@ -842,7 +855,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     PkgSetDiagnosticFormat(arguments)
     if arguments.count == 0 || arguments[0] == "help" ||
        arguments[0] == "--help" || arguments[0] == "-h" {
-        PkgPrint("usage: ziran version|guide|features|capabilities|explain|learn|api|new|init|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
+        PkgPrint("usage: ziran version|guide|std|features|capabilities|explain|learn|api|new|init|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
         PkgPrint("project commands: --project [--locked] [--offline]\n", false)
         PkgPrint("in a project, run, build, check, and install without a file work on its program\n", false)
         PkgPrint("scripts: ziran FILE.zi [ARGS] | ziran run --target=c [--no-cache] FILE.zi -- ARGS\n", false)
@@ -883,6 +896,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         return Template(launcher, command, arguments[1:])
     }
     if command == "guide" { return Guide(arguments[1:]) }
+    if command == "std" { return StdModules(launcher, arguments[1:]) }
     if command == "features" { return Features(arguments[1:]) }
     if command == "capabilities" { return Capabilities(arguments[1:]) }
     if command == "explain" { return Explain(arguments[1:]) }
@@ -1506,8 +1520,8 @@ PkgBuildArtifactWithOptions :: (project: string, package: string, artifact: stri
     target: string, overrides: []string) -> s32 {
     locked := PkgNewLock()
     current := PkgNewManifest()
-    if !PkgReadLock(PkgJoin(project, "/ziran.lock"), locked) ||
-        !PkgCheckoutGraph(project, locked, false, false, current) { return PkgFail("cannot resolve artifact package graph") }
+    if !PkgReadLock(PkgJoin(project, "/ziran.lock"), locked) { return PkgFail("cannot read ziran.lock; run ziran lock") }
+    if !PkgCheckoutGraph(project, locked, false, false, current) { return PkgFail("cannot resolve artifact package graph") }
     return PkgBuildArtifactResolved(project, package, artifact, target, locked,
         current, PkgJoin(locked.tool_path, "/build/bin/ziran"), overrides)
 }

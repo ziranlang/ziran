@@ -1269,6 +1269,7 @@ static int32_t compiler_check_program_written_cast(ZirFunction* fn, int32_t inde
 static int32_t compiler_check_program_lint_cast(ZirFunction* fn, int32_t index, int32_t whole_value) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_program_holds_number_token(uint8_t* text, uint8_t* number) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_program_lint_character(ZirFunction* fn, int32_t index) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_check_program_lint_divide_by_minus_one(ZirFunction* fn, int32_t index) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_program_variadic_callee(ZirModule* module, uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_program_declared_type_written(ZirStmt* st) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_check_program_flag_value(ZirFunction* fn, int32_t index) ZIRAN_MAYBE_UNUSED;
@@ -3490,6 +3491,47 @@ compiler_check_program_lint_character(ZirFunction* fn, int32_t index)
 }
 
 static int32_t
+compiler_check_program_lint_divide_by_minus_one(ZirFunction* fn, int32_t index)
+{
+    ZirExpr* divide = (ZirExpr*)(((size_t)(fn->exprs) + ((size_t)(index) * sizeof(ZirExpr))));
+    if ((int32_t)(((ZirExprKind)(divide->kind))) != 6 || divide->right < 0) {
+        return 0;
+    }
+    bool quotient = zir_f_5800aae0fa0940e0_strcmp((uint8_t*)(&(divide->op)), compiler_check_types_CheckCString(StringLiteral("/"))) == 0;
+    bool remainder = zir_f_5800aae0fa0940e0_strcmp((uint8_t*)(&(divide->op)), compiler_check_types_CheckCString(StringLiteral("%"))) == 0;
+    if (!quotient && !remainder) {
+        return 0;
+    }
+    ZirExpr* divisor = (ZirExpr*)(((size_t)(fn->exprs) + ((size_t)(divide->right) * sizeof(ZirExpr))));
+    if (((uint8_t*)divisor->text) == ((void *)0)) {
+        return 0;
+    }
+    uint8_t* spelled = zir_f_5800aae0fa0940e0_skip_ws((uint8_t*)divisor->text);
+    uint8_t* value_0 = spelled;
+    bool value_1 = zir_f_5800aae0fa0940e0_strcmp(value_0, compiler_check_types_CheckCString(StringLiteral("-1"))) != 0;
+    bool value_2 = value_1;
+    if (value_2) {
+        uint8_t* value_3 = spelled;
+        bool value_4 = zir_f_5800aae0fa0940e0_strcmp(value_3, compiler_check_types_CheckCString(StringLiteral("(-1)"))) != 0;
+        value_2 = value_4;
+    }
+    if (value_2) {
+        return 0;
+    }
+    if (quotient) {
+        ZirSourceSpan value_5 = divide->span;
+        uint8_t* value_6 = compiler_check_types_CheckCString(StringLiteral("lint.divide"));
+        String value_7 = StringLiteral("dividing by -1 overflows for the smallest integer; negate the value instead and check that it is not the minimum");
+        zir_f_5800aae0fa0940e0_Warning(value_5, value_6, compiler_check_types_CheckCString(value_7));
+    } else {
+        ZirSourceSpan value_8 = divide->span;
+        uint8_t* value_9 = compiler_check_types_CheckCString(StringLiteral("lint.divide"));
+        zir_f_5800aae0fa0940e0_Warning(value_8, value_9, compiler_check_types_CheckCString(StringLiteral("x %% -1 is always 0 and overflows for the smallest integer; write 0")));
+    }
+    return 1;
+}
+
+static int32_t
 compiler_check_program_variadic_callee(ZirModule* module, uint8_t* name)
 {
     uint8_t* dot = zir_f_5800aae0fa0940e0_strrchr(name, 46);
@@ -4097,13 +4139,14 @@ LintPrograms(ZirProgram** programs, int32_t count)
                                             int32_t value_42 = warnings;
                                             int32_t value_43 = compiler_check_program_lint_cast(fn, e, (int32_t)((int8_t)(whole[e])));
                                             int32_t value_44 = (int32_t)((uint32_t)value_43 + (uint32_t)(compiler_check_program_lint_character(fn, e)));
-                                            warnings = (int32_t)((uint32_t)value_42 + (uint32_t)value_44);
+                                            int32_t value_45 = (int32_t)((uint32_t)value_44 + (uint32_t)(compiler_check_program_lint_divide_by_minus_one(fn, e)));
+                                            warnings = (int32_t)((uint32_t)value_42 + (uint32_t)value_45);
                                             compiler_check_s12_types_S12Post2(&(e));
                                         }
                                     }
-                                    int32_t value_45 = warnings;
-                                    int32_t value_46 = compiler_check_program_lint_flags(fn);
-                                    warnings = (int32_t)((uint32_t)value_45 + (uint32_t)value_46);
+                                    int32_t value_46 = warnings;
+                                    int32_t value_47 = compiler_check_program_lint_flags(fn);
+                                    warnings = (int32_t)((uint32_t)value_46 + (uint32_t)value_47);
                                     zir_f_5800aae0fa0940e0_CompilerFree((void*)(whole));
                                     compiler_check_s12_types_S12Post2(&(f));
                                 }

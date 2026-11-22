@@ -620,6 +620,52 @@ extern_kind(const ZirImport *item)
            item->extern_kind == ZIR_EXTERN_HOST ? "host" : "";
 }
 
+/* Vec and text operations the compiler implements itself. They have no
+ * source declaration, so std/vec lists them here for callers to discover. */
+static const struct { const char *name, *parameters, *result, *summary; } vec_builtins[] = {
+    {"VecPush", "values: Vec($T), value: T", "bool", "append one element; false when growth fails"},
+    {"VecPop", "values: Vec($T)", "Option(T)", "remove the last element (#import \"std/option\")"},
+    {"VecGet", "values: Vec($T), index: s64", "Option(T)", "copy one element when the index is in range"},
+    {"VecSlice", "values: Vec($T), low: s64, high: s64", "[]T", "borrow elements low..high-1 in place"},
+    {"VecClear", "values: Vec($T)", "void", "drop every element and keep the capacity"},
+    {"VecFree", "values: Vec($T)", "void", "drop every element and the storage"},
+    {"VecSwap", "left: Vec($T), right: Vec($T)", "void", "exchange the storage of two Vecs"},
+    {"VecClone", "values: Vec($T)", "bool", "copy a Vec whose elements own nothing"},
+    {"VecReserve", "values: Vec($T), capacity: s64", "bool", "reserve total capacity without changing count"},
+    {"VecResize", "values: Vec($T), count: s64", "bool", "set count; new elements start at zero"},
+    {"VecResizeBounded", "values: Vec($T), count: s64, maximum_capacity: s64", "bool", "VecResize with a capacity ceiling"},
+    {"BuilderAppend", "bytes: Vec(u8), text: string", "bool", "append text bytes"},
+    {"BuilderPrint", "bytes: *Vec(u8), format: string, ..", "void", "append a format with one bare % per argument"},
+    {"BuilderFinish", "bytes: Vec(u8)", "string", "take the bytes as text"},
+};
+
+static int
+lists_vec_builtins(const ZirModule *module)
+{
+    return strcmp(module->standard_name, "vec") == 0 && filter_symbol == NULL;
+}
+
+static void
+show_vec_builtins(const ZirModule *module, int json)
+{
+    if(!lists_vec_builtins(module)) return;
+    for(size_t i = 0; i < sizeof(vec_builtins) / sizeof(vec_builtins[0]); i++) {
+        if(json) {
+            if(i) putchar(',');
+            putchar('{');
+            json_member("name", vec_builtins[i].name); putchar(',');
+            json_member("parameters", vec_builtins[i].parameters); putchar(',');
+            json_member("return_type", vec_builtins[i].result); putchar(',');
+            json_member("summary", vec_builtins[i].summary);
+            putchar('}');
+        } else {
+            printf("  builtin %s :: (%s) -> %s [%s]\n", vec_builtins[i].name,
+                   vec_builtins[i].parameters, vec_builtins[i].result,
+                   vec_builtins[i].summary);
+        }
+    }
+}
+
 static void
 show_module(const ZirModule *module, int json)
 {
@@ -750,7 +796,13 @@ show_module(const ZirModule *module, int json)
             symbol_metadata(module, "law", law->name, law->kind, "", law->span);
             putchar('}');
         }
-        fputs("]}", api_output);
+        fputs("]", api_output);
+        if(lists_vec_builtins(module)) {
+            fputs(",\"builtins\":[", api_output);
+            show_vec_builtins(module, 1);
+            putchar(']');
+        }
+        putchar('}');
     } else {
         printf("module %s (%s)\n", module->name, module->source_path);
         for(int i = 0; i < module->import_count; i++) {
@@ -788,6 +840,7 @@ show_module(const ZirModule *module, int json)
         for(int i = 0; i < module->function_count; i++)
             if(visible_function(&module->functions[i]))
                 show_function(module, &module->functions[i], 0);
+        show_vec_builtins(module, 0);
     }
 }
 

@@ -449,12 +449,14 @@ main :: (argc: s32, argv: **u8) -> s32 {
 ## 13. Commands
 
 ```sh
-ziran check --root . main.zi                 # type-check one file (always pass --root)
+ziran check main.zi                          # type-check one file; its folder is the root
+ziran check --lint --root . main.zi          # also warn on needless casts and -1 divisors
 ziran check --diagnostics=json --root . main.zi
 ziran run --target=c --root . main.zi -- ARGS   # build natively and run
 ziran build --target=c --exe --entry main:main --root . -o build main.zi
 ziran explain check.type                     # explain a diagnostic code
-ziran api --root . main.zi                   # list checked public procedures
+ziran api --root . main.zi                   # checked signatures, Vec builtins included
+ziran std --list                             # every standard module and its purpose
 ziran new hello && cd hello && ziran lock && ziran run   # a project
 ```
 
@@ -519,7 +521,7 @@ uses the portable engine, which has no `std/*_linux` modules: use
 ## 16. Edges
 
 - Arithmetic is C's: division by zero traps; `S64_MIN / -1` and `S64_MIN % -1`
-  wrap. Check the divisor yourself.
+  wrap. Check the divisor yourself; `ziran check --lint` warns on a constant `-1`.
 - `TextInteger` accepts at most 18 digits; parse longer numbers yourself.
 - Constants are untyped literals: `LIMIT :: 9223372036854775807;`, not
   `LIMIT :: cast(s64)...` ("invalid or ambiguous constant").

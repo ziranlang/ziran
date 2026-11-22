@@ -579,8 +579,18 @@ registry files are accepted on retry when their bytes match.
 A package with manifest exports can distribute its checked Ziran modules as
 a `.zx` library. Pack it from the clean provider revision
 using the exact, clean toolchain and dependencies pinned in `ziran.lock`.
-Each profile names a fixed toolchain and set of feature defines at that
-provider revision. Supply defines with `--define NAME` when packing.
+Each profile names a fixed toolchain, target and set of feature defines at
+that provider revision. Supply defines with `--define NAME` when packing.
+`pack-ir --locked` accepts `--target-os OS` and `--target-cpu CPU` with the
+same values as `ziran ir`. Omit both for the portable `.NONE`/`.NONE` target.
+With only `--target-os web`, the CPU defaults to `wasm32`. With any other
+omitted component, that component defaults to `none`.
+
+Use a distinct profile for each target and define set you publish. The library
+records the effective OS and CPU, and its digest covers that record and the
+checked modules. Consumers select the matching profile and pin its digest
+through the ordinary lookup below. The provider's compile-time branches have
+already been folded when the consumer loads the library.
 
 ```sh
 repo=https://git.waozi.xyz/example/counter.git
@@ -589,6 +599,8 @@ ziran pkg zx pack-ir "$repo" "$commit" default build/counter.zx --locked
 ziran pkg zx inspect-ir build/counter.zx
 sha256=$(ziran pkg zx publish-ir "$repo" "$commit" default build/counter.zx --netrc "$NETRC_FILE")
 ziran pkg zx fetch-ir "$repo" "$commit" default "$sha256"
+ziran pkg zx pack-ir "$repo" "$commit" web build/counter-web.zx --locked \
+    --target-os web --target-cpu wasm32
 ```
 
 `publish-ir` uploads `<profile>.zx` and then `<profile>.zx.tsv` to the

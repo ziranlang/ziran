@@ -1046,7 +1046,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if pack_checked {
         directory := PkgToolDirectory(launcher, locked.tool_path, "zi2zir")
         if directory == "" { return PkgFail("cannot find the pinned Ziran compiler") }
-        return PkgPackChecked(root, PkgJoin(directory, "/zi2zir"), locked, current, filtered[2:count], pack_dev)
+        return PkgPackChecked(root, PkgJoin(directory, "/zi2zir"), locked, current, filtered[2:count], pack_dev, locked_mode)
     }
     if command == "fetch" { return 0 }
     if command == "compile-commands" {

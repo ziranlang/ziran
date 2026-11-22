@@ -12,12 +12,20 @@
 
 #scope_file
 Metadata :: "checked-package.tsv"
+TargetMetadata :: "checked-target.tsv"
 Manifest :: "ziran.toml"
 MaximumBytes :: 268435456
 HeaderBytes :: 16
 RecordBytes :: 40
 MaximumNameBytes :: 1024
 MaximumRecords :: 4098
+
+ValidTargetMetadata :: (data: string) -> bool {
+    tab: s64 = 0
+    while tab < data.count && data[tab] != #char "\t" { tab += 1 }
+    return tab + 2 < data.count && data[data.count - 1:] == "\n" &&
+        PkgCheckedTargetOS(data[0:tab]) && PkgCheckedTargetCPU(data[tab + 1:data.count - 1])
+}
 
 ArchiveIdentity :: (id: string, tool_url: string, tool_commit: string, profile: string,
     source_digest: string) -> string {
@@ -107,6 +115,16 @@ VerifyImageDigest :: (bytes: []u8, expected: string) -> bool {
 }
 
 #scope_export
+// Target spellings accepted by zi2zir's CompilerParseTargetOS/CPU.
+PkgCheckedTargetOS :: (name: string) -> bool {
+    return name == "none" || name == "linux" || name == "windows" ||
+        name == "macos" || name == "android" || name == "web"
+}
+
+PkgCheckedTargetCPU :: (name: string) -> bool {
+    return name == "none" || name == "x64" || name == "arm64" || name == "wasm32"
+}
+
 PkgRegistrySegment :: (value: string) -> bool {
     if value.count == 0 || value.count > 128 || value == "." || value == ".." { return false }
     for ch: value {
@@ -126,7 +144,7 @@ CheckedDescriptorPrefix :: (id: string, tool: string, profile: string) -> string
 // discards that directory if any section or the package identity fails verification.
 PkgCheckedArchive :: (path: string, digest: string, stage: string, id: string,
     tool_url: string, tool_commit: string, profile: string, identity: *string = null,
-    development: bool = false) -> bool {
+    development: bool = false, expected_target: string = "") -> bool {
     mapped := MapPrivate(path)
     if !mapped.valid { return false }
     defer UnmapFile(mapped)
@@ -135,13 +153,18 @@ PkgCheckedArchive :: (path: string, digest: string, stage: string, id: string,
     text := TextFromBytes(bytes)
     limit := cast(s64)bytes.count
     magic := ifx development then "ZXLD" else "ZXLB"
-    if text[0:4] != magic || ReadU32LE(text, 4) != 1 || ReadU32LE(text, 12) != cast(u32)limit ||
+    version := ReadU32LE(text, 4)
+    targeted := version == 2 && !development
+    if text[0:4] != magic || (version != 1 && !targeted) || ReadU32LE(text, 12) != cast(u32)limit ||
         !VerifyImageDigest(bytes, digest) { return false }
     count := ReadU32LE(text, 8)
-    if count < 3 || count > MaximumRecords { return false }
+    minimum := ifx targeted then 4 else 3
+    extra := ifx targeted then 1 else 0
+    if count < minimum || count > MaximumRecords + extra { return false }
     position: s64 = HeaderBytes
     prior := ""
     metadata := false
+    target: string
     manifest := false
     for index: 0..cast(s32)count - 1 {
         unused index
@@ -170,19 +193,23 @@ PkgCheckedArchive :: (path: string, digest: string, stage: string, id: string,
             }
             if identity != null { <<identity = PkgJoin("", data) }
             metadata = true
+        } else if name == TargetMetadata {
+            if !targeted || !ValidTargetMetadata(data) { return false }
+            target = data
         } else if name == Manifest { manifest = true }
         else if !PkgEndsWith(name, ".zir") { return false }
-        if stage != "" && name != Metadata {
+        if stage != "" && name != Metadata && name != TargetMetadata {
             file := PkgJoin3(stage, "/", name)
             if !PkgMkdirs(ParentDirectory(file)) || !PkgWrite(file, data) { return false }
         }
     }
-    return metadata && manifest && position == limit
+    return metadata && manifest && position == limit && targeted == (target != "") &&
+        (expected_target == "" || target == expected_target)
 }
 
 PkgCheckedPack :: (root: string, locked: *PkgLock, current: *PkgManifest,
     compiler: string, repository: string, revision: string, profile: string, output: string,
-    options: []string, development: bool) -> s32 {
+    options: []string, development: bool, target: string) -> s32 {
     id := PkgLockId(repository, revision, false)
     modules := cast(*PkgModuleSet)PkgAllocZero(cast(u64)size_of(PkgModuleSet))
     if modules == null { return PkgFail("cannot allocate checked package modules") }
@@ -215,8 +242,9 @@ PkgCheckedPack :: (root: string, locked: *PkgLock, current: *PkgManifest,
 
     modules.count = 0
     if !PkgScanModules(root, current, modules) { return PkgFail("cannot find checked package modules") }
-    paths := PkgStrings(modules.count + 2)
-    sources := PkgStrings(modules.count + 2)
+    extra := ifx target == "" then 0 else 1
+    paths := PkgStrings(modules.count + 2 + extra)
+    sources := PkgStrings(modules.count + 2 + extra)
     if paths.count == 0 || sources.count == 0 { return PkgFail("cannot allocate checked package entries") }
     paths[0] = Manifest
     sources[0] = PkgJoin3(root, "/", Manifest)
@@ -226,6 +254,12 @@ PkgCheckedPack :: (root: string, locked: *PkgLock, current: *PkgManifest,
         return PkgFail("cannot write checked package metadata")
     }
     count: s32 = 2
+    if target != "" {
+        paths[count] = TargetMetadata
+        sources[count] = PkgJoin3(stage, "/", TargetMetadata)
+        if !PkgWrite(sources[count], target) { return PkgFail("cannot write checked package target") }
+        count += 1
+    }
     for item: modules.items[0:modules.count] {
         file := PkgJoin(PkgJoin3(ir, "/", id), PkgJoin3("_", item.name, ".zir"))
         if !PathExists(file) { continue }
@@ -235,7 +269,7 @@ PkgCheckedPack :: (root: string, locked: *PkgLock, current: *PkgManifest,
         sources[count] = file
         count += 1
     }
-    if count < 3 { return PkgFail("no checked package modules were produced") }
+    if count < 3 + extra { return PkgFail("no checked package modules were produced") }
     for index: 1..count - 1 {
         at := index
         while at > 0 && PkgLexLess(paths[at], paths[at - 1]) {
@@ -248,7 +282,7 @@ PkgCheckedPack :: (root: string, locked: *PkgLock, current: *PkgManifest,
             at -= 1
         }
     }
-    if count > MaximumRecords { return PkgFail("too many checked package sections") }
+    if count > MaximumRecords + extra { return PkgFail("too many checked package sections") }
     temporary := PkgTemporarySibling(output, ".zx")
     if temporary == "" { return PkgFail("cannot stage the checked package archive") }
     defer RemoveFile(temporary)
@@ -283,14 +317,14 @@ PkgCheckedPack :: (root: string, locked: *PkgLock, current: *PkgManifest,
         header: [HeaderBytes]u8
         magic := ifx development then "ZXLD" else "ZXLB"
         unused PkgCopy(header[:], 0, magic)
-        StoreU32(header[:], 4, 1)
+        StoreU32(header[:], 4, ifx target == "" then cast(u32)1 else cast(u32)2)
         StoreU32(header[:], 8, cast(u32)count)
         StoreU32(header[:], 12, cast(u32)position)
         valid = WriteAll(file, header[:], 0) && SyncFile(file)
     }
     valid = CloseFile(file) && valid
     if !valid || !PkgCheckedArchive(temporary, "", "", id, locked.tool_url, locked.tool_commit,
-        profile, null, development) { return PkgFail("cannot finish checked package archive") }
+        profile, null, development, target) { return PkgFail("cannot finish checked package archive") }
     if development && SourceFingerprint(root, current, options, modules) != source_digest {
         return PkgFail("development package sources changed during export")
     }

@@ -243,7 +243,7 @@ PkgZxUsage :: () -> string {
     return PkgJoin3(
         "usage: ziran pkg zx publish REPOSITORY REVISION PROFILE FILE.zx [--netrc FILE]\n",
         "       ziran pkg zx fetch REPOSITORY REVISION PROFILE SHA256 [--module LOGICAL_NAME] [--offline] [--netrc FILE]\n",
-        PkgJoin3("       ziran pkg zx pack-ir REPOSITORY REVISION PROFILE FILE.zx [--define NAME]... --locked [--offline]\n",
+        PkgJoin3("       ziran pkg zx pack-ir REPOSITORY REVISION PROFILE FILE.zx [--target-os OS] [--target-cpu CPU] [--define NAME]... --locked [--offline]\n",
             "       ziran pkg zx publish-ir REPOSITORY REVISION PROFILE FILE.zx [--netrc FILE]\n",
             "       ziran pkg zx fetch-ir REPOSITORY REVISION PROFILE SHA256 [--offline] [--netrc FILE]\n       ziran pkg zx pack-dev REPOSITORY REVISION PROFILE FILE.zx [--define NAME]... [--offline]\n       ziran pkg zx inspect-ir FILE.zx\n"))
 }
@@ -464,14 +464,33 @@ PkgResolveZxLock :: (launcher: string, root: string, refresh: string, offline: b
 }
 
 PkgPackChecked :: (root: string, compiler: string, locked: *PkgLock, current: *PkgManifest,
-    arguments: []string, development: bool) -> s32 {
+    arguments: []string, development: bool, locked_mode: bool) -> s32 {
     if arguments.count < 4 || (arguments.count - 4) % 2 != 0 ||
         RegistryUrl(arguments[0], arguments[1], arguments[2], true) == "" ||
         !PkgEndsWith(arguments[3], ".zx") { return PkgFail(PkgTrim(PkgZxUsage())) }
-    for index: 4..arguments.count - 1 {
-        if (index - 4) % 2 == 0 {
-            if arguments[index] != "--define" { return PkgFail("expected --define NAME") }
-        } else if !PkgIdentifier(arguments[index]) { return PkgFail("expected --define NAME") }
+    os: string
+    cpu: string
+    index: s64 = 4
+    while index < arguments.count {
+        option := arguments[index]
+        value := arguments[index + 1]
+        index += 2
+        if option == "--define" && PkgIdentifier(value) { continue }
+        if !development && option == "--target-os" && os == "" && PkgCheckedTargetOS(value) {
+            os = value
+        } else if !development && option == "--target-cpu" && cpu == "" && PkgCheckedTargetCPU(value) {
+            cpu = value
+        } else {
+            return PkgFail(PkgJoin("invalid checked package option: ", option))
+        }
+    }
+    target: string
+    if os != "" || cpu != "" {
+        if !locked_mode { return PkgFail("checked package target selection requires --locked") }
+        // Match zi2zir's portable target defaults when only one option is given.
+        if os == "" { os = "none" }
+        if cpu == "" { cpu = ifx os == "web" then "wasm32" else "none" }
+        target = PkgJoin3(os, "\t", PkgJoin(cpu, "\n"))
     }
     revision_args := string.["git", "rev-parse", "HEAD"]
     revision := PkgCapture(revision_args[:], root)
@@ -489,7 +508,7 @@ PkgPackChecked :: (root: string, compiler: string, locked: *PkgLock, current: *P
         }
     }
     return PkgCheckedPack(root, locked, current, compiler, arguments[0], arguments[1], arguments[2],
-        arguments[3], arguments[4:], development)
+        arguments[3], arguments[4:], development, target)
 }
 
 PkgZx :: (launcher: string, arguments: []string) -> s32 {

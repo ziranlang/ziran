@@ -464,14 +464,25 @@ registry files are accepted on retry when their bytes match.</p>
 <p>A package with manifest exports can distribute its checked Ziran modules as
 a <code>.zx</code> library. Pack it from the clean provider revision
 using the exact, clean toolchain and dependencies pinned in <code>ziran.lock</code>.
-Each profile names a fixed toolchain and set of feature defines at that
-provider revision. Supply defines with <code>--define NAME</code> when packing.</p>
+Each profile names a fixed toolchain, target and set of feature defines at
+that provider revision. Supply defines with <code>--define NAME</code> when packing.
+<code>pack-ir --locked</code> accepts <code>--target-os OS</code> and <code>--target-cpu CPU</code> with the
+same values as <code>ziran ir</code>. Omit both for the portable <code>.NONE</code>/<code>.NONE</code> target.
+With only <code>--target-os web</code>, the CPU defaults to <code>wasm32</code>. With any other
+omitted component, that component defaults to <code>none</code>.</p>
+<p>Use a distinct profile for each target and define set you publish. The library
+records the effective OS and CPU, and its digest covers that record and the
+checked modules. Consumers select the matching profile and pin its digest
+through the ordinary lookup below. The provider's compile-time branches have
+already been folded when the consumer loads the library.</p>
 <pre><code class="language-sh">repo=https://git.waozi.xyz/example/counter.git
 commit=$(git rev-parse HEAD)
 ziran pkg zx pack-ir &quot;$repo&quot; &quot;$commit&quot; default build/counter.zx --locked
 ziran pkg zx inspect-ir build/counter.zx
 sha256=$(ziran pkg zx publish-ir &quot;$repo&quot; &quot;$commit&quot; default build/counter.zx --netrc &quot;$NETRC_FILE&quot;)
 ziran pkg zx fetch-ir &quot;$repo&quot; &quot;$commit&quot; default &quot;$sha256&quot;
+ziran pkg zx pack-ir &quot;$repo&quot; &quot;$commit&quot; web build/counter-web.zx --locked \
+    --target-os web --target-cpu wasm32
 </code></pre>
 <p><code>publish-ir</code> uploads <code>&lt;profile&gt;.zx</code> and then <code>&lt;profile&gt;.zx.tsv</code> to the
 <code>&lt;repository&gt;-zx-library</code> Generic package at the full Git revision. Either

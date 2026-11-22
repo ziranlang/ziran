@@ -18,7 +18,7 @@ import threading
 
 def library_sections(image):
     magic, version, count, size = struct.unpack_from('<4sIII', image)
-    assert magic == b'ZXLB' and version == 1 and size == len(image)
+    assert magic == b'ZXLB' and version in (1, 2) and size == len(image)
     position = 16
     sections = []
     for _ in range(count):
@@ -34,10 +34,10 @@ def library_sections(image):
     return sections
 
 
-def make_library(sections):
+def make_library(sections, version=1):
     body = b''.join(struct.pack('<II32s', len(name), len(data), hashlib.sha256(data).digest()) + name + data
                     for name, data in sections)
-    return struct.pack('<4sIII', b'ZXLB', 1, len(sections), 16 + len(body)) + body
+    return struct.pack('<4sIII', b'ZXLB', version, len(sections), 16 + len(body)) + body
 
 
 class Registry(http.server.BaseHTTPRequestHandler):
@@ -64,6 +64,7 @@ class Registry(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         self.server.requests.append(('GET', self.path))
+        self.server.read_authorization.append(self.headers.get('Authorization'))
         body = self.server.images.get(self.path)
         if body is None:
             self.response(404)
@@ -123,6 +124,7 @@ Add :: (amount: s32) -> s32 {
     tls.load_cert_chain(cert, key)
     server.socket = tls.wrap_socket(server.socket, server_side=True)
     server.requests = []
+    server.read_authorization = []
     server.images = {}
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -282,6 +284,7 @@ Copy :: (value: $T) -> T { return value; }
         archive = root / 'state.zx'
         command(*package, 'pack-ir', repository, checked_revision, 'default', archive, cwd=source)
         library = archive.read_bytes()
+        assert struct.unpack_from('<I', library, 4)[0] == 1
         archive_digest = hashlib.sha256(library).hexdigest()
         sections = library_sections(library)
         assert [name for name, _ in sections] == [b'checked-package.tsv', b'src/state.zir', b'ziran.toml']
@@ -379,6 +382,113 @@ main :: () -> s32 {
                                        archive_digest, '--offline'))
         assert fetched_library.read_bytes() == library
         assert len(server.requests) == request_count
+
+        # Exercise an exact locked tool pin in an isolated fixture cache with
+        # the native tools built for this test. The provider has no overrides.
+        web_cache = root / 'web-cache'
+        env['XDG_CACHE_HOME'] = str(web_cache)
+        fixture_tool = root / 'fixture-tool'
+        fixture_tool.mkdir()
+
+        def commit_fixture(directory):
+            command('git', 'init', '-q', cwd=directory)
+            command('git', 'add', '.', cwd=directory)
+            command('git', '-c', 'user.name=Package fixture', '-c', 'user.email=fixture@example.org',
+                    '-c', 'commit.gpgsign=false', 'commit', '-qm', 'Package fixture', cwd=directory)
+            return command('git', 'rev-parse', 'HEAD', cwd=directory)
+
+        (fixture_tool / '.gitignore').write_text('build/\n')
+        (fixture_tool / 'std').mkdir()
+        (fixture_tool / 'std/.gitkeep').touch()
+        web_tool_revision = commit_fixture(fixture_tool)
+        web_tool_id = 'p' + hashlib.sha256(f'{tool_url}\n{web_tool_revision}'.encode()).hexdigest()[:16]
+        web_tool = web_cache / 'ziran/sources' / web_tool_id
+        web_tool.parent.mkdir(parents=True)
+        fixture_tool.rename(web_tool)
+        command('git', 'config', 'remote.origin.url', tool_url, cwd=web_tool)
+        (web_tool / 'build/bin').mkdir(parents=True)
+        for name in ('ziran', 'zi2zir', 'zi2zx'):
+            shutil.copy2(ziran.with_name(name), web_tool / 'build/bin' / name)
+        web_launcher = web_tool / 'build/bin/ziran'
+        web_package = [web_launcher, 'pkg', 'zx']
+        web_tool_pin = {'url': tool_url, 'ref': web_tool_revision, 'commit': web_tool_revision}
+        web_tool_section = tool_section.replace(tool_revision, web_tool_revision)
+        web_provider = root / 'web-provider'
+        web_provider.mkdir()
+        (web_provider / '.gitignore').write_text('build/\n')
+        (web_provider / 'web.zi').write_text('''#if OS == .WEB && CPU == .WASM32 && #defined(FIXTURE_WEB) {
+    Answer :: () -> s32 { return 42; }
+} else {
+    Fallback :: () -> s32 { return 1; }
+}
+''')
+        (web_provider / 'ziran.toml').write_text('[package]\nname = "web"\nmodule_roots = ["."]\n' +
+                                                web_tool_section + '[exports]\napi = "web.zi"\n')
+        (web_provider / 'ziran.lock').write_text(json.dumps({'format': 1, 'packages': [],
+            'root': {'name': 'web', 'dependencies': {}}, 'toolchain': web_tool_pin}))
+        web_revision = commit_fixture(web_provider)
+        command('git', 'config', 'remote.origin.url', repository, cwd=web_provider)
+        web_archive = root / 'web.zx'
+        web_pack = [*web_package, 'pack-ir', repository, web_revision, 'web', web_archive, '--offline']
+        web_flags = ['--target-os', 'web', '--target-cpu', 'wasm32', '--define', 'FIXTURE_WEB']
+        command(*web_pack, *web_flags, cwd=web_provider, failure='target selection requires --locked')
+        dirty_marker = web_provider / 'untracked.txt'
+        dirty_marker.touch()
+        command(*web_pack, '--locked', *web_flags, cwd=web_provider,
+                failure='requires the clean declared repository revision')
+        dirty_marker.unlink()
+        command(*web_pack, '--locked', '--target-os', cwd=web_provider, failure='pack-ir')
+        for bad_flags in (['--target-os', 'unknown'], ['--target-cpu', '--help-me'],
+                          ['--target-os', 'web', '--target-os', 'linux'],
+                          ['--target-cpu', 'wasm32', '--target-cpu', 'x64'], ['--target=c', '--root']):
+            command(*web_pack, '--locked', *bad_flags, cwd=web_provider, failure='invalid checked package option')
+            assert not web_archive.exists()
+        command(*web_pack, '--locked', *web_flags, cwd=web_provider)
+        web_bytes = web_archive.read_bytes()
+        assert struct.unpack_from('<I', web_bytes, 4)[0] == 2
+        web_sections = library_sections(web_bytes)
+        assert dict(web_sections)[b'checked-target.tsv'] == b'web\twasm32\n'
+        web_digest = hashlib.sha256(web_bytes).hexdigest()
+        assert command(*web_package, 'inspect-ir', web_archive).endswith('\tweb\t' + web_digest)
+        command(*web_pack, '--locked', '--target-os', 'web', '--define', 'FIXTURE_WEB', cwd=web_provider)
+        assert web_archive.read_bytes() == web_bytes
+        without_target = [(name, data) for name, data in web_sections if name != b'checked-target.tsv']
+        for invalid in (make_library(web_sections), make_library(without_target, version=2),
+                        make_library([(name, b'web\tunknown\n' if name == b'checked-target.tsv' else data)
+                                      for name, data in web_sections], version=2)):
+            malformed.write_bytes(invalid)
+            command(*web_package, 'inspect-ir', malformed, failure='cannot verify the checked .zx library')
+        assert command(*web_package, 'publish-ir', repository, web_revision, 'web', web_archive,
+                       '--netrc', netrc) == web_digest
+        web_artifact = f'/api/packages/ziranlang/generic/fixture-zx-library/{web_revision}/web.zx'
+        changed_target = make_library([(name, b'linux\tx64\n' if name == b'checked-target.tsv' else data)
+                                       for name, data in web_sections], version=2)
+        server.images[web_artifact] = changed_target
+        command(*web_package, 'fetch-ir', repository, web_revision, 'web', web_digest,
+                failure='failed digest, format or module-name verification')
+        server.images[web_artifact] = web_bytes
+        shutil.rmtree(web_provider)
+        web_archive.unlink()
+
+        web_consumer = root / 'web-consumer'
+        web_consumer.mkdir()
+        (web_consumer / 'ziran.toml').write_text('[package]\nname = "consumer"\nmodule_roots = ["."]\n' + web_tool_section)
+        env.update(ZIRAN_ZX_REGISTRY=f'https://localhost:{server.server_port}', ZIRAN_ZX_PROFILE='web')
+        before = len(server.requests)
+        command(web_launcher, 'add', repository, '--name', 'web', '--ref', web_revision, cwd=web_consumer)
+        assert server.requests[before:] == [('GET', web_artifact + '.tsv'), ('GET', web_artifact)]
+        assert server.read_authorization[-2:] == [None, None]
+        web_app = web_consumer / 'app.zi'
+        web_app.write_text('using Web :: #import "web/api"\nmain :: () -> s32 { return Web.Answer(); }\n')
+        web_output = web_consumer / 'app.zx'
+        command(web_launcher, 'bundle', '--project', '--locked', '--offline', '--entry', 'app:main',
+                '-o', web_output, web_app, cwd=web_consumer)
+        assert command(ziran, 'run', '--backend', 'engine', web_output) == '42'
+        assert len(server.requests) == before + 2 and set(web_tool.parent.iterdir()) == {
+            web_tool, web_tool.with_suffix('.lock')}
+        env['XDG_CACHE_HOME'] = str(root / 'cache')
+        env.pop('ZIRAN_ZX_REGISTRY')
+        env.pop('ZIRAN_ZX_PROFILE')
 
         # Ordinary add discovers the published descriptor and resolves its
         # package graph from the archive before attempting any Git checkout.

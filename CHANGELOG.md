@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Pack checked ZX libraries for explicit OS and CPU targets with `ziran pkg zx pack-ir --locked`.
+
 - The portable ZX engine reuses frame storage for large record and array snapshots with disjoint lifetimes.
 
 - Package locks preserve each dependency's own name and exports when multiple refs select the same local override.

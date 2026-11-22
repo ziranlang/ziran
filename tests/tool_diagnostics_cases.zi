@@ -191,13 +191,12 @@ ToolDiscovery :: (test: *NativeTest) -> bool {
     if !NativeAssert(test, result.code == 0 && JsonRead(*document, result.output), "ziran std --list --json is not JSON") { return false }
     modules := JsonMember(*document, document.root, "modules")
     files := NativeFiles(CheckPath(test.repo, "std"), ".zi")
-    text_tools := false
+    described: s64 = 0
     for index: cast(s32)0..JsonCount(*document, modules) - 1 {
-        item := JsonElement(*document, modules, index)
-        text_tools = text_tools || CheckField(*document, item, "name") == "std/text_tools" && CheckField(*document, item, "purpose") != ""
+        if CheckField(*document, JsonElement(*document, modules, index), "purpose") != "" { described += 1 }
     }
-    if !NativeAssert(test, JsonCount(*document, modules) == files.count && text_tools,
-        "ziran std --list must name every std module with its purpose") { return false }
+    if !NativeAssert(test, JsonCount(*document, modules) == files.count && described == files.count,
+        "ziran std --list must name every std module with a one-line summary") { return false }
     source := CheckPath(test.work, "builtins.zi")
     if !NativeWrite(test, source, "main :: () -> s32 { v: Vec(s64); VecPush(v, 1); return 0 }\n") { return false }
     api := string.[test.ziran, "api", "--root", test.work, source]

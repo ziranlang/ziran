@@ -453,7 +453,7 @@ text_tools_TextInteger(String text)
         value_2 = 0LL;
     }
     int64_t start = value_2;
-    if (start == (int64_t)(text).length || (int64_t)((uint64_t)((int64_t)(text).length) - (uint64_t)start) > 18LL) {
+    if (start == (int64_t)(text).length) {
         return (Results__s64__bool){.value_0 = 0LL, .value_1 = false};
     }
     int64_t value = 0LL;
@@ -463,16 +463,20 @@ text_tools_TextInteger(String text)
         if (byte < 48 || byte > 57) {
             return (Results__s64__bool){.value_0 = 0LL, .value_1 = false};
         }
-        value = (int64_t)(((uint64_t)value * UINT64_C(10)) + (uint64_t)(((uint8_t)((uint32_t)byte - 48u))));
+        int64_t digit = (int64_t)(((uint8_t)((uint32_t)byte - 48u)));
+        if (value < -922337203685477580LL || (value == -922337203685477580LL && digit > 8LL)) {
+            return (Results__s64__bool){.value_0 = 0LL, .value_1 = false};
+        }
+        value = (int64_t)(((uint64_t)value * UINT64_C(10)) - (uint64_t)digit);
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
-    int64_t value_3 = 0;
     if (negative) {
-        value_3 = (int64_t)(UINT64_C(0) - (uint64_t)value);
-    } else {
-        value_3 = value;
+        return (Results__s64__bool){.value_0 = value, .value_1 = true};
     }
-    return (Results__s64__bool){.value_0 = value_3, .value_1 = true};
+    if (value == (-9223372036854775807LL - 1)) {
+        return (Results__s64__bool){.value_0 = 0LL, .value_1 = false};
+    }
+    return (Results__s64__bool){.value_0 = (int64_t)(UINT64_C(0) - (uint64_t)value), .value_1 = true};
 }
 
 int32_t

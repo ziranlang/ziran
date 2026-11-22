@@ -209,12 +209,6 @@ Everything else in the original list has landed; what remains open:
    needs a recovery point around each top-level declaration; the current
    one (ParserWithRecovery in cmd/zir/zir_parse.c) covers a whole parse and
    waits for the self-host lane's parser port.
-9. `TextInteger` still accepts at most 18 digits, so not the whole s64 range
-   (docs/REFERENCE.md section 16 says so). `S64_MIN` already prints correctly
-   on C, the engine and native (tests/spec/std_number_text.zi); `--lint` now
-   warns on a constant -1 divisor.
-12. 25 of the 134 std modules have no leading comment, so `ziran std --list`
-    shows no purpose for them (std/audio_types, std/calendar, std/file_linux, ...).
 
 Evidence commands (sections 3/4) were run against `ziran 0.8.0` with scratch
 files in `/tmp/ziran-llm-audit`; no repository file other than this report was

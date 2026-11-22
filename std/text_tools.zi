@@ -176,16 +176,22 @@ TextInteger :: (text: string) -> (value: s64, ok: bool) {
     if text.count == 0 { return 0, false }
     negative := text[0] == #char "-"
     start: s64 = ifx negative || text[0] == #char "+" then 1 else 0
-    if start == text.count || text.count - start > 18 { return 0, false }
+    if start == text.count { return 0, false }
+    // Accumulate negatively: the smallest s64 has no positive twin, and a
+    // value past -922337203685477580 cannot take another digit.
     value: s64 = 0
     at := start
     while at < text.count {
         byte := text[at]
         if byte < #char "0" || byte > #char "9" { return 0, false }
-        value = value * 10 + cast(s64)(byte - #char "0")
+        digit := cast(s64)(byte - #char "0")
+        if value < -922337203685477580 || (value == -922337203685477580 && digit > 8) { return 0, false }
+        value = value * 10 - digit
         at += 1
     }
-    return ifx negative then -value else value, true
+    if negative { return value, true }
+    if value == -9223372036854775807 - 1 { return 0, false }
+    return -value, true
 }
 
 // The value of a hexadecimal digit, or -1.

@@ -1,4 +1,5 @@
 #import "number_text"
+#import "text_tools"
 
 #program_export
 SelfTest :: () -> s32 {
@@ -8,6 +9,15 @@ SelfTest :: () -> s32 {
     for at: 0..values.count - 1 {
         if FormatInteger(values[at], bytes[0:21]) != spellings[at] { return cast(s32)(14 + at) }
     }
+    // TextInteger reads the whole s64 range and refuses one past either end.
+    spelled := string.["9223372036854775807", "-9223372036854775808", "+00000000000000000000042", "-0"]
+    expected := s64.[9223372036854775807, -9223372036854775807 - 1, 42, 0]
+    for at: 0..spelled.count - 1 {
+        parsed, ok := TextInteger(spelled[at])
+        if !ok || parsed != expected[at] { return cast(s32)(20 + at) }
+    }
+    refused := string.["9223372036854775808", "-9223372036854775809", "", "-", "12a"]
+    for refused { _, ok := TextInteger(it); if ok { return cast(s32)(30 + it_index) } }
     if FormatDecimal(0.0, 3, bytes[:]) != "0" { return 4 }
     if FormatDecimal(12.0, 3, bytes[:]) != "12" { return 5 }
     if FormatDecimal(0.5, 3, bytes[:]) != "0.5" { return 6 }

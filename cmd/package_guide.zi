@@ -84,7 +84,7 @@ StdModules :: (launcher: string, arguments: []string) -> s32 {
     if json { PkgPrint("{\"schema_version\":1,\"modules\":[", false) }
     for module, index: modules {
         text, ok := ReadEntireFile(PkgJoin(PkgJoin(directory, "/"), PkgJoin(module, ".zi")))
-        purpose := ifx ok then ModulePurpose(text) else ""
+        purpose := ifx ok then ModulePurpose(directory, text) else ""
         if json {
             if index > 0 { PkgPrint(",", false) }
             PkgPrint("{\"name\":", false); PkgJsonString(PkgJoin("std/", module))
@@ -117,10 +117,12 @@ StdDirectory :: (launcher: string) -> string {
     return ""
 }
 
-// The first sentence of a module's leading comment, before its first
-// declaration; "" when it has none.
-ModulePurpose :: (text: string) -> string {
+// A module's summary: the first sentence of its leading comment, past any
+// imports; for a module that only forwards to a platform module, that
+// module's summary; else the names it declares.
+ModulePurpose :: (directory: string, text: string) -> string {
     out: Vec(u8)
+    forward := ""
     at: s64 = 0
     while at < text.count {
         end := at
@@ -138,10 +140,78 @@ ModulePurpose :: (text: string) -> string {
             BuilderAppend(out, words)
             continue
         }
-        if out.count > 0 || (line.count > 0 && line[0] != #char "#") { break }
+        if out.count > 0 { break }
+        if line.count == 0 || line[0] == #char "#" { continue }
+        if TextAfter(line, "using Platform :: #import \"") != "" { forward = TextAfter(line, "using Platform :: #import \""); continue }
+        if PkgContains(line, "#import") || PkgContains(line, "#system_library") || PkgContains(line, "#load") { continue }
+        break
     }
+    if out.count > 0 { return BuilderFinish(out) }
+    if forward != "" {
+        name := forward[0:PkgIndexOf(forward, "\"")]
+        target, ok := ReadEntireFile(PkgJoin(PkgJoin(directory, "/"), PkgJoin(name, ".zi")))
+        purpose := ifx ok then ModulePurpose(directory, target) else ""
+        line: Vec(u8)
+        BuilderPrint(*line, "This platform's std/%", name)
+        if purpose != "" { BuilderPrint(*line, ": %", purpose) } else { BuilderAppend(line, ".") }
+        return BuilderFinish(line)
+    }
+    return DeclaredNames(text)
+}
+
+// "Declares A, B and C." from the first public declarations in TEXT.
+DeclaredNames :: (text: string) -> string {
+    names: [4]string
+    count: s64 = 0
+    at: s64 = 0
+    private := false
+    while at < text.count && count < 4 {
+        end := at
+        while end < text.count && text[end] != #char "\n" { end += 1 }
+        line := text[at:end]
+        at = end + 1
+        // Platform branches indent their declarations once.
+        indent: s64 = 0
+        while indent < 4 && indent < line.count && line[indent] == #char " " { indent += 1 }
+        line = line[indent:]
+        if PkgStartsWithText(line, "#scope_file") { private = true }
+        if PkgStartsWithText(line, "#scope_export") { private = false }
+        if private || line.count == 0 || line[0] < #char "A" || line[0] > #char "Z" { continue }
+        colons := PkgIndexOf(line, " ::")
+        if colons <= 0 { continue }
+        name := line[0:colons]
+        repeated := false
+        for known: names[0:count] { repeated = repeated || known == name }
+        if !repeated { names[count] = name; count += 1 }
+    }
+    if count == 0 { return "" }
+    out: Vec(u8)
+    BuilderAppend(out, "Declares ")
+    for name, index: names[0:count] {
+        if index > 0 { BuilderAppend(out, ifx index == count - 1 then " and " else ", ") }
+        BuilderAppend(out, name)
+    }
+    BuilderAppend(out, ".")
     return BuilderFinish(out)
 }
+
+// The text after PREFIX when LINE starts with it, else "".
+TextAfter :: (line: string, prefix: string) -> string {
+    if line.count < prefix.count || line[0:prefix.count] != prefix { return "" }
+    return line[prefix.count:]
+}
+
+PkgStartsWithText :: (line: string, prefix: string) -> bool { return TextAfter(line, prefix).count > 0 || line == prefix }
+
+PkgIndexOf :: (text: string, needle: string) -> s64 {
+    if needle.count > text.count { return -1 }
+    for at: 0..text.count - needle.count {
+        if text[at:at + needle.count] == needle { return at }
+    }
+    return -1
+}
+
+PkgContains :: (text: string, needle: string) -> bool { return PkgIndexOf(text, needle) >= 0 }
 
 // The index of the period that ends the first sentence in TEXT, or -1.
 SentenceEnd :: (text: string) -> s64 {

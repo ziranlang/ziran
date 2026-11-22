@@ -523,7 +523,6 @@ uses the portable engine, which has no `std/*_linux` modules: use
 
 - Arithmetic is C's: division by zero traps; `S64_MIN / -1` and `S64_MIN % -1`
   wrap. Check the divisor yourself; `ziran check --lint` warns on a constant `-1`.
-- `TextInteger` accepts at most 18 digits; parse longer numbers yourself.
 - A constant may name its type with a cast, `LIMIT :: cast(s64)9223372036854775807;`;
   a value the type cannot hold is "invalid or ambiguous constant".
 - `VecSlice` and `v[a:b]` need the Vec variable or a field of one, not

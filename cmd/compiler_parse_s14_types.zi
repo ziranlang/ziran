@@ -253,13 +253,6 @@ ZirBoundRead :: struct {
     value: KeptValue
 }
 
-ZirTargetFacts :: struct {
-    target: s32
-    os: s32
-    cpu: s32
-    options: *u8
-}
-
 ParserArray64_Declaration_StatementOutput :: struct {
     items: [64]Declaration.StatementOutput
 }

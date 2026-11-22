@@ -66,8 +66,14 @@ for target in native android; do
     else
         set --
     fi
-    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror "$@" -I"$root/include" -I"$root/cmd/zir" -I"$root/bootstrap/compiler_ir" \
-        "$root/cmd/zir/zir_diagnostic.c" "$work/test.c" -o "$work/test-$target"
+    for module in ir context_types parse_types parse_s14_types check_types text statement declaration source scan diagnostic; do
+        set -- "$@" -I"$root/bootstrap/compiler_$module"
+    done
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Wno-unused-label "$@" -I"$root/include" \
+        -c "$root/bootstrap/compiler_diagnostic/compiler_diagnostic.c" -o "$work/diagnostic.o"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror "$@" -I"$root/include" -I"$root/cmd/zir" \
+        "$work/diagnostic.o" "$root/cmd/zir/zir_diagnostic_host.c" \
+        "$root/cmd/zir/zir_atomics.c" "$work/test.c" -o "$work/test-$target"
     "$work/test-$target" 2> "$work/$target.stderr"
 done
 cmp "$work/native.stderr" "$work/android.stderr"

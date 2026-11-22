@@ -1,8 +1,6 @@
-// The C services the Ziran compiler modules call while they work on the IR:
-// kept text, source paths, diagnostics and symbol lookups.
-// cmd/zir/zir_services.c implements them over the C storage. A string
-// argument needs no closing NUL; a *u8 argument or result is a C string.
-// Foreign procedures stay in their module, so each has a public wrapper.
+// Kept text, diagnostics, and symbol operations for compiler modules.
+// A string argument is a length-delimited view. A *u8 argument or result
+// at the native interface is a C string.
 IR :: #import "compiler_ir";
 
 Diagnose :: (span: IR.ZirSourceSpan, code: string, message: string) { ZiranDiagnose(span, code, message) }
@@ -34,17 +32,75 @@ AddImport :: (module: *IR.ZirModule, kind: IR.ZirImportKind, name: string, targe
 
 #scope_file
 compiler :: #system_library "ziran";
-ZiranDiagnose :: (span: IR.ZirSourceSpan, code: string, message: string) #foreign compiler "ZiranDiagnose";
-ZiranKeepText :: (text: string) -> *u8 #foreign compiler "ZiranKeepText";
-ZiranKeepName :: (text: string) -> *u8 #foreign compiler "ZiranKeepName";
-ZiranKeepParameters :: (text: string) -> *u8 #foreign compiler "ZiranKeepParameters";
+libc :: #system_library "libc";
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+CompilerFree :: (p: *void) #foreign compiler "CompilerFree";
+CopyBytes :: (output: *void, input: *void, size: usize) -> *void #foreign libc "memcpy";
+KeepCText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
+KeepCName :: (text: *u8) -> *u8 #foreign compiler "KeepName";
+KeepCParameters :: (text: *u8) -> *u8 #foreign compiler "KeepParameters";
+ReportDiagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, args: ..any) #foreign compiler "Diagnostic";
 CSpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
 SymbolLookupsChanged :: () #foreign compiler "SymbolLookupsChanged";
 ResolveFunctionAt :: (module: *IR.ZirModule, name: *u8, path: *u8, owner: **IR.ZirModule,
                       function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunctionAt";
 CMapPrimitiveName :: (name: *u8) -> s32 #foreign compiler "MapPrimitiveName";
+AddCImport :: (module: *IR.ZirModule, kind: IR.ZirImportKind, name: *u8, target: *u8,
+              signature: *u8, required: s32, span: IR.ZirSourceSpan) -> *IR.ZirImport #foreign compiler "ModuleAddImport";
+
+TextBytes :: struct { data: *u8; length: usize }
+CStringCopy :: (text: string) -> *u8 {
+    view := cast(*TextBytes)*text
+    copy := cast(*u8)AllocateOrExit(view.length + 1)
+    if view.length != 0 { unused CopyBytes(cast(*void)copy, cast(*void)view.data, view.length) }
+    copy[view.length] = 0
+    return copy
+}
+
+#scope_export
+#program_export "ZiranKeepText"
+ZiranKeepText :: (text: string) -> *u8 {
+    copy := CStringCopy(text)
+    defer CompilerFree(cast(*void)copy)
+    return KeepCText(copy)
+}
+
+#program_export "ZiranKeepName"
+ZiranKeepName :: (text: string) -> *u8 {
+    copy := CStringCopy(text)
+    defer CompilerFree(cast(*void)copy)
+    return KeepCName(copy)
+}
+
+#program_export "ZiranKeepParameters"
+ZiranKeepParameters :: (text: string) -> *u8 {
+    copy := CStringCopy(text)
+    defer CompilerFree(cast(*void)copy)
+    return KeepCParameters(copy)
+}
+
+#program_export "ZiranDiagnose"
+ZiranDiagnose :: (span: IR.ZirSourceSpan, code: string, message: string) {
+    code_copy := CStringCopy(code)
+    message_copy := CStringCopy(message)
+    defer CompilerFree(cast(*void)message_copy)
+    defer CompilerFree(cast(*void)code_copy)
+    format := "%s"
+    ReportDiagnostic(span, code_copy, (cast(*TextBytes)*format).data, message_copy)
+}
+
+#program_export "ZiranAddImport"
 ZiranAddImport :: (module: *IR.ZirModule, kind: IR.ZirImportKind, name: string, target: string,
-                   signature: string, span: IR.ZirSourceSpan) -> *IR.ZirImport #foreign compiler "ZiranAddImport";
+                   signature: string, span: IR.ZirSourceSpan) -> *IR.ZirImport {
+    // Import insertion can move the array that owns these string views.
+    name_copy := CStringCopy(name)
+    target_copy := CStringCopy(target)
+    signature_copy := CStringCopy(signature)
+    defer CompilerFree(cast(*void)signature_copy)
+    defer CompilerFree(cast(*void)target_copy)
+    defer CompilerFree(cast(*void)name_copy)
+    return AddCImport(module, kind, name_copy, target_copy, signature_copy, 0, span)
+}
 
 // The expression parser (compiler_parse): node storage, type lookups
 // and fatal diagnostics.

@@ -16,6 +16,7 @@ typedef int32_t ZirImportKind;
 typedef int32_t ZirExternKind;
 typedef int32_t ZirStmtKind;
 typedef int32_t ZirExprKind;
+typedef struct ZirTargetFacts ZirTargetFacts;
 typedef struct ZirSourceSpan ZirSourceSpan;
 typedef struct ZirToken ZirToken;
 typedef struct ZirLexer ZirLexer;
@@ -99,6 +100,13 @@ enum {
     ZIR_EXPR_FIELD_INIT = 15,
     ZIR_EXPR_SLICE = 16,
     ZIR_EXPR_COMPILE_TIME = 17,
+};
+
+struct ZirTargetFacts {
+    int32_t target;
+    int32_t os;
+    int32_t cpu;
+    const char * options;
 };
 
 struct ZirSourceSpan {

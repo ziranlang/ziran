@@ -1,0 +1,457 @@
+// Compiler support: diagnostic. Algorithms are maintained in Ziran.
+using IR :: #import "compiler_ir"
+using Support :: #import "compiler_context_types"
+using Parser :: #import "compiler_parse_types"
+S14 :: #import "compiler_parse_s14_types"
+Check :: #import "compiler_check_types"
+Text :: #import "compiler_text"
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, varargs: ..any) #foreign compiler "Diagnostic";
+DocumentOffset :: (document: *Check.ZirDocument, line: s32, column: s32, offset: *usize) -> s32 #foreign compiler "DocumentOffset";
+S15FlagClear :: (arg0: *void) #foreign compiler "S15FlagClear";
+S15FlagTake :: (arg0: *void) -> s32 #foreign compiler "S15FlagTake";
+S15IntAdd :: (arg0: *void, arg1: s32) -> s32 #foreign compiler "S15IntAdd";
+S15IntCompare :: (arg0: *void, arg1: *s32, arg2: s32) -> s32 #foreign compiler "S15IntCompare";
+S15IntLoad :: (arg0: *void) -> s32 #foreign compiler "S15IntLoad";
+S15IntStore :: (arg0: *void, arg1: s32) #foreign compiler "S15IntStore";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+exit :: (__status: s32) #foreign libc "exit";
+fprintf :: (__stream: *void, __format: *u8, varargs: ..any) -> s32 #foreign libc "fprintf";
+fputs :: (__s: *u8, __stream: *void) -> s32 #foreign libc "fputs";
+free :: (__ptr: *void) #foreign libc "free";
+fwrite :: (__ptr: *void, __size: usize, __n: usize, __s: *void) -> usize #foreign libc "fwrite";
+getenv :: (__name: *u8) -> *u8 #foreign libc "getenv";
+malloc :: (__size: usize) -> *void #foreign libc "malloc";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+realloc :: (__ptr: *void, __size: usize) -> *void #foreign libc "realloc";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+CompilerStandardError :: () -> *void #foreign compiler "CompilerStandardError";
+diagnostic_diagnostic_json: s32 = ((-1));
+diagnostic_diagnostic_lock: u8 = 0;
+diagnostic_diagnostic_errors: s32 = (0);
+diagnostic_collector: *u8 = null;
+diagnostic_collector_count: usize = 0;
+diagnostic_collector_capacity: usize = 0;
+diagnostic_collector_entries: s32 = 0;
+diagnostic_collecting: s32 = 0;
+
+#scope_file
+collector_room :: (need: usize) -> s32 {
+    if ((!(need != 0) || ((diagnostic_collector_count + need) > cast(usize)(((128 * 1024))))) || (diagnostic_collector_entries >= 128)) {
+        return 0
+    }
+    if ((diagnostic_collector_count + need) > diagnostic_collector_capacity) {
+        capacity: usize = (ifx (diagnostic_collector_capacity != 0) then diagnostic_collector_capacity else cast(usize)(4096))
+        while check_loop_16 := (capacity < (diagnostic_collector_count + need)) {
+            capacity *= cast(usize)(2)
+        }
+        grown: *u8 = cast(*u8)(realloc(cast(*void)(diagnostic_collector), capacity))
+        if !(grown != null) {
+            return 0
+        }
+        diagnostic_collector = grown
+        diagnostic_collector_capacity = capacity
+    }
+    return 1
+    unreachable
+}
+
+#scope_file
+utf8_length :: (at: *u8) -> usize {
+    first: u8 = (at)[0]
+    length: usize = cast(usize)((ifx ((cast(s32)(first) >= 194) && (cast(s32)(first) <= 223)) then 2 else (ifx ((cast(s32)(first) >= 224) && (cast(s32)(first) <= 239)) then 3 else (ifx ((cast(s32)(first) >= 240) && (cast(s32)(first) <= 244)) then 4 else 0))))
+    {
+        i: usize = cast(usize)(1)
+        while check_loop_17 := (i < length) {
+            if (((cast(s32)((at)[i]) == 0) || (cast(s32)((at)[i]) < 128)) || (cast(s32)((at)[i]) > 191)) {
+                return cast(usize)(0)
+            }
+            S15SupportPost4(*(i))
+        }
+    }
+    if (((((cast(s32)(first) == 224) && (cast(s32)((at)[1]) < 160)) || ((cast(s32)(first) == 237) && (cast(s32)((at)[1]) >= 160))) || ((cast(s32)(first) == 240) && (cast(s32)((at)[1]) < 144))) || ((cast(s32)(first) == 244) && (cast(s32)((at)[1]) >= 144))) {
+        return cast(usize)(0)
+    }
+    return length
+    unreachable
+}
+
+#scope_file
+put :: (out: *JsonBuffer, text: *u8) {
+    size: usize = strlen(text)
+    if (size > ((cast(usize)size_of(Parser.ParserArray32768_u8) - cast(usize)(128)) - (out).count)) {
+        (out).failed = 1
+        return
+    }
+    memcpy(cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(*(((out).bytes).items))) + cast(usize)((out).count) * size_of(u8))), cast(*void)(text), size)
+    (out).count += size
+}
+
+#scope_file
+number :: (out: *JsonBuffer, value: usize) {
+    text: S14.ParserArray32_u8
+    snprintf(cast(*u8)(*((text).items)), cast(usize)size_of(S14.ParserArray32_u8), ParserCString("%zu"), value)
+    put(out, cast(*u8)(*((text).items)))
+}
+
+#scope_file
+string_local :: (out: *JsonBuffer, value: *u8, limit: usize) -> s32 {
+    cursor: *u8 = cast(*u8)(((ifx (value != null) then value else ParserCString(""))))
+    count: usize = cast(usize)(0)
+    put(out, ParserCString("\""))
+    while check_loop_18 := ((cursor)[0] != 0) {
+        length: usize = (ifx (cast(s32)((cursor)[0]) >= 128) then utf8_length(cursor) else cast(usize)(1))
+        if !(length != 0) {
+            length = cast(usize)(1)
+        }
+        if (length > (limit - count)) {
+            break check_loop_18
+        }
+        text: Check.CheckArray8_u8 = .{}
+        if ((cast(s32)((cursor)[0]) == 34) || (cast(s32)((cursor)[0]) == 92)) {
+            (text).items[0] = cast(u8)(92)
+            (text).items[1] = cast(u8)((cursor)[0])
+        } else {
+            if ((cast(s32)((cursor)[0]) < 32) || ((cast(s32)((cursor)[0]) >= 128) && !(utf8_length(cursor) != 0))) {
+                snprintf(cast(*u8)(*((text).items)), cast(usize)size_of(Check.CheckArray8_u8), ParserCString("\\u%04x"), cast(s32)((cursor)[0]))
+            } else {
+                memcpy(cast(*void)(cast(*u8)(*((text).items))), cast(*void)(cursor), length)
+            }
+        }
+        put(out, cast(*u8)(*((text).items)))
+        cursor = cast(*u8)(cast(usize)(cursor) + cast(usize)(length) * size_of(u8))
+        count += length
+        if ((out).failed != 0) {
+            break check_loop_18
+        }
+    }
+    put(out, ParserCString("\""))
+    return cast(s32)(cast(s32)((cursor)[0]) != 0)
+    unreachable
+}
+
+#scope_file
+nullable :: (out: *JsonBuffer, value: *u8) {
+    if (value != null) {
+        string_local(out, value, (cast(usize)(cast(u64)18446744073709551615)))
+    } else {
+        put(out, ParserCString("null"))
+    }
+}
+
+#scope_file
+json_span :: (out: *JsonBuffer, span: IR.ZirSourceSpan) {
+    path: *u8 = SpanPath(span)
+    put(out, ParserCString("\"path\":"))
+    if (strlen(path) <= cast(usize)(1024)) {
+        string_local(out, path, cast(usize)(1024))
+    } else {
+        put(out, ParserCString("null"))
+    }
+    put(out, ParserCString(",\"line\":"))
+    number(out, (ifx ((span).line > 0) then cast(usize)((span).line) else cast(usize)(0)))
+    put(out, ParserCString(",\"column\":"))
+    number(out, (ifx ((span).column > 0) then cast(usize)((span).column) else cast(usize)(0)))
+    put(out, ParserCString(",\"end_line\":"))
+    number(out, (ifx ((span).end_line > 0) then cast(usize)((span).end_line) else (ifx ((span).line > 0) then cast(usize)((span).line) else cast(usize)(0))))
+    put(out, ParserCString(",\"end_column\":"))
+    number(out, (ifx ((span).end_column > 0) then cast(usize)((span).end_column) else (ifx ((span).column > 0) then cast(usize)((span).column) else cast(usize)(0))))
+}
+
+#scope_file
+keep_optional :: (out: *JsonBuffer, checkpoint: usize) -> s32 {
+    if (!((out).failed != 0) && ((out).count <= cast(usize)((32768 - 1024)))) {
+        return 0
+    }
+    (out).failed = 0
+    (out).count = checkpoint
+    return 1
+    unreachable
+}
+
+#scope_export
+#program_export "SetDiagnosticFormat"
+SetDiagnosticFormat :: (format: *u8) -> s32 {
+    if (strcmp(format, ParserCString("json")) == 0) {
+        S15IntStore(cast(*void)(*(diagnostic_diagnostic_json)), 1)
+    } else {
+        if (strcmp(format, ParserCString("text")) == 0) {
+            S15IntStore(cast(*void)(*(diagnostic_diagnostic_json)), 0)
+        } else {
+            return 0
+        }
+    }
+    return 1
+    unreachable
+}
+
+#scope_export
+#program_export "SetDiagnosticFormatFromArguments"
+SetDiagnosticFormatFromArguments :: (argc: s32, argv: **u8) {
+    {
+        i: s32 = 1
+        while check_loop_19 := ((i < argc) && (strcmp((argv)[i], ParserCString("--")) != 0)) {
+            if !(strncmp((argv)[i], ParserCString("--diagnostics="), cast(usize)(14)) != 0) {
+                SetDiagnosticFormat(cast(*u8)(cast(usize)((argv)[i]) + cast(usize)(14) * size_of(u8)))
+            }
+            S15SupportPost1(*(i))
+        }
+    }
+}
+
+#scope_export
+#program_export "DiagnosticJsonEnabled"
+DiagnosticJsonEnabled :: () -> s32 {
+    if (S15IntLoad(cast(*void)(*(diagnostic_diagnostic_json))) < 0) {
+        environment: *u8 = getenv(ParserCString("ZIRAN_DIAGNOSTICS"))
+        unset: s32 = (-1)
+        S15IntCompare(cast(*void)(*(diagnostic_diagnostic_json)), *(unset), cast(s32)((environment != cast(*u8)((null))) && !(strcmp(environment, ParserCString("json")) != 0)))
+    }
+    return S15IntLoad(cast(*void)(*(diagnostic_diagnostic_json)))
+    unreachable
+}
+
+#scope_export
+#program_export "ZiranDiagnosticsBeginCollection"
+ZiranDiagnosticsBeginCollection :: () {
+    while check_loop_20 := (S15FlagTake(cast(*void)(*(diagnostic_diagnostic_lock))) != 0) {
+    }
+    diagnostic_collecting = 1
+    diagnostic_collector_count = cast(usize)(0)
+    diagnostic_collector_entries = 0
+    S15FlagClear(cast(*void)(*(diagnostic_diagnostic_lock)))
+}
+
+#scope_export
+#program_export "ZiranDiagnosticsEndCollection"
+ZiranDiagnosticsEndCollection :: () -> *u8 {
+    while check_loop_21 := (S15FlagTake(cast(*void)(*(diagnostic_diagnostic_lock))) != 0) {
+    }
+    diagnostic_collecting = 0
+    taken: *u8 = cast(*u8)(malloc((diagnostic_collector_count + cast(usize)(1))))
+    if (taken != null) {
+        if (diagnostic_collector_count != 0) {
+            memcpy(cast(*void)(taken), cast(*void)(diagnostic_collector), diagnostic_collector_count)
+        }
+        (taken)[diagnostic_collector_count] = cast(u8)(0)
+    }
+    diagnostic_collector_count = cast(usize)(0)
+    diagnostic_collector_entries = 0
+    S15FlagClear(cast(*void)(*(diagnostic_diagnostic_lock)))
+    return taken
+    unreachable
+}
+
+#scope_export
+#program_export "DiagnosticOutOfMemory"
+DiagnosticOutOfMemory :: () {
+    S15IntAdd(cast(*void)(*(diagnostic_diagnostic_errors)), 1)
+    if (DiagnosticJsonEnabled() != 0) {
+        fputs(ParserCString("{\"schema_version\":2,\"severity\":\"error\",\"code\":\"compiler.memory\",\"message\":\"out of memory\",\"path\":\"\",\"line\":0,\"column\":0,\"end_line\":0,\"end_column\":0,\"semantic_id\":null,\"cause\":null,\"document\":null,\"related_graph\":{\"nodes\":[],\"edges\":[]},\"alternatives\":[],\"truncation\":{\"message\":false,\"metadata\":false}}\n"), CompilerStandardError())
+    } else {
+        fputs(ParserCString("ziran: out of memory\n"), CompilerStandardError())
+    }
+}
+
+#scope_file
+alloc_buffers :: () -> *DiagnosticVBuffers {
+    buffers: *DiagnosticVBuffers = cast(*DiagnosticVBuffers)(malloc(cast(usize)size_of(DiagnosticVBuffers)))
+    if !(buffers != null) {
+        DiagnosticOutOfMemory()
+        exit(1)
+    }
+    return buffers
+    unreachable
+}
+
+#scope_file
+report :: (span: IR.ZirSourceSpan, severity: *u8, code: *u8, details: *Check.DiagnosticDetails, message: *u8, message_length: s32, buffers: *DiagnosticVBuffers) {
+    snprintf(cast(*u8)(*(((buffers).message).items)), cast(usize)size_of(Parser.ParserArray8192_u8), ParserCString("%s"), message)
+    json: s32 = DiagnosticJsonEnabled()
+    warning: s32 = cast(s32)(strcmp(severity, ParserCString("warning")) == 0)
+    if !(warning != 0) {
+        S15IntAdd(cast(*void)(*(diagnostic_diagnostic_errors)), 1)
+    }
+    S15PlatformDiagnosticLog(warning, SpanPath(span), span.line, span.column, cast(*u8)*buffers.message.items, code)
+    while check_loop_22 := (S15FlagTake(cast(*void)(*(diagnostic_diagnostic_lock))) != 0) {
+    }
+    if ((json != 0) || (diagnostic_collecting != 0)) {
+        out: *JsonBuffer = *((buffers).json)
+        (out).count = cast(usize)(0)
+        (out).failed = 0
+        omitted: s32 = 0
+        put(out, ParserCString("{\"schema_version\":2,\"severity\":"))
+        string_local(out, severity, cast(usize)(16))
+        put(out, ParserCString(",\"code\":"))
+        omitted |= string_local(out, code, cast(usize)(128))
+        put(out, ParserCString(",\"message\":"))
+        clipped: s32 = cast(s32)(((string_local(out, cast(*u8)(*(((buffers).message).items)), cast(usize)(2048)) != 0) || (message_length < 0)) || (cast(usize)(message_length) >= cast(usize)size_of(Parser.ParserArray8192_u8)))
+        put(out, ParserCString(","))
+        json_span(out, span)
+        omitted |= cast(s32)(strlen(SpanPath(span)) > cast(usize)(1024))
+        put(out, ParserCString(",\"semantic_id\":"))
+        if (((details != null) && ((details).semantic_id != null)) && (strlen((details).semantic_id) == cast(usize)(67))) {
+            nullable(out, (details).semantic_id)
+        } else {
+            put(out, ParserCString("null"))
+        }
+        doc: *Check.ZirDocument = (ifx (details != null) then (details).document else null)
+        put(out, ParserCString(",\"document\":"))
+        if (doc != null) {
+            put(out, ParserCString("{\"sha256\":"))
+            string_local(out, cast(*u8)(*(((doc).sha256).items)), cast(usize)(64))
+            put(out, ParserCString(",\"bytes\":"))
+            number(out, (doc).bytes)
+            put(out, ParserCString(",\"coordinate_space\":"))
+            string_local(out, (ifx ((doc).rewritten != 0) then ParserCString("rewritten_source") else ParserCString("source")), cast(usize)(32))
+            put(out, ParserCString("}"))
+        } else {
+            put(out, ParserCString("null"))
+        }
+        cause_checkpoint: usize = (out).count
+        put(out, ParserCString(",\"cause\":"))
+        kind: *u8 = (ifx (details != null) then (details).cause_kind else null)
+        if ((kind != null) && (((!(strcmp(kind, ParserCString("type_mismatch")) != 0) || !(strcmp(kind, ParserCString("unresolved_name")) != 0)) || !(strcmp(kind, ParserCString("unresolved_function")) != 0)) || !(strcmp(kind, ParserCString("target_restriction")) != 0))) {
+            put(out, ParserCString("{\"kind\":"))
+            nullable(out, kind)
+            put(out, ParserCString(",\"subject\":"))
+            nullable(out, (details).subject)
+            put(out, ParserCString("}"))
+        } else {
+            put(out, ParserCString("null"))
+            omitted |= cast(s32)(kind != cast(*u8)((null)))
+        }
+        if (keep_optional(out, cause_checkpoint) != 0) {
+            omitted = 1
+            put(out, ParserCString(",\"cause\":null"))
+        }
+        keys: ParserArray5__u8 = .{items = .{ParserCString("expected_type"), ParserCString("actual_type"), ParserCString("target"), ParserCString("capability"), ParserCString("suggested_name")}}
+        values: ParserArray5__u8 = .{items = .{(ifx (details != null) then (details).expected_type else null), (ifx (details != null) then (details).actual_type else null), (ifx (details != null) then (details).target else null), (ifx (details != null) then (details).capability else null), (ifx (details != null) then (details).suggested_name else null)}}
+        {
+            i: usize = cast(usize)(0)
+            while check_loop_23 := (i < cast(usize)(5)) {
+                if ((values).items[i] != null) {
+                    checkpoint: usize = (out).count
+                    put(out, ParserCString(","))
+                    string_local(out, (keys).items[i], cast(usize)(32))
+                    put(out, ParserCString(":"))
+                    nullable(out, (values).items[i])
+                    omitted |= keep_optional(out, checkpoint)
+                }
+                S15SupportPost4(*(i))
+            }
+        }
+        checkpoint: usize = (out).count
+        put(out, ParserCString(",\"related_graph\":{\"nodes\":["))
+        if (((details != null) && ((details).related_message != null)) && (((details).related_span).line > 0)) {
+            omitted |= cast(s32)(strlen(SpanPath((details).related_span)) > cast(usize)(1024))
+            put(out, ParserCString("{\"id\":0,\"role\":\"primary\","))
+            json_span(out, span)
+            put(out, ParserCString("},{\"id\":1,\"role\":\"declaration\","))
+            json_span(out, (details).related_span)
+            put(out, ParserCString(",\"message\":"))
+            nullable(out, (details).related_message)
+            put(out, ParserCString("}],\"edges\":[{\"from\":0,\"to\":1,\"relation\":"))
+            nullable(out, (details).related_relation)
+            put(out, ParserCString("}]"))
+        } else {
+            put(out, ParserCString("],\"edges\":[]"))
+        }
+        put(out, ParserCString("}"))
+        if (keep_optional(out, checkpoint) != 0) {
+            omitted = 1
+            put(out, ParserCString(",\"related_graph\":{\"nodes\":[],\"edges\":[]}"))
+        }
+        checkpoint = (out).count
+        put(out, ParserCString(",\"alternatives\":["))
+        start: usize
+        end: usize
+        if ((((((((((details != null) && ((details).replacement != null)) && ((details).original != null)) && (doc != null)) && (DocumentOffset(doc, ((details).edit_span).line, ((details).edit_span).column, *(start)) != 0)) && (DocumentOffset(doc, ((details).edit_span).end_line, ((details).edit_span).end_column, *(end)) != 0)) && (start <= end)) && ((end - start) == strlen((details).original))) && (strlen(SpanPath((details).edit_span)) <= cast(usize)(1024))) && !(strcmp(SpanPath((details).edit_span), SpanPath(span)) != 0)) {
+            put(out, ParserCString("{\"id\":\"replace_name\",\"edits\":[{"))
+            json_span(out, (details).edit_span)
+            put(out, ParserCString(",\"start_byte\":"))
+            number(out, start)
+            put(out, ParserCString(",\"end_byte\":"))
+            number(out, end)
+            put(out, ParserCString(",\"document_sha256\":"))
+            nullable(out, cast(*u8)(*(((doc).sha256).items)))
+            put(out, ParserCString(",\"original\":"))
+            nullable(out, (details).original)
+            put(out, ParserCString(",\"replacement\":"))
+            nullable(out, (details).replacement)
+            put(out, ParserCString("}],\"message\":"))
+            nullable(out, (ifx ((details).edit_message != null) then (details).edit_message else ParserCString("Replace this name")))
+            put(out, ParserCString("}"))
+        }
+        put(out, ParserCString("]"))
+        if (keep_optional(out, checkpoint) != 0) {
+            omitted = 1
+            put(out, ParserCString(",\"alternatives\":[]"))
+        }
+        tail: ParserArray100_u8
+        count: s32 = snprintf(cast(*u8)(*((tail).items)), cast(usize)size_of(ParserArray100_u8), ParserCString(",\"truncation\":{\"message\":%s,\"metadata\":%s}}\n"), (ifx (clipped != 0) then ParserCString("true") else ParserCString("false")), (ifx (omitted != 0) then ParserCString("true") else ParserCString("false")))
+        memcpy(cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(*(((out).bytes).items))) + cast(usize)((out).count) * size_of(u8))), cast(*void)(cast(*u8)(*((tail).items))), cast(usize)(count))
+        (out).count += cast(usize)(count)
+        if (json != 0) {
+            fwrite(cast(*void)(cast(*u8)(*(((out).bytes).items))), cast(usize)(1), (out).count, CompilerStandardError())
+        }
+        if ((diagnostic_collecting != 0) && (collector_room(((out).count + cast(usize)(((ifx (diagnostic_collector_entries != 0) then 1 else 0))))) != 0)) {
+            if (diagnostic_collector_entries != 0) {
+                (diagnostic_collector)[S15SupportPost4(*(diagnostic_collector_count))] = cast(u8)(44)
+            }
+            memcpy(cast(*void)(cast(*u8)(cast(usize)(diagnostic_collector) + cast(usize)(diagnostic_collector_count) * size_of(u8))), cast(*void)(cast(*u8)(*(((out).bytes).items))), (out).count)
+            diagnostic_collector_count += (out).count
+            S15SupportPost1(*(diagnostic_collector_entries))
+        }
+    }
+    if (!(json != 0) && (cast(s32)(cast(s8)((SpanPath(span))[0])) != 0)) {
+        fprintf(CompilerStandardError(), ParserCString("%s:%d:%d: %s%s\n"), SpanPath(span), (span).line, (span).column, (ifx (warning != 0) then ParserCString("warning: ") else ParserCString("")), cast(*u8)(*(((buffers).message).items)))
+    } else {
+        if !(json != 0) {
+            fprintf(CompilerStandardError(), ParserCString("ziran: %s%s\n"), (ifx (warning != 0) then ParserCString("warning: ") else ParserCString("")), cast(*u8)(*(((buffers).message).items)))
+        }
+    }
+    if (((!(json != 0) && (details != null)) && ((details).related_message != null)) && (((details).related_span).line > 0)) {
+        fprintf(CompilerStandardError(), ParserCString("%s:%d:%d: note: %s\n"), SpanPath((details).related_span), ((details).related_span).line, ((details).related_span).column, (details).related_message)
+    }
+    S15FlagClear(cast(*void)(*(diagnostic_diagnostic_lock)))
+}
+
+#scope_export
+#program_export "S15DiagnosticMessage"
+S15DiagnosticMessage :: (span: IR.ZirSourceSpan, severity: *u8, code: *u8, details: *Check.DiagnosticDetails, message: *u8, length: s32) {
+    buffers: *DiagnosticVBuffers = alloc_buffers()
+    report(span, severity, code, details, message, length, buffers)
+    free(cast(*void)(buffers))
+}
+
+#scope_export
+#program_export "DiagnosticErrorCount"
+DiagnosticErrorCount :: () -> s32 {
+    return S15IntLoad(cast(*void)(*(diagnostic_diagnostic_errors)))
+    unreachable
+}
+
+#scope_export
+#program_export "DiagnosticCountReportedError"
+DiagnosticCountReportedError :: () {
+    S15IntAdd(cast(*void)(*(diagnostic_diagnostic_errors)), 1)
+}
+
+#scope_export
+#program_export "DiagnosticEnsureFailureReported"
+DiagnosticEnsureFailureReported :: (status: s32, command: *u8) -> s32 {
+    if ((status != 0) && (DiagnosticErrorCount() == 0)) {
+        Diagnostic(IR.ZirSourceSpan.{cast(*u8)(null), 0, 0, 0, 0, 0}, ParserCString("compiler.internal"), ParserCString("%s failed without reporting a cause; this is a compiler bug"), command)
+    }
+    return status
+    unreachable
+}
+
+#scope_file
+S15PlatformDiagnosticLog :: (warning: s32, path: *u8, line: s32, column: s32, message: *u8, code: *u8) #foreign compiler "S15PlatformDiagnosticLog";

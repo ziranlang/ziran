@@ -1,6 +1,6 @@
 #define ZIR_MEMORY_IMPLEMENTATION
 #include "zir_memory.h"
-#include "zir_thread.h"
+#include "compiler_context_types.h"
 #include <stdint.h>
 
 typedef struct Allocation {
@@ -13,7 +13,16 @@ struct CompilerMemory {
     Allocation *items;
     CompilerMemory *parent, *resume;
 };
+/* Recovery, context selection and kept-text hints share one TLS lookup. */
 _Thread_local CompilerThread CompilerThreadState;
+
+CompilerThread *CompilerThreadStateAddress(void) { return &CompilerThreadState; }
+
+S15OverlayState *S15OverlayStateAddress(void)
+{
+    static _Thread_local S15OverlayState state;
+    return &state;
+}
 
 CompilerMemory *CompilerMemoryBegin(void)
 {
@@ -25,8 +34,14 @@ CompilerMemory *CompilerMemoryBegin(void)
     }
     return memory;
 }
-CompilerMemory *CompilerMemoryPause(void) { return CompilerThreadPause(&CompilerThreadState); }
-void CompilerMemoryResume(CompilerMemory *memory) { CompilerThreadResume(&CompilerThreadState, memory); }
+CompilerMemory *CompilerMemoryPause(void)
+{
+    CompilerThread *thread = &CompilerThreadState;
+    CompilerMemory *memory = thread->memory;
+    thread->memory = NULL;
+    return memory;
+}
+void CompilerMemoryResume(CompilerMemory *memory) { CompilerThreadState.memory = memory; }
 int CompilerMemoryRecovering(void) { return CompilerThreadState.recovery_depth != 0; }
 
 static Allocation **find_allocation(void *pointer)

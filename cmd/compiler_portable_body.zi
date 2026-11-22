@@ -1,10 +1,10 @@
-// Eligibility for the shared typed-body emitters. The caller owns the type
-// memo and expression states for the duration of the check.
+// Eligibility for the shared typed-body emitters.
 IR :: #import "compiler_ir";
 
 #scope_file
 Native :: #import "compiler_native_names";
 compiler :: #system_library "ziran";
+libc :: #system_library "libc";
 
 CFindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
 CArrayElement :: (name: *u8, element: *u8, capacity: usize, count: *s32) -> s32 #foreign compiler "ArrayElementType";
@@ -13,7 +13,44 @@ CPrimitiveFields :: (record: *IR.ZirType) -> s32 #foreign compiler "TypeHasOnlyP
 CNextField :: (record: *IR.ZirType, offset: *usize, field: **IR.ZirTypeField) -> s32 #foreign compiler "TypeNextFieldShared";
 CParameters :: (text: *u8) -> *Parameters #foreign compiler "ParametersOf";
 CProfileCount :: (counter: *u8) #foreign compiler "ProfileCount";
-CMemoType :: (module: *IR.ZirModule, name: *u8) -> s32 #foreign compiler "MemoPortableBodyType";
+BodyMemoAddress :: () -> *BodyMemo #foreign compiler "CompilerBodyMemoAddress";
+BodyScratchAddress :: () -> *void #foreign compiler "CompilerBodyScratchAddress";
+CompilerScratchCached :: (cache: *void, key: *u8, destroy: DestroyScratch) -> *void #foreign compiler "CompilerScratchCached";
+CompilerScratchTake :: (pool: *void) -> *void #foreign compiler "CompilerScratchTake";
+CompilerScratchPut :: (pool: *void, memory: *void) -> s32 #foreign compiler "CompilerScratchPut";
+CompilerMemoryRecovering :: () -> s32 #foreign compiler "CompilerMemoryRecovering";
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+Free :: (memory: *void) #foreign compiler "CompilerFree";
+ClearBytes :: (memory: *void, byte: s32, size: usize) -> *void #foreign libc "memset";
+DestroyScratch :: #type (memory: *void) #c_call;
+
+body_scratch_key: u8;
+
+#scope_export
+BodyMemoSlot :: struct {
+    module: *IR.ZirModule
+    type: *u8
+    pass: u32
+    answer: s32
+}
+BodyMemo :: struct {
+    pass: u32
+    slots: [512]BodyMemoSlot
+}
+
+#scope_file
+BodySupport :: struct { capacity: usize }
+ReleaseBodySupport :: (memory: *void) { Free(memory) }
+
+MemoType :: (module: *IR.ZirModule, type: *u8) -> s32 {
+    memo := BodyMemoAddress()
+    key := (cast(usize)type >> 3) ^ (cast(usize)module >> 6)
+    slot := *memo.slots[(key ^ (key >> 9)) % 512]
+    if slot.pass == memo.pass && slot.type == type && slot.module == module { return slot.answer }
+    answer := CanEmitType(module, type)
+    slot[0] = .{module, type, memo.pass, answer}
+    return answer
+}
 
 // zir_text.h's parameter cache owns the strings and the flexible array.
 Parameter :: struct {
@@ -55,7 +92,7 @@ PortableParameters :: (module: *IR.ZirModule, text: *u8, path: *TypePath, memo: 
         type := items[i].type
         if type == null { return false }
         if memo {
-            if CMemoType(module, type) == 0 { return false }
+            if MemoType(module, type) == 0 { return false }
         } else if !PortableType(module, type, path) { return false }
     }
     return true
@@ -110,7 +147,7 @@ PortableExpression :: (module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32, s
     support[index] = 1
     CProfileCount(CName("body_expression_check"))
     expr := *fn.exprs[index]
-    if CMemoType(module, expr.type) == 0 { return false }
+    if MemoType(module, expr.type) == 0 { return false }
     kind := expr.kind
     if kind == .COMPOUND {
         record := CFindType(module, expr.name, null)
@@ -124,7 +161,7 @@ PortableExpression :: (module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32, s
             Native.TargetType(cast(*void)expr.name, .ZIR_C) == null && !named { return false }
     } else if kind == .CALL {
         indirect := expr.name == null || expr.name[0] == 0
-        if indirect && (expr.left < 0 || expr.left >= fn.expr_count || CMemoType(module, fn.exprs[expr.left].type) == 0) {
+        if indirect && (expr.left < 0 || expr.left >= fn.expr_count || MemoType(module, fn.exprs[expr.left].type) == 0) {
             return false
         }
     } else if cast(s32)kind <= cast(s32)IR.ZirExprKind.UNKNOWN || cast(s32)kind > cast(s32)IR.ZirExprKind.COMPILE_TIME {
@@ -156,17 +193,46 @@ CanEmitType :: (module: *IR.ZirModule, type: *u8) -> s32 {
     return ifx PortableType(module, type, null) then 1 else 0
 }
 
+#program_export "MemoPortableBodyType"
+MemoPortableBodyType :: (module: *IR.ZirModule, type: *u8) -> s32 { return MemoType(module, type) }
+
+#program_export "CanEmitBody"
+CheckBody :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 {
+    if fn.checked == 0 || fn.is_extern != 0 || fn.expr_count < 0 { return 0 }
+    pool := CompilerScratchCached(BodyScratchAddress(), *body_scratch_key, ReleaseBodySupport)
+    support := ifx CompilerMemoryRecovering() == 0 then cast(*BodySupport)CompilerScratchTake(pool) else null
+    count := cast(usize)fn.expr_count
+    if support == null || count > support.capacity {
+        Free(cast(*void)support)
+        support = cast(*BodySupport)AllocateOrExit(size_of(BodySupport) + count)
+        support.capacity = count
+    }
+    marks := cast(*u8)(cast(usize)support + size_of(BodySupport))
+    if count != 0 { unused ClearBytes(cast(*void)marks, 0, count) }
+    memo := BodyMemoAddress()
+    memo.pass += 1
+    if memo.pass == 0 {
+        unused ClearBytes(cast(*void)*memo.slots[0], 0, size_of([512]BodyMemoSlot))
+        memo.pass = 1
+    }
+    answer := CanEmitBody(module, fn, marks)
+    if CompilerMemoryRecovering() != 0 || CompilerScratchPut(pool, cast(*void)support) == 0 {
+        Free(cast(*void)support)
+    }
+    return answer
+}
+
 #program_export "CanEmitBodyZiran"
 CanEmitBody :: (module: *IR.ZirModule, fn: *IR.ZirFunction, support: *u8) -> s32 {
     if fn.checked == 0 || fn.is_extern != 0 || fn.expr_count < 0 ||
-        CMemoType(module, *fn.return_type[0]) == 0 || !PortableParameters(module, fn.args_text, null, true) {
+        MemoType(module, *fn.return_type[0]) == 0 || !PortableParameters(module, fn.args_text, null, true) {
         return 0
     }
     for i: cast(s32)0..fn.stmt_count - 1 {
         statement := *fn.stmts[i]
         kind := statement.kind
         if kind == .DECL {
-            if CMemoType(module, statement.type) == 0 { return 0 }
+            if MemoType(module, statement.type) == 0 { return 0 }
         } else if kind == .ASSIGN {
             if !PortableDestination(fn, statement.lhs_root) { return 0 }
         } else if kind != .IF && kind != .BLOCK_OPEN && kind != .BLOCK_CLOSE &&

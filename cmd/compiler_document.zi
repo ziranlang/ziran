@@ -1,0 +1,203 @@
+// Compiler support: document. Algorithms are maintained in Ziran.
+using IR :: #import "compiler_ir"
+using Support :: #import "compiler_context_types"
+using Parser :: #import "compiler_parse_types"
+S14 :: #import "compiler_parse_s14_types"
+Check :: #import "compiler_check_types"
+Text :: #import "compiler_text"
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+CompilerCalloc :: (count: usize, size: usize) -> *void #foreign compiler "CompilerCalloc";
+CompilerContextCurrent :: () -> *CompilerContext #foreign compiler "CompilerContextCurrent";
+CompilerContextSelect :: (context_local: *CompilerContext) -> *CompilerContext #foreign compiler "CompilerContextSelect";
+CompilerCurrentStorage :: (key: s32, size: usize, destroy: S15Callback0) -> *void #foreign compiler "CompilerCurrentStorage";
+CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
+CompilerMalloc :: (size: usize) -> *void #foreign compiler "CompilerMalloc";
+CompilerMemoryPause :: () -> *void #foreign compiler "CompilerMemoryPause";
+CompilerMemoryResume :: (memory: *void) #foreign compiler "CompilerMemoryResume";
+DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+Sha256Add :: (hash: *Sha256, data: *void, size: usize) #foreign compiler "Sha256Add";
+Sha256Begin :: (hash: *Sha256) #foreign compiler "Sha256Begin";
+Sha256End :: (hash: *Sha256, digest: *u8) #foreign compiler "Sha256End";
+SourceFile :: (path: *u8) -> s32 #foreign compiler "SourceFile";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+exit :: (__status: s32) #foreign libc "exit";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+CompilerStandardError :: () -> *void #foreign compiler "CompilerStandardError";
+document_DocumentDigest_digits: S14.ParserArray17_u8 = .{items = .{48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 97, 98, 99, 100, 101, 102, 0}};
+
+#scope_file
+free_documents :: (value: *void) {
+    item: *Check.ZirDocument = ((cast(*DocumentStore)(value))).head
+    while check_loop_11 := (item != null) {
+        next: *Check.ZirDocument = (item).next
+        CompilerFree(cast(*void)((item).line_offsets))
+        CompilerFree(cast(*void)(item))
+        item = next
+    }
+}
+
+#scope_file
+documents :: () -> *DocumentStore {
+    return cast(*DocumentStore)(CompilerCurrentStorage(1, cast(usize)size_of(DocumentStore), free_documents))
+    unreachable
+}
+
+#scope_export
+#program_export "DocumentDigest"
+DocumentDigest :: (bytes: *void, count: usize, hex: *u8) {
+    digest: S14.ParserArray32_u8
+    hash: Sha256
+    Sha256Begin(*(hash))
+    Sha256Add(*(hash), bytes, count)
+    Sha256End(*(hash), cast(*u8)(*((digest).items)))
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_12 := (i < cast(usize)size_of(S14.ParserArray32_u8)) {
+            (hex)[(i * cast(usize)(2))] = (document_DocumentDigest_digits).items[(cast(s32)((digest).items[i]) >> 4)]
+            (hex)[((i * cast(usize)(2)) + cast(usize)(1))] = (document_DocumentDigest_digits).items[(cast(s32)((digest).items[i]) & 15)]
+            S15SupportPost4(*(i))
+        }
+    }
+    (hex)[64] = cast(u8)(0)
+}
+
+#scope_file
+find_document :: (path: *u8) -> *Check.ZirDocument {
+    if ((path == cast(*u8)((null))) || !((path)[0] != 0)) {
+        return null
+    }
+    {
+        item: *Check.ZirDocument = (documents()).head
+        while check_loop_13 := (item != null) {
+            source: IR.ZirSourceSpan = .{cast(*u8)(cast(*CompilerContext)((item).context)), (item).file, 0, 0, 0, 0}
+            if !(strcmp(SpanPath(source), path) != 0) {
+                return item
+            }
+            item = (item).next
+        }
+    }
+    return null
+    unreachable
+}
+
+#scope_export
+#program_export "DocumentFind"
+DocumentFind :: (path: *u8) -> *Check.ZirDocument {
+    return find_document(path)
+    unreachable
+}
+
+#scope_export
+#program_export "DocumentForSpan"
+DocumentForSpan :: (module: *IR.ZirModule, span: IR.ZirSourceSpan) -> *Check.ZirDocument {
+    if (!(module != null) || !(cast(*Check.ZirDocument)((module).document) != null)) {
+        return null
+    }
+    if !(strcmp(SpanPath(span), cast(*u8)(*((module).source_path))) != 0) {
+        return cast(*Check.ZirDocument)((module).document)
+    }
+    path: Parser.ParserArray1024_u8
+    source: *u8 = SpanPath(span)
+    if (snprintf(cast(*u8)(*((path).items)), cast(usize)size_of(Parser.ParserArray1024_u8), ParserCString("%s%s%s"), (ifx (cast(s32)(cast(s8)((source)[0])) == 47) then ParserCString("") else cast(*u8)(*((module).source_root))), (ifx ((cast(s32)(cast(s8)((source)[0])) == 47) || !(((module).source_root)[0] != 0)) then ParserCString("") else ParserCString("/")), source) >= cast(s32)(cast(usize)size_of(Parser.ParserArray1024_u8))) {
+        return null
+    }
+    previous: *CompilerContext = CompilerContextSelect(cast(*CompilerContext)((module).context))
+    document: *Check.ZirDocument = DocumentFind(cast(*u8)(*((path).items)))
+    CompilerContextSelect(previous)
+    return document
+    unreachable
+}
+
+#scope_export
+#program_export "DocumentMarkRewritten"
+DocumentMarkRewritten :: (path: *u8) {
+    document: *Check.ZirDocument = find_document(path)
+    if (document != null) {
+        (document).rewritten = 1
+    }
+}
+
+#scope_export
+#program_export "DocumentRecord"
+DocumentRecord :: (path: *u8, bytes: *u8, count: usize) -> *Check.ZirDocument {
+    memory: *void = CompilerMemoryPause()
+    hash: Check.CheckArray65_u8
+    DocumentDigest(cast(*void)(bytes), count, cast(*u8)(*((hash).items)))
+    previous: *Check.ZirDocument = DocumentFind(path)
+    if (((previous != null) && ((previous).bytes == count)) && !(strcmp(cast(*u8)(*(((previous).sha256).items)), cast(*u8)(*((hash).items))) != 0)) {
+        CompilerMemoryResume(memory)
+        return previous
+    }
+    store: *DocumentStore = documents()
+    if ((store).count >= cast(usize)(4096)) {
+        CompilerMemoryResume(memory)
+        return null
+    }
+    lines: usize = cast(usize)(1)
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_14 := (i < count) {
+            if (cast(s32)(cast(s8)((bytes)[i])) == 10) {
+                S15SupportPost4(*(lines))
+            }
+            S15SupportPost4(*(i))
+        }
+    }
+    item: *Check.ZirDocument = cast(*Check.ZirDocument)(CompilerCalloc(cast(usize)(1), cast(usize)size_of(Check.ZirDocument)))
+    if (item == cast(*Check.ZirDocument)((null))) {
+        DiagnosticOutOfMemory()
+        exit(1)
+    }
+    offset_bytes: usize = (ifx (lines <= ((cast(usize)(cast(u64)18446744073709551615)) / cast(usize)size_of(usize))) then (lines * cast(usize)size_of(usize)) else (cast(usize)(cast(u64)18446744073709551615)))
+    if ((offset_bytes <= cast(usize)((1024 * 1024))) && (offset_bytes <= (cast(usize)(((8 * 1024) * 1024)) - (store).bytes))) {
+        (item).line_offsets = cast(*usize)(CompilerMalloc(offset_bytes))
+        if ((item).line_offsets == cast(*usize)((null))) {
+            CompilerFree(cast(*void)(item))
+            DiagnosticOutOfMemory()
+            exit(1)
+        }
+        ((item).line_offsets)[0] = cast(usize)(0)
+        line: usize = cast(usize)(1)
+        {
+            i: usize = cast(usize)(0)
+            while check_loop_15 := (i < count) {
+                if (cast(s32)(cast(s8)((bytes)[i])) == 10) {
+                    ((item).line_offsets)[S15SupportPost4(*(line))] = (i + cast(usize)(1))
+                }
+                S15SupportPost4(*(i))
+            }
+        }
+        (store).bytes += offset_bytes
+    }
+    S15SupportPost4(*((store).count))
+    (item).context = cast(*void)(CompilerContextCurrent())
+    (item).file = SourceFile(path)
+    memcpy(cast(*void)(cast(*u8)(*(((item).sha256).items))), cast(*void)(cast(*u8)(*((hash).items))), cast(usize)size_of(Check.CheckArray65_u8))
+    (item).bytes = count
+    (item).line_count = lines
+    (item).next = (documents()).head
+    (documents()).head = item
+    CompilerMemoryResume(memory)
+    return item
+    unreachable
+}
+
+#scope_export
+#program_export "DocumentOffset"
+DocumentOffset :: (document: *Check.ZirDocument, line: s32, column: s32, offset: *usize) -> s32 {
+    if ((((((document == cast(*Check.ZirDocument)((null))) || ((document).rewritten != 0)) || ((document).line_offsets == cast(*usize)((null)))) || (line < 1)) || (column < 1)) || (cast(usize)(line) > (document).line_count)) {
+        return 0
+    }
+    begin: usize = ((document).line_offsets)[(line - 1)]
+    end: usize = (ifx (cast(usize)(line) < (document).line_count) then (((document).line_offsets)[line] - cast(usize)(1)) else (document).bytes)
+    if ((cast(usize)(column) - cast(usize)(1)) > (end - begin)) {
+        return 0
+    }
+    S15SupportSet0(offset, ((begin + cast(usize)(column)) - cast(usize)(1)))
+    return 1
+    unreachable
+}

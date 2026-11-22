@@ -51,7 +51,6 @@ typedef struct TypedSignature TypedSignature;
 typedef struct TypedSignatures TypedSignatures;
 typedef struct ZirBoundCondition ZirBoundCondition;
 typedef struct ZirBoundRead ZirBoundRead;
-typedef struct ZirTargetFacts ZirTargetFacts;
 typedef struct ParserArray64_Declaration_StatementOutput ParserArray64_Declaration_StatementOutput;
 typedef struct ParserArray17__ZirConst ParserArray17__ZirConst;
 typedef struct ParserArray17_u8 ParserArray17_u8;
@@ -310,13 +309,6 @@ struct ZirBoundRead {
     uint8_t* expr;
     ZirModule* module;
     KeptValue value;
-};
-
-struct ZirTargetFacts {
-    int32_t target;
-    int32_t os;
-    int32_t cpu;
-    uint8_t* options;
 };
 
 struct ParserArray64_Declaration_StatementOutput {

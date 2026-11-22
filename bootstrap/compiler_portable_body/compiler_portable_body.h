@@ -10,6 +10,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+typedef struct BodyMemoSlot BodyMemoSlot;
+typedef struct BodyMemo BodyMemo;
+#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
+typedef struct BodySupport BodySupport;
+#endif
 #ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
 typedef struct Parameter Parameter;
 #endif
@@ -17,10 +22,31 @@ typedef struct Parameter Parameter;
 typedef struct Parameters Parameters;
 #endif
 #ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
-typedef struct zir_a11d17f8c5aae545_StaticText zir_a11d17f8c5aae545_StaticText;
+typedef struct zir_2185da006c396622_StaticText zir_2185da006c396622_StaticText;
 #endif
 #ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
 typedef struct TypePath TypePath;
+#endif
+#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
+typedef void (*DestroyScratch)(void*);
+#endif
+
+struct BodyMemoSlot {
+    ZirModule* module;
+    uint8_t* type;
+    uint32_t pass;
+    int32_t answer;
+};
+
+struct BodyMemo {
+    uint32_t pass;
+    BodyMemoSlot slots[512];
+};
+#ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
+
+struct BodySupport {
+    size_t capacity;
+};
 #endif
 #ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
 
@@ -43,7 +69,7 @@ struct Parameters {
 #endif
 #ifdef ZIRAN_COMPILER_PORTABLE_BODY_H_PRIVATE
 
-struct zir_a11d17f8c5aae545_StaticText {
+struct zir_2185da006c396622_StaticText {
     uint8_t* data;
     size_t length;
 };
@@ -56,6 +82,8 @@ struct TypePath {
 };
 #endif
 int32_t CanEmitTypeZiran(ZirModule* module, uint8_t* type);
+int32_t MemoPortableBodyType(ZirModule* module, uint8_t* type);
+int32_t CanEmitBody(ZirModule* module, ZirFunction* fn);
 int32_t CanEmitBodyZiran(ZirModule* module, ZirFunction* fn, uint8_t* support);
 
 #ifdef __cplusplus

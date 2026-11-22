@@ -1,0 +1,128 @@
+// Compiler support: overlay. Algorithms are maintained in Ziran.
+using IR :: #import "compiler_ir"
+using Support :: #import "compiler_context_types"
+using Parser :: #import "compiler_parse_types"
+S14 :: #import "compiler_parse_s14_types"
+Check :: #import "compiler_check_types"
+Text :: #import "compiler_text"
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+S15OverlayStateAddress :: () -> *S15OverlayState #foreign compiler "S15OverlayStateAddress";
+free :: (__ptr: *void) #foreign libc "free";
+memchr :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memchr";
+realloc :: (__ptr: *void, __size: usize) -> *void #foreign libc "realloc";
+S15RealPath :: (__name: *u8, __resolved: *u8) -> *u8 #foreign compiler "S15RealPath";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+CompilerStandardError :: () -> *void #foreign compiler "CompilerStandardError";
+
+#scope_export
+#program_export "SourceOverlayBegin"
+SourceOverlayBegin :: (path: *u8, source: *u8, count: usize) -> s32 {
+    if ((((((S15OverlayStateAddress()).path != null) || !(path != null)) || !(source != null)) || (memchr(cast(*void)(source), 0, count) != null)) || ((source)[count] != 0)) {
+        return 0
+    }
+    ((S15OverlayStateAddress()).path) = path
+    ((S15OverlayStateAddress()).source) = source
+    ((S15OverlayStateAddress()).count) = count
+    return 1
+    unreachable
+}
+
+#scope_export
+#program_export "SourceOverlayRead"
+SourceOverlayRead :: (path: *u8, count: *usize) -> *u8 {
+    if (!((S15OverlayStateAddress()).path != null) || (strcmp(path, ((S15OverlayStateAddress()).path)) != 0)) {
+        return null
+    }
+    S15SupportSet0(count, ((S15OverlayStateAddress()).count))
+    return ((S15OverlayStateAddress()).source)
+    unreachable
+}
+
+#scope_export
+#program_export "SourceOverlayRestrict"
+SourceOverlayRestrict :: (root: *u8, standard: *u8) {
+    ((S15OverlayStateAddress()).root) = root
+    ((S15OverlayStateAddress()).standard) = standard
+}
+
+#scope_file
+within :: (path: *u8, root: *u8) -> s32 {
+    if !(root != null) {
+        return 0
+    }
+    n: usize = strlen(root)
+    return cast(s32)(((n != 0) && !(strncmp(path, root, n) != 0)) && (((n == cast(usize)(1)) || !((path)[n] != 0)) || (cast(s32)(cast(s8)((path)[n])) == 47)))
+    unreachable
+}
+
+#scope_export
+#program_export "SourceOverlayPermitRoot"
+SourceOverlayPermitRoot :: (root: *u8) -> s32 {
+    if (!((S15OverlayStateAddress()).path != null) || !(root != null)) {
+        return 0
+    }
+    if (((S15OverlayStateAddress()).roots_count) == 2147483647) {
+        return 0
+    }
+    roots: **u8 = cast(**u8)(realloc(cast(*void)(((S15OverlayStateAddress()).roots)), (((cast(usize)(((S15OverlayStateAddress()).roots_count)) + cast(usize)(1))) * cast(usize)size_of(*u8))))
+    if !(roots != null) {
+        return 0
+    }
+    ((S15OverlayStateAddress()).roots) = roots
+    (((S15OverlayStateAddress()).roots))[S15SupportPost1(*((S15OverlayStateAddress()).roots_count))] = root
+    return 1
+    unreachable
+}
+
+#scope_file
+canonical_path :: (path: *u8) -> *u8 {
+    result: *u8
+    if S15HostOS() == 1 {
+        result = S15WindowsFullPath(path)
+        p := result
+        while p != null && p[0] != 0 { if p[0] == 92 { p[0] = 47 }; p = cast(*u8)(cast(usize)p + 1) }
+        return result
+    }
+    return S15RealPath(path, null)
+}
+
+#scope_export
+#program_export "SourceOverlayAllowed"
+SourceOverlayAllowed :: (path: *u8) -> s32 {
+    if (!((S15OverlayStateAddress()).path != null) || !((S15OverlayStateAddress()).root != null)) {
+        return 1
+    }
+    canonical: *u8 = canonical_path(path)
+    allowed: s32 = cast(s32)((canonical != null) && ((within(canonical, ((S15OverlayStateAddress()).root)) != 0) || (within(canonical, ((S15OverlayStateAddress()).standard)) != 0)))
+    {
+        i: s32 = 0
+        while check_loop_60 := (((canonical != null) && !(allowed != 0)) && (i < ((S15OverlayStateAddress()).roots_count))) {
+            allowed = within(canonical, (((S15OverlayStateAddress()).roots))[i])
+            S15SupportPost1(*(i))
+        }
+    }
+    free(cast(*void)(canonical))
+    return allowed
+    unreachable
+}
+
+#scope_export
+#program_export "SourceOverlayEnd"
+SourceOverlayEnd :: () {
+    ((S15OverlayStateAddress()).root) = null
+    ((S15OverlayStateAddress()).standard) = null
+    ((S15OverlayStateAddress()).roots_count) = 0
+    free(cast(*void)(((S15OverlayStateAddress()).roots)))
+    ((S15OverlayStateAddress()).roots) = null
+    ((S15OverlayStateAddress()).path) = null
+    ((S15OverlayStateAddress()).source) = null
+    ((S15OverlayStateAddress()).count) = cast(usize)(0)
+}
+
+#scope_file
+S15HostOS :: () -> s32 #foreign compiler "S15HostOS";
+S15WindowsFullPath :: (path: *u8) -> *u8 #foreign compiler "S15WindowsFullPath";

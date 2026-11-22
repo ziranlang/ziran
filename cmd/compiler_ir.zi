@@ -1,7 +1,7 @@
 // The intermediate representation records shared by the compiler core.
 // C includes the generated compiler_ir.h through zir.h; `#c` spells each
 // field and enum constant the way C reads it. This module owns the tree
-// shape and source spans; zir.c allocates them.
+// shape and source spans; compiler_frontend_ir allocates them.
 
 ZIR_PATH_MAX :: 1024
 ZIR_NAME_MAX :: 128
@@ -52,6 +52,14 @@ ZirExprKind :: enum s32 #c "ZIR_EXPR_" {
     FIELD_INIT
     SLICE
     COMPILE_TIME
+}
+
+// Per-thread target selection, shared by the checker, parser, and host tools.
+ZirTargetFacts :: struct {
+    target: s32
+    os: s32
+    cpu: s32
+    options: *u8 #c "const char *"
 }
 
 ZirSourceSpan :: struct {
@@ -422,7 +430,7 @@ ZirProgram :: struct {
     context: *u8 #c "struct CompilerContext *"
     context_retained: s32
     owns_context: s32
-    retained_contexts: *u8 #c "struct CompilerContext **"
+    retained_contexts: **u8 #c "struct CompilerContext **"
     retained_context_count: s32
     modules: *ZirModule
     module_count: s32

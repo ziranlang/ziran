@@ -207,9 +207,21 @@ ToolCases :: (test: *NativeTest) -> bool {
     launch := string.[launcher, "check", "--diagnostics=json", "--root", test.work, source]; unused ToolDiagnostics(test, launch[:], "package.process")
     probe := CheckPath(test.work, "diagnostic.c")
     if !NativeWrite(test, probe, NativeRead(test, CheckPath(test.repo, "tests/fixtures/tool_diagnostic.c"))) { return false }
-    compile := string.[NativeCompiler(), "-std=c11", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", CheckPath(test.repo, "cmd/zir")),
-        CheckConcat("-I", CheckPath(test.repo, "bootstrap/compiler_ir")), probe, CheckPath(test.repo, "cmd/zir/zir_diagnostic.c"), CheckPath(test.repo, "cmd/zir/zir_memory.c"), "-o", CheckPath(test.work, "probe")]
-    unused NativeRun(test, compile[:]); run := string.[CheckPath(test.work, "probe")]; memory := ToolDiagnostics(test, run[:], "compiler.memory")
+    compile: Vec(string)
+    flags := string.[NativeCompiler(), "-std=c11", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", CheckPath(test.repo, "cmd/zir"))]
+    for arg: flags { VecPush(compile, arg) }
+    fixture_headers := string.["ir", "context_types", "parse_types", "parse_s14_types", "check_types", "text", "statement", "declaration", "source", "scan", "diagnostic"]
+    for module: fixture_headers {
+        VecPush(compile, CheckConcat("-I", CheckPath(test.repo, CheckConcat("bootstrap/compiler_", module))))
+    }
+    fixture_sources := string.["bootstrap/compiler_diagnostic/compiler_diagnostic.c", "cmd/zir/zir_diagnostic_host.c", "cmd/zir/zir_atomics.c", "cmd/zir/zir_memory.c"]
+    for file: fixture_sources {
+        VecPush(compile, CheckPath(test.repo, file))
+    }
+    probe_link_flags := string.[probe, "-o", CheckPath(test.work, "probe")]
+    for arg: probe_link_flags { VecPush(compile, arg) }
+    unused NativeRun(test, compile[:]);
+    run := string.[CheckPath(test.work, "probe")]; memory := ToolDiagnostics(test, run[:], "compiler.memory")
     if !NativeAssert(test, !test.failed && JsonCount(*memory, memory.root) == 2 && TextHasPrefix(CheckField(*memory, JsonElement(*memory, memory.root, 0), "message"), "🙂ÿ"), "allocation-free OOM or malformed UTF-8 diagnostics changed") { return false }
     // A command that fails without a diagnostic still reports exactly one.
     silent := string.[CheckPath(test.work, "probe"), "silent"]; unreported := ToolDiagnostics(test, silent[:], "compiler.internal")

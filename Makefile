@@ -274,6 +274,8 @@ CHECK_PORT_MODULES := check_types $(CHECK_CORE_MODULES) check_s12_types $(CHECK_
 S14_PARSE_MODULES := parse_declaration parse_eval parse_typed ir_cleanup
 PARSE_PORT_MODULES := parse_types parse_condition parse_discover parse_source \
     frontend_parse parse_s14_types $(S14_PARSE_MODULES)
+SUPPORT_PORT_MODULES := context document diagnostic files source_store overlay semantic sha256
+FRONTEND_PORT_MODULES := context_types $(SUPPORT_PORT_MODULES) frontend_ir law_runtime target_bridge
 compiler-port-dir = $(if $(filter 1,$(BOOTSTRAP)),bootstrap/compiler_$(1),$(BUILD_DIR)/compiler-$(subst _,-,$(1)))
 compiler-port-seed = $(addprefix bootstrap/compiler_$(1)/compiler_$(1).,c h)
 compiler-port-ready = $(if $(filter 1,$(BOOTSTRAP)),$(call compiler-port-seed,$(1)),$(call compiler-port-dir,$(1))/.generated)
@@ -281,7 +283,8 @@ compiler-port-object = $(BUILD_DIR)/obj/compiler-$(subst _,-,$(1)).o
 GO_PORT_OBJECTS := $(foreach module,$(GO_PORT_MODULES),$(call compiler-port-object,$(module)))
 CHECK_PORT_OBJECTS := $(foreach module,$(CHECK_PORT_MODULES),$(call compiler-port-object,$(module)))
 PARSE_PORT_OBJECTS := $(foreach module,$(PARSE_PORT_MODULES),$(call compiler-port-object,$(module)))
-override CFLAGS += $(foreach module,$(GO_PORT_MODULES) $(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES),-I$(call compiler-port-dir,$(module)))
+FRONTEND_PORT_OBJECTS := $(foreach module,$(FRONTEND_PORT_MODULES),$(call compiler-port-object,$(module)))
+override CFLAGS += $(foreach module,$(GO_PORT_MODULES) $(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES) $(FRONTEND_PORT_MODULES),-I$(call compiler-port-dir,$(module)))
 # zi2c's pruning of a closed program's C (cmd/compiler_c_prune.zi). Its std
 # text_tools and vec code is already linked through the backend modules.
 ifeq ($(BOOTSTRAP),1)
@@ -308,11 +311,10 @@ RANGE_MODULES := compiler_c_range compiler_c_range_facts compiler_c_range_values
     compiler_c_range_callers compiler_c_range_fill
 RANGE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/c-range/%.o,$(RANGE_MODULES))
 override CFLAGS += -I$(RANGE_C)
-FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c cmd/zir/zir_sha256.c cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
-    cmd/zir/zir_law.c \
-    cmd/zir/zir_serial.c cmd/zir/zir_load.c \
-    cmd/zir/zir_packages.c \
-    cmd/zir/zir_diagnostic.c cmd/zir/zir_profile.c cmd/zir/zir_files.c cmd/zir/zir_services.c
+FRONTEND := cmd/zir/zir_memory.c cmd/zir/zir_asm.c cmd/zir/zir_serial.c cmd/zir/zir_load.c \
+    cmd/zir/zir_packages.c cmd/zir/zir_profile.c cmd/zir/zir_services.c \
+    cmd/zir/zir_atomics.c cmd/zir/zir_diagnostic_host.c \
+    cmd/zir/zir_files_host.c cmd/zir/zir_sha256_host.c
 PORTABLE := cmd/zir/zir_link.c cmd/zir/zir_assets.c
 HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
 # std/simd's C helpers, vector types and typed Go helpers are generated at
@@ -446,13 +448,11 @@ $(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY) $(NATIVE_NAME
 	$(NICE) $(CC) $(CFLAGS) $($@_CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 
 $(call obj,cmd/zi2c/main.c): $(BACKEND_PROCESS_READY)
-$(call obj,cmd/zir/zir.c): $(TYPE_READY)
 $(call obj,cmd/zir/zir_serial.c): $(PARSE_READY)
 $(SCANNER_OBJECT): $(SCANNER_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SCANNER_C)/compiler_scan.c
 
-$(call obj,cmd/zir/zir_text.c): $(TEXT_READY)
 $(TEXT_OBJECT): $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(TEXT_C)/compiler_text.c
@@ -466,12 +466,10 @@ $(DECLARATION_OBJECT): $(DECLARATION_READY) $(TEXT_READY) $(SOURCE_READY) $(SCAN
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(DECLARATION_C)/compiler_declaration.c
 
-$(call obj,cmd/zir/zir_enum.c): $(ENUM_READY)
 $(ENUM_OBJECT): $(ENUM_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(ENUM_C)/compiler_enum.c
 
-$(call obj,cmd/zir/zir_type.c): $(TYPE_READY)
 $(TYPE_OBJECT): $(TYPE_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(TYPE_C)/compiler_type.c
@@ -595,7 +593,8 @@ $(PARSE_PRIVATE_HEADERS)/%.h: cmd/zir/zir_%_internal.h scripts/private-symbols.p
 $(call obj,$(PARSE_PARTS)): CFLAGS += -include $(PARSE_PRIVATE_HEADERS)/parse.h
 $(call obj,$(PARSE_PARTS)): $(PARSE_PRIVATE_HEADERS)/parse.h
 
-$(BUILD_DIR)/obj/parse.o: $(call obj,$(PARSE_PARTS)) $(PARSE_PORT_OBJECTS)
+# Frontend services also use private parser scratch and text helpers.
+$(BUILD_DIR)/obj/parse.o: $(call obj,$(PARSE_PARTS)) $(PARSE_PORT_OBJECTS) $(FRONTEND_PORT_OBJECTS) Makefile
 	$(CC) -r -nostdlib -o $@ $(filter %.o,$^)
 	$(OBJCOPY) --localize-hidden $(PARSE_LOCALIZE) $@
 
@@ -778,7 +777,7 @@ $(BIN_DIR)/zx2wasm: $(call obj,cmd/zx2wasm/main.c) $(BUILD_DIR)/libziran.a | $(B
 ifneq ($(BOOTSTRAP),1)
 $(BOOTSTRAP_BIN): $(BUILD_DIR)/runtime_headers.c
 $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) \
-    $(foreach module,$(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES),$(call compiler-port-seed,$(module))) \
+    $(foreach module,$(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES) $(FRONTEND_PORT_MODULES),$(call compiler-port-seed,$(module))) \
     $(PORTABLE) cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi std/c_string.zi std/result.zi std/vec.zi \
     cmd/zi2c/main.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
     $(BACKEND_BOOTSTRAP_FILES) cmd/compiler_backend_cache.zi cmd/compiler_backend_process.zi \
@@ -876,6 +875,18 @@ S14_PARSE_HEADERS := $(PARSE_PORT_HEADERS) $(STATEMENT_READY) $(DECLARATION_READ
 $(eval $(call compiler-port-rules,parse_s14_types,$(S14_PARSE_HEADERS),$(S14_PARSE_IMPORTS)))
 $(foreach module,$(S14_PARSE_MODULES),\
     $(eval $(call compiler-port-rules,$(module),$(S14_PARSE_HEADERS) $(call compiler-port-ready,parse_s14_types),$(S14_PARSE_IMPORTS) cmd/compiler_parse_s14_types.zi)))
+FRONTEND_SUPPORT_IMPORTS := $(S14_PARSE_IMPORTS) cmd/compiler_parse_s14_types.zi cmd/compiler_check_types.zi
+FRONTEND_SUPPORT_HEADERS := $(S14_PARSE_HEADERS) $(call compiler-port-ready,parse_s14_types) $(call compiler-port-ready,check_types)
+$(eval $(call compiler-port-rules,context_types,$(FRONTEND_SUPPORT_HEADERS),$(FRONTEND_SUPPORT_IMPORTS)))
+$(foreach module,$(SUPPORT_PORT_MODULES),\
+    $(eval $(call compiler-port-rules,$(module),$(FRONTEND_SUPPORT_HEADERS) $(call compiler-port-ready,context_types),$(FRONTEND_SUPPORT_IMPORTS) cmd/compiler_context_types.zi)))
+# The generated source store also includes the standard Vec record header.
+$(call compiler-port-object,source_store): $(PROOF_KERNEL_READY)
+$(eval $(call compiler-port-rules,frontend_ir,$(FRONTEND_SUPPORT_HEADERS) $(call compiler-port-ready,context_types) $(TYPE_READY) $(ENUM_READY),$(FRONTEND_SUPPORT_IMPORTS) cmd/compiler_context_types.zi cmd/compiler_type.zi cmd/compiler_enum.zi))
+$(eval $(call compiler-port-rules,law_runtime,$(PARSE_PORT_HEADERS) $(CHECK_PORT_HEADERS),$(PARSE_PORT_IMPORTS) cmd/compiler_check_types.zi))
+$(eval $(call compiler-port-rules,target_bridge,$(PARSE_PORT_HEADERS) $(CHECK_PORT_HEADERS) $(TYPE_READY),$(PARSE_PORT_IMPORTS) cmd/compiler_check_types.zi cmd/compiler_type.zi))
+$(call obj,cmd/zir/zir_memory.c): $(FRONTEND_SUPPORT_HEADERS) $(call compiler-port-ready,context_types)
+
 $(eval $(call compiler-port-rules,go_asm_x64,$(IR_READY) $(NATIVE_NAMES_READY),$(GO_PORT_IMPORTS)))
 $(eval $(call compiler-port-rules,go_asm,$(IR_READY) $(NATIVE_NAMES_READY) $(call compiler-port-ready,go_asm_x64),$(GO_PORT_IMPORTS) cmd/compiler_go_asm_x64.zi))
 $(eval $(call compiler-port-rules,go_backend,$(IR_READY) $(NATIVE_NAMES_READY) $(call compiler-port-ready,go_asm) $(call compiler-port-ready,go_asm_x64),$(GO_PORT_IMPORTS) cmd/compiler_go_asm.zi cmd/compiler_go_asm_x64.zi))
@@ -1041,7 +1052,7 @@ BOOTSTRAP_MODULES := scan text source declaration enum type expression statement
 GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
     -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
 BOOTSTRAP_MODULES += parse portable_body scalar c_emit c_emit_value c_emit_statement c_emit_call c_emit_expr simd_metadata c_emit_simd go_simd c_backend
-BOOTSTRAP_MODULES += $(GO_PORT_MODULES) $(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES)
+BOOTSTRAP_MODULES += $(GO_PORT_MODULES) $(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES) $(FRONTEND_PORT_MODULES)
 # Darwin's seed copies of the platform modules, generated with the defines a
 # Darwin host passes; one copy serves Apple Silicon and Intel.
 DARWIN_BOOTSTRAP_MODULES := runtime_emit backend_cache backend_process

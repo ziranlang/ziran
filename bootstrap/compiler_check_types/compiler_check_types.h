@@ -56,7 +56,6 @@ typedef struct ZirDocument ZirDocument;
 typedef struct ZirParameter ZirParameter;
 typedef struct CheckArray1_ZirParameter CheckArray1_ZirParameter;
 typedef struct ZirParameters ZirParameters;
-typedef struct ZirTargetFacts ZirTargetFacts;
 typedef struct ZirVector ZirVector;
 typedef struct MoveState MoveState;
 typedef struct CheckArray21__u8 CheckArray21__u8;
@@ -416,13 +415,6 @@ struct CheckArray1_ZirParameter {
 struct ZirParameters {
     int32_t count;
     CheckArray1_ZirParameter items;
-};
-
-struct ZirTargetFacts {
-    int32_t target;
-    int32_t os;
-    int32_t cpu;
-    uint8_t* options;
 };
 
 struct ZirVector {

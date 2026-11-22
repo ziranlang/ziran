@@ -96,17 +96,121 @@ zir_f_b3d08f26d3d99233_CProfileCount(uint8_t* counter)
     zir_foreign_zir_f_b3d08f26d3d99233_CProfileCount(counter);
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_b3d08f26d3d99233_CMemoType_d3951ca9
-#define ZIR_FOREIGN_zir_f_b3d08f26d3d99233_CMemoType_d3951ca9
+#ifndef ZIR_FOREIGN_zir_f_b3d08f26d3d99233_BodyMemoAddress_0b7ca6b8
+#define ZIR_FOREIGN_zir_f_b3d08f26d3d99233_BodyMemoAddress_0b7ca6b8
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_b3d08f26d3d99233_CMemoType(ZirModule* module, uint8_t* name) __asm__("_MemoPortableBodyType");
+BodyMemo* zir_foreign_zir_f_b3d08f26d3d99233_BodyMemoAddress(void) __asm__("_CompilerBodyMemoAddress");
 #else
-int32_t zir_foreign_zir_f_b3d08f26d3d99233_CMemoType(ZirModule* module, uint8_t* name) __asm__("MemoPortableBodyType");
+BodyMemo* zir_foreign_zir_f_b3d08f26d3d99233_BodyMemoAddress(void) __asm__("CompilerBodyMemoAddress");
+#endif
+static BodyMemo*
+zir_f_b3d08f26d3d99233_BodyMemoAddress(void)
+{
+    return zir_foreign_zir_f_b3d08f26d3d99233_BodyMemoAddress();
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_b3d08f26d3d99233_BodyScratchAddress_95bc5080
+#define ZIR_FOREIGN_zir_f_b3d08f26d3d99233_BodyScratchAddress_95bc5080
+#ifdef __APPLE__
+void* zir_foreign_zir_f_b3d08f26d3d99233_BodyScratchAddress(void) __asm__("_CompilerBodyScratchAddress");
+#else
+void* zir_foreign_zir_f_b3d08f26d3d99233_BodyScratchAddress(void) __asm__("CompilerBodyScratchAddress");
+#endif
+static void*
+zir_f_b3d08f26d3d99233_BodyScratchAddress(void)
+{
+    return zir_foreign_zir_f_b3d08f26d3d99233_BodyScratchAddress();
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_b3d08f26d3d99233_CompilerScratchCached_bcad2672
+#define ZIR_FOREIGN_zir_f_b3d08f26d3d99233_CompilerScratchCached_bcad2672
+#ifdef __APPLE__
+void* zir_foreign_zir_f_b3d08f26d3d99233_CompilerScratchCached(void* cache, uint8_t* key, DestroyScratch destroy) __asm__("_CompilerScratchCached");
+#else
+void* zir_foreign_zir_f_b3d08f26d3d99233_CompilerScratchCached(void* cache, uint8_t* key, DestroyScratch destroy) __asm__("CompilerScratchCached");
+#endif
+static void*
+zir_f_b3d08f26d3d99233_CompilerScratchCached(void* cache, uint8_t* key, DestroyScratch destroy)
+{
+    return zir_foreign_zir_f_b3d08f26d3d99233_CompilerScratchCached(cache, key, destroy);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_b3d08f26d3d99233_CompilerScratchTake_7eecd454
+#define ZIR_FOREIGN_zir_f_b3d08f26d3d99233_CompilerScratchTake_7eecd454
+#ifdef __APPLE__
+void* zir_foreign_zir_f_b3d08f26d3d99233_CompilerScratchTake(void* pool) __asm__("_CompilerScratchTake");
+#else
+void* zir_foreign_zir_f_b3d08f26d3d99233_CompilerScratchTake(void* pool) __asm__("CompilerScratchTake");
+#endif
+static void*
+zir_f_b3d08f26d3d99233_CompilerScratchTake(void* pool)
+{
+    return zir_foreign_zir_f_b3d08f26d3d99233_CompilerScratchTake(pool);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_b3d08f26d3d99233_CompilerScratchPut_24e84c9a
+#define ZIR_FOREIGN_zir_f_b3d08f26d3d99233_CompilerScratchPut_24e84c9a
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_b3d08f26d3d99233_CompilerScratchPut(void* pool, void* memory) __asm__("_CompilerScratchPut");
+#else
+int32_t zir_foreign_zir_f_b3d08f26d3d99233_CompilerScratchPut(void* pool, void* memory) __asm__("CompilerScratchPut");
 #endif
 static int32_t
-zir_f_b3d08f26d3d99233_CMemoType(ZirModule* module, uint8_t* name)
+zir_f_b3d08f26d3d99233_CompilerScratchPut(void* pool, void* memory)
 {
-    return zir_foreign_zir_f_b3d08f26d3d99233_CMemoType(module, name);
+    return zir_foreign_zir_f_b3d08f26d3d99233_CompilerScratchPut(pool, memory);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_b3d08f26d3d99233_CompilerMemoryRecovering_b88389da
+#define ZIR_FOREIGN_zir_f_b3d08f26d3d99233_CompilerMemoryRecovering_b88389da
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_b3d08f26d3d99233_CompilerMemoryRecovering(void) __asm__("_CompilerMemoryRecovering");
+#else
+int32_t zir_foreign_zir_f_b3d08f26d3d99233_CompilerMemoryRecovering(void) __asm__("CompilerMemoryRecovering");
+#endif
+static int32_t
+zir_f_b3d08f26d3d99233_CompilerMemoryRecovering(void)
+{
+    return zir_foreign_zir_f_b3d08f26d3d99233_CompilerMemoryRecovering();
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_b3d08f26d3d99233_AllocateOrExit_5810995e
+#define ZIR_FOREIGN_zir_f_b3d08f26d3d99233_AllocateOrExit_5810995e
+#ifdef __APPLE__
+void* zir_foreign_zir_f_b3d08f26d3d99233_AllocateOrExit(size_t size) __asm__("_AllocateOrExit");
+#else
+void* zir_foreign_zir_f_b3d08f26d3d99233_AllocateOrExit(size_t size) __asm__("AllocateOrExit");
+#endif
+static void*
+zir_f_b3d08f26d3d99233_AllocateOrExit(size_t size)
+{
+    return zir_foreign_zir_f_b3d08f26d3d99233_AllocateOrExit(size);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_b3d08f26d3d99233_Free_544d5753
+#define ZIR_FOREIGN_zir_f_b3d08f26d3d99233_Free_544d5753
+#ifdef __APPLE__
+void zir_foreign_zir_f_b3d08f26d3d99233_Free(void* memory) __asm__("_CompilerFree");
+#else
+void zir_foreign_zir_f_b3d08f26d3d99233_Free(void* memory) __asm__("CompilerFree");
+#endif
+static void
+zir_f_b3d08f26d3d99233_Free(void* memory)
+{
+    zir_foreign_zir_f_b3d08f26d3d99233_Free(memory);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_b3d08f26d3d99233_ClearBytes_0839e910
+#define ZIR_FOREIGN_zir_f_b3d08f26d3d99233_ClearBytes_0839e910
+#ifdef __APPLE__
+void* zir_foreign_zir_f_b3d08f26d3d99233_ClearBytes(void* memory, int32_t byte, size_t size) __asm__("_memset");
+#else
+void* zir_foreign_zir_f_b3d08f26d3d99233_ClearBytes(void* memory, int32_t byte, size_t size) __asm__("memset");
+#endif
+static void*
+zir_f_b3d08f26d3d99233_ClearBytes(void* memory, int32_t byte, size_t size)
+{
+    return zir_foreign_zir_f_b3d08f26d3d99233_ClearBytes(memory, byte, size);
 }
 #endif
 #ifndef ZIRAN_MAYBE_UNUSED
@@ -116,17 +220,41 @@ zir_f_b3d08f26d3d99233_CMemoType(ZirModule* module, uint8_t* name)
 #define ZIRAN_MAYBE_UNUSED
 #endif
 #endif
+static void compiler_portable_body_ReleaseBodySupport(void* memory) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_portable_body_MemoType(ZirModule* module, uint8_t* type) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_portable_body_CName(String text) ZIRAN_MAYBE_UNUSED;
 static bool compiler_portable_body_OnPath(TypePath* path, ZirType* record) ZIRAN_MAYBE_UNUSED;
 static bool compiler_portable_body_PortableParameters(ZirModule* module, uint8_t* text, TypePath* path, bool memo) ZIRAN_MAYBE_UNUSED;
 static bool compiler_portable_body_PortableType(ZirModule* module, uint8_t* type, TypePath* path) ZIRAN_MAYBE_UNUSED;
 static bool compiler_portable_body_PortableExpression(ZirModule* module, ZirFunction* fn, int32_t index, uint8_t* support) ZIRAN_MAYBE_UNUSED;
 static bool compiler_portable_body_PortableDestination(ZirFunction* fn, int32_t index) ZIRAN_MAYBE_UNUSED;
+static uint8_t body_scratch_key = {0};
+
+static void
+compiler_portable_body_ReleaseBodySupport(void* memory)
+{
+    zir_f_b3d08f26d3d99233_Free(memory);
+}
+
+static int32_t
+compiler_portable_body_MemoType(ZirModule* module, uint8_t* type)
+{
+    BodyMemo* memo = zir_f_b3d08f26d3d99233_BodyMemoAddress();
+    size_t key = ((size_t)(type) >> 3) ^ ((size_t)(module) >> 6);
+    BodyMemoSlot* slot = &(memo->slots[((key ^ (key >> 9)) % 512)]);
+    if (slot->pass == memo->pass && slot->type == type && slot->module == module) {
+        return slot->answer;
+    }
+    int32_t answer = CanEmitTypeZiran(module, type);
+    BodyMemoSlot* value_0 = &(slot[0]);
+    (*value_0) = (BodyMemoSlot){.module = module, .type = type, .pass = memo->pass, .answer = answer};
+    return answer;
+}
 
 static uint8_t*
 compiler_portable_body_CName(String text)
 {
-    return ((zir_a11d17f8c5aae545_StaticText*)(&(text)))->data;
+    return ((zir_2185da006c396622_StaticText*)(&(text)))->data;
 }
 
 static bool
@@ -160,7 +288,7 @@ compiler_portable_body_PortableParameters(ZirModule* module, uint8_t* text, Type
                 return false;
             }
             if (memo) {
-                if (zir_f_b3d08f26d3d99233_CMemoType(module, type) == 0) {
+                if (compiler_portable_body_MemoType(module, type) == 0) {
                     return false;
                 }
             } else {
@@ -260,7 +388,7 @@ compiler_portable_body_PortableExpression(ZirModule* module, ZirFunction* fn, in
         uint8_t* value_1 = (void *)0;
         {
             String text = value_0;
-            value_1 = ((zir_a11d17f8c5aae545_StaticText*)(&(text)))->data;
+            value_1 = ((zir_2185da006c396622_StaticText*)(&(text)))->data;
         }
         zir_f_b3d08f26d3d99233_CProfileCount(value_1);
         return support[index] == 2;
@@ -271,11 +399,11 @@ compiler_portable_body_PortableExpression(ZirModule* module, ZirFunction* fn, in
     uint8_t* value_5 = (void *)0;
     {
         String text = value_4;
-        value_5 = ((zir_a11d17f8c5aae545_StaticText*)(&(text)))->data;
+        value_5 = ((zir_2185da006c396622_StaticText*)(&(text)))->data;
     }
     zir_f_b3d08f26d3d99233_CProfileCount(value_5);
     ZirExpr* expr = &(fn->exprs[index]);
-    if (zir_f_b3d08f26d3d99233_CMemoType(module, (uint8_t*)expr->type) == 0) {
+    if (compiler_portable_body_MemoType(module, (uint8_t*)expr->type) == 0) {
         return false;
     }
     ZirExprKind kind = (ZirExprKind)(expr->kind);
@@ -303,7 +431,7 @@ compiler_portable_body_PortableExpression(ZirModule* module, ZirFunction* fn, in
         bool value_12 = value_11;
         if (value_12) {
             bool value_13 = expr->left < 0 || expr->left >= fn->expr_count;
-            bool value_14 = value_13 || zir_f_b3d08f26d3d99233_CMemoType(module, (uint8_t*)(fn->exprs[expr->left]).type) == 0;
+            bool value_14 = value_13 || compiler_portable_body_MemoType(module, (uint8_t*)(fn->exprs[expr->left]).type) == 0;
             value_12 = value_14;
         }
         if (value_12) {
@@ -377,10 +505,61 @@ CanEmitTypeZiran(ZirModule* module, uint8_t* type)
 }
 
 int32_t
+MemoPortableBodyType(ZirModule* module, uint8_t* type)
+{
+    return compiler_portable_body_MemoType(module, type);
+}
+
+int32_t
+CanEmitBody(ZirModule* module, ZirFunction* fn)
+{
+    if (fn->checked == 0 || fn->is_extern != 0 || fn->expr_count < 0) {
+        return 0;
+    }
+    void* value_0 = zir_f_b3d08f26d3d99233_BodyScratchAddress();
+    void* pool = zir_f_b3d08f26d3d99233_CompilerScratchCached(value_0, &(body_scratch_key), compiler_portable_body_ReleaseBodySupport);
+    bool value_1 = zir_f_b3d08f26d3d99233_CompilerMemoryRecovering() == 0;
+    BodySupport* value_2 = (void *)0;
+    if (value_1) {
+        void* value_3 = zir_f_b3d08f26d3d99233_CompilerScratchTake(pool);
+        value_2 = (BodySupport*)(value_3);
+    } else {
+        value_2 = (void *)0;
+    }
+    BodySupport* support = value_2;
+    size_t count = (size_t)(fn->expr_count);
+    if (support == ((void *)0) || count > support->capacity) {
+        zir_f_b3d08f26d3d99233_Free((void*)(support));
+        void* value_4 = zir_f_b3d08f26d3d99233_AllocateOrExit(sizeof(BodySupport) + count);
+        support = (BodySupport*)(value_4);
+        size_t* value_5 = &(support->capacity);
+        (*value_5) = count;
+    }
+    uint8_t* marks = (uint8_t*)(((size_t)(support) + sizeof(BodySupport)));
+    if (count != 0) {
+        zir_f_b3d08f26d3d99233_ClearBytes((void*)(marks), 0, count);
+    }
+    BodyMemo* memo = zir_f_b3d08f26d3d99233_BodyMemoAddress();
+    uint32_t* value_6 = &(memo->pass);
+    (*value_6) = (uint32_t)((uint32_t)((*value_6)) + 1u);
+    if (memo->pass == 0) {
+        zir_f_b3d08f26d3d99233_ClearBytes((void*)(&(memo->slots[0])), 0, (512) * (sizeof(BodyMemoSlot)));
+        uint32_t* value_7 = &(memo->pass);
+        (*value_7) = 1;
+    }
+    int32_t answer = CanEmitBodyZiran(module, fn, marks);
+    bool value_8 = zir_f_b3d08f26d3d99233_CompilerMemoryRecovering() != 0;
+    if (value_8 || zir_f_b3d08f26d3d99233_CompilerScratchPut(pool, (void*)(support)) == 0) {
+        zir_f_b3d08f26d3d99233_Free((void*)(support));
+    }
+    return answer;
+}
+
+int32_t
 CanEmitBodyZiran(ZirModule* module, ZirFunction* fn, uint8_t* support)
 {
     bool value_0 = fn->checked == 0 || fn->is_extern != 0 || fn->expr_count < 0;
-    bool value_1 = value_0 || zir_f_b3d08f26d3d99233_CMemoType(module, &(fn->return_type[0])) == 0;
+    bool value_1 = value_0 || compiler_portable_body_MemoType(module, &(fn->return_type[0])) == 0;
     bool value_2 = value_1;
     bool value_3 = value_2;
     if (!value_3) {
@@ -398,7 +577,7 @@ CanEmitBodyZiran(ZirModule* module, ZirFunction* fn, uint8_t* support)
             ZirStmt* statement = &(fn->stmts[i]);
             ZirStmtKind kind = (ZirStmtKind)(statement->kind);
             if (kind == ((ZirStmtKind)(3))) {
-                if (zir_f_b3d08f26d3d99233_CMemoType(module, (uint8_t*)statement->type) == 0) {
+                if (compiler_portable_body_MemoType(module, (uint8_t*)statement->type) == 0) {
                     return 0;
                 }
             } else if (kind == ((ZirStmtKind)(4))) {

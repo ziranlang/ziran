@@ -1742,8 +1742,8 @@ compiler_parse_typed_compile_compiler_value(uint8_t* member, CompileValue* resul
                             zir_f_ba6b3768b86949fb_memset((void*)(literal_storage_1), 0, sizeof(ParserArray160_u8));
                             uint8_t* value_18 = compiler_parse_types_ParserCString(StringLiteral("\"%s\""));
                             uint8_t* value_19 = (void *)0;
-                            if ((facts_storage_0[0]).options != ((void *)0)) {
-                                value_19 = (facts_storage_0[0]).options;
+                            if (((uint8_t*)(facts_storage_0[0]).options) != ((void *)0)) {
+                                value_19 = (uint8_t*)(facts_storage_0[0]).options;
                             } else {
                                 uint8_t* value_20 = compiler_parse_types_ParserCString(StringLiteral(""));
                                 value_19 = value_20;

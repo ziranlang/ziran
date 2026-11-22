@@ -9,6 +9,16 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#ifdef ZIRAN_COMPILER_SERVICES_H_PRIVATE
+typedef struct TextBytes TextBytes;
+#endif
+#ifdef ZIRAN_COMPILER_SERVICES_H_PRIVATE
+
+struct TextBytes {
+    uint8_t* data;
+    size_t length;
+};
+#endif
 void compiler_services_Diagnose__overload_1(ZirSourceSpan span, String code, String message);
 void compiler_services_Diagnose__overload_2(ZirSourceSpan span, String code, String message, String subject, String tail);
 uint8_t* compiler_services_Keep(String text);
@@ -19,10 +29,60 @@ void compiler_services_LookupsChanged(void);
 int32_t compiler_services_ResolveFunction(ZirModule* module, uint8_t* name, uint8_t* path, ZirModule** owner, ZirFunction** function);
 int32_t compiler_services_MapPrimitiveName(uint8_t* name);
 ZirImport* compiler_services_AddImport(ZirModule* module, ZirImportKind kind, String name, String target, String signature, ZirSourceSpan span);
+uint8_t* ZiranKeepText(String text);
+uint8_t* ZiranKeepName(String text);
+uint8_t* ZiranKeepParameters(String text);
+void ZiranDiagnose(ZirSourceSpan span, String code, String message);
+ZirImport* ZiranAddImport(ZirModule* module, ZirImportKind kind, String name, String target, String signature, ZirSourceSpan span);
 ZirExpr* compiler_services_AddExpr(ZirFunction* fn, ZirExprKind kind, String text, ZirSourceSpan span);
 ZirType* compiler_services_FindType(ZirModule* module, String name, ZirModule** owner);
 int32_t compiler_services_NextField(ZirType* record, size_t* offset, ZirTypeField* field);
 void compiler_services_Fatal(ZirSourceSpan span, String code, String message);
+
+/* Small procedures other modules inline; compiler_services.c defines them. */
+#if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_SERVICES_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
+#include "zir_string_types.h"
+static inline void compiler_services_Diagnose__overload_1_ziran_inline(ZirSourceSpan span, String code, String message);
+#define compiler_services_Diagnose__overload_1(...) compiler_services_Diagnose__overload_1_ziran_inline(__VA_ARGS__)
+static inline uint8_t* compiler_services_Keep_ziran_inline(String text);
+#define compiler_services_Keep(...) compiler_services_Keep_ziran_inline(__VA_ARGS__)
+static inline uint8_t* compiler_services_KeepName_ziran_inline(String text);
+#define compiler_services_KeepName(...) compiler_services_KeepName_ziran_inline(__VA_ARGS__)
+static inline uint8_t* compiler_services_KeepParameters_ziran_inline(String text);
+#define compiler_services_KeepParameters(...) compiler_services_KeepParameters_ziran_inline(__VA_ARGS__)
+static inline ZirImport* compiler_services_AddImport_ziran_inline(ZirModule* module, ZirImportKind kind, String name, String target, String signature, ZirSourceSpan span);
+#define compiler_services_AddImport(...) compiler_services_AddImport_ziran_inline(__VA_ARGS__)
+
+static inline void
+compiler_services_Diagnose__overload_1_ziran_inline(ZirSourceSpan span, String code, String message)
+{
+    ZiranDiagnose(span, code, message);
+}
+
+static inline uint8_t*
+compiler_services_Keep_ziran_inline(String text)
+{
+    return ZiranKeepText(text);
+}
+
+static inline uint8_t*
+compiler_services_KeepName_ziran_inline(String text)
+{
+    return ZiranKeepName(text);
+}
+
+static inline uint8_t*
+compiler_services_KeepParameters_ziran_inline(String text)
+{
+    return ZiranKeepParameters(text);
+}
+
+static inline ZirImport*
+compiler_services_AddImport_ziran_inline(ZirModule* module, ZirImportKind kind, String name, String target, String signature, ZirSourceSpan span)
+{
+    return ZiranAddImport(module, kind, name, target, signature, span);
+}
+#endif
 
 #ifdef __cplusplus
 }

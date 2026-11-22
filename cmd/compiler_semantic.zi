@@ -1,0 +1,65 @@
+// Compiler support: semantic. Algorithms are maintained in Ziran.
+using IR :: #import "compiler_ir"
+using Support :: #import "compiler_context_types"
+using Parser :: #import "compiler_parse_types"
+S14 :: #import "compiler_parse_s14_types"
+Check :: #import "compiler_check_types"
+Text :: #import "compiler_text"
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+OperatorOfProcedure :: (name: *u8) -> *u8 #foreign compiler "OperatorOfProcedure";
+Sha256Add :: (hash: *Sha256, data: *void, size: usize) #foreign compiler "Sha256Add";
+Sha256Begin :: (hash: *Sha256) #foreign compiler "Sha256Begin";
+Sha256End :: (hash: *Sha256, digest: *u8) #foreign compiler "Sha256End";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+CompilerStandardError :: () -> *void #foreign compiler "CompilerStandardError";
+semantic_SemanticId_hex: S14.ParserArray17_u8 = .{items = .{48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 97, 98, 99, 100, 101, 102, 0}};
+
+#scope_export
+#program_export "SemanticId"
+SemanticId :: (module: *IR.ZirModule, kind: *u8, name: *u8, signature: *u8, result: *u8, id: *u8) {
+    hash: Sha256
+    bytes: S14.ParserArray32_u8
+    parts: S14.ParserArray6__u8 = .{items = .{ParserCString("ziran.symbol.1"), cast(*u8)(*((module).name)), kind, name, signature, result}}
+    Sha256Begin(*(hash))
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_61 := (i < (cast(usize)size_of(S14.ParserArray6__u8) / cast(usize)size_of(*u8))) {
+            Sha256Add(*(hash), cast(*void)((ifx ((parts).items[i] != null) then (parts).items[i] else ParserCString(""))), (strlen((ifx ((parts).items[i] != null) then (parts).items[i] else ParserCString(""))) + cast(usize)(1)))
+            S15SupportPost4(*(i))
+        }
+    }
+    Sha256End(*(hash), cast(*u8)(*((bytes).items)))
+    memcpy(cast(*void)(id), cast(*void)(ParserCString("zi:")), cast(usize)(3))
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_62 := (i < cast(usize)(32)) {
+            (id)[(cast(usize)(3) + (i * cast(usize)(2)))] = (semantic_SemanticId_hex).items[(cast(s32)((bytes).items[i]) >> 4)]
+            (id)[(cast(usize)(4) + (i * cast(usize)(2)))] = (semantic_SemanticId_hex).items[(cast(s32)((bytes).items[i]) & 15)]
+            S15SupportPost4(*(i))
+        }
+    }
+    (id)[67] = cast(u8)(0)
+}
+
+#scope_export
+#program_export "FunctionSemanticId"
+FunctionSemanticId :: (module: *IR.ZirModule, function: *IR.ZirFunction, id: *u8) {
+    normalized: S14.ParserArray32_u8
+    name: *u8 = (ifx (((function).overload_name)[0] != 0) then cast(*u8)(*((function).overload_name)) else cast(*u8)(*((function).name)))
+    operator_local: *u8 = OperatorOfProcedure(name)
+    if (operator_local != null) {
+        snprintf(cast(*u8)(*((normalized).items)), cast(usize)size_of(S14.ParserArray32_u8), ParserCString("operator %s"), operator_local)
+        name = cast(*u8)(*((normalized).items))
+    }
+    SemanticId(module, ParserCString("function"), name, FunctionArgs(function), cast(*u8)(*((function).return_type)), id)
+}
+
+#scope_file
+FunctionArgs :: (fn: *IR.ZirFunction) -> *u8 {
+    return (ifx ((fn).args_text != null) then (fn).args_text else ParserCString(""))
+    unreachable
+}

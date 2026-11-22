@@ -7,9 +7,21 @@ mkdir -p "$root/build"
 work=$(mktemp -d "$root/build/compiler-files-portable.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
-"${CC:-cc}" -D_GNU_SOURCE -std=c11 -Wall -Wextra -Werror \
-    -I"$root/cmd/zir" -I"$root/bootstrap/compiler_ir" "$root/tests/compiler_files_portable.c" \
-    "$root/cmd/zir/zir_files.c" "$root/cmd/zir/zir_memory.c" -o "$work/files"
+compile_fixture() {
+    compiler=$1
+    output=$2
+    shift 2
+    for module in ir context_types parse_types parse_s14_types check_types text statement declaration source scan files; do
+        set -- "$@" -I"$root/bootstrap/compiler_$module"
+    done
+    "$compiler" -std=c11 -Wall -Wextra -Werror -Wno-unused-label -I"$root/include" "$@" \
+        -c "$root/bootstrap/compiler_files/compiler_files.c" -o "$work/files.o"
+    "$compiler" -std=c11 -Wall -Wextra -Werror -I"$root/include" -I"$root/cmd/zir" "$@" \
+        "$root/tests/compiler_files_portable.c" "$work/files.o" \
+        "$root/cmd/zir/zir_files_host.c" "$root/cmd/zir/zir_memory.c" -o "$output"
+}
+
+compile_fixture "${CC:-cc}" "$work/files" -D_GNU_SOURCE
 mkdir "$work/native"
 (cd "$work/native" && "$work/files")
 
@@ -22,8 +34,6 @@ if ! command -v "$cc" >/dev/null 2>&1; then
     echo "compiler_files_portable: native passed; $cc unavailable"
     exit 0
 fi
-"$cc" -std=c11 -static -Wall -Wextra -Werror -I"$root/cmd/zir" -I"$root/bootstrap/compiler_ir" \
-    "$root/tests/compiler_files_portable.c" "$root/cmd/zir/zir_files.c" "$root/cmd/zir/zir_memory.c" \
-    "$@" -o "$work/files.exe"
+compile_fixture "$cc" "$work/files.exe" -static "$@"
 
 echo 'compiler_files_portable: native file operations and Windows compile/link passed'

@@ -1,15 +1,13 @@
-/* The C services cmd/compiler_services.zi declares for the Ziran compiler
- * modules. A Ziran string arrives as a String view with no closing NUL. */
+/* Native library and thread-local details used by compiler modules. */
 #include "zir.h"
-#include "zir_body.h"
-#include "zir_scratch.h"
 #include "compiler_portable_body.h"
-#include "zir_diagnostic.h"
 #include "zir_memory.h"
 #include "zir_stream.h"
 
 #include <errno.h>
+#include <locale.h>
 #include <math.h>
+#include <stdarg.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,8 +16,6 @@
 int ZiranInspectRewind(FILE *file) { return fseek(file, 0, SEEK_SET); }
 const char *ZiranInspectIOError(void) { return strerror(errno); }
 int ZiranInspectOutputError(void) { return ferror(stdout); }
-
-void *CompilerStandardError(void) { return stderr; }
 
 /* Measure an open input and position it at the start for reading. */
 int64_t
@@ -33,112 +29,67 @@ CompilerFileSize(FILE *file)
     return bytes;
 }
 
-static char *
-terminated(String text)
+/* Each thread selects its translation target independently of the host. */
+static _Thread_local ZirTargetFacts target_facts;
+static _Thread_local char target_options[128];
+
+ZirTargetFacts *CompilerTargetFactsAddress(void) { return &target_facts; }
+char *CompilerTargetOptionsAddress(void) { return target_options; }
+
+ZirTargetOS
+CompilerHostOS(void)
 {
-    char *copy = AllocateOrExit(text.length + 1);
-    if(text.length) memcpy(copy, text.data, text.length);
-    copy[text.length] = '\0';
-    return copy;
+#if defined(__EMSCRIPTEN__) || defined(__wasi__)
+    return ZIR_OS_WEB;
+#elif defined(__ANDROID__)
+    return ZIR_OS_ANDROID;
+#elif defined(_WIN32)
+    return ZIR_OS_WINDOWS;
+#elif defined(__APPLE__)
+    return ZIR_OS_MACOS;
+#elif defined(__linux__)
+    return ZIR_OS_LINUX;
+#else
+    return ZIR_OS_NONE;
+#endif
 }
 
-static const char *
-keep_with(String text, const char *(*keep)(const char *))
+ZirTargetCPU
+CompilerHostCPU(void)
 {
-    char *copy = terminated(text);
-    const char *kept = keep(copy);
-    free(copy);
-    return kept;
+#if defined(__wasm32__)
+    return ZIR_CPU_WASM32;
+#elif defined(__x86_64__) || defined(_M_X64)
+    return ZIR_CPU_X64;
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    return ZIR_CPU_ARM64;
+#else
+    return ZIR_CPU_NONE;
+#endif
 }
 
-const char *ZiranKeepText(String text) { return keep_with(text, KeepText); }
-const char *ZiranKeepName(String text) { return keep_with(text, KeepName); }
-const char *ZiranKeepParameters(String text) { return keep_with(text, KeepParameters); }
-
-void
-ZiranDiagnose(ZirSourceSpan span, String code, String message)
+BodyMemo *CompilerBodyMemoAddress(void)
 {
-    char *kept_code = terminated(code), *kept_message = terminated(message);
-    Diagnostic(span, kept_code, "%s", kept_message);
-    free(kept_code);
-    free(kept_message);
+    static _Thread_local BodyMemo memo;
+    return &memo;
 }
 
-ZirImport *
-ZiranAddImport(ZirModule *module, ZirImportKind kind, String name,
-               String target, String signature, ZirSourceSpan span)
+CompilerScratchCache *CompilerBodyScratchAddress(void)
 {
-    /* The copies outlive the import array, which this call may move. */
-    char *kept_name = terminated(name), *kept_target = terminated(target),
-         *kept_signature = terminated(signature);
-    ZirImport *import = ModuleAddImport(module, kind, kept_name, kept_target,
-                                        kept_signature, 0, span);
-    free(kept_name);
-    free(kept_target);
-    free(kept_signature);
-    return import;
-}
-
-/* The typed-body checker uses one thread-local memo per invocation and
- * reuses the context's cleared expression marks between calls. */
-#define BODY_MEMO_SLOTS 512
-
-typedef struct BodyMemoSlot {
-    const ZirModule *module;
-    const char *type;
-    unsigned pass;
-    int answer;
-} BodyMemoSlot;
-
-typedef struct BodyMemo {
-    unsigned pass;
-    BodyMemoSlot slots[BODY_MEMO_SLOTS];
-} BodyMemo;
-
-static _Thread_local BodyMemo body_memo;
-
-int
-MemoPortableBodyType(const ZirModule *module, const char *type)
-{
-    BodyMemo *memo = &body_memo;
-    uintptr_t key = ((uintptr_t)type >> 3) ^ ((uintptr_t)module >> 6);
-    BodyMemoSlot *slot = &memo->slots[(key ^ (key >> 9)) % BODY_MEMO_SLOTS];
-    if(slot->pass == memo->pass && slot->type == type && slot->module == module)
-        return slot->answer;
-    int answer = CanEmitTypeZiran((ZirModule *)module, (uint8_t *)type);
-    *slot = (BodyMemoSlot){module, type, memo->pass, answer};
-    return answer;
-}
-
-typedef struct BodySupport {
-    size_t capacity;
-    uint8_t marks[];
-} BodySupport;
-
-int
-CanEmitBody(const ZirModule *module, const ZirFunction *fn)
-{
-    if(!fn->checked || fn->is_extern || fn->expr_count < 0) return 0;
-    static const char key;
     static _Thread_local CompilerScratchCache cache;
-    CompilerScratch *scratch = CompilerScratchCached(&cache, &key, free);
-    BodySupport *support = CompilerMemoryRecovering() ? NULL : CompilerScratchTake(scratch);
-    size_t count = (size_t)fn->expr_count;
-    if(support == NULL || count > support->capacity) {
-        free(support);
-        support = AllocateOrExit(sizeof(*support) + count);
-        support->capacity = count;
-    }
-    if(count != 0) memset(support->marks, 0, count);
-    BodyMemo *memo = &body_memo;
-    if(++memo->pass == 0) {
-        memset(memo->slots, 0, sizeof(memo->slots));
-        memo->pass = 1;
-    }
-    int answer = CanEmitBodyZiran((ZirModule *)module, (ZirFunction *)fn, support->marks);
-    if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch, support))
-        free(support);
-    return answer;
+    return &cache;
+}
+
+const char *S15DecimalPoint(void) { return localeconv()->decimal_point; }
+
+const char *KeepNameFormat(const char *format, ...)
+{
+    char name[ZIR_NAME_MAX];
+    va_list args;
+    va_start(args, format);
+    if(vsnprintf(name, sizeof(name), format, args) < 0) name[0] = '\0';
+    va_end(args);
+    return KeepName(name);
 }
 
 void **

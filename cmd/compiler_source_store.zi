@@ -1,0 +1,1106 @@
+// Compiler support: storage. Algorithms are maintained in Ziran.
+using IR :: #import "compiler_ir"
+using Support :: #import "compiler_context_types"
+using Parser :: #import "compiler_parse_types"
+S14 :: #import "compiler_parse_s14_types"
+Check :: #import "compiler_check_types"
+Text :: #import "compiler_text"
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+CompilerCalloc :: (count: usize, size: usize) -> *void #foreign compiler "CompilerCalloc";
+CompilerContextCurrent :: () -> *CompilerContext #foreign compiler "CompilerContextCurrent";
+CompilerContextStorage :: (context_local: *CompilerContext, key: s32, size: usize, destroy: S15Callback0) -> *void #foreign compiler "CompilerContextStorage";
+CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
+CompilerMalloc :: (size: usize) -> *void #foreign compiler "CompilerMalloc";
+CompilerMemoryPause :: () -> *void #foreign compiler "CompilerMemoryPause";
+CompilerMemoryResume :: (memory: *void) #foreign compiler "CompilerMemoryResume";
+CompilerRealloc :: (pointer: *void, size: usize) -> *void #foreign compiler "CompilerRealloc";
+CompilerStrdup :: (text: *u8) -> *u8 #foreign compiler "CompilerStrdup";
+CompilerThreadIdentity :: (thread: *CompilerThread) -> u64 #foreign compiler "CompilerThreadIdentity";
+CompilerThreadStateAddress :: () -> *CompilerThread #foreign compiler "CompilerThreadStateAddress";
+CompilerThreadStorage :: (thread: *CompilerThread, key: s32, size: usize, destroy: S15Callback0) -> *void #foreign compiler "CompilerThreadStorage";
+DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+ProfileAllocation :: (bytes: usize) #foreign compiler "ProfileAllocation";
+ProfileCount :: (counter: *u8) #foreign compiler "ProfileCount";
+S15IntExchange :: (arg0: *void, arg1: s32) -> s32 #foreign compiler "S15IntExchange";
+S15IntStore :: (arg0: *void, arg1: s32) #foreign compiler "S15IntStore";
+exit :: (__status: s32) #foreign libc "exit";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+memset :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memset";
+strchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strchr";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+strnlen :: (__string: *u8, __maxlen: usize) -> usize #foreign libc "strnlen";
+isdigit :: (character: s32) -> s32 #foreign libc "isdigit";
+CompilerStandardError :: () -> *void #foreign compiler "CompilerStandardError";
+storage_empty_text: ParserArray1_u8 = .{items = .{0}};
+storage_raw_texts: S15RawTexts;
+
+#scope_file
+free_source_files :: (value: *void) {
+    files: *SourceFiles = cast(*SourceFiles)(value)
+    {
+        i: s32 = 1
+        while check_loop_26 := (i < (files).count) {
+            CompilerFree(cast(*void)(((files).paths)[i]))
+            S15SupportPost1(*(i))
+        }
+    }
+    CompilerFree(cast(*void)((files).paths))
+    CompilerFree(cast(*void)((files).slots))
+}
+
+#scope_file
+source_files_in :: (context_local: *CompilerContext) -> *SourceFiles {
+    return cast(*SourceFiles)(CompilerContextStorage(context_local, 0, cast(usize)size_of(SourceFiles), free_source_files))
+    unreachable
+}
+
+#scope_file
+lock_table :: (lock: *s32) {
+    while check_loop_27 := (S15IntExchange(cast(*void)(lock), 1) != 0) {
+    }
+}
+
+#scope_file
+unlock_table :: (lock: *s32) {
+    S15IntStore(cast(*void)(lock), 0)
+}
+
+#scope_file
+source_file_slot :: (files: *SourceFiles, path: *u8) -> usize {
+    hash: u64 = cast(u64)(cast(u64)14695981039346656037)
+    {
+        p: *u8 = cast(*u8)(path)
+        while check_loop_28 := ((p)[0] != 0) {
+            hash ^= cast(u64)((p)[0])
+            hash *= cast(u64)(cast(u64)1099511628211)
+            S15SupportPost7(*(p))
+        }
+    }
+    slot: usize = (cast(usize)(hash) & (((files).slot_count - cast(usize)(1))))
+    while check_loop_29 := ((((files).slots)[slot] != 0) && (strcmp(((files).paths)[((files).slots)[slot]], path) != 0)) {
+        slot = (((slot + cast(usize)(1))) & (((files).slot_count - cast(usize)(1))))
+    }
+    return slot
+    unreachable
+}
+
+#scope_file
+SourceFile_persistent :: (path: *u8) -> s32 {
+    if ((path == cast(*u8)((null))) || (cast(s32)(cast(s8)((path)[0])) == 0)) {
+        return 0
+    }
+    files: *SourceFiles = source_files_in(CompilerContextCurrent())
+    lock_table(*((files).lock))
+    if ((cast(usize)((files).count) * cast(usize)(2)) >= (files).slot_count) {
+        old_count: usize = (files).slot_count
+        old_slots: *s32 = (files).slots
+        (files).slot_count = (ifx (old_count != 0) then (old_count * cast(usize)(2)) else cast(usize)(256))
+        (files).slots = cast(*s32)(CompilerCalloc((files).slot_count, cast(usize)size_of(s32)))
+        if ((files).slots == cast(*s32)((null))) {
+            DiagnosticOutOfMemory()
+            exit(1)
+        }
+        {
+            i: usize = cast(usize)(0)
+            while check_loop_30 := (i < old_count) {
+                if ((old_slots)[i] != 0) {
+                    ((files).slots)[source_file_slot(files, ((files).paths)[(old_slots)[i]])] = (old_slots)[i]
+                }
+                S15SupportPost4(*(i))
+            }
+        }
+        CompilerFree(cast(*void)(old_slots))
+    }
+    if ((files).count == 0) {
+        (files).count = 1
+    }
+    slot: usize = source_file_slot(files, path)
+    if (((files).slots)[slot] != 0) {
+        file: s32 = ((files).slots)[slot]
+        unlock_table(*((files).lock))
+        return file
+    }
+    if ((files).count >= (files).capacity) {
+        capacity: s32 = (ifx ((files).capacity != 0) then ((files).capacity * 2) else 64)
+        paths: **u8 = cast(**u8)(CompilerRealloc(cast(*void)((files).paths), (cast(usize)(capacity) * cast(usize)size_of(*u8))))
+        if (paths == cast(**u8)((null))) {
+            DiagnosticOutOfMemory()
+            exit(1)
+        }
+        (files).paths = paths
+        (files).capacity = capacity
+    }
+    copy: *u8 = CompilerStrdup(path)
+    if (copy == cast(*u8)((null))) {
+        DiagnosticOutOfMemory()
+        exit(1)
+    }
+    ((files).paths)[(files).count] = copy
+    ((files).slots)[slot] = (files).count
+    file: s32 = S15SupportPost1(*((files).count))
+    unlock_table(*((files).lock))
+    return file
+    unreachable
+}
+
+#scope_export
+#program_export "SpanPath"
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 {
+    files: *SourceFiles = source_files_in(cast(*CompilerContext)((span).context))
+    lock_table(*((files).lock))
+    path: *u8 = (ifx (((span).file > 0) && ((span).file < (files).count)) then ((files).paths)[(span).file] else ParserCString(""))
+    unlock_table(*((files).lock))
+    return path
+    unreachable
+}
+
+#scope_file
+free_kept_texts :: (value: *void) {
+    texts: *KeptTexts = cast(*KeptTexts)(value)
+    while check_loop_31 := ((texts).blocks != null) {
+        block: *KeptBlock = (texts).blocks
+        (texts).blocks = (block).next
+        CompilerFree(cast(*void)(block))
+    }
+    CompilerFree(cast(*void)((texts).texts))
+}
+
+#scope_file
+context_texts :: (thread: *CompilerThread) -> *KeptTexts {
+    return cast(*KeptTexts)(CompilerThreadStorage(thread, 2, cast(usize)size_of(KeptTexts), free_kept_texts))
+    unreachable
+}
+
+#scope_file
+kept_texts_thread :: () -> *CompilerThread {
+    thread: *CompilerThread = CompilerThreadStateAddress()
+    identity: u64 = CompilerThreadIdentity(thread)
+    if ((thread).kept_identity != identity) {
+        memset(cast(*void)(cast(*CompilerKeptText)(*(((thread).kept).items))), 0, cast(usize)size_of(ParserArray128_CompilerKeptText))
+        (thread).kept_identity = identity
+    }
+    return thread
+    unreachable
+}
+
+#scope_file
+kept_text_cache_slot :: (thread: *CompilerThread, text: *u8) -> *CompilerKeptText {
+    hash: usize = cast(usize)(text)
+    hash ^= (hash >> cast(usize)(7))
+    hash ^= (hash >> cast(usize)(13))
+    return cast(*CompilerKeptText)(cast(usize)(cast(*CompilerKeptText)(*(((thread).kept).items))) + cast(usize)((hash & cast(usize)(((128 - 1))))) * size_of(CompilerKeptText))
+    unreachable
+}
+
+#scope_file
+kept_text_cached :: (thread: *CompilerThread, text: *u8, capacity: usize) -> *u8 {
+    entry: *CompilerKeptText = kept_text_cache_slot(thread, text)
+    if ((((entry).input != cast(usize)(text)) || !((entry).text != null)) || ((entry).length >= capacity)) {
+        return null
+    }
+    if ((entry).text == text) {
+        ProfileCount(ParserCString("kept_text_pointer"))
+        return (entry).text
+    }
+    if (strncmp((entry).text, text, ((entry).length + cast(usize)(1))) != 0) {
+        return null
+    }
+    ProfileCount(ParserCString("kept_text_compare"))
+    return (entry).text
+    unreachable
+}
+
+#scope_file
+remember_kept_text :: (thread: *CompilerThread, input: *u8, text: *u8, length: usize) {
+    S15SupportSet8(kept_text_cache_slot(thread, text), CompilerKeptText.{cast(usize)(text), text, length})
+    S15SupportSet8(kept_text_cache_slot(thread, input), CompilerKeptText.{cast(usize)(input), text, length})
+}
+
+#scope_file
+text_hash :: (text: *u8, length: usize) -> u64 {
+    hash: u64 = cast(u64)(cast(u64)14695981039346656037)
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_32 := (i < length) {
+            hash ^= cast(u64)(cast(u8)((text)[i]))
+            hash *= cast(u64)(cast(u64)1099511628211)
+            S15SupportPost4(*(i))
+        }
+    }
+    return hash
+    unreachable
+}
+
+#scope_file
+kept_text_slot :: (texts: *KeptTexts, text: *u8, length: usize) -> usize {
+    slot: usize = (cast(usize)(text_hash(text, length)) & (((texts).slot_count - cast(usize)(1))))
+    while check_loop_33 := ((((texts).texts)[slot] != cast(*u8)((null))) && ((strncmp(((texts).texts)[slot], text, length) != 0) || (cast(s32)(cast(s8)((((texts).texts)[slot])[length])) != 0))) {
+        slot = (((slot + cast(usize)(1))) & (((texts).slot_count - cast(usize)(1))))
+    }
+    return slot
+    unreachable
+}
+
+#scope_export
+#program_export "AllocateOrExit"
+AllocateOrExit :: (size: usize) -> *void {
+    ProfileAllocation(size)
+    memory: *void = CompilerMalloc(size)
+    if (memory == (null)) {
+        DiagnosticOutOfMemory()
+        exit(1)
+    }
+    return memory
+    unreachable
+}
+
+#scope_file
+kept_text_failed :: () {
+    DiagnosticOutOfMemory()
+    exit(1)
+}
+
+#scope_file
+keep_cut :: (thread: *CompilerThread, text: *u8, capacity: usize) -> *u8 {
+    if ((text == cast(*u8)((null))) || (cast(s32)(cast(s8)((text)[0])) == 0)) {
+        return cast(*u8)(*((storage_empty_text).items))
+    }
+    cached: *u8 = kept_text_cached(thread, text, capacity)
+    if (cached != null) {
+        return cached
+    }
+    length: usize = strnlen(text, capacity)
+    if (length < capacity) {
+        return keep_text(thread, text, length)
+    }
+    cut: *u8 = cast(*u8)(AllocateOrExit(capacity))
+    memcpy(cast(*void)(cut), cast(*void)(text), (capacity - cast(usize)(1)))
+    (cut)[(capacity - cast(usize)(1))] = cast(u8)(0)
+    kept: *u8 = keep_text(thread, cut, (capacity - cast(usize)(1)))
+    CompilerFree(cast(*void)(cut))
+    return kept
+    unreachable
+}
+
+#scope_file
+keep_text :: (thread: *CompilerThread, text: *u8, length: usize) -> *u8 {
+    ProfileCount(ParserCString("kept_text_lookup"))
+    texts: *KeptTexts = context_texts(thread)
+    lock_table(*((texts).lock))
+    if (((texts).count * cast(usize)(2)) >= (texts).slot_count) {
+        old_count: usize = (texts).slot_count
+        old_texts: **u8 = (texts).texts
+        (texts).slot_count = (ifx (old_count != 0) then (old_count * cast(usize)(2)) else cast(usize)(4096))
+        (texts).texts = cast(**u8)(CompilerCalloc((texts).slot_count, cast(usize)size_of(*u8)))
+        if ((texts).texts == cast(**u8)((null))) {
+            kept_text_failed()
+        }
+        {
+            i: usize = cast(usize)(0)
+            while check_loop_34 := (i < old_count) {
+                if ((old_texts)[i] != cast(*u8)((null))) {
+                    ((texts).texts)[kept_text_slot(texts, (old_texts)[i], strlen((old_texts)[i]))] = (old_texts)[i]
+                }
+                S15SupportPost4(*(i))
+            }
+        }
+        CompilerFree(cast(*void)(old_texts))
+    }
+    slot: usize = kept_text_slot(texts, text, length)
+    if (((texts).texts)[slot] != cast(*u8)((null))) {
+        kept: *u8 = ((texts).texts)[slot]
+        unlock_table(*((texts).lock))
+        remember_kept_text(thread, text, kept, length)
+        return kept
+    }
+    if (((texts).block == cast(*u8)((null))) || ((((texts).block_used + length) + cast(usize)(1)) > (texts).block_size)) {
+        (texts).block_size = (ifx ((length + cast(usize)(1)) > cast(usize)(65536)) then (length + cast(usize)(1)) else cast(usize)(65536))
+        block: *KeptBlock = cast(*KeptBlock)(CompilerMalloc((cast(usize)size_of(KeptBlock) + (texts).block_size)))
+        if (block == cast(*KeptBlock)((null))) {
+            kept_text_failed()
+        }
+        (block).next = (texts).blocks
+        (texts).blocks = block
+        (texts).block = cast(*u8)(cast(usize)(block) + size_of(KeptBlock))
+        (texts).block_used = cast(usize)(0)
+    }
+    copy: *u8 = cast(*u8)(cast(usize)((texts).block) + cast(usize)((texts).block_used) * size_of(u8))
+    memcpy(cast(*void)(copy), cast(*void)(text), length)
+    (copy)[length] = cast(u8)(0)
+    (texts).block_used += (length + cast(usize)(1))
+    ((texts).texts)[slot] = copy
+    S15SupportPost4(*((texts).count))
+    unlock_table(*((texts).lock))
+    remember_kept_text(thread, text, copy, length)
+    return copy
+    unreachable
+}
+
+#scope_file
+KeepText_persistent :: (thread: *CompilerThread, text: *u8) -> *u8 {
+    if ((text == cast(*u8)((null))) || (cast(s32)(cast(s8)((text)[0])) == 0)) {
+        return cast(*u8)(*((storage_empty_text).items))
+    }
+    cached: *u8 = kept_text_cached(thread, text, (cast(usize)(cast(u64)18446744073709551615)))
+    if (cached != null) {
+        return cached
+    }
+    return keep_text(thread, text, strlen(text))
+    unreachable
+}
+
+#scope_export
+#program_export "Span"
+Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan {
+    return SpanEnd(path, line, column, line, column)
+    unreachable
+}
+
+#scope_export
+#program_export "SpanEnd"
+SpanEnd :: (path: *u8, line: s32, column: s32, end_line: s32, end_column: s32) -> IR.ZirSourceSpan {
+    span: IR.ZirSourceSpan
+    memset(cast(*void)(*(span)), 0, cast(usize)size_of(IR.ZirSourceSpan))
+    (span).context = cast(*u8)(CompilerContextCurrent())
+    (span).file = SourceFile(path)
+    (span).line = line
+    (span).column = column
+    (span).end_line = end_line
+    (span).end_column = end_column
+    return span
+    unreachable
+}
+
+#scope_export
+#program_export "SourceFile"
+SourceFile :: (path: *u8) -> s32 {
+    memory: *void = CompilerMemoryPause()
+    result: s32 = SourceFile_persistent(path)
+    CompilerMemoryResume(memory)
+    return result
+    unreachable
+}
+
+#scope_export
+#program_export "RawTextRegister"
+RawTextRegister :: (body: *u8, length: usize) -> s32 {
+    copy: *u8 = cast(*u8)(CompilerMalloc((length + cast(usize)(1))))
+    if (copy == cast(*u8)((null))) {
+        kept_text_failed()
+    }
+    memcpy(cast(*void)(copy), cast(*void)(body), length)
+    (copy)[length] = cast(u8)(0)
+    lock_table(*((storage_raw_texts).lock))
+    if ((storage_raw_texts).count == (storage_raw_texts).capacity) {
+        capacity: usize = (ifx ((storage_raw_texts).capacity != 0) then ((storage_raw_texts).capacity * cast(usize)(2)) else cast(usize)(64))
+        items: **u8 = cast(**u8)(CompilerRealloc(cast(*void)((storage_raw_texts).items), (capacity * cast(usize)size_of(*u8))))
+        lengths: *usize = cast(*usize)(CompilerRealloc(cast(*void)((storage_raw_texts).lengths), (capacity * cast(usize)size_of(usize))))
+        if ((items == cast(**u8)((null))) || (lengths == cast(*usize)((null)))) {
+            kept_text_failed()
+        }
+        (storage_raw_texts).items = items
+        (storage_raw_texts).lengths = lengths
+        (storage_raw_texts).capacity = capacity
+    }
+    index: s32 = cast(s32)(S15SupportPost4(*((storage_raw_texts).count)))
+    ((storage_raw_texts).items)[index] = copy
+    ((storage_raw_texts).lengths)[index] = length
+    unlock_table(*((storage_raw_texts).lock))
+    return index
+    unreachable
+}
+
+#scope_export
+#program_export "RawTextExpand"
+RawTextExpand :: (text: *u8) -> *u8 {
+    mark: *u8 = strchr(text, 31)
+    if (mark == cast(*u8)((null))) {
+        return null
+    }
+    length: usize = strlen(text)
+    used: usize = cast(usize)(0)
+    capacity: usize = (length + cast(usize)(1))
+    out: *u8 = cast(*u8)(CompilerMalloc(capacity))
+    if (out == cast(*u8)((null))) {
+        kept_text_failed()
+    }
+    {
+        p: *u8 = text
+        while check_loop_35 := ((p)[0] != 0) {
+            if (((cast(s32)(cast(s8)((p)[0])) == 31) && (cast(s32)(cast(s8)((p)[1])) == 82)) && (isdigit(cast(s32)(((cast(u8)((p)[2]))))) != 0)) {
+                q: *u8 = cast(*u8)(cast(usize)(p) + cast(usize)(2) * size_of(u8))
+                index: usize = cast(usize)(0)
+                while check_loop_36 := (isdigit(cast(s32)(((cast(u8)((q)[0]))))) != 0) {
+                    index = ((index * cast(usize)(10)) + cast(usize)(((cast(s32)(cast(s8)((S15SupportPost7(*(q)))[0])) - 48))))
+                }
+                if (cast(s32)(cast(s8)((q)[0])) == 31) {
+                    lock_table(*((storage_raw_texts).lock))
+                    body: *u8 = (ifx (index < (storage_raw_texts).count) then ((storage_raw_texts).items)[index] else null)
+                    body_length: usize = (ifx (body != cast(*u8)((null))) then ((storage_raw_texts).lengths)[index] else cast(usize)(0))
+                    unlock_table(*((storage_raw_texts).lock))
+                    if (body != cast(*u8)((null))) {
+                        if ((((used + body_length) + ((length - cast(usize)(((cast(isize)(cast(usize)(q) - cast(usize)(text)) / cast(isize)size_of(u8))))))) + cast(usize)(1)) > capacity) {
+                            capacity = (((used + body_length) + ((length - cast(usize)(((cast(isize)(cast(usize)(q) - cast(usize)(text)) / cast(isize)size_of(u8))))))) + cast(usize)(1))
+                            out = cast(*u8)(CompilerRealloc(cast(*void)(out), capacity))
+                            if (out == cast(*u8)((null))) {
+                                kept_text_failed()
+                            }
+                        }
+                        memcpy(cast(*void)(cast(*u8)(cast(usize)(out) + cast(usize)(used) * size_of(u8))), cast(*void)(body), body_length)
+                        used += body_length
+                        p = cast(*u8)(cast(usize)(q) + cast(usize)(1) * size_of(u8))
+                        continue check_loop_35
+                    }
+                }
+            }
+            if ((used + cast(usize)(2)) > capacity) {
+                capacity *= cast(usize)(2)
+                out = cast(*u8)(CompilerRealloc(cast(*void)(out), capacity))
+                if (out == cast(*u8)((null))) {
+                    kept_text_failed()
+                }
+            }
+            (out)[S15SupportPost4(*(used))] = (S15SupportPost7(*(p)))[0]
+        }
+    }
+    (out)[used] = cast(u8)(0)
+    return out
+    unreachable
+}
+
+#scope_file
+raw_text_marked :: (text: *u8) -> s32 {
+    {
+        p: *u8 = strchr(text, 31)
+        while check_loop_37 := (p != cast(*u8)((null))) {
+            if ((cast(s32)(cast(s8)((p)[1])) == 82) && (isdigit(cast(s32)(((cast(u8)((p)[2]))))) != 0)) {
+                return 1
+            }
+            p = strchr(cast(*u8)(cast(usize)(p) + cast(usize)(1) * size_of(u8)), 31)
+        }
+    }
+    return 0
+    unreachable
+}
+
+#scope_export
+#program_export "KeepText"
+KeepText :: (text: *u8) -> *u8 {
+    if ((text == cast(*u8)((null))) || (cast(s32)(cast(s8)((text)[0])) == 0)) {
+        return cast(*u8)(*((storage_empty_text).items))
+    }
+    thread: *CompilerThread = kept_texts_thread()
+    if !(raw_text_marked(text) != 0) {
+        cached: *u8 = kept_text_cached(thread, text, (cast(usize)(cast(u64)18446744073709551615)))
+        if (cached != null) {
+            return cached
+        }
+        memory: *void = CompilerThreadPause(thread)
+        result: *u8 = keep_text(thread, text, strlen(text))
+        CompilerThreadResume(thread, memory)
+        return result
+    }
+    memory: *void = CompilerThreadPause(thread)
+    expanded: *u8 = RawTextExpand(text)
+    result: *u8 = KeepText_persistent(thread, (ifx (expanded != cast(*u8)((null))) then expanded else text))
+    CompilerFree(cast(*void)(expanded))
+    CompilerThreadResume(thread, memory)
+    return result
+    unreachable
+}
+
+#scope_file
+keep_cut_paused :: (text: *u8, capacity: usize) -> *u8 {
+    thread: *CompilerThread = kept_texts_thread()
+    memory: *void = CompilerThreadPause(thread)
+    result: *u8 = keep_cut(thread, text, capacity)
+    CompilerThreadResume(thread, memory)
+    return result
+    unreachable
+}
+
+#scope_export
+#program_export "KeepName"
+KeepName :: (text: *u8) -> *u8 {
+    return keep_cut_paused(text, cast(usize)(128))
+    unreachable
+}
+
+#scope_export
+#program_export "KeepParameters"
+KeepParameters :: (text: *u8) -> *u8 {
+    return keep_cut_paused(text, cast(usize)(4096))
+    unreachable
+}
+
+#scope_file
+CompilerThreadPause :: (thread: *CompilerThread) -> *void {
+    memory: *void = (thread).memory
+    (thread).memory = null
+    return memory
+    unreachable
+}
+
+#scope_file
+CompilerThreadResume :: (thread: *CompilerThread, memory: *void) {
+    (thread).memory = memory
+}
+
+// Compiler support: text. Algorithms are maintained in Ziran.
+#scope_file
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+CompilerCurrentStorage :: (key: s32, size: usize, destroy: S15Callback0) -> *void #foreign compiler "CompilerCurrentStorage";
+KeepName :: (text: *u8) -> *u8 #foreign compiler "KeepName";
+KeepText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
+S15DecimalPoint :: () -> *u8 #foreign compiler "S15DecimalPoint";
+S15FlagClear :: (arg0: *void) #foreign compiler "S15FlagClear";
+S15FlagTake :: (arg0: *void) -> s32 #foreign compiler "S15FlagTake";
+atoi :: (__nptr: *u8) -> s32 #foreign libc "atoi";
+copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
+memmove :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memmove";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+strstr :: (__haystack: *u8, __needle: *u8) -> *u8 #foreign libc "strstr";
+strtod :: (__nptr: *u8, __endptr: **u8) -> float64 #foreign libc "strtod";
+strtof :: (__nptr: *u8, __endptr: **u8) -> float32 #foreign libc "strtof";
+text_parameter_lock: u8 = 0;
+
+#scope_file
+source_text :: (text: *u8) -> string {
+    return S14.S14String((ifx (text != cast(*u8)((null))) then text else ParserCString("")), (ifx (text != cast(*u8)((null))) then strlen(text) else cast(usize)(0)))
+    unreachable
+}
+
+#scope_file
+output_bytes :: (data: *void, capacity: usize) -> S14.ParserSlice {
+    return S14.ParserSlice.{data, cast(s64)(capacity)}
+    unreachable
+}
+
+#scope_export
+#program_export "is_ident_char"
+is_ident_char :: (c: s32) -> s32 {
+    return cast(s32)(Text.IdentifierByte(cast(u8)(c)))
+    unreachable
+}
+
+#scope_export
+#program_export "skip_ws"
+skip_ws :: (s: *u8) -> *u8 {
+    if (s == cast(*u8)((null))) {
+        return null
+    }
+    return cast(*u8)(cast(usize)(s) + cast(usize)(Text.SkipSpace(source_text(s), cast(s64)(0), cast(bool)(0))) * size_of(u8))
+    unreachable
+}
+
+#scope_export
+#program_export "skip_inline_ws"
+skip_inline_ws :: (s: *u8) -> *u8 {
+    if (s == cast(*u8)((null))) {
+        return null
+    }
+    return cast(*u8)(cast(usize)(s) + cast(usize)(Text.SkipSpace(source_text(s), cast(s64)(0), cast(bool)(1))) * size_of(u8))
+    unreachable
+}
+
+#scope_export
+#program_export "trim"
+trim :: (s: *u8) -> *u8 {
+    if (s == cast(*u8)((null))) {
+        return null
+    }
+    range: Text.SourceRange = Text.TrimRange(source_text(s))
+    (s)[(range).end] = cast(u8)(0)
+    return cast(*u8)(cast(usize)(s) + cast(usize)((range).begin) * size_of(u8))
+    unreachable
+}
+
+#scope_export
+#program_export "trim_in_place"
+trim_in_place :: (s: *u8) -> *u8 {
+    if (s == cast(*u8)((null))) {
+        return null
+    }
+    p: *u8 = trim(s)
+    if (p != s) {
+        memmove(cast(*void)(s), cast(*void)(p), (strlen(p) + cast(usize)(1)))
+    }
+    return s
+    unreachable
+}
+
+#scope_export
+#program_export "strip_block_brace"
+strip_block_brace :: (s: *u8) {
+    if (s != cast(*u8)((null))) {
+        (s)[Text.BlockHeaderEnd(source_text(s))] = cast(u8)(0)
+    }
+}
+
+#scope_export
+#program_export "camel_ident"
+camel_ident :: (s: *u8, dst: *u8, dst_size: usize) {
+    Text.CamelIdentifier(source_text(s), S15Bytes(output_bytes(cast(*void)(dst), dst_size)))
+}
+
+#scope_export
+#program_export "go_field_ident"
+go_field_ident :: (s: *u8, dst: *u8, dst_size: usize) {
+    Text.GoFieldIdentifier(source_text(s), S15Bytes(output_bytes(cast(*void)(dst), dst_size)))
+}
+
+#scope_export
+#program_export "escape_c_string"
+escape_c_string :: (s: *u8, dst: *u8, dst_size: usize) -> usize {
+    return cast(usize)(Text.EscapeCString(source_text(s), S15Bytes(output_bytes(cast(*void)(dst), dst_size))))
+    unreachable
+}
+
+#scope_export
+#program_export "split_top_level"
+split_top_level :: (s: *u8, parts: *u8, max: s32, part_size: usize) -> s32 {
+    if ((((s == cast(*u8)((null))) || (parts == cast(*u8)((null)))) || (max <= 0)) || (part_size == cast(usize)(0))) {
+        return 0
+    }
+    source: string = source_text(s)
+    count: s32 = 0
+    at: s64 = cast(s64)(0)
+    while check_loop_38 := ((at >= cast(s64)(0)) && (count < max)) {
+        part: Text.SourcePart = Text.NextSourcePart(source, at)
+        length: usize = cast(usize)((((part).end - (part).begin)))
+        if (length < part_size) {
+            output: *u8 = cast(*u8)(cast(usize)(parts) + cast(usize)((cast(usize)(count) * part_size)) * size_of(u8))
+            memcpy(cast(*void)(output), cast(*void)(cast(*u8)(cast(usize)(s) + cast(usize)((part).begin) * size_of(u8))), length)
+            (output)[length] = cast(u8)(0)
+            trim_in_place(output)
+            S15SupportPost1(*(count))
+        }
+        at = (part).next
+    }
+    return count
+    unreachable
+}
+
+#scope_file
+free_parameter_lists :: (value: *void) {
+    lists: *ParameterLists = cast(*ParameterLists)(value)
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_39 := (i < (lists).slots) {
+            CompilerFree(cast(*void)(((lists).lists)[i]))
+            S15SupportPost4(*(i))
+        }
+    }
+    CompilerFree(cast(*void)((lists).texts))
+    CompilerFree(cast(*void)((lists).lists))
+}
+
+#scope_file
+context_parameters :: () -> *ParameterLists {
+    return cast(*ParameterLists)(CompilerCurrentStorage(3, cast(usize)size_of(ParameterLists), free_parameter_lists))
+    unreachable
+}
+
+#scope_file
+parameter_slot :: (kept: *u8) -> usize {
+    parameters := context_parameters()
+    slot: usize = cast(usize)((cast(u64)(((cast(usize)(kept) >> cast(usize)(4)))) * cast(u64)11400714819323198485))
+    slot &= ((((parameters)[0])).slots - cast(usize)(1))
+    while check_loop_40 := ((((((parameters)[0])).texts)[slot] != cast(*u8)((null))) && (((((parameters)[0])).texts)[slot] != kept)) {
+        slot = (((slot + cast(usize)(1))) & (((((parameters)[0])).slots - cast(usize)(1))))
+    }
+    return slot
+    unreachable
+}
+
+#scope_file
+split_parameters :: (text: *u8) -> *Check.ZirParameters {
+    parts: *Parser.ParserArray4096_u8 = null
+    count: s32 = 0
+    if ((skip_ws(text))[0] != 0) {
+        parts = cast(*Parser.ParserArray4096_u8)(AllocateOrExit((cast(usize)(64) * cast(usize)size_of(Parser.ParserArray4096_u8))))
+        count = split_top_level(text, cast(*u8)(*((parts)[0]).items[0]), 64, cast(usize)size_of(Parser.ParserArray4096_u8))
+    }
+    list: *Check.ZirParameters = cast(*Check.ZirParameters)(AllocateOrExit((S15ParametersHeaderSize() + (cast(usize)(count) * cast(usize)size_of(Check.ZirParameter)))))
+    (list).count = count
+    {
+        i: s32 = 0
+        while check_loop_41 := (i < count) {
+            parameter: *Check.ZirParameter = cast(*Check.ZirParameter)(cast(usize)(cast(*Check.ZirParameter)(cast(usize)(list) + S15ParametersHeaderSize())) + cast(usize)(i) * size_of(Check.ZirParameter))
+            (parameter).text = KeepText(cast(*u8)(*((parts)[i]).items[0]))
+            (parameter).name = S15SupportSet6(*((parameter).type), null)
+            (parameter).binding_name = S15SupportSet6(*((parameter).value_type), S15SupportSet6(*((parameter).default_value), null))
+            (parameter).is_using = 0
+            colon: *u8 = strchr(cast(*u8)(*((parts)[i]).items[0]), 58)
+            if (colon != cast(*u8)((null))) {
+                (parameter).type = KeepText(skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))))
+                S15SupportSet9(colon, cast(u8)(0))
+                (parameter).name = KeepText(trim(cast(*u8)(*((parts)[i]).items[0])))
+                name: *u8 = (parameter).name
+                (parameter).is_using = cast(s32)(!(strncmp(name, ParserCString("using "), cast(usize)(6)) != 0))
+                if ((parameter).is_using != 0) {
+                    name = skip_ws(cast(*u8)(cast(usize)(name) + cast(usize)(6) * size_of(u8)))
+                }
+                (parameter).binding_name = KeepName(name)
+                value_type: Parser.ParserArray4096_u8
+                copy_text(cast(*u8)(*((value_type).items)), cast(usize)size_of(Parser.ParserArray4096_u8), (parameter).type)
+                equals: *u8 = top_level_assignment(cast(*u8)(*((value_type).items)))
+                if (equals != null) {
+                    S15SupportSet9(equals, cast(u8)(0))
+                    (parameter).default_value = KeepText(skip_ws(cast(*u8)(cast(usize)(equals) + cast(usize)(1) * size_of(u8))))
+                }
+                (parameter).value_type = KeepName(trim(cast(*u8)(*((value_type).items))))
+            }
+            S15SupportPost1(*(i))
+        }
+    }
+    CompilerFree(cast(*void)(parts))
+    return list
+    unreachable
+}
+
+#scope_file
+ParametersOf_persistent :: (text: *u8) -> *Check.ZirParameters {
+    parameters := context_parameters()
+    kept: *u8 = KeepText(text)
+    while check_loop_42 := (S15FlagTake(cast(*void)(*(text_parameter_lock))) != 0) {
+    }
+    if (((((parameters)[0])).count * cast(usize)(2)) >= (((parameters)[0])).slots) {
+        old_slots: usize = (((parameters)[0])).slots
+        old_texts: **u8 = (((parameters)[0])).texts
+        old_lists: **Check.ZirParameters = (((parameters)[0])).lists
+        (((parameters)[0])).slots = (ifx (old_slots != 0) then (old_slots * cast(usize)(2)) else cast(usize)(1024))
+        (((parameters)[0])).texts = cast(**u8)(CompilerCalloc((((parameters)[0])).slots, cast(usize)size_of(*u8)))
+        (((parameters)[0])).lists = cast(**Check.ZirParameters)(CompilerCalloc((((parameters)[0])).slots, cast(usize)size_of(*Check.ZirParameters)))
+        if (((((parameters)[0])).texts == cast(**u8)((null))) || ((((parameters)[0])).lists == cast(**Check.ZirParameters)((null)))) {
+            DiagnosticOutOfMemory()
+            exit(1)
+        }
+        {
+            i: usize = cast(usize)(0)
+            while check_loop_43 := (i < old_slots) {
+                if ((old_texts)[i] != cast(*u8)((null))) {
+                    slot: usize = parameter_slot((old_texts)[i])
+                    ((((parameters)[0])).texts)[slot] = (old_texts)[i]
+                    ((((parameters)[0])).lists)[slot] = (old_lists)[i]
+                }
+                S15SupportPost4(*(i))
+            }
+        }
+        CompilerFree(cast(*void)(old_texts))
+        CompilerFree(cast(*void)(old_lists))
+    }
+    slot: usize = parameter_slot(kept)
+    if (((((parameters)[0])).texts)[slot] == cast(*u8)((null))) {
+        ((((parameters)[0])).texts)[slot] = kept
+        ((((parameters)[0])).lists)[slot] = split_parameters(kept)
+        S15SupportPost4(*((((parameters)[0])).count))
+    }
+    list: *Check.ZirParameters = ((((parameters)[0])).lists)[slot]
+    S15FlagClear(cast(*void)(*(text_parameter_lock)))
+    return list
+    unreachable
+}
+
+#scope_export
+#program_export "top_level_assignment"
+top_level_assignment :: (s: *u8) -> *u8 {
+    at: s64 = Text.TopLevelAssignment(source_text(s))
+    return (ifx (at < cast(s64)(0)) then null else cast(*u8)(cast(usize)(s) + cast(usize)(at) * size_of(u8)))
+    unreachable
+}
+
+#scope_export
+#program_export "DecodeStringLiteral"
+DecodeStringLiteral :: (source: *u8, out: *u8, capacity: usize, length: *usize) -> s32 {
+    decoded: Text.DecodedLiteral = Text.DecodeString(source_text(source), S15Bytes(output_bytes(cast(*void)(out), capacity)))
+    if !((decoded).valid != false) {
+        return 0
+    }
+    S15SupportSet0(length, cast(usize)((decoded).count))
+    return 1
+    unreachable
+}
+
+#scope_file
+print_format_pieces :: (format: *u8, pieces: *Check.PrintPiece, capacity: s32, buffers: *PrintFormatPiecesBuffers) -> s32 {
+    length: usize
+    if !(DecodeStringLiteral(format, cast(*u8)(*(((buffers).bytes).items)), cast(usize)size_of(Parser.ParserArray4096_u8), *(length)) != 0) {
+        return (-1)
+    }
+    bytes: S14.ParserSlice = output_bytes(cast(*void)(cast(*u8)(*(((buffers).bytes).items))), length)
+    count: s32 = 0
+    at: s64 = cast(s64)(0)
+    {
+        while check_loop_44 := true {
+            step: Text.FormatStep = Text.NextPrintPiece(S15Bytes(bytes), at, S15Bytes(output_bytes(cast(*void)(cast(*u8)(*(((buffers).literal).items))), cast(usize)size_of(Parser.ParserArray4096_u8))))
+            if !((step).valid != false) {
+                return (-1)
+            }
+            if !((step).present != false) {
+                return count
+            }
+            if (count >= capacity) {
+                return (-1)
+            }
+            ((pieces)[count]).is_argument = cast(s32)((step).argument)
+            memcpy(cast(*void)(cast(*u8)(*((((pieces)[count]).literal).items))), cast(*void)(cast(*u8)(*(((buffers).literal).items))), (strlen(cast(*u8)(*(((buffers).literal).items))) + cast(usize)(1)))
+            S15SupportPost1(*(count))
+            at = (step).next
+        }
+    }
+    unreachable
+}
+
+#scope_export
+#program_export "PrintFormatPieces"
+PrintFormatPieces :: (format: *u8, pieces: *Check.PrintPiece, capacity: s32) -> s32 {
+    buffers: *PrintFormatPiecesBuffers = cast(*PrintFormatPiecesBuffers)(AllocateOrExit(cast(usize)size_of(PrintFormatPiecesBuffers)))
+    returned: s32 = print_format_pieces(format, pieces, capacity, buffers)
+    CompilerFree(cast(*void)(buffers))
+    return returned
+    unreachable
+}
+
+#scope_export
+#program_export "ParseDecimal"
+ParseDecimal :: (text: *u8, end: **u8) -> float64 {
+    point: *u8 = S15DecimalPoint()
+    dot: *u8 = strchr(text, 46)
+    local: ParserArray256_u8
+    stop: *u8
+    length: usize = strlen(text)
+    width: usize
+    offset: usize
+    consumed: usize
+    if ((((dot == cast(*u8)((null))) || (point == cast(*u8)((null)))) || (cast(s32)(cast(s8)((point)[0])) == 0)) || (strcmp(point, ParserCString(".")) == 0)) {
+        return strtod(text, end)
+    }
+    width = strlen(point)
+    offset = cast(usize)(((cast(isize)(cast(usize)(dot) - cast(usize)(text)) / cast(isize)size_of(u8))))
+    if ((length + width) >= cast(usize)size_of(ParserArray256_u8)) {
+        return strtod(text, end)
+    }
+    memcpy(cast(*void)(cast(*u8)(*((local).items))), cast(*void)(text), offset)
+    memcpy(cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(*((local).items))) + cast(usize)(offset) * size_of(u8))), cast(*void)(point), width)
+    memcpy(cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(cast(*u8)(*((local).items))) + cast(usize)(offset) * size_of(u8))) + cast(usize)(width) * size_of(u8))), cast(*void)(cast(*u8)(cast(usize)(dot) + cast(usize)(1) * size_of(u8))), (length - offset))
+    value: float64 = strtod(cast(*u8)(*((local).items)), *(stop))
+    consumed = cast(usize)(((cast(isize)(cast(usize)(stop) - cast(usize)(cast(*u8)(*((local).items)))) / cast(isize)size_of(u8))))
+    if (consumed > offset) {
+        consumed = (ifx (consumed < (offset + width)) then offset else ((consumed - width) + cast(usize)(1)))
+    }
+    if (end != cast(**u8)((null))) {
+        S15SupportSet6(end, cast(*u8)(cast(usize)(cast(*u8)(text)) + cast(usize)(consumed) * size_of(u8)))
+    }
+    return value
+    unreachable
+}
+
+#scope_export
+#program_export "DecimalPointDot"
+DecimalPointDot :: (text: *u8) {
+    point: *u8 = S15DecimalPoint()
+    found: *u8
+    width: usize
+    if ((((point == cast(*u8)((null))) || (cast(s32)(cast(s8)((point)[0])) == 0)) || (strcmp(point, ParserCString(".")) == 0)) || ((S15SupportSet6(*(found), strstr(text, point))) == cast(*u8)((null)))) {
+        return
+    }
+    width = strlen(point)
+    S15SupportSet9(found, cast(u8)(46))
+    memmove(cast(*void)(cast(*u8)(cast(usize)(found) + cast(usize)(1) * size_of(u8))), cast(*void)(cast(*u8)(cast(usize)(found) + cast(usize)(width) * size_of(u8))), (strlen(cast(*u8)(cast(usize)(found) + cast(usize)(width) * size_of(u8))) + cast(usize)(1)))
+}
+
+#scope_export
+#program_export "FormatPrintFloat"
+FormatPrintFloat :: (value: float64, single: s32, out: *u8, capacity: usize) {
+    scientific: ParserArray40_u8
+    digits: S14.ParserArray24_u8
+    precision: s32
+    exponent: s32
+    count: s32 = 0
+    used: usize = cast(usize)(0)
+    p: *u8
+    if (value != value) {
+        snprintf(out, capacity, ParserCString("nan"))
+        return
+    }
+    if ((value - value) != cast(float64)(0)) {
+        snprintf(out, capacity, ParserCString("%s"), (ifx (value < cast(float64)(0)) then ParserCString("-inf") else ParserCString("inf")))
+        return
+    }
+    {
+        precision = 1
+        while check_loop_45 := (precision <= 17) {
+            snprintf(cast(*u8)(*((scientific).items)), cast(usize)size_of(ParserArray40_u8), ParserCString("%.*e"), (precision - 1), value)
+            if ((ifx (single != 0) then cast(s32)(strtof(cast(*u8)(*((scientific).items)), null) == cast(float32)(value)) else cast(s32)(strtod(cast(*u8)(*((scientific).items)), null) == value)) != 0) {
+                break check_loop_45
+            }
+            S15SupportPost1(*(precision))
+        }
+    }
+    p = cast(*u8)(*((scientific).items))
+    if (cast(s32)(cast(s8)((p)[0])) == 45) {
+        while check_loop_46 := true {
+            if ((used + cast(usize)(1)) < capacity) {
+                (out)[S15SupportPost4(*(used))] = cast(u8)((45))
+            }
+            if !(0 != 0) { break check_loop_46 }
+        }
+        S15SupportPost7(*(p))
+    }
+    {
+        while check_loop_47 := (cast(s32)(cast(s8)((p)[0])) != 101) {
+            if ((cast(s32)(cast(s8)((p)[0])) >= 48) && (cast(s32)(cast(s8)((p)[0])) <= 57)) {
+                (digits).items[S15SupportPost1(*(count))] = (p)[0]
+            }
+            S15SupportPost7(*(p))
+        }
+    }
+    exponent = atoi(cast(*u8)(cast(usize)(p) + cast(usize)(1) * size_of(u8)))
+    while check_loop_48 := ((count > 1) && (cast(s32)(cast(s8)((digits).items[(count - 1)])) == 48)) {
+        S15SupportPost2(*(count))
+    }
+    if (exponent < 0) {
+        while check_loop_49 := true {
+            if ((used + cast(usize)(1)) < capacity) {
+                (out)[S15SupportPost4(*(used))] = cast(u8)((48))
+            }
+            if !(0 != 0) { break check_loop_49 }
+        }
+        while check_loop_50 := true {
+            if ((used + cast(usize)(1)) < capacity) {
+                (out)[S15SupportPost4(*(used))] = cast(u8)((46))
+            }
+            if !(0 != 0) { break check_loop_50 }
+        }
+        {
+            i: s32 = 1
+            while check_loop_51 := (i < (-exponent)) {
+                while check_loop_52 := true {
+                    if ((used + cast(usize)(1)) < capacity) {
+                        (out)[S15SupportPost4(*(used))] = cast(u8)((48))
+                    }
+                    if !(0 != 0) { break check_loop_52 }
+                }
+                S15SupportPost1(*(i))
+            }
+        }
+        {
+            i: s32 = 0
+            while check_loop_53 := (i < count) {
+                while check_loop_54 := true {
+                    if ((used + cast(usize)(1)) < capacity) {
+                        (out)[S15SupportPost4(*(used))] = ((digits).items[i])
+                    }
+                    if !(0 != 0) { break check_loop_54 }
+                }
+                S15SupportPost1(*(i))
+            }
+        }
+    } else {
+        {
+            i: s32 = 0
+            while check_loop_55 := (i <= exponent) {
+                while check_loop_56 := true {
+                    if ((used + cast(usize)(1)) < capacity) {
+                        (out)[S15SupportPost4(*(used))] = cast(u8)(((ifx (i < count) then cast(s32)(cast(s8)((digits).items[i])) else 48)))
+                    }
+                    if !(0 != 0) { break check_loop_56 }
+                }
+                S15SupportPost1(*(i))
+            }
+        }
+        if (count > (exponent + 1)) {
+            while check_loop_57 := true {
+                if ((used + cast(usize)(1)) < capacity) {
+                    (out)[S15SupportPost4(*(used))] = cast(u8)((46))
+                }
+                if !(0 != 0) { break check_loop_57 }
+            }
+            {
+                i: s32 = (exponent + 1)
+                while check_loop_58 := (i < count) {
+                    while check_loop_59 := true {
+                        if ((used + cast(usize)(1)) < capacity) {
+                            (out)[S15SupportPost4(*(used))] = ((digits).items[i])
+                        }
+                        if !(0 != 0) { break check_loop_59 }
+                    }
+                    S15SupportPost1(*(i))
+                }
+            }
+        }
+    }
+    if (capacity > cast(usize)(0)) {
+        (out)[used] = cast(u8)(0)
+    }
+}
+
+#scope_export
+#program_export "OperatorProcedureName"
+OperatorProcedureName :: (op: *u8) -> *u8 {
+    name: string = Text.OperatorProcedure(source_text(op))
+    return (ifx (cast(usize)((name).count) > cast(usize)(0)) then S14.S14StringData(name) else null)
+    unreachable
+}
+
+#scope_export
+#program_export "NameDistance"
+NameDistance :: (a: *u8, b: *u8, limit: s32) -> s32 {
+    return Text.NameDistance(source_text(a), source_text(b), limit)
+    unreachable
+}
+
+#scope_export
+#program_export "OperatorTokenLength"
+OperatorTokenLength :: (text: *u8) -> usize {
+    return cast(usize)(Text.OperatorTokenLength(source_text(text)))
+    unreachable
+}
+
+#scope_export
+#program_export "OperatorOfProcedure"
+OperatorOfProcedure :: (name: *u8) -> *u8 {
+    op: string = Text.ProcedureOperator(source_text(name))
+    return (ifx (cast(usize)((op).count) > cast(usize)(0)) then S14.S14StringData(op) else null)
+    unreachable
+}
+
+#scope_export
+#program_export "ParametersOf"
+ParametersOf :: (text: *u8) -> *Check.ZirParameters {
+    memory: *void = CompilerMemoryPause()
+    result: *Check.ZirParameters = ParametersOf_persistent(text)
+    CompilerMemoryResume(memory)
+    return result
+    unreachable
+}
+
+#scope_export
+#program_export "ZirIntegerLiteral"
+ZirIntegerLiteral :: (text: *u8, value: *u64) -> s32 {
+    literal: Text.LiteralBits = Text.IntegerLiteral(source_text(text))
+    if ((literal).valid != false) {
+        S15SupportSet10(value, (literal).value)
+    }
+    return cast(s32)((literal).valid)
+    unreachable
+}
+
+#scope_export
+#program_export "ZirSignedIntegerLiteral"
+ZirSignedIntegerLiteral :: (text: *u8, value: *u64, negative: *s32) -> s32 {
+    bits: u64
+    minus: s32 = cast(s32)((text != cast(*u8)((null))) && (cast(s32)(cast(s8)((text)[0])) == 45))
+    if (!(ZirIntegerLiteral(cast(*u8)(cast(usize)(text) + cast(usize)(minus) * size_of(u8)), *(bits)) != 0) || ((minus != 0) && (bits > (cast(u64)((cast(u64)9223372036854775807)) + cast(u64)(1))))) {
+        return 0
+    }
+    S15SupportSet10(value, (ifx (minus != 0) then (cast(u64)(0) - bits) else bits))
+    S15SupportSet5(negative, minus)
+    return 1
+    unreachable
+}

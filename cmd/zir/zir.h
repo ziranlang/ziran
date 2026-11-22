@@ -38,13 +38,6 @@ typedef enum ZirTargetCPU {
 typedef enum ZirTargetBackend {
     ZIR_TARGET_C, ZIR_TARGET_GO, ZIR_TARGET_WASM, ZIR_TARGET_ZX
 } ZirTargetBackend;
-typedef struct ZirTargetFacts {
-    ZirTargetBackend target;
-    ZirTargetOS os;
-    ZirTargetCPU cpu;
-    const char *options;
-} ZirTargetFacts;
-
 ZirTargetOS CompilerHostOS(void);
 ZirTargetCPU CompilerHostCPU(void);
 void CompilerConfigureTarget(ZirTargetBackend target, ZirTargetOS os,

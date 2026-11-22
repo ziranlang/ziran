@@ -41,10 +41,15 @@ parsing, module discovery and compile-time condition selection. S14 ports
 declaration parsing, compile-time and typed evaluation, and IR cleanup. The
 parser keeps its C-facing entry points and its host recovery boundary.
 
-S15–S18 remain open. They cover frontend services, portable ZX and host
-interfaces, inline assembly and tool drivers, and the stage-0 through stage-2
-fixed-point proof. The current `check-bootstrap` compares generated modules
-against the checked-in seed.
+S15 moves frontend IR allocation and lookup, target selection, contexts,
+source documents, diagnostics, path handling, semantic IDs, SHA-256, and law
+checks into Ziran. Both compiler stages link the generated modules. The native
+boundary includes memory recovery, host I/O, TLS, atomics, variadic formatting,
+and CPU-specific SHA-256 instructions.
+
+S16–S18 remain open. They cover portable ZX and host interfaces, inline assembly
+and tool drivers, and the stage-0 through stage-2 fixed-point proof. The current
+`check-bootstrap` compares generated modules against the checked-in seed.
 
 ## Why staged bootstrap is mandatory
 
@@ -196,7 +201,7 @@ C ABI/storage boundary:
 
 | Current C | Evidence / role | Ziran target | Delete |
 |---|---|---|---|
-| `zir.c` / `zir.h` | target/host queries `CompilerHostOS:31`, target parsing `:87`, capability check `:151`; program/module construction `ProgramNew:1632`, `ModuleAddImport:1752` | `compiler_frontend_ir` + `compiler_target` | S15 |
+| `zir.c` / `zir.h` | target/host queries `CompilerHostOS:31`, target parsing `:87`, capability check `:151`; program/module construction `ProgramNew:1632`, `ModuleAddImport:1752` | `compiler_frontend_ir` + `compiler_target_bridge`. `zir.h` serves remaining C tools | S15 / S17 |
 | `zir_asm.c` / `zir_asm.h` | inline assembly parse/check and C/Go assembly emission; `CheckAssemblyBlock:998`, `CheckAssembly:1180`, `EmitAssembly:1826`, block helpers `:2094` | `compiler_inline_asm` | S17 |
 | `zir_assets.c` / `zir_link.h` | asset collection `ZxAssetsCollect:113`; bundle rule call `:84` | `compiler_zx_assets` | S16 |
 | `zir_body.h` | `CanEmitBody` ABI for the shared C and Go emitters | `compiler_portable_body` is bootstrapped. `zir_services.c` keeps the thread-local memo and expression scratch | `zir_body.c` removed |
@@ -252,14 +257,14 @@ C ABI/storage boundary:
 | `zir_scratch.h` | recoverable scratch helper | Ziran allocator/exceptions; no separate module | S15 |
 | `zir_semantic.c` / `.h` | semantic IDs `SemanticId:7`, function IDs `:22` | `compiler_semantic` | S15 |
 | `zir_serial.c` / `.h` | saved ZIR codec and canonical checks `ProgramWrite:1777`, read `:1820`, load `:1905`, public read `:2125` | recreate `compiler_zir_serial` (the prior unused copy was removed, as recorded in `CHANGELOG.md:23`) | S16 |
-| `zir_services.c` | generated-module service hooks `terminated:11`, keep `:28`, diagnose `:33`, add import `:42` | native service calls; final OS hooks only | S15/S18 |
-| `zir_sha256.c` / `.h` | portable and hardware hashes from `:36`, `:74`, `:138` | `compiler_sha256` | S15 |
+| `zir_services.c` | generated-module service hooks `terminated:11`, keep `:28`, diagnose `:33`, add import `:42` | `compiler_services` and `compiler_portable_body` with native callbacks | S15 / S18 |
+| `zir_sha256.c` / `.h` | portable and hardware hashes from `:36`, `:74`, `:138` | `compiler_sha256` with native CPU detection and hardware instructions in `zir_sha256_host.c` | S15 |
 | `zir_simd.c` / `.h` | SIMD metadata/signatures from `:95` | `compiler_simd_metadata` | S7 |
 | `zir_storage.c` | interned source strings `SourceFile_persistent:62`, span path `:114` | `compiler_source_store` | S15 |
-| `zir_stream.h` | memory/text streams from `:19`, `:149` | standard Ziran slices/files | S15 |
-| `zir_text.c` / `.h` | wrappers around generated text rules from `:18`, `:30` | direct `compiler_text` | S15 |
-| `zir_thread.h` | thread/context scope API `:28-54` | `compiler_context` | S15 |
-| `zir_token.c` / `.h` | lexer state over generated scanner `LexerInit:22`, `LexerNext:53` | `compiler_frontend_token` | S15 |
+| `zir_stream.h` | memory/text streams from `:19`, `:149` | C streams used by runtime and portable linking | S16 / S18 |
+| `zir_text.c` / `.h` | wrappers around generated text rules from `:18`, `:30` | direct `compiler_text` via `compiler_source_store` | S15 |
+| `zir_thread.h` | thread/context scope API `:28-54` | `compiler_context_types` and the TLS backing in `zir_memory.c` | S15 |
+| `zir_token.c` / `.h` | lexer state over generated scanner `LexerInit:22`, `LexerNext:53` | existing `compiler_token` and `compiler_scan` | S15 |
 | `zir_type.c` | cached type queries from `:12`, generated calls `:278`, `:363`, `:395` | `compiler_frontend_ir` | S15 |
 | `zir_zx_wasm.c` / `.h` | Wasm runtime provider/platform `ZxWasmInstallBundledPlatform:50`, host memory `:83`; lowering calls `:320`, `:443`, `:474` | `compiler_zx_wasm_host` | S16 |
 | `zir_zx_wasm_platform.h` | provider ABI `:47`, set/active `:54`, `:55` | `compiler_zx_wasm_host` | S16 |
@@ -500,20 +505,23 @@ No step commits before its implementation and proof are complete.
 
 ### S15 — frontend IR, context and support runtime
 
-- Add `cmd/compiler_frontend_ir.zi`, `cmd/compiler_frontend_token.zi`,
-  `cmd/compiler_context.zi`, `cmd/compiler_document.zi`,
-  `cmd/compiler_diagnostic.zi`, `cmd/compiler_files.zi`,
-  `cmd/compiler_source_store.zi`, `cmd/compiler_overlay.zi`,
-  `cmd/compiler_semantic.zi`, `cmd/compiler_sha256.zi`,
-  `cmd/compiler_law_runtime.zi`, and `cmd/compiler_target_bridge.zi`; port all
-  files in the map rows for S15, replacing wrappers around scan/text/type/enum
-  with direct imports.
-- Replace `compiler_services` C hooks one by one; retain only `exit`,
-  file/process callbacks and diagnostic sink in the small runtime.
-- Delete every C/header file listed in the S15 rows, including `zir.c`,
-  `zir.h`, `zir_text`, `zir_token`, `zir_type`, `zir_enum`, `zir_storage`,
-  `zir_services.c`, and context/diagnostic/files support.
-- Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=compiler_type`.
+- `compiler_frontend_ir`, `compiler_target_bridge`, and `compiler_law_runtime`
+  own frontend IR allocation, symbol and type caches, target capability checks,
+  and law/parallel-region checking. Target facts live in the shared
+  `compiler_ir` ABI, alongside records already used by the parser and checker.
+- `compiler_context_types`, `compiler_context`, `compiler_document`,
+  `compiler_diagnostic`, `compiler_files`, `compiler_source_store`,
+  `compiler_overlay`, `compiler_semantic`, and `compiler_sha256` replace the
+  corresponding C services. The existing scanner, token, and text modules
+  are reused. Twelve new generated seed pairs build these modules at stage 0.
+- `compiler_services` handles the keep-text, diagnostic and import callbacks.
+  `compiler_portable_body` owns typed-body cache and scratch policy. The C
+  services retain their native interfaces for OS calls, varargs, platform
+  instructions and thread-local storage. `zir_memory.c` uses the generated
+  compiler thread record and owns its TLS and recoverable allocation tracking.
+  Remaining C drivers and embedding code use the compatibility declarations.
+- Verify with `env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check JOBS=2 CHECK_JOBS=2`
+  and `env -u DISPLAY -u WAYLAND_DISPLAY make check-bootstrap JOBS=2`.
 
 ### S16 — portable ZX, host API and persistence
 
@@ -585,8 +593,8 @@ No step commits before its implementation and proof are complete.
 4. S11-S14 replace checker and parser orchestration. This is after codegen
    because generated C modules can safely consume the stable IR while the old C
    frontend still constructs it.
-5. S15 removes the IR/context glue only when no hand-written compiler consumer
-   needs the old C structs.
+5. S15 moves frontend and support policy to Ziran. Compatibility declarations
+   serve the C consumers until their ports land in S16 and S17.
 6. S16 moves the public embedding and portable runtime last among libraries
    because external hosts and tests depend on its ABI.
 7. S17 removes drivers and inline assembly only when every backend exists.
@@ -619,7 +627,7 @@ is deleted, then keep their golden hashes/bytes as regression fixtures.
 | S12 | Change `tests/parser_recovery.sh`, `tests/parser_recovery_test.c`, `tests/borrow_import_graph.sh`, and assembly/SIMD checker cases; prove whole-program/link/borrow behavior. |
 | S13 | Retain parser recovery, module parameter, compile-time expression and source insertion coverage. Compare emitted IR and diagnostics against the pre-port compiler. |
 | S14 | Change `tests/compiler_declaration.sh`, `tests/compiler_declaration_test.c`, `tests/compiler_expression.sh`, and `tests/compiler_expression_test.c`; cover declaration/typed/eval/cleanup parity. |
-| S15 | Change `tests/compiler_scan.sh`, `tests/compiler_text.sh`, `tests/compiler_enum.sh`, `tests/compiler_type.sh`, and their existing C harnesses; add service-free lifetime/context assertions. |
+| S15 | Exercise the retained frontend, API and diagnostic cases. Standalone file, SHA-256 and Android logging fixtures compile against the generated seeds and the native callbacks. |
 | S16 | Change `tests/executable_bundle.sh`, `tests/bundle_assets.sh`, `tests/bundle_runtime_provider.sh`, `tests/host_capability.sh`, and `tests/host_slices.sh`; preserve embedding ABI and serialized-byte parity. |
 | S17 | Change `tests/tool_diagnostics.sh`, `tests/tool_diagnostics_cases.zi`, `tests/assembly.sh`, and editor/profile CLI tests; execute every Ziran driver. |
 | S18 | Add `tests/bootstrap_fixed_point.sh`; test a clean match, stage-2 mismatch, stale generated file, forbidden runtime function, interrupted update and atomic recovery. Register it in `tests/check_plan.zi`. |

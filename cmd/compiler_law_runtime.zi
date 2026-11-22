@@ -1,0 +1,2181 @@
+// Law evaluation, reports, and parallel-region checks.
+IR :: #import "compiler_ir"
+using Parser :: #import "compiler_parse_types"
+Check :: #import "compiler_check_types"
+
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+ArrayElementType :: (type: *u8, element: *u8, element_size: usize, capacity: *s32) -> s32 #foreign compiler "ArrayElementType";
+ArrayValueType :: (type: *u8) -> s32 #foreign compiler "ArrayValueType";
+AssemblyBlockOperands :: (function: *IR.ZirFunction, statement: s32, names: **u8, types: **u8, capacity: s32, outputs: *s32) -> s32 #foreign compiler "AssemblyBlockOperands";
+CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, varargs: ..any) #foreign compiler "Diagnostic";
+EnumMemberValue :: (type: *IR.ZirType, name: *u8, value: *s64) -> s32 #foreign compiler "EnumMemberValue";
+EvaluateBoundCondition :: (condition: *void, exprs: *CoreArray128_u8, values: *s64, truth: *s32) -> s32 #foreign compiler "EvaluateBoundCondition";
+EvaluateCompileConditionBound :: (module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan, names: *CoreArray128_u8, types: *CoreArray128_u8, exprs: *CoreArray128_u8, values: *s64, count: s32, truth: *s32) -> s32 #foreign compiler "EvaluateCompileConditionBound";
+EvaluateCompileExpression :: (module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan, executing: s32, value: *s64) -> s32 #foreign compiler "EvaluateCompileExpression";
+EvaluateEffectLaw :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize) -> s32 #foreign compiler "EvaluateEffectLaw";
+EvaluateTheorem :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize) -> s32 #foreign compiler "EvaluateTheorem";
+FindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+FindVisibleLaw :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirLaw #foreign compiler "FindVisibleLaw";
+FreeBoundCondition :: (condition: *void) #foreign compiler "FreeBoundCondition";
+KeepText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
+MapPrimitiveName :: (name: *u8) -> s32 #foreign compiler "MapPrimitiveName";
+ParametersOf :: (text: *u8) -> *Check.ZirParameters #foreign compiler "ParametersOf";
+PrepareBoundCondition :: (module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan, names: *CoreArray128_u8, types: *CoreArray128_u8, count: s32) -> *void #foreign compiler "PrepareBoundCondition";
+PrepareLawProofs :: (programs: **IR.ZirProgram, count: s32) -> s32 #foreign compiler "PrepareLawProofs";
+ProfileEnd :: (phase: *u8, started: u64) #foreign compiler "ProfileEnd";
+ProfileStart :: () -> u64 #foreign compiler "ProfileStart";
+ResolveFunction :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunction";
+ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
+SliceElementType :: (type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "SliceElementType";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+TypeLayout :: (module: *IR.ZirModule, type: *u8, size: *usize, alignment: *usize) -> s32 #foreign compiler "TypeLayout";
+TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+VecElementType :: (module: *IR.ZirModule, type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "VecElementType";
+copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
+effect_rank :: (name: *u8) -> s32 #foreign compiler "effect_rank";
+fprintf :: (__stream: *void, __format: *u8, varargs: ..any) -> s32 #foreign libc "fprintf";
+fputc :: (__c: s32, __stream: *void) -> s32 #foreign libc "fputc";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+memset :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memset";
+skip_ws :: (s: *u8) -> *u8 #foreign compiler "skip_ws";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+split_top_level :: (s: *u8, parts: *u8, max: s32, part_size: usize) -> s32 #foreign compiler "split_top_level";
+strchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strchr";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+strstr :: (__haystack: *u8, __needle: *u8) -> *u8 #foreign libc "strstr";
+trim_in_place :: (s: *u8) -> *u8 #foreign compiler "trim_in_place";
+isalnum :: (byte: s32) -> s32 #foreign libc "isalnum";
+isalpha :: (byte: s32) -> s32 #foreign libc "isalpha";
+isspace :: (byte: s32) -> s32 #foreign libc "isspace";
+
+
+CoreArray4096_u8 :: struct {
+    items: [4096]u8
+}
+
+EvaluateBoundsLawBuffers :: struct {
+    type: CoreArray4096_u8
+    resolved: CoreArray4096_u8
+    buffer: CoreArray4096_u8
+}
+
+CoreArray128_u8 :: struct {
+    items: [128]u8
+}
+
+CoreArray8_CoreArray128_u8 :: struct {
+    items: [8]CoreArray128_u8
+}
+
+CoreArray8_CoreArray4096_u8 :: struct {
+    items: [8]CoreArray4096_u8
+}
+
+CoreArray256_s64 :: struct {
+    items: [256]s64
+}
+
+CoreArray8_CoreArray256_s64 :: struct {
+    items: [8]CoreArray256_s64
+}
+
+ForallBuffers :: struct {
+    names: CoreArray8_CoreArray128_u8
+    types: CoreArray8_CoreArray128_u8
+    head: CoreArray4096_u8
+    parts: CoreArray8_CoreArray4096_u8
+    members: CoreArray8_CoreArray256_s64
+    exprs: CoreArray8_CoreArray128_u8
+}
+
+CoreArray3__u8 :: struct {
+    items: [3]*u8
+}
+
+CoreArray8_s64 :: struct {
+    items: [8]s64
+}
+
+CoreArray8_s32 :: struct {
+    items: [8]s32
+}
+
+CoreArray16_s64 :: struct {
+    items: [16]s64
+}
+
+CoreArray16_u8 :: struct {
+    items: [16]u8
+}
+
+CoreArray2_s32 :: struct {
+    items: [2]s32
+}
+
+CoreArray64__u8 :: struct {
+    items: [64]*u8
+}
+
+CoreArray16__u8 :: struct {
+    items: [16]*u8
+}
+
+CoreArray30__u8 :: struct {
+    items: [30]*u8
+}
+
+ParserPost0 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] + 1; return old }
+
+ParserSet1 :: (p: *usize, value: usize) -> usize { p[0] = value; return value }
+
+ParserSet2 :: (p: *s32, value: s32) -> s32 { p[0] = value; return value }
+
+ParserPost3 :: (p: **u8) -> *u8 { old := p[0]; p[0] = cast(*u8)(cast(usize)p[0] + size_of(u8)); return old }
+
+ParserPost4 :: (p: *usize) -> usize { old := p[0]; p[0] = p[0] + 1; return old }
+
+ParserSet5 :: (p: *u8, value: u8) -> u8 { p[0] = value; return value }
+
+ParserPost6 :: (p: *s64) -> s64 { old := p[0]; p[0] = p[0] + 1; return old }
+
+ParserPost7 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] - 1; return old }
+
+ParserPre8 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] - 1; return p[0] }
+
+bounds_scratch: u8;
+
+
+#scope_file
+law_status_name :: (status: s32) -> *u8 {
+    return (ifx (cast(u32)(status) == cast(u32)(0)) then ParserCString("proved") else (ifx (cast(u32)(status) == cast(u32)(1)) then ParserCString("disproved") else (ifx (cast(u32)(status) == cast(u32)(3)) then ParserCString("invalid") else ParserCString("unknown"))))
+}
+
+
+#scope_file
+evaluate_type_law :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize) -> s32 {
+    type: *IR.ZirType = FindType(module, cast(*u8)(*((law).payload)), null)
+    if (type == cast(*IR.ZirType)((null))) {
+        snprintf(detail, size, ParserCString("no visible type named %s"), cast(*u8)(*((law).payload)))
+        return 1
+    }
+    if ((((type).is_record_template != 0) || ((type).is_extern != 0)) || ((type).is_procedure_type != 0)) {
+        snprintf(detail, size, ParserCString("%s is generic or external; no concrete layout to check"), cast(*u8)(*((law).payload)))
+        return 2
+    }
+    if ((type).is_enum != 0) {
+        if (EnumMemberValue(type, null, null) != 0) {
+            snprintf(detail, size, ParserCString("%s is a concrete enum"), cast(*u8)(*((law).payload)))
+            return 0
+        }
+        snprintf(detail, size, ParserCString("%s has no valid member"), cast(*u8)(*((law).payload)))
+        return 1
+    }
+    bytes: usize
+    alignment: usize
+    if (TypeLayout(module, cast(*u8)(*((law).payload)), *(bytes), *(alignment)) != 0) {
+        snprintf(detail, size, ParserCString("%s lays out as %zu bytes"), cast(*u8)(*((law).payload)), bytes)
+        return 0
+    }
+    snprintf(detail, size, ParserCString("%s has an incomplete field layout"), cast(*u8)(*((law).payload)))
+    return 1
+}
+
+
+#scope_file
+evaluate_bounds_law_with_buffers :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize, buffers: *EvaluateBoundsLawBuffers) -> s32 {
+    ops: CoreArray3__u8 = .{items = .{ParserCString("=="), ParserCString(">="), ParserCString("<=")}}
+    {
+        o: s32 = 0
+        while check_loop_1 := (o < 3) {
+            op: *u8 = strstr(cast(*u8)(*((law).payload)), (ops).items[o])
+            if (op == cast(*u8)((null))) {
+                ParserPost0(*(o))
+                continue check_loop_1
+            }
+            wanted_text: CoreArray128_u8
+            wanted: s64 = cast(s64)(0)
+            bound: s64 = cast(s64)(0)
+            length: usize = cast(usize)(((cast(isize)(cast(usize)(op) - cast(usize)(cast(*u8)(*((law).payload)))) / cast(isize)size_of(u8))))
+            if ((length == cast(usize)(0)) || (length >= cast(usize)size_of(CoreArray4096_u8))) {
+                break check_loop_1
+            }
+            memcpy(cast(*void)(cast(*u8)(*(((buffers).type).items))), cast(*void)(cast(*u8)(*((law).payload))), length)
+            ((buffers).type).items[length] = cast(u8)(0)
+            trim_in_place(cast(*u8)(*(((buffers).type).items)))
+            snprintf(cast(*u8)(*((wanted_text).items)), cast(usize)size_of(CoreArray128_u8), ParserCString("%s"), skip_ws(cast(*u8)(cast(usize)(op) + cast(usize)(2) * size_of(u8))))
+            trim_in_place(cast(*u8)(*((wanted_text).items)))
+            if !(EvaluateCompileExpression(module, cast(*u8)(*((wanted_text).items)), (law).span, 0, *(wanted)) != 0) {
+                snprintf(detail, size, ParserCString("comparison bound %s is not a compile-time value"), cast(*u8)(*((wanted_text).items)))
+                return 2
+            }
+            cursor: *u8 = cast(*u8)(*(((buffers).type).items))
+            {
+                depth: s32 = 0
+                while check_loop_2 := (depth < 8) {
+                    found: *IR.ZirDefine = null
+                    if (cast(s32)(cast(s8)((cursor)[0])) == 91) {
+                        break check_loop_2
+                    }
+                    {
+                        d: s32 = 0
+                        while check_loop_3 := (d < (module).define_count) {
+                            if (strcmp(cast(*u8)(*((((module).defines)[d]).name)), cursor) == 0) {
+                                found = cast(*IR.ZirDefine)(cast(usize)((module).defines) + cast(usize)(d) * size_of(IR.ZirDefine))
+                                break check_loop_3
+                            }
+                            ParserPost0(*(d))
+                        }
+                    }
+                    if (found == cast(*IR.ZirDefine)((null))) {
+                        break check_loop_2
+                    }
+                    cursor = skip_ws((found).value)
+                    ParserPost0(*(depth))
+                }
+            }
+            snprintf(cast(*u8)(*(((buffers).resolved).items)), cast(usize)size_of(CoreArray4096_u8), ParserCString("%s"), cursor)
+            trim_in_place(cast(*u8)(*(((buffers).resolved).items)))
+            close: *u8 = strchr(cast(*u8)(*(((buffers).resolved).items)), 93)
+            bound_text: CoreArray128_u8
+            if ((close == cast(*u8)((null))) || (cast(usize)((((cast(isize)(cast(usize)(close) - cast(usize)(cast(*u8)(*(((buffers).resolved).items)))) / cast(isize)size_of(u8)) - cast(isize)(1)))) >= cast(usize)size_of(CoreArray128_u8))) {
+                snprintf(detail, size, ParserCString("%s does not name a fixed-array type"), cast(*u8)(*(((buffers).type).items)))
+                return 1
+            }
+            memcpy(cast(*void)(cast(*u8)(*((bound_text).items))), cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).resolved).items))) + cast(usize)(1) * size_of(u8))), cast(usize)((((cast(isize)(cast(usize)(close) - cast(usize)(cast(*u8)(*(((buffers).resolved).items)))) / cast(isize)size_of(u8)) - cast(isize)(1)))))
+            (bound_text).items[((cast(isize)(cast(usize)(close) - cast(usize)(cast(*u8)(*(((buffers).resolved).items)))) / cast(isize)size_of(u8)) - cast(isize)(1))] = cast(u8)(0)
+            trim_in_place(cast(*u8)(*((bound_text).items)))
+            if !(EvaluateCompileExpression(module, cast(*u8)(*((bound_text).items)), (law).span, 0, *(bound)) != 0) {
+                snprintf(detail, size, ParserCString("%s has a bound the evaluator cannot fold"), cast(*u8)(*(((buffers).type).items)))
+                return 2
+            }
+            holds: s32 = (ifx (o == 0) then cast(s32)(bound == wanted) else (ifx (o == 1) then cast(s32)(bound >= wanted) else cast(s32)(bound <= wanted)))
+            snprintf(detail, size, ParserCString("%s bound %jd %s %jd"), cast(*u8)(*(((buffers).type).items)), bound, (ops).items[o], wanted)
+            return (ifx (holds != 0) then 0 else 1)
+            ParserPost0(*(o))
+        }
+    }
+    payload: *u8 = skip_ws(cast(*u8)(*((law).payload)))
+    resolved: *u8 = payload
+    element: CoreArray128_u8
+    capacity: s32
+    {
+        depth: s32 = 0
+        while check_loop_4 := (depth < 8) {
+            if (cast(s32)(cast(s8)((resolved)[0])) == 91) {
+                break check_loop_4
+            }
+            found: *IR.ZirDefine = null
+            {
+                d: s32 = 0
+                while check_loop_5 := (d < (module).define_count) {
+                    if (strcmp(cast(*u8)(*((((module).defines)[d]).name)), resolved) == 0) {
+                        found = cast(*IR.ZirDefine)(cast(usize)((module).defines) + cast(usize)(d) * size_of(IR.ZirDefine))
+                        break check_loop_5
+                    }
+                    ParserPost0(*(d))
+                }
+            }
+            if (found == cast(*IR.ZirDefine)((null))) {
+                break check_loop_4
+            }
+            resolved = skip_ws((found).value)
+            ParserPost0(*(depth))
+        }
+    }
+    if ((strlen(resolved) >= cast(usize)size_of(CoreArray4096_u8)) || !(ArrayElementType(resolved, cast(*u8)(*((element).items)), cast(usize)size_of(CoreArray128_u8), *(capacity)) != 0)) {
+        snprintf(detail, size, ParserCString("%s does not name a fixed-array type"), cast(*u8)(*((law).payload)))
+        return 1
+    }
+    if (capacity > 0) {
+        snprintf(detail, size, ParserCString("%s has the resolved bound %d"), cast(*u8)(*((law).payload)), capacity)
+        return 0
+    }
+    close: *u8 = strchr(resolved, 93)
+    bound: CoreArray128_u8
+    value: s64 = cast(s64)(0)
+    length: usize
+    if (((close == cast(*u8)((null))) || ((ParserSet1(*(length), cast(usize)((((cast(isize)(cast(usize)(close) - cast(usize)(resolved)) / cast(isize)size_of(u8)) - cast(isize)(1)))))) == cast(usize)(0))) || (length >= cast(usize)size_of(CoreArray128_u8))) {
+        snprintf(detail, size, ParserCString("%s has a malformed bound"), cast(*u8)(*((law).payload)))
+        return 1
+    }
+    memcpy(cast(*void)(cast(*u8)(*((bound).items))), cast(*void)(cast(*u8)(cast(usize)(resolved) + cast(usize)(1) * size_of(u8))), length)
+    (bound).items[length] = cast(u8)(0)
+    trim_in_place(cast(*u8)(*((bound).items)))
+    if (EvaluateCompileExpression(module, cast(*u8)(*((bound).items)), (law).span, 0, *(value)) != 0) {
+        if (value > cast(s64)(0)) {
+            snprintf(detail, size, ParserCString("%s folds its bound to %jd"), cast(*u8)(*((law).payload)), value)
+            return 0
+        }
+        snprintf(detail, size, ParserCString("%s folds its bound to %jd"), cast(*u8)(*((law).payload)), value)
+        return 1
+    }
+    snprintf(detail, size, ParserCString("%s has a bound the compile-time evaluator cannot fold"), cast(*u8)(*((law).payload)))
+    return 2
+}
+
+
+#scope_file
+evaluate_bounds_law :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize) -> s32 {
+    buffers := cast(*EvaluateBoundsLawBuffers)ParserScratchTake(*bounds_scratch, size_of(EvaluateBoundsLawBuffers))
+    defer ParserScratchRelease(*bounds_scratch, cast(*void)buffers)
+    return evaluate_bounds_law_with_buffers(module, law, detail, size, buffers)
+}
+
+
+#scope_file
+portable_signature_type :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
+    record: *IR.ZirType
+    dot: *u8
+    name: CoreArray128_u8
+    if (depth >= 32) {
+        return 0
+    }
+    type = skip_ws(type)
+    if ((ScalarType(type))[0] != 0) {
+        return 1
+    }
+    dot = strchr(type, 46)
+    if ((dot != cast(*u8)((null))) && ((cast(isize)(cast(usize)(dot) - cast(usize)(type)) / cast(isize)size_of(u8)) < cast(isize)(cast(usize)size_of(CoreArray128_u8)))) {
+        memcpy(cast(*void)(cast(*u8)(*((name).items))), cast(*void)(type), cast(usize)(((cast(isize)(cast(usize)(dot) - cast(usize)(type)) / cast(isize)size_of(u8)))))
+        (name).items[(cast(isize)(cast(usize)(dot) - cast(usize)(type)) / cast(isize)size_of(u8))] = cast(u8)(0)
+        type = cast(*u8)(*((name).items))
+    }
+    record = FindType(module, type, null)
+    if (record == cast(*IR.ZirType)((null))) {
+        return 0
+    }
+    if ((record).is_enum != 0) {
+        return EnumMemberValue(record, null, null)
+    }
+    if (((((record).is_extern != 0) || ((record).is_record_template != 0)) || ((record).is_procedure_type != 0)) || ((record).is_union != 0)) {
+        return 0
+    }
+    offset: usize = cast(usize)(0)
+    field: IR.ZirTypeField
+    status: s32
+    while check_loop_6 := ((ParserSet2(*(status), TypeNextField(record, *(offset), *(field)))) == 1) {
+        if !(portable_signature_type(module, cast(*u8)(*((field).type)), (depth + 1)) != 0) {
+            return 0
+        }
+    }
+    return cast(s32)(status == 0)
+}
+
+
+#scope_file
+find_extern_import :: (module: *IR.ZirModule, name: *u8) -> *IR.ZirImport {
+    {
+        i: s32 = 0
+        while check_loop_7 := (i < (module).import_count) {
+            if ((cast(s32)((((module).imports)[i]).kind) == cast(s32)(3)) && (strcmp(cast(*u8)(*((((module).imports)[i]).name)), name) == 0)) {
+                return cast(*IR.ZirImport)(cast(usize)((module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
+            }
+            ParserPost0(*(i))
+        }
+    }
+    return null
+}
+
+
+#scope_file
+evaluate_abi_law :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize) -> s32 {
+    owner: *IR.ZirModule = null
+    fn: *IR.ZirFunction = null
+    count: s32
+    if ((ResolveFunction(module, cast(*u8)(*((law).payload)), *(owner), *(fn)) <= 0) || (fn == cast(*IR.ZirFunction)((null)))) {
+        if (find_extern_import(module, cast(*u8)(*((law).payload))) != cast(*IR.ZirImport)((null))) {
+            snprintf(detail, size, ParserCString("%s is foreign; its ABI is the host contract"), cast(*u8)(*((law).payload)))
+            return 2
+        }
+        snprintf(detail, size, ParserCString("no visible procedure named %s"), cast(*u8)(*((law).payload)))
+        return 1
+    }
+    if ((fn).is_extern != 0) {
+        snprintf(detail, size, ParserCString("%s is foreign; its ABI is the host contract"), cast(*u8)(*((law).payload)))
+        return 2
+    }
+    parameters: *Check.ZirParameters = ParametersOf(FunctionArgs(fn))
+    count = (parameters).count
+    {
+        p: s32 = 0
+        while check_loop_8 := (p < count) {
+            type: *u8 = ((cast(*Check.ZirParameter)(*(parameters).items.items[0]))[p]).type
+            if ((type == cast(*u8)((null))) || !(portable_signature_type(module, type, 0) != 0)) {
+                snprintf(detail, size, ParserCString("%s parameter %d is outside the portable ABI"), cast(*u8)(*((law).payload)), p)
+                return 1
+            }
+            ParserPost0(*(p))
+        }
+    }
+    if !(portable_signature_type(module, cast(*u8)(*((fn).return_type)), 0) != 0) {
+        snprintf(detail, size, ParserCString("%s result is outside the portable ABI"), cast(*u8)(*((law).payload)))
+        return 1
+    }
+    snprintf(detail, size, ParserCString("%s has a portable signature"), cast(*u8)(*((law).payload)))
+    return 0
+}
+
+
+#scope_file
+evaluate_size_law :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize) -> s32 {
+    ops: CoreArray3__u8 = .{items = .{ParserCString("=="), ParserCString(">="), ParserCString("<=")}}
+    {
+        o: s32 = 0
+        while check_loop_9 := (o < 3) {
+            op: *u8 = strstr(cast(*u8)(*((law).payload)), (ops).items[o])
+            type: CoreArray4096_u8
+            wanted_text: CoreArray128_u8
+            bytes: usize = cast(usize)(0)
+            alignment: usize = cast(usize)(0)
+            wanted: s64 = cast(s64)(0)
+            length: usize
+            if (op == cast(*u8)((null))) {
+                ParserPost0(*(o))
+                continue check_loop_9
+            }
+            length = cast(usize)(((cast(isize)(cast(usize)(op) - cast(usize)(cast(*u8)(*((law).payload)))) / cast(isize)size_of(u8))))
+            if ((length == cast(usize)(0)) || (length >= cast(usize)size_of(CoreArray4096_u8))) {
+                break check_loop_9
+            }
+            memcpy(cast(*void)(cast(*u8)(*((type).items))), cast(*void)(cast(*u8)(*((law).payload))), length)
+            (type).items[length] = cast(u8)(0)
+            trim_in_place(cast(*u8)(*((type).items)))
+            snprintf(cast(*u8)(*((wanted_text).items)), cast(usize)size_of(CoreArray128_u8), ParserCString("%s"), skip_ws(cast(*u8)(cast(usize)(op) + cast(usize)(2) * size_of(u8))))
+            trim_in_place(cast(*u8)(*((wanted_text).items)))
+            if !(EvaluateCompileExpression(module, cast(*u8)(*((wanted_text).items)), (law).span, 0, *(wanted)) != 0) {
+                snprintf(detail, size, ParserCString("comparison size %s is not a compile-time value"), cast(*u8)(*((wanted_text).items)))
+                return 2
+            }
+            if !(TypeLayout(module, cast(*u8)(*((type).items)), *(bytes), *(alignment)) != 0) {
+                snprintf(detail, size, ParserCString("%s has no concrete layout"), cast(*u8)(*((type).items)))
+                return 1
+            }
+            holds: s32 = (ifx (o == 0) then cast(s32)(bytes == cast(usize)(wanted)) else (ifx (o == 1) then cast(s32)(bytes >= cast(usize)(wanted)) else cast(s32)(bytes <= cast(usize)(wanted))))
+            snprintf(detail, size, ParserCString("%s lays out as %zu bytes %s %jd"), cast(*u8)(*((type).items)), bytes, (ops).items[o], wanted)
+            return (ifx (holds != 0) then 0 else 1)
+            ParserPost0(*(o))
+        }
+    }
+    snprintf(detail, size, ParserCString("size laws need `Type == N`, `>= N`, or `<= N`"))
+    return 1
+}
+
+
+#scope_file
+evaluate_custom_law :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize) -> s32 {
+    truth: s32 = 0
+    if (EvaluateCompileConditionBound(module, cast(*u8)(*((law).payload)), (law).span, null, null, null, null, 0, *(truth)) != 0) {
+        snprintf(detail, size, ParserCString("payload evaluated to %d"), truth)
+        return (ifx (truth != 0) then 0 else 1)
+    }
+    snprintf(detail, size, ParserCString("payload is outside the compile-time evaluator"))
+    return 2
+}
+
+
+#scope_file
+evaluate_forall_law :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize, evidence: *IR.ZirLawEvidence) -> s32 {
+    buffers: *ForallBuffers = cast(*ForallBuffers)(AllocateOrExit(cast(usize)size_of(ForallBuffers)))
+    status: s32 = evaluate_forall_law_with(module, law, detail, size, buffers, evidence)
+    CompilerFree(cast(*void)(buffers))
+    return status
+}
+
+
+#scope_file
+forall_enum_members :: (type: *IR.ZirType, values: *s64, max: s32) -> s32 {
+    cursor: *u8 = cast(*u8)(*((type).body))
+    count: s32 = 0
+    while check_loop_10 := ((cursor)[0] != 0) {
+        member: CoreArray128_u8
+        length: usize = cast(usize)(0)
+        value: s64
+        while check_loop_11 := ((cast(s32)(cast(s8)((cursor)[0])) == 44) || (isspace(cast(s32)(((cast(u8)((cursor)[0]))))) != 0)) {
+            ParserPost3(*(cursor))
+        }
+        if (cast(s32)(cast(s8)((cursor)[0])) == 0) {
+            break check_loop_10
+        }
+        while check_loop_12 := (((isalnum(cast(s32)(((cast(u8)((cursor)[0]))))) != 0) || (cast(s32)(cast(s8)((cursor)[0])) == 95)) && ((length + cast(usize)(1)) < cast(usize)size_of(CoreArray128_u8))) {
+            (member).items[ParserPost4(*(length))] = (ParserPost3(*(cursor)))[0]
+        }
+        (member).items[length] = cast(u8)(0)
+        while check_loop_13 := ((((cursor)[0] != 0) && (cast(s32)(cast(s8)((cursor)[0])) != 44)) && (cast(s32)(cast(s8)((cursor)[0])) != 10)) {
+            ParserPost3(*(cursor))
+        }
+        if (((length == cast(usize)(0)) || (count >= max)) || !(EnumMemberValue(type, cast(*u8)(*((member).items)), *(value)) != 0)) {
+            return (-1)
+        }
+        (values)[ParserPost0(*(count))] = cast(s64)(value)
+    }
+    return count
+}
+
+
+#scope_file
+evaluate_forall_law_with :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize, buffers: *ForallBuffers, evidence: *IR.ZirLawEvidence) -> s32 {
+    names: *CoreArray128_u8 = cast(*CoreArray128_u8)(*(((buffers).names).items))
+    types: *CoreArray128_u8 = cast(*CoreArray128_u8)(*(((buffers).types).items))
+    head: *u8 = cast(*u8)(*(((buffers).head).items))
+    parts: *CoreArray4096_u8 = cast(*CoreArray4096_u8)(*(((buffers).parts).items))
+    low: CoreArray8_s64
+    span_count: CoreArray8_s64
+    index: CoreArray8_s64
+    values: CoreArray8_s64
+    element_span: CoreArray8_s64
+    is_enum: CoreArray8_s32
+    array_length: CoreArray8_s32
+    exprs: *CoreArray128_u8 = cast(*CoreArray128_u8)(*(((buffers).exprs).items))
+    arrow: *u8 = strstr(cast(*u8)(*((law).payload)), ParserCString("=>"))
+    body: *u8
+    total: s64 = cast(s64)(1)
+    checked: s64 = cast(s64)(0)
+    count: s32
+    if (arrow == cast(*u8)((null))) {
+        snprintf(detail, size, ParserCString("forall laws need `NAME: LO..HI => condition`"))
+        return 1
+    }
+    body = skip_ws(cast(*u8)(cast(usize)(arrow) + cast(usize)(2) * size_of(u8)))
+    snprintf(head, cast(usize)(4096), ParserCString("%.*s"), cast(s32)(((cast(isize)(cast(usize)(arrow) - cast(usize)(cast(*u8)(*((law).payload)))) / cast(isize)size_of(u8)))), cast(*u8)(*((law).payload)))
+    count = split_top_level(head, cast(*u8)(*((parts)[0]).items[0]), 8, cast(usize)size_of(CoreArray4096_u8))
+    if ((count <= 0) || (cast(s32)(cast(s8)((body)[0])) == 0)) {
+        snprintf(detail, size, ParserCString("forall laws need variables and a condition"))
+        return 1
+    }
+    {
+        v: s32 = 0
+        while check_loop_14 := (v < count) {
+            colon: *u8 = strchr(cast(*u8)(*((parts)[v]).items[0]), 58)
+            dots: *u8
+            if (colon == cast(*u8)((null))) {
+                snprintf(detail, size, ParserCString("variable %d needs `NAME: LO..HI`"), v)
+                return 1
+            }
+            ParserSet5(colon, cast(u8)(0))
+            trim_in_place(cast(*u8)(*((parts)[v]).items[0]))
+            snprintf(cast(*u8)(*((names)[v]).items[0]), cast(usize)(128), ParserCString("%s"), cast(*u8)(*((parts)[v]).items[0]))
+            if (!(isalpha(cast(s32)(((cast(u8)(((names)[v]).items[0]))))) != 0) && (cast(s32)(cast(s8)(((names)[v]).items[0])) != 95)) {
+                snprintf(detail, size, ParserCString("invalid quantified binding"))
+                return 1
+            }
+            {
+                n: *u8 = cast(*u8)(*((names)[v]).items[0])
+                while check_loop_15 := ((n)[0] != 0) {
+                    if (!(isalnum(cast(s32)(((cast(u8)((n)[0]))))) != 0) && (cast(s32)(cast(s8)((n)[0])) != 95)) {
+                        snprintf(detail, size, ParserCString("invalid quantified binding"))
+                        return 1
+                    }
+                    ParserPost3(*(n))
+                }
+            }
+            {
+                prior: s32 = 0
+                while check_loop_16 := (prior < v) {
+                    if !(strcmp(cast(*u8)(*((names)[prior]).items[0]), cast(*u8)(*((names)[v]).items[0])) != 0) {
+                        snprintf(detail, size, ParserCString("duplicate quantified binding %s"), cast(*u8)(*((names)[v]).items[0]))
+                        return 1
+                    }
+                    ParserPost0(*(prior))
+                }
+            }
+            {
+                d: s32 = 0
+                while check_loop_17 := (d < (module).define_count) {
+                    if !(strcmp(cast(*u8)(*((((module).defines)[d]).name)), cast(*u8)(*((names)[v]).items[0])) != 0) {
+                        snprintf(detail, size, ParserCString("quantified binding %s shadows a constant"), cast(*u8)(*((names)[v]).items[0]))
+                        return 1
+                    }
+                    ParserPost0(*(d))
+                }
+            }
+            ((types)[v]).items[0] = cast(u8)(0)
+            (is_enum).items[v] = 0
+            (array_length).items[v] = 0
+            (element_span).items[v] = cast(s64)(0)
+            dots = strstr(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8)), ParserCString(".."))
+            if ((cast(s32)(cast(s8)((skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8))))[0])) == 91) && (dots != cast(*u8)((null)))) {
+                open: *u8 = skip_ws(cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8)))
+                close: *u8 = strchr(open, 93)
+                length_text: CoreArray128_u8
+                lo_text: CoreArray128_u8
+                hi_text: CoreArray128_u8
+                length: s64 = cast(s64)(0)
+                high: s64 = cast(s64)(0)
+                cases: s64 = cast(s64)(1)
+                if (((close == cast(*u8)((null))) || (close > dots)) || (cast(usize)((((cast(isize)(cast(usize)(close) - cast(usize)(open)) / cast(isize)size_of(u8)) - cast(isize)(1)))) >= cast(usize)size_of(CoreArray128_u8))) {
+                    snprintf(detail, size, ParserCString("%s needs `[N]LO..HI`"), cast(*u8)(*((names)[v]).items[0]))
+                    return 1
+                }
+                snprintf(cast(*u8)(*((length_text).items)), cast(usize)size_of(CoreArray128_u8), ParserCString("%.*s"), cast(s32)((((cast(isize)(cast(usize)(close) - cast(usize)(open)) / cast(isize)size_of(u8)) - cast(isize)(1)))), cast(*u8)(cast(usize)(open) + cast(usize)(1) * size_of(u8)))
+                snprintf(cast(*u8)(*((lo_text).items)), cast(usize)size_of(CoreArray128_u8), ParserCString("%.*s"), cast(s32)((((cast(isize)(cast(usize)(dots) - cast(usize)(close)) / cast(isize)size_of(u8)) - cast(isize)(1)))), cast(*u8)(cast(usize)(close) + cast(usize)(1) * size_of(u8)))
+                snprintf(cast(*u8)(*((hi_text).items)), cast(usize)size_of(CoreArray128_u8), ParserCString("%s"), cast(*u8)(cast(usize)(dots) + cast(usize)(2) * size_of(u8)))
+                trim_in_place(cast(*u8)(*((length_text).items)))
+                trim_in_place(cast(*u8)(*((lo_text).items)))
+                trim_in_place(cast(*u8)(*((hi_text).items)))
+                if ((!(EvaluateCompileExpression(module, cast(*u8)(*((length_text).items)), (law).span, 0, *(length)) != 0) || !(EvaluateCompileExpression(module, cast(*u8)(*((lo_text).items)), (law).span, 0, cast(*s64)(cast(usize)(cast(*s64)(*((low).items))) + cast(usize)(v) * size_of(s64))) != 0)) || !(EvaluateCompileExpression(module, cast(*u8)(*((hi_text).items)), (law).span, 0, *(high)) != 0)) {
+                    snprintf(detail, size, ParserCString("sequence bounds of %s are not compile-time values"), cast(*u8)(*((names)[v]).items[0]))
+                    return 2
+                }
+                if (((length < cast(s64)(1)) || (length > cast(s64)(16))) || (high < (low).items[v])) {
+                    snprintf(detail, size, ParserCString("%s needs a length of 1..16 and a non-empty range"), cast(*u8)(*((names)[v]).items[0]))
+                    return 1
+                }
+                distance: u64 = (cast(u64)(high) - cast(u64)((low).items[v]))
+                if (((distance >= cast(u64)(cast(isize)(1000000))) || ((low).items[v] < cast(s64)((((-2147483647) - 1))))) || (high > cast(s64)((2147483647)))) {
+                    snprintf(detail, size, ParserCString("sequence domain exceeds evaluator width or budget"))
+                    return 2
+                }
+                (element_span).items[v] = (cast(s64)(distance) + cast(s64)(1))
+                (array_length).items[v] = cast(s32)(length)
+                {
+                    e: s64 = cast(s64)(0)
+                    while check_loop_18 := (e < length) {
+                        if (cast(s64)(cases) > cast(s64)((cast(isize)(1000000) / cast(isize)((element_span).items[v])))) {
+                            snprintf(detail, size, ParserCString("domain exceeds the budget of %jd cases"), cast(s64)(cast(isize)(1000000)))
+                            return 2
+                        }
+                        cases *= (element_span).items[v]
+                        ParserPost6(*(e))
+                    }
+                }
+                (span_count).items[v] = cases
+                snprintf(cast(*u8)(*((types)[v]).items[0]), cast(usize)(128), ParserCString("[%jd]s32"), length)
+            } else {
+                if (dots == cast(*u8)((null))) {
+                    type: *IR.ZirType
+                    type_name: CoreArray128_u8
+                    members: s32
+                    snprintf(cast(*u8)(*((type_name).items)), cast(usize)size_of(CoreArray128_u8), ParserCString("%s"), cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8)))
+                    trim_in_place(cast(*u8)(*((type_name).items)))
+                    type = FindType(module, cast(*u8)(*((type_name).items)), null)
+                    if ((type == cast(*IR.ZirType)((null))) || !((type).is_enum != 0)) {
+                        snprintf(detail, size, ParserCString("%s needs a range LO..HI or an enum type"), cast(*u8)(*((names)[v]).items[0]))
+                        return 1
+                    }
+                    members = forall_enum_members(type, cast(*s64)(*(((buffers).members).items[v]).items[0]), 256)
+                    if (members <= 0) {
+                        snprintf(detail, size, ParserCString("enum %s has no usable members"), cast(*u8)(*((type_name).items)))
+                        return 1
+                    }
+                    (is_enum).items[v] = 1
+                    snprintf(cast(*u8)(*((types)[v]).items[0]), cast(usize)(128), ParserCString("%s"), cast(*u8)(*((type).name)))
+                    (low).items[v] = cast(s64)(0)
+                    (span_count).items[v] = cast(s64)(members)
+                } else {
+                    lo_text: CoreArray128_u8
+                    hi_text: CoreArray128_u8
+                    high: s64 = cast(s64)(0)
+                    snprintf(cast(*u8)(*((lo_text).items)), cast(usize)size_of(CoreArray128_u8), ParserCString("%.*s"), cast(s32)((((cast(isize)(cast(usize)(dots) - cast(usize)(colon)) / cast(isize)size_of(u8)) - cast(isize)(1)))), cast(*u8)(cast(usize)(colon) + cast(usize)(1) * size_of(u8)))
+                    snprintf(cast(*u8)(*((hi_text).items)), cast(usize)size_of(CoreArray128_u8), ParserCString("%s"), cast(*u8)(cast(usize)(dots) + cast(usize)(2) * size_of(u8)))
+                    trim_in_place(cast(*u8)(*((lo_text).items)))
+                    trim_in_place(cast(*u8)(*((hi_text).items)))
+                    if (!(EvaluateCompileExpression(module, cast(*u8)(*((lo_text).items)), (law).span, 0, cast(*s64)(cast(usize)(cast(*s64)(*((low).items))) + cast(usize)(v) * size_of(s64))) != 0) || !(EvaluateCompileExpression(module, cast(*u8)(*((hi_text).items)), (law).span, 0, *(high)) != 0)) {
+                        snprintf(detail, size, ParserCString("range of %s is not a compile-time value"), cast(*u8)(*((names)[v]).items[0]))
+                        return 2
+                    }
+                    if (high < (low).items[v]) {
+                        snprintf(detail, size, ParserCString("range of %s is empty"), cast(*u8)(*((names)[v]).items[0]))
+                        return 1
+                    }
+                    distance: u64 = (cast(u64)(high) - cast(u64)((low).items[v]))
+                    if (distance >= cast(u64)(cast(isize)(1000000))) {
+                        snprintf(detail, size, ParserCString("domain exceeds the budget of %jd cases"), cast(s64)(cast(isize)(1000000)))
+                        return 2
+                    }
+                    (span_count).items[v] = (cast(s64)(distance) + cast(s64)(1))
+                }
+            }
+            if ((cast(s64)((span_count).items[v]) > cast(s64)(cast(isize)(1000000))) || (cast(s64)(total) > cast(s64)((cast(isize)(1000000) / cast(isize)((span_count).items[v]))))) {
+                snprintf(detail, size, ParserCString("domain exceeds the budget of %jd cases"), cast(s64)(cast(isize)(1000000)))
+                return 2
+            }
+            total *= (span_count).items[v]
+            (index).items[v] = cast(s64)(0)
+            ParserPost0(*(v))
+        }
+    }
+    condition: *void = PrepareBoundCondition(module, body, (law).span, cast(*CoreArray128_u8)(names), cast(*CoreArray128_u8)(types), count)
+    status: s32 = 0
+    {
+        while check_loop_19 := true {
+            truth: s32 = 0
+            {
+                v: s32 = 0
+                while check_loop_20 := (v < count) {
+                    ((exprs)[v]).items[0] = cast(u8)(0)
+                    (values).items[v] = (ifx ((is_enum).items[v] != 0) then (((buffers).members).items[v]).items[(index).items[v]] else ((low).items[v] + (index).items[v]))
+                    if ((array_length).items[v] > 0) {
+                        digits: CoreArray16_s64
+                        rest: s64 = (index).items[v]
+                        used: usize = cast(usize)(snprintf(cast(*u8)(*((exprs)[v]).items[0]), cast(usize)(128), ParserCString("s32.[")))
+                        {
+                            e: s32 = ((array_length).items[v] - 1)
+                            while check_loop_21 := (e >= 0) {
+                                (digits).items[e] = ((low).items[v] + (rest % (element_span).items[v]))
+                                rest /= (element_span).items[v]
+                                ParserPost7(*(e))
+                            }
+                        }
+                        {
+                            e: s32 = 0
+                            while check_loop_22 := ((e < (array_length).items[v]) && (used < cast(usize)(128))) {
+                                used += cast(usize)(snprintf(cast(*u8)(cast(usize)(cast(*u8)(*((exprs)[v]).items[0])) + cast(usize)(used) * size_of(u8)), (cast(usize)(128) - used), ParserCString("%s%jd"), (ifx (e != 0) then ParserCString(", ") else ParserCString("")), (digits).items[e]))
+                                ParserPost0(*(e))
+                            }
+                        }
+                        if ((used + cast(usize)(2)) < cast(usize)(128)) {
+                            snprintf(cast(*u8)(cast(usize)(cast(*u8)(*((exprs)[v]).items[0])) + cast(usize)(used) * size_of(u8)), (cast(usize)(128) - used), ParserCString("]"))
+                        }
+                    }
+                    ParserPost0(*(v))
+                }
+            }
+            if !(EvaluateBoundCondition(condition, cast(*CoreArray128_u8)(exprs), cast(*s64)(*((values).items)), *(truth)) != 0) {
+                used: usize = cast(usize)(snprintf(detail, size, ParserCString("condition is outside the compile-time evaluator at")))
+                {
+                    v: s32 = 0
+                    while check_loop_23 := ((v < count) && (used < size)) {
+                        used += cast(usize)(snprintf(cast(*u8)(cast(usize)(detail) + cast(usize)(used) * size_of(u8)), (size - used), ParserCString("%s%s=%jd"), (ifx (v != 0) then ParserCString(", ") else ParserCString(" ")), cast(*u8)(*((names)[v]).items[0]), (values).items[v]))
+                        ParserPost0(*(v))
+                    }
+                }
+                status = 2
+                break check_loop_19
+            }
+            if (evidence != null) {
+                (evidence).cases_checked = (cast(u64)(checked) + cast(u64)(1))
+            }
+            if !(truth != 0) {
+                if (evidence != null) {
+                    out: *u8 = cast(*u8)(*((evidence).counterexample))
+                    used: usize = cast(usize)(snprintf(out, cast(usize)(4096), ParserCString("{")))
+                    {
+                        v: s32 = 0
+                        while check_loop_24 := ((v < count) && (used < cast(usize)(4096))) {
+                            if (((exprs)[v]).items[0] != 0) {
+                                used += cast(usize)(snprintf(cast(*u8)(cast(usize)(out) + cast(usize)(used) * size_of(u8)), (cast(usize)(4096) - used), ParserCString("%s\"%s\":\"%s\""), (ifx (v != 0) then ParserCString(",") else ParserCString("")), cast(*u8)(*((names)[v]).items[0]), cast(*u8)(*((exprs)[v]).items[0])))
+                            } else {
+                                used += cast(usize)(snprintf(cast(*u8)(cast(usize)(out) + cast(usize)(used) * size_of(u8)), (cast(usize)(4096) - used), ParserCString("%s\"%s\":%jd"), (ifx (v != 0) then ParserCString(",") else ParserCString("")), cast(*u8)(*((names)[v]).items[0]), (values).items[v]))
+                            }
+                            ParserPost0(*(v))
+                        }
+                    }
+                    if (used < cast(usize)(4096)) {
+                        snprintf(cast(*u8)(cast(usize)(out) + cast(usize)(used) * size_of(u8)), (cast(usize)(4096) - used), ParserCString("}"))
+                    }
+                }
+                used: usize = cast(usize)(snprintf(detail, size, ParserCString("counterexample")))
+                {
+                    v: s32 = 0
+                    while check_loop_25 := ((v < count) && (used < size)) {
+                        if (((exprs)[v]).items[0] != 0) {
+                            used += cast(usize)(snprintf(cast(*u8)(cast(usize)(detail) + cast(usize)(used) * size_of(u8)), (size - used), ParserCString("%s%s=%s"), (ifx (v != 0) then ParserCString(", ") else ParserCString(" ")), cast(*u8)(*((names)[v]).items[0]), cast(*u8)(*((exprs)[v]).items[0])))
+                        } else {
+                            used += cast(usize)(snprintf(cast(*u8)(cast(usize)(detail) + cast(usize)(used) * size_of(u8)), (size - used), ParserCString("%s%s=%jd"), (ifx (v != 0) then ParserCString(", ") else ParserCString(" ")), cast(*u8)(*((names)[v]).items[0]), (values).items[v]))
+                        }
+                        ParserPost0(*(v))
+                    }
+                }
+                status = 1
+                break check_loop_19
+            }
+            ParserPost6(*(checked))
+            v: s32 = (count - 1)
+            while check_loop_26 := ((v >= 0) && ((index).items[v] == ((span_count).items[v] - cast(s64)(1)))) {
+                (index).items[v] = cast(s64)(0)
+                ParserPost7(*(v))
+            }
+            if (v < 0) {
+                break check_loop_19
+            }
+            ParserPost6(cast(*s64)(cast(usize)(cast(*s64)(*((index).items))) + cast(usize)(v) * size_of(s64)))
+        }
+    }
+    FreeBoundCondition(condition)
+    if (cast(u32)(status) == cast(u32)(0)) {
+        snprintf(detail, size, ParserCString("held for all %jd cases"), checked)
+    }
+    return status
+}
+
+
+#scope_export
+#program_export "EvaluateLaw"
+EvaluateLaw :: (program: *IR.ZirProgram, module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize) -> s32 {
+    cached: *IR.ZirLaw = cast(*IR.ZirLaw)(law)
+    if ((((cached).evaluated_in == module) && ((cached).evaluated_proof == (law).proof)) && ((cached).evaluated_detail != cast(*u8)((null)))) {
+        copy_text(detail, size, (cached).evaluated_detail)
+        return (cached).evaluated_status
+    }
+    status: s32 = evaluate_law_uncached(module, law, detail, size)
+    (cached).evaluated_in = module
+    (cached).evaluated_proof = (law).proof
+    (cached).evaluated_status = status
+    (cached).evaluated_detail = KeepText(detail)
+    return status
+}
+
+
+#scope_file
+evaluate_law_uncached :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize) -> s32 {
+    status: s32
+    evidence: *IR.ZirLawEvidence = *(((cast(*IR.ZirLaw)(law))).evidence)
+    waived: s32 = (evidence).waived
+    memset(cast(*void)(evidence), 0, cast(usize)size_of(IR.ZirLawEvidence))
+    (evidence).waived = waived
+    copy_text(cast(*u8)(*((evidence).method)), cast(usize)size_of(CoreArray16_u8), (ifx !(strcmp(cast(*u8)(*((law).kind)), ParserCString("theorem")) != 0) then ParserCString("kernel") else (ifx !(strcmp(cast(*u8)(*((law).kind)), ParserCString("forall")) != 0) then ParserCString("exhaustive") else (ifx !(strcmp(cast(*u8)(*((law).kind)), ParserCString("custom")) != 0) then ParserCString("evaluation") else ParserCString("structural")))))
+    arrow: *u8 = strstr(cast(*u8)(*((law).payload)), ParserCString("=>"))
+    if ((arrow != null) && (!(strcmp(cast(*u8)(*((law).kind)), ParserCString("forall")) != 0) || !(strcmp(cast(*u8)(*((law).kind)), ParserCString("theorem")) != 0))) {
+        snprintf(cast(*u8)(*((evidence).domain)), cast(usize)size_of(CoreArray4096_u8), ParserCString("%.*s"), cast(s32)(((cast(isize)(cast(usize)(arrow) - cast(usize)(cast(*u8)(*((law).payload)))) / cast(isize)size_of(u8)))), cast(*u8)(*((law).payload)))
+        trim_in_place(cast(*u8)(*((evidence).domain)))
+    } else {
+        copy_text(cast(*u8)(*((evidence).domain)), cast(usize)size_of(CoreArray4096_u8), cast(*u8)(*((law).payload)))
+    }
+    (detail)[0] = cast(u8)(0)
+    if !(strcmp(cast(*u8)(*((law).kind)), ParserCString("type")) != 0) {
+        status = evaluate_type_law(module, law, detail, size)
+    } else {
+        if !(strcmp(cast(*u8)(*((law).kind)), ParserCString("bounds")) != 0) {
+            status = evaluate_bounds_law(module, law, detail, size)
+        } else {
+            if !(strcmp(cast(*u8)(*((law).kind)), ParserCString("effect")) != 0) {
+                status = cast(s32)(EvaluateEffectLaw(module, law, detail, size))
+            } else {
+                if !(strcmp(cast(*u8)(*((law).kind)), ParserCString("abi")) != 0) {
+                    status = evaluate_abi_law(module, law, detail, size)
+                } else {
+                    if !(strcmp(cast(*u8)(*((law).kind)), ParserCString("size")) != 0) {
+                        status = evaluate_size_law(module, law, detail, size)
+                    } else {
+                        if !(strcmp(cast(*u8)(*((law).kind)), ParserCString("forall")) != 0) {
+                            status = evaluate_forall_law(module, law, detail, size, evidence)
+                        } else {
+                            if !(strcmp(cast(*u8)(*((law).kind)), ParserCString("custom")) != 0) {
+                                status = evaluate_custom_law(module, law, detail, size)
+                            } else {
+                                if !(strcmp(cast(*u8)(*((law).kind)), ParserCString("theorem")) != 0) {
+                                    status = cast(s32)(EvaluateTheorem(module, law, detail, size))
+                                } else {
+                                    snprintf(detail, size, ParserCString("no checker for kind %s"), cast(*u8)(*((law).kind)))
+                                    status = 2
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (!(strcmp(cast(*u8)(*((law).kind)), ParserCString("custom")) != 0) && (cast(u32)(status) != cast(u32)(2))) {
+        (evidence).cases_checked = cast(u64)(1)
+    }
+    return cast(s32)(status)
+}
+
+
+#scope_export
+#program_export "LawStatusName"
+LawStatusName :: (status: s32) -> *u8 {
+    return law_status_name(cast(s32)(status))
+}
+
+
+#scope_file
+law_waived :: (programs: **IR.ZirProgram, count: s32, law: *IR.ZirLaw) -> s32 {
+    {
+        p: s32 = 0
+        while check_loop_27 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_28 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        w: s32 = 0
+                        while check_loop_29 := (w < (module).law_waiver_count) {
+                            owner: *IR.ZirModule = null
+                            if (FindVisibleLaw(module, cast(*u8)(*((((module).law_waivers)[w]).name)), *(owner)) == law) {
+                                return 1
+                            }
+                            ParserPost0(*(w))
+                        }
+                    }
+                    ParserPost0(*(m))
+                }
+            }
+            ParserPost0(*(p))
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+check_law_identity :: (program: *IR.ZirProgram) -> s32 {
+    failures: s32 = 0
+    {
+        m: s32 = 0
+        while check_loop_30 := (m < (program).module_count) {
+            module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)((program).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+            {
+                l: s32 = 0
+                while check_loop_31 := (l < (module).law_count) {
+                    {
+                        k: s32 = (l + 1)
+                        while check_loop_32 := (k < (module).law_count) {
+                            if !(strcmp(cast(*u8)(*((((module).laws)[l]).name)), cast(*u8)(*((((module).laws)[k]).name))) != 0) {
+                                Diagnostic((((module).laws)[k]).span, ParserCString("law.identity"), ParserCString("law %s is declared more than once"), cast(*u8)(*((((module).laws)[k]).name)))
+                                ParserPost0(*(failures))
+                            }
+                            ParserPost0(*(k))
+                        }
+                    }
+                    ParserPost0(*(l))
+                }
+            }
+            {
+                w: s32 = 0
+                while check_loop_33 := (w < (module).law_waiver_count) {
+                    owner: *IR.ZirModule = null
+                    if !(FindVisibleLaw(module, cast(*u8)(*((((module).law_waivers)[w]).name)), *(owner)) != null) {
+                        Diagnostic((((module).law_waivers)[w]).span, ParserCString("law.waiver"), ParserCString("waiver names no law: %s"), cast(*u8)(*((((module).law_waivers)[w]).name)))
+                        ParserPost0(*(failures))
+                    }
+                    {
+                        k: s32 = (w + 1)
+                        while check_loop_34 := (k < (module).law_waiver_count) {
+                            if !(strcmp(cast(*u8)(*((((module).law_waivers)[w]).name)), cast(*u8)(*((((module).law_waivers)[k]).name))) != 0) {
+                                Diagnostic((((module).law_waivers)[k]).span, ParserCString("law.waiver"), ParserCString("duplicate law waiver"))
+                                ParserPost0(*(failures))
+                            }
+                            ParserPost0(*(k))
+                        }
+                    }
+                    ParserPost0(*(w))
+                }
+            }
+            ParserPost0(*(m))
+        }
+    }
+    return failures
+}
+
+
+#scope_file
+check_law_gates :: (programs: **IR.ZirProgram, count: s32) -> s32 {
+    failures: s32 = 0
+    if !(PrepareLawProofs(programs, count) != 0) {
+        return 0
+    }
+    {
+        p: s32 = 0
+        while check_loop_35 := (p < count) {
+            failures += check_law_identity((programs)[p])
+            ParserPost0(*(p))
+        }
+    }
+    {
+        p: s32 = 0
+        while check_loop_36 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_37 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        l: s32 = 0
+                        while check_loop_38 := (l < (module).law_count) {
+                            law: *IR.ZirLaw = cast(*IR.ZirLaw)(cast(usize)((module).laws) + cast(usize)(l) * size_of(IR.ZirLaw))
+                            detail: CoreArray4096_u8
+                            status: s32 = EvaluateLaw((programs)[p], module, law, cast(*u8)(*((detail).items)), cast(usize)size_of(CoreArray4096_u8))
+                            (((cast(*IR.ZirLaw)(law))).evidence).waived = law_waived(programs, count, law)
+                            if ((status == 2) && (law_waived(programs, count, law) != 0)) {
+                                ParserPost0(*(l))
+                                continue check_loop_38
+                            }
+                            if ((status != 2) && (law_waived(programs, count, law) != 0)) {
+                                Diagnostic((law).span, ParserCString("law.waiver"), ParserCString("law %s is %s; only unknown laws can be waived"), cast(*u8)(*((law).name)), law_status_name(cast(s32)(status)))
+                                ParserPost0(*(failures))
+                            }
+                            if (status == 0) {
+                                ParserPost0(*(l))
+                                continue check_loop_38
+                            }
+                            Diagnostic((law).span, ParserCString("law.gate"), ParserCString("law %s is %s: %s"), cast(*u8)(*((law).name)), law_status_name(cast(s32)(status)), cast(*u8)(*((detail).items)))
+                            ParserPost0(*(failures))
+                            ParserPost0(*(l))
+                        }
+                    }
+                    ParserPost0(*(m))
+                }
+            }
+            ParserPost0(*(p))
+        }
+    }
+    return cast(s32)(failures == 0)
+}
+
+
+#scope_export
+#program_export "CheckLawGates"
+CheckLawGates :: (programs: **IR.ZirProgram, count: s32) -> s32 {
+    started: u64 = ProfileStart()
+    passed: s32 = check_law_gates(programs, count)
+    ProfileEnd(ParserCString("check.laws"), started)
+    return passed
+}
+
+
+#scope_file
+print_json_string :: (out: *void, text: *u8) {
+    fputc(34, out)
+    {
+        p: *u8 = cast(*u8)(text)
+        while check_loop_39 := ((p)[0] != 0) {
+            if ((cast(s32)((p)[0]) == 34) || (cast(s32)((p)[0]) == 92)) {
+                fprintf(out, ParserCString("\\%c"), cast(s32)((p)[0]))
+            } else {
+                if (cast(s32)((p)[0]) < 32) {
+                    fprintf(out, ParserCString("\\u%04x"), cast(s32)((p)[0]))
+                } else {
+                    fputc(cast(s32)((p)[0]), out)
+                }
+            }
+            ParserPost3(*(p))
+        }
+    }
+    fputc(34, out)
+}
+
+
+#scope_export
+#program_export "PrintLawResults"
+PrintLawResults :: (programs: **IR.ZirProgram, count: s32, out: *void) {
+    if (out == (null)) {
+        return
+    }
+    {
+        p: s32 = 0
+        while check_loop_40 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_41 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        l: s32 = 0
+                        while check_loop_42 := (l < (module).law_count) {
+                            law: *IR.ZirLaw = cast(*IR.ZirLaw)(cast(usize)((module).laws) + cast(usize)(l) * size_of(IR.ZirLaw))
+                            detail: CoreArray4096_u8
+                            status: s32 = EvaluateLaw((programs)[p], module, law, cast(*u8)(*((detail).items)), cast(usize)size_of(CoreArray4096_u8))
+                            fprintf(out, ParserCString("{\"law\":"))
+                            print_json_string(out, cast(*u8)(*((law).name)))
+                            fprintf(out, ParserCString(",\"kind\":"))
+                            print_json_string(out, cast(*u8)(*((law).kind)))
+                            fprintf(out, ParserCString(",\"span\":{\"file\":"))
+                            print_json_string(out, SpanPath((law).span))
+                            fprintf(out, ParserCString(",\"line\":%d,\"column\":%d},"), ((law).span).line, ((law).span).column)
+                            fprintf(out, ParserCString("\"status\":\"%s\",\"detail\":"), law_status_name(cast(s32)(status)))
+                            print_json_string(out, cast(*u8)(*((detail).items)))
+                            fprintf(out, ParserCString(",\"module\":"))
+                            print_json_string(out, cast(*u8)(*((module).name)))
+                            fprintf(out, ParserCString(",\"evidence\":{\"method\":"))
+                            print_json_string(out, cast(*u8)(*(((law).evidence).method)))
+                            fprintf(out, ParserCString(",\"domain\":"))
+                            print_json_string(out, cast(*u8)(*(((law).evidence).domain)))
+                            fprintf(out, ParserCString(",\"cases_checked\":%ju,\"counterexample\":%s,\"waived\":%s}}\n"), cast(u64)(((law).evidence).cases_checked), (ifx ((((law).evidence).counterexample)[0] != 0) then cast(*u8)(*(((law).evidence).counterexample)) else ParserCString("null")), (ifx (((law).evidence).waived != 0) then ParserCString("true") else ParserCString("false")))
+                            ParserPost0(*(l))
+                        }
+                    }
+                    {
+                        w: s32 = 0
+                        while check_loop_43 := (w < (module).law_waiver_count) {
+                            waiver: *IR.ZirLawWaiver = cast(*IR.ZirLawWaiver)(cast(usize)((module).law_waivers) + cast(usize)(w) * size_of(IR.ZirLawWaiver))
+                            fprintf(out, ParserCString("{\"law\":"))
+                            print_json_string(out, cast(*u8)(*((waiver).name)))
+                            fprintf(out, ParserCString(",\"kind\":\"waiver\",\"span\":{\"file\":"))
+                            print_json_string(out, SpanPath((waiver).span))
+                            fprintf(out, ParserCString(",\"line\":%d,\"column\":%d},"), ((waiver).span).line, ((waiver).span).column)
+                            fprintf(out, ParserCString("\"status\":\"waived\",\"detail\":"))
+                            print_json_string(out, cast(*u8)(*((waiver).reason)))
+                            fprintf(out, ParserCString("}\n"))
+                            ParserPost0(*(w))
+                        }
+                    }
+                    ParserPost0(*(m))
+                }
+            }
+            ParserPost0(*(p))
+        }
+    }
+}
+
+
+#scope_file
+imported_callee_class :: (module: *IR.ZirModule, name: *u8) -> *u8 {
+    {
+        i: s32 = 0
+        while check_loop_44 := (i < (module).import_count) {
+            if ((cast(s32)((((module).imports)[i]).kind) == cast(s32)(3)) && (strcmp(cast(*u8)(*((((module).imports)[i]).name)), name) == 0)) {
+                return ParserCString("external")
+            }
+            ParserPost0(*(i))
+        }
+    }
+    return null
+}
+
+
+#scope_file
+vec_operation_name :: (name: *u8) -> s32 {
+    return cast(s32)((((((((((((!(strcmp(name, ParserCString("TextView")) != 0) || !(strcmp(name, ParserCString("VecPush")) != 0)) || !(strcmp(name, ParserCString("VecReserve")) != 0)) || (!(strcmp(name, ParserCString("VecResize")) != 0) || !(strcmp(name, ParserCString("VecResizeBounded")) != 0))) || !(strcmp(name, ParserCString("VecClear")) != 0)) || !(strcmp(name, ParserCString("VecFree")) != 0)) || !(strcmp(name, ParserCString("VecSwap")) != 0)) || !(strcmp(name, ParserCString("VecPop")) != 0)) || !(strcmp(name, ParserCString("VecGet")) != 0)) || !(strcmp(name, ParserCString("VecClone")) != 0)) || !(strcmp(name, ParserCString("VecSlice")) != 0)) || !(strcmp(name, ParserCString("BuilderAppend")) != 0)) || !(strcmp(name, ParserCString("BuilderFinish")) != 0))
+}
+
+
+#scope_file
+gpu_type_holds_pointer :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
+    record: *IR.ZirType
+    offset: usize = cast(usize)(0)
+    field: IR.ZirTypeField
+    status: s32
+    if (depth >= 16) {
+        return 0
+    }
+    type = skip_ws(type)
+    if (cast(s32)(cast(s8)((type)[0])) == 42) {
+        return 1
+    }
+    record = FindType(module, type, null)
+    if ((record != cast(*IR.ZirType)((null))) && ((record).is_map != 0)) {
+        return 1
+    }
+    if ((((record == cast(*IR.ZirType)((null))) || ((record).is_enum != 0)) || ((record).is_procedure_type != 0)) || ((record).is_record_template != 0)) {
+        return 0
+    }
+    while check_loop_45 := ((ParserSet2(*(status), TypeNextField(record, *(offset), *(field)))) == 1) {
+        if ((cast(s32)(cast(s8)(((field).type)[0])) == 42) || (gpu_type_holds_pointer(module, cast(*u8)(*((field).type)), (depth + 1)) != 0)) {
+            return 1
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+stmt_declares_name :: (st: *IR.ZirStmt, name: *u8) -> s32 {
+    return cast(s32)((cast(s32)((st).kind) == cast(s32)(3)) && (strcmp(((st).names).name, name) == 0))
+}
+
+
+#scope_file
+destination_identifier :: (fn: *IR.ZirFunction, root: s32, out: *u8, size: usize, through_pointer: *s32, through_view: *s32) -> s32 {
+    expr: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(root) * size_of(IR.ZirExpr))
+    ParserSet2(through_pointer, 0)
+    ParserSet2(through_view, 0)
+    if (cast(s32)((expr).kind) == cast(s32)(1)) {
+        snprintf(out, size, ParserCString("%s"), (expr).name)
+        return 1
+    }
+    {
+        index: s32 = root
+        while check_loop_46 := ((index >= 0) && (index < (fn).expr_count)) {
+            cursor: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+            if (cast(s32)((cursor).kind) == cast(s32)(1)) {
+                snprintf(out, size, ParserCString("%s"), (cursor).name)
+                return 1
+            }
+            if (cast(s32)((cursor).kind) == cast(s32)(10)) {
+                base: *u8 = (ifx (((cursor).left >= 0) && ((cursor).left < (fn).expr_count)) then (((fn).exprs)[(cursor).left]).type else null)
+                if ((base == cast(*u8)((null))) || !(ArrayElementType(base, null, cast(usize)(0), null) != 0)) {
+                    ParserSet2(through_view, 1)
+                }
+                index = (cursor).left
+                continue check_loop_46
+            }
+            if ((cast(s32)((cursor).kind) == cast(s32)(9)) || ((cast(s32)((cursor).kind) == cast(s32)(7)) && !(strcmp(cast(*u8)(*((cursor).op)), ParserCString("*")) != 0))) {
+                ParserSet2(through_pointer, 1)
+            }
+            if (((cast(s32)((cursor).kind) != cast(s32)(8)) && !(cast(s32)((cursor).kind) == cast(s32)(9))) && !((cast(s32)((cursor).kind) == cast(s32)(7)) && !(strcmp(cast(*u8)(*((cursor).op)), ParserCString("*")) != 0))) {
+                return 0
+            }
+            index = (cursor).left
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+region_declares :: (fn: *IR.ZirFunction, begin: s32, end: s32, name: *u8) -> s32 {
+    {
+        i: s32 = begin
+        while check_loop_47 := (i < end) {
+            if (stmt_declares_name(cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(i) * size_of(IR.ZirStmt)), name) != 0) {
+                return 1
+            }
+            ParserPost0(*(i))
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+slot_write_array :: (fn: *IR.ZirFunction, index: s32, binder: *u8) -> *u8 {
+    while check_loop_48 := ((index >= 0) && (index < (fn).expr_count)) {
+        expr: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+        if (cast(s32)((expr).kind) == cast(s32)(8)) {
+            index = (expr).left
+            continue check_loop_48
+        }
+        if (((cast(s32)((expr).kind) != cast(s32)(10)) || ((expr).left < 0)) || ((expr).left >= (fn).expr_count)) {
+            return null
+        }
+        base: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((expr).left) * size_of(IR.ZirExpr))
+        if (cast(s32)((base).kind) != cast(s32)(1)) {
+            index = (expr).left
+            continue check_loop_48
+        }
+        slot: *IR.ZirExpr = (ifx (((expr).right >= 0) && ((expr).right < (fn).expr_count)) then cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((expr).right) * size_of(IR.ZirExpr)) else null)
+        return (ifx (((slot != cast(*IR.ZirExpr)((null))) && (cast(s32)((slot).kind) == cast(s32)(1))) && (strcmp((slot).name, binder) == 0)) then (base).name else null)
+    }
+    return null
+}
+
+
+#scope_file
+binding_type :: (fn: *IR.ZirFunction, before: s32, name: *u8) -> *u8 {
+    {
+        s: s32 = (before - 1)
+        while check_loop_49 := (s >= 0) {
+            if (stmt_declares_name(cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt)), name) != 0) {
+                return (((fn).stmts)[s]).type
+            }
+            ParserPost7(*(s))
+        }
+    }
+    parameters: *Check.ZirParameters = ParametersOf(FunctionArgs(fn))
+    {
+        p: s32 = 0
+        while check_loop_50 := (p < (parameters).count) {
+            if ((((cast(*Check.ZirParameter)(*(parameters).items.items[0]))[p]).binding_name != cast(*u8)((null))) && (strcmp(((cast(*Check.ZirParameter)(*(parameters).items.items[0]))[p]).binding_name, name) == 0)) {
+                return ((cast(*Check.ZirParameter)(*(parameters).items.items[0]))[p]).value_type
+            }
+            ParserPost0(*(p))
+        }
+    }
+    return null
+}
+
+
+#scope_file
+slice_type :: (type: *u8) -> s32 {
+    return cast(s32)((type != cast(*u8)((null))) && (SliceElementType(type, null, cast(usize)(0)) != 0))
+}
+
+
+#scope_file
+owned_array :: (fn: *IR.ZirFunction, before: s32, name: *u8) -> s32 {
+    type: *u8 = binding_type(fn, before, name)
+    return cast(s32)((type != cast(*u8)((null))) && ((ArrayValueType(type) != 0) || (slice_type(type) != 0)))
+}
+
+
+#scope_file
+type_refers :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
+    element: CoreArray128_u8
+    offset: usize = cast(usize)(0)
+    field: IR.ZirTypeField
+    status: s32
+    if (depth >= 16) {
+        return 1
+    }
+    type = skip_ws(type)
+    if ((((cast(s32)(cast(s8)((type)[0])) == 42) || !(strcmp(type, ParserCString("string")) != 0)) || (slice_type(type) != 0)) || (VecElementType(module, type, null, cast(usize)(0)) != 0)) {
+        return 1
+    }
+    if (ArrayElementType(type, cast(*u8)(*((element).items)), cast(usize)size_of(CoreArray128_u8), null) != 0) {
+        return type_refers(module, cast(*u8)(*((element).items)), (depth + 1))
+    }
+    record: *IR.ZirType = FindType(module, type, null)
+    if ((record == cast(*IR.ZirType)((null))) || ((record).is_enum != 0)) {
+        return 0
+    }
+    if ((((record).is_map != 0) || ((record).is_procedure_type != 0)) || ((record).is_record_template != 0)) {
+        return 1
+    }
+    while check_loop_51 := ((ParserSet2(*(status), TypeNextField(record, *(offset), *(field)))) == 1) {
+        if (type_refers(module, cast(*u8)(*((field).type)), (depth + 1)) != 0) {
+            return 1
+        }
+    }
+    return cast(s32)(status != 0)
+}
+
+
+#scope_file
+same_tree :: (fn: *IR.ZirFunction, a: s32, b: s32, siblings: s32) -> s32 {
+    if ((((a < 0) || (b < 0)) || (a >= (fn).expr_count)) || (b >= (fn).expr_count)) {
+        return cast(s32)((a == b) || (((a < 0) || (a >= (fn).expr_count)) && ((b < 0) || (b >= (fn).expr_count))))
+    }
+    x: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(a) * size_of(IR.ZirExpr))
+    y: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(b) * size_of(IR.ZirExpr))
+    if (((((x).kind != (y).kind) || (strcmp(cast(*u8)(*((x).op)), cast(*u8)(*((y).op))) != 0)) || (strcmp((ifx ((x).name != null) then (x).name else ParserCString("")), (ifx ((y).name != null) then (y).name else ParserCString(""))) != 0)) || (strcmp((ifx ((x).text != null) then (x).text else ParserCString("")), (ifx ((y).text != null) then (y).text else ParserCString(""))) != 0)) {
+        return 0
+    }
+    return cast(s32)(((((same_tree(fn, (x).left, (y).left, 1) != 0) && (same_tree(fn, (x).right, (y).right, 1) != 0)) && (same_tree(fn, (x).third, (y).third, 1) != 0)) && (same_tree(fn, (x).first_child, (y).first_child, 1) != 0)) && (!(siblings != 0) || (same_tree(fn, (x).next_sibling, (y).next_sibling, 1) != 0)))
+}
+
+
+#scope_file
+binary_with :: (fn: *IR.ZirFunction, index: s32, op: *u8, other: *s32, operand: s32) -> s32 {
+    if ((index < 0) || (index >= (fn).expr_count)) {
+        return 0
+    }
+    expr: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    if ((cast(s32)((expr).kind) != cast(s32)(6)) || (strcmp(cast(*u8)(*((expr).op)), op) != 0)) {
+        return 0
+    }
+    if (same_tree(fn, (expr).left, operand, 0) != 0) {
+        ParserSet2(other, (expr).right)
+        return 1
+    }
+    if (same_tree(fn, (expr).right, operand, 0) != 0) {
+        ParserSet2(other, (expr).left)
+        return 1
+    }
+    return 0
+}
+
+
+#scope_file
+loop_binding :: (fn: *IR.ZirFunction, index: s32, binder: *u8) -> s32 {
+    return cast(s32)((((index >= 0) && (index < (fn).expr_count)) && (cast(s32)((((fn).exprs)[index]).kind) == cast(s32)(1))) && (strcmp((((fn).exprs)[index]).name, binder) == 0))
+}
+
+
+#scope_file
+region_invariant :: (fn: *IR.ZirFunction, k: s32, scan: s32, close: s32, walk: IR.ZirExprWalk) -> s32 {
+    {
+        e: s32 = ExprWalkFirst(*(walk), k)
+        while check_loop_52 := (e >= 0) {
+            expr: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(e) * size_of(IR.ZirExpr))
+            if ((cast(s32)((expr).kind) == cast(s32)(5)) || ((cast(s32)((expr).kind) == cast(s32)(1)) && (region_declares(fn, scan, (close + 1), (expr).name) != 0))) {
+                return 0
+            }
+            e = ExprWalkNext(*(walk))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+window_source :: (fn: *IR.ZirFunction, root: s32, binder: *u8, scan: s32, close: s32, walk: IR.ZirExprWalk) -> *u8 {
+    if (((root < 0) || (root >= (fn).expr_count)) || (cast(s32)((((fn).exprs)[root]).kind) != cast(s32)(16))) {
+        return null
+    }
+    slice: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(root) * size_of(IR.ZirExpr))
+    if (((slice).left < 0) || (cast(s32)((((fn).exprs)[(slice).left]).kind) != cast(s32)(1))) {
+        return null
+    }
+    source: *u8 = (((fn).exprs)[(slice).left]).name
+    if ((region_declares(fn, scan, (close + 1), source) != 0) || !(slice_type(binding_type(fn, scan, source)) != 0)) {
+        return null
+    }
+    k: s32 = (-1)
+    binder_at: s32 = (-1)
+    other: s32 = (-1)
+    low: *IR.ZirExpr = (ifx ((slice).right >= 0) then cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)((slice).right) * size_of(IR.ZirExpr)) else null)
+    if (((low == cast(*IR.ZirExpr)((null))) || (cast(s32)((low).kind) != cast(s32)(6))) || (strcmp(cast(*u8)(*((low).op)), ParserCString("*")) != 0)) {
+        return null
+    }
+    if (loop_binding(fn, (low).left, binder) != 0) {
+        binder_at = (low).left
+        k = (low).right
+    } else {
+        if (loop_binding(fn, (low).right, binder) != 0) {
+            binder_at = (low).right
+            k = (low).left
+        } else {
+            return null
+        }
+    }
+    if !(region_invariant(fn, k, scan, close, walk) != 0) {
+        return null
+    }
+    if ((binary_with(fn, (slice).third, ParserCString("+"), *(other), (slice).right) != 0) && (same_tree(fn, other, k, 0) != 0)) {
+        return source
+    }
+    if ((((binary_with(fn, (slice).third, ParserCString("*"), *(other), k) != 0) && (other >= 0)) && (cast(s32)((((fn).exprs)[other]).kind) == cast(s32)(6))) && !(strcmp(cast(*u8)(*((((fn).exprs)[other]).op)), ParserCString("+")) != 0)) {
+        next: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(other) * size_of(IR.ZirExpr))
+        one: s32 = (ifx (loop_binding(fn, (next).left, binder) != 0) then (next).right else (ifx (loop_binding(fn, (next).right, binder) != 0) then (next).left else (-1)))
+        if ((((one >= 0) && (cast(s32)((((fn).exprs)[one]).kind) == cast(s32)(2))) && ((((fn).exprs)[one]).text != cast(*u8)((null)))) && (strcmp((((fn).exprs)[one]).text, ParserCString("1")) == 0)) {
+            return source
+        }
+    }
+    return null
+}
+
+
+#scope_file
+check_slot_writes :: (fn: *IR.ZirFunction, while_index: s32, close: s32, binder: *u8, arrays: **u8, array_count: s32, walk: IR.ZirExprWalk) -> s32 {
+    {
+        s: s32 = (while_index + 2)
+        while check_loop_53 := (s < close) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+            name: CoreArray128_u8
+            through_pointer: s32 = 0
+            through_view: s32 = 0
+            if ((stmt_declares_name(st, binder) != 0) || ((((cast(s32)((st).kind) == cast(s32)(4)) && ((st).lhs_root >= 0)) && (destination_identifier(fn, (st).lhs_root, cast(*u8)(*((name).items)), cast(usize)size_of(CoreArray128_u8), *(through_pointer), *(through_view)) != 0)) && (strcmp(cast(*u8)(*((name).items)), binder) == 0))) {
+                Diagnostic((st).span, ParserCString("parallel.memory"), ParserCString("#parallel slot writes need the loop binding unchanged: %s"), binder)
+                return 0
+            }
+            ParserPost0(*(s))
+        }
+    }
+    {
+        a: s32 = 0
+        while check_loop_54 := (a < array_count) {
+            if ((arrays)[a] == cast(*u8)((null))) {
+                ParserPost0(*(a))
+                continue check_loop_54
+            }
+            uses: s32 = 0
+            slots: s32 = 0
+            seen: *IR.ZirStmt = null
+            {
+                s: s32 = (while_index + 1)
+                while check_loop_55 := (s < close) {
+                    st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+                    roots: CoreArray2_s32 = .{items = .{(st).expr_root, (st).lhs_root}}
+                    {
+                        r: s32 = 0
+                        while check_loop_56 := (r < 2) {
+                            {
+                                e: s32 = ExprWalkFirst(*(walk), (roots).items[r])
+                                while check_loop_57 := (e >= 0) {
+                                    expr: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(e) * size_of(IR.ZirExpr))
+                                    if ((cast(s32)((expr).kind) == cast(s32)(1)) && (strcmp((expr).name, (arrays)[a]) == 0)) {
+                                        ParserPost0(*(uses))
+                                        if (seen == cast(*IR.ZirStmt)((null))) {
+                                            seen = st
+                                        }
+                                    }
+                                    if (((((((cast(s32)((expr).kind) == cast(s32)(10)) && ((expr).left >= 0)) && ((expr).right >= 0)) && (cast(s32)((((fn).exprs)[(expr).left]).kind) == cast(s32)(1))) && (strcmp((((fn).exprs)[(expr).left]).name, (arrays)[a]) == 0)) && (cast(s32)((((fn).exprs)[(expr).right]).kind) == cast(s32)(1))) && (strcmp((((fn).exprs)[(expr).right]).name, binder) == 0)) {
+                                        ParserPost0(*(slots))
+                                    }
+                                    e = ExprWalkNext(*(walk))
+                                }
+                            }
+                            ParserPost0(*(r))
+                        }
+                    }
+                    ParserPost0(*(s))
+                }
+            }
+            if (uses != slots) {
+                Diagnostic((ifx (seen != cast(*IR.ZirStmt)((null))) then (seen).span else (((fn).stmts)[while_index]).span), ParserCString("parallel.memory"), ParserCString("#parallel uses %s only at %s[%s] when it writes a slot"), (arrays)[a], (arrays)[a], binder)
+                return 0
+            }
+            ParserPost0(*(a))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+check_windows :: (fn: *IR.ZirFunction, while_index: s32, close: s32, sources: **u8, count: s32, walk: IR.ZirExprWalk) -> s32 {
+    {
+        w: s32 = 0
+        while check_loop_58 := (w < count) {
+            windows: s32 = 0
+            uses: s32 = 0
+            seen: *IR.ZirStmt = null
+            {
+                v: s32 = 0
+                while check_loop_59 := (v < count) {
+                    windows += cast(s32)(strcmp((sources)[v], (sources)[w]) == 0)
+                    ParserPost0(*(v))
+                }
+            }
+            {
+                s: s32 = (while_index + 1)
+                while check_loop_60 := (s < close) {
+                    st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+                    roots: CoreArray2_s32 = .{items = .{(st).expr_root, (st).lhs_root}}
+                    {
+                        r: s32 = 0
+                        while check_loop_61 := (r < 2) {
+                            {
+                                e: s32 = ExprWalkFirst(*(walk), (roots).items[r])
+                                while check_loop_62 := (e >= 0) {
+                                    if ((cast(s32)((((fn).exprs)[e]).kind) == cast(s32)(1)) && (strcmp((((fn).exprs)[e]).name, (sources)[w]) == 0)) {
+                                        ParserPost0(*(uses))
+                                        if (seen == cast(*IR.ZirStmt)((null))) {
+                                            seen = st
+                                        }
+                                    }
+                                    e = ExprWalkNext(*(walk))
+                                }
+                            }
+                            ParserPost0(*(r))
+                        }
+                    }
+                    ParserPost0(*(s))
+                }
+            }
+            if (uses != windows) {
+                Diagnostic((ifx (seen != cast(*IR.ZirStmt)((null))) then (seen).span else (((fn).stmts)[while_index]).span), ParserCString("parallel.memory"), ParserCString("#parallel uses %s only through its per-iteration windows"), (sources)[w])
+                return 0
+            }
+            ParserPost0(*(w))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+check_view_writes :: (module: *IR.ZirModule, fn: *IR.ZirFunction, while_index: s32, close: s32, scan: s32, walk: IR.ZirExprWalk) -> s32 {
+    {
+        s: s32 = (while_index + 1)
+        while check_loop_63 := (s < close) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+            roots: CoreArray2_s32 = .{items = .{(st).expr_root, (st).lhs_root}}
+            {
+                r: s32 = 0
+                while check_loop_64 := (r < 2) {
+                    {
+                        e: s32 = ExprWalkFirst(*(walk), (roots).items[r])
+                        while check_loop_65 := (e >= 0) {
+                            expr: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(e) * size_of(IR.ZirExpr))
+                            owner: *IR.ZirModule = null
+                            callee: *IR.ZirFunction = null
+                            if (((((cast(s32)((expr).kind) == cast(s32)(5)) && (((expr).name)[0] != 0)) && (ResolveFunction(module, (expr).name, *(owner), *(callee)) == 1)) && (callee != cast(*IR.ZirFunction)((null)))) && (effect_rank(cast(*u8)(*((callee).effect_class))) > 0)) {
+                                Diagnostic((st).span, ParserCString("parallel.memory"), ParserCString("#parallel writes through slices need pure callees: %s is %s"), (expr).name, cast(*u8)(*((callee).effect_class)))
+                                return 0
+                            }
+                            if (((cast(s32)((expr).kind) != cast(s32)(1)) || !(((expr).name)[0] != 0)) || (region_declares(fn, scan, (close + 1), (expr).name) != 0)) {
+                                e = ExprWalkNext(*(walk))
+                                continue check_loop_65
+                            }
+                            type: *u8 = binding_type(fn, scan, (expr).name)
+                            if ((type == cast(*u8)((null))) && ((expr).is_global_value != 0)) {
+                                {
+                                    g: s32 = 0
+                                    while check_loop_66 := (g < (module).global_count) {
+                                        if !(strcmp(cast(*u8)(*((((module).globals)[g]).name)), (expr).name) != 0) {
+                                            type = cast(*u8)(*((((module).globals)[g]).type))
+                                        }
+                                        ParserPost0(*(g))
+                                    }
+                                }
+                                if ((type != cast(*u8)((null))) && ((type_refers(module, type, 0) != 0) || (ArrayElementType(type, null, cast(usize)(0), null) != 0))) {
+                                    Diagnostic((st).span, ParserCString("parallel.memory"), ParserCString("#parallel writes through slices cannot read global %s"), (expr).name)
+                                    return 0
+                                }
+                                e = ExprWalkNext(*(walk))
+                                continue check_loop_65
+                            }
+                            if (type == cast(*u8)((null))) {
+                                e = ExprWalkNext(*(walk))
+                                continue check_loop_65
+                            }
+                            element: CoreArray128_u8
+                            checked: s32 = cast(s32)((!(strcmp(type, ParserCString("string")) != 0) || ((SliceElementType(type, cast(*u8)(*((element).items)), cast(usize)size_of(CoreArray128_u8)) != 0) && !(type_refers(module, cast(*u8)(*((element).items)), 0) != 0))) || ((ArrayElementType(type, cast(*u8)(*((element).items)), cast(usize)size_of(CoreArray128_u8), null) != 0) && !(type_refers(module, cast(*u8)(*((element).items)), 0) != 0)))
+                            if (!(checked != 0) && (type_refers(module, type, 0) != 0)) {
+                                Diagnostic((st).span, ParserCString("parallel.memory"), ParserCString("#parallel writes through slices; %s refers to storage native code cannot check"), (expr).name)
+                                return 0
+                            }
+                            e = ExprWalkNext(*(walk))
+                        }
+                    }
+                    ParserPost0(*(r))
+                }
+            }
+            ParserPost0(*(s))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+storage_root :: (fn: *IR.ZirFunction, index: s32) -> s32 {
+    while check_loop_67 := ((index >= 0) && (index < (fn).expr_count)) {
+        expr: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+        if (cast(s32)((expr).kind) == cast(s32)(1)) {
+            return index
+        }
+        if ((((((cast(s32)((expr).kind) != cast(s32)(8)) && (cast(s32)((expr).kind) != cast(s32)(10))) && (cast(s32)((expr).kind) != cast(s32)(16))) && (cast(s32)((expr).kind) != cast(s32)(9))) && (cast(s32)((expr).kind) != cast(s32)(7))) && (cast(s32)((expr).kind) != cast(s32)(11))) {
+            return (-1)
+        }
+        index = (ifx (cast(s32)((expr).kind) == cast(s32)(7)) then (expr).right else (expr).left)
+    }
+    return (-1)
+}
+
+
+#scope_file
+name_listed :: (names: **u8, count: s32, name: *u8) -> s32 {
+    {
+        i: s32 = 0
+        while check_loop_68 := (i < count) {
+            if (strcmp((names)[i], name) == 0) {
+                return 1
+            }
+            ParserPost0(*(i))
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+parameter_written :: (module: *IR.ZirModule, callee: *IR.ZirFunction, position: s32, depth: s32) -> s32 {
+    if ((depth > 16) || ((callee).is_extern != 0)) {
+        return 1
+    }
+    parameters: *Check.ZirParameters = ParametersOf(FunctionArgs(callee))
+    if ((position < 0) || (position >= (parameters).count)) {
+        return 0
+    }
+    type: *u8 = ((cast(*Check.ZirParameter)(*(parameters).items.items[0]))[position]).value_type
+    if ((type == cast(*u8)((null))) || (((cast(*Check.ZirParameter)(*(parameters).items.items[0]))[position]).binding_name == cast(*u8)((null)))) {
+        return 1
+    }
+    type = skip_ws(type)
+    if (!(slice_type(type) != 0) && (cast(s32)(cast(s8)((type)[0])) != 42)) {
+        return 0
+    }
+    views: CoreArray64__u8
+    view_count: s32 = 0
+    (views).items[ParserPost0(*(view_count))] = ((cast(*Check.ZirParameter)(*(parameters).items.items[0]))[position]).binding_name
+    {
+        changed: s32 = 1
+        while check_loop_69 := (changed != 0) {
+            changed = 0
+            {
+                s: s32 = 0
+                while check_loop_70 := ((s < (callee).stmt_count) && (view_count < 64)) {
+                    st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((callee).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+                    if (((((cast(s32)((st).kind) != cast(s32)(3)) || ((st).expr_root < 0)) || ((st).type == cast(*u8)((null)))) || (!(slice_type((st).type) != 0) && (cast(s32)(cast(s8)((skip_ws((st).type))[0])) != 42))) || (name_listed(cast(**u8)(*((views).items)), view_count, ((st).names).name) != 0)) {
+                        ParserPost0(*(s))
+                        continue check_loop_70
+                    }
+                    root: s32 = storage_root(callee, (st).expr_root)
+                    if ((root >= 0) && (name_listed(cast(**u8)(*((views).items)), view_count, (((callee).exprs)[root]).name) != 0)) {
+                        (views).items[ParserPost0(*(view_count))] = ((st).names).name
+                        changed = 1
+                    }
+                    ParserPost0(*(s))
+                }
+            }
+        }
+    }
+    {
+        s: s32 = 0
+        while check_loop_71 := (s < (callee).stmt_count) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((callee).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+            name: CoreArray128_u8
+            through_pointer: s32 = 0
+            through_view: s32 = 0
+            if (((((cast(s32)((st).kind) == cast(s32)(4)) && ((st).lhs_root >= 0)) && (destination_identifier(callee, (st).lhs_root, cast(*u8)(*((name).items)), cast(usize)size_of(CoreArray128_u8), *(through_pointer), *(through_view)) != 0)) && ((through_pointer != 0) || (through_view != 0))) && (name_listed(cast(**u8)(*((views).items)), view_count, cast(*u8)(*((name).items))) != 0)) {
+                return 1
+            }
+            ParserPost0(*(s))
+        }
+    }
+    {
+        e: s32 = 0
+        while check_loop_72 := (e < (callee).expr_count) {
+            call: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((callee).exprs) + cast(usize)(e) * size_of(IR.ZirExpr))
+            if ((cast(s32)((call).kind) != cast(s32)(5)) || !(((call).name)[0] != 0)) {
+                ParserPost0(*(e))
+                continue check_loop_72
+            }
+            ordinal: s32 = 0
+            {
+                a: s32 = (call).first_child
+                while check_loop_73 := ((a >= 0) && (a < (callee).expr_count)) {
+                    root: s32 = storage_root(callee, a)
+                    if ((root < 0) || !(name_listed(cast(**u8)(*((views).items)), view_count, (((callee).exprs)[root]).name) != 0)) {
+                        a = (((callee).exprs)[a]).next_sibling
+                        ParserPost0(*(ordinal))
+                        continue check_loop_73
+                    }
+                    owner: *IR.ZirModule = null
+                    next: *IR.ZirFunction = null
+                    if (((((call).slot_type)[0] != 0) || (ResolveFunction(module, (call).name, *(owner), *(next)) != 1)) || (next == cast(*IR.ZirFunction)((null)))) {
+                        return cast(s32)(!(vec_operation_name((call).name) != 0) || (strcmp((call).name, ParserCString("VecGet")) != 0))
+                    }
+                    at: s32 = (ifx ((((callee).exprs)[a]).argument_index >= 0) then (((callee).exprs)[a]).argument_index else ordinal)
+                    if (parameter_written((ifx (owner != cast(*IR.ZirModule)((null))) then owner else module), next, at, (depth + 1)) != 0) {
+                        return 1
+                    }
+                    a = (((callee).exprs)[a]).next_sibling
+                    ParserPost0(*(ordinal))
+                }
+            }
+            ParserPost0(*(e))
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+iteration_storage :: (module: *IR.ZirModule, fn: *IR.ZirFunction, argument: s32, scan: s32, close: s32, own: **u8, own_count: s32) -> s32 {
+    root: s32 = storage_root(fn, argument)
+    if (root < 0) {
+        return 0
+    }
+    name: *u8 = (((fn).exprs)[root]).name
+    if (name_listed(own, own_count, name) != 0) {
+        return 1
+    }
+    if !(region_declares(fn, scan, (close + 1), name) != 0) {
+        return 0
+    }
+    {
+        s: s32 = close
+        while check_loop_74 := (s >= scan) {
+            if (stmt_declares_name(cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt)), name) != 0) {
+                return cast(s32)(((((fn).stmts)[s]).type != cast(*u8)((null))) && !(type_refers(module, (((fn).stmts)[s]).type, 0) != 0))
+            }
+            ParserPost7(*(s))
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+parallel_callee :: (module: *IR.ZirModule, expr: *IR.ZirExpr) -> *IR.ZirFunction {
+    owner: *IR.ZirModule = null
+    callee: *IR.ZirFunction = null
+    if (((expr).slot_type)[0] != 0) {
+        return null
+    }
+    if (ResolveFunction(module, (expr).name, *(owner), *(callee)) == 1) {
+        return callee
+    }
+    return null
+}
+
+
+#scope_file
+check_parallel_region_in :: (program: *IR.ZirProgram, module: *IR.ZirModule, fn: *IR.ZirFunction, while_index: s32, walk: IR.ZirExprWalk) -> s32 {
+    close: s32 = (-1)
+    depth: s32 = 1
+    preamble_begin: s32 = while_index
+    {
+        i: s32 = (while_index - 1)
+        while check_loop_75 := ((i >= 0) && (preamble_begin == while_index)) {
+            if (depth == 1) {
+                preamble_begin = (i + 1)
+            }
+            ParserPost7(*(i))
+        }
+    }
+    {
+        i: s32 = (while_index + 1)
+        while check_loop_76 := (i < (fn).stmt_count) {
+            kind: IR.ZirStmtKind = (((fn).stmts)[i]).kind
+            if (((((cast(s32)(kind) == cast(s32)(6)) || (cast(s32)(kind) == cast(s32)(7))) || (cast(s32)(kind) == cast(s32)(8))) || (cast(s32)(kind) == cast(s32)(1))) || (cast(s32)(kind) == cast(s32)(16))) {
+                ParserPost0(*(depth))
+            } else {
+                if ((cast(s32)(kind) == cast(s32)(2)) && (ParserPre8(*(depth)) == 0)) {
+                    close = i
+                    break check_loop_76
+                }
+            }
+            ParserPost0(*(i))
+        }
+    }
+    if (close < 0) {
+        Diagnostic((((fn).stmts)[while_index]).span, ParserCString("parallel.region"), ParserCString("unterminated #parallel region"))
+        return 0
+    }
+    block_open: s32 = (-1)
+    scan: s32 = 0
+    depth = 0
+    {
+        i: s32 = (while_index - 1)
+        while check_loop_77 := (i >= 0) {
+            kind: IR.ZirStmtKind = (((fn).stmts)[i]).kind
+            if (cast(s32)(kind) == cast(s32)(2)) {
+                ParserPost0(*(depth))
+            } else {
+                if (((((cast(s32)(kind) == cast(s32)(1)) || (cast(s32)(kind) == cast(s32)(6))) || (cast(s32)(kind) == cast(s32)(7))) || (cast(s32)(kind) == cast(s32)(8))) || (cast(s32)(kind) == cast(s32)(16))) {
+                    if (depth == 0) {
+                        block_open = i
+                        break check_loop_77
+                    }
+                    ParserPost7(*(depth))
+                }
+            }
+            ParserPost7(*(i))
+        }
+    }
+    scan = (ifx (block_open >= 0) then (block_open + 1) else 0)
+    if ((((fn).stmts)[while_index]).is_gpu != 0) {
+        {
+            s: s32 = scan
+            while check_loop_78 := (s <= close) {
+                st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+                if (((cast(s32)((st).kind) == cast(s32)(3)) && (cast(s32)(cast(s8)(((st).type)[0])) != 0)) && (gpu_type_holds_pointer(module, (st).type, 0) != 0)) {
+                    Diagnostic((st).span, ParserCString("gpu.pointer"), ParserCString("#parallel_gpu storage cannot hold pointers: %s"), ((st).names).name)
+                    return 0
+                }
+                roots: CoreArray2_s32 = .{items = .{(st).expr_root, (st).lhs_root}}
+                {
+                    r: s32 = 0
+                    while check_loop_79 := (r < 2) {
+                        {
+                            e: s32 = ExprWalkFirst(*(walk), (roots).items[r])
+                            while check_loop_80 := (e >= 0) {
+                                expr: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(e) * size_of(IR.ZirExpr))
+                                child: s32
+                                if ((cast(s32)((expr).kind) != cast(s32)(5)) || !(((expr).name)[0] != 0)) {
+                                    e = ExprWalkNext(*(walk))
+                                    continue check_loop_80
+                                }
+                                if ((vec_operation_name((expr).name) != 0) && (strcmp((expr).name, ParserCString("VecGet")) != 0)) {
+                                    Diagnostic((st).span, ParserCString("gpu.allocator"), ParserCString("#parallel_gpu cannot allocate: %s"), (expr).name)
+                                    return 0
+                                }
+                                child = (expr).first_child
+                                while check_loop_81 := ((child >= 0) && (child < (fn).expr_count)) {
+                                    arg_type: *u8 = (((fn).exprs)[child]).type
+                                    if ((cast(s32)(cast(s8)((arg_type)[0])) != 0) && (gpu_type_holds_pointer(module, arg_type, 0) != 0)) {
+                                        Diagnostic((st).span, ParserCString("gpu.pointer"), ParserCString("#parallel_gpu argument holds a pointer in %s"), (expr).name)
+                                        return 0
+                                    }
+                                    child = (((fn).exprs)[child]).next_sibling
+                                }
+                                e = ExprWalkNext(*(walk))
+                            }
+                        }
+                        ParserPost0(*(r))
+                    }
+                }
+                ParserPost0(*(s))
+            }
+        }
+    }
+    region_loop: s32 = (((fn).stmts)[while_index]).loop_id
+    body_end: s32 = (close - 1)
+    cursor_name: *u8 = null
+    if (while_index >= 1) {
+        cursor_name = (ifx (cast(s32)((((fn).stmts)[(while_index - 1)]).kind) == cast(s32)(3)) then ((((fn).stmts)[(while_index - 1)]).names).name else null)
+    }
+    while check_loop_82 := ((body_end > (while_index + 3)) && (cursor_name != cast(*u8)((null)))) {
+        tail: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)((body_end - 1)) * size_of(IR.ZirStmt))
+        if ((((cast(s32)((tail).kind) == cast(s32)(4)) && ((tail).lhs_root >= 0)) && (cast(s32)((((fn).exprs)[(tail).lhs_root]).kind) == cast(s32)(1))) && !(strcmp((((fn).exprs)[(tail).lhs_root]).name, cursor_name) != 0)) {
+            ParserPost7(*(body_end))
+            continue check_loop_82
+        }
+        if ((((cast(s32)((tail).kind) == cast(s32)(2)) && ((body_end - 2) > while_index)) && (cast(s32)((((fn).stmts)[(body_end - 2)]).kind) == cast(s32)(11))) && (cast(s32)((((fn).stmts)[(body_end - 3)]).kind) == cast(s32)(6))) {
+            body_end -= 3
+            continue check_loop_82
+        }
+        break check_loop_82
+    }
+    nested_loops: s32 = 0
+    {
+        s: s32 = (while_index + 1)
+        while check_loop_83 := (s < body_end) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+            kind: IR.ZirStmtKind = (st).kind
+            if ((cast(s32)(kind) == cast(s32)(7)) || (cast(s32)(kind) == cast(s32)(8))) {
+                ParserPost0(*(nested_loops))
+            } else {
+                if ((cast(s32)(kind) == cast(s32)(2)) && (nested_loops > 0)) {
+                    ParserPost7(*(nested_loops))
+                }
+            }
+            if (cast(s32)(kind) == cast(s32)(10)) {
+                Diagnostic((st).span, ParserCString("parallel.leave"), ParserCString("#parallel region cannot return from inside"))
+                return 0
+            }
+            if ((cast(s32)(kind) == cast(s32)(11)) || (cast(s32)(kind) == cast(s32)(12))) {
+                if (((st).target_id == region_loop) || (((st).target_id == 0) && (nested_loops == 0))) {
+                    Diagnostic((st).span, ParserCString("parallel.leave"), ParserCString("#parallel region cannot break or continue out"))
+                    return 0
+                }
+            }
+            ParserPost0(*(s))
+        }
+    }
+    binder: *u8 = (ifx (cast(s32)((((fn).stmts)[(while_index + 1)]).kind) == cast(s32)(3)) then ((((fn).stmts)[(while_index + 1)]).names).name else null)
+    slot_arrays: CoreArray16__u8
+    slot_array_count: s32 = 0
+    window_names: CoreArray16__u8
+    window_sources: CoreArray16__u8
+    window_count: s32 = 0
+    own: CoreArray64__u8
+    own_count: s32 = 0
+    view_writes: s32 = 0
+    {
+        s: s32 = scan
+        while check_loop_84 := (s <= close) {
+            st: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((fn).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+            through_pointer: s32 = 0
+            through_view: s32 = 0
+            name: CoreArray128_u8
+            is_body: s32 = cast(s32)((s > while_index) && (s < close))
+            if ((((is_body != 0) && (binder != cast(*u8)((null)))) && (cast(s32)((st).kind) == cast(s32)(3))) && ((st).expr_root >= 0)) {
+                source: *u8 = window_source(fn, (st).expr_root, binder, scan, close, walk)
+                if ((source != cast(*u8)((null))) && (window_count < 16)) {
+                    (window_names).items[window_count] = ((st).names).name
+                    (window_sources).items[ParserPost0(*(window_count))] = source
+                }
+                if ((own_count < 64) && ((source != cast(*u8)((null))) || (iteration_storage(module, fn, (st).expr_root, scan, close, cast(**u8)(*((own).items)), own_count) != 0))) {
+                    (own).items[ParserPost0(*(own_count))] = ((st).names).name
+                }
+            }
+            if (((cast(s32)((st).kind) == cast(s32)(7)) && ((st).is_parallel != 0)) && (is_body != 0)) {
+                Diagnostic((st).span, ParserCString("parallel.nest"), ParserCString("#parallel regions cannot nest"))
+                return 0
+            }
+            if ((StatementHasAssembly(st) != 0) && (is_body != 0)) {
+                names: CoreArray30__u8
+                types: CoreArray30__u8
+                outputs: s32 = 0
+                operands: s32 = AssemblyBlockOperands(fn, s, cast(**u8)(*((names).items)), cast(**u8)(*((types).items)), 30, *(outputs))
+                if (operands < 0) {
+                    return 0
+                }
+                {
+                    operand: s32 = 0
+                    while check_loop_85 := (operand < operands) {
+                        if ((operand < outputs) && !(region_declares(fn, scan, (close + 1), (names).items[operand]) != 0)) {
+                            Diagnostic((st).span, ParserCString("parallel.memory"), ParserCString("#parallel assembly outputs need an iteration-local binding: %s"), (names).items[operand])
+                            return 0
+                        }
+                        if (((((fn).stmts)[while_index]).is_gpu != 0) && (gpu_type_holds_pointer(module, (types).items[operand], 0) != 0)) {
+                            Diagnostic((st).span, ParserCString("gpu.pointer"), ParserCString("#parallel_gpu assembly operands cannot hold pointers: %s"), (names).items[operand])
+                            return 0
+                        }
+                        ParserPost0(*(operand))
+                    }
+                }
+            }
+            slot_array: *u8 = (ifx (((binder != cast(*u8)((null))) && (cast(s32)((st).kind) == cast(s32)(4))) && (is_body != 0)) then slot_write_array(fn, (st).lhs_root, binder) else null)
+            if (((slot_array != cast(*u8)((null))) && !(region_declares(fn, scan, (close + 1), slot_array) != 0)) && (owned_array(fn, scan, slot_array) != 0)) {
+                view_writes |= slice_type(binding_type(fn, scan, slot_array))
+                known: s32 = 0
+                {
+                    a: s32 = 0
+                    while check_loop_86 := (a < slot_array_count) {
+                        known |= cast(s32)(strcmp((slot_arrays).items[a], slot_array) == 0)
+                        ParserPost0(*(a))
+                    }
+                }
+                if (!(known != 0) && (slot_array_count < 16)) {
+                    (slot_arrays).items[ParserPost0(*(slot_array_count))] = slot_array
+                } else {
+                    if !(known != 0) {
+                        Diagnostic((st).span, ParserCString("parallel.memory"), ParserCString("#parallel writes slots of more than 16 arrays"))
+                        return 0
+                    }
+                }
+            } else {
+                if (((cast(s32)((st).kind) == cast(s32)(4)) && ((st).lhs_root >= 0)) && (is_body != 0)) {
+                    if !(destination_identifier(fn, (st).lhs_root, cast(*u8)(*((name).items)), cast(usize)size_of(CoreArray128_u8), *(through_pointer), *(through_view)) != 0) {
+                        Diagnostic((st).span, ParserCString("parallel.memory"), ParserCString("#parallel writes need an iteration-local binding"))
+                        return 0
+                    }
+                    window: s32 = 0
+                    {
+                        w: s32 = 0
+                        while check_loop_87 := (w < window_count) {
+                            window |= cast(s32)(strcmp((window_names).items[w], cast(*u8)(*((name).items))) == 0)
+                            ParserPost0(*(w))
+                        }
+                    }
+                    view_writes |= cast(s32)((window != 0) && (through_view != 0))
+                    if (((through_pointer != 0) || ((through_view != 0) && !(window != 0))) || !(region_declares(fn, scan, (close + 1), cast(*u8)(*((name).items))) != 0)) {
+                        Diagnostic((st).span, ParserCString("parallel.memory"), ParserCString("#parallel writes need an iteration-local binding: %s"), cast(*u8)(*((name).items)))
+                        return 0
+                    }
+                }
+            }
+            if (((st).expr_root >= 0) || ((st).lhs_root >= 0)) {
+                roots: CoreArray2_s32 = .{items = .{(st).expr_root, (st).lhs_root}}
+                {
+                    r: s32 = 0
+                    while check_loop_88 := (r < 2) {
+                        {
+                            e: s32 = ExprWalkFirst(*(walk), (roots).items[r])
+                            while check_loop_89 := (e >= 0) {
+                                expr: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((fn).exprs) + cast(usize)(e) * size_of(IR.ZirExpr))
+                                callee: *IR.ZirFunction
+                                if ((cast(s32)((expr).kind) != cast(s32)(5)) || !(((expr).name)[0] != 0)) {
+                                    e = ExprWalkNext(*(walk))
+                                    continue check_loop_89
+                                }
+                                if (((expr).slot_type)[0] != 0) {
+                                    Diagnostic((st).span, ParserCString("parallel.effect"), ParserCString("#parallel cannot call through a procedure value: %s"), (expr).name)
+                                    return 0
+                                }
+                                if ((MapPrimitiveName((expr).name) != 0) && (((!(strcmp((expr).name, ParserCString("MapSet")) != 0) || !(strcmp((expr).name, ParserCString("MapInit")) != 0)) || !(strcmp((expr).name, ParserCString("MapDelete")) != 0)) || !(strcmp((expr).name, ParserCString("MapClear")) != 0))) {
+                                    Diagnostic((st).span, ParserCString("parallel.memory"), ParserCString("#parallel cannot mutate shared map storage: %s"), (expr).name)
+                                    return 0
+                                }
+                                if (vec_operation_name((expr).name) != 0) {
+                                    first: s32 = (expr).first_child
+                                    if !(strcmp((expr).name, ParserCString("VecGet")) != 0) {
+                                        e = ExprWalkNext(*(walk))
+                                        continue check_loop_89
+                                    }
+                                    if (((((first >= 0) && (first < (fn).expr_count)) && (cast(s32)((((fn).exprs)[first]).kind) == cast(s32)(1))) && !(region_declares(fn, scan, (close + 1), (((fn).exprs)[first]).name) != 0)) && !(stmt_declares_name(st, (((fn).exprs)[first]).name) != 0)) {
+                                        Diagnostic((st).span, ParserCString("parallel.memory"), ParserCString("#parallel mutates storage outside the region: %s"), (((fn).exprs)[first]).name)
+                                        return 0
+                                    }
+                                    e = ExprWalkNext(*(walk))
+                                    continue check_loop_89
+                                }
+                                if (imported_callee_class(module, (expr).name) != cast(*u8)((null))) {
+                                    Diagnostic((st).span, ParserCString("parallel.effect"), ParserCString("#parallel cannot call foreign code: %s"), (expr).name)
+                                    return 0
+                                }
+                                if !(strcmp((expr).name, ParserCString("print")) != 0) {
+                                    Diagnostic((st).span, ParserCString("parallel.effect"), ParserCString("#parallel cannot print; output order would depend on scheduling"))
+                                    return 0
+                                }
+                                callee = parallel_callee(module, expr)
+                                if ((callee != cast(*IR.ZirFunction)((null))) && (effect_rank(cast(*u8)(*((callee).effect_class))) > 1)) {
+                                    Diagnostic((st).span, ParserCString("parallel.effect"), ParserCString("#parallel calls %s code: %s"), cast(*u8)(*((callee).effect_class)), (expr).name)
+                                    return 0
+                                }
+                                callee_owner: *IR.ZirModule = null
+                                target: *IR.ZirFunction = null
+                                if ((callee != cast(*IR.ZirFunction)((null))) && (ResolveFunction(module, (expr).name, *(callee_owner), *(target)) == 1)) {
+                                    ordinal: s32 = 0
+                                    {
+                                        a: s32 = (expr).first_child
+                                        while check_loop_90 := ((a >= 0) && (a < (fn).expr_count)) {
+                                            at: s32 = (ifx ((((fn).exprs)[a]).argument_index >= 0) then (((fn).exprs)[a]).argument_index else ordinal)
+                                            if ((parameter_written((ifx (callee_owner != cast(*IR.ZirModule)((null))) then callee_owner else module), callee, at, 0) != 0) && !(iteration_storage(module, fn, a, scan, close, cast(**u8)(*((own).items)), own_count) != 0)) {
+                                                Diagnostic((st).span, ParserCString("parallel.memory"), ParserCString("#parallel passes shared storage to %s, which writes through it"), (expr).name)
+                                                return 0
+                                            }
+                                            a = (((fn).exprs)[a]).next_sibling
+                                            ParserPost0(*(ordinal))
+                                        }
+                                    }
+                                }
+                                e = ExprWalkNext(*(walk))
+                            }
+                        }
+                        ParserPost0(*(r))
+                    }
+                }
+            }
+            ParserPost0(*(s))
+        }
+    }
+    if ((slot_array_count == 0) && (window_count == 0)) {
+        return 1
+    }
+    if !(check_slot_writes(fn, while_index, close, binder, cast(**u8)(*((slot_arrays).items)), slot_array_count, walk) != 0) {
+        return 0
+    }
+    return cast(s32)((check_windows(fn, while_index, close, cast(**u8)(*((window_sources).items)), window_count, walk) != 0) && (!(view_writes != 0) || (check_view_writes(module, fn, while_index, close, scan, walk) != 0)))
+}
+
+
+#scope_file
+check_parallel_region :: (program: *IR.ZirProgram, module: *IR.ZirModule, fn: *IR.ZirFunction, while_index: s32) -> s32 {
+    walk: IR.ZirExprWalk = .{fn, cast(*s32)(AllocateOrExit((((cast(usize)((fn).expr_count) + cast(usize)(1))) * cast(usize)size_of(s32)))), 0}
+    ok: s32 = check_parallel_region_in(program, module, fn, while_index, walk)
+    CompilerFree(cast(*void)((walk).pending))
+    return ok
+}
+
+
+#scope_export
+#program_export "CheckParallelRegions"
+CheckParallelRegions :: (programs: **IR.ZirProgram, count: s32) -> s32 {
+    {
+        p: s32 = 0
+        while check_loop_91 := (p < count) {
+            {
+                m: s32 = 0
+                while check_loop_92 := (m < ((programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    {
+                        f: s32 = 0
+                        while check_loop_93 := (f < (module).function_count) {
+                            fn: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
+                            {
+                                s: s32 = 0
+                                while check_loop_94 := (s < (fn).stmt_count) {
+                                    if (((cast(s32)((((fn).stmts)[s]).kind) == cast(s32)(7)) && ((((fn).stmts)[s]).is_parallel != 0)) && !(check_parallel_region((programs)[p], module, fn, s) != 0)) {
+                                        return 0
+                                    }
+                                    ParserPost0(*(s))
+                                }
+                            }
+                            ParserPost0(*(f))
+                        }
+                    }
+                    ParserPost0(*(m))
+                }
+            }
+            ParserPost0(*(p))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+FunctionArgs :: (fn: *IR.ZirFunction) -> *u8 {
+    return (ifx ((fn).args_text != null) then (fn).args_text else ParserCString(""))
+}
+
+
+#scope_file
+ExprWalkFirst :: (walk: *IR.ZirExprWalk, root: s32) -> s32 {
+    (walk).count = 0
+    ExprWalkPush(walk, root)
+    return ExprWalkNext(walk)
+}
+
+
+#scope_file
+ExprWalkNext :: (walk: *IR.ZirExprWalk) -> s32 {
+    if ((walk).count == 0) {
+        return (-1)
+    }
+    index: s32 = ((walk).pending)[ParserPre8(*((walk).count))]
+    expr: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)(((walk).fn).exprs) + cast(usize)(index) * size_of(IR.ZirExpr))
+    ExprWalkPush(walk, (expr).next_sibling)
+    ExprWalkPush(walk, (expr).third)
+    ExprWalkPush(walk, (expr).right)
+    ExprWalkPush(walk, (expr).left)
+    ExprWalkPush(walk, (expr).first_child)
+    return index
+}
+
+
+#scope_file
+StatementHasAssembly :: (statement: *IR.ZirStmt) -> s32 {
+    return cast(s32)(((cast(s32)((statement).kind) == cast(s32)(1)) && (((statement).names).assembly_text != null)) && ((((statement).names).assembly_text)[0] != 0))
+}
+
+
+#scope_file
+ExprWalkPush :: (walk: *IR.ZirExprWalk, index: s32) {
+    if (((index >= 0) && (index < ((walk).fn).expr_count)) && ((walk).count < ((walk).fn).expr_count)) {
+        ((walk).pending)[ParserPost0(*((walk).count))] = index
+    }
+}

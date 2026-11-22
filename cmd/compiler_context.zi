@@ -1,0 +1,264 @@
+// Compiler support: context. Algorithms are maintained in Ziran.
+using IR :: #import "compiler_ir"
+using Support :: #import "compiler_context_types"
+using Parser :: #import "compiler_parse_types"
+S14 :: #import "compiler_parse_s14_types"
+Check :: #import "compiler_check_types"
+Text :: #import "compiler_text"
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+CompilerThreadStateAddress :: () -> *CompilerThread #foreign compiler "CompilerThreadStateAddress";
+S15FlagClear :: (arg0: *void) #foreign compiler "S15FlagClear";
+S15FlagTake :: (arg0: *void) -> s32 #foreign compiler "S15FlagTake";
+S15SizeAdd :: (arg0: *void, arg1: usize) -> usize #foreign compiler "S15SizeAdd";
+S15SizeLoad :: (arg0: *void) -> usize #foreign compiler "S15SizeLoad";
+abort :: () #foreign libc "abort";
+calloc :: (__nmemb: usize, __size: usize) -> *void #foreign libc "calloc";
+free :: (__ptr: *void) #foreign libc "free";
+CompilerStandardError :: () -> *void #foreign compiler "CompilerStandardError";
+context_shared: CompilerContext = .{.{}, 0, (1), 1};
+context_next_identity: u64 = cast(u64)((2));
+
+#scope_export
+#program_export "CompilerContextCurrent"
+CompilerContextCurrent :: () -> *CompilerContext {
+    return (CompilerThreadStateAddress()).context_local
+    unreachable
+}
+
+#scope_export
+#program_export "CompilerContextSelect"
+CompilerContextSelect :: (context_local: *CompilerContext) -> *CompilerContext {
+    thread: *CompilerThread = CompilerThreadStateAddress()
+    previous: *CompilerContext = (thread).context_local
+    (thread).context_local = context_local
+    return previous
+    unreachable
+}
+
+#scope_export
+#program_export "CompilerThreadIdentity"
+CompilerThreadIdentity :: (thread: *CompilerThread) -> u64 {
+    return (ifx ((thread).context_local != null) then ((thread).context_local).identity else cast(u64)(1))
+    unreachable
+}
+
+#scope_export
+#program_export "CompilerContextIdentity"
+CompilerContextIdentity :: () -> u64 {
+    return CompilerThreadIdentity(CompilerThreadStateAddress())
+    unreachable
+}
+
+#scope_export
+#program_export "CompilerContextOpen"
+CompilerContextOpen :: () -> *CompilerContext {
+    context_local: *CompilerContext = cast(*CompilerContext)(calloc(cast(usize)(1), cast(usize)size_of(CompilerContext)))
+    if (context_local != null) {
+        S15FlagClear(cast(*void)(*((context_local).lock)))
+        S15SupportSet0((*((context_local).references)), cast(usize)(1))
+        while S15FlagTake(cast(*void)*context_identity_lock) != 0 {}
+        (context_local).identity = context_next_identity
+        context_next_identity += cast(u64)1
+        S15FlagClear(cast(*void)*context_identity_lock)
+    }
+    return context_local
+    unreachable
+}
+
+#scope_export
+#program_export "CompilerContextRetain"
+CompilerContextRetain :: (context_local: *CompilerContext) {
+    if (context_local != null) {
+        S15SizeAdd(cast(*void)(*((context_local).references)), cast(usize)(1))
+    }
+}
+
+#scope_export
+#program_export "CompilerContextRelease"
+CompilerContextRelease :: (context_local: *CompilerContext) {
+    if ((context_local != null) && (S15SizeAdd(cast(*void)(*((context_local).references)), cast(usize)((-1))) == cast(usize)(1))) {
+        destroy_context(context_local)
+    }
+}
+
+#scope_export
+#program_export "CompilerContextDispose"
+CompilerContextDispose :: (context_local: *CompilerContext) {
+    CompilerContextRelease(context_local)
+}
+
+#scope_file
+storage_in :: (thread: *CompilerThread, context_local: *CompilerContext, key: s32, size: usize, destroy: S15Callback0) -> *void {
+    if !(context_local != null) {
+        context_local = *(context_shared)
+    }
+    if ((thread).storage_identity != (context_local).identity) {
+        {
+            i: s32 = 0
+            while check_loop_1 := (i < 12) {
+                ((thread).storage_hints).items[i] = (null)
+                S15SupportPost1(*(i))
+            }
+        }
+        (thread).storage_identity = (context_local).identity
+    }
+    if (((thread).storage_hints).items[key] != null) {
+        return ((thread).storage_hints).items[key]
+    }
+    while check_loop_2 := (S15FlagTake(cast(*void)(*((context_local).lock))) != 0) {
+    }
+    slot: *Storage = cast(*Storage)(cast(usize)(cast(*Storage)(*(((context_local).storage).items))) + cast(usize)(key) * size_of(Storage))
+    if !((slot).value != null) {
+        (slot).value = calloc(cast(usize)(1), size)
+        (slot).destroy = destroy
+    }
+    value: *void = (slot).value
+    S15FlagClear(cast(*void)(*((context_local).lock)))
+    if !(value != null) {
+        abort()
+    }
+    ((thread).storage_hints).items[key] = value
+    return value
+    unreachable
+}
+
+#scope_export
+#program_export "CompilerContextStorage"
+CompilerContextStorage :: (context_local: *CompilerContext, key: s32, size: usize, destroy: S15Callback0) -> *void {
+    return storage_in(CompilerThreadStateAddress(), context_local, key, size, destroy)
+    unreachable
+}
+
+#scope_export
+#program_export "CompilerThreadStorage"
+CompilerThreadStorage :: (thread: *CompilerThread, key: s32, size: usize, destroy: S15Callback0) -> *void {
+    return storage_in(thread, (thread).context_local, key, size, destroy)
+    unreachable
+}
+
+#scope_export
+#program_export "CompilerCurrentStorage"
+CompilerCurrentStorage :: (key: s32, size: usize, destroy: S15Callback0) -> *void {
+    return CompilerThreadStorage(CompilerThreadStateAddress(), key, size, destroy)
+    unreachable
+}
+
+#scope_file
+destroy_context :: (context_local: *CompilerContext) {
+    if ((CompilerThreadStateAddress()).context_local == context_local) {
+        (CompilerThreadStateAddress()).context_local = null
+    }
+    {
+        i: s32 = (12 - 1)
+        while check_loop_3 := (i >= 0) {
+            slot: *Storage = cast(*Storage)(cast(usize)(cast(*Storage)(*(((context_local).storage).items))) + cast(usize)(i) * size_of(Storage))
+            if ((slot).value != null) {
+                if (slot).destroy != cast(S15Callback0)null {
+                    (slot).destroy((slot).value)
+                }
+                free((slot).value)
+            }
+            S15SupportPost2(*(i))
+        }
+    }
+    free(cast(*void)(context_local))
+}
+
+#scope_export
+#program_export "CompilerContextClose"
+CompilerContextClose :: (context_local: *CompilerContext) -> s32 {
+    if ((!(context_local != null) || (context_local == (CompilerThreadStateAddress()).context_local)) || (S15SizeLoad(cast(*void)(*((context_local).references))) != cast(usize)(1))) {
+        return 0
+    }
+    CompilerContextRelease(context_local)
+    return 1
+    unreachable
+}
+
+#scope_file
+free_scratch_pools :: (value: *void) {
+    pools: *ScratchPools = cast(*ScratchPools)(value)
+    {
+        b: s32 = 0
+        while check_loop_4 := (b < 256) {
+            while check_loop_5 := (((pools).buckets).items[b] != null) {
+                pool: *CompilerScratch = ((pools).buckets).items[b]
+                ((pools).buckets).items[b] = (pool).next
+                while check_loop_6 := ((pool).count != 0) {
+                    (pool).destroy(((pool).items).items[S15SupportPre3(*((pool).count))])
+                }
+                free(cast(*void)(pool))
+            }
+            S15SupportPost1(*(b))
+        }
+    }
+}
+
+#scope_export
+#program_export "CompilerContextScratch"
+CompilerContextScratch :: (key: *void, destroy: S15Callback0) -> *CompilerScratch {
+    pools: *ScratchPools = cast(*ScratchPools)(CompilerCurrentStorage(11, cast(usize)size_of(ScratchPools), free_scratch_pools))
+    while check_loop_7 := (S15FlagTake(cast(*void)(*((pools).lock))) != 0) {
+    }
+    hash: usize = (((cast(usize)(key) >> cast(usize)(3))) & cast(usize)(255))
+    pool: *CompilerScratch = ((pools).buckets).items[hash]
+    while check_loop_8 := ((pool != null) && ((pool).key != key)) {
+        pool = (pool).next
+    }
+    if !(pool != null) {
+        pool = cast(*CompilerScratch)(calloc(cast(usize)(1), cast(usize)size_of(CompilerScratch)))
+        if !(pool != null) {
+            abort()
+        }
+        (pool).key = key
+        (pool).destroy = destroy
+        S15FlagClear(cast(*void)(*((pool).lock)))
+        (pool).next = ((pools).buckets).items[hash]
+        ((pools).buckets).items[hash] = pool
+    }
+    S15FlagClear(cast(*void)(*((pools).lock)))
+    return pool
+    unreachable
+}
+
+#scope_export
+#program_export "CompilerScratchCached"
+CompilerScratchCached :: (cache: *CompilerScratchCache, key: *void, destroy: S15Callback0) -> *CompilerScratch {
+    identity: u64 = CompilerContextIdentity()
+    if ((cache).identity != identity) {
+        (cache).pool = CompilerContextScratch(key, destroy)
+        (cache).identity = identity
+    }
+    return (cache).pool
+    unreachable
+}
+
+#scope_export
+#program_export "CompilerScratchTake"
+CompilerScratchTake :: (scratch: *CompilerScratch) -> *void {
+    while check_loop_9 := (S15FlagTake(cast(*void)(*((scratch).lock))) != 0) {
+    }
+    value: *void = (ifx ((scratch).count != 0) then ((scratch).items).items[S15SupportPre3(*((scratch).count))] else (null))
+    S15FlagClear(cast(*void)(*((scratch).lock)))
+    return value
+    unreachable
+}
+
+#scope_export
+#program_export "CompilerScratchPut"
+CompilerScratchPut :: (scratch: *CompilerScratch, value: *void) -> s32 {
+    while check_loop_10 := (S15FlagTake(cast(*void)(*((scratch).lock))) != 0) {
+    }
+    accepted: s32 = cast(s32)((scratch).count < 16)
+    if (accepted != 0) {
+        ((scratch).items).items[S15SupportPost1(*((scratch).count))] = value
+    }
+    S15FlagClear(cast(*void)(*((scratch).lock)))
+    return accepted
+    unreachable
+}
+
+#scope_file
+context_identity_lock: u8;

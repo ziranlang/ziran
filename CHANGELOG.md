@@ -16,6 +16,8 @@
 
 - Declaration parsing, compile-time evaluation, and IR cleanup now build from Ziran source.
 
+- Frontend IR, compiler contexts, source documents, diagnostics, paths, semantic IDs, SHA-256, and law checks now build from Ziran source.
+
 - Compile hot packed ZX integer instruction runs on Linux i386 with bounded executable storage and the interpreter's work, fuel and failure locations.
 
 - Speed up large record and array loads in the ZX instruction engine.

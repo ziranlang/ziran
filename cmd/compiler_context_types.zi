@@ -1,0 +1,208 @@
+// Exact private support ABI; shared IR and checker records retain their owners.
+using IR :: #import "compiler_ir"
+using Parser :: #import "compiler_parse_types"
+Check :: #import "compiler_check_types"
+Text :: #import "compiler_text"
+S14 :: #import "compiler_parse_s14_types"
+
+S15Callback0 :: #type (a0: *void) #c_call;
+S15Callback1 :: #type (a0: *u32, a1: *u8, a2: usize) #c_call;
+Storage :: struct {
+    value: *void
+    destroy: S15Callback0
+}
+
+ParserArray12_Storage :: struct {
+    items: [12]Storage
+}
+
+CompilerContext :: struct {
+    storage: ParserArray12_Storage
+    lock: u8
+    references: usize
+    identity: u64
+}
+
+CompilerKeptText :: struct {
+    input: usize
+    text: *u8
+    length: usize
+}
+
+ParserArray16__void :: struct {
+    items: [16]*void
+}
+
+CompilerScratch :: struct {
+    key: *void
+    destroy: S15Callback0
+    items: ParserArray16__void
+    count: s32
+    lock: u8
+    next: *CompilerScratch
+}
+
+CompilerScratchCache :: struct {
+    identity: u64
+    pool: *CompilerScratch
+}
+
+ParserArray12__void :: struct {
+    items: [12]*void
+}
+
+ParserArray128_CompilerKeptText :: struct {
+    items: [128]CompilerKeptText
+}
+
+CompilerThread :: struct {
+    memory: *void
+    active_memory: *void
+    recovery_depth: u32
+    context_local: *CompilerContext
+    storage_identity: u64
+    storage_hints: ParserArray12__void
+    kept_identity: u64
+    kept: ParserArray128_CompilerKeptText
+}
+
+JsonBuffer :: struct {
+    bytes: Parser.ParserArray32768_u8
+    count: usize
+    failed: s32
+}
+
+DiagnosticVBuffers :: struct {
+    message: Parser.ParserArray8192_u8
+    json: JsonBuffer
+}
+
+DocumentStore :: struct {
+    head: *Check.ZirDocument
+    bytes: usize
+    count: usize
+}
+
+KeptBlock :: struct {
+    next: *KeptBlock
+}
+
+KeptTexts :: struct {
+    texts: **u8
+    count: usize
+    slot_count: usize
+    blocks: *KeptBlock
+    block: *u8
+    block_used: usize
+    block_size: usize
+    lock: s32
+}
+
+ParameterLists :: struct {
+    texts: **u8
+    lists: **Check.ZirParameters
+    count: usize
+    slots: usize
+}
+
+PrintFormatPiecesBuffers :: struct {
+    bytes: Parser.ParserArray4096_u8
+    literal: Parser.ParserArray4096_u8
+}
+
+S15OverlayState :: struct {
+    path: *u8
+    source: *u8
+    count: usize
+    root: *u8
+    standard: *u8
+    roots: **u8
+    roots_count: s32
+}
+
+S15RawTexts :: struct {
+    items: **u8
+    lengths: *usize
+    count: usize
+    capacity: usize
+    lock: s32
+}
+
+ParserArray256__CompilerScratch :: struct {
+    items: [256]*CompilerScratch
+}
+
+ScratchPools :: struct {
+    buckets: ParserArray256__CompilerScratch
+    lock: u8
+}
+
+ParserArray8_u32 :: struct {
+    items: [8]u32
+}
+
+Sha256 :: struct {
+    state: ParserArray8_u32
+    length: u64
+    block: Parser.ParserArray64_u8
+    used: usize
+}
+
+SourceFiles :: struct {
+    paths: **u8
+    count: s32
+    capacity: s32
+    slots: *s32
+    slot_count: usize
+    lock: s32
+}
+
+ParserArray5__u8 :: struct {
+    items: [5]*u8
+}
+
+ParserArray100_u8 :: struct {
+    items: [100]u8
+}
+
+ParserArray1_u8 :: struct {
+    items: [1]u8
+}
+
+ParserArray256_u8 :: struct {
+    items: [256]u8
+}
+
+ParserArray40_u8 :: struct {
+    items: [40]u8
+}
+
+ParserArray64_u32 :: struct {
+    items: [64]u32
+}
+S15SupportSet0 :: (p: *usize, value: usize) -> usize { p[0] = value; return value }
+S15SupportPost1 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] + 1; return old }
+S15SupportPost2 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] - 1; return old }
+S15SupportPre3 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] - 1; return p[0] }
+S15SupportPost4 :: (p: *usize) -> usize { old := p[0]; p[0] = p[0] + 1; return old }
+S15SupportSet5 :: (p: *s32, value: s32) -> s32 { p[0] = value; return value }
+S15SupportSet6 :: (p: **u8, value: *u8) -> *u8 { p[0] = value; return value }
+S15SupportPost7 :: (p: **u8) -> *u8 { old := p[0]; p[0] = cast(*u8)(cast(usize)p[0] + size_of(u8)); return old }
+S15SupportSet8 :: (p: *CompilerKeptText, value: CompilerKeptText) -> CompilerKeptText { p[0] = value; return value }
+S15SupportSet9 :: (p: *u8, value: u8) -> u8 { p[0] = value; return value }
+S15SupportSet10 :: (p: *u64, value: u64) -> u64 { p[0] = value; return value }
+S15SupportSet11 :: (p: *u32, value: u32) -> u32 { p[0] = value; return value }
+S15SupportPost12 :: (p: *usize) -> usize { old := p[0]; p[0] = p[0] - 1; return old }
+
+S15ParametersHeaderSize :: () -> usize {
+    alignment := size_of(*u8)
+    return cast(usize)((size_of(s32) + alignment - 1) / alignment * alignment)
+}
+S15Bytes :: (descriptor: S14.ParserSlice) -> []u8 {
+    result: []u8
+    S15Copy(cast(*void)*result, cast(*void)*descriptor, size_of([]u8))
+    return result
+}
+#scope_file
+libc :: #system_library "libc";
+S15Copy :: (dst: *void, src: *void, count: usize) -> *void #foreign libc "memcpy";

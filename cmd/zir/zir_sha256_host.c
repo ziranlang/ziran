@@ -1,8 +1,6 @@
 #include "zir_sha256.h"
 
-#include <stdatomic.h>
 #include <stdlib.h>
-#include <string.h>
 
 /* CPUs with SHA-256 instructions (x86's SHA extensions, ARMv8's SHA2 in 64-
  * and 32-bit mode) hash several times faster than the portable rounds, and a
@@ -31,56 +29,6 @@ static const uint32_t round_constants[64] = {
     0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 };
-
-static uint32_t
-rotate(uint32_t value, int bits)
-{
-    return (value >> bits) | (value << (32 - bits));
-}
-
-static inline void
-portable_round(uint32_t a, uint32_t b, uint32_t c, uint32_t *d,
-               uint32_t e, uint32_t f, uint32_t g, uint32_t *h, uint32_t word)
-{
-    uint32_t t1 = *h + (rotate(e, 6) ^ rotate(e, 11) ^ rotate(e, 25)) +
-                  (g ^ (e & (f ^ g))) + word;
-    uint32_t t2 = (rotate(a, 2) ^ rotate(a, 13) ^ rotate(a, 22)) +
-                  ((a & b) | (c & (a | b)));
-    *d += t1;
-    *h = t1 + t2;
-}
-
-static void
-compress_portable(uint32_t state[8], const unsigned char *block, size_t blocks)
-{
-    for(; blocks > 0; blocks--, block += 64) {
-        uint32_t w[64];
-        for(int i = 0; i < 16; i++)
-            w[i] = (uint32_t)block[i * 4] << 24 | (uint32_t)block[i * 4 + 1] << 16 |
-                   (uint32_t)block[i * 4 + 2] << 8 | block[i * 4 + 3];
-        for(int i = 16; i < 64; i++) {
-            uint32_t s0 = rotate(w[i - 15], 7) ^ rotate(w[i - 15], 18) ^ (w[i - 15] >> 3);
-            uint32_t s1 = rotate(w[i - 2], 17) ^ rotate(w[i - 2], 19) ^ (w[i - 2] >> 10);
-            w[i] = w[i - 16] + s0 + w[i - 7] + s1;
-        }
-        uint32_t a = state[0], b = state[1], c = state[2], d = state[3];
-        uint32_t e = state[4], f = state[5], g = state[6], h = state[7];
-        /* Rotate the roles at each call so only two words change per round.
-         * After eight rounds the words are back in state order. */
-        for(int i = 0; i < 64; i += 8) {
-            portable_round(a, b, c, &d, e, f, g, &h, round_constants[i] + w[i]);
-            portable_round(h, a, b, &c, d, e, f, &g, round_constants[i + 1] + w[i + 1]);
-            portable_round(g, h, a, &b, c, d, e, &f, round_constants[i + 2] + w[i + 2]);
-            portable_round(f, g, h, &a, b, c, d, &e, round_constants[i + 3] + w[i + 3]);
-            portable_round(e, f, g, &h, a, b, c, &d, round_constants[i + 4] + w[i + 4]);
-            portable_round(d, e, f, &g, h, a, b, &c, round_constants[i + 5] + w[i + 5]);
-            portable_round(c, d, e, &f, g, h, a, &b, round_constants[i + 6] + w[i + 6]);
-            portable_round(b, c, d, &e, f, g, h, &a, round_constants[i + 7] + w[i + 7]);
-        }
-        state[0] += a; state[1] += b; state[2] += c; state[3] += d;
-        state[4] += e; state[5] += f; state[6] += g; state[7] += h;
-    }
-}
 
 #if defined(SHA256_X86)
 /* The state is kept as ABEF and CDGH; each sha256rnds2 runs two rounds and
@@ -124,7 +72,7 @@ hardware_sha256(void)
 {
     unsigned int a, b, c, d;
     if(!__get_cpuid(1, &a, &b, &c, &d) || !(c & bit_SSE4_1) || !(c & bit_SSSE3))
-        return 0;
+           return 0;
     return __get_cpuid_count(7, 0, &a, &b, &c, &d) && (b & (1u << 29));
 }
 #define compress_hardware compress_x86
@@ -186,95 +134,29 @@ hardware_sha256(void)
 #elif defined(__linux__)
     return (getauxval(AT_HWCAP2) & (1ul << 3)) != 0; /* HWCAP2_SHA2 */
 #else
-    return 0;
+       return 0;
 #endif
 }
 #define compress_hardware compress_arm
 #endif
 
-typedef void (*CompressBlocks)(uint32_t state[8], const unsigned char *block, size_t blocks);
 
-/* Chosen on first use; callers racing to choose store the same answer. */
-static CompressBlocks
-compressor(void)
+int
+S15ShaHardwareAvailable(void)
 {
-#ifdef __EMSCRIPTEN__
-    /* A wasm32 host has no native SHA instruction provider. Avoid caching a
-     * function-table pointer through a C atomic in the Emscripten build. */
-    return compress_portable;
-#else
-    static _Atomic(CompressBlocks) chosen;
-    CompressBlocks compress = atomic_load_explicit(&chosen, memory_order_relaxed);
-    if(compress == NULL) {
-        compress = compress_portable;
 #if defined(SHA256_X86) || defined(SHA256_ARM)
-        const char *portable = getenv("ZIRAN_SHA256_PORTABLE");
-        if(hardware_sha256() && (portable == NULL || strcmp(portable, "1") != 0))
-            compress = compress_hardware;
-#endif
-        atomic_store_explicit(&chosen, compress, memory_order_relaxed);
-    }
-    return compress;
+    return hardware_sha256();
+#else
+    return 0;
 #endif
 }
-
 void
-Sha256Begin(Sha256 *hash)
+S15ShaHardwareCompress(uint32_t *state, const unsigned char *block, size_t blocks)
 {
-    static const uint32_t initial[8] = {
-        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
-    };
-    memcpy(hash->state, initial, sizeof(initial));
-    hash->length = 0;
-    hash->used = 0;
-}
-
-void
-Sha256Add(Sha256 *hash, const void *data, size_t size)
-{
-    const unsigned char *bytes = data;
-    CompressBlocks compress = compressor();
-    hash->length += size;
-    if(hash->used > 0) {
-        size_t take = 64 - hash->used;
-        if(take > size)
-            take = size;
-        memcpy(hash->block + hash->used, bytes, take);
-        hash->used += take;
-        bytes += take;
-        size -= take;
-        if(hash->used < 64)
-            return;
-        compress(hash->state, hash->block, 1);
-        hash->used = 0;
-    }
-    if(size >= 64) {
-        compress(hash->state, bytes, size / 64);
-        bytes += size - size % 64;
-        size %= 64;
-    }
-    memcpy(hash->block, bytes, size);
-    hash->used = size;
-}
-
-void
-Sha256End(Sha256 *hash, unsigned char digest[32])
-{
-    uint64_t bits = hash->length * 8;
-    unsigned char pad = 0x80;
-    Sha256Add(hash, &pad, 1);
-    pad = 0;
-    while(hash->used != 56)
-        Sha256Add(hash, &pad, 1);
-    unsigned char length[8];
-    for(int i = 0; i < 8; i++)
-        length[i] = (unsigned char)(bits >> (56 - i * 8));
-    Sha256Add(hash, length, 8);
-    for(int i = 0; i < 8; i++) {
-        digest[i * 4] = (unsigned char)(hash->state[i] >> 24);
-        digest[i * 4 + 1] = (unsigned char)(hash->state[i] >> 16);
-        digest[i * 4 + 2] = (unsigned char)(hash->state[i] >> 8);
-        digest[i * 4 + 3] = (unsigned char)hash->state[i];
-    }
+#if defined(SHA256_X86) || defined(SHA256_ARM)
+    compress_hardware(state, block, blocks);
+#else
+    (void)state; (void)block; (void)blocks;
+    abort();
+#endif
 }

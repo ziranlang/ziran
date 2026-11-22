@@ -1,0 +1,163 @@
+// Source target facts and capability checks shared by the compiler and C tools.
+IR :: #import "compiler_ir"
+Type :: #import "compiler_type"
+Check :: #import "compiler_check_types"
+using ParseTypes :: #import "compiler_parse_types"
+
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+
+CompilerTargetFactsAddress :: () -> *IR.ZirTargetFacts #foreign compiler "CompilerTargetFactsAddress";
+CompilerTargetOptionsAddress :: () -> *u8 #foreign compiler "CompilerTargetOptionsAddress";
+UnionScalarFields :: (module: *IR.ZirModule, record: *IR.ZirType) -> s32 #foreign compiler "UnionScalarFields";
+DiagnosticTarget :: (span: IR.ZirSourceSpan, code: *u8, target: *u8, capability: *u8,
+                     format: *u8, arguments: ..any) #foreign compiler "DiagnosticTarget";
+DiagnosticDetailed :: (span: IR.ZirSourceSpan, code: *u8, details: *Check.DiagnosticDetails,
+                       format: *u8, arguments: ..any) #foreign compiler "DiagnosticDetailed";
+snprintf :: (output: *u8, capacity: usize, format: *u8, arguments: ..any) -> s32 #foreign libc "snprintf";
+
+os_names: [6]string = .{"NONE", "LINUX", "WINDOWS", "MACOS", "ANDROID", "WEB"};
+cpu_names: [4]string = .{"NONE", "X64", "ARM64", "WASM32"};
+backend_names: [4]string = .{"C", "GO", "WASM", "ZX"};
+os_arguments: [6]string = .{"none", "linux", "windows", "macos", "android", "web"};
+cpu_arguments: [4]string = .{"none", "x64", "arm64", "wasm32"};
+
+#scope_export
+#program_export "CompilerTargetOSName"
+CompilerTargetOSName :: (os: s32) -> *u8 {
+    index := ifx os >= 0 && os < 6 then os else 0
+    return ParserCString(os_names[index])
+}
+
+#program_export "CompilerTargetCPUName"
+CompilerTargetCPUName :: (cpu: s32) -> *u8 {
+    index := ifx cpu >= 0 && cpu < 4 then cpu else 0
+    return ParserCString(cpu_names[index])
+}
+
+#program_export "CompilerTargetBackendName"
+CompilerTargetBackendName :: (target: s32) -> *u8 {
+    index := ifx target >= 0 && target < 4 then target else 3
+    return ParserCString(backend_names[index])
+}
+
+#program_export "CompilerParseTargetOS"
+CompilerParseTargetOS :: (name: *u8, os: *s32) -> s32 {
+    if name == null { return 0 }
+    argument := IR.CText(name)
+    for i: 0..5 {
+        if argument != os_arguments[i] { continue }
+        if os != null { os[0] = cast(s32)i }
+        return 1
+    }
+    return 0
+}
+
+#program_export "CompilerParseTargetCPU"
+CompilerParseTargetCPU :: (name: *u8, cpu: *s32) -> s32 {
+    if name == null { return 0 }
+    argument := IR.CText(name)
+    for i: 0..3 {
+        if argument != cpu_arguments[i] { continue }
+        if cpu != null { cpu[0] = cast(s32)i }
+        return 1
+    }
+    return 0
+}
+
+#program_export "CompilerConfigureTarget"
+CompilerConfigureTarget :: (target: s32, os: s32, cpu: s32) {
+    facts := CompilerTargetFactsAddress()
+    options := CompilerTargetOptionsAddress()
+    snprintf(options, 128, ParserCString("target=%s os=%s cpu=%s"),
+             CompilerTargetBackendName(target), CompilerTargetOSName(os), CompilerTargetCPUName(cpu))
+    facts[0] = .{target = target, os = os, cpu = cpu, options = options}
+}
+
+#program_export "CompilerTargetFacts"
+CompilerTargetFacts :: () -> IR.ZirTargetFacts {
+    facts := CompilerTargetFactsAddress()
+    if facts.options == null { CompilerConfigureTarget(3, 0, 0) }
+    return facts[0]
+}
+
+#program_export "TargetNameKnown"
+TargetNameKnown :: (target: *u8) -> s32 {
+    return cast(s32)(target != null && Type.TargetKnown(IR.CText(target)))
+}
+
+#program_export "TargetProcedureTypeSupported"
+TargetProcedureTypeSupported :: (target: *u8, c_call: s32) -> s32 {
+    if TargetNameKnown(target) == 0 { return 0 }
+    return cast(s32)Type.ProcedureTypeSupported(IR.CText(target), c_call != 0)
+}
+
+#program_export "CheckTargetCapabilities"
+CheckTargetCapabilities :: (program: *IR.ZirProgram, target: *u8) -> s32 {
+    if program == null || TargetNameKnown(target) == 0 { return 0 }
+    selected := IR.CText(target)
+    for m: 0..program.module_count - 1 {
+        module := *program.modules[m]
+        for t: 0..module.type_count - 1 {
+            record := *module.types[t]
+            name := *record.name[0]
+            if record.is_procedure_type != 0 && !Type.ProcedureTypeSupported(selected, record.is_c_call != 0) {
+                DiagnosticTarget(record.span, ParserCString("check.record"), target, ParserCString("procedures.c-call"),
+                                 ParserCString("target does not support #c_call procedure types: %s"), name)
+                return 0
+            }
+            if record.is_union != 0 && record.is_record_template == 0 &&
+               (selected == "zx" || selected == "go") && UnionScalarFields(module, record) == 0 {
+                if selected == "zx" {
+                    DiagnosticTarget(record.span, ParserCString("zx.union"), target, ParserCString("unions.scalar"),
+                                     ParserCString("portable unions support scalar fields only: %s"), name)
+                } else {
+                    DiagnosticTarget(record.span, ParserCString("zir_go.union"), target, ParserCString("unions.scalar"),
+                                     ParserCString("Go unions support scalar fields only: %s"), name)
+                }
+                return 0
+            }
+            is_map := record.is_map != 0
+            required := Type.ForeignTypeTarget(IR.CText(*record.foreign_target[0]), is_map)
+            if required.count != 0 && required != selected {
+                capability := ifx is_map then "maps.go" else "types.go"
+                feature := ifx is_map then "maps" else "foreign Go types"
+                details := Check.DiagnosticDetails.{target = target, capability = ParserCString(capability)}
+                DiagnosticDetailed(record.span, ParserCString("check.record"), *details,
+                                   ParserCString("%s require the Go target: %s"), ParserCString(feature), name)
+                return 0
+            }
+        }
+        for i: 0..module.import_count - 1 {
+            binding := *module.imports[i]
+            if binding.kind != .EXTERN { continue }
+            kind := ifx binding.extern_kind == .GO then "go" else ifx binding.extern_kind == .HOST then "host" else "c"
+            if Type.ForeignImportSupported(selected, kind) { continue }
+            capability := ifx binding.extern_kind == .GO then "ffi.go" else "ffi.c"
+            message := "Go foreign imports require the Go target: %s"
+            if binding.extern_kind == .C {
+                message = "C foreign imports require a native target or a checked host binding: %s"
+            }
+            details := Check.DiagnosticDetails.{target = target, capability = ParserCString(capability)}
+            DiagnosticDetailed(binding.span, ParserCString("check.foreign"), *details,
+                               ParserCString(message), *binding.name[0])
+            return 0
+        }
+    }
+    for m: 0..program.module_count - 1 {
+        module := *program.modules[m]
+        for f: 0..module.function_count - 1 {
+            function := *module.functions[f]
+            for i: 0..function.stmt_count - 1 {
+                statement := *function.stmts[i]
+                if statement.is_gpu == 0 { continue }
+                details := Check.DiagnosticDetails.{target = target, capability = ParserCString("gpu.device")}
+                DiagnosticDetailed(statement.span, ParserCString("gpu.device"), *details,
+                                   ParserCString("GPU regions have no device backend; CPU fallback is disabled"))
+                return 0
+            }
+        }
+    }
+    return 1
+}

@@ -1,0 +1,182 @@
+// Compiler support: sha256. Algorithms are maintained in Ziran.
+using IR :: #import "compiler_ir"
+using Support :: #import "compiler_context_types"
+using Parser :: #import "compiler_parse_types"
+S14 :: #import "compiler_parse_s14_types"
+Check :: #import "compiler_check_types"
+Text :: #import "compiler_text"
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+S15ShaHardwareAvailable :: () -> s32 #foreign compiler "S15ShaHardwareAvailable";
+S15ShaHardwareCompress :: (arg0: *u32, arg1: *u8, arg2: usize) #foreign compiler "S15ShaHardwareCompress";
+getenv :: (__name: *u8) -> *u8 #foreign libc "getenv";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+CompilerStandardError :: () -> *void #foreign compiler "CompilerStandardError";
+sha256_round_constants: ParserArray64_u32 = .{items = .{1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221, 3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580, 3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986, 2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895, 666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037, 2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344, 430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779, 1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298}};
+sha256_Sha256Begin_initial: ParserArray8_u32 = .{items = .{1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225}};
+
+#scope_file
+rotate :: (value: u32, bits: s32) -> u32 {
+    return (((value >> cast(u32)(bits))) | ((value << cast(u32)(((32 - bits))))))
+    unreachable
+}
+
+#scope_file
+portable_round :: (a: u32, b: u32, c: u32, d: *u32, e: u32, f: u32, g: u32, h: *u32, word: u32) {
+    t1: u32 = ((((h)[0] + (((rotate(e, 6) ^ rotate(e, 11)) ^ rotate(e, 25)))) + ((g ^ ((e & ((f ^ g))))))) + word)
+    t2: u32 = ((((rotate(a, 2) ^ rotate(a, 13)) ^ rotate(a, 22))) + ((((a & b)) | ((c & ((a | b)))))))
+    (d)[0] += t1
+    S15SupportSet11(h, (t1 + t2))
+}
+
+#scope_file
+compress_portable :: (state: *u32, block: *u8, blocks: usize) {
+    {
+        while check_loop_63 := (blocks > cast(usize)(0)) {
+            w: ParserArray64_u32
+            {
+                i: s32 = 0
+                while check_loop_64 := (i < 16) {
+                    (w).items[i] = ((((cast(u32)((block)[(i * 4)]) << cast(u32)(24)) | (cast(u32)((block)[((i * 4) + 1)]) << cast(u32)(16))) | (cast(u32)((block)[((i * 4) + 2)]) << cast(u32)(8))) | cast(u32)((block)[((i * 4) + 3)]))
+                    S15SupportPost1(*(i))
+                }
+            }
+            {
+                i: s32 = 16
+                while check_loop_65 := (i < 64) {
+                    s0: u32 = ((rotate((w).items[(i - 15)], 7) ^ rotate((w).items[(i - 15)], 18)) ^ (((w).items[(i - 15)] >> cast(u32)(3))))
+                    s1: u32 = ((rotate((w).items[(i - 2)], 17) ^ rotate((w).items[(i - 2)], 19)) ^ (((w).items[(i - 2)] >> cast(u32)(10))))
+                    (w).items[i] = ((((w).items[(i - 16)] + s0) + (w).items[(i - 7)]) + s1)
+                    S15SupportPost1(*(i))
+                }
+            }
+            a: u32 = (state)[0]
+            b: u32 = (state)[1]
+            c: u32 = (state)[2]
+            d: u32 = (state)[3]
+            e: u32 = (state)[4]
+            f: u32 = (state)[5]
+            g: u32 = (state)[6]
+            h: u32 = (state)[7]
+            {
+                i: s32 = 0
+                while check_loop_66 := (i < 64) {
+                    portable_round(a, b, c, *(d), e, f, g, *(h), ((sha256_round_constants).items[i] + (w).items[i]))
+                    portable_round(h, a, b, *(c), d, e, f, *(g), ((sha256_round_constants).items[(i + 1)] + (w).items[(i + 1)]))
+                    portable_round(g, h, a, *(b), c, d, e, *(f), ((sha256_round_constants).items[(i + 2)] + (w).items[(i + 2)]))
+                    portable_round(f, g, h, *(a), b, c, d, *(e), ((sha256_round_constants).items[(i + 3)] + (w).items[(i + 3)]))
+                    portable_round(e, f, g, *(h), a, b, c, *(d), ((sha256_round_constants).items[(i + 4)] + (w).items[(i + 4)]))
+                    portable_round(d, e, f, *(g), h, a, b, *(c), ((sha256_round_constants).items[(i + 5)] + (w).items[(i + 5)]))
+                    portable_round(c, d, e, *(f), g, h, a, *(b), ((sha256_round_constants).items[(i + 6)] + (w).items[(i + 6)]))
+                    portable_round(b, c, d, *(e), f, g, h, *(a), ((sha256_round_constants).items[(i + 7)] + (w).items[(i + 7)]))
+                    i += 8
+                }
+            }
+            (state)[0] += a
+            (state)[1] += b
+            (state)[2] += c
+            (state)[3] += d
+            (state)[4] += e
+            (state)[5] += f
+            (state)[6] += g
+            (state)[7] += h
+            S15SupportPost12(*(blocks))
+            block = cast(*u8)(cast(usize)(block) + cast(usize)(64) * size_of(u8))
+        }
+    }
+}
+
+#scope_file
+compressor :: () -> S15Callback1 {
+    while S15FlagTake(cast(*void)*choice_lock) != 0 {}
+    if choice_ready == 0 {
+        portable := getenv(ParserCString("ZIRAN_SHA256_PORTABLE"))
+        choice_hardware = cast(s32)(S15ShaHardwareAvailable() != 0 && (portable == null || strcmp(portable, ParserCString("1")) != 0))
+        choice_ready = 1
+    }
+    hardware := choice_hardware
+    S15FlagClear(cast(*void)*choice_lock)
+    if hardware != 0 { return hardware_blocks }
+    return compress_portable
+}
+
+#scope_export
+#program_export "Sha256Begin"
+Sha256Begin :: (hash: *Sha256) {
+    memcpy(cast(*void)(cast(*u32)(*(((hash).state).items))), cast(*void)(cast(*u32)(*((sha256_Sha256Begin_initial).items))), cast(usize)size_of(ParserArray8_u32))
+    (hash).length = cast(u64)(0)
+    (hash).used = cast(usize)(0)
+}
+
+#scope_export
+#program_export "Sha256Add"
+Sha256Add :: (hash: *Sha256, data: *void, size: usize) {
+    bytes: *u8 = cast(*u8)(data)
+    compress: S15Callback1 = compressor()
+    (hash).length += cast(u64)(size)
+    if ((hash).used > cast(usize)(0)) {
+        take: usize = (cast(usize)(64) - (hash).used)
+        if (take > size) {
+            take = size
+        }
+        memcpy(cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(*(((hash).block).items))) + cast(usize)((hash).used) * size_of(u8))), cast(*void)(bytes), take)
+        (hash).used += take
+        bytes = cast(*u8)(cast(usize)(bytes) + cast(usize)(take) * size_of(u8))
+        size -= take
+        if ((hash).used < cast(usize)(64)) {
+            return
+        }
+        compress(cast(*u32)(*(((hash).state).items)), cast(*u8)(*(((hash).block).items)), cast(usize)(1))
+        (hash).used = cast(usize)(0)
+    }
+    if (size >= cast(usize)(64)) {
+        compress(cast(*u32)(*(((hash).state).items)), bytes, (size / cast(usize)(64)))
+        bytes = cast(*u8)(cast(usize)(bytes) + cast(usize)((size - (size % cast(usize)(64)))) * size_of(u8))
+        size %= cast(usize)(64)
+    }
+    memcpy(cast(*void)(cast(*u8)(*(((hash).block).items))), cast(*void)(bytes), size)
+    (hash).used = size
+}
+
+#scope_export
+#program_export "Sha256End"
+Sha256End :: (hash: *Sha256, digest: *u8) {
+    bits: u64 = ((hash).length * cast(u64)(8))
+    pad: u8 = cast(u8)(128)
+    Sha256Add(hash, cast(*void)(*(pad)), cast(usize)(1))
+    pad = cast(u8)(0)
+    while check_loop_67 := ((hash).used != cast(usize)(56)) {
+        Sha256Add(hash, cast(*void)(*(pad)), cast(usize)(1))
+    }
+    length: Check.CheckArray8_u8
+    {
+        i: s32 = 0
+        while check_loop_68 := (i < 8) {
+            (length).items[i] = cast(u8)(((bits >> cast(u64)(((56 - (i * 8)))))))
+            S15SupportPost1(*(i))
+        }
+    }
+    Sha256Add(hash, cast(*void)(cast(*u8)(*((length).items))), cast(usize)(8))
+    {
+        i: s32 = 0
+        while check_loop_69 := (i < 8) {
+            (digest)[(i * 4)] = cast(u8)(((((hash).state).items[i] >> cast(u32)(24))))
+            (digest)[((i * 4) + 1)] = cast(u8)(((((hash).state).items[i] >> cast(u32)(16))))
+            (digest)[((i * 4) + 2)] = cast(u8)(((((hash).state).items[i] >> cast(u32)(8))))
+            (digest)[((i * 4) + 3)] = cast(u8)(((hash).state).items[i])
+            S15SupportPost1(*(i))
+        }
+    }
+}
+
+#scope_file
+hardware_blocks :: (state: *u32, block: *u8, blocks: usize) { S15ShaHardwareCompress(state, block, blocks) }
+
+#scope_file
+choice_lock: u8;
+choice_ready: s32;
+choice_hardware: s32;
+S15FlagTake :: (lock: *void) -> s32 #foreign compiler "S15FlagTake";
+S15FlagClear :: (lock: *void) #foreign compiler "S15FlagClear";

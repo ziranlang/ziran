@@ -387,7 +387,10 @@ validate_bindings(const Bundle *bundle, BindingSet *set)
         const char *function = BundleCapabilityFunction(bundle, i);
         if(find_binding(set, module, function) == NULL) {
             Diagnostic(Span("<host>", 1, 1), "zx.capability",
-                       "missing host capability: %s:%s", module, function);
+                       "missing host capability: %s:%s; this host does not provide it, so "
+                       "bundle with --bind %s:%s=MODULE:FUNCTION (an exported Ziran function "
+                       "with the same signature) or --bind-host MODULE, or run the bundle in "
+                       "a host that grants %s", module, function, module, function, module);
             return 0;
         }
     }

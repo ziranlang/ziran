@@ -246,7 +246,8 @@ main(int argc, char **argv)
                                        strcmp(argv[2], "strings") == 0 ||
                                        strcmp(argv[2], "native") == 0 ||
                                        strcmp(argv[2], "native_reentrant") == 0 ||
-                                       strcmp(argv[2], "native_bridge") == 0)) ||
+                                       strcmp(argv[2], "native_bridge") == 0 ||
+                                       strcmp(argv[2], "missing") == 0)) ||
            (argc == 4 && strcmp(argv[2], "tree") == 0));
     if(argc == 3 && strcmp(argv[2], "native_bridge") == 0) {
         size_t size = 0;
@@ -295,6 +296,15 @@ main(int argc, char **argv)
         assert(has_result && result == 42 && calls == 3);
         BundleInstanceClose(native);
         BundleClose(native_bundle);
+        return 0;
+    }
+    if(argc == 3 && strcmp(argv[2], "missing") == 0) {
+        /* A host without the capability refuses the bundle with a diagnostic
+         * that names the option providing it; the shell checks the text. */
+        Bundle *needy = BundleOpen(argv[1]);
+        assert(needy != NULL && BundleCapabilityCount(needy) == 1);
+        assert(!BundleRun(needy, NULL, 0, &result, &has_result));
+        BundleClose(needy);
         return 0;
     }
     if(argc == 3 && strcmp(argv[2], "native_reentrant") == 0) {

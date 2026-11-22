@@ -128,6 +128,18 @@ EOF
 "$ziran" bundle --root "$work" --entry native_bridge:Answer \
     -o "$work/native-bridge.zx" "$work/native_bridge.zi"
 "$host_test" "$work/native-bridge.zx" native_bridge
+# A host that lacks a capability names the bundle option that provides it.
+cat > "$work/frame_capture.zi" <<'ZI'
+host_api :: #system_library "host_api";
+RecordFrameFailure :: (code: s32) -> s32 #foreign host_api;
+#program_export
+Answer :: () -> s32 { return RecordFrameFailure(3) }
+ZI
+"$ziran" bundle --root "$work" --entry frame_capture:Answer \
+    -o "$work/frame-capture.zx" "$work/frame_capture.zi"
+"$host_test" "$work/frame-capture.zx" missing 2> "$work/capability.err"
+grep -Fq 'missing host capability: frame_capture:RecordFrameFailure' "$work/capability.err"
+grep -Fq -- '--bind frame_capture:RecordFrameFailure=MODULE:FUNCTION' "$work/capability.err"
 if ZIRAN_HOST_PATH="$work/no-providers" "$ziran" run "$work/source.zx" 2> "$work/missing.err"; then
     echo 'bundle unexpectedly ran without its host capabilities' >&2
     exit 1

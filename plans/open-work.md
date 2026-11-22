@@ -80,6 +80,15 @@ line when the work lands. Keep detail in the referenced plan.
 - `arrays.zi` and `loops.zi` example programs trail the Wasm tier by 25-40%;
   profile each print-heavy loop before optimizing.
 
+- Strict five-core ASSEMBLY before/after campaign: the report processor
+  (`bench/assembly_compare.zi`) and collector (`bench/assembly_collect.zi`)
+  wait for the new-native ZX cell; run collection only on Alpha's physical
+  host with fresh attestation; test: `--validate` accepts the plan and the
+  generated report lists no missing core cells.
+- Document `bench/results/zx-compare-alpha-physical-native-2026-11-16-release.json`
+  in `bench/zx_compare.md` (extract medians and context from the receipt);
+  test: quoted numbers match the receipt JSON.
+
 ## Learn
 
 - Record more real builds, instruction-window search on CPU, a learned cost

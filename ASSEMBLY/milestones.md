@@ -182,4 +182,4 @@ readonly data, the no-libc Linux x86-64 console veneer and validated typed
 host values with instance-owned returned bytes, released once nothing the
 program can reach names them. Resizable collection ownership, reentrant
 callbacks and general native string/arbitrary-host instructions remain
-explicit gaps. Open work from M4 on is in `plans/2026-11-15-assembly-remaining.md`.
+explicit gaps. Open work from M4 on is in `plans/open-work.md`.

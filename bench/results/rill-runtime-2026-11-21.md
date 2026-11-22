@@ -648,3 +648,84 @@ That lifecycle passed and peaked at 52,212,992 bytes in the main pool.
 `env -u DISPLAY -u WAYLAND_DISPLAY make -j4 check CHECK_JOBS=8` executed
 and passed all 276 tests. Bootstrap matched on the same source
 (`07194d0eb1aa4e298d0e503289291a846e92`).
+
+## Packed frame dispatch
+
+In the post-scalar Alpha desktop profile, packed instruction and value
+dispatch accounted for 194 of 1,071 menu and Escape samples. The packed
+executor now reuses the current frame across consecutive value operations.
+Control instructions still use the ordinary step, and the run loop retains
+the native fragment entry points and exact per-instruction work charges.
+
+Physical Alpha built both GCC 15.2 i386 drivers against the same ZX bundles.
+The installed scalar archive is the control. Only `compiler_exec.o` changed
+out of 97 archive members. Two ABBA BAAB runs on CPU 3 used the same sibling
+load and frequency gates on CPU 9. Each arm has 60 accepted samples per
+workload. Both raw receipts include host rejections and symmetric inclusive
+1.5×IQR exclusions. [First run](zx-i386-frame-dispatch-alpha-2026-11-22.json),
+[repeat](zx-i386-frame-dispatch-repeat-alpha-2026-11-22.json).
+
+| Workload | First run control → candidate | Repeat control → candidate |
+| --- | ---: | ---: |
+| Rill row | 1.189171 → 1.074394 ms (1.107×) | 1.175559 → 1.071354 ms (1.097×) |
+| Integer blocks | 5.877043 → 5.421464 ms (1.084×) | 5.751160 → 5.393678 ms (1.066×) |
+| Sieve | 14.515084 → 13.051915 ms (1.112×) | 14.470078 → 13.048193 ms (1.109×) |
+| Records | 18.285245 → 17.087137 ms (1.070×) | 18.130474 → 17.064661 ms (1.062×) |
+| Aggregate load | 338.631993 → 337.730328 ms (1.003×) | 334.077610 → 333.327289 ms (1.002×) |
+
+The managed Alpha run `4fec8f3d90244dc43468ecfb54ca83c01015` built the
+archive under `backup/rill-runtime-selection/i386-blocks/frame-dispatch/`.
+Its archive SHA-256 is `41f47edc4cc271afdca1c407957dc8e9b93060002ee9373533709679ab298ec1`,
+and the source manifest is `dc49b91a869b8c3f0fb321f2155e1bbe95035d7867f5dcf1436a628ba3f20eec`.
+
+The whole-guest comparison `6819a8c79d79e8ab12f9f25fea512d045bd7` ran
+`python3 backup/idle-performance/alpha-results/stage-frame.py` from Rill.
+It ran on physical Alpha CPU 3 in ABBA order with the scalar emulator
+`881862c98bfecd5176a27239894a90d7aa3d5156f1174269d19f249ecaa6f03c`
+and the emulator relinked with the frame-dispatch archive
+`a768536a947043020fdcc07dc52865bc9dfcc0925719a31a6b3093fc2276896a`.
+The integrator relinked the production emulator on Omega for the private
+guest tests and staged that exact emulator for timing on Alpha.
+Both arms used Rill bundle
+`787cda7a4e804067feceeb0bca49a10ba371812693bcd18a59d324dabe4a0b0e`
+and the pointer runner
+`a4e7894ec176eeb288db7086f1fd761ef85954f5128382f76f4d966467ce8b6f`.
+All four boots passed minute clock validation. Menu, Escape and clock
+latencies are event-to-observed-frame upper bounds. Medians use inclusive
+quartiles and the same 1.5×IQR rule for both arms, with equality kept at the
+fences.
+
+| Metric | Unfiltered median, scalar → frame | Filtered median, scalar → frame | Retained per arm |
+| --- | ---: | ---: | ---: |
+| Startup | 2882.15 → 2731.05 ms | 2882.15 → 2731.05 ms (1.055×) | 2/2, 2/2 |
+| Menu | 454.1 → 424.5 ms | 451.6 → 421.7 ms (1.071×) | 11/14, 12/14 |
+| Escape | 277.2 → 239.4 ms | 269.95 → 239.4 ms (1.128×) | 12/14, 14/14 |
+| Clock | 188.9 → 156.7 ms | 188.9 → 156.7 ms (1.205×) | 2/2, 2/2 |
+| Idle CPU | 0.4665% → 0.75% | 0.4665% → 0.75% | 2/2, 2/2 |
+
+Raw values from the managed receipt, in execution order within each arm.
+Excluded indices are zero-based. Separate 128 MiB private lifecycle runs
+reported main pool high-water of 52,487,456 bytes with the scalar build
+and 63,914,432 bytes with the candidate. The installed candidate's desktop
+lifecycle measured 52,487,424 bytes in a separate run.
+
+| Metric and arm | Raw values | Excluded indices |
+| --- | --- | --- |
+| Startup, scalar | 2925.4, 2838.9 | None |
+| Startup, frame | 2735.0, 2727.1 | None |
+| Menu, scalar | 818.3, 456.5, 461.1, 459.6, 446.1, 434.8, 449.1, 881.0, 453.9, 449.4, 478.1, 450.2, 451.6, 454.3 | 0, 7, 10 |
+| Menu, frame | 747.8, 407.6, 407.4, 408.4, 419.8, 442.4, 411.0, 754.0, 423.6, 392.3, 433.8, 425.4, 427.3, 427.4 | 0, 7 |
+| Escape, scalar | 275.0, 283.7, 356.4, 259.5, 342.3, 251.1, 254.4, 281.3, 264.9, 279.4, 264.6, 252.0, 356.8, 298.3 | 2, 12 |
+| Escape, frame | 276.3, 235.6, 238.6, 235.1, 252.1, 240.2, 248.3, 275.4, 224.3, 253.6, 223.9, 246.5, 223.1, 233.1 | None |
+| Clock, scalar | 203.0, 174.8 | None |
+| Clock, frame | 154.7, 158.7 | None |
+| Idle CPU, scalar | 0.133, 0.8 | None |
+| Idle CPU, frame | 0.667, 0.833 | None |
+
+Taiji installation and readback matched the measured archive and emulator
+(`0d7e55e64ebbe5fba1a2b313ef374ee3dbe2`). The installed 128 MiB desktop
+lifecycle and pointer tests completed successfully
+(`0f1d3a1a8af23bfde8355bd3fe22971e79f6`, `15e1d6cf8d7d308d3b5a24538c8afe43297f`).
+The raw comparison and four guest runs are retained in Rill's
+`backup/idle-performance/alpha-results/results-frame/`. Taiji recorded the
+installed artifacts in `backup/idle-performance/runtime-pair/frame-installed.json`.

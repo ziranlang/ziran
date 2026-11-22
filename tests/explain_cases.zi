@@ -5,6 +5,8 @@
 #import "std/json_document"
 #import "std/sort"
 #import "std/text_tools"
+Code :: #import "compiler_scan"
+Source :: #import "compiler_source"
 using Vectors :: #import "std/vec"
 
 ExplainSpace :: (byte: u8) -> bool { return byte == 32 || byte >= 9 && byte <= 13 }
@@ -68,6 +70,96 @@ ExplainCalls :: (text: string, names: []string, codes: *Vec(string), mode: s32) 
     }
 }
 
+ExplainNextToken :: (text: string, token: Code.Scan) -> Code.Scan {
+    return Code.NextCodeToken(text, token.end, token.after_line, token.after_column)
+}
+
+ExplainSecondArgument :: (text: string, open: Code.Scan) -> Code.Scan {
+    depth: s32
+    token := ExplainNextToken(text, open)
+    while token.kind != .Eof {
+        value := text[token.begin:token.end]
+        if value == "," && depth == 0 { return ExplainNextToken(text, token) }
+        if value == "(" || value == "[" || value == "{" { depth += 1 }
+        if value == ")" || value == "]" || value == "}" {
+            if depth == 0 { break }
+            depth -= 1
+        }
+        token = ExplainNextToken(text, token)
+    }
+    return .{}
+}
+
+ExplainDiagnosticCode :: (text: string, open: Code.Scan) -> string {
+    literal := ExplainSecondArgument(text, open)
+    wrapped := literal.kind == .Ident && text[literal.begin:literal.end] == "CStr"
+    if wrapped {
+        wrapper := ExplainNextToken(text, literal)
+        if text[wrapper.begin:wrapper.end] != "(" { return "" }
+        literal = ExplainNextToken(text, wrapper)
+    }
+    if literal.kind != .String { return "" }
+    after := ExplainNextToken(text, literal)
+    if wrapped {
+        if text[after.begin:after.end] != ")" { return "" }
+        after = ExplainNextToken(text, after)
+    }
+    delimiter := text[after.begin:after.end]
+    if delimiter != "," && delimiter != ")" { return "" }
+    return ExplainLiteral(text, literal.begin, literal.end)
+}
+
+ExplainZiDiagnostics :: (test: *NativeTest, source: string, codes: *Vec(string)) -> bool {
+    if TextFind(source, "Diagnostic", 0) < 0 { return true }
+    text := source
+    rewritten: Vec(u8)
+    defer VecFree(rewritten)
+    if TextFind(source, "#string", 0) >= 0 {
+        measured := Source.RewriteRawStrings(source, rewritten[:], 128)
+        if !NativeAssert(test, measured.error == .None && VecResize(rewritten, measured.count),
+            "cannot prepare diagnostic source for scanning") { return false }
+        result := Source.RewriteRawStrings(source, rewritten[:], 128)
+        if !NativeAssert(test, result.error == .None && result.count == rewritten.count,
+            "diagnostic source rewrite changed size") { return false }
+        text = TextView(rewritten[:])
+    }
+    token := Code.NextCodeToken(text, 0, 1, 1)
+    while token.kind != .Eof {
+        name := text[token.begin:token.end]
+        open := ExplainNextToken(text, token)
+        if token.kind == .Ident && name == "Diagnostic" && text[open.begin:open.end] == "(" {
+            value := ExplainDiagnosticCode(text, open)
+            if value != "" { ExplainAdd(codes, value) }
+        }
+        token = open
+    }
+    return true
+}
+
+ExplainModularDiscovery :: (test: *NativeTest) -> bool {
+    source := #string ZI
+IR :: #import "compiler_ir"
+Example :: #string SAMPLE
+Diagnostic(span, CStr("fixture.raw"), CStr("message"))
+SAMPLE
+Emit :: (span: IR.ZirSourceSpan) {
+    // Diagnostic(span, CStr("fixture.comment"), CStr("message"))
+    example := "Diagnostic(span, CStr(\"fixture.string\"), CStr(\"message\"))"
+    OtherDiagnostic(span, CStr("fixture.other"), CStr("message"))
+    Diagnostic(SpanOf(.[span, span], 0),
+        CStr /* code */ ("fixture.wrapped"), CStr("fixture.message"))
+    Diagnostic(span, "fixture.literal", "message")
+    Diagnostic(span, code, CStr("fixture.computed"))
+}
+ZI
+    module := CheckPath(test.work, "emitter-module.zi")
+    if !NativeWrite(test, module, source) { return false }
+    codes: Vec(string)
+    if !ExplainZiDiagnostics(test, NativeRead(test, module), *codes) { return false }
+    return NativeAssert(test, codes.count == 2 && codes[0] == "fixture.wrapped" && codes[1] == "fixture.literal",
+        "modular diagnostics must discover only literal code arguments")
+}
+
 ExplainInventory :: (test: *NativeTest) -> bool {
     item: JsonDocument; listing: JsonDocument
     if !NativeAssert(test, JsonRead(*item, NativeRead(test, CheckPath(test.work, "item.json"))) && JsonRead(*listing, NativeRead(test, CheckPath(test.work, "list.json"))), "malformed explain JSON") { return false }
@@ -95,7 +187,12 @@ ExplainInventory :: (test: *NativeTest) -> bool {
     }
     files := NativeFiles(CheckPath(test.repo, "cmd"), ".zi")
     first_calls := string.["PkgFailCode", "Diagnostics.Emit", "WasmDiagnose"]; second_calls := string.["Diagnose", "Fatal", "Fail", "Report", "SayTarget", "Gap"]
-    for path: files { text := NativeRead(test, path); ExplainCalls(text, first_calls[:], *codes, 1); ExplainCalls(text, second_calls[:], *codes, 2) }
+    for path: files {
+        text := NativeRead(test, path)
+        ExplainCalls(text, first_calls[:], *codes, 1)
+        ExplainCalls(text, second_calls[:], *codes, 2)
+        if !ExplainZiDiagnostics(test, text, *codes) { return false }
+    }
     if test.failed { return false }
     SortText(codes[:])
     if codes.count != JsonCount(*listing, nodes) {
@@ -122,5 +219,5 @@ main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "explain-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)
-    return ifx ExplainInventory(*test) && !test.failed then 0 else 1
+    return ifx ExplainModularDiscovery(*test) && ExplainInventory(*test) && !test.failed then 0 else 1
 }

@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Native clients can import meshclient/cryptonative for bounded byte-slice SHA-256, streaming digests, HMAC-SHA-256, XChaCha20-Poly1305, secure random bytes, clearing buffers and compatible Argon2id exports."><title>Mesh Client · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/mesh-client"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>Mesh Client</h1><p>Native clients can import meshclient/cryptonative for bounded byte-slice SHA-256, streaming digests, HMAC-SHA-256, XChaCha20-Poly1305, secure random bytes, clearing buffers and compatible Argon2id exports. Link libsodium for this optional provider; it uses the same 24-byte nonces and appended authentication tags as existing encrypted content. Applications retain their account and content keys, authenticated schema context, storage, and node policy. keys.ValidateIdentity verifies an existing binary ML-DSA-44 account and private-key proof without creating or replacing keys.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/mesh-client">Repository ↗</a></p></div>
-<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-authorization">authorization</a><a href="#module-authorization_owner">authorization_owner</a><a href="#module-delegated">delegated</a><a href="#module-async_delegated">async_delegated</a><a href="#module-envelope">envelope</a><a href="#module-account">account</a><a href="#module-async_account">async_account</a><a href="#module-async_client">async_client</a><a href="#module-async_sync">async_sync</a><a href="#module-sync_flow">sync_flow</a><a href="#module-auth">auth</a><a href="#module-client">client</a><a href="#module-crypto">crypto</a><a href="#module-crypto_native">crypto_native</a><a href="#module-events">events</a><a href="#module-keys">keys</a><a href="#module-keys_native">keys_native</a><a href="#module-record">record</a><a href="#module-record_v2">record_v2</a><a href="#module-record_codec">record_codec</a><a href="#module-release">release</a><a href="#module-seed">seed</a><a href="#module-entity">entity</a><a href="#module-entity_native">entity_native</a><a href="#module-social">social</a><a href="#module-rewards">rewards</a><a href="#module-sync">sync</a><a href="#module-transaction">transaction</a><a href="#module-url">url</a><a href="#module-wire">wire</a></aside><div class="article-body api-body">
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-authorization">authorization</a><a href="#module-authorization_owner">authorization_owner</a><a href="#module-delegated">delegated</a><a href="#module-async_delegated">async_delegated</a><a href="#module-envelope">envelope</a><a href="#module-account">account</a><a href="#module-async_account">async_account</a><a href="#module-async_client">async_client</a><a href="#module-async_sync">async_sync</a><a href="#module-sync_flow">sync_flow</a><a href="#module-auth">auth</a><a href="#module-client">client</a><a href="#module-crypto">crypto</a><a href="#module-crypto_native">crypto_native</a><a href="#module-events">events</a><a href="#module-keys">keys</a><a href="#module-keys_native">keys_native</a><a href="#module-protocol">protocol</a><a href="#module-record">record</a><a href="#module-record_v2">record_v2</a><a href="#module-record_codec">record_codec</a><a href="#module-release">release</a><a href="#module-seed">seed</a><a href="#module-entity">entity</a><a href="#module-entity_native">entity_native</a><a href="#module-social">social</a><a href="#module-rewards">rewards</a><a href="#module-sync">sync</a><a href="#module-transaction">transaction</a><a href="#module-url">url</a><a href="#module-wire">wire</a></aside><div class="article-body api-body">
 <section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.mesh_client]
 git = "https://github.com/ziranlang/mesh-client.git"
 ref = "master"</code></pre></section>
@@ -264,7 +264,14 @@ remote acknowledgment handling.</p></section>
 <section id="module-account"><p class="eyebrow">mesh-client/account.zi</p><h2>account</h2><p>Account deletion uses a fresh challenge and account signature. No private key or exported backup is sent to Mesh.</p><p>Import with <code>#import "mesh_client/account"</code>.</p><div class="api-list">
 <div><code>BuildDeleteBody :: (account_id: string, public_key: string, output: []u8) -&gt; bool</code></div>
 <div><code>PrepareDelete :: (client: Client, challenge: string, body: []u8, signature: []u8) -&gt; AuthResult</code><p>Shared signed deletion preparation for blocking and polled hosts.</p></div>
+<div><code>DeleteAccountWithTwoFactor :: (client: Client, two_factor_code: string) -&gt; AuthResult</code></div>
 <div><code>DeleteAccount :: (client: Client) -&gt; AuthResult</code></div>
+<div><code>BuildTwoFactorActionBody :: (code: string, revoke_other_sessions: bool, output: []u8) -&gt; bool</code></div>
+<div><code>GetTwoFactorStatus :: (client: Client, session: *Session, now: s64, output: []u8, status: *s32) -&gt; AuthResult</code></div>
+<div><code>SetupTwoFactorTotp :: (client: Client, session: *Session, now: s64, output: []u8, status: *s32) -&gt; AuthResult</code></div>
+<div><code>ConfirmTwoFactorTotp :: (client: Client, session: *Session, now: s64, code: string, revoke_other_sessions: bool, output: []u8, status: *s32) -&gt; AuthResult</code></div>
+<div><code>DisableTwoFactor :: (client: Client, session: *Session, now: s64, code: string, revoke_other_sessions: bool, output: []u8, status: *s32) -&gt; AuthResult</code></div>
+<div><code>RegenerateTwoFactorRecovery :: (client: Client, session: *Session, now: s64, code: string, output: []u8, status: *s32) -&gt; AuthResult</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/account.zi">Source ↗</a></p></section>
 <section id="module-async_account"><p class="eyebrow">mesh-client/async_account.zi</p><h2>async_account</h2><p>Signed account deletion advanced without blocking the host event loop.</p><p>Import with <code>#import "mesh_client/async_account"</code>.</p><div class="api-list">
 <div><code>PendingDeletion :: struct { client: Client; transport: AsyncTransport; server: [512]u8; address: [768]u8; challenge: [4096]u8; body: [4096]u8; signature: [4841]u8; headers: [2]HttpHeader; response: [4096]u8; status: s32; deleting: bool; waiting: bool; done: bool; result: AuthResult; }</code></div>
@@ -322,7 +329,7 @@ remote acknowledgment handling.</p></section>
 <div><code>AcceptSyncResponse :: (body: string, response: string, state: *SyncPageState, next: *SyncPageState, limit: s32) -&gt; bool</code><p>No cursor may advance until the host has committed this response. The next state is separate so a rejected or interrupted merge cannot skip records.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/sync_flow.zi">Source ↗</a></p></section>
 <section id="module-auth"><p class="eyebrow">mesh-client/auth.zi</p><h2>auth</h2><p>Portable challenge/login protocol. The application owns keys and the host owns HTTP; neither is stored here.</p><p>Import with <code>#import "mesh_client/auth"</code>.</p><div class="api-list">
-<div><code>AuthResult :: enum { AUTH_OK = 0; AUTH_INVALID_URL = 1; AUTH_NO_ACCOUNT = 2; AUTH_PAYLOAD_FAILED = 3; AUTH_CHALLENGE_FAILED = 4; AUTH_SIGN_FAILED = 5; AUTH_REQUEST_FAILED = 6; AUTH_FAILED = 7; }</code></div>
+<div><code>AuthResult :: enum { AUTH_OK = 0; AUTH_INVALID_URL = 1; AUTH_NO_ACCOUNT = 2; AUTH_PAYLOAD_FAILED = 3; AUTH_CHALLENGE_FAILED = 4; AUTH_SIGN_FAILED = 5; AUTH_REQUEST_FAILED = 6; AUTH_FAILED = 7; AUTH_2FA_REQUIRED = 8; }</code></div>
 <div><code>Identity :: struct { account_id: string; public_key: string; client_id: string; signing_context: *void; restore_hold: bool; }</code></div>
 <div><code>Registration :: struct { server: [512]u8; account: [65]u8; app: [65]u8; client: [129]u8; device: [65]u8; public_key: [65]u8; expires_at: s64; }</code><p>Public registration metadata only. A cache never replaces the server's account/device signatures, revocation checks or transaction replay checks.</p></div>
 <div><code>Session :: struct { token: [4096]u8; account_alias: [40]u8; account_alias_known: bool; profile_icon: s64; profile_icon_known: bool; expires_in_seconds: s64; server_time: s64; expires_at_local: s64; login_local_time: s64; registration: Registration; }</code></div>
@@ -339,6 +346,7 @@ remote acknowledgment handling.</p></section>
 <div><code>SendRequest :: #type (context: *void, request: HttpRequest, output: []u8, status: *s32) -&gt; bool</code></div>
 <div><code>Client :: struct { server_url: string; app_id: string; identity: Identity; digest: DigestBody; signer: SignMessage; send: SendRequest; transport_context: *void; }</code></div>
 <div><code>FetchChallengeJson :: (client: Client, output: []u8) -&gt; AuthResult</code></div>
+<div><code>LoginWithTwoFactor :: (client: Client, two_factor_code: string, session: *Session) -&gt; AuthResult</code></div>
 <div><code>Login :: (client: Client, session: *Session) -&gt; AuthResult</code></div>
 <div><code>MethodValid :: (method: string) -&gt; bool</code></div>
 <div><code>PathValid :: (path: string) -&gt; bool</code></div>
@@ -445,6 +453,41 @@ remote acknowledgment handling.</p></section>
 <div><code>AccountKeysEncryptedArgon2idText :: (account: *Keys.AccountKeys, passphrase: string, output: *u8, output_capacity: s64, operations: u64, memory: usize) -&gt; s32</code><p>Exports an account key file in mesh-account-key-v3 format using Argon2id (memory-hard KDF), full 16-byte salt, XChaCha20-Poly1305 (24-byte nonce), and full authenticated header AAD.</p></div>
 <div><code>ParseEncryptedAccountKeysNative :: (body: string, passphrase: string, account: *Keys.AccountKeys) -&gt; s32</code><p>Parses mesh-account-key-v3 (Argon2id or PBKDF2-SHA256) and legacy ksync-account-key-v2.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/keys_native.zi">Source ↗</a></p></section>
+<section id="module-protocol"><p class="eyebrow">mesh-client/protocol.zi</p><h2>protocol</h2><p>Canonical Mesh wire protocol constants (signing domains, headers, and at-rest envelope profiles). Kept self-contained so it can also be extracted directly into a standalone mesh-protocol package without changing any bytes.</p><p>Import with <code>#import "mesh_client/protocol"</code>.</p><div class="api-list">
+<div><code>HEADER_USER :: "X-Mesh-User"</code><p>Wire headers (canonical X-Mesh-*).</p></div>
+<div><code>HEADER_SIGNATURE :: "X-Mesh-Signature"</code></div>
+<div><code>HEADER_CLIENT :: "X-Mesh-Client"</code></div>
+<div><code>HEADER_TX :: "X-Mesh-Tx"</code></div>
+<div><code>HEADER_2FA :: "X-Mesh-2FA"</code></div>
+<div><code>HEADER_DELEGATE :: "X-Mesh-Delegate"</code></div>
+<div><code>HEADER_ADMIN :: "X-Mesh-Admin"</code></div>
+<div><code>DOMAIN_SYNC :: "mesh-sync-v1"</code><p>Canonical signed-message domains (mesh-*).</p></div>
+<div><code>DOMAIN_TX :: "mesh-tx-v1"</code></div>
+<div><code>DOMAIN_DEVICE_KEY :: "mesh-device-key-v1"</code></div>
+<div><code>DOMAIN_DEVICE_REVOKE :: "mesh-device-revoke-v1"</code></div>
+<div><code>DOMAIN_AUTHORIZATION :: "mesh-authorization-v1"</code></div>
+<div><code>DOMAIN_RENDEZVOUS_CLAIM :: "mesh-rendezvous-claim-v1"</code></div>
+<div><code>DOMAIN_SESSION :: "mesh-session-v1"</code></div>
+<div><code>DOMAIN_DELEGATE_REQUEST :: "mesh-delegate-request-v1"</code></div>
+<div><code>DOMAIN_RELEASE_V2 :: "mesh-zib-release-v2"</code></div>
+<div><code>DOMAIN_RELEASE_V1 :: "mesh-zib-release-v1"</code></div>
+<div><code>DOMAIN_PACK_GRANT :: "mesh-pack-grant-v1"</code></div>
+<div><code>DOMAIN_APP_MANIFEST :: "mesh-app-manifest-v1"</code></div>
+<div><code>DOMAIN_APP_APPROVAL :: "mesh-app-approval-v1"</code></div>
+<div><code>DOMAIN_NODE_REQUEST :: "mesh-node-request-v1"</code></div>
+<div><code>DOMAIN_PAIRING_INVITE :: "mesh-pairing-invite-v1"</code></div>
+<div><code>DOMAIN_PAIRING_ACCEPTANCE :: "mesh-pairing-invite-v1-acceptance"</code></div>
+<div><code>DOMAIN_NAME_CLAIM :: "mesh-name-claim-v1"</code></div>
+<div><code>DOMAIN_RECORD_PROVENANCE :: "mesh-record-provenance-v1"</code></div>
+<div><code>LEGACY_DAOCHI_SIGNED_VALID_THROUGH :: 1826928000</code><p>1-year legacy daochi-* signed-message compatibility cutoff (2027-11-22T00:00:00Z).</p></div>
+<div><code>LEGACY_DOMAIN_SYNC :: "daochi-sync-v1"</code></div>
+<div><code>LEGACY_DOMAIN_TX :: "daochi-tx-v1"</code></div>
+<div><code>LEGACY_DOMAIN_RELEASE_V2 :: "daochi-zib-release-v2"</code></div>
+<div><code>ENVELOPE_RECORD_V1 :: "daochi-record-v1"</code><p>Permanent at-rest encrypted data format identifiers (never rename; bound in AAD/KDF).</p></div>
+<div><code>ENVELOPE_RECORD_V2 :: "mesh-record-v2"</code></div>
+<div><code>ENTITY_KDF_PREFIX :: "daochi-entity-v1/"</code></div>
+<div><code>COLLECTION_KEY_KDF_PREFIX :: "daochi-collection-key-v1"</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/mesh-client/blob/HEAD/protocol.zi">Source ↗</a></p></section>
 <section id="module-record"><p class="eyebrow">mesh-client/record.zi</p><h2>record</h2><p>Legacy daochi-* protocol constants below are released bytes; keep them unchanged. Mesh encrypted record profile v1 ("daochi-record-v1"). The caller supplies the content key and the authoritative routing metadata; this module only seals. Keys and plaintext never leave the caller's buffers.</p><p>Import with <code>#import "mesh_client/record"</code>.</p><div class="api-list">
 <div><code>RecordMetadata :: struct { account_id: string; app_id: string; collection: string; id: string; schema: string; }</code></div>
 <div><code>RecordNonceBytes :: 24</code></div>

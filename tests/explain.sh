@@ -17,7 +17,7 @@ grep -Fq 'borrowed slice or text view' "$work/text.txt"
 grep -Fq 'Keep the owner live and immutable' "$work/text.txt"
 "$ziran" explain zir.noncanonical --json > "$work/item.json"
 "$ziran" explain --list --json > "$work/list.json"
-"$ziran" run --target=c --root "$repo/tests" "$repo/tests/explain_cases.zi" -- "$ziran" "$work"
+"$ziran" run --target=c --root "$repo/tests" --module-path "$repo/cmd" "$repo/tests/explain_cases.zi" -- "$ziran" "$work"
 cat > "$work/go-import.zi" <<'ZI'
 libc :: #system_library "libc";
 Read :: (value: []u8) -> s32 #foreign libc "read";

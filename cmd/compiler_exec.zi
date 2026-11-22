@@ -3633,7 +3633,7 @@ ExecNumericInstruction :: (instance: *LirExecInstance, instruction: *$I) -> bool
     return ExecFail(instance, .Unsupported)
 }
 
-ExecValueInstruction :: (instance: *LirExecInstance, frame_index: s64,
+ExecValueInstruction :: (instance: *LirExecInstance, frame_index: s64, frame: *LirExecFrame,
     instruction: *$I) -> bool {
     op := instruction.op
     // Numeric instructions are contiguous except for the two unary ops.
@@ -3641,7 +3641,7 @@ ExecValueInstruction :: (instance: *LirExecInstance, frame_index: s64,
     if cast(u32)op >= cast(u32)LirOp.Add && cast(u32)op <= cast(u32)LirOp.Bitcast &&
         op != .Negate && op != .BitNot {
         if !ExecNumericInstruction(instance, instruction) { return false }
-        instance.frames[frame_index].instruction += 1
+        frame.instruction += 1
         return true
     }
     result_type: s32 = LirNoId
@@ -3671,7 +3671,7 @@ ExecValueInstruction :: (instance: *LirExecInstance, frame_index: s64,
     } else if op == .Negate || op == .BitNot || op == .SquareRoot {
         if !ExecUnaryInstruction(instance, frame_index, instruction) { return false }
     } else { return ExecFail(instance, .Unsupported) }
-    instance.frames[frame_index].instruction += 1
+    frame.instruction += 1
     return true
 }
 
@@ -4212,16 +4212,6 @@ ExecStep :: (instance: *LirExecInstance) -> bool {
     return ExecStepInstruction(instance, frame_index, frame, *block.instructions[frame.instruction])
 }
 
-#if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
-ExecStepPacked :: (instance: *LirExecInstance) -> bool {
-    frame_index := instance.frames.count - 1
-    frame := *instance.frames[frame_index]
-    instruction := *instance.plan.packed_instructions[frame.instruction_base + frame.instruction]
-    return ExecStepInstruction(instance, frame_index, frame, instruction)
-}
-
-}
-
 ExecStepInstruction :: (instance: *LirExecInstance, frame_index: s64, frame: *LirExecFrame,
     instruction: *$I) -> bool {
     if !ExecSpend(instance, 1) { return false }
@@ -4250,7 +4240,7 @@ ExecStepInstruction :: (instance: *LirExecInstance, frame_index: s64, frame: *Li
     if op == .Call || op == .CallIndirect {
         return ExecCallInstruction(instance, frame_index, instruction)
     }
-    return ExecValueInstruction(instance, frame_index, instruction)
+    return ExecValueInstruction(instance, frame_index, frame, instruction)
 }
 
 // ---- The run loop --------------------------------------------------------
@@ -5276,30 +5266,44 @@ ExecResetRun :: (instance: *LirExecInstance) -> bool {
     return true
 }
 
+#if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+ExecRunPacked :: (instance: *LirExecInstance, blocks: *LirExecPackedBlocks) -> bool {
+    instructions := instance.plan.packed_instructions
+    native := blocks != null && blocks.run != null
+    next: s32 = -1
+    while instance.frames.count != 0 && instance.failure.problem == .None {
+        frame_index := instance.frames.count - 1
+        frame := *instance.frames[frame_index]
+        if native && (frame.instruction == 0 || frame.instruction == next) {
+            // The hook only changes this frame's instruction and scalar words.
+            next = blocks.run(blocks.context, instance, frame)
+        }
+        while true {
+            instruction := *instructions[frame.instruction_base + frame.instruction]
+            op := cast(u32)instruction.op
+            // Value instructions leave the current frame and block in place.
+            if op >= cast(u32)LirOp.Call && op <= cast(u32)LirOp.Unreachable {
+                if !ExecStepInstruction(instance, frame_index, frame, instruction) {
+                    return instance.failure.problem == .None
+                }
+                break
+            }
+            if !ExecSpend(instance, 1) || !ExecValueInstruction(instance, frame_index, frame, instruction) ||
+                instance.failure.problem != .None { return instance.failure.problem == .None }
+            if frame.instruction == next { break }
+        }
+    }
+    return instance.failure.problem == .None
+}
+}
+
 ExecRunRoot :: (instance: *LirExecInstance, function: s32, arguments: []LirExecArgument,
     packed_blocks: *void = null) -> bool {
     no_operands: [0]s32
     if !ExecPushFrame(instance, function, -1, no_operands[:], LirNoId, arguments) { return false }
     #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
         if instance.plan.packed_instructions.count != 0 {
-            blocks := cast(*LirExecPackedBlocks)packed_blocks
-            if blocks != null && blocks.run != null {
-                next: s32 = -1
-                while instance.frames.count != 0 && instance.failure.problem == .None {
-                    frame_index := instance.frames.count - 1
-                    frame := *instance.frames[frame_index]
-                    at := frame.instruction
-                    // The hook only changes this frame's instruction and scalar words.
-                    if at == 0 || at == next { next = blocks.run(blocks.context, instance, frame) }
-                    instruction := *instance.plan.packed_instructions[frame.instruction_base + frame.instruction]
-                    if !ExecStepInstruction(instance, frame_index, frame, instruction) { break }
-                }
-                return instance.failure.problem == .None
-            }
-            while instance.frames.count != 0 && instance.failure.problem == .None {
-                if !ExecStepPacked(instance) { break }
-            }
-            return instance.failure.problem == .None
+            return ExecRunPacked(instance, cast(*LirExecPackedBlocks)packed_blocks)
         }
     }
     if !instance.reference && !instance.plan.compact { return ExecRunFast(instance) }

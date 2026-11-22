@@ -2,6 +2,16 @@
 using Vectors :: #import "std/vec"
 using Utf8 :: #import "std/utf8"
 
+// The reader supplies blocks for an existing function. Its scratch is valid
+// until the next read. A zero source uses the program's ordinary blocks.
+LirFunctionBodyReader :: #type (*void, s32, *LirFunction) -> bool;
+LirFunctionBodies :: struct { context: *void; read: LirFunctionBodyReader }
+
+LirReadFunctionBody :: (source: LirFunctionBodies, id: s32, function: *LirFunction) -> bool #inline {
+    if source.read == null { return true }
+    return source.read(source.context, id, function)
+}
+
 #scope_file
 State :: struct {
     remaining: s64
@@ -43,7 +53,7 @@ Text :: (state: *State, text: string) -> bool {
     return true
 }
 
-Inventory :: (state: *State, program: LirProgram) -> bool {
+Inventory :: (state: *State, program: LirProgram, bodies: LirFunctionBodies) -> bool {
     if program.types.count > state.limits.types || program.functions.count > state.limits.functions ||
         !Charge(state, program.types.count, 128) || !Charge(state, program.functions.count, 160) ||
         !Charge(state, program.modules.count, 16) || !Charge(state, program.sources.count, 16) ||
@@ -60,7 +70,9 @@ Inventory :: (state: *State, program: LirProgram) -> bool {
     blocks: s64 = 0
     values: s64 = 0
     instructions: s64 = 0
-    for function: program.functions {
+    for function_index: cast(s32)0..cast(s32)program.functions.count - 1 {
+        function := program.functions[function_index]
+        if !LirReadFunctionBody(bodies, function_index, *function) { return Fail(state, .Allocation) }
         if !Text(state, function.name) || !Charge(state, function.parameters.count, 4) ||
             !Charge(state, function.values.count, 4) || !Charge(state, function.blocks.count, 40) { return false }
         if function.blocks.count > state.limits.blocks - blocks || function.values.count > state.limits.values - values {
@@ -955,13 +967,17 @@ LirHostShapes :: (program: LirProgram, shapes: *Vec(u8)) -> bool {
 }
 
 LirVerify :: (program: LirProgram, limits: LirLimits) -> LirDiagnostic {
+    return LirVerifyWithBodies(program, limits, .{})
+}
+
+LirVerifyWithBodies :: (program: LirProgram, limits: LirLimits, bodies: LirFunctionBodies) -> LirDiagnostic {
     state := State.{remaining = limits.work, limits = limits,
         diagnostic = .{problem = .None, function = LirNoId, block = LirNoId,
             instruction = LirNoId, value = LirNoId, origin = LirNoId}}
     if limits.work < 0 || limits.types < 0 || limits.functions < 0 || limits.blocks < 0 ||
         limits.values < 0 || limits.instructions < 0 || limits.bytes < 0 { state.diagnostic.problem = .Limit; return state.diagnostic }
     if program.version != LirVersion { state.diagnostic.problem = .Version; return state.diagnostic }
-    if !Inventory(*state, program) || !Types(*state, program) || !Origins(*state, program) || !Declarations(*state, program) { return state.diagnostic }
+    if !Inventory(*state, program, bodies) || !Types(*state, program) || !Origins(*state, program) || !Declarations(*state, program) { return state.diagnostic }
     for id: cast(s32)0..cast(s32)program.functions.count - 1 {
         state.diagnostic.function = id
         state.diagnostic.block = LirNoId
@@ -969,7 +985,12 @@ LirVerify :: (program: LirProgram, limits: LirLimits) -> LirDiagnostic {
         state.diagnostic.value = LirNoId
         state.diagnostic.origin = program.functions[id].origin
         if program.functions[id].external { continue }
-        if !Function(*state, program, program.functions[id]) { return state.diagnostic }
+        function := program.functions[id]
+        if !LirReadFunctionBody(bodies, id, *function) {
+            state.diagnostic.problem = .Allocation
+            return state.diagnostic
+        }
+        if !Function(*state, program, function) { return state.diagnostic }
     }
     return .{problem = .None, function = LirNoId, block = LirNoId,
         instruction = LirNoId, value = LirNoId, origin = LirNoId}

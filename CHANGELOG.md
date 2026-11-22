@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Hosted ZX applications can open from a read callback with a smaller instruction store when running on the portable engine.
+
 - Pack checked ZX libraries for explicit OS and CPU targets with `ziran pkg zx pack-ir --locked`.
 
 - The portable ZX engine reuses frame storage for large record and array snapshots with disjoint lifetimes.

@@ -299,6 +299,20 @@ the source and dispose of the callback context as soon as open returns.
 If the optional `unsupported` output is 1, the source profile cannot verify
 the image. The caller can explicitly retry through `BundleOpenOwnedBytes`.
 
+`BundleOpenEngineReadAt` accepts the same app images with the same reader
+lifetime and identity. Instantiate its bundle with `BUNDLE_BACKEND_ENGINE`,
+including when passing it to `ZxModuleProgramOpen`. When the image allows it,
+the reader decodes instructions into a compact table and expands one function
+at a time for verification and planning. Other images use the full portable
+instruction form during verification and can still be packed for execution.
+To return unused storage to an allocator that keeps the full block on
+shrink, supply a `BundleShrink` callback as the final argument. It runs during
+open when packing leaves unused storage and receives the smaller size. Its
+result follows `realloc` ownership rules and must be releasable with the
+runtime's `free`. On callback failure the engine uses the existing allocation.
+Passing `NULL` uses `realloc`. Use
+`BundleOpenReadAt` for native and Wasm execution.
+
 Each host call is translated between the engine's host image and `HostValue`
 trees by the host interface section. A value's type is the spelling declared at
 its position, and a spelling that starts with `u` is unsigned; a `u64` above the

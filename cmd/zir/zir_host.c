@@ -27,6 +27,7 @@ struct Bundle {
     /* The same code without fuel checks, for unbounded instances. */
     NativeBundleSlot unbounded;
     size_t references;
+    int engine_only;
     /* SHA-256 of the file's bytes. */
     unsigned char digest[32];
 };
@@ -135,21 +136,36 @@ BundleOpenOwnedBytes(const unsigned char *data, size_t size, BundleImageRelease 
     return open_bundle(data, size, "<embedded bundle>", release, context);
 }
 
-Bundle *
-BundleOpenReadAt(uint64_t size, BundleReadAt read_at, void *context, int *unsupported)
+static Bundle *
+open_bundle_read_at(uint64_t size, BundleReadAt read_at, void *context, int *unsupported,
+                    int engine_only, BundleShrink shrink)
 {
     if(unsupported != NULL) *unsupported = 0;
     Bundle *bundle = calloc(1, sizeof(*bundle));
     if(bundle == NULL) return NULL;
     bundle->references = 1;
     uint64_t started = ProfileStart();
-    bundle->exec = ExecBundleOpenReadAt(size, read_at, context, bundle->digest, unsupported);
+    bundle->engine_only = engine_only;
+    bundle->exec = ExecBundleOpenReadAt(size, read_at, context, bundle->digest, unsupported, engine_only, shrink);
     if(bundle->exec == NULL) {
         free(bundle);
         return NULL;
     }
     ProfileEnd("zx.bundle.open", started);
     return bundle;
+}
+
+Bundle *
+BundleOpenReadAt(uint64_t size, BundleReadAt read_at, void *context, int *unsupported)
+{
+    return open_bundle_read_at(size, read_at, context, unsupported, 0, NULL);
+}
+
+Bundle *
+BundleOpenEngineReadAt(uint64_t size, BundleReadAt read_at, void *context,
+                       int *unsupported, BundleShrink shrink)
+{
+    return open_bundle_read_at(size, read_at, context, unsupported, 1, shrink);
 }
 
 void
@@ -436,6 +452,11 @@ instantiate_bundle_with_policy(const Bundle *bundle, const HostBinding *bindings
     BundleExecutionBackend selected = policy == BUNDLE_BACKEND_ENGINE ?
         BUNDLE_EXECUTION_ENGINE : policy == BUNDLE_BACKEND_NATIVE ?
         NATIVE_PLATFORM_BACKEND : auto_platform_backend();
+    if(bundle->engine_only && selected != BUNDLE_EXECUTION_ENGINE) {
+        Diagnostic(Span("<host>", 1, 1), "zx.capability", "this bundle requires the instruction engine");
+        BundleInstanceClose(instance);
+        return NULL;
+    }
     if(write != NULL && selected != BUNDLE_EXECUTION_ENGINE) {
         Diagnostic(Span("<host>", 1, 1), "zx.capability", "a console callback requires the instruction engine");
         BundleInstanceClose(instance);
@@ -530,6 +551,7 @@ const char *
 BundleNativeProblem(const Bundle *bundle)
 {
     if(bundle == NULL) return "assembly.native.input: no bundle";
+    if(bundle->engine_only) return "assembly.native.input: this bundle requires the instruction engine";
     return NativeBundleSlotProblem(&((Bundle *)bundle)->native, bundle->exec, bundle->digest);
 }
 

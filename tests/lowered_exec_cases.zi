@@ -82,6 +82,14 @@ Execute :: (program: LirProgram, limits: LirExecLimits = LirExecDefaultLimits(),
     built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
     if built.problem != .None { return built }
     if !SameAsReference(*plan, limits, identity) { return .{.problem = .Unsupported, .function = -2} }
+    compact: LirExecPlan
+    defer LirExecPlanFree(*compact)
+    compact_built := LirExecPlanBuildCompact(program, LirDefaultLimits(), *compact)
+    if compact_built.problem != .None { return compact_built }
+    if !SameAsReference(*compact, limits, identity) ||
+        !SameResult(RunOnce(*plan, limits, identity, true), RunOnce(*compact, limits, identity, false)) {
+        return .{.problem = .Unsupported, .function = -3}
+    }
     instance: LirExecInstance
     defer LirExecInstanceClose(*instance)
     opened := LirExecInstanceOpen(*plan, limits, identity, *instance)
@@ -472,8 +480,7 @@ LargeSnapshotProjection :: (keep_parent: bool) -> bool {
         SameResult(result, RunOnce(*plan, limits, 1, true)) && SameResult(result, RunOnce(*compact, limits, 1, false))
 }
 
-LargeValueLocations :: () -> bool {
-    large_size: s64 = 4294967296
+LargeValueLocations :: (large_size: s64, fits_narrow: bool) -> bool {
     types: [4]LirType = .[
         .{.kind = .Void}, .{.kind = .Integer, .bits = 8},
         .{.kind = .Array, .element = 1, .count = large_size},
@@ -498,13 +505,21 @@ LargeValueLocations :: () -> bool {
         built: LirExecResult
         if compact == 0 { built = LirExecPlanBuild(program, limits, *plan) }
         else { built = LirExecPlanBuildCompact(program, limits, *plan) }
-        if built.problem != .None || !plan.ready || plan.value_locations.count != 3 ||
+        if built.problem != .None || !plan.ready || plan.functions[0].frame_bytes != limits.bytes - 8 {
+            return false
+        }
+        if compact != 0 && fits_narrow {
+            if plan.value_locations.count != 0 || plan.narrow_value_locations.count != 3 ||
+                plan.narrow_value_locations[0] != -1 ||
+                cast(s64)plan.narrow_value_locations[1] != ~large_size ||
+                plan.narrow_value_locations[2] != 0 { return false }
+        } else if plan.narrow_value_locations.count != 0 || plan.value_locations.count != 3 ||
             plan.value_locations[0] != -1 || plan.value_locations[1] != ~large_size ||
-            plan.value_locations[2] != 0 || plan.functions[0].frame_bytes != limits.bytes - 8 { return false }
+            plan.value_locations[2] != 0 { return false }
     }
     limits.bytes -= 1
     return LirExecPlanBuildCompact(program, limits, *plan).problem == .ValueBytes &&
-        !plan.ready && plan.value_locations.count == 0
+        !plan.ready && plan.value_locations.count == 0 && plan.narrow_value_locations.count == 0
 }
 
 DynamicArrayValues :: () -> bool {
@@ -1765,7 +1780,9 @@ Answer :: () -> s32 {
     if !HeapResize() { return 23 }
     if !TypedHostShapes() { return 24 }
     if !CompactCodeChunks() { return 25 }
-    if !LargeValueLocations() { return 26 }
+    // The smaller frame and its scalar word exactly fill the signed 32-bit byte limit.
+    if !LargeValueLocations(4294967296, false) ||
+        !LargeValueLocations((2147483647 - 11) / 2, true) { return 26 }
     if !AddressGrowthAndChurn() { return 27 }
     if !LargeSnapshotSlots() { return 28 }
     if !LargeSnapshotProjection(false) || !LargeSnapshotProjection(true) { return 29 }

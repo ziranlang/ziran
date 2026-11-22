@@ -151,6 +151,17 @@ typedef size_t (*BundleReadAt)(void *context, uint64_t offset, void *output, siz
  * or additional attachments), and 0 otherwise. The caller may choose to
  * retry that image with the owned-byte API, which verifies it independently. */
 Bundle *BundleOpenReadAt(uint64_t size, BundleReadAt read_at, void *context, int *unsupported);
+#define ZIRAN_HOST_HAS_BUNDLE_ENGINE_READ_AT 1
+/* Like realloc, but always receives a smaller, nonzero size. On success
+ * return storage whose first size bytes match the original and that the
+ * runtime can release with free. Returning NULL leaves the original valid. */
+typedef void *(*BundleShrink)(void *storage, size_t size);
+/* Same verified reader and lifetime as BundleOpenReadAt. This bundle requires
+ * the instruction engine and uses compact storage when the image permits it.
+ * Use BUNDLE_BACKEND_ENGINE when instantiating it. Optional shrink only runs
+ * during open when packing leaves unused storage. NULL uses realloc. */
+Bundle *BundleOpenEngineReadAt(uint64_t size, BundleReadAt read_at, void *context,
+                              int *unsupported, BundleShrink shrink);
 void BundleClose(Bundle *bundle);
 /* Required capability names, in program order, are borrowed until
  * BundleClose. */

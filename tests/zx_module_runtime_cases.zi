@@ -24,6 +24,14 @@ ReleaseImage :: #type (context: *void, data: *u8, size: usize) #c_call;
 OpenOwnedBytes :: (data: *u8, size: usize, release: ReleaseImage, context: *void) -> *void #foreign hosting "BundleOpenOwnedBytes";
 ReadAt :: #type (context: *void, offset: u64, output: *u8, size: usize) -> usize #c_call;
 OpenReadAt :: (size: u64, read_at: ReadAt, context: *void, unsupported: *s32) -> *void #foreign hosting "BundleOpenReadAt";
+ShrinkStorage :: #type (storage: *void, size: usize) -> *void #c_call;
+OpenEngineReadAt :: (size: u64, read_at: ReadAt, context: *void, unsupported: *s32,
+    shrink: ShrinkStorage) -> *void #foreign hosting "BundleOpenEngineReadAt";
+libc :: #system_library "c";
+AllocateStorage :: (size: usize) -> *void #foreign libc "malloc";
+ResizeStorage :: (storage: *void, size: usize) -> *void #foreign libc "realloc";
+FreeStorage :: (storage: *void) #foreign libc "free";
+CopyStorage :: (output: *void, input: *void, size: usize) -> *void #foreign libc "memcpy";
 CodeIdentity :: (bundle: *void, digest: *u8) #foreign hosting "BundleCodeIdentity";
 AssetCount :: (bundle: *void) -> usize #foreign hosting "BundleAssetCount";
 AssetName :: (bundle: *void, index: usize) -> *u8 #foreign hosting "BundleAssetName";
@@ -320,7 +328,12 @@ ReadSourceFixture :: (opaque: *void, offset: u64, output: *u8, size: usize) -> u
     return size
 }
 
-CheckSourceReader :: (test: *NativeTest, bytes: string, borrowed: *void) -> *void {
+#program_export
+ReallocFixture :: (storage: *void, size: usize) -> *void {
+    return ResizeStorage(storage, size)
+}
+
+CheckSourceReader :: (test: *NativeTest, bytes: string, borrowed: *void, engine: bool) -> *void {
     image_size := cast(u64)bytes.count
     limit: u64 = 256 * 1024 * 1024
     for size: u64.[0, limit + 1, 18446744073709551615] {
@@ -352,7 +365,12 @@ CheckSourceReader :: (test: *NativeTest, bytes: string, borrowed: *void) -> *voi
     if !NativeAssert(test, BuilderAppend(input, bytes), "allocate a disposable source") { return null }
     source = .{bytes = TextView(input[:])}
     unsupported: s32 = -1
-    bundle := OpenReadAt(image_size, ReadSourceFixture, cast(*void)*source, *unsupported)
+    bundle: *void
+    if engine {
+        bundle = OpenEngineReadAt(image_size, ReadSourceFixture, cast(*void)*source, *unsupported, ReallocFixture)
+    } else {
+        bundle = OpenReadAt(image_size, ReadSourceFixture, cast(*void)*source, *unsupported)
+    }
     // Retire both the reader and its bytes before querying or running the bundle.
     source = .{}
     for at: cast(s64)0..input.count - 1 { input[at] = 0 }
@@ -371,15 +389,23 @@ CheckSourceReader :: (test: *NativeTest, bytes: string, borrowed: *void) -> *voi
     return bundle
 }
 
-FuelCase :: (test: *NativeTest, path: string, runaway: bool) -> bool {
+FuelCase :: (test: *NativeTest, path: string, runaway: bool, engine: bool) -> bool {
     bytes := NativeRead(test, path)
     borrowed := Host.OpenBundleBytes(HostedBytes(bytes), cast(u64)bytes.count)
     if !NativeAssert(test, borrowed != null, "verify fuel fixture") { return false }
     defer Host.CloseBundle(borrowed)
-    source_bundle := ifx !runaway then CheckSourceReader(test, bytes, borrowed) else null
+    source_bundle: *void
+    if !runaway {
+        source_bundle = CheckSourceReader(test, bytes, borrowed, engine)
+    } else if engine {
+        source := SourceFixture.{bytes = bytes}
+        source_bundle = OpenEngineReadAt(cast(u64)bytes.count, ReadSourceFixture, cast(*void)*source, null, ReallocFixture)
+    }
     defer Host.CloseBundle(source_bundle)
-    if !runaway && source_bundle == null { return false }
-    bundle := ifx runaway then borrowed else source_bundle
+    bundle := ifx runaway && !engine then borrowed else source_bundle
+    if bundle == null { return false }
+    if engine && !NativeAssert(test, TextContains(Host.GetBundleNativeProblem(bundle), "requires the instruction engine"),
+        "native preflight rejects an engine-only bundle") { return false }
     config := LoaderConfig.{options = .{1, 200, 0}}
     loader := OpenLoader(*config)
     defer CloseLoader(loader)
@@ -415,7 +441,10 @@ FuelCases :: (test: *NativeTest, compiler: string) -> bool {
     for entry: entries {
         output := CheckPath(test.work, "fuel.zx")
         compile := string.[compiler, "--root", test.work, "--entry", entry, "-o", output, source]
-        if !Build(test, compile[:]) || !FuelCase(test, output, entry == "fuel:runaway") { return false }
+        if !Build(test, compile[:]) { return false }
+        for engine: bool.[false, true] {
+            if !FuelCase(test, output, entry == "fuel:runaway", engine) { return false }
+        }
     }
     return true
 }
@@ -486,6 +515,23 @@ BorrowCase :: (test: *NativeTest, loader: *void, bundle: *void, enable: bool) ->
         "host string, nested image, mutable copy-back, empty input and borrowed result")
 }
 
+ShrinkCalls: s32;
+ShrinkMove: bool;
+ShrinkMoved: bool;
+
+#program_export
+ShrinkFixture :: (storage: *void, size: usize) -> *void {
+    if storage == null || size == 0 { return null }
+    ShrinkCalls += 1
+    if !ShrinkMove { return null }
+    replacement := AllocateStorage(size)
+    if replacement == null { return null }
+    unused CopyStorage(replacement, storage, size)
+    FreeStorage(storage)
+    ShrinkMoved = true
+    return replacement
+}
+
 BorrowCases :: (test: *NativeTest, compiler: string) -> bool {
     source := CheckPath(test.work, "borrow_app.zi")
     output := CheckPath(test.work, "borrow-app.zx")
@@ -498,7 +544,64 @@ BorrowCases :: (test: *NativeTest, compiler: string) -> bool {
     config := LoaderConfig.{options = .{1, 200, 0}}
     loader := OpenLoader(*config)
     defer CloseLoader(loader)
-    return BorrowCase(test, loader, bundle, false) && BorrowCase(test, loader, bundle, true)
+    if !BorrowCase(test, loader, bundle, false) || !BorrowCase(test, loader, bundle, true) { return false }
+    for move: bool.[false, true] {
+        ShrinkCalls = 0
+        ShrinkMove = move
+        ShrinkMoved = false
+        source_input := SourceFixture.{bytes = bytes}
+        engine := OpenEngineReadAt(cast(u64)bytes.count, ReadSourceFixture, cast(*void)*source_input, null, ShrinkFixture)
+        defer Host.CloseBundle(engine)
+        source_input = .{}
+        if !NativeAssert(test, engine != null && ShrinkCalls == 1 && ShrinkMoved == move,
+            "engine reader accepts the original or relocated packed allocation") ||
+            !BorrowCase(test, loader, engine, false) || !BorrowCase(test, loader, engine, true) { return false }
+        if !NativeAssert(test, ShrinkCalls == 1, "shrink only during open") { return false }
+    }
+    return true
+}
+
+PackedSourceCase :: (test: *NativeTest, compiler: string) -> bool {
+    source := CheckPath(test.work, "packed_source.zi")
+    output := CheckPath(test.work, "packed-source.zx")
+    text: Vec(u8)
+    defer VecFree(text)
+    if !BuilderAppend(text, "step_z :: () -> s32 { return 0 }\n") { return false }
+    // Many small reachable functions let the reader reuse one scratch body.
+    suffixes := "zabcdefghijklmnopqrstuvwx"
+    for index: 1..suffixes.count - 1 {
+        if !BuilderAppend(text, "step_") || !BuilderAppend(text, suffixes[index:index + 1]) ||
+            !BuilderAppend(text, " :: () -> s32 {\n    value := step_") ||
+            !BuilderAppend(text, suffixes[index - 1:index]) || !BuilderAppend(text,
+                "()\n    if (value & 1) == 0 { return value + 3 }\n    return value - 1\n}\n") { return false }
+    }
+    if !BuilderAppend(text, "main :: () -> s32 { return step_x() }\n") ||
+        !NativeWrite(test, source, TextView(text[:])) { return false }
+    compile := string.[compiler, "--root", test.work, "--entry", "packed_source:main", "-o", output, source]
+    if !Build(test, compile[:]) { return false }
+    bytes := NativeRead(test, output)
+    ordinary := Host.OpenBundleBytes(HostedBytes(bytes), cast(u64)bytes.count)
+    defer Host.CloseBundle(ordinary)
+    source_input := SourceFixture.{bytes = bytes}
+    packed := OpenEngineReadAt(cast(u64)bytes.count, ReadSourceFixture, cast(*void)*source_input, null, ReallocFixture)
+    defer Host.CloseBundle(packed)
+    if !NativeAssert(test, ordinary != null && packed != null, "verify a multi-function image with both readers") { return false }
+    ordinary_id: [32]u8; packed_id: [32]u8
+    CodeIdentity(ordinary, *ordinary_id[0])
+    CodeIdentity(packed, *packed_id[0])
+    if !NativeAssert(test, TextView(ordinary_id[:]) == TextView(packed_id[:]), "preserve the multi-function image identity") { return false }
+    config := LoaderConfig.{options = .{1, 2000, 0}}
+    loader := OpenLoader(*config)
+    defer CloseLoader(loader)
+    bundles: [2]*void = .[ordinary, packed]
+    for bundle: bundles {
+        program := OpenProgram(loader, bundle, null, 0)
+        defer CloseProgram(program)
+        result: s64; present: s32
+        if !NativeAssert(test, program != null && RunProgram(program, *result, *present) != 0 &&
+            present == 1 && result == 24, "both readers preserve cross-function calls and branching") { return false }
+    }
+    return true
 }
 
 #program_export
@@ -510,7 +613,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     std := CheckPath(test.repo, "std")
     bridge := TextFromCString(argv[3])
     if !HostedCases(*test, compiler, std, bridge) || !FuelCases(*test, compiler) ||
-        !BorrowCases(*test, compiler) { return 1 }
+        !BorrowCases(*test, compiler) || !PackedSourceCase(*test, compiler) { return 1 }
     return 0
 }
 }

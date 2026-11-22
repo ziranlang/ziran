@@ -25,9 +25,9 @@ ExecBundle *ExecBundleOpenWithRelease(const unsigned char *bytes, size_t size, c
                                       BundleImageRelease consumed, void *context);
 /* Verifies the source and writes the bundle's raw SHA-256 on success. */
 ExecBundle *ExecBundleOpenReadAt(uint64_t size, BundleReadAt read_at, void *context,
-                                unsigned char digest[32], int *unsupported);
+                                unsigned char digest[32], int *unsupported, int engine_only, BundleShrink shrink);
 void ExecBundleClose(ExecBundle *bundle);
-/* The verified program, a `const LirProgram *`. */
+/* The verified program, a `const LirProgram *`, or NULL for an engine-only bundle. */
 const void *ExecBundleProgram(const ExecBundle *bundle);
 /* The program with the file's optional debug attachment, its source texts
  * and origins, restored into DEBUG, a `ZxDebugOwner *` that borrows the

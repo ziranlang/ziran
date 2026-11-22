@@ -390,7 +390,8 @@ Reach :: (reachable: *Vec(u8), queue: *Vec(s32), queued: *s64, function: s32,
 }
 
 // Recomputes the reachable host capabilities instead of trusting the producer.
-ValidateReachable :: (program: LirProgram, budget: *ZxExecBudget, capabilities: *s64) -> ZxExecProblem {
+ValidateReachable :: (program: LirProgram, budget: *ZxExecBudget, capabilities: *s64,
+    bodies: Verify.LirFunctionBodies = .{}) -> ZxExecProblem {
     <<capabilities = 0
     if program.entry < 0 || program.entry >= program.functions.count { return .Entry }
     symbol_problem := ValidateSymbols(program, budget)
@@ -414,7 +415,8 @@ ValidateReachable :: (program: LirProgram, budget: *ZxExecBudget, capabilities: 
     all_reachable := false
     while at < queued {
         if !BudgetSpend(budget, 1) { VecFree(reachable); VecFree(queue); return .Limit }
-        function := program.functions[queue[at]]
+        function_id := queue[at]
+        function := program.functions[function_id]
         at += 1
         if function.external && function.calling == .Host {
             <<capabilities += 1
@@ -423,6 +425,10 @@ ValidateReachable :: (program: LirProgram, budget: *ZxExecBudget, capabilities: 
         if function.external || function.calling != .Portable {
             VecFree(reachable); VecFree(queue)
             return .External
+        }
+        if !Verify.LirReadFunctionBody(bodies, function_id, *function) {
+            VecFree(reachable); VecFree(queue)
+            return .Allocation
         }
         for block: function.blocks {
             if !BudgetSpend(budget, 1) { VecFree(reachable); VecFree(queue); return .Limit }
@@ -628,7 +634,7 @@ CheckDecoded :: (owner: *ZxExecOwner, decoded: Serial.LirCodecResult, entry: s32
         return Result(.DebugDependency)
     }
     capabilities: s64
-    problem := ValidateReachable(program, budget, *capabilities)
+    problem := ValidateReachable(program, budget, *capabilities, Serial.LirReadFunctionBodies(*owner.read))
     if problem != .None {
         ZxExecReadFree(owner)
         return Result(problem)
@@ -808,6 +814,19 @@ ZxExecSourceBegin :: #type (*void) -> void;
 // than the interface. The caller supplies windows from a consistent snapshot.
 ZxExecReadAppSource :: (owner: *ZxExecOwner, source: *Bundle.ExecutableReadSource,
     limits: LirLimits, begin: ZxExecSourceBegin) -> ZxExecResult {
+    return ReadAppSource(owner, source, limits, begin, false)
+}
+
+#if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+ZxExecReadCompactAppSource :: (owner: *ZxExecOwner, source: *Bundle.ExecutableReadSource,
+    limits: LirLimits, begin: ZxExecSourceBegin) -> ZxExecResult {
+    return ReadAppSource(owner, source, limits, begin, true)
+}
+}
+
+#scope_file
+ReadAppSource :: (owner: *ZxExecOwner, source: *Bundle.ExecutableReadSource,
+    limits: LirLimits, begin: ZxExecSourceBegin, compact: bool) -> ZxExecResult {
     if owner == null { return Result(.Allocation) }
     ZxExecReadFree(owner)
     if !LimitsValid(limits) { return Result(.Limit) }
@@ -831,7 +850,11 @@ ZxExecReadAppSource :: (owner: *ZxExecOwner, source: *Bundle.ExecutableReadSourc
     program_source := ProgramSource.{input = source, range = layout.program, hash = *program_hash}
     begin(source.context)
     lir := Serial.LirReadSource.{cast(*void)*program_source, ProgramWindow, layout.program.size}
-    decoded := Serial.LirReadFromSource(*owner.read, *lir, limits)
+    decoded: Serial.LirCodecResult
+    #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+        if compact { decoded = Serial.LirReadCompactSource(*owner.read, *lir, limits) }
+        else { decoded = Serial.LirReadFromSource(*owner.read, *lir, limits) }
+    } else { decoded = Serial.LirReadFromSource(*owner.read, *lir, limits) }
     if !ProgramHashTo(*program_source, layout.program.size) {
         ZxExecReadFree(owner)
         return SourceFailure(.Truncated)
@@ -874,6 +897,7 @@ ZxExecReadAppSource :: (owner: *ZxExecOwner, source: *Bundle.ExecutableReadSourc
     return result
 }
 
+#scope_export
 ZxExecReadProgram :: (owner: *ZxExecOwner) -> LirProgram {
     if owner == null || !owner.valid { return .{version = LirVersion, entry = LirNoId} }
     return Serial.LirReadProgram(*owner.read)

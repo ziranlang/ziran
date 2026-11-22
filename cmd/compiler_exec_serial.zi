@@ -28,6 +28,36 @@ LirCodecResult :: struct {
     offset: s64
 }
 
+#if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+// Offsets are into the reader's contiguous operand and edge pools. Adjacent
+// instructions delimit each slice. The low nine bits of edge_and_flags hold
+// the opcode, stored alignment, and checked bit.
+LirCompactInstruction :: struct {
+    immediate: u64
+    result: s32
+    symbol: s32
+    origin: s32
+    operand_start: u32
+    edge_and_flags: u32
+}
+
+LirCompactDecodeInstruction :: struct { instruction: LirCompactInstruction; effect: s32 }
+
+LirCompactEdgeStart :: (instruction: LirCompactInstruction) -> s64 #inline {
+    return cast(s64)(instruction.edge_and_flags >> cast(u32)9)
+}
+
+LirCompactUnpack :: (record: LirCompactInstruction, operand_end: s64, edge_end: s64,
+    operands: []s32, edges: []LirEdge) -> LirInstruction #inline {
+    return .{immediate = record.immediate, result = record.result, symbol = record.symbol,
+        origin = record.origin, operands = operands[cast(s64)record.operand_start:operand_end],
+        edges = edges[LirCompactEdgeStart(record):edge_end],
+        op = cast(LirOp)((record.edge_and_flags >> cast(u32)3) & cast(u32)63),
+        alignment = cast(u16)((record.edge_and_flags >> cast(u32)1) & cast(u32)3),
+        checked = (record.edge_and_flags & cast(u32)1) != 0}
+}
+}
+
 // The owner is caller-owned, but its vectors are allocated by LirRead. Do not
 // move, resize or inspect these implementation fields. Obtain the borrowed
 // LirProgram with LirReadProgram, consume it before the next read/free, and
@@ -53,6 +83,13 @@ LirReadOwner :: struct {
     blocks: Vec(LirBlock)
     block_parameters: Vec(s32)
     instructions: Vec(LirInstruction)
+    #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+        compact_instructions: Vec(LirCompactDecodeInstruction)
+        function_block_starts: Vec(s32)
+        block_instruction_starts: Vec(s32)
+        function_blocks: Vec(LirBlock)
+        function_instructions: Vec(LirInstruction)
+    }
     operands: Vec(s32)
     edges: Vec(LirEdge)
     edge_arguments: Vec(s32)
@@ -403,6 +440,10 @@ Shape :: struct {
     blocks: s64
     block_parameters: s64
     instructions: s64
+    #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+        largest_function_instructions: s64
+        largest_function_blocks: s64
+    }
     operands: s64
     edges: s64
     edge_arguments: s64
@@ -711,6 +752,13 @@ DecodeCore :: (decoder: *Decoder) {
             decoder.block_at += block_count
         }
         if decoder.cursor.problem != .None { return }
+        function_start := ifx decoder.mode == ModeShape then decoder.shape.instructions else decoder.instruction_at
+        #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+            if decoder.mode == ModeFill && decoder.owner.compact_instructions.count != 0 {
+                if block_count > decoder.owner.function_blocks.count { DecodeFail(decoder, .Count); return }
+                decoder.owner.function_block_starts[function_index] = cast(s32)block_start
+            }
+        }
         for block_offset: 0..block_count - 1 {
             block_parameters_span := DecodeS32s(decoder, .BlockParameters)
             instruction_count := DecodeCount(decoder)
@@ -725,6 +773,14 @@ DecodeCore :: (decoder: *Decoder) {
                 decoder.instruction_at += instruction_count
             }
             if decoder.cursor.problem != .None { return }
+            #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+                if decoder.mode == ModeFill && decoder.owner.compact_instructions.count != 0 {
+                    if decoder.instruction_at - function_start > decoder.owner.function_instructions.count {
+                        DecodeFail(decoder, .Count); return
+                    }
+                    decoder.owner.block_instruction_starts[block_start + block_offset] = cast(s32)instruction_start
+                }
+            }
             for instruction_offset: 0..instruction_count - 1 {
                 raw_op := DecodeU32(decoder)
                 instruction_result := DecodeS32(decoder)
@@ -757,12 +813,23 @@ DecodeCore :: (decoder: *Decoder) {
                 checked: u32
                 if (flags & cast(u32)4) != 0 { checked = DecodeU32(decoder) }
                 if decoder.cursor.problem != .None { return }
-                if raw_op > cast(u32)LirOp.SquareRoot || checked > 1 { DecodeFail(decoder, .Field) }
+                if raw_op > cast(u32)LirOp.SquareRoot || checked > 1 { DecodeFail(decoder, .Field); return }
+                // Preserve the verifier's alignment diagnostic for malformed wire values.
+                stored_alignment := cast(u16)(ifx alignment > 1 then 2 else alignment)
+                #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+                    if decoder.mode == ModeFill && decoder.owner.compact_instructions.count != 0 {
+                        decoder.owner.compact_instructions[instruction_start + instruction_offset] = .{
+                            instruction = .{immediate = immediate, result = instruction_result, symbol = symbol,
+                                origin = origin, operand_start = cast(u32)operands_span.at,
+                                edge_and_flags = (cast(u32)edge_start << cast(u32)9) |
+                                    (raw_op << cast(u32)3) | (cast(u32)stored_alignment << cast(u32)1) | checked},
+                            effect = effect}
+                        continue
+                    }
+                }
                 if decoder.mode == ModeFill {
                     operands := VecSlice(decoder.owner.operands,
                         operands_span.at, operands_span.at + operands_span.count)
-                    // Preserve the verifier's alignment diagnostic for malformed wire values.
-                    stored_alignment := cast(u16)(ifx alignment > 1 then 2 else alignment)
                     decoder.owner.instructions[instruction_start + instruction_offset] = .{
                         op = cast(LirOp)raw_op, result = instruction_result, operands = operands,
                         edges = VecSlice(decoder.owner.edges, edge_start, edge_start + edge_count), immediate = immediate,
@@ -773,9 +840,21 @@ DecodeCore :: (decoder: *Decoder) {
             if decoder.mode == ModeFill {
                 block_parameters := VecSlice(decoder.owner.block_parameters,
                     block_parameters_span.at, block_parameters_span.at + block_parameters_span.count)
-                decoder.owner.blocks[block_start + block_offset] = .{parameters = block_parameters,
-                    instructions = VecSlice(decoder.owner.instructions,
-                        instruction_start, instruction_start + instruction_count)}
+                decoder.owner.blocks[block_start + block_offset] = .{parameters = block_parameters}
+                #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+                    if decoder.owner.compact_instructions.count != 0 { continue }
+                }
+                decoder.owner.blocks[block_start + block_offset].instructions = VecSlice(decoder.owner.instructions,
+                    instruction_start, instruction_start + instruction_count)
+            }
+        }
+        #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+            if decoder.mode == ModeShape {
+                instructions := decoder.shape.instructions - function_start
+                if instructions > decoder.shape.largest_function_instructions {
+                    decoder.shape.largest_function_instructions = instructions
+                }
+                if block_count > decoder.shape.largest_function_blocks { decoder.shape.largest_function_blocks = block_count }
             }
         }
         function_entry := DecodeS32(decoder)
@@ -827,6 +906,11 @@ DecodePass :: (input: string, source: *LirReadSource, layout: Layout, owner: *Li
     decoder := Decoder.{owner = owner, limits = limits, shape = shape, mode = mode, work = limits.work,
         cursor = .{input = input, at = layout.core_begin, end = layout.core_end, source = source}}
     DecodeCore(*decoder)
+    #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+        if mode == ModeFill && owner.compact_instructions.count != 0 &&
+            (decoder.block_at != shape.blocks || decoder.instruction_at != shape.instructions ||
+                decoder.operand_at != shape.operands || decoder.edge_at != shape.edges) { DecodeFail(*decoder, .Count) }
+    }
     if decoder.cursor.problem == .None && decoder.cursor.at != decoder.cursor.end { DecodeFail(*decoder, .Trailing) }
     if decoder.cursor.problem == .None && layout.debug {
         decoder.cursor.at = layout.debug_begin
@@ -840,8 +924,22 @@ DecodePass :: (input: string, source: *LirReadSource, layout: Layout, owner: *Li
     return decoder
 }
 
-Allocate :: (owner: *LirReadOwner, shape: Shape) -> bool {
-    return VecResizeBounded(owner.text_bytes, shape.text_bytes, shape.text_bytes) &&
+Allocate :: (owner: *LirReadOwner, shape: Shape, compact: bool) -> bool {
+    packed: bool
+    #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+        // Choose compact decoding only when its scratch fits in the saved
+        // bytes and the same allocation can hold the final engine records.
+        wide := cast(s64)size_of(LirInstruction)
+        scratch := shape.largest_function_instructions * wide + shape.largest_function_blocks *
+            cast(s64)size_of(LirBlock) + (shape.functions + shape.blocks + 1) * cast(s64)size_of(s32)
+        saved := wide - cast(s64)size_of(LirCompactDecodeInstruction)
+        packed = compact && size_of(LirExecPackedInstruction) <= size_of(LirCompactDecodeInstruction) &&
+            shape.operands <= 0xffffffff && shape.edges <= 0x7fffff &&
+            shape.instructions <= 0x7fffffff && shape.blocks <= 0x7fffffff &&
+            cast(s32)LirOp.SquareRoot <= 63 && scratch < shape.instructions * saved
+    }
+    // Keep the permanent pools in the ordinary reader's allocation order.
+    if !(VecResizeBounded(owner.text_bytes, shape.text_bytes, shape.text_bytes) &&
         VecResizeBounded(owner.blob_bytes, shape.blob_bytes, shape.blob_bytes) &&
         VecResizeBounded(owner.modules, shape.modules, shape.modules) &&
         VecResizeBounded(owner.sources, shape.sources, shape.sources) &&
@@ -855,12 +953,30 @@ Allocate :: (owner: *LirReadOwner, shape: Shape) -> bool {
         VecResizeBounded(owner.function_parameters, shape.function_parameters, shape.function_parameters) &&
         VecResizeBounded(owner.function_values, shape.function_values, shape.function_values) &&
         VecResizeBounded(owner.blocks, shape.blocks, shape.blocks) &&
-        VecResizeBounded(owner.block_parameters, shape.block_parameters, shape.block_parameters) &&
-        VecResizeBounded(owner.instructions, shape.instructions, shape.instructions) &&
-        VecResizeBounded(owner.operands, shape.operands, shape.operands) &&
+        VecResizeBounded(owner.block_parameters, shape.block_parameters, shape.block_parameters)) { return false }
+    #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+        if packed {
+            if !VecResizeBounded(owner.compact_instructions, shape.instructions, shape.instructions) { return false }
+        } else if !VecResizeBounded(owner.instructions, shape.instructions, shape.instructions) { return false }
+    } else {
+        if !VecResizeBounded(owner.instructions, shape.instructions, shape.instructions) { return false }
+    }
+    if !(VecResizeBounded(owner.operands, shape.operands, shape.operands) &&
         VecResizeBounded(owner.edges, shape.edges, shape.edges) &&
         VecResizeBounded(owner.edge_arguments, shape.edge_arguments, shape.edge_arguments) &&
-        VecResizeBounded(owner.origins, shape.origins, shape.origins)
+        VecResizeBounded(owner.origins, shape.origins, shape.origins)) { return false }
+    #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+        // Keep decode and verification scratch out of the permanent pools.
+        if packed {
+            if !VecResizeBounded(owner.function_block_starts, shape.functions, shape.functions) ||
+                !VecResizeBounded(owner.block_instruction_starts, shape.blocks + 1, shape.blocks + 1) ||
+                !VecResizeBounded(owner.function_blocks, shape.largest_function_blocks, shape.largest_function_blocks) ||
+                !VecResizeBounded(owner.function_instructions, shape.largest_function_instructions,
+                    shape.largest_function_instructions) { return false }
+            owner.block_instruction_starts[shape.blocks] = cast(s32)shape.instructions
+        }
+    }
+    return true
 }
 
 OwnedProgram :: (owner: *LirReadOwner) -> LirProgram {
@@ -928,6 +1044,10 @@ LirReadFree :: (owner: *LirReadOwner) {
     VecFree(owner.types); VecFree(owner.constants); VecFree(owner.globals)
     VecFree(owner.functions); VecFree(owner.initializers); VecFree(owner.blocks); VecFree(owner.instructions); VecFree(owner.edges)
     VecFree(owner.origins)
+    #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+        VecFree(owner.compact_instructions)
+        LirReleaseFunctionBodies(owner)
+    }
     VecFree(owner.type_fields); VecFree(owner.type_parameters)
     VecFree(owner.function_parameters); VecFree(owner.function_values)
     VecFree(owner.block_parameters); VecFree(owner.operands); VecFree(owner.edge_arguments)
@@ -957,6 +1077,13 @@ LirReadReplace :: (owner: *LirReadOwner, replacement: *LirReadOwner) {
     VecSwap(owner.blocks, replacement.blocks)
     VecSwap(owner.block_parameters, replacement.block_parameters)
     VecSwap(owner.instructions, replacement.instructions)
+    #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+        VecSwap(owner.compact_instructions, replacement.compact_instructions)
+        VecSwap(owner.function_block_starts, replacement.function_block_starts)
+        VecSwap(owner.block_instruction_starts, replacement.block_instruction_starts)
+        VecSwap(owner.function_blocks, replacement.function_blocks)
+        VecSwap(owner.function_instructions, replacement.function_instructions)
+    }
     VecSwap(owner.operands, replacement.operands)
     VecSwap(owner.edges, replacement.edges)
     VecSwap(owner.edge_arguments, replacement.edge_arguments)
@@ -972,16 +1099,68 @@ LirReadReplace :: (owner: *LirReadOwner, replacement: *LirReadOwner) {
 // and blobs, rejects noncanonical framing/trailing bytes, then calls LirVerify.
 // OWNER is empty after any failure. INPUT must not alias OWNER's old storage.
 LirRead :: (owner: *LirReadOwner, input: string, limits: LirLimits) -> LirCodecResult {
-    return LirReadInternal(owner, input, null, input.count, limits)
+    return LirReadInternal(owner, input, null, input.count, limits, false)
 }
 
 LirReadFromSource :: (owner: *LirReadOwner, source: *LirReadSource, limits: LirLimits) -> LirCodecResult {
-    return LirReadInternal(owner, "", source, source.size, limits)
+    return LirReadInternal(owner, "", source, source.size, limits, false)
+}
+
+#if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+LirReadCompactSource :: (owner: *LirReadOwner, source: *LirReadSource, limits: LirLimits) -> LirCodecResult {
+    return LirReadInternal(owner, "", source, source.size, limits, true)
+}
+
+LirReleaseFunctionBodies :: (owner: *LirReadOwner) {
+    VecFree(owner.function_block_starts)
+    VecFree(owner.block_instruction_starts)
+    VecFree(owner.function_blocks)
+    VecFree(owner.function_instructions)
+}
+}
+
+LirReadFunctionBodies :: (owner: *LirReadOwner) -> LirFunctionBodies {
+    #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+        if owner.compact_instructions.count != 0 {
+            return .{context = cast(*void)owner, read = ReadCompactFunctionBody}
+        }
+    }
+    return .{}
 }
 
 #scope_file
+#if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+ReadCompactFunctionBody :: (context: *void, id: s32, function: *LirFunction) -> bool {
+    owner := cast(*LirReadOwner)context
+    first_block := cast(s64)owner.function_block_starts[id]
+    first_instruction := cast(s64)owner.block_instruction_starts[first_block]
+    block_count := function.blocks.count
+    for block_index: cast(s64)0..block_count - 1 {
+        start := cast(s64)owner.block_instruction_starts[first_block + block_index]
+        end := cast(s64)owner.block_instruction_starts[first_block + block_index + 1]
+        for index: start..end - 1 {
+            encoded := owner.compact_instructions[index]
+            operand_end := owner.operands.count
+            edge_end := owner.edges.count
+            if index + 1 < owner.compact_instructions.count {
+                next := owner.compact_instructions[index + 1].instruction
+                operand_end = cast(s64)next.operand_start
+                edge_end = LirCompactEdgeStart(next)
+            }
+            decoded := LirCompactUnpack(encoded.instruction, operand_end, edge_end, owner.operands[:], owner.edges[:])
+            decoded.effect = encoded.effect
+            owner.function_instructions[index - first_instruction] = decoded
+        }
+        owner.function_blocks[block_index] = .{parameters = function.blocks[block_index].parameters,
+            instructions = VecSlice(owner.function_instructions, start - first_instruction, end - first_instruction)}
+    }
+    function.blocks = VecSlice(owner.function_blocks, 0, block_count)
+    return true
+}
+}
+
 LirReadInternal :: (owner: *LirReadOwner, input: string, source: *LirReadSource,
-    size: s64, limits: LirLimits) -> LirCodecResult {
+    size: s64, limits: LirLimits, compact: bool) -> LirCodecResult {
     if owner == null { return .{problem = .Owner} }
     LirReadFree(owner)
     layout, framing := ReadLayout(input, source, size)
@@ -997,7 +1176,7 @@ LirReadInternal :: (owner: *LirReadOwner, input: string, source: *LirReadSource,
     if layout.debug != (measured.shape.sources != 0 || measured.shape.origins != 0) {
         return .{problem = .Section, size = size}
     }
-    if !Allocate(owner, measured.shape) {
+    if !Allocate(owner, measured.shape, compact) {
         LirReadFree(owner)
         return .{problem = .Allocation, size = size}
     }
@@ -1014,7 +1193,7 @@ LirReadInternal :: (owner: *LirReadOwner, input: string, source: *LirReadSource,
         functions = owner.functions[:], origins = owner.origins[:],
         initializers = owner.initializers[:], entry = owner.entry, checks = layout.checks}
     program := OwnedProgram(owner)
-    diagnostic := LirVerify(program, limits)
+    diagnostic := LirVerifyWithBodies(program, limits, LirReadFunctionBodies(owner))
     if diagnostic.problem != .None {
         LirReadFree(owner)
         return .{problem = .Verify, diagnostic = diagnostic, size = size}

@@ -321,7 +321,8 @@ zx_wasm_failed(ZxWasm *wasm, int spent, const char *what)
 ZxWasm *
 ZxWasmOpenExec(const ExecBundle *bundle, ExecFindBinding find, void *context, long long max_steps)
 {
-    if(!platform_installed || active_platform.read == NULL ||
+    LirProgram *program = (LirProgram *)ExecBundleProgram(bundle);
+    if(program == NULL || !platform_installed || active_platform.read == NULL ||
        active_platform.write == NULL || active_platform.allocate_state == NULL)
         return NULL;
     ZxWasm *wasm = calloc(1, sizeof(*wasm));
@@ -330,8 +331,8 @@ ZxWasmOpenExec(const ExecBundle *bundle, ExecFindBinding find, void *context, lo
         return NULL;
     }
     wasm->exec = bundle;
-    int lowered = active_platform.suspends ? compiler_zx_wasm_LowerProgramSuspendable((LirProgram *)ExecBundleProgram(bundle), &wasm->image)
-                                           : compiler_zx_wasm_LowerProgram((LirProgram *)ExecBundleProgram(bundle), &wasm->image);
+    int lowered = active_platform.suspends ? compiler_zx_wasm_LowerProgramSuspendable(program, &wasm->image)
+                                           : compiler_zx_wasm_LowerProgram(program, &wasm->image);
     if(!lowered)
         goto failed;
     wasm->hosts = ExecHostsOpen(bundle, find, context);

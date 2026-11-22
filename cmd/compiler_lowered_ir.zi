@@ -56,6 +56,22 @@ LirInstruction :: struct {
     checked: bool
 }
 
+#if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
+// The interpreter's instruction for verified executable app images. These
+// images have no origins, and the verified opcode determines the edge count.
+LirExecPackedInstruction :: struct {
+    operand_data: *s32
+    edge_data: *LirEdge
+    immediate: u64
+    result: s32
+    symbol: s32
+    operand_count: u32
+    alignment: u16
+    op: LirOp
+    checked: bool
+}
+}
+
 LirBlock :: struct { parameters: []s32; instructions: []LirInstruction }
 
 LirFunction :: struct {

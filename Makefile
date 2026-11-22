@@ -812,7 +812,8 @@ $(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/co
     cmd/compiler_exec_serial.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_proven.zi cmd/compiler_lowered_ir.zi \
     cmd/compiler_bundle.zi std/math.zi std/finite.zi std/text_buffer.zi std/number_text.zi $(wildcard cmd/compiler_zx_wasm*.zi) $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
-	    --define ZIRAN_EXEC_NATIVE_PLAN_INDEXES -o $(ENGINE_C) cmd/compiler_runtime.zi
+	    --define ZIRAN_EXEC_NATIVE_PLAN_INDEXES --define ZIRAN_EXEC_PACKED_INSTRUCTIONS \
+	    -o $(ENGINE_C) cmd/compiler_runtime.zi
 	touch $@
 
 $(ENGINE_NAMES): $(ENGINE_C)/.generated scripts/engine-names.sh

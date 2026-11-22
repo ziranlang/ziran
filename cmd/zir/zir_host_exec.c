@@ -272,6 +272,8 @@ struct ExecBundle {
     ZxExecOwner owner;
     LirProgram program;
     LirExecPlan plan;
+    void *packed_instructions;
+    int engine_only;
     char *text;
     int interface_complete;
     ExecNode *nodes;
@@ -474,6 +476,7 @@ ExecBundleClose(ExecBundle *bundle)
 {
     if(bundle == NULL) return;
     compiler_exec_LirExecPlanFree(&bundle->plan);
+    free(bundle->packed_instructions);
     compiler_exec_link_ZxExecReadFree(&bundle->owner);
     for(int index = 0; index < bundle->node_count; index++) {
         free(bundle->nodes[index].field_names);
@@ -516,6 +519,8 @@ typedef struct ExecSourceInput {
     uint64_t size;
     unsigned char *digest;
     int *unsupported;
+    int engine_only;
+    BundleShrink shrink;
 } ExecSourceInput;
 
 typedef struct ExecSourceSnapshot {
@@ -647,6 +652,76 @@ source_snapshot_begin(ExecSourceSnapshot *snapshot, const ExecSourceInput *sourc
     return 1;
 }
 
+static void
+exec_pack_instructions(ExecBundle *bundle, BundleShrink shrink)
+{
+    LirReadOwner *read = &bundle->owner.read;
+    LirInstruction *wide = read->instructions.data;
+    int64_t count = read->instructions.count;
+    if(count == 0 || sizeof(LirExecPackedInstruction) >= sizeof(LirInstruction)) return;
+    for(int64_t at = 0; at < count; at++) {
+        if(wide[at].operands.length < 0 || (uint64_t)wide[at].operands.length > UINT32_MAX) return;
+    }
+    /* The decoder and plan visit the same contiguous block order. Rewrite
+     * that pool forwards, so a smaller record never overlaps unread LIR.
+     * Only operands, edges and block lengths remain borrowed from the reader. */
+    unsigned char *storage = (unsigned char *)wide;
+    for(int64_t at = 0; at < count; at++) {
+        LirExecPackedInstruction packed = {
+            .operand_data = wide[at].operands.data, .edge_data = wide[at].edges.data,
+            .immediate = wide[at].immediate, .result = wide[at].result, .symbol = wide[at].symbol,
+            .operand_count = (uint32_t)wide[at].operands.length,
+            .alignment = wide[at].alignment, .op = wide[at].op, .checked = wide[at].checked,
+        };
+        memcpy(storage + (size_t)at * sizeof(packed), &packed, sizeof(packed));
+    }
+    for(int64_t at = 0; at < read->blocks.count; at++) read->blocks.data[at].instructions.data = NULL;
+    read->instructions.data = NULL;
+    read->instructions.count = read->instructions.capacity = 0;
+    read->valid = false;
+    size_t size = (size_t)count * sizeof(LirExecPackedInstruction);
+    void *smaller = shrink != NULL ? shrink(storage, size) : realloc(storage, size);
+    bundle->packed_instructions = smaller != NULL ? smaller : (void *)storage;
+    bundle->plan.packed_instructions.data = bundle->packed_instructions;
+    bundle->plan.packed_instructions.length = count;
+}
+
+static void
+exec_finish_compact_decode(ExecBundle *bundle, BundleShrink shrink)
+{
+    LirReadOwner *read = &bundle->owner.read;
+    size_t count = (size_t)read->compact_instructions.count;
+    LirCompactDecodeInstruction *decoded = read->compact_instructions.data;
+    /* Planning no longer needs the scratch function or the effect ordinals.
+     * The reader chose records at least as wide as the engine's records. */
+    compiler_exec_serial_LirReleaseFunctionBodies(read);
+    unsigned char *storage = (unsigned char *)decoded;
+    for(size_t at = 0; at < count; at++) {
+        LirCompactInstruction record = decoded[at].instruction;
+        uint32_t operand_end = at + 1 < count ? decoded[at + 1].instruction.operand_start :
+                                               (uint32_t)read->operands.count;
+        uint32_t flags = record.edge_and_flags;
+        LirExecPackedInstruction instruction = {
+            .operand_data = read->operands.data ? read->operands.data + record.operand_start : NULL,
+            .edge_data = read->edges.data ? read->edges.data + (flags >> 9) : NULL,
+            .immediate = record.immediate, .result = record.result, .symbol = record.symbol,
+            .operand_count = operand_end - record.operand_start, .op = (flags >> 3) & 63,
+            .alignment = (flags >> 1) & 3, .checked = (flags & 1) != 0,
+        };
+        memcpy(storage + at * sizeof(instruction), &instruction, sizeof(instruction));
+    }
+    read->compact_instructions.data = NULL;
+    read->compact_instructions.count = read->compact_instructions.capacity = 0;
+    read->valid = false;
+    size_t size = count * sizeof(LirExecPackedInstruction);
+    if(size < count * sizeof(*decoded)) {
+        void *smaller = shrink != NULL ? shrink(storage, size) : realloc(storage, size);
+        if(smaller != NULL) storage = smaller;
+    }
+    bundle->packed_instructions = storage;
+    bundle->plan.packed_instructions = (Slice){bundle->packed_instructions, count};
+}
+
 static ExecBundle *
 exec_open_bundle(const unsigned char *bytes, size_t size, const char *name,
                  BundleImageRelease consumed, void *context, const ExecSourceInput *source)
@@ -664,8 +739,9 @@ exec_open_bundle(const unsigned char *bytes, size_t size, const char *name,
         ExecSourceSnapshot snapshot = {0};
         if(source_snapshot_begin(&snapshot, source)) {
             ExecutableReadSource input = {&snapshot, {NULL, source_window}, (int64_t)snapshot.size};
-            read = compiler_exec_link_ZxExecReadAppSource(&bundle->owner, &input, limits,
-                (ZxExecSourceBegin){NULL, source_stream_begin});
+            ZxExecSourceBegin begin = {NULL, source_stream_begin};
+            read = source->engine_only ? compiler_exec_link_ZxExecReadCompactAppSource(&bundle->owner, &input, limits, begin) :
+                                         compiler_exec_link_ZxExecReadAppSource(&bundle->owner, &input, limits, begin);
             if(read.problem == ZxExecProblem_None || read.problem == ZxExecProblem_SourceProfile)
                 source_stream_finish(&snapshot);
         }
@@ -693,17 +769,28 @@ exec_open_bundle(const unsigned char *bytes, size_t size, const char *name,
         if(!exec_copy_bundle_assets(bundle, bytes, size, name)) goto failed;
         consumed(context, bytes, size);
     }
+    bundle->engine_only = source != NULL && source->engine_only;
 #ifdef ZIRAN_COMPACT_EXEC_PLAN
-    LirExecResult planned = compiler_exec_LirExecPlanBuildCompact(bundle->program, compiler_lowered_ir_LirDefaultLimits(), &bundle->plan);
+    int compact = 1;
 #else
-    LirExecResult planned = compiler_exec_LirExecPlanBuild(bundle->program, compiler_lowered_ir_LirDefaultLimits(), &bundle->plan);
+    int compact = bundle->engine_only;
 #endif
+    int compact_decode = bundle->owner.read.compact_instructions.count != 0;
+    LirExecResult planned;
+    if(compact_decode) {
+        LirFunctionBodies bodies = compiler_exec_serial_LirReadFunctionBodies(&bundle->owner.read);
+        planned = compiler_exec_LirExecPlanBuildCompactBodies(bundle->program, limits, &bundle->plan, bodies);
+    } else {
+        planned = compact ? compiler_exec_LirExecPlanBuildCompact(bundle->program, limits, &bundle->plan) :
+                            compiler_exec_LirExecPlanBuild(bundle->program, limits, &bundle->plan);
+    }
     if(planned.problem != LirExecProblem_None) {
         String problem = compiler_exec_LirExecProblemName(planned.problem);
         Diagnostic(Span(name, 1, 1), "zx.input", "executable ZX cannot run: problem=%.*s",
             (int)problem.length, problem.data);
         goto failed;
     }
+    if(compact_decode) exec_finish_compact_decode(bundle, source->shrink);
     if(source == NULL && consumed == NULL && !exec_copy_bundle_assets(bundle, bytes, size, name)) goto failed;
     const LirFunction *functions = bundle->program.functions.data;
     const String *modules = bundle->program.modules.data;
@@ -761,6 +848,7 @@ exec_open_bundle(const unsigned char *bytes, size_t size, const char *name,
     }
     for(int line = 0; line < line_count; line++) free(lines[line].parameters);
     free(lines);
+    if(bundle->engine_only && !compact_decode) exec_pack_instructions(bundle, source->shrink);
     return bundle;
 failed:
     for(int line = 0; lines != NULL && line < line_count; line++) free(lines[line].parameters);
@@ -778,13 +866,16 @@ ExecBundleOpenWithRelease(const unsigned char *bytes, size_t size, const char *n
 
 ExecBundle *
 ExecBundleOpenReadAt(uint64_t size, BundleReadAt read_at, void *context,
-                    unsigned char digest[32], int *unsupported)
+                    unsigned char digest[32], int *unsupported, int engine_only, BundleShrink shrink)
 {
-    ExecSourceInput source = {read_at, context, size, digest, unsupported};
+    ExecSourceInput source = {read_at, context, size, digest, unsupported, engine_only, shrink};
     return exec_open_bundle(NULL, 0, "<embedded ZX source>", NULL, NULL, &source);
 }
 
-const void *ExecBundleProgram(const ExecBundle *bundle) { return &bundle->program; }
+const void *ExecBundleProgram(const ExecBundle *bundle)
+{
+    return bundle != NULL && !bundle->engine_only ? &bundle->program : NULL;
+}
 
 const char *
 ExecBundleModuleLinkage(const ExecBundle *bundle, size_t *length)
@@ -809,7 +900,7 @@ ExecBundleModuleEntry(const ExecBundle *bundle)
 int
 ExecBundleDebugProgram(const ExecBundle *bundle, void *debug)
 {
-    return bundle != NULL && debug != NULL &&
+    return bundle != NULL && !bundle->engine_only && debug != NULL &&
         compiler_exec_link_ZxExecReadDebug((ZxExecOwner *)&bundle->owner, debug,
             compiler_lowered_ir_LirDefaultLimits()) == ZxDebugProblem_None;
 }
@@ -2453,8 +2544,10 @@ ExecBundle *ExecBundleOpenWithRelease(const unsigned char *bytes, size_t size, c
     return NULL;
 }
 ExecBundle *ExecBundleOpenReadAt(uint64_t size, BundleReadAt read_at, void *context,
-                                unsigned char digest[32], int *unsupported)
+                                unsigned char digest[32], int *unsupported, int engine_only, BundleShrink shrink)
 {
+    (void)shrink;
+    (void)engine_only;
     (void)size;
     (void)read_at;
     (void)context;

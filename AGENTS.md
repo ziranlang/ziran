@@ -4,57 +4,75 @@ Ziran owns the language, compiler tools, `.zir`, portable `.zx` output,
 standard modules, and runtime. Keep this repository usable for programs that
 do not import a UI library.
 
-- Do not put Inbe application code, screens, assets, workflows, or platform
-  policy in Ziran. Those belong in `../inbe`.
-- Do not put Kryon widgets or UI-specific compiler cases in Ziran. Kryon is an
-  ordinary library in `../kryon`, imported by applications that need it.
-- Add a capability here only when it is useful to non-graphical programs as a
-  language or standard-library feature. Keep the source, checked `.zir`,
-  native targets, and instruction-engine behavior aligned.
-- Use the current Ziran syntax directly. Do not add legacy Kryon/KIR/KRB
-  compatibility paths.
-- Do not preserve old source spellings, command flags, binary formats, or
-  runtime entry points for backward compatibility. Remove executable legacy
-  paths when replacing them; keep rejection tests that enforce the current
-  language rules.
-- Run relevant checks with `DISPLAY` and `WAYLAND_DISPLAY` removed. Any test
-  that needs a display must use a private Xvfb/Xephyr display.
-- Test with `make check` and `make check-bootstrap`. The owner requested a
-  physically pruned suite of the most useful checks, about half the former
-  entry points. Run all retained checks locally and in CI; do not substitute
-  sharding or skipped tests for pruning. `make check CHECK_FILTER=text` runs every
-  check whose name contains `text`. Full logs are in `build/check-logs/`.
-- Write retained test logic and test helpers in Ziran. Remove redundant tests
-  and their unused helpers instead of growing another parallel test suite.
+## Layout
 
-- Generated output carries only the code a program actually reaches:
-  procedures, types, header declarations, runtime helpers and tables. Make
-  output smaller by removing what isn't needed, never by merging it into fewer
-  files. Owner, 2026-11-15: "i want to noly have teh code we acutelly need";
-  one C file per program was rejected.
+- `cmd/` compiler and tools (`ziran`, `zi2c`, `zi2go`, `zi2zx`, `zx2native`,
+  `zx2wasm`, `zi-edit`, `zi-fmt`, `zi-api`, `zi-inspect`, `zi2zir`).
+- `bootstrap/` generated C seeds; refresh with `make update-bootstrap`.
+- `std/` standard modules; `tests/` retained checks; `proofs/` Lean model.
+- `bench/` benchmark drivers; retained receipts in `bench/results/`.
+- `docs/` user and contributor documents; `plans/` open work;
+  `ASSEMBLY/` machine-IR and ZX format specs; `site/` generated website.
+- `scripts/` site and release helpers; `templates/` project templates.
 
+## Commands
+
+- Build: `make`; install: `make install-user` (into `~/.local/bin`).
+- Checks: `make check` and `make check-bootstrap`. `make check
+  CHECK_FILTER=text` runs every check whose name contains `text`. Full logs
+  land in `build/check-logs/`.
+- Run checks with `DISPLAY` and `WAYLAND_DISPLAY` removed; any test that needs
+  a display uses a private Xvfb/Xephyr.
+- Proof model: `make proof-model LEAN=/path/to/lean` (see docs/LAWS.md).
+
+## Question -> document
+
+| Question | Document |
+| --- | --- |
+| How do I compile, run, or package a program? | docs/USAGE.md |
+| Which targets and features are supported today? | docs/IMPLEMENTATION_STATUS.md, docs/FEATURES.md |
+| How do packages, projects, and locks work? | docs/PACKAGES.md |
+| What does the compiler pipeline do? | docs/ARCHITECTURE.md |
+| What is the language syntax (directives, enums, imports)? | docs/LANGUAGE_DIRECTION.md |
+| How do owned values and recoverable failures behave? | docs/OWNED_VALUES.md |
+| What do diagnostic codes and JSON diagnostics look like? | docs/DIAGNOSTICS.md |
+| How do tools edit and query source programmatically? | docs/AUTHORING.md, docs/API_DISCOVERY.md, docs/SEMANTIC_EDIT.md |
+| How do laws and proof certificates work? | docs/LAWS.md |
+| What is `.zir`? | docs/ZIR.md |
+| What is `.zx` and how is it linked? | docs/ZX.md, ASSEMBLY/zx-executable-format.md, ASSEMBLY/zx-library-format.md |
+| How does direct native code generation work? | ASSEMBLY/README.md, ASSEMBLY/machine-ir.md, ASSEMBLY/lowered-format.md |
+| How is Unicode handled? | docs/UNICODE.md |
+| How do benchmarks run? | bench/README.md, bench/standard/README.md |
+| What work is still open? | plans/open-work.md |
+
+## Rules
+
+- Scope: no Inbe application code (`../inbe`); no Kryon widgets or
+  UI-specific compiler cases (`../kryon` is an ordinary library). Add a
+  capability here only when non-graphical programs benefit.
+- No backward compatibility: use current Ziran syntax only. Remove legacy
+  spellings, flags, binary formats, and entry points; keep the rejection
+  tests that enforce current rules.
+- Keep source, checked `.zir`, native targets, and instruction-engine
+  behavior aligned. Generated output carries only the code a program reaches;
+  shrink output by removing what is not needed.
 - Module roots are ordinary repeatable search folders. Keep package manifests,
-  CLI forwarding, editor paths and loader storage dynamically sized; do not add
-  a folder-count cap or library-specific compiler handling. Preserve resolution
-  ordering and use normal input-size, allocation and operating-system bounds.
-
-- Deploy the website only through `.github/workflows/site.yml` on GitHub
-  Actions, which builds and validates the site before publishing to Cloudflare
-  Pages. Never invoke Wrangler directly from a local agent or terminal,
-  including authentication commands. The workflow's Cloudflare action owns
-  uploads.
-
-- Keep private transfer and recovery state under the ignored `backup/`
-  directory. Keep reusable benchmark scripts in Ziran under `bench/`, and
-  retained benchmark reports and logs under tracked `bench/results/` paths.
-  Temporary compiler and test outputs belong in the existing `build/` layout.
-
-- Owner instruction, 2026-11-11: run all benchmarks directly on Alpha's
-  physical host and reject virtualized execution.
-  Keep benchmark compilation and measurement off the current desktop; if
-  Alpha is unavailable, report that instead of falling back locally. Record
-  the actual execution host and keep before/after comparisons on that host.
-
-- Exclude statistical anomalies from benchmark results using the same symmetric
-  1.5×IQR rule for all targets and platforms (inclusive interpolated quartiles).
-  Keep raw samples and excluded indices; never silently discard measurements.
+  CLI forwarding, editor paths, and loader storage dynamically sized; no
+  folder-count caps or library-specific compiler handling.
+- Write retained test logic and helpers in Ziran. Remove redundant tests and
+  unused helpers instead of growing a parallel suite. Run every retained
+  check; never substitute sharding or skipped tests.
+- Keep private transfer and recovery state under the ignored `backup/`.
+  Keep benchmark reports under tracked `bench/results/`; temporary compiler
+  and test outputs under `build/`.
+- Benchmarks run directly on Alpha's physical host, never virtualized. If
+  Alpha is unavailable, wait instead of measuring elsewhere. Record the host
+  in every report; collect both sides of a comparison on the same host.
+  Exclude anomalies with the symmetric 1.5xIQR rule (inclusive interpolated
+  quartiles) for every target and platform; keep raw samples and excluded
+  indices.
+- Shared checkout: stage only your own files through a private
+  `GIT_INDEX_FILE`; never `git add -A`; never reset or refresh the shared
+  index; never touch files another lane is editing.
+- Deploy the website only through `.github/workflows/site.yml` on CI. Never
+  invoke Wrangler directly from a local terminal.

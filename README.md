@@ -1,7 +1,8 @@
 # Ziran
 
-Ziran 0.6.0 is a general-purpose language with direct native, WebAssembly,
-portable ZX, C and Go output. Master includes Unreleased work.
+Ziran is a general-purpose language with direct native, WebAssembly, portable
+ZX, C and Go output. Master includes Unreleased work; the current version is
+in [VERSION](VERSION) and [CHANGELOG.md](CHANGELOG.md).
 
 [Website and playground](https://ziran-lang.org/) · [Compiler guide](docs/USAGE.md) · [Current support](docs/IMPLEMENTATION_STATUS.md)
 
@@ -23,9 +24,11 @@ build/bin/ziran build examples/hello.zi
 main :: () { print("Hello, World!\n") }
 ```
 
-## Tools and formats
+## Tools
 
-Source → ZIR → LIR → optimized LIR → ZX → native (ELF/PE, x86-64/AArch64/ARMv7). WebAssembly lowers from verified ZX through `zx2wasm`. C and Go export from ZIR through `zi2c` and `zi2go`.
+Source → ZIR → LIR → optimized LIR → ZX → native (ELF/PE, x86-64/AArch64/ARMv7).
+WebAssembly lowers from verified ZX through `zx2wasm`; C and Go export from ZIR
+through `zi2c` and `zi2go`.
 
 | Command | Purpose |
 | --- | --- |
@@ -44,20 +47,31 @@ checks; `#checks` keeps bounds checks in selected source regions. See
 
 ## Documentation
 
-- [Compiler and standard library guide](docs/USAGE.md)
-- [Packages and projects](docs/PACKAGES.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Language reference](docs/LANGUAGE_DIRECTION.md)
-- [Standard library and package APIs](https://ziran-lang.org/modules.html)
-- [Examples](https://ziran-lang.org/examples.html)
+| Read | When you need |
+| --- | --- |
+| [docs/USAGE.md](docs/USAGE.md) | The compiler and standard library guide |
+| [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) | Supported targets and limits |
+| [docs/PACKAGES.md](docs/PACKAGES.md) | Packages, projects, and lock files |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The compiler pipeline |
+| [docs/LANGUAGE_DIRECTION.md](docs/LANGUAGE_DIRECTION.md) | Language syntax and directives |
+| [docs/OWNED_VALUES.md](docs/OWNED_VALUES.md) | Owned values and recoverable failures |
+| [docs/DIAGNOSTICS.md](docs/DIAGNOSTICS.md) | Diagnostic codes and JSON output |
+| [docs/AUTHORING.md](docs/AUTHORING.md) | Tool-driven editing workflows |
+| [docs/LAWS.md](docs/LAWS.md) | Laws and proof certificates |
+| [docs/ZX.md](docs/ZX.md) | The portable ZX format |
+| [bench/README.md](bench/README.md) | Running benchmarks |
+| [plans/open-work.md](plans/open-work.md) | What is still open |
 
-Kryon is a separate UI library imported by applications. Console programs have
-no graphics dependency. Release history lives in [CHANGELOG.md](CHANGELOG.md).
+Standard library and package APIs: [ziran-lang.org/modules.html](https://ziran-lang.org/modules.html).
+
+Kryon is a separate UI library imported by applications; console programs have
+no graphics dependency. Repository rules for agents live in
+[AGENTS.md](AGENTS.md).
 
 ## Development
 
 Run `make check` for the retained local suite and `make check-bootstrap` for
-bootstrap reproducibility. `CHECK_FILTER=text` selects matching tests.
-The compiler uses maintained Ziran and C sources; bootstrap seeds live in
-`bootstrap/`. Refresh affected seeds with `make update-bootstrap` after compiler
-changes.
+bootstrap reproducibility. `CHECK_FILTER=text` selects matching tests. The
+compiler uses maintained Ziran and C sources; bootstrap seeds live in
+`bootstrap/`. Refresh affected seeds with `make update-bootstrap` after
+compiler changes.

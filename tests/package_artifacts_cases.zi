@@ -233,6 +233,14 @@ Artifacts :: (test: *NativeTest) -> bool {
     wide_first := ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:wide")
     if !NativeAssert(test, IsFile(wide_first) && ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:wide") == wide_first,
         "wide-input artifact did not build or reuse") || !ArtifactCount(test, provider, wide_count + 1) { return false }
+    // A commit to the provider checkout during its build moves HEAD but not
+    // its content, which keys the artifact, so the build still publishes.
+    // Last: the extra commit stays in the provider checkout.
+    commit_options := string.["Provider:mode=commit"]
+    NativeSet(test, "COMMIT_DURING_BUILD", "1")
+    during := ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:object", commit_options[:])
+    NativeUnset(test, "COMMIT_DURING_BUILD")
+    if !NativeAssert(test, IsFile(during) && IsFile(CheckPath(PathParent(during), "value.o")), "a commit to the provider during its artifact build failed it") { return false }
     return !test.failed
 }
 

@@ -14,6 +14,12 @@ main :: (argc: s32, argv: **u8) -> s32 {
     resolved := PkgRead(PkgGetenv("ZIRAN_TOOL_OPTIONS"))
     if !resolved.valid || !PkgWrite(PkgJoin(output, "/options.txt"), resolved.text) { return 5 }
     if PkgGetenv("FAIL_PROVIDER") == "1" { return 6 }
+    // Another lane committing to this checkout while the artifact builds.
+    if PkgGetenv("COMMIT_DURING_BUILD") == "1" {
+        commit: [12]string = .["git", "-C", PkgGetenv("ZIRAN_PACKAGE_ROOT"), "-c", "user.name=fixture",
+            "-c", "user.email=fixture@example.invalid", "commit", "--allow-empty", "-q", "-m", "during the build"]
+        if PkgRun(commit[:], "", empty[:], empty[:]) != 0 { return 7 }
+    }
     if !PkgWrite(PkgJoin(output, "/resource.txt"), PkgGetenv("ZIRAN_ARTIFACT_TARGET")) { return 4 }
     return 0
 }

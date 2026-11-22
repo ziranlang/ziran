@@ -16,6 +16,7 @@
 #import "package_bundle_run"
 #import "package_learn"
 #import "file_linux"
+#import "file_tree_linux"
 
 #if CPU == .ARM64 {
     PkgHostNativeTarget :: "aarch64"
@@ -1295,6 +1296,30 @@ PkgArtifactTarget :: (target: string) -> bool {
     return parts >= 2
 }
 
+// The checked-out content at PATH as a git tree id, committed or not: a
+// commit that records files already in place, such as another lane
+// committing to a local override during the build, leaves it unchanged,
+// while any change to the files does not. A private copy of the index
+// keeps the checkout's own index untouched and its stat cache fast.
+PkgArtifactContent :: (path: string) -> string {
+    locate: [6]string = .["git", "-C", path, "rev-parse", "--path-format=absolute", "--git-path"]
+    where: [7]string = .[locate[0], locate[1], locate[2], locate[3], locate[4], locate[5], "index"]
+    index := PkgCapture(where[:], "")
+    if index.code != 0 || index.text.count == 0 { return PkgGitHead(path) }
+    copy := PkgTemporarySibling(index.text, ".snapshot")
+    if copy.count == 0 { return PkgGitHead(path) }
+    defer { unused RemoveFile(copy) }
+    if PathExists(index.text) && !CopyFileNew(index.text, copy) { return PkgGitHead(path) }
+    names: [1]string = .["GIT_INDEX_FILE"]
+    values: [1]string = .[copy]
+    add: [6]string = .["git", "-C", path, "add", "-A", "--ignore-errors"]
+    tree: [4]string = .["git", "-C", path, "write-tree"]
+    if PkgCaptureEnv(add[:], "", names[:], values[:]).code != 0 { return PkgGitHead(path) }
+    written := PkgCaptureEnv(tree[:], "", names[:], values[:])
+    if written.code != 0 || written.text.count == 0 { return PkgGitHead(path) }
+    return written.text
+}
+
 PkgArtifactGraphKey :: (locked: *PkgLock, state: *string, reusable: *bool) {
     PkgArtifactMix(state, locked.tool_commit)
     for i: -1..locked.count - 1 {
@@ -1304,7 +1329,7 @@ PkgArtifactGraphKey :: (locked: *PkgLock, state: *string, reusable: *bool) {
             PkgArtifactMix(state, locked.packages[i].id)
             PkgArtifactMix(state, locked.packages[i].commit)
         }
-        PkgArtifactMix(state, PkgGitHead(path))
+        PkgArtifactMix(state, PkgArtifactContent(path))
         args: [6]string = .["git", "-C", path, "status", "--porcelain", "--untracked-files=all"]
         status := PkgCapture(args[:], "")
         if status.code != 0 || status.text.count > 0 { <<reusable = false }

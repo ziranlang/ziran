@@ -767,6 +767,10 @@ SHA-256 digests. Resolve each output beside the descriptor. Descriptors and
 outputs are published together by directory rename only after all declared
 files exist and remain inside staging. A failed build removes staging and
 preserves previously published results. Cache hits verify output digests.
+The key names each checkout by its checked-out content (a tree id, committed
+or not), not by where HEAD points: a commit that records files already in
+place, such as another lane committing to a local override mid-build, keeps
+the key, while any change to the files during the build refuses publication.
 
 ### Python build-tool consumers
 

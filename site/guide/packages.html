@@ -616,7 +616,11 @@ Ziran artifact cache. Its TSV header records <code>schema</code>, <code>package<
 SHA-256 digests. Resolve each output beside the descriptor. Descriptors and
 outputs are published together by directory rename only after all declared
 files exist and remain inside staging. A failed build removes staging and
-preserves previously published results. Cache hits verify output digests.</p>
+preserves previously published results. Cache hits verify output digests.
+The key names each checkout by its checked-out content (a tree id, committed
+or not), not by where HEAD points: a commit that records files already in
+place, such as another lane committing to a local override mid-build, keeps
+the key, while any change to the files during the build refuses publication.</p>
 <h3 id="python-build-tool-consumers">Python build-tool consumers</h3>
 <p>The resolved toolchain provides <code>scripts/ziran_artifacts.py</code>. Build scripts
 can load it from the directory returned by their package wrapper's

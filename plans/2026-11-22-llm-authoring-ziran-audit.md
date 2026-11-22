@@ -204,10 +204,11 @@ Everything else in the original list has landed; what remains open:
 
 2. Multi-error parse recovery (lean-language P2) is still open: a parse error
    stops the file, so a second mistake shows only on the next run. The
-   for-in, loop-over-call and failed-declaration cascades are fixed.
-   Found while landing gap 3: a file-scope initializer whose string literal
-   contains `::` is misread as a declaration ("invalid file-scope constant");
-   tests/tool_diagnostics_cases.zi keeps its hint table local for that reason.
+   for-in, loop-over-call and failed-declaration cascades are fixed, and
+   so is the `::` inside a file-scope string. Per-declaration recovery
+   needs a recovery point around each top-level declaration; the current
+   one (ParserWithRecovery in cmd/zir/zir_parse.c) covers a whole parse and
+   waits for the self-host lane's parser port.
 9. `TextInteger` still accepts at most 18 digits, so not the whole s64 range
    (docs/REFERENCE.md section 16 says so). `S64_MIN` already prints correctly
    on C, the engine and native (tests/spec/std_number_text.zi); `--lint` now

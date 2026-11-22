@@ -53,6 +53,16 @@ Find :: (source: string, text: string) -> s64 {
     }
     return -1
 }
+// Find, skipping string literals: "NAME :: value" inside quotes is text.
+FindCode :: (source: string, text: string) -> s64 {
+    at: s64 = 0
+    while at <= source.count {
+        if at < source.count && source[at] == #char "\"" { at = AfterQuote(source, at); continue }
+        if Matches(source, at, text) { return at }
+        at += 1
+    }
+    return -1
+}
 AfterQuote :: (source: string, at: s64) -> s64 {
     quote := source[at]
     at += 1
@@ -486,7 +496,7 @@ ClosingParenthesis :: (source: string) -> s64 {
 // caller-owned storage, so the scanner needs neither allocation nor native ABI.
 ProcedureHeaderParts :: (source: string) -> ProcedureHeader {
     header: ProcedureHeader = .{"", "", "void"}
-    colons := Find(source, "::")
+    colons := FindCode(source, "::")
     if colons >= 0 {
         begin: s64 = 0
         while begin < colons && (source[begin] == #char " " || source[begin] == #char "\t") { begin += 1 }
@@ -574,7 +584,7 @@ BraceOutsideLiterals :: (source: string) -> bool {
 
 LooksLikeProcedureHeader :: (source: string) -> bool {
     if StartsWord(source, "#import") || Matches(source, 0, "#import,") { return false }
-    colons := Find(source, "::")
+    colons := FindCode(source, "::")
     if colons < 0 { return false }
     at := SkipSpace(source, colons + 2)
     end := source.count

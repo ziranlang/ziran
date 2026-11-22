@@ -16,6 +16,7 @@ static bool compiler_source_Letter(uint8_t byte) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_source_SkipSpace(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
 static bool compiler_source_Matches(String source, int64_t at, String text) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_source_Find(String source, String text) ZIRAN_MAYBE_UNUSED;
+static int64_t compiler_source_FindCode(String source, String text) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_source_AfterQuote(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_source_ClosedQuote(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
 static void compiler_source_Put(Slice output, int64_t* used, uint8_t byte) ZIRAN_MAYBE_UNUSED;
@@ -75,6 +76,34 @@ compiler_source_Find(String source, String text)
 {
     int64_t at = 0LL;
     while (at <= (int64_t)(source).length) {
+        String value_0 = source;
+        int64_t value_1 = at;
+        String value_2 = text;
+        bool value_3 = false;
+        {
+            String source = value_0;
+            int64_t at = value_1;
+            String text = value_2;
+            bool value_5 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_3 = value_5 && StringEqual(StringRangeAt(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (value_3) {
+            return at;
+        }
+        at = (int64_t)((uint64_t)at + UINT64_C(1));
+    }
+    return -1LL;
+}
+
+static int64_t
+compiler_source_FindCode(String source, String text)
+{
+    int64_t at = 0LL;
+    while (at <= (int64_t)(source).length) {
+        if (at < (int64_t)(source).length && (uint8_t)source.data[at] == 34) {
+            at = compiler_source_AfterQuote(source, at);
+            continue;
+        }
         String value_0 = source;
         int64_t value_1 = at;
         String value_2 = text;
@@ -2127,7 +2156,7 @@ ProcedureHeader
 compiler_source_ProcedureHeaderParts(String source)
 {
     ProcedureHeader header = {.name = StringLiteral(""), .parameters = StringLiteral(""), .result = StringLiteral("void")};
-    int64_t colons = compiler_source_Find(source, StringLiteral("::"));
+    int64_t colons = compiler_source_FindCode(source, StringLiteral("::"));
     if (colons >= 0LL) {
         int64_t begin = 0LL;
         while (begin < colons && ((uint8_t)source.data[begin] == 32 || (uint8_t)source.data[begin] == 9)) {
@@ -2416,7 +2445,7 @@ compiler_source_LooksLikeProcedureHeader(String source)
     if (value_12) {
         return false;
     }
-    int64_t colons = compiler_source_Find(source, StringLiteral("::"));
+    int64_t colons = compiler_source_FindCode(source, StringLiteral("::"));
     if (colons < 0LL) {
         return false;
     }

@@ -60,32 +60,34 @@ ToolDeclarationNames :: (test: *NativeTest) -> bool {
 AuthoringHint :: struct { source: string; message: string; }
 
 
+AUTHORING_HINT_COUNT :: 20;
+
+authoring_hints: [AUTHORING_HINT_COUNT]AuthoringHint = .[
+    .{"let x = 1;\nmain :: () -> s32 { return 0 }\n", "let is not Ziran syntax; declare a local with name := value"},
+    .{"fn main() { }\n", "fn is not Ziran syntax; declare a procedure with Name :: (a: s32) -> s32"},
+    .{"func main() { }\n", "func is not Ziran syntax"},
+    .{"def main():\n    return 0\n", "def is not Ziran syntax"},
+    .{"function main() { return 0; }\n", "function is not Ziran syntax"},
+    .{"const LIMIT = 3;\nmain :: () -> s32 { return 0 }\n", "const is not Ziran syntax; declare a constant with NAME"},
+    .{"main :: () -> s32 {\n    var y = 1\n    return 0\n}\n", "var is not Ziran syntax"},
+    .{"main :: () -> s32 { n := 3; for i in 0..n { print(\"%\", i) } return 0 }\n", "for ... in is not Ziran syntax; write for i: first..last"},
+    .{"main :: () -> s32 { x := 0; for (i := 0; i < 3; i += 1) { x += i } return 0 }\n", "C-style for (;;) is not Ziran syntax"},
+    .{"main :: () -> s32 { x: s64 = 1; p := *x; *p = 6; return 0 }\n", "store through a pointer with <<p = value"},
+    .{"main :: () -> s32 { x := 1; switch x { case 1: return 1 } return 0 }\n", "use if value == { case ... }"},
+    .{"main :: () -> s32 { s := \"hello\"; n := s.len(); return 0 }\n", "have .count, and Ziran has no methods"},
+    .{"main :: () -> s32 { v: Vec(s64); n := v.len(); return 0 }\n", "have .count, and Ziran has no methods"},
+    .{"main :: () -> s32 { print(\"%s\\n\", \"x\"); return 0 }\n", "print format uses a C or Go conversion such as %d or %s"},
+    .{"main :: () -> s32 { out: Vec(u8); BuilderPrint(*out, \"%d items\\n\", 7); return 0 }\n", "BuilderPrint format uses a C or Go conversion"},
+    .{"#import \"std/text_tools\"\nmain :: () -> s32 { s := TextLines(\"a b\")[0:1]; return cast(s32)s.count }\n", "a Vec returned by a call must be bound to a local before it is sliced"},
+    .{"#import \"std/text_tools\"\nmain :: () -> s32 { t := TextLins(\"a b\"); return 0 }\n", "unresolved function: TextLins (did you mean TextLines?)"},
+    .{"main :: () -> s32 { parts := TextSplit(\"a,b\", \",\"); return cast(s32)parts.count }\n", "add #import \"std/text_tools\""},
+    .{"#import \"std/text_tools\"\nmain :: () -> s32 { f := TextFind(\"abc\"); return 0 }\n", "it takes (text: string, needle: string, from: s64 = 0)"},
+    .{"main :: () -> s32 { x: s64 = 1; p := *x; <<p; return 0 }\n", "reading through a pointer alone does nothing; store with <<p = value"},
+];
+
 ToolAuthoringHints :: (test: *NativeTest) -> bool {
-    // A local table: a file-scope string holding "::" is misread today.
-    hints := AuthoringHint.[
-        .{"let x = 1;\nmain :: () -> s32 { return 0 }\n", "let is not Ziran syntax; declare a local with name := value"},
-        .{"fn main() { }\n", "fn is not Ziran syntax; declare a procedure with Name :: (a: s32) -> s32"},
-        .{"func main() { }\n", "func is not Ziran syntax"},
-        .{"def main():\n    return 0\n", "def is not Ziran syntax"},
-        .{"function main() { return 0; }\n", "function is not Ziran syntax"},
-        .{"const LIMIT = 3;\nmain :: () -> s32 { return 0 }\n", "const is not Ziran syntax; declare a constant with NAME"},
-        .{"main :: () -> s32 {\n    var y = 1\n    return 0\n}\n", "var is not Ziran syntax"},
-        .{"main :: () -> s32 { n := 3; for i in 0..n { print(\"%\", i) } return 0 }\n", "for ... in is not Ziran syntax; write for i: first..last"},
-        .{"main :: () -> s32 { x := 0; for (i := 0; i < 3; i += 1) { x += i } return 0 }\n", "C-style for (;;) is not Ziran syntax"},
-        .{"main :: () -> s32 { x: s64 = 1; p := *x; *p = 6; return 0 }\n", "store through a pointer with <<p = value"},
-        .{"main :: () -> s32 { x := 1; switch x { case 1: return 1 } return 0 }\n", "use if value == { case ... }"},
-        .{"main :: () -> s32 { s := \"hello\"; n := s.len(); return 0 }\n", "have .count, and Ziran has no methods"},
-        .{"main :: () -> s32 { v: Vec(s64); n := v.len(); return 0 }\n", "have .count, and Ziran has no methods"},
-        .{"main :: () -> s32 { print(\"%s\\n\", \"x\"); return 0 }\n", "print format uses a C or Go conversion such as %d or %s"},
-        .{"main :: () -> s32 { out: Vec(u8); BuilderPrint(*out, \"%d items\\n\", 7); return 0 }\n", "BuilderPrint format uses a C or Go conversion"},
-        .{"#import \"std/text_tools\"\nmain :: () -> s32 { s := TextLines(\"a b\")[0:1]; return cast(s32)s.count }\n", "a Vec returned by a call must be bound to a local before it is sliced"},
-        .{"#import \"std/text_tools\"\nmain :: () -> s32 { t := TextLins(\"a b\"); return 0 }\n", "unresolved function: TextLins (did you mean TextLines?)"},
-        .{"main :: () -> s32 { parts := TextSplit(\"a,b\", \",\"); return cast(s32)parts.count }\n", "add #import \"std/text_tools\""},
-        .{"#import \"std/text_tools\"\nmain :: () -> s32 { f := TextFind(\"abc\"); return 0 }\n", "it takes (text: string, needle: string, from: s64 = 0)"},
-        .{"main :: () -> s32 { x: s64 = 1; p := *x; <<p; return 0 }\n", "reading through a pointer alone does nothing; store with <<p = value"},
-    ]
     source := CheckPath(test.work, "hint.zi")
-    for hint: hints {
+    for hint: authoring_hints[:] {
         if !NativeWrite(test, source, hint.source) { return false }
         command := string.[test.ziran, "check", "--root", test.work, source]
         result := NativeInvoke(test, command[:])
@@ -158,6 +160,7 @@ ToolCheckBuildAgree :: (test: *NativeTest) -> bool {
         .{"for_call", "#import \"std/text_tools\"\nmain :: () -> s32 {\n    total: s64 = 0\n    for line: TextLines(\"ab\\ncde\") { total += line.count }\n    for < TextSplit(\"x,yz\", \",\") { total += it.count + it_index }\n    return cast(s32)total\n}\n", 9},
         .{"cast_constant", "LIMIT :: cast(s64)9223372036854775807;\nSMALL :: cast(u8)200;\nmain :: () -> s32 {\n    big: s64 = LIMIT\n    small: u8 = SMALL\n    return ifx big > 0 then cast(s32)small - 190 else 1\n}\n", 10},
         .{"owned_view", "Name :: () -> Text { return TextCopy(\"ada\") }\nmain :: () -> s32 {\n    name := Name()\n    view := TextView(name)\n    return cast(s32)view.count\n}\n", 3},
+        .{"colon_text", "Pair :: struct { name: string; text: string; }\npairs: [2]Pair = .[\n    .{name = \"a\", text = \"NAME :: value;\"},\n    .{name = \"bc\", text = \"x\"},\n];\nmain :: () -> s32 { return cast(s32)(pairs[0].text.count + pairs[1].name.count) }\n", 16},
         .{"c_names", "Flags :: struct { bool: s32; signed: s32; unsigned: s32; true: s32; }\nmain :: () -> s32 {\n    f: Flags\n    f.bool = 1\n    f.unsigned = 2\n    linux := 3\n    unix := 4\n    return f.bool + f.signed + f.unsigned + cast(s32)(linux + unix)\n}\n", 10},
     ]
     for build: cases {

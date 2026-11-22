@@ -1953,6 +1953,7 @@ static void compiler_parse_source_ensure_source_import(ZirModule* module, uint8_
 static int32_t compiler_parse_source_names_word(uint8_t* text, uint8_t* word, int32_t call) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_parse_source_names_vec_type(uint8_t* text) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_parse_source_names_vec_types(ZirModule* module) ZIRAN_MAYBE_UNUSED;
+static uint8_t* compiler_parse_source_code_colons(uint8_t* t) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_parse_source_resolve_imports_outside_operation(void* opaque, ZirProgram* program, ZirModule* module, uint8_t* source_path, uint8_t* root, uint8_t* condition) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_parse_source_FunctionArgs(ZirFunction* fn) ZIRAN_MAYBE_UNUSED;
 static void compiler_parse_source_compile_value_clear(CompileValue* value) ZIRAN_MAYBE_UNUSED;
@@ -4179,141 +4180,138 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                         bool value_593 = (uint32_t)(mode) == 0;
                                                                         bool value_594 = value_593;
                                                                         if (value_594) {
-                                                                            uint8_t* value_595 = t;
-                                                                            uint8_t* value_596 = zir_f_157b8ce5776e0448_strstr(value_595, compiler_parse_types_ParserCString(StringLiteral("::")));
-                                                                            value_594 = (value_596 != (uint8_t*)(((void *)0)));
+                                                                            uint8_t* value_595 = compiler_parse_source_code_colons(t);
+                                                                            value_594 = (value_595 != (uint8_t*)(((void *)0)));
                                                                         }
-                                                                        bool value_597 = value_594;
-                                                                        bool value_598 = value_597;
-                                                                        if (value_598) {
-                                                                            uint8_t* value_599 = t;
-                                                                            uint8_t* value_600 = zir_f_157b8ce5776e0448_strstr(value_599, compiler_parse_types_ParserCString(StringLiteral("::")));
-                                                                            uint8_t* value_601 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_600) + ((size_t)(2LL) * sizeof(uint8_t)))));
-                                                                            bool value_602 = zir_f_157b8ce5776e0448_starts_word(value_601, compiler_parse_types_ParserCString(StringLiteral("#type"))) != 0;
-                                                                            value_598 = value_602;
+                                                                        bool value_596 = value_594;
+                                                                        bool value_597 = value_596;
+                                                                        if (value_597) {
+                                                                            uint8_t* value_598 = compiler_parse_source_code_colons(t);
+                                                                            uint8_t* value_599 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_598) + ((size_t)(2LL) * sizeof(uint8_t)))));
+                                                                            bool value_600 = zir_f_157b8ce5776e0448_starts_word(value_599, compiler_parse_types_ParserCString(StringLiteral("#type"))) != 0;
+                                                                            value_597 = value_600;
                                                                         }
-                                                                        if (value_598) {
-                                                                            void* value_603 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
-                                                                            ParserArray128_u8* name_storage_32 = (ParserArray128_u8*)(value_603);
+                                                                        if (value_597) {
+                                                                            void* value_601 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
+                                                                            ParserArray128_u8* name_storage_32 = (ParserArray128_u8*)(value_601);
                                                                             zir_f_157b8ce5776e0448_memset((void*)(name_storage_32), 0, sizeof(ParserArray128_u8));
-                                                                            void* value_604 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
-                                                                            ParserArray128_u8* ret_storage_33 = (ParserArray128_u8*)(value_604);
+                                                                            void* value_602 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
+                                                                            ParserArray128_u8* ret_storage_33 = (ParserArray128_u8*)(value_602);
                                                                             zir_f_157b8ce5776e0448_memset((void*)(ret_storage_33), 0, sizeof(ParserArray128_u8));
-                                                                            uint8_t* value_605 = t;
-                                                                            uint8_t* value_606 = zir_f_157b8ce5776e0448_strstr(value_605, compiler_parse_types_ParserCString(StringLiteral("::")));
-                                                                            uint8_t* declaration = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_606) + ((size_t)(2LL) * sizeof(uint8_t)))));
-                                                                            size_t value_607 = (size_t)(declaration);
-                                                                            size_t value_608 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#type")));
-                                                                            uint8_t* parameters = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_607 + ((size_t)(value_608) * sizeof(uint8_t)))));
-                                                                            bool value_609 = zir_f_157b8ce5776e0448_parse_symbol_before_colons(t, (uint8_t*)(&((name_storage_32[0]).items)), (size_t)(sizeof(ParserArray128_u8))) != 0;
-                                                                            bool value_610 = !value_609 || (int32_t)((int8_t)(parameters[0])) != 40;
+                                                                            uint8_t* value_603 = compiler_parse_source_code_colons(t);
+                                                                            uint8_t* declaration = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_603) + ((size_t)(2LL) * sizeof(uint8_t)))));
+                                                                            size_t value_604 = (size_t)(declaration);
+                                                                            size_t value_605 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#type")));
+                                                                            uint8_t* parameters = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_604 + ((size_t)(value_605) * sizeof(uint8_t)))));
+                                                                            bool value_606 = zir_f_157b8ce5776e0448_parse_symbol_before_colons(t, (uint8_t*)(&((name_storage_32[0]).items)), (size_t)(sizeof(ParserArray128_u8))) != 0;
+                                                                            bool value_607 = !value_606 || (int32_t)((int8_t)(parameters[0])) != 40;
+                                                                            bool value_608 = value_607;
+                                                                            if (!value_608) {
+                                                                                uint8_t* value_609 = zir_f_157b8ce5776e0448_strchr(t, 123);
+                                                                                value_608 = (value_609 != (uint8_t*)(((void *)0)));
+                                                                            }
+                                                                            bool value_610 = value_608;
                                                                             bool value_611 = value_610;
                                                                             if (!value_611) {
-                                                                                uint8_t* value_612 = zir_f_157b8ce5776e0448_strchr(t, 123);
-                                                                                value_611 = (value_612 != (uint8_t*)(((void *)0)));
+                                                                                size_t value_612 = zir_f_157b8ce5776e0448_strlen(t) - (size_t)(1LL);
+                                                                                value_611 = ((int32_t)((int8_t)(t[value_612])) != 59);
                                                                             }
-                                                                            bool value_613 = value_611;
-                                                                            bool value_614 = value_613;
-                                                                            if (!value_614) {
-                                                                                size_t value_615 = zir_f_157b8ce5776e0448_strlen(t) - (size_t)(1LL);
-                                                                                value_614 = ((int32_t)((int8_t)(t[value_615])) != 59);
-                                                                            }
-                                                                            if (value_614) {
-                                                                                ZirSourceSpan value_616 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                zir_f_157b8ce5776e0448_die_at(value_616, compiler_parse_types_ParserCString(StringLiteral("procedure type requires Name :: #type (Types) -> Result;")));
+                                                                            if (value_611) {
+                                                                                ZirSourceSpan value_613 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                zir_f_157b8ce5776e0448_die_at(value_613, compiler_parse_types_ParserCString(StringLiteral("procedure type requires Name :: #type (Types) -> Result;")));
                                                                                 abort();
                                                                             }
                                                                             zir_f_157b8ce5776e0448_parse_function_header((uint8_t*)(&((name_storage_32[0]).items)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&(buffers->args.items)), (size_t)(sizeof(ParserArray4096_u8)), (uint8_t*)(&((ret_storage_33[0]).items)), (size_t)(sizeof(ParserArray128_u8)), t);
                                                                             size_t return_length = zir_f_157b8ce5776e0448_strlen((uint8_t*)(&((ret_storage_33[0]).items)));
-                                                                            uint8_t* value_617 = t;
-                                                                            uint8_t* c_call = zir_f_157b8ce5776e0448_strstr(value_617, compiler_parse_types_ParserCString(StringLiteral("#c_call")));
-                                                                            int32_t value_618 = 0;
+                                                                            uint8_t* value_614 = t;
+                                                                            uint8_t* c_call = zir_f_157b8ce5776e0448_strstr(value_614, compiler_parse_types_ParserCString(StringLiteral("#c_call")));
+                                                                            int32_t value_615 = 0;
                                                                             if (c_call != (uint8_t*)(((void *)0))) {
-                                                                                value_618 = 1;
+                                                                                value_615 = 1;
                                                                             }
-                                                                            int32_t is_c_call = value_618;
-                                                                            uint8_t* value_619 = t;
-                                                                            uint8_t* reads = zir_f_157b8ce5776e0448_strstr(value_619, compiler_parse_types_ParserCString(StringLiteral("#reads")));
-                                                                            int32_t value_620 = 0;
+                                                                            int32_t is_c_call = value_615;
+                                                                            uint8_t* value_616 = t;
+                                                                            uint8_t* reads = zir_f_157b8ce5776e0448_strstr(value_616, compiler_parse_types_ParserCString(StringLiteral("#reads")));
+                                                                            int32_t value_617 = 0;
                                                                             if (reads != (uint8_t*)(((void *)0))) {
-                                                                                value_620 = 1;
+                                                                                value_617 = 1;
                                                                             }
-                                                                            int32_t reads_arguments = value_620;
-                                                                            bool value_621 = reads_arguments != 0;
-                                                                            bool value_622 = value_621;
-                                                                            if (value_622) {
-                                                                                bool value_623 = is_c_call != 0;
-                                                                                bool value_624 = value_623;
-                                                                                if (!value_624) {
-                                                                                    size_t value_625 = (size_t)(reads);
-                                                                                    size_t value_626 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#reads")));
-                                                                                    uint8_t* value_627 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_625 + ((size_t)(value_626) * sizeof(uint8_t)))));
-                                                                                    bool value_628 = zir_f_157b8ce5776e0448_strcmp(value_627, compiler_parse_types_ParserCString(StringLiteral(";"))) != 0;
-                                                                                    value_624 = value_628;
+                                                                            int32_t reads_arguments = value_617;
+                                                                            bool value_618 = reads_arguments != 0;
+                                                                            bool value_619 = value_618;
+                                                                            if (value_619) {
+                                                                                bool value_620 = is_c_call != 0;
+                                                                                bool value_621 = value_620;
+                                                                                if (!value_621) {
+                                                                                    size_t value_622 = (size_t)(reads);
+                                                                                    size_t value_623 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#reads")));
+                                                                                    uint8_t* value_624 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_622 + ((size_t)(value_623) * sizeof(uint8_t)))));
+                                                                                    bool value_625 = zir_f_157b8ce5776e0448_strcmp(value_624, compiler_parse_types_ParserCString(StringLiteral(";"))) != 0;
+                                                                                    value_621 = value_625;
                                                                                 }
-                                                                                bool value_629 = value_624 || return_length == (size_t)(0LL);
-                                                                                bool value_630 = value_629;
-                                                                                if (!value_630) {
-                                                                                    uint8_t* value_631 = (uint8_t*)(((size_t)(reads) + ((size_t)(1LL) * sizeof(uint8_t))));
-                                                                                    uint8_t* value_632 = zir_f_157b8ce5776e0448_strstr(value_631, compiler_parse_types_ParserCString(StringLiteral("#reads")));
-                                                                                    value_630 = (value_632 != (uint8_t*)(((void *)0)));
+                                                                                bool value_626 = value_621 || return_length == (size_t)(0LL);
+                                                                                bool value_627 = value_626;
+                                                                                if (!value_627) {
+                                                                                    uint8_t* value_628 = (uint8_t*)(((size_t)(reads) + ((size_t)(1LL) * sizeof(uint8_t))));
+                                                                                    uint8_t* value_629 = zir_f_157b8ce5776e0448_strstr(value_628, compiler_parse_types_ParserCString(StringLiteral("#reads")));
+                                                                                    value_627 = (value_629 != (uint8_t*)(((void *)0)));
                                                                                 }
-                                                                                value_622 = value_630;
+                                                                                value_619 = value_627;
                                                                             }
-                                                                            if (value_622) {
-                                                                                ZirSourceSpan value_633 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                zir_f_157b8ce5776e0448_die_at(value_633, compiler_parse_types_ParserCString(StringLiteral("#reads goes once after a procedure type's result, as in -> s32 #reads;")));
+                                                                            if (value_619) {
+                                                                                ZirSourceSpan value_630 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                zir_f_157b8ce5776e0448_die_at(value_630, compiler_parse_types_ParserCString(StringLiteral("#reads goes once after a procedure type's result, as in -> s32 #reads;")));
                                                                                 abort();
                                                                             }
                                                                             if (is_c_call != 0) {
-                                                                                size_t value_634 = (size_t)(c_call);
-                                                                                size_t value_635 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#c_call")));
-                                                                                uint8_t* value_636 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_634 + ((size_t)(value_635) * sizeof(uint8_t)))));
-                                                                                bool value_637 = (int32_t)((int8_t)(value_636[0])) != 59;
-                                                                                bool value_638 = value_637;
-                                                                                if (!value_638) {
-                                                                                    size_t value_639 = (size_t)(c_call);
-                                                                                    size_t value_640 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#c_call")));
-                                                                                    uint8_t* value_641 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_639 + ((size_t)(value_640) * sizeof(uint8_t)))));
-                                                                                    value_638 = ((int32_t)((int8_t)(value_641[1])) != 0);
+                                                                                size_t value_631 = (size_t)(c_call);
+                                                                                size_t value_632 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#c_call")));
+                                                                                uint8_t* value_633 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_631 + ((size_t)(value_632) * sizeof(uint8_t)))));
+                                                                                bool value_634 = (int32_t)((int8_t)(value_633[0])) != 59;
+                                                                                bool value_635 = value_634;
+                                                                                if (!value_635) {
+                                                                                    size_t value_636 = (size_t)(c_call);
+                                                                                    size_t value_637 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#c_call")));
+                                                                                    uint8_t* value_638 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_636 + ((size_t)(value_637) * sizeof(uint8_t)))));
+                                                                                    value_635 = ((int32_t)((int8_t)(value_638[1])) != 0);
                                                                                 }
-                                                                                if (value_638 || return_length == (size_t)(0LL)) {
-                                                                                    ZirSourceSpan value_642 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                    zir_f_157b8ce5776e0448_die_at(value_642, compiler_parse_types_ParserCString(StringLiteral("procedure type requires Result #c_call;")));
+                                                                                if (value_635 || return_length == (size_t)(0LL)) {
+                                                                                    ZirSourceSpan value_639 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                    zir_f_157b8ce5776e0448_die_at(value_639, compiler_parse_types_ParserCString(StringLiteral("procedure type requires Result #c_call;")));
                                                                                     abort();
                                                                                 }
                                                                             } else {
                                                                                 if (!(reads_arguments != 0)) {
-                                                                                    bool value_643 = return_length == (size_t)(0LL);
-                                                                                    if (!value_643) {
-                                                                                        uint8_t value_644[128] = {0};
-                                                                                        memmove(value_644, (ret_storage_33[0]).items, sizeof(value_644));
-                                                                                        value_643 = ((int32_t)((int8_t)((value_644)[(return_length - (size_t)(1LL))])) != 59);
+                                                                                    bool value_640 = return_length == (size_t)(0LL);
+                                                                                    if (!value_640) {
+                                                                                        uint8_t value_641[128] = {0};
+                                                                                        memmove(value_641, (ret_storage_33[0]).items, sizeof(value_641));
+                                                                                        value_640 = ((int32_t)((int8_t)((value_641)[(return_length - (size_t)(1LL))])) != 59);
                                                                                     }
-                                                                                    if (value_643) {
-                                                                                        ZirSourceSpan value_645 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                        zir_f_157b8ce5776e0448_die_at(value_645, compiler_parse_types_ParserCString(StringLiteral("procedure type requires a result type and ';'")));
+                                                                                    if (value_640) {
+                                                                                        ZirSourceSpan value_642 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                        zir_f_157b8ce5776e0448_die_at(value_642, compiler_parse_types_ParserCString(StringLiteral("procedure type requires a result type and ';'")));
                                                                                         abort();
                                                                                     }
-                                                                                    size_t value_646 = compiler_parse_types_ParserPre15(&(return_length));
-                                                                                    uint8_t* value_647 = &(((ret_storage_33[0]).items)[value_646]);
-                                                                                    (*value_647) = 0;
+                                                                                    size_t value_643 = compiler_parse_types_ParserPre15(&(return_length));
+                                                                                    uint8_t* value_644 = &(((ret_storage_33[0]).items)[value_643]);
+                                                                                    (*value_644) = 0;
                                                                                     while (true) {
-                                                                                        bool value_648 = return_length > (size_t)(0LL);
-                                                                                        bool value_649 = value_648;
-                                                                                        if (value_649) {
-                                                                                            uint8_t value_650[128] = {0};
-                                                                                            memmove(value_650, (ret_storage_33[0]).items, sizeof(value_650));
-                                                                                            bool value_651 = zir_f_157b8ce5776e0448_isspace((int32_t)((value_650)[(return_length - (size_t)(1LL))])) != 0;
-                                                                                            value_649 = value_651;
+                                                                                        bool value_645 = return_length > (size_t)(0LL);
+                                                                                        bool value_646 = value_645;
+                                                                                        if (value_646) {
+                                                                                            uint8_t value_647[128] = {0};
+                                                                                            memmove(value_647, (ret_storage_33[0]).items, sizeof(value_647));
+                                                                                            bool value_648 = zir_f_157b8ce5776e0448_isspace((int32_t)((value_647)[(return_length - (size_t)(1LL))])) != 0;
+                                                                                            value_646 = value_648;
                                                                                         }
-                                                                                        bool loop_115 = value_649;
+                                                                                        bool loop_115 = value_646;
                                                                                         if (!loop_115) {
                                                                                             break;
                                                                                         }
-                                                                                        size_t value_652 = compiler_parse_types_ParserPre15(&(return_length));
-                                                                                        uint8_t* value_653 = &(((ret_storage_33[0]).items)[value_652]);
-                                                                                        (*value_653) = 0;
+                                                                                        size_t value_649 = compiler_parse_types_ParserPre15(&(return_length));
+                                                                                        uint8_t* value_650 = &(((ret_storage_33[0]).items)[value_649]);
+                                                                                        (*value_650) = 0;
                                                                                     }
                                                                                 }
                                                                             }
@@ -4321,26 +4319,26 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                 zir_f_157b8ce5776e0448_copy_text((uint8_t*)(&((ret_storage_33[0]).items)), (size_t)(sizeof(ParserArray128_u8)), compiler_parse_types_ParserCString(StringLiteral("void")));
                                                                             }
                                                                             if (program_export != 0) {
-                                                                                ZirSourceSpan value_654 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), program_export_line, 1);
-                                                                                zir_f_157b8ce5776e0448_die_at(value_654, compiler_parse_types_ParserCString(StringLiteral("#program_export requires a function")));
+                                                                                ZirSourceSpan value_651 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), program_export_line, 1);
+                                                                                zir_f_157b8ce5776e0448_die_at(value_651, compiler_parse_types_ParserCString(StringLiteral("#program_export requires a function")));
                                                                                 abort();
                                                                             }
-                                                                            ZirModule* value_655 = module;
-                                                                            ZirType* slot = zir_f_157b8ce5776e0448_ModuleAddType(value_655, (uint8_t*)(&((name_storage_32[0]).items)), zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1));
+                                                                            ZirModule* value_652 = module;
+                                                                            ZirType* slot = zir_f_157b8ce5776e0448_ModuleAddType(value_652, (uint8_t*)(&((name_storage_32[0]).items)), zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1));
                                                                             if (slot == (ZirType*)(((void *)0))) {
                                                                                 zir_f_157b8ce5776e0448_die(compiler_parse_types_ParserCString(StringLiteral("out of memory declaring procedure type")));
                                                                                 abort();
                                                                             }
-                                                                            int32_t* value_656 = &(slot->is_procedure_type);
-                                                                            (*value_656) = 1;
-                                                                            int32_t* value_657 = &(slot->is_c_call);
-                                                                            (*value_657) = is_c_call;
-                                                                            int32_t* value_658 = &(slot->reads_arguments);
-                                                                            (*value_658) = reads_arguments;
-                                                                            int32_t* value_659 = &(slot->is_public);
-                                                                            (*value_659) = scope_public;
-                                                                            int32_t* value_660 = &(slot->is_file_private);
-                                                                            (*value_660) = scope_file;
+                                                                            int32_t* value_653 = &(slot->is_procedure_type);
+                                                                            (*value_653) = 1;
+                                                                            int32_t* value_654 = &(slot->is_c_call);
+                                                                            (*value_654) = is_c_call;
+                                                                            int32_t* value_655 = &(slot->reads_arguments);
+                                                                            (*value_655) = reads_arguments;
+                                                                            int32_t* value_656 = &(slot->is_public);
+                                                                            (*value_656) = scope_public;
+                                                                            int32_t* value_657 = &(slot->is_file_private);
+                                                                            (*value_657) = scope_file;
                                                                             zir_f_157b8ce5776e0448_copy_text((uint8_t*)(&(slot->procedure_return_type)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&((ret_storage_33[0]).items)));
                                                                             zir_f_157b8ce5776e0448_parse_procedure_type_parameters((uint8_t*)(&(buffers->args.items)), (uint8_t*)(&(slot->body)), (size_t)(sizeof(ParserArray8192_u8)), slot->span);
                                                                             zir_f_157b8ce5776e0448_CompilerFree((void*)(ret_storage_33));
@@ -4349,65 +4347,64 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                             zir_f_157b8ce5776e0448_CompilerFree((void*)(w0_storage_20));
                                                                             goto zir_loop_continue_2;
                                                                         } else {
-                                                                            bool value_661 = (uint32_t)(mode) == 0;
-                                                                            if (value_661 && zir_f_157b8ce5776e0448_looks_like_function_header(t) != 0) {
-                                                                                void* value_662 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
-                                                                                ParserArray128_u8* name_storage_34 = (ParserArray128_u8*)(value_662);
+                                                                            bool value_658 = (uint32_t)(mode) == 0;
+                                                                            if (value_658 && zir_f_157b8ce5776e0448_looks_like_function_header(t) != 0) {
+                                                                                void* value_659 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
+                                                                                ParserArray128_u8* name_storage_34 = (ParserArray128_u8*)(value_659);
                                                                                 zir_f_157b8ce5776e0448_memset((void*)(name_storage_34), 0, sizeof(ParserArray128_u8));
-                                                                                uint8_t* value_663 = &(buffers->defaults.items[0]);
-                                                                                (*value_663) = 0;
-                                                                                void* value_664 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
-                                                                                ParserArray128_u8* ret_storage_35 = (ParserArray128_u8*)(value_664);
+                                                                                uint8_t* value_660 = &(buffers->defaults.items[0]);
+                                                                                (*value_660) = 0;
+                                                                                void* value_661 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
+                                                                                ParserArray128_u8* ret_storage_35 = (ParserArray128_u8*)(value_661);
                                                                                 zir_f_157b8ce5776e0448_memset((void*)(ret_storage_35), 0, sizeof(ParserArray128_u8));
-                                                                                uint8_t* value_665 = zir_f_157b8ce5776e0448_strchr(t, 123);
-                                                                                int32_t value_666 = 0;
-                                                                                if (value_665 != (uint8_t*)(((void *)0))) {
-                                                                                    value_666 = 1;
+                                                                                uint8_t* value_662 = zir_f_157b8ce5776e0448_strchr(t, 123);
+                                                                                int32_t value_663 = 0;
+                                                                                if (value_662 != (uint8_t*)(((void *)0))) {
+                                                                                    value_663 = 1;
                                                                                 }
-                                                                                int32_t has_body = value_666;
+                                                                                int32_t has_body = value_663;
                                                                                 int32_t conversion = 0;
-                                                                                uint8_t* value_667 = t;
-                                                                                uint8_t* marker = zir_f_157b8ce5776e0448_strstr(value_667, compiler_parse_types_ParserCString(StringLiteral("::")));
+                                                                                uint8_t* marker = compiler_parse_source_code_colons(t);
                                                                                 if (marker != (uint8_t*)(((void *)0))) {
                                                                                     marker = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(marker) + ((size_t)(2LL) * sizeof(uint8_t)))));
-                                                                                    uint8_t* value_668 = marker;
-                                                                                    if (zir_f_157b8ce5776e0448_starts_word(value_668, compiler_parse_types_ParserCString(StringLiteral("#as"))) != 0) {
+                                                                                    uint8_t* value_664 = marker;
+                                                                                    if (zir_f_157b8ce5776e0448_starts_word(value_664, compiler_parse_types_ParserCString(StringLiteral("#as"))) != 0) {
                                                                                         conversion = 1;
-                                                                                        uint8_t* value_669 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(marker) + ((size_t)(3LL) * sizeof(uint8_t)))));
-                                                                                        if ((int32_t)((int8_t)(value_669[0])) != 40) {
-                                                                                            ZirSourceSpan value_670 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                            zir_f_157b8ce5776e0448_die_at(value_670, compiler_parse_types_ParserCString(StringLiteral("#as requires (source: Type) -> Result")));
+                                                                                        uint8_t* value_665 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(marker) + ((size_t)(3LL) * sizeof(uint8_t)))));
+                                                                                        if ((int32_t)((int8_t)(value_665[0])) != 40) {
+                                                                                            ZirSourceSpan value_666 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                            zir_f_157b8ce5776e0448_die_at(value_666, compiler_parse_types_ParserCString(StringLiteral("#as requires (source: Type) -> Result")));
                                                                                             abort();
                                                                                         }
                                                                                     }
                                                                                 }
                                                                                 zir_f_157b8ce5776e0448_parse_function_header((uint8_t*)(&((name_storage_34[0]).items)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&(buffers->args.items)), (size_t)(sizeof(ParserArray4096_u8)), (uint8_t*)(&((ret_storage_35[0]).items)), (size_t)(sizeof(ParserArray128_u8)), t);
                                                                                 if (!(has_body != 0)) {
-                                                                                    ZirSourceSpan value_671 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                    zir_f_157b8ce5776e0448_die_at(value_671, compiler_parse_types_ParserCString(StringLiteral("procedure types require Jai #type syntax")));
+                                                                                    ZirSourceSpan value_667 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                    zir_f_157b8ce5776e0448_die_at(value_667, compiler_parse_types_ParserCString(StringLiteral("procedure types require Jai #type syntax")));
                                                                                     abort();
                                                                                 }
                                                                                 if ((int32_t)((int8_t)(((name_storage_34[0]).items)[0])) != 0) {
                                                                                     zir_f_157b8ce5776e0448_separate_parameter_defaults((uint8_t*)(&(buffers->args.items)), (size_t)(sizeof(ParserArray4096_u8)), (uint8_t*)(&(buffers->defaults.items)), (size_t)(sizeof(ParserArray4096_u8)), zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1));
                                                                                     uint64_t using_parameters = zir_f_157b8ce5776e0448_strip_using_parameters((uint8_t*)(&(buffers->args.items)), (size_t)(sizeof(ParserArray4096_u8)), zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1));
-                                                                                    bool value_672 = (buffers->defaults.items)[0] != 0;
-                                                                                    bool value_673 = value_672;
-                                                                                    if (value_673) {
-                                                                                        uint64_t value_674 = zir_f_157b8ce5776e0448_strip_using_parameters((uint8_t*)(&(buffers->defaults.items)), (size_t)(sizeof(ParserArray4096_u8)), zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1));
-                                                                                        value_673 = (value_674 != using_parameters);
+                                                                                    bool value_668 = (buffers->defaults.items)[0] != 0;
+                                                                                    bool value_669 = value_668;
+                                                                                    if (value_669) {
+                                                                                        uint64_t value_670 = zir_f_157b8ce5776e0448_strip_using_parameters((uint8_t*)(&(buffers->defaults.items)), (size_t)(sizeof(ParserArray4096_u8)), zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1));
+                                                                                        value_669 = (value_670 != using_parameters);
                                                                                     }
-                                                                                    if (value_673) {
-                                                                                        ZirSourceSpan value_675 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                        zir_f_157b8ce5776e0448_die_at(value_675, compiler_parse_types_ParserCString(StringLiteral("inconsistent using parameter defaults")));
+                                                                                    if (value_669) {
+                                                                                        ZirSourceSpan value_671 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                        zir_f_157b8ce5776e0448_die_at(value_671, compiler_parse_types_ParserCString(StringLiteral("inconsistent using parameter defaults")));
                                                                                         abort();
                                                                                     }
-                                                                                    void* value_676 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
-                                                                                    ParserArray128_u8* overload_name_storage_36 = (ParserArray128_u8*)(value_676);
+                                                                                    void* value_672 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
+                                                                                    ParserArray128_u8* overload_name_storage_36 = (ParserArray128_u8*)(value_672);
                                                                                     zir_f_157b8ce5776e0448_memset((void*)(overload_name_storage_36), 0, sizeof(ParserArray128_u8));
-                                                                                    uint8_t* value_677 = (uint8_t*)(overload_name_storage_36);
-                                                                                    zir_f_157b8ce5776e0448_copy_text(value_677, sizeof(ParserArray128_u8), compiler_parse_types_ParserCString(StringLiteral("")));
-                                                                                    uint8_t* value_678 = zir_f_157b8ce5776e0448_strchr((uint8_t*)(&(buffers->args.items)), 36);
-                                                                                    if (value_678 == (uint8_t*)(((void *)0))) {
+                                                                                    uint8_t* value_673 = (uint8_t*)(overload_name_storage_36);
+                                                                                    zir_f_157b8ce5776e0448_copy_text(value_673, sizeof(ParserArray128_u8), compiler_parse_types_ParserCString(StringLiteral("")));
+                                                                                    uint8_t* value_674 = zir_f_157b8ce5776e0448_strchr((uint8_t*)(&(buffers->args.items)), 36);
+                                                                                    if (value_674 == (uint8_t*)(((void *)0))) {
                                                                                         int32_t members = 0;
                                                                                         {
                                                                                             int32_t f = 0;
@@ -4418,33 +4415,33 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                         break;
                                                                                                     }
                                                                                                     ZirFunction* other = (ZirFunction*)(((size_t)(module->functions) + ((size_t)(f) * sizeof(ZirFunction))));
-                                                                                                    uint8_t* value_679 = (void *)0;
+                                                                                                    uint8_t* value_675 = (void *)0;
                                                                                                     if ((other->overload_name)[0] != 0) {
-                                                                                                        value_679 = (uint8_t*)(&(other->overload_name));
+                                                                                                        value_675 = (uint8_t*)(&(other->overload_name));
                                                                                                     } else {
-                                                                                                        value_679 = (uint8_t*)(&(other->name));
+                                                                                                        value_675 = (uint8_t*)(&(other->name));
                                                                                                     }
-                                                                                                    uint8_t* source_name = value_679;
-                                                                                                    bool value_680 = zir_f_157b8ce5776e0448_strcmp(source_name, (uint8_t*)(&((name_storage_34[0]).items))) != 0;
-                                                                                                    if (value_680 || other->is_template != 0 || other->is_extern != 0) {
+                                                                                                    uint8_t* source_name = value_675;
+                                                                                                    bool value_676 = zir_f_157b8ce5776e0448_strcmp(source_name, (uint8_t*)(&((name_storage_34[0]).items))) != 0;
+                                                                                                    if (value_676 || other->is_template != 0 || other->is_extern != 0) {
                                                                                                         compiler_parse_types_ParserPost0(&(f));
                                                                                                         goto zir_loop_continue_22;
                                                                                                     }
-                                                                                                    bool value_681 = other->is_file_private != 0 || scope_file != 0;
-                                                                                                    if (value_681 && zir_f_157b8ce5776e0448_strcmp(zir_f_157b8ce5776e0448_SpanPath(other->span), (uint8_t*)(&(buffers->rel.items))) != 0) {
+                                                                                                    bool value_677 = other->is_file_private != 0 || scope_file != 0;
+                                                                                                    if (value_677 && zir_f_157b8ce5776e0448_strcmp(zir_f_157b8ce5776e0448_SpanPath(other->span), (uint8_t*)(&(buffers->rel.items))) != 0) {
                                                                                                         compiler_parse_types_ParserPost0(&(f));
                                                                                                         goto zir_loop_continue_22;
                                                                                                     }
-                                                                                                    bool value_682 = zir_f_157b8ce5776e0448_strcmp(compiler_parse_source_FunctionArgs(other), (uint8_t*)(&(buffers->args.items))) != 0;
-                                                                                                    if (!value_682) {
-                                                                                                        ZirSourceSpan value_683 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                        zir_f_157b8ce5776e0448_die_at(value_683, compiler_parse_types_ParserCString(StringLiteral("%s is already declared with these parameters")), (uint8_t*)(&((name_storage_34[0]).items)));
+                                                                                                    bool value_678 = zir_f_157b8ce5776e0448_strcmp(compiler_parse_source_FunctionArgs(other), (uint8_t*)(&(buffers->args.items))) != 0;
+                                                                                                    if (!value_678) {
+                                                                                                        ZirSourceSpan value_679 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                        zir_f_157b8ce5776e0448_die_at(value_679, compiler_parse_types_ParserCString(StringLiteral("%s is already declared with these parameters")), (uint8_t*)(&((name_storage_34[0]).items)));
                                                                                                         abort();
                                                                                                     }
                                                                                                     if (!((other->overload_name)[0] != 0)) {
                                                                                                         if (other->exported != 0) {
-                                                                                                            ZirSourceSpan value_684 = other->span;
-                                                                                                            zir_f_157b8ce5776e0448_die_at(value_684, compiler_parse_types_ParserCString(StringLiteral("an exported procedure cannot be overloaded: %s")), (uint8_t*)(&((name_storage_34[0]).items)));
+                                                                                                            ZirSourceSpan value_680 = other->span;
+                                                                                                            zir_f_157b8ce5776e0448_die_at(value_680, compiler_parse_types_ParserCString(StringLiteral("an exported procedure cannot be overloaded: %s")), (uint8_t*)(&((name_storage_34[0]).items)));
                                                                                                             abort();
                                                                                                         }
                                                                                                         zir_f_157b8ce5776e0448_copy_text((uint8_t*)(&(other->overload_name)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&((name_storage_34[0]).items)));
@@ -4459,66 +4456,66 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                         }
                                                                                         if (members > 0) {
                                                                                             if (program_export != 0) {
-                                                                                                ZirSourceSpan value_685 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                zir_f_157b8ce5776e0448_die_at(value_685, compiler_parse_types_ParserCString(StringLiteral("an exported procedure cannot be overloaded: %s")), (uint8_t*)(&((name_storage_34[0]).items)));
+                                                                                                ZirSourceSpan value_681 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                zir_f_157b8ce5776e0448_die_at(value_681, compiler_parse_types_ParserCString(StringLiteral("an exported procedure cannot be overloaded: %s")), (uint8_t*)(&((name_storage_34[0]).items)));
                                                                                                 abort();
                                                                                             }
                                                                                             zir_f_157b8ce5776e0448_copy_text((uint8_t*)(&((overload_name_storage_36[0]).items)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&((name_storage_34[0]).items)));
-                                                                                            uint8_t* value_686 = compiler_parse_types_ParserCString(StringLiteral("%s__overload_%d"));
-                                                                                            zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&((name_storage_34[0]).items)), (size_t)(sizeof(ParserArray128_u8)), value_686, (uint8_t*)(&((overload_name_storage_36[0]).items)), (int32_t)((uint32_t)members + 1u));
+                                                                                            uint8_t* value_682 = compiler_parse_types_ParserCString(StringLiteral("%s__overload_%d"));
+                                                                                            zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&((name_storage_34[0]).items)), (size_t)(sizeof(ParserArray128_u8)), value_682, (uint8_t*)(&((overload_name_storage_36[0]).items)), (int32_t)((uint32_t)members + 1u));
                                                                                         }
                                                                                     }
-                                                                                    ZirModule* value_687 = module;
-                                                                                    fn = zir_f_157b8ce5776e0448_ModuleAddFunction(value_687, (uint8_t*)(&((name_storage_34[0]).items)), (uint8_t*)(&(buffers->args.items)), (uint8_t*)(&((ret_storage_35[0]).items)), 0, zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), pending_start_line, pending_start_column));
-                                                                                    const char ** value_688 = &(fn->assembly_text);
-                                                                                    (*value_688) = (const char *)(assembly_text);
+                                                                                    ZirModule* value_683 = module;
+                                                                                    fn = zir_f_157b8ce5776e0448_ModuleAddFunction(value_683, (uint8_t*)(&((name_storage_34[0]).items)), (uint8_t*)(&(buffers->args.items)), (uint8_t*)(&((ret_storage_35[0]).items)), 0, zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), pending_start_line, pending_start_column));
+                                                                                    const char ** value_684 = &(fn->assembly_text);
+                                                                                    (*value_684) = (const char *)(assembly_text);
                                                                                     zir_f_157b8ce5776e0448_copy_text((uint8_t*)(&(fn->overload_name)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&((overload_name_storage_36[0]).items)));
                                                                                     if (conversion != 0) {
-                                                                                        uint8_t* value_689 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(&(buffers->args.items)));
-                                                                                        int32_t value_690 = 0;
-                                                                                        if (value_689[0] != 0) {
-                                                                                            int32_t value_691 = zir_f_157b8ce5776e0448_split_top_level((uint8_t*)(&(buffers->args.items)), (uint8_t*)(&(((buffers->parameters.items[0]).items)[0])), 1, (size_t)(sizeof(ParserArray4096_u8)));
-                                                                                            value_690 = value_691;
+                                                                                        uint8_t* value_685 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(&(buffers->args.items)));
+                                                                                        int32_t value_686 = 0;
+                                                                                        if (value_685[0] != 0) {
+                                                                                            int32_t value_687 = zir_f_157b8ce5776e0448_split_top_level((uint8_t*)(&(buffers->args.items)), (uint8_t*)(&(((buffers->parameters.items[0]).items)[0])), 1, (size_t)(sizeof(ParserArray4096_u8)));
+                                                                                            value_686 = value_687;
                                                                                         } else {
-                                                                                            value_690 = 0;
+                                                                                            value_686 = 0;
                                                                                         }
-                                                                                        int32_t count = value_690;
-                                                                                        bool value_692 = count != 1;
-                                                                                        bool value_693 = value_692;
-                                                                                        if (!value_693) {
-                                                                                            uint8_t* value_694 = zir_f_157b8ce5776e0448_strchr((uint8_t*)(&(buffers->args.items)), 36);
-                                                                                            value_693 = (value_694 != (uint8_t*)(((void *)0)));
+                                                                                        int32_t count = value_686;
+                                                                                        bool value_688 = count != 1;
+                                                                                        bool value_689 = value_688;
+                                                                                        if (!value_689) {
+                                                                                            uint8_t* value_690 = zir_f_157b8ce5776e0448_strchr((uint8_t*)(&(buffers->args.items)), 36);
+                                                                                            value_689 = (value_690 != (uint8_t*)(((void *)0)));
                                                                                         }
-                                                                                        bool value_695 = value_693;
-                                                                                        if (value_695 || zir_f_157b8ce5776e0448_strcmp((uint8_t*)(&((ret_storage_35[0]).items)), compiler_parse_types_ParserCString(StringLiteral("void"))) == 0) {
-                                                                                            ZirSourceSpan value_696 = fn->span;
-                                                                                            zir_f_157b8ce5776e0448_die_at(value_696, compiler_parse_types_ParserCString(StringLiteral("#as requires one source parameter and a result")));
+                                                                                        bool value_691 = value_689;
+                                                                                        if (value_691 || zir_f_157b8ce5776e0448_strcmp((uint8_t*)(&((ret_storage_35[0]).items)), compiler_parse_types_ParserCString(StringLiteral("void"))) == 0) {
+                                                                                            ZirSourceSpan value_692 = fn->span;
+                                                                                            zir_f_157b8ce5776e0448_die_at(value_692, compiler_parse_types_ParserCString(StringLiteral("#as requires one source parameter and a result")));
                                                                                             abort();
                                                                                         }
-                                                                                        int32_t* value_697 = &(fn->is_conversion);
-                                                                                        (*value_697) = 1;
+                                                                                        int32_t* value_693 = &(fn->is_conversion);
+                                                                                        (*value_693) = 1;
                                                                                     }
-                                                                                    uint64_t* value_698 = &(fn->using_parameters);
-                                                                                    (*value_698) = using_parameters;
-                                                                                    int32_t* value_699 = &(fn->must_use);
-                                                                                    int32_t value_700 = zir_f_157b8ce5776e0448_function_must_use(t, (uint8_t*)(&((ret_storage_35[0]).items)), fn->span);
+                                                                                    uint64_t* value_694 = &(fn->using_parameters);
+                                                                                    (*value_694) = using_parameters;
+                                                                                    int32_t* value_695 = &(fn->must_use);
+                                                                                    int32_t value_696 = zir_f_157b8ce5776e0448_function_must_use(t, (uint8_t*)(&((ret_storage_35[0]).items)), fn->span);
+                                                                                    (*value_695) = value_696;
+                                                                                    int32_t* value_697 = &(fn->inlining);
+                                                                                    int32_t value_698 = zir_f_157b8ce5776e0448_function_inlining(t, fn->span);
+                                                                                    (*value_697) = value_698;
+                                                                                    int32_t* value_699 = &(fn->simd_target);
+                                                                                    int32_t value_700 = zir_f_157b8ce5776e0448_function_target(t, fn->span);
                                                                                     (*value_699) = value_700;
-                                                                                    int32_t* value_701 = &(fn->inlining);
-                                                                                    int32_t value_702 = zir_f_157b8ce5776e0448_function_inlining(t, fn->span);
-                                                                                    (*value_701) = value_702;
-                                                                                    int32_t* value_703 = &(fn->simd_target);
-                                                                                    int32_t value_704 = zir_f_157b8ce5776e0448_function_target(t, fn->span);
-                                                                                    (*value_703) = value_704;
                                                                                     zir_f_157b8ce5776e0448_parse_go_method(t, fn, fn->span);
-                                                                                    const char ** value_705 = &(fn->default_args_text);
-                                                                                    uint8_t* value_706 = zir_f_157b8ce5776e0448_KeepParameters((uint8_t*)(&(buffers->defaults.items)));
-                                                                                    (*value_705) = (const char *)(value_706);
-                                                                                    uint8_t* value_707 = zir_f_157b8ce5776e0448_strchr((uint8_t*)(&(buffers->args.items)), 36);
-                                                                                    if (value_707 != (uint8_t*)(((void *)0))) {
+                                                                                    const char ** value_701 = &(fn->default_args_text);
+                                                                                    uint8_t* value_702 = zir_f_157b8ce5776e0448_KeepParameters((uint8_t*)(&(buffers->defaults.items)));
+                                                                                    (*value_701) = (const char *)(value_702);
+                                                                                    uint8_t* value_703 = zir_f_157b8ce5776e0448_strchr((uint8_t*)(&(buffers->args.items)), 36);
+                                                                                    if (value_703 != (uint8_t*)(((void *)0))) {
                                                                                         int32_t count = zir_f_157b8ce5776e0448_split_top_level((uint8_t*)(&(buffers->args.items)), (uint8_t*)(&(((buffers->parameters.items[0]).items)[0])), 64, (size_t)(sizeof(ParserArray4096_u8)));
                                                                                         if (count < 1) {
-                                                                                            ZirSourceSpan value_708 = fn->span;
-                                                                                            zir_f_157b8ce5776e0448_die_at(value_708, compiler_parse_types_ParserCString(StringLiteral("invalid polymorphic procedure parameters")));
+                                                                                            ZirSourceSpan value_704 = fn->span;
+                                                                                            zir_f_157b8ce5776e0448_die_at(value_704, compiler_parse_types_ParserCString(StringLiteral("invalid polymorphic procedure parameters")));
                                                                                             abort();
                                                                                         }
                                                                                         {
@@ -4530,39 +4527,39 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                         break;
                                                                                                     }
                                                                                                     uint8_t* colon = zir_f_157b8ce5776e0448_strchr((uint8_t*)(&(((buffers->parameters.items[parameter]).items)[0])), 58);
-                                                                                                    uint8_t* value_709 = (void *)0;
+                                                                                                    uint8_t* value_705 = (void *)0;
                                                                                                     if (colon == (uint8_t*)(((void *)0))) {
-                                                                                                        value_709 = (void *)0;
+                                                                                                        value_705 = (void *)0;
                                                                                                     } else {
-                                                                                                        uint8_t* value_710 = zir_f_157b8ce5776e0448_trim((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t)))));
-                                                                                                        value_709 = value_710;
+                                                                                                        uint8_t* value_706 = zir_f_157b8ce5776e0448_trim((uint8_t*)(((size_t)(colon) + ((size_t)(1LL) * sizeof(uint8_t)))));
+                                                                                                        value_705 = value_706;
                                                                                                     }
-                                                                                                    uint8_t* type = value_709;
-                                                                                                    bool value_711 = type == (uint8_t*)(((void *)0));
-                                                                                                    bool value_712 = value_711;
-                                                                                                    if (!value_712) {
-                                                                                                        uint8_t* value_713 = zir_f_157b8ce5776e0448_strchr(type, 36);
-                                                                                                        value_712 = (value_713 == (uint8_t*)(((void *)0)));
+                                                                                                    uint8_t* type = value_705;
+                                                                                                    bool value_707 = type == (uint8_t*)(((void *)0));
+                                                                                                    bool value_708 = value_707;
+                                                                                                    if (!value_708) {
+                                                                                                        uint8_t* value_709 = zir_f_157b8ce5776e0448_strchr(type, 36);
+                                                                                                        value_708 = (value_709 == (uint8_t*)(((void *)0)));
                                                                                                     }
-                                                                                                    if (value_712) {
+                                                                                                    if (value_708) {
                                                                                                         compiler_parse_types_ParserPost0(&(parameter));
                                                                                                         goto zir_loop_continue_23;
                                                                                                     }
                                                                                                     int32_t prefix = zir_f_157b8ce5776e0448_TemplateBinderPrefix(type);
-                                                                                                    bool value_714 = prefix < 0;
-                                                                                                    bool value_715 = value_714;
-                                                                                                    if (value_715) {
-                                                                                                        uint8_t* value_716 = zir_f_157b8ce5776e0448_strchr(type, 40);
-                                                                                                        value_715 = (value_716 != (uint8_t*)(((void *)0)));
+                                                                                                    bool value_710 = prefix < 0;
+                                                                                                    bool value_711 = value_710;
+                                                                                                    if (value_711) {
+                                                                                                        uint8_t* value_712 = zir_f_157b8ce5776e0448_strchr(type, 40);
+                                                                                                        value_711 = (value_712 != (uint8_t*)(((void *)0)));
                                                                                                     }
-                                                                                                    bool value_717 = value_715;
-                                                                                                    bool value_718 = value_717;
-                                                                                                    if (value_718) {
-                                                                                                        uint8_t* value_719 = zir_f_157b8ce5776e0448_strchr(type, 36);
-                                                                                                        bool value_720 = value_719 > zir_f_157b8ce5776e0448_strchr(type, 40);
-                                                                                                        value_718 = value_720;
+                                                                                                    bool value_713 = value_711;
+                                                                                                    bool value_714 = value_713;
+                                                                                                    if (value_714) {
+                                                                                                        uint8_t* value_715 = zir_f_157b8ce5776e0448_strchr(type, 36);
+                                                                                                        bool value_716 = value_715 > zir_f_157b8ce5776e0448_strchr(type, 40);
+                                                                                                        value_714 = value_716;
                                                                                                     }
-                                                                                                    if (value_718) {
+                                                                                                    if (value_714) {
                                                                                                         {
                                                                                                             uint8_t* mark = zir_f_157b8ce5776e0448_strchr(type, 36);
                                                                                                             while (true) {
@@ -4572,42 +4569,42 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                                 }
                                                                                                                 size_t length = (size_t)(0LL);
                                                                                                                 while (true) {
-                                                                                                                    bool value_721 = zir_f_157b8ce5776e0448_isalnum((int32_t)(mark[((size_t)(1LL) + length)])) != 0;
-                                                                                                                    bool loop_119 = value_721 || (int32_t)((int8_t)(mark[((size_t)(1LL) + length)])) == 95;
+                                                                                                                    bool value_717 = zir_f_157b8ce5776e0448_isalnum((int32_t)(mark[((size_t)(1LL) + length)])) != 0;
+                                                                                                                    bool loop_119 = value_717 || (int32_t)((int8_t)(mark[((size_t)(1LL) + length)])) == 95;
                                                                                                                     if (!loop_119) {
                                                                                                                         break;
                                                                                                                     }
                                                                                                                     compiler_parse_types_ParserPost5(&(length));
                                                                                                                 }
                                                                                                                 if (length == (size_t)(0LL)) {
-                                                                                                                    ZirSourceSpan value_722 = fn->span;
-                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_722, compiler_parse_types_ParserCString(StringLiteral("invalid polymorphic type parameter")));
+                                                                                                                    ZirSourceSpan value_718 = fn->span;
+                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_718, compiler_parse_types_ParserCString(StringLiteral("invalid polymorphic type parameter")));
                                                                                                                     abort();
                                                                                                                 }
                                                                                                                 if (zir_f_157b8ce5776e0448_TemplateParameterIndex((uint8_t*)(&(fn->template_param)), (uint8_t*)(((size_t)(mark) + ((size_t)(1LL) * sizeof(uint8_t)))), length) >= 0) {
-                                                                                                                    ZirSourceSpan value_723 = fn->span;
-                                                                                                                    uint8_t* value_724 = compiler_parse_types_ParserCString(StringLiteral("$%.*s binds its type more than once"));
-                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_723, value_724, (int32_t)(length), (uint8_t*)(((size_t)(mark) + ((size_t)(1LL) * sizeof(uint8_t)))));
+                                                                                                                    ZirSourceSpan value_719 = fn->span;
+                                                                                                                    uint8_t* value_720 = compiler_parse_types_ParserCString(StringLiteral("$%.*s binds its type more than once"));
+                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_719, value_720, (int32_t)(length), (uint8_t*)(((size_t)(mark) + ((size_t)(1LL) * sizeof(uint8_t)))));
                                                                                                                     abort();
                                                                                                                 }
                                                                                                                 size_t used = zir_f_157b8ce5776e0448_strlen((uint8_t*)(&(fn->template_param)));
                                                                                                                 if ((used + length) + (size_t)(2LL) >= (size_t)(sizeof(ParserArray128_u8))) {
-                                                                                                                    ZirSourceSpan value_725 = fn->span;
-                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_725, compiler_parse_types_ParserCString(StringLiteral("too many polymorphic type parameters")));
+                                                                                                                    ZirSourceSpan value_721 = fn->span;
+                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_721, compiler_parse_types_ParserCString(StringLiteral("too many polymorphic type parameters")));
                                                                                                                     abort();
                                                                                                                 }
-                                                                                                                uint8_t* value_726 = (uint8_t*)(((size_t)((uint8_t*)(&(fn->template_param))) + ((size_t)(used) * sizeof(uint8_t))));
-                                                                                                                size_t value_727 = (size_t)(sizeof(ParserArray128_u8)) - used;
-                                                                                                                uint8_t* value_728 = compiler_parse_types_ParserCString(StringLiteral("%s%.*s"));
-                                                                                                                uint8_t* value_729 = (void *)0;
+                                                                                                                uint8_t* value_722 = (uint8_t*)(((size_t)((uint8_t*)(&(fn->template_param))) + ((size_t)(used) * sizeof(uint8_t))));
+                                                                                                                size_t value_723 = (size_t)(sizeof(ParserArray128_u8)) - used;
+                                                                                                                uint8_t* value_724 = compiler_parse_types_ParserCString(StringLiteral("%s%.*s"));
+                                                                                                                uint8_t* value_725 = (void *)0;
                                                                                                                 if (used != 0) {
-                                                                                                                    uint8_t* value_730 = compiler_parse_types_ParserCString(StringLiteral(","));
-                                                                                                                    value_729 = value_730;
+                                                                                                                    uint8_t* value_726 = compiler_parse_types_ParserCString(StringLiteral(","));
+                                                                                                                    value_725 = value_726;
                                                                                                                 } else {
-                                                                                                                    uint8_t* value_731 = compiler_parse_types_ParserCString(StringLiteral(""));
-                                                                                                                    value_729 = value_731;
+                                                                                                                    uint8_t* value_727 = compiler_parse_types_ParserCString(StringLiteral(""));
+                                                                                                                    value_725 = value_727;
                                                                                                                 }
-                                                                                                                zir_f_157b8ce5776e0448_snprintf(value_726, value_727, value_728, value_729, (int32_t)(length), (uint8_t*)(((size_t)(mark) + ((size_t)(1LL) * sizeof(uint8_t)))));
+                                                                                                                zir_f_157b8ce5776e0448_snprintf(value_722, value_723, value_724, value_725, (int32_t)(length), (uint8_t*)(((size_t)(mark) + ((size_t)(1LL) * sizeof(uint8_t)))));
                                                                                                                 mark = zir_f_157b8ce5776e0448_strchr((uint8_t*)(((size_t)(mark) + ((size_t)(1LL) * sizeof(uint8_t)))), 36);
                                                                                                             }
                                                                                                         }
@@ -4615,44 +4612,44 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                         goto zir_loop_continue_23;
                                                                                                     }
                                                                                                     if (prefix < 0) {
-                                                                                                        ZirSourceSpan value_732 = fn->span;
-                                                                                                        uint8_t* value_733 = compiler_parse_types_ParserCString(StringLiteral("polymorphic parameters are written $Type, []$Type, [N]$Type, *$Type, or Record($Type)"));
-                                                                                                        zir_f_157b8ce5776e0448_die_at(value_732, value_733);
+                                                                                                        ZirSourceSpan value_728 = fn->span;
+                                                                                                        uint8_t* value_729 = compiler_parse_types_ParserCString(StringLiteral("polymorphic parameters are written $Type, []$Type, [N]$Type, *$Type, or Record($Type)"));
+                                                                                                        zir_f_157b8ce5776e0448_die_at(value_728, value_729);
                                                                                                         abort();
                                                                                                     }
                                                                                                     type = (uint8_t*)(((size_t)(type) + ((size_t)(prefix) * sizeof(uint8_t))));
-                                                                                                    bool value_734 = zir_f_157b8ce5776e0448_is_identifier_text((uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t))))) != 0;
-                                                                                                    if (!value_734) {
-                                                                                                        ZirSourceSpan value_735 = fn->span;
-                                                                                                        zir_f_157b8ce5776e0448_die_at(value_735, compiler_parse_types_ParserCString(StringLiteral("invalid polymorphic type parameter")));
+                                                                                                    bool value_730 = zir_f_157b8ce5776e0448_is_identifier_text((uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t))))) != 0;
+                                                                                                    if (!value_730) {
+                                                                                                        ZirSourceSpan value_731 = fn->span;
+                                                                                                        zir_f_157b8ce5776e0448_die_at(value_731, compiler_parse_types_ParserCString(StringLiteral("invalid polymorphic type parameter")));
                                                                                                         abort();
                                                                                                     }
-                                                                                                    uint8_t* value_736 = (uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t))));
-                                                                                                    if (zir_f_157b8ce5776e0448_TemplateParameterIndex((uint8_t*)(&(fn->template_param)), value_736, zir_f_157b8ce5776e0448_strlen((uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t)))))) >= 0) {
-                                                                                                        ZirSourceSpan value_737 = fn->span;
-                                                                                                        uint8_t* value_738 = compiler_parse_types_ParserCString(StringLiteral("$%s binds its type more than once"));
-                                                                                                        zir_f_157b8ce5776e0448_die_at(value_737, value_738, (uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t)))));
+                                                                                                    uint8_t* value_732 = (uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t))));
+                                                                                                    if (zir_f_157b8ce5776e0448_TemplateParameterIndex((uint8_t*)(&(fn->template_param)), value_732, zir_f_157b8ce5776e0448_strlen((uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t)))))) >= 0) {
+                                                                                                        ZirSourceSpan value_733 = fn->span;
+                                                                                                        uint8_t* value_734 = compiler_parse_types_ParserCString(StringLiteral("$%s binds its type more than once"));
+                                                                                                        zir_f_157b8ce5776e0448_die_at(value_733, value_734, (uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t)))));
                                                                                                         abort();
                                                                                                     }
                                                                                                     size_t used = zir_f_157b8ce5776e0448_strlen((uint8_t*)(&(fn->template_param)));
-                                                                                                    size_t value_739 = used;
-                                                                                                    if ((value_739 + zir_f_157b8ce5776e0448_strlen((uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t)))))) + (size_t)(2LL) >= (size_t)(sizeof(ParserArray128_u8))) {
-                                                                                                        ZirSourceSpan value_740 = fn->span;
-                                                                                                        zir_f_157b8ce5776e0448_die_at(value_740, compiler_parse_types_ParserCString(StringLiteral("too many polymorphic type parameters")));
+                                                                                                    size_t value_735 = used;
+                                                                                                    if ((value_735 + zir_f_157b8ce5776e0448_strlen((uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t)))))) + (size_t)(2LL) >= (size_t)(sizeof(ParserArray128_u8))) {
+                                                                                                        ZirSourceSpan value_736 = fn->span;
+                                                                                                        zir_f_157b8ce5776e0448_die_at(value_736, compiler_parse_types_ParserCString(StringLiteral("too many polymorphic type parameters")));
                                                                                                         abort();
                                                                                                     }
-                                                                                                    uint8_t* value_741 = (uint8_t*)(((size_t)((uint8_t*)(&(fn->template_param))) + ((size_t)(used) * sizeof(uint8_t))));
-                                                                                                    size_t value_742 = (size_t)(sizeof(ParserArray128_u8)) - used;
-                                                                                                    uint8_t* value_743 = compiler_parse_types_ParserCString(StringLiteral("%s%s"));
-                                                                                                    uint8_t* value_744 = (void *)0;
+                                                                                                    uint8_t* value_737 = (uint8_t*)(((size_t)((uint8_t*)(&(fn->template_param))) + ((size_t)(used) * sizeof(uint8_t))));
+                                                                                                    size_t value_738 = (size_t)(sizeof(ParserArray128_u8)) - used;
+                                                                                                    uint8_t* value_739 = compiler_parse_types_ParserCString(StringLiteral("%s%s"));
+                                                                                                    uint8_t* value_740 = (void *)0;
                                                                                                     if (used != 0) {
-                                                                                                        uint8_t* value_745 = compiler_parse_types_ParserCString(StringLiteral(","));
-                                                                                                        value_744 = value_745;
+                                                                                                        uint8_t* value_741 = compiler_parse_types_ParserCString(StringLiteral(","));
+                                                                                                        value_740 = value_741;
                                                                                                     } else {
-                                                                                                        uint8_t* value_746 = compiler_parse_types_ParserCString(StringLiteral(""));
-                                                                                                        value_744 = value_746;
+                                                                                                        uint8_t* value_742 = compiler_parse_types_ParserCString(StringLiteral(""));
+                                                                                                        value_740 = value_742;
                                                                                                     }
-                                                                                                    zir_f_157b8ce5776e0448_snprintf(value_741, value_742, value_743, value_744, (uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t)))));
+                                                                                                    zir_f_157b8ce5776e0448_snprintf(value_737, value_738, value_739, value_740, (uint8_t*)(((size_t)(type) + ((size_t)(1LL) * sizeof(uint8_t)))));
                                                                                                     compiler_parse_types_ParserPost0(&(parameter));
                                                                                                 }
                                                                                                 zir_loop_continue_23: ;
@@ -4660,38 +4657,38 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                             zir_loop_break_23: ;
                                                                                         }
                                                                                         if ((int32_t)((int8_t)((fn->template_param)[0])) == 0) {
-                                                                                            ZirSourceSpan value_747 = fn->span;
-                                                                                            zir_f_157b8ce5776e0448_die_at(value_747, compiler_parse_types_ParserCString(StringLiteral("invalid polymorphic procedure parameter")));
+                                                                                            ZirSourceSpan value_743 = fn->span;
+                                                                                            zir_f_157b8ce5776e0448_die_at(value_743, compiler_parse_types_ParserCString(StringLiteral("invalid polymorphic procedure parameter")));
                                                                                             abort();
                                                                                         }
                                                                                         if (program_export != 0) {
-                                                                                            ZirSourceSpan value_748 = fn->span;
-                                                                                            zir_f_157b8ce5776e0448_die_at(value_748, compiler_parse_types_ParserCString(StringLiteral("#program_export requires a concrete procedure")));
+                                                                                            ZirSourceSpan value_744 = fn->span;
+                                                                                            zir_f_157b8ce5776e0448_die_at(value_744, compiler_parse_types_ParserCString(StringLiteral("#program_export requires a concrete procedure")));
                                                                                             abort();
                                                                                         }
-                                                                                        int32_t* value_749 = &(fn->is_template);
-                                                                                        (*value_749) = 1;
+                                                                                        int32_t* value_745 = &(fn->is_template);
+                                                                                        (*value_745) = 1;
                                                                                     }
                                                                                     results_count = zir_f_157b8ce5776e0448_declare_multiple_results(module, (uint8_t*)(&((name_storage_34[0]).items)), (uint8_t*)(&((ret_storage_35[0]).items)), (size_t)(sizeof(ParserArray128_u8)), scope_public, scope_file, (uint8_t*)(&(fn->template_param)), fn->span);
                                                                                     zir_f_157b8ce5776e0448_copy_text((uint8_t*)(&(fn->return_type)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&((ret_storage_35[0]).items)));
-                                                                                    uint8_t* value_750 = (void *)0;
+                                                                                    uint8_t* value_746 = (void *)0;
                                                                                     if (results_count != 0 && !(fn->is_template != 0)) {
-                                                                                        value_750 = (uint8_t*)(&((ret_storage_35[0]).items));
+                                                                                        value_746 = (uint8_t*)(&((ret_storage_35[0]).items));
                                                                                     } else {
-                                                                                        uint8_t* value_751 = compiler_parse_types_ParserCString(StringLiteral(""));
-                                                                                        value_750 = value_751;
+                                                                                        uint8_t* value_747 = compiler_parse_types_ParserCString(StringLiteral(""));
+                                                                                        value_746 = value_747;
                                                                                     }
-                                                                                    zir_f_157b8ce5776e0448_copy_text((uint8_t*)(&(buffers->results_record.items)), (size_t)(sizeof(ParserArray128_u8)), value_750);
-                                                                                    int32_t* value_752 = &(fn->exported);
-                                                                                    (*value_752) = program_export;
+                                                                                    zir_f_157b8ce5776e0448_copy_text((uint8_t*)(&(buffers->results_record.items)), (size_t)(sizeof(ParserArray128_u8)), value_746);
+                                                                                    int32_t* value_748 = &(fn->exported);
+                                                                                    (*value_748) = program_export;
                                                                                     zir_f_157b8ce5776e0448_copy_text((uint8_t*)(&(fn->export_symbol)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&(tables->program_export_symbol.items)));
                                                                                     program_export = 0;
-                                                                                    uint8_t* value_753 = &(tables->program_export_symbol.items[0]);
-                                                                                    (*value_753) = 0;
-                                                                                    int32_t* value_754 = &(fn->is_public);
-                                                                                    (*value_754) = scope_public;
-                                                                                    int32_t* value_755 = &(fn->is_file_private);
-                                                                                    (*value_755) = scope_file;
+                                                                                    uint8_t* value_749 = &(tables->program_export_symbol.items[0]);
+                                                                                    (*value_749) = 0;
+                                                                                    int32_t* value_750 = &(fn->is_public);
+                                                                                    (*value_750) = scope_public;
+                                                                                    int32_t* value_751 = &(fn->is_file_private);
+                                                                                    (*value_751) = scope_file;
                                                                                     zir_f_157b8ce5776e0448_SymbolLookupsChanged();
                                                                                     mode = 2;
                                                                                     depth = 1;
@@ -4700,371 +4697,359 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                 zir_f_157b8ce5776e0448_CompilerFree((void*)(ret_storage_35));
                                                                                 zir_f_157b8ce5776e0448_CompilerFree((void*)(name_storage_34));
                                                                             } else {
-                                                                                bool value_756 = (uint32_t)(mode) == 0;
-                                                                                bool value_757 = value_756;
-                                                                                if (value_757) {
-                                                                                    uint8_t* value_758 = t;
-                                                                                    bool value_759 = zir_f_157b8ce5776e0448_contains_source_directive(value_758, compiler_parse_types_ParserCString(StringLiteral("#global"))) != 0;
-                                                                                    value_757 = value_759;
+                                                                                bool value_752 = (uint32_t)(mode) == 0;
+                                                                                bool value_753 = value_752;
+                                                                                if (value_753) {
+                                                                                    uint8_t* value_754 = t;
+                                                                                    bool value_755 = zir_f_157b8ce5776e0448_contains_source_directive(value_754, compiler_parse_types_ParserCString(StringLiteral("#global"))) != 0;
+                                                                                    value_753 = value_755;
                                                                                 }
-                                                                                if (value_757) {
-                                                                                    ZirSourceSpan value_760 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                    zir_f_157b8ce5776e0448_die_at(value_760, compiler_parse_types_ParserCString(StringLiteral("#global is not Jai syntax; declare a variable with name: Type")));
+                                                                                if (value_753) {
+                                                                                    ZirSourceSpan value_756 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                    zir_f_157b8ce5776e0448_die_at(value_756, compiler_parse_types_ParserCString(StringLiteral("#global is not Jai syntax; declare a variable with name: Type")));
                                                                                     abort();
                                                                                 } else {
-                                                                                    bool value_761 = (uint32_t)(mode) == 0;
-                                                                                    bool value_762 = value_761;
-                                                                                    if (value_762) {
-                                                                                        bool value_763 = zir_f_157b8ce5776e0448_isalpha((int32_t)(t[0])) != 0;
-                                                                                        value_762 = (value_763 || (int32_t)((int8_t)(t[0])) == 95);
+                                                                                    bool value_757 = (uint32_t)(mode) == 0;
+                                                                                    bool value_758 = value_757;
+                                                                                    if (value_758) {
+                                                                                        bool value_759 = zir_f_157b8ce5776e0448_isalpha((int32_t)(t[0])) != 0;
+                                                                                        value_758 = (value_759 || (int32_t)((int8_t)(t[0])) == 95);
                                                                                     }
-                                                                                    bool value_764 = value_762;
-                                                                                    bool value_765 = value_764;
-                                                                                    if (value_765) {
-                                                                                        uint8_t* value_766 = zir_f_157b8ce5776e0448_strchr(t, 58);
-                                                                                        value_765 = (value_766 != (uint8_t*)(((void *)0)));
+                                                                                    bool value_760 = value_758;
+                                                                                    bool value_761 = value_760;
+                                                                                    if (value_761) {
+                                                                                        uint8_t* value_762 = zir_f_157b8ce5776e0448_strchr(t, 58);
+                                                                                        value_761 = (value_762 != (uint8_t*)(((void *)0)));
                                                                                     }
-                                                                                    bool value_767 = value_765;
-                                                                                    bool value_768 = value_767;
-                                                                                    if (value_768) {
-                                                                                        uint8_t* value_769 = t;
-                                                                                        uint8_t* value_770 = zir_f_157b8ce5776e0448_strstr(value_769, compiler_parse_types_ParserCString(StringLiteral("::")));
-                                                                                        value_768 = (value_770 == (uint8_t*)(((void *)0)));
+                                                                                    bool value_763 = value_761;
+                                                                                    bool value_764 = value_763;
+                                                                                    if (value_764) {
+                                                                                        uint8_t* value_765 = compiler_parse_source_code_colons(t);
+                                                                                        value_764 = (value_765 == (uint8_t*)(((void *)0)));
                                                                                     }
-                                                                                    if (value_768) {
-                                                                                        ZirModule* value_771 = module;
-                                                                                        uint8_t* value_772 = t;
-                                                                                        ZirSourceSpan value_773 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                        zir_f_157b8ce5776e0448_parse_file_global(value_771, value_772, value_773, scope_public, scope_file, (void *)0, (size_t)(0LL));
+                                                                                    if (value_764) {
+                                                                                        ZirModule* value_766 = module;
+                                                                                        uint8_t* value_767 = t;
+                                                                                        ZirSourceSpan value_768 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                        zir_f_157b8ce5776e0448_parse_file_global(value_766, value_767, value_768, scope_public, scope_file, (void *)0, (size_t)(0LL));
                                                                                     } else {
-                                                                                        bool value_774 = (uint32_t)(mode) == 0;
-                                                                                        bool value_775 = value_774;
-                                                                                        if (value_775) {
-                                                                                            uint8_t* value_776 = t;
-                                                                                            uint8_t* value_777 = zir_f_157b8ce5776e0448_strstr(value_776, compiler_parse_types_ParserCString(StringLiteral("::")));
-                                                                                            value_775 = (value_777 != (uint8_t*)(((void *)0)));
+                                                                                        bool value_769 = (uint32_t)(mode) == 0;
+                                                                                        bool value_770 = value_769;
+                                                                                        if (value_770) {
+                                                                                            uint8_t* value_771 = compiler_parse_source_code_colons(t);
+                                                                                            value_770 = (value_771 != (uint8_t*)(((void *)0)));
                                                                                         }
-                                                                                        bool value_778 = value_775;
-                                                                                        bool value_779 = value_778;
-                                                                                        if (value_779) {
-                                                                                            uint8_t* value_780 = t;
-                                                                                            uint8_t* value_781 = zir_f_157b8ce5776e0448_strstr(value_780, compiler_parse_types_ParserCString(StringLiteral("#type")));
-                                                                                            value_779 = (value_781 != (uint8_t*)(((void *)0)));
+                                                                                        bool value_772 = value_770;
+                                                                                        bool value_773 = value_772;
+                                                                                        if (value_773) {
+                                                                                            uint8_t* value_774 = t;
+                                                                                            uint8_t* value_775 = zir_f_157b8ce5776e0448_strstr(value_774, compiler_parse_types_ParserCString(StringLiteral("#type")));
+                                                                                            value_773 = (value_775 != (uint8_t*)(((void *)0)));
                                                                                         }
-                                                                                        if (value_779) {
-                                                                                            ZirSourceSpan value_782 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                            uint8_t* value_783 = compiler_parse_types_ParserCString(StringLiteral("C declarator #type is not Jai syntax; use Name :: #type (arguments) -> Result;"));
-                                                                                            zir_f_157b8ce5776e0448_die_at(value_782, value_783);
+                                                                                        if (value_773) {
+                                                                                            ZirSourceSpan value_776 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                            uint8_t* value_777 = compiler_parse_types_ParserCString(StringLiteral("C declarator #type is not Jai syntax; use Name :: #type (arguments) -> Result;"));
+                                                                                            zir_f_157b8ce5776e0448_die_at(value_776, value_777);
                                                                                             abort();
                                                                                         } else {
-                                                                                            bool value_784 = (uint32_t)(mode) == 0;
-                                                                                            bool value_785 = value_784;
-                                                                                            if (value_785) {
-                                                                                                uint8_t* value_786 = t;
-                                                                                                uint8_t* value_787 = zir_f_157b8ce5776e0448_strstr(value_786, compiler_parse_types_ParserCString(StringLiteral("::")));
-                                                                                                value_785 = (value_787 != (uint8_t*)(((void *)0)));
+                                                                                            bool value_778 = (uint32_t)(mode) == 0;
+                                                                                            bool value_779 = value_778;
+                                                                                            if (value_779) {
+                                                                                                uint8_t* value_780 = compiler_parse_source_code_colons(t);
+                                                                                                value_779 = (value_780 != (uint8_t*)(((void *)0)));
                                                                                             }
-                                                                                            bool value_788 = value_785;
-                                                                                            bool value_789 = value_788;
-                                                                                            if (value_789) {
-                                                                                                uint8_t* value_790 = t;
-                                                                                                uint8_t* value_791 = zir_f_157b8ce5776e0448_strstr(value_790, compiler_parse_types_ParserCString(StringLiteral("::")));
-                                                                                                uint8_t* value_792 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_791) + ((size_t)(2LL) * sizeof(uint8_t)))));
-                                                                                                bool value_793 = zir_f_157b8ce5776e0448_starts_word(value_792, compiler_parse_types_ParserCString(StringLiteral("specialize"))) != 0;
-                                                                                                value_789 = value_793;
+                                                                                            bool value_781 = value_779;
+                                                                                            bool value_782 = value_781;
+                                                                                            if (value_782) {
+                                                                                                uint8_t* value_783 = compiler_parse_source_code_colons(t);
+                                                                                                uint8_t* value_784 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_783) + ((size_t)(2LL) * sizeof(uint8_t)))));
+                                                                                                bool value_785 = zir_f_157b8ce5776e0448_starts_word(value_784, compiler_parse_types_ParserCString(StringLiteral("specialize"))) != 0;
+                                                                                                value_782 = value_785;
                                                                                             }
-                                                                                            if (value_789) {
-                                                                                                ZirSourceSpan value_794 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                zir_f_157b8ce5776e0448_die_at(value_794, compiler_parse_types_ParserCString(StringLiteral("use Jai-style type application: Name :: Generic(Type)")));
+                                                                                            if (value_782) {
+                                                                                                ZirSourceSpan value_786 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                zir_f_157b8ce5776e0448_die_at(value_786, compiler_parse_types_ParserCString(StringLiteral("use Jai-style type application: Name :: Generic(Type)")));
                                                                                                 abort();
                                                                                             } else {
-                                                                                                bool value_795 = (uint32_t)(mode) == 0;
+                                                                                                bool value_787 = (uint32_t)(mode) == 0;
+                                                                                                bool value_788 = value_787;
+                                                                                                if (value_788) {
+                                                                                                    uint8_t* value_789 = compiler_parse_source_code_colons(t);
+                                                                                                    value_788 = (value_789 != (uint8_t*)(((void *)0)));
+                                                                                                }
+                                                                                                bool value_790 = value_788;
+                                                                                                bool value_791 = value_790;
+                                                                                                if (value_791) {
+                                                                                                    uint8_t* value_792 = compiler_parse_source_code_colons(t);
+                                                                                                    uint8_t* value_793 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_792) + ((size_t)(2LL) * sizeof(uint8_t)))));
+                                                                                                    bool value_794 = zir_f_157b8ce5776e0448_starts_word(value_793, compiler_parse_types_ParserCString(StringLiteral("struct"))) != 0;
+                                                                                                    value_791 = !value_794;
+                                                                                                }
+                                                                                                bool value_795 = value_791;
                                                                                                 bool value_796 = value_795;
                                                                                                 if (value_796) {
-                                                                                                    uint8_t* value_797 = t;
-                                                                                                    uint8_t* value_798 = zir_f_157b8ce5776e0448_strstr(value_797, compiler_parse_types_ParserCString(StringLiteral("::")));
-                                                                                                    value_796 = (value_798 != (uint8_t*)(((void *)0)));
+                                                                                                    uint8_t* value_797 = compiler_parse_source_code_colons(t);
+                                                                                                    uint8_t* value_798 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_797) + ((size_t)(2LL) * sizeof(uint8_t)))));
+                                                                                                    bool value_799 = zir_f_157b8ce5776e0448_starts_word(value_798, compiler_parse_types_ParserCString(StringLiteral("union"))) != 0;
+                                                                                                    value_796 = !value_799;
                                                                                                 }
-                                                                                                bool value_799 = value_796;
-                                                                                                bool value_800 = value_799;
-                                                                                                if (value_800) {
-                                                                                                    uint8_t* value_801 = t;
-                                                                                                    uint8_t* value_802 = zir_f_157b8ce5776e0448_strstr(value_801, compiler_parse_types_ParserCString(StringLiteral("::")));
+                                                                                                bool value_800 = value_796;
+                                                                                                bool value_801 = value_800;
+                                                                                                if (value_801) {
+                                                                                                    uint8_t* value_802 = compiler_parse_source_code_colons(t);
                                                                                                     uint8_t* value_803 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_802) + ((size_t)(2LL) * sizeof(uint8_t)))));
-                                                                                                    bool value_804 = zir_f_157b8ce5776e0448_starts_word(value_803, compiler_parse_types_ParserCString(StringLiteral("struct"))) != 0;
-                                                                                                    value_800 = !value_804;
+                                                                                                    bool value_804 = zir_f_157b8ce5776e0448_starts_word(value_803, compiler_parse_types_ParserCString(StringLiteral("enum"))) != 0;
+                                                                                                    value_801 = !value_804;
                                                                                                 }
-                                                                                                bool value_805 = value_800;
+                                                                                                bool value_805 = value_801;
                                                                                                 bool value_806 = value_805;
                                                                                                 if (value_806) {
-                                                                                                    uint8_t* value_807 = t;
-                                                                                                    uint8_t* value_808 = zir_f_157b8ce5776e0448_strstr(value_807, compiler_parse_types_ParserCString(StringLiteral("::")));
-                                                                                                    uint8_t* value_809 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_808) + ((size_t)(2LL) * sizeof(uint8_t)))));
-                                                                                                    bool value_810 = zir_f_157b8ce5776e0448_starts_word(value_809, compiler_parse_types_ParserCString(StringLiteral("union"))) != 0;
-                                                                                                    value_806 = !value_810;
+                                                                                                    uint8_t* value_807 = compiler_parse_source_code_colons(t);
+                                                                                                    uint8_t* value_808 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_807) + ((size_t)(2LL) * sizeof(uint8_t)))));
+                                                                                                    bool value_809 = zir_f_157b8ce5776e0448_starts_word(value_808, compiler_parse_types_ParserCString(StringLiteral("enum_flags"))) != 0;
+                                                                                                    value_806 = !value_809;
                                                                                                 }
-                                                                                                bool value_811 = value_806;
-                                                                                                bool value_812 = value_811;
-                                                                                                if (value_812) {
-                                                                                                    uint8_t* value_813 = t;
-                                                                                                    uint8_t* value_814 = zir_f_157b8ce5776e0448_strstr(value_813, compiler_parse_types_ParserCString(StringLiteral("::")));
-                                                                                                    uint8_t* value_815 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_814) + ((size_t)(2LL) * sizeof(uint8_t)))));
-                                                                                                    bool value_816 = zir_f_157b8ce5776e0448_starts_word(value_815, compiler_parse_types_ParserCString(StringLiteral("enum"))) != 0;
-                                                                                                    value_812 = !value_816;
+                                                                                                bool value_810 = value_806;
+                                                                                                bool value_811 = value_810;
+                                                                                                if (value_811) {
+                                                                                                    uint8_t* value_812 = compiler_parse_source_code_colons(t);
+                                                                                                    uint8_t* value_813 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_812) + ((size_t)(2LL) * sizeof(uint8_t)))));
+                                                                                                    bool value_814 = zir_f_157b8ce5776e0448_starts_word(value_813, compiler_parse_types_ParserCString(StringLiteral("variant"))) != 0;
+                                                                                                    value_811 = !value_814;
                                                                                                 }
-                                                                                                bool value_817 = value_812;
-                                                                                                bool value_818 = value_817;
-                                                                                                if (value_818) {
-                                                                                                    uint8_t* value_819 = t;
-                                                                                                    uint8_t* value_820 = zir_f_157b8ce5776e0448_strstr(value_819, compiler_parse_types_ParserCString(StringLiteral("::")));
-                                                                                                    uint8_t* value_821 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_820) + ((size_t)(2LL) * sizeof(uint8_t)))));
-                                                                                                    bool value_822 = zir_f_157b8ce5776e0448_starts_word(value_821, compiler_parse_types_ParserCString(StringLiteral("enum_flags"))) != 0;
-                                                                                                    value_818 = !value_822;
+                                                                                                bool value_815 = value_811;
+                                                                                                bool value_816 = value_815;
+                                                                                                if (value_816) {
+                                                                                                    bool value_817 = zir_f_157b8ce5776e0448_looks_like_function_header(t) != 0;
+                                                                                                    value_816 = !value_817;
                                                                                                 }
-                                                                                                bool value_823 = value_818;
-                                                                                                bool value_824 = value_823;
-                                                                                                if (value_824) {
-                                                                                                    uint8_t* value_825 = t;
-                                                                                                    uint8_t* value_826 = zir_f_157b8ce5776e0448_strstr(value_825, compiler_parse_types_ParserCString(StringLiteral("::")));
-                                                                                                    uint8_t* value_827 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_826) + ((size_t)(2LL) * sizeof(uint8_t)))));
-                                                                                                    bool value_828 = zir_f_157b8ce5776e0448_starts_word(value_827, compiler_parse_types_ParserCString(StringLiteral("variant"))) != 0;
-                                                                                                    value_824 = !value_828;
-                                                                                                }
-                                                                                                bool value_829 = value_824;
-                                                                                                bool value_830 = value_829;
-                                                                                                if (value_830) {
-                                                                                                    bool value_831 = zir_f_157b8ce5776e0448_looks_like_function_header(t) != 0;
-                                                                                                    value_830 = !value_831;
-                                                                                                }
-                                                                                                if (value_830) {
+                                                                                                if (value_816) {
                                                                                                     compiler_parse_source_parse_file_constant(t, path, line_no, module, buffers, &(tables->consts), &(tables->future_constants), &(tables->compile_context), scope_public, scope_file);
                                                                                                 } else {
-                                                                                                    bool value_832 = (uint32_t)(mode) == 0;
-                                                                                                    bool value_833 = value_832;
-                                                                                                    if (value_833) {
-                                                                                                        uint8_t* value_834 = t;
-                                                                                                        uint8_t* value_835 = zir_f_157b8ce5776e0448_strstr(value_834, compiler_parse_types_ParserCString(StringLiteral("::")));
-                                                                                                        value_833 = (value_835 != (uint8_t*)(((void *)0)));
+                                                                                                    bool value_818 = (uint32_t)(mode) == 0;
+                                                                                                    bool value_819 = value_818;
+                                                                                                    if (value_819) {
+                                                                                                        uint8_t* value_820 = compiler_parse_source_code_colons(t);
+                                                                                                        value_819 = (value_820 != (uint8_t*)(((void *)0)));
                                                                                                     }
-                                                                                                    if (value_833) {
-                                                                                                        uint8_t* value_836 = t;
-                                                                                                        uint8_t* colons = zir_f_157b8ce5776e0448_strstr(value_836, compiler_parse_types_ParserCString(StringLiteral("::")));
+                                                                                                    if (value_819) {
+                                                                                                        uint8_t* colons = compiler_parse_source_code_colons(t);
                                                                                                         uint8_t* after = (uint8_t*)(((size_t)(colons) + ((size_t)(2LL) * sizeof(uint8_t))));
-                                                                                                        void* value_837 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
-                                                                                                        ParserArray128_u8* tname_storage_40 = (ParserArray128_u8*)(value_837);
+                                                                                                        void* value_821 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
+                                                                                                        ParserArray128_u8* tname_storage_40 = (ParserArray128_u8*)(value_821);
                                                                                                         zir_f_157b8ce5776e0448_memset((void*)(tname_storage_40), 0, sizeof(ParserArray128_u8));
                                                                                                         size_t tn = (size_t)(0LL);
                                                                                                         after = zir_f_157b8ce5776e0448_skip_ws(after);
-                                                                                                        uint8_t* value_838 = after;
-                                                                                                        if (zir_f_157b8ce5776e0448_starts_word(value_838, compiler_parse_types_ParserCString(StringLiteral("variant"))) != 0) {
-                                                                                                            ZirSourceSpan value_839 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                            zir_f_157b8ce5776e0448_die_at(value_839, compiler_parse_types_ParserCString(StringLiteral("variant declarations are not Jai syntax; use a struct or union")));
+                                                                                                        uint8_t* value_822 = after;
+                                                                                                        if (zir_f_157b8ce5776e0448_starts_word(value_822, compiler_parse_types_ParserCString(StringLiteral("variant"))) != 0) {
+                                                                                                            ZirSourceSpan value_823 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                            zir_f_157b8ce5776e0448_die_at(value_823, compiler_parse_types_ParserCString(StringLiteral("variant declarations are not Jai syntax; use a struct or union")));
                                                                                                             abort();
                                                                                                         }
-                                                                                                        uint8_t* value_840 = after;
-                                                                                                        bool value_841 = zir_f_157b8ce5776e0448_strncmp(value_840, compiler_parse_types_ParserCString(StringLiteral("enum_flags")), (size_t)(10LL)) == 0;
-                                                                                                        bool value_842 = value_841;
-                                                                                                        if (value_842) {
-                                                                                                            bool value_843 = (int32_t)((int8_t)(after[10])) == 0;
-                                                                                                            bool value_844 = value_843 || zir_f_157b8ce5776e0448_isspace((int32_t)(after[10])) != 0;
-                                                                                                            value_842 = (value_844 || (int32_t)((int8_t)(after[10])) == 123);
+                                                                                                        uint8_t* value_824 = after;
+                                                                                                        bool value_825 = zir_f_157b8ce5776e0448_strncmp(value_824, compiler_parse_types_ParserCString(StringLiteral("enum_flags")), (size_t)(10LL)) == 0;
+                                                                                                        bool value_826 = value_825;
+                                                                                                        if (value_826) {
+                                                                                                            bool value_827 = (int32_t)((int8_t)(after[10])) == 0;
+                                                                                                            bool value_828 = value_827 || zir_f_157b8ce5776e0448_isspace((int32_t)(after[10])) != 0;
+                                                                                                            value_826 = (value_828 || (int32_t)((int8_t)(after[10])) == 123);
                                                                                                         }
-                                                                                                        int32_t value_845 = 0;
-                                                                                                        if (value_842) {
-                                                                                                            value_845 = 1;
+                                                                                                        int32_t value_829 = 0;
+                                                                                                        if (value_826) {
+                                                                                                            value_829 = 1;
                                                                                                         }
-                                                                                                        int32_t enum_flags = value_845;
-                                                                                                        bool value_846 = enum_flags != 0;
-                                                                                                        bool value_847 = value_846;
-                                                                                                        if (!value_847) {
-                                                                                                            uint8_t* value_848 = after;
-                                                                                                            bool value_849 = zir_f_157b8ce5776e0448_strncmp(value_848, compiler_parse_types_ParserCString(StringLiteral("enum")), (size_t)(4LL)) == 0;
-                                                                                                            bool value_850 = value_849;
-                                                                                                            if (value_850) {
-                                                                                                                bool value_851 = (int32_t)((int8_t)(after[4])) == 0;
-                                                                                                                bool value_852 = value_851 || zir_f_157b8ce5776e0448_isspace((int32_t)(after[4])) != 0;
-                                                                                                                value_850 = (value_852 || (int32_t)((int8_t)(after[4])) == 123);
+                                                                                                        int32_t enum_flags = value_829;
+                                                                                                        bool value_830 = enum_flags != 0;
+                                                                                                        bool value_831 = value_830;
+                                                                                                        if (!value_831) {
+                                                                                                            uint8_t* value_832 = after;
+                                                                                                            bool value_833 = zir_f_157b8ce5776e0448_strncmp(value_832, compiler_parse_types_ParserCString(StringLiteral("enum")), (size_t)(4LL)) == 0;
+                                                                                                            bool value_834 = value_833;
+                                                                                                            if (value_834) {
+                                                                                                                bool value_835 = (int32_t)((int8_t)(after[4])) == 0;
+                                                                                                                bool value_836 = value_835 || zir_f_157b8ce5776e0448_isspace((int32_t)(after[4])) != 0;
+                                                                                                                value_834 = (value_836 || (int32_t)((int8_t)(after[4])) == 123);
                                                                                                             }
-                                                                                                            value_847 = value_850;
+                                                                                                            value_831 = value_834;
                                                                                                         }
-                                                                                                        int32_t value_853 = 0;
-                                                                                                        if (value_847) {
-                                                                                                            value_853 = 1;
+                                                                                                        int32_t value_837 = 0;
+                                                                                                        if (value_831) {
+                                                                                                            value_837 = 1;
                                                                                                         }
-                                                                                                        int32_t named_enum = value_853;
-                                                                                                        uint8_t* value_854 = after;
-                                                                                                        bool value_855 = zir_f_157b8ce5776e0448_strncmp(value_854, compiler_parse_types_ParserCString(StringLiteral("union")), (size_t)(5LL)) == 0;
-                                                                                                        bool value_856 = value_855;
-                                                                                                        if (value_856) {
-                                                                                                            bool value_857 = (int32_t)((int8_t)(after[5])) == 0 || (int32_t)((int8_t)(after[5])) == 32 || (int32_t)((int8_t)(after[5])) == 40;
-                                                                                                            value_856 = (value_857 || (int32_t)((int8_t)(after[5])) == 123);
+                                                                                                        int32_t named_enum = value_837;
+                                                                                                        uint8_t* value_838 = after;
+                                                                                                        bool value_839 = zir_f_157b8ce5776e0448_strncmp(value_838, compiler_parse_types_ParserCString(StringLiteral("union")), (size_t)(5LL)) == 0;
+                                                                                                        bool value_840 = value_839;
+                                                                                                        if (value_840) {
+                                                                                                            bool value_841 = (int32_t)((int8_t)(after[5])) == 0 || (int32_t)((int8_t)(after[5])) == 32 || (int32_t)((int8_t)(after[5])) == 40;
+                                                                                                            value_840 = (value_841 || (int32_t)((int8_t)(after[5])) == 123);
                                                                                                         }
-                                                                                                        int32_t value_858 = 0;
-                                                                                                        if (value_856) {
-                                                                                                            value_858 = 1;
+                                                                                                        int32_t value_842 = 0;
+                                                                                                        if (value_840) {
+                                                                                                            value_842 = 1;
                                                                                                         }
-                                                                                                        int32_t named_union = value_858;
-                                                                                                        uint8_t* value_859 = after;
-                                                                                                        bool value_860 = zir_f_157b8ce5776e0448_strncmp(value_859, compiler_parse_types_ParserCString(StringLiteral("struct")), (size_t)(6LL)) == 0;
-                                                                                                        bool value_861 = value_860;
-                                                                                                        if (value_861) {
-                                                                                                            bool value_862 = (int32_t)((int8_t)(after[6])) == 0 || (int32_t)((int8_t)(after[6])) == 32 || (int32_t)((int8_t)(after[6])) == 40;
-                                                                                                            value_861 = (value_862 || (int32_t)((int8_t)(after[6])) == 123);
+                                                                                                        int32_t named_union = value_842;
+                                                                                                        uint8_t* value_843 = after;
+                                                                                                        bool value_844 = zir_f_157b8ce5776e0448_strncmp(value_843, compiler_parse_types_ParserCString(StringLiteral("struct")), (size_t)(6LL)) == 0;
+                                                                                                        bool value_845 = value_844;
+                                                                                                        if (value_845) {
+                                                                                                            bool value_846 = (int32_t)((int8_t)(after[6])) == 0 || (int32_t)((int8_t)(after[6])) == 32 || (int32_t)((int8_t)(after[6])) == 40;
+                                                                                                            value_845 = (value_846 || (int32_t)((int8_t)(after[6])) == 123);
                                                                                                         }
-                                                                                                        if (value_861 || named_union != 0 || named_enum != 0) {
+                                                                                                        if (value_845 || named_union != 0 || named_enum != 0) {
                                                                                                             uint8_t* q = t;
                                                                                                             ZirType* ty = (void *)0;
                                                                                                             while (true) {
-                                                                                                                bool value_863 = q < colons;
-                                                                                                                bool value_864 = value_863;
-                                                                                                                if (value_864) {
-                                                                                                                    bool value_865 = zir_f_157b8ce5776e0448_isalnum((int32_t)(q[0])) != 0;
-                                                                                                                    value_864 = (value_865 || (int32_t)((int8_t)(q[0])) == 95);
+                                                                                                                bool value_847 = q < colons;
+                                                                                                                bool value_848 = value_847;
+                                                                                                                if (value_848) {
+                                                                                                                    bool value_849 = zir_f_157b8ce5776e0448_isalnum((int32_t)(q[0])) != 0;
+                                                                                                                    value_848 = (value_849 || (int32_t)((int8_t)(q[0])) == 95);
                                                                                                                 }
-                                                                                                                bool loop_128 = value_864 && tn + (size_t)(1LL) < (size_t)(sizeof(ParserArray128_u8));
+                                                                                                                bool loop_128 = value_848 && tn + (size_t)(1LL) < (size_t)(sizeof(ParserArray128_u8));
                                                                                                                 if (!loop_128) {
                                                                                                                     break;
                                                                                                                 }
-                                                                                                                size_t value_866 = compiler_parse_types_ParserPost5(&(tn));
-                                                                                                                uint8_t* value_867 = &(((tname_storage_40[0]).items)[value_866]);
-                                                                                                                uint8_t* value_868 = compiler_parse_types_ParserPost2(&(q));
-                                                                                                                (*value_867) = value_868[0];
+                                                                                                                size_t value_850 = compiler_parse_types_ParserPost5(&(tn));
+                                                                                                                uint8_t* value_851 = &(((tname_storage_40[0]).items)[value_850]);
+                                                                                                                uint8_t* value_852 = compiler_parse_types_ParserPost2(&(q));
+                                                                                                                (*value_851) = value_852[0];
                                                                                                             }
-                                                                                                            uint8_t* value_869 = &(((tname_storage_40[0]).items)[tn]);
-                                                                                                            (*value_869) = 0;
-                                                                                                            void* value_870 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
-                                                                                                            ParserArray128_u8* parameters_storage_41 = (ParserArray128_u8*)(value_870);
+                                                                                                            uint8_t* value_853 = &(((tname_storage_40[0]).items)[tn]);
+                                                                                                            (*value_853) = 0;
+                                                                                                            void* value_854 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
+                                                                                                            ParserArray128_u8* parameters_storage_41 = (ParserArray128_u8*)(value_854);
                                                                                                             zir_f_157b8ce5776e0448_memset((void*)(parameters_storage_41), 0, sizeof(ParserArray128_u8));
-                                                                                                            uint8_t* value_871 = (uint8_t*)(parameters_storage_41);
-                                                                                                            zir_f_157b8ce5776e0448_copy_text(value_871, sizeof(ParserArray128_u8), compiler_parse_types_ParserCString(StringLiteral("")));
-                                                                                                            uint8_t* value_872 = zir_f_157b8ce5776e0448_skip_ws(q);
-                                                                                                            if (value_872 != colons) {
-                                                                                                                ZirSourceSpan value_873 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                zir_f_157b8ce5776e0448_die_at(value_873, compiler_parse_types_ParserCString(StringLiteral("type declarations require a plain name before ::")));
+                                                                                                            uint8_t* value_855 = (uint8_t*)(parameters_storage_41);
+                                                                                                            zir_f_157b8ce5776e0448_copy_text(value_855, sizeof(ParserArray128_u8), compiler_parse_types_ParserCString(StringLiteral("")));
+                                                                                                            uint8_t* value_856 = zir_f_157b8ce5776e0448_skip_ws(q);
+                                                                                                            if (value_856 != colons) {
+                                                                                                                ZirSourceSpan value_857 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                zir_f_157b8ce5776e0448_die_at(value_857, compiler_parse_types_ParserCString(StringLiteral("type declarations require a plain name before ::")));
                                                                                                                 abort();
                                                                                                             }
-                                                                                                            bool value_874 = zir_f_157b8ce5776e0448_is_identifier_text((uint8_t*)(&((tname_storage_40[0]).items))) != 0;
-                                                                                                            if (!value_874) {
-                                                                                                                ZirSourceSpan value_875 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                zir_f_157b8ce5776e0448_die_at(value_875, compiler_parse_types_ParserCString(StringLiteral("invalid type name")));
+                                                                                                            bool value_858 = zir_f_157b8ce5776e0448_is_identifier_text((uint8_t*)(&((tname_storage_40[0]).items))) != 0;
+                                                                                                            if (!value_858) {
+                                                                                                                ZirSourceSpan value_859 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                zir_f_157b8ce5776e0448_die_at(value_859, compiler_parse_types_ParserCString(StringLiteral("invalid type name")));
                                                                                                                 abort();
                                                                                                             }
-                                                                                                            uint8_t* value_876 = after;
-                                                                                                            bool value_877 = zir_f_157b8ce5776e0448_strncmp(value_876, compiler_parse_types_ParserCString(StringLiteral("struct")), (size_t)(6LL)) == 0;
-                                                                                                            bool value_878 = value_877 || named_union != 0;
-                                                                                                            bool value_879 = value_878;
-                                                                                                            if (value_879) {
-                                                                                                                uint8_t* value_880 = after;
-                                                                                                                uint8_t* value_881 = (void *)0;
+                                                                                                            uint8_t* value_860 = after;
+                                                                                                            bool value_861 = zir_f_157b8ce5776e0448_strncmp(value_860, compiler_parse_types_ParserCString(StringLiteral("struct")), (size_t)(6LL)) == 0;
+                                                                                                            bool value_862 = value_861 || named_union != 0;
+                                                                                                            bool value_863 = value_862;
+                                                                                                            if (value_863) {
+                                                                                                                uint8_t* value_864 = after;
+                                                                                                                uint8_t* value_865 = (void *)0;
                                                                                                                 if (named_union != 0) {
-                                                                                                                    uint8_t* value_882 = compiler_parse_types_ParserCString(StringLiteral("union"));
-                                                                                                                    value_881 = value_882;
+                                                                                                                    uint8_t* value_866 = compiler_parse_types_ParserCString(StringLiteral("union"));
+                                                                                                                    value_865 = value_866;
                                                                                                                 } else {
-                                                                                                                    uint8_t* value_883 = compiler_parse_types_ParserCString(StringLiteral("struct"));
-                                                                                                                    value_881 = value_883;
+                                                                                                                    uint8_t* value_867 = compiler_parse_types_ParserCString(StringLiteral("struct"));
+                                                                                                                    value_865 = value_867;
                                                                                                                 }
-                                                                                                                bool value_884 = zir_f_157b8ce5776e0448_parse_type_parameters(value_880, value_881, (uint8_t*)(&((parameters_storage_41[0]).items)), (size_t)(sizeof(ParserArray128_u8))) != 0;
-                                                                                                                value_879 = !value_884;
+                                                                                                                bool value_868 = zir_f_157b8ce5776e0448_parse_type_parameters(value_864, value_865, (uint8_t*)(&((parameters_storage_41[0]).items)), (size_t)(sizeof(ParserArray128_u8))) != 0;
+                                                                                                                value_863 = !value_868;
                                                                                                             }
-                                                                                                            if (value_879) {
-                                                                                                                ZirSourceSpan value_885 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                zir_f_157b8ce5776e0448_die_at(value_885, compiler_parse_types_ParserCString(StringLiteral("polymorphic type parameters require (T: Type, ...)")));
+                                                                                                            if (value_863) {
+                                                                                                                ZirSourceSpan value_869 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                zir_f_157b8ce5776e0448_die_at(value_869, compiler_parse_types_ParserCString(StringLiteral("polymorphic type parameters require (T: Type, ...)")));
                                                                                                                 abort();
                                                                                                             }
-                                                                                                            ZirModule* value_886 = module;
-                                                                                                            ty = zir_f_157b8ce5776e0448_ModuleAddType(value_886, (uint8_t*)(&((tname_storage_40[0]).items)), zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1));
+                                                                                                            ZirModule* value_870 = module;
+                                                                                                            ty = zir_f_157b8ce5776e0448_ModuleAddType(value_870, (uint8_t*)(&((tname_storage_40[0]).items)), zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1));
                                                                                                             if (ty != (ZirType*)(((void *)0))) {
-                                                                                                                int32_t* value_887 = &(ty->is_public);
-                                                                                                                (*value_887) = scope_public;
-                                                                                                                int32_t* value_888 = &(ty->is_file_private);
-                                                                                                                (*value_888) = scope_file;
-                                                                                                                int32_t* value_889 = &(ty->is_enum);
-                                                                                                                (*value_889) = named_enum;
-                                                                                                                int32_t* value_890 = &(ty->is_union);
-                                                                                                                (*value_890) = named_union;
-                                                                                                                int32_t* value_891 = &(ty->is_enum_flags);
-                                                                                                                (*value_891) = enum_flags;
+                                                                                                                int32_t* value_871 = &(ty->is_public);
+                                                                                                                (*value_871) = scope_public;
+                                                                                                                int32_t* value_872 = &(ty->is_file_private);
+                                                                                                                (*value_872) = scope_file;
+                                                                                                                int32_t* value_873 = &(ty->is_enum);
+                                                                                                                (*value_873) = named_enum;
+                                                                                                                int32_t* value_874 = &(ty->is_union);
+                                                                                                                (*value_874) = named_union;
+                                                                                                                int32_t* value_875 = &(ty->is_enum_flags);
+                                                                                                                (*value_875) = enum_flags;
                                                                                                                 if (ty->is_enum != 0) {
                                                                                                                     zir_f_157b8ce5776e0448_parse_enum_backing(ty, after);
                                                                                                                 }
-                                                                                                                int32_t* value_892 = &(ty->is_record_template);
-                                                                                                                bool value_893 = (int32_t)((int8_t)(((parameters_storage_41[0]).items)[0])) != 0;
-                                                                                                                bool value_894 = value_893;
-                                                                                                                if (value_894) {
-                                                                                                                    uint8_t* value_895 = after;
-                                                                                                                    bool value_896 = zir_f_157b8ce5776e0448_strncmp(value_895, compiler_parse_types_ParserCString(StringLiteral("struct")), (size_t)(6LL)) == 0;
-                                                                                                                    value_894 = (value_896 || named_union != 0);
+                                                                                                                int32_t* value_876 = &(ty->is_record_template);
+                                                                                                                bool value_877 = (int32_t)((int8_t)(((parameters_storage_41[0]).items)[0])) != 0;
+                                                                                                                bool value_878 = value_877;
+                                                                                                                if (value_878) {
+                                                                                                                    uint8_t* value_879 = after;
+                                                                                                                    bool value_880 = zir_f_157b8ce5776e0448_strncmp(value_879, compiler_parse_types_ParserCString(StringLiteral("struct")), (size_t)(6LL)) == 0;
+                                                                                                                    value_878 = (value_880 || named_union != 0);
                                                                                                                 }
-                                                                                                                int32_t value_897 = 0;
-                                                                                                                if (value_894) {
-                                                                                                                    value_897 = 1;
+                                                                                                                int32_t value_881 = 0;
+                                                                                                                if (value_878) {
+                                                                                                                    value_881 = 1;
                                                                                                                 }
-                                                                                                                (*value_892) = value_897;
+                                                                                                                (*value_876) = value_881;
                                                                                                                 zir_f_157b8ce5776e0448_copy_text((uint8_t*)(&(ty->template_params)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&((parameters_storage_41[0]).items)));
-                                                                                                                uint8_t* value_898 = after;
-                                                                                                                uint8_t* value_899 = zir_f_157b8ce5776e0448_strstr(value_898, compiler_parse_types_ParserCString(StringLiteral("#extern")));
-                                                                                                                if (value_899 != (uint8_t*)(((void *)0))) {
-                                                                                                                    ZirSourceSpan value_900 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_900, compiler_parse_types_ParserCString(StringLiteral("#extern is not Jai syntax for a type declaration")));
+                                                                                                                uint8_t* value_882 = after;
+                                                                                                                uint8_t* value_883 = zir_f_157b8ce5776e0448_strstr(value_882, compiler_parse_types_ParserCString(StringLiteral("#extern")));
+                                                                                                                if (value_883 != (uint8_t*)(((void *)0))) {
+                                                                                                                    ZirSourceSpan value_884 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_884, compiler_parse_types_ParserCString(StringLiteral("#extern is not Jai syntax for a type declaration")));
                                                                                                                     abort();
                                                                                                                 }
                                                                                                                 uint8_t* opening = zir_f_157b8ce5776e0448_strchr(after, 123);
-                                                                                                                uint8_t* value_901 = (void *)0;
+                                                                                                                uint8_t* value_885 = (void *)0;
                                                                                                                 if (opening != ((void *)0)) {
-                                                                                                                    uint8_t* value_902 = (uint8_t*)(((size_t)(opening) + ((size_t)(1LL) * sizeof(uint8_t))));
-                                                                                                                    uint8_t* value_903 = zir_f_157b8ce5776e0448_find_unquoted(value_902, compiler_parse_types_ParserCString(StringLiteral("}")), 0LL != 0);
-                                                                                                                    value_901 = value_903;
+                                                                                                                    uint8_t* value_886 = (uint8_t*)(((size_t)(opening) + ((size_t)(1LL) * sizeof(uint8_t))));
+                                                                                                                    uint8_t* value_887 = zir_f_157b8ce5776e0448_find_unquoted(value_886, compiler_parse_types_ParserCString(StringLiteral("}")), 0LL != 0);
+                                                                                                                    value_885 = value_887;
                                                                                                                 } else {
-                                                                                                                    value_901 = (void *)0;
+                                                                                                                    value_885 = (void *)0;
                                                                                                                 }
-                                                                                                                uint8_t* closing = value_901;
+                                                                                                                uint8_t* closing = value_885;
                                                                                                                 if (closing != (uint8_t*)(((void *)0))) {
-                                                                                                                    ptrdiff_t value_904 = ((ptrdiff_t)(((size_t)(closing) - (size_t)(opening))) / (ptrdiff_t)(sizeof(uint8_t))) - (ptrdiff_t)(1LL);
-                                                                                                                    size_t body_length = (size_t)(value_904);
+                                                                                                                    ptrdiff_t value_888 = ((ptrdiff_t)(((size_t)(closing) - (size_t)(opening))) / (ptrdiff_t)(sizeof(uint8_t))) - (ptrdiff_t)(1LL);
+                                                                                                                    size_t body_length = (size_t)(value_888);
                                                                                                                     if (ty->is_record_template != 0) {
                                                                                                                         if (body_length + (size_t)(1LL) >= (size_t)(sizeof(ParserArray8192_u8))) {
-                                                                                                                            ZirSourceSpan value_905 = ty->span;
-                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_905, compiler_parse_types_ParserCString(StringLiteral("generic record body exceeds size limit")));
+                                                                                                                            ZirSourceSpan value_889 = ty->span;
+                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_889, compiler_parse_types_ParserCString(StringLiteral("generic record body exceeds size limit")));
                                                                                                                             abort();
                                                                                                                         }
                                                                                                                         zir_f_157b8ce5776e0448_memcpy((void*)((uint8_t*)(&(ty->body))), (void*)((uint8_t*)(((size_t)(opening) + ((size_t)(1LL) * sizeof(uint8_t))))), body_length);
-                                                                                                                        uint8_t* value_906 = &(ty->body[body_length]);
-                                                                                                                        (*value_906) = 0;
+                                                                                                                        uint8_t* value_890 = &(ty->body[body_length]);
+                                                                                                                        (*value_890) = 0;
                                                                                                                         zir_f_157b8ce5776e0448_normalize_record_separators((uint8_t*)(&(ty->body)), 1);
-                                                                                                                        uint8_t* value_907 = &(ty->body[body_length]);
-                                                                                                                        (*value_907) = 10;
-                                                                                                                        uint8_t* value_908 = &(ty->body[(body_length + (size_t)(1LL))]);
-                                                                                                                        (*value_908) = 0;
+                                                                                                                        uint8_t* value_891 = &(ty->body[body_length]);
+                                                                                                                        (*value_891) = 10;
+                                                                                                                        uint8_t* value_892 = &(ty->body[(body_length + (size_t)(1LL))]);
+                                                                                                                        (*value_892) = 0;
                                                                                                                     } else {
                                                                                                                         if (body_length >= (size_t)(sizeof(ParserArray8192_u8))) {
-                                                                                                                            ZirSourceSpan value_909 = ty->span;
-                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_909, compiler_parse_types_ParserCString(StringLiteral("enum body exceeds size limit")));
+                                                                                                                            ZirSourceSpan value_893 = ty->span;
+                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_893, compiler_parse_types_ParserCString(StringLiteral("enum body exceeds size limit")));
                                                                                                                             abort();
                                                                                                                         }
                                                                                                                         zir_f_157b8ce5776e0448_memcpy((void*)((uint8_t*)(&(ty->body))), (void*)((uint8_t*)(((size_t)(opening) + ((size_t)(1LL) * sizeof(uint8_t))))), body_length);
-                                                                                                                        uint8_t* value_910 = &(ty->body[body_length]);
-                                                                                                                        (*value_910) = 0;
+                                                                                                                        uint8_t* value_894 = &(ty->body[body_length]);
+                                                                                                                        (*value_894) = 0;
                                                                                                                         zir_f_157b8ce5776e0448_normalize_record_separators((uint8_t*)(&(ty->body)), 0);
                                                                                                                         if (ty->is_enum != 0) {
                                                                                                                             zir_f_157b8ce5776e0448_lower_enum_values(ty);
                                                                                                                         }
                                                                                                                     }
-                                                                                                                    bool value_911 = zir_f_157b8ce5776e0448_take_abi_incomplete(ty) != 0;
-                                                                                                                    if (!value_911) {
-                                                                                                                        ZirSourceSpan value_912 = ty->span;
-                                                                                                                        zir_f_157b8ce5776e0448_die_at(value_912, compiler_parse_types_ParserCString(StringLiteral("#abi_incomplete must appear alone in a record body")));
+                                                                                                                    bool value_895 = zir_f_157b8ce5776e0448_take_abi_incomplete(ty) != 0;
+                                                                                                                    if (!value_895) {
+                                                                                                                        ZirSourceSpan value_896 = ty->span;
+                                                                                                                        zir_f_157b8ce5776e0448_die_at(value_896, compiler_parse_types_ParserCString(StringLiteral("#abi_incomplete must appear alone in a record body")));
                                                                                                                         abort();
                                                                                                                     }
-                                                                                                                    bool value_913 = zir_f_157b8ce5776e0448_take_go_anonymous(ty) != 0;
-                                                                                                                    if (!value_913) {
-                                                                                                                        ZirSourceSpan value_914 = ty->span;
-                                                                                                                        zir_f_157b8ce5776e0448_die_at(value_914, compiler_parse_types_ParserCString(StringLiteral("#go_anonymous must appear once alone in an ordinary record body")));
+                                                                                                                    bool value_897 = zir_f_157b8ce5776e0448_take_go_anonymous(ty) != 0;
+                                                                                                                    if (!value_897) {
+                                                                                                                        ZirSourceSpan value_898 = ty->span;
+                                                                                                                        zir_f_157b8ce5776e0448_die_at(value_898, compiler_parse_types_ParserCString(StringLiteral("#go_anonymous must appear once alone in an ordinary record body")));
                                                                                                                         abort();
                                                                                                                     }
-                                                                                                                    bool value_915 = zir_f_157b8ce5776e0448_expand_type_this(ty) != 0;
-                                                                                                                    if (!value_915) {
-                                                                                                                        ZirSourceSpan value_916 = ty->span;
-                                                                                                                        zir_f_157b8ce5776e0448_die_at(value_916, compiler_parse_types_ParserCString(StringLiteral("#this type body exceeds size limit")));
+                                                                                                                    bool value_899 = zir_f_157b8ce5776e0448_expand_type_this(ty) != 0;
+                                                                                                                    if (!value_899) {
+                                                                                                                        ZirSourceSpan value_900 = ty->span;
+                                                                                                                        zir_f_157b8ce5776e0448_die_at(value_900, compiler_parse_types_ParserCString(StringLiteral("#this type body exceeds size limit")));
                                                                                                                         abort();
                                                                                                                     }
                                                                                                                 } else {
@@ -5077,16 +5062,16 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                         }
                                                                                                         zir_f_157b8ce5776e0448_CompilerFree((void*)(tname_storage_40));
                                                                                                     } else {
-                                                                                                        bool value_917 = (uint32_t)(mode) == 0 || (uint32_t)(mode) == 1;
-                                                                                                        bool value_918 = value_917;
-                                                                                                        if (value_918) {
-                                                                                                            uint8_t* value_919 = t;
-                                                                                                            bool value_920 = zir_f_157b8ce5776e0448_starts_word(value_919, compiler_parse_types_ParserCString(StringLiteral("#enum"))) != 0;
-                                                                                                            value_918 = value_920;
+                                                                                                        bool value_901 = (uint32_t)(mode) == 0 || (uint32_t)(mode) == 1;
+                                                                                                        bool value_902 = value_901;
+                                                                                                        if (value_902) {
+                                                                                                            uint8_t* value_903 = t;
+                                                                                                            bool value_904 = zir_f_157b8ce5776e0448_starts_word(value_903, compiler_parse_types_ParserCString(StringLiteral("#enum"))) != 0;
+                                                                                                            value_902 = value_904;
                                                                                                         }
-                                                                                                        if (value_918) {
-                                                                                                            ZirSourceSpan value_921 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                            zir_f_157b8ce5776e0448_die_at(value_921, compiler_parse_types_ParserCString(StringLiteral("#enum is not Jai syntax; use Name :: enum { ... }")));
+                                                                                                        if (value_902) {
+                                                                                                            ZirSourceSpan value_905 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                            zir_f_157b8ce5776e0448_die_at(value_905, compiler_parse_types_ParserCString(StringLiteral("#enum is not Jai syntax; use Name :: enum { ... }")));
                                                                                                             abort();
                                                                                                         } else {
                                                                                                             if ((uint32_t)(mode) == 1) {
@@ -5101,24 +5086,24 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                                     goto zir_loop_continue_2;
                                                                                                                 }
                                                                                                                 if ((int32_t)((int8_t)(t[0])) == 125) {
-                                                                                                                    size_t value_922 = (size_t)(module->types) + ((size_t)(((int32_t)((uint32_t)(module->type_count) - 1u))) * sizeof(ZirType));
-                                                                                                                    ZirType* ty = (ZirType*)(value_922);
-                                                                                                                    bool value_923 = zir_f_157b8ce5776e0448_take_abi_incomplete(ty) != 0;
-                                                                                                                    if (!value_923) {
-                                                                                                                        ZirSourceSpan value_924 = ty->span;
-                                                                                                                        zir_f_157b8ce5776e0448_die_at(value_924, compiler_parse_types_ParserCString(StringLiteral("#abi_incomplete must appear alone in a record body")));
+                                                                                                                    size_t value_906 = (size_t)(module->types) + ((size_t)(((int32_t)((uint32_t)(module->type_count) - 1u))) * sizeof(ZirType));
+                                                                                                                    ZirType* ty = (ZirType*)(value_906);
+                                                                                                                    bool value_907 = zir_f_157b8ce5776e0448_take_abi_incomplete(ty) != 0;
+                                                                                                                    if (!value_907) {
+                                                                                                                        ZirSourceSpan value_908 = ty->span;
+                                                                                                                        zir_f_157b8ce5776e0448_die_at(value_908, compiler_parse_types_ParserCString(StringLiteral("#abi_incomplete must appear alone in a record body")));
                                                                                                                         abort();
                                                                                                                     }
-                                                                                                                    bool value_925 = zir_f_157b8ce5776e0448_take_go_anonymous(ty) != 0;
-                                                                                                                    if (!value_925) {
-                                                                                                                        ZirSourceSpan value_926 = ty->span;
-                                                                                                                        zir_f_157b8ce5776e0448_die_at(value_926, compiler_parse_types_ParserCString(StringLiteral("#go_anonymous must appear once alone in an ordinary record body")));
+                                                                                                                    bool value_909 = zir_f_157b8ce5776e0448_take_go_anonymous(ty) != 0;
+                                                                                                                    if (!value_909) {
+                                                                                                                        ZirSourceSpan value_910 = ty->span;
+                                                                                                                        zir_f_157b8ce5776e0448_die_at(value_910, compiler_parse_types_ParserCString(StringLiteral("#go_anonymous must appear once alone in an ordinary record body")));
                                                                                                                         abort();
                                                                                                                     }
-                                                                                                                    bool value_927 = zir_f_157b8ce5776e0448_expand_type_this(ty) != 0;
-                                                                                                                    if (!value_927) {
-                                                                                                                        ZirSourceSpan value_928 = ty->span;
-                                                                                                                        zir_f_157b8ce5776e0448_die_at(value_928, compiler_parse_types_ParserCString(StringLiteral("#this type body exceeds size limit")));
+                                                                                                                    bool value_911 = zir_f_157b8ce5776e0448_expand_type_this(ty) != 0;
+                                                                                                                    if (!value_911) {
+                                                                                                                        ZirSourceSpan value_912 = ty->span;
+                                                                                                                        zir_f_157b8ce5776e0448_die_at(value_912, compiler_parse_types_ParserCString(StringLiteral("#this type body exceeds size limit")));
                                                                                                                         abort();
                                                                                                                     }
                                                                                                                     if (ty->is_enum != 0) {
@@ -5127,54 +5112,54 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                                     mode = 0;
                                                                                                                     zir_f_157b8ce5776e0448_cond_frame_settle((ZirCondFrame*)(&(buffers->tframes.items)), tframe_count);
                                                                                                                 } else {
-                                                                                                                    uint8_t* value_929 = t;
-                                                                                                                    bool value_930 = zir_f_157b8ce5776e0448_strcmp(value_929, compiler_parse_types_ParserCString(StringLiteral("{"))) == 0;
-                                                                                                                    if (value_930 && (int32_t)((int8_t)(((module->types[((int32_t)((uint32_t)(module->type_count) - 1u))]).body)[0])) == 0) {
+                                                                                                                    uint8_t* value_913 = t;
+                                                                                                                    bool value_914 = zir_f_157b8ce5776e0448_strcmp(value_913, compiler_parse_types_ParserCString(StringLiteral("{"))) == 0;
+                                                                                                                    if (value_914 && (int32_t)((int8_t)(((module->types[((int32_t)((uint32_t)(module->type_count) - 1u))]).body)[0])) == 0) {
                                                                                                                     } else {
-                                                                                                                        uint8_t* value_931 = t;
-                                                                                                                        if (zir_f_157b8ce5776e0448_starts_word(value_931, compiler_parse_types_ParserCString(StringLiteral("#abi_incomplete"))) != 0) {
-                                                                                                                            size_t value_932 = (size_t)(module->types) + ((size_t)(((int32_t)((uint32_t)(module->type_count) - 1u))) * sizeof(ZirType));
-                                                                                                                            ZirType* ty = (ZirType*)(value_932);
+                                                                                                                        uint8_t* value_915 = t;
+                                                                                                                        if (zir_f_157b8ce5776e0448_starts_word(value_915, compiler_parse_types_ParserCString(StringLiteral("#abi_incomplete"))) != 0) {
+                                                                                                                            size_t value_916 = (size_t)(module->types) + ((size_t)(((int32_t)((uint32_t)(module->type_count) - 1u))) * sizeof(ZirType));
+                                                                                                                            ZirType* ty = (ZirType*)(value_916);
                                                                                                                             size_t length = zir_f_157b8ce5776e0448_strlen(t);
-                                                                                                                            bool value_933 = ty->is_enum != 0 || ty->is_abi_incomplete != 0;
-                                                                                                                            bool value_934 = value_933;
-                                                                                                                            if (!value_934) {
-                                                                                                                                bool value_935 = zir_f_157b8ce5776e0448_line_is_abi_incomplete(t, length) != 0;
-                                                                                                                                value_934 = !value_935;
+                                                                                                                            bool value_917 = ty->is_enum != 0 || ty->is_abi_incomplete != 0;
+                                                                                                                            bool value_918 = value_917;
+                                                                                                                            if (!value_918) {
+                                                                                                                                bool value_919 = zir_f_157b8ce5776e0448_line_is_abi_incomplete(t, length) != 0;
+                                                                                                                                value_918 = !value_919;
                                                                                                                             }
-                                                                                                                            if (value_934) {
-                                                                                                                                ZirSourceSpan value_936 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_936, compiler_parse_types_ParserCString(StringLiteral("#abi_incomplete must appear alone in a record body")));
+                                                                                                                            if (value_918) {
+                                                                                                                                ZirSourceSpan value_920 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_920, compiler_parse_types_ParserCString(StringLiteral("#abi_incomplete must appear alone in a record body")));
                                                                                                                                 abort();
                                                                                                                             }
-                                                                                                                            int32_t* value_937 = &(ty->is_abi_incomplete);
-                                                                                                                            (*value_937) = 1;
+                                                                                                                            int32_t* value_921 = &(ty->is_abi_incomplete);
+                                                                                                                            (*value_921) = 1;
                                                                                                                         } else {
-                                                                                                                            bool value_938 = (int32_t)((int8_t)(t[0])) == 35;
-                                                                                                                            bool value_939 = value_938;
-                                                                                                                            if (value_939) {
-                                                                                                                                uint8_t* value_940 = t;
-                                                                                                                                bool value_941 = zir_f_157b8ce5776e0448_contains_source_directive(value_940, compiler_parse_types_ParserCString(StringLiteral("#go_anonymous"))) != 0;
-                                                                                                                                value_939 = !value_941;
+                                                                                                                            bool value_922 = (int32_t)((int8_t)(t[0])) == 35;
+                                                                                                                            bool value_923 = value_922;
+                                                                                                                            if (value_923) {
+                                                                                                                                uint8_t* value_924 = t;
+                                                                                                                                bool value_925 = zir_f_157b8ce5776e0448_contains_source_directive(value_924, compiler_parse_types_ParserCString(StringLiteral("#go_anonymous"))) != 0;
+                                                                                                                                value_923 = !value_925;
                                                                                                                             }
-                                                                                                                            if (value_939) {
-                                                                                                                                ZirSourceSpan value_942 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                uint8_t* value_943 = compiler_parse_types_ParserCString(StringLiteral("unknown type-body directive: %s"));
-                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_942, value_943, t);
+                                                                                                                            if (value_923) {
+                                                                                                                                ZirSourceSpan value_926 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                uint8_t* value_927 = compiler_parse_types_ParserCString(StringLiteral("unknown type-body directive: %s"));
+                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_926, value_927, t);
                                                                                                                                 abort();
                                                                                                                             } else {
-                                                                                                                                size_t value_944 = (size_t)(module->types) + ((size_t)(((int32_t)((uint32_t)(module->type_count) - 1u))) * sizeof(ZirType));
-                                                                                                                                ZirType* ty = (ZirType*)(value_944);
+                                                                                                                                size_t value_928 = (size_t)(module->types) + ((size_t)(((int32_t)((uint32_t)(module->type_count) - 1u))) * sizeof(ZirType));
+                                                                                                                                ZirType* ty = (ZirType*)(value_928);
                                                                                                                                 uint8_t* body = (uint8_t*)(&(ty->body));
                                                                                                                                 size_t capacity = (size_t)(sizeof(ParserArray8192_u8));
                                                                                                                                 size_t used = zir_f_157b8ce5776e0448_strlen(body);
-                                                                                                                                uint8_t* value_945 = (uint8_t*)(((size_t)(body) + ((size_t)(used) * sizeof(uint8_t))));
-                                                                                                                                size_t value_946 = capacity - used;
-                                                                                                                                uint8_t* value_947 = compiler_parse_types_ParserCString(StringLiteral("%s\n"));
-                                                                                                                                int32_t written = zir_f_157b8ce5776e0448_snprintf(value_945, value_946, value_947, t);
+                                                                                                                                uint8_t* value_929 = (uint8_t*)(((size_t)(body) + ((size_t)(used) * sizeof(uint8_t))));
+                                                                                                                                size_t value_930 = capacity - used;
+                                                                                                                                uint8_t* value_931 = compiler_parse_types_ParserCString(StringLiteral("%s\n"));
+                                                                                                                                int32_t written = zir_f_157b8ce5776e0448_snprintf(value_929, value_930, value_931, t);
                                                                                                                                 if (written < 0 || (size_t)(written) >= capacity - used) {
-                                                                                                                                    ZirSourceSpan value_948 = ty->span;
-                                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_948, compiler_parse_types_ParserCString(StringLiteral("type body exceeds size limit")));
+                                                                                                                                    ZirSourceSpan value_932 = ty->span;
+                                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_932, compiler_parse_types_ParserCString(StringLiteral("type body exceeds size limit")));
                                                                                                                                     abort();
                                                                                                                                 }
                                                                                                                                 if (!(ty->is_record_template != 0)) {
@@ -5190,39 +5175,39 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                                     int32_t bck = 0;
                                                                                                                     int32_t parallel_for = 0;
                                                                                                                     int32_t parallel_gpu = 0;
-                                                                                                                    uint8_t* value_949 = t;
-                                                                                                                    if (zir_f_157b8ce5776e0448_starts_word(value_949, compiler_parse_types_ParserCString(StringLiteral("#parallel_gpu"))) != 0) {
-                                                                                                                        size_t value_950 = (size_t)(t);
-                                                                                                                        size_t value_951 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#parallel_gpu")));
-                                                                                                                        uint8_t* after = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_950 + ((size_t)(value_951) * sizeof(uint8_t)))));
-                                                                                                                        uint8_t* value_952 = after;
-                                                                                                                        bool value_953 = zir_f_157b8ce5776e0448_starts_word(value_952, compiler_parse_types_ParserCString(StringLiteral("for"))) != 0;
-                                                                                                                        if (!value_953) {
-                                                                                                                            ZirSourceSpan value_954 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_954, compiler_parse_types_ParserCString(StringLiteral("#parallel_gpu requires a for region")));
+                                                                                                                    uint8_t* value_933 = t;
+                                                                                                                    if (zir_f_157b8ce5776e0448_starts_word(value_933, compiler_parse_types_ParserCString(StringLiteral("#parallel_gpu"))) != 0) {
+                                                                                                                        size_t value_934 = (size_t)(t);
+                                                                                                                        size_t value_935 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#parallel_gpu")));
+                                                                                                                        uint8_t* after = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_934 + ((size_t)(value_935) * sizeof(uint8_t)))));
+                                                                                                                        uint8_t* value_936 = after;
+                                                                                                                        bool value_937 = zir_f_157b8ce5776e0448_starts_word(value_936, compiler_parse_types_ParserCString(StringLiteral("for"))) != 0;
+                                                                                                                        if (!value_937) {
+                                                                                                                            ZirSourceSpan value_938 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_938, compiler_parse_types_ParserCString(StringLiteral("#parallel_gpu requires a for region")));
                                                                                                                             abort();
                                                                                                                         }
                                                                                                                         parallel_for = 1;
                                                                                                                         parallel_gpu = 1;
-                                                                                                                        uint8_t* value_955 = compiler_parse_types_ParserCString(StringLiteral("%s"));
-                                                                                                                        zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&(buffers->parallel_text.items)), (size_t)(sizeof(ParserArray32768_u8)), value_955, after);
+                                                                                                                        uint8_t* value_939 = compiler_parse_types_ParserCString(StringLiteral("%s"));
+                                                                                                                        zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&(buffers->parallel_text.items)), (size_t)(sizeof(ParserArray32768_u8)), value_939, after);
                                                                                                                         t = zir_f_157b8ce5776e0448_trim((uint8_t*)(&(buffers->parallel_text.items)));
                                                                                                                     } else {
-                                                                                                                        uint8_t* value_956 = t;
-                                                                                                                        if (zir_f_157b8ce5776e0448_starts_word(value_956, compiler_parse_types_ParserCString(StringLiteral("#parallel"))) != 0) {
-                                                                                                                            size_t value_957 = (size_t)(t);
-                                                                                                                            size_t value_958 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#parallel")));
-                                                                                                                            uint8_t* after = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_957 + ((size_t)(value_958) * sizeof(uint8_t)))));
-                                                                                                                            uint8_t* value_959 = after;
-                                                                                                                            bool value_960 = zir_f_157b8ce5776e0448_starts_word(value_959, compiler_parse_types_ParserCString(StringLiteral("for"))) != 0;
-                                                                                                                            if (!value_960) {
-                                                                                                                                ZirSourceSpan value_961 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_961, compiler_parse_types_ParserCString(StringLiteral("#parallel requires a for region")));
+                                                                                                                        uint8_t* value_940 = t;
+                                                                                                                        if (zir_f_157b8ce5776e0448_starts_word(value_940, compiler_parse_types_ParserCString(StringLiteral("#parallel"))) != 0) {
+                                                                                                                            size_t value_941 = (size_t)(t);
+                                                                                                                            size_t value_942 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#parallel")));
+                                                                                                                            uint8_t* after = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_941 + ((size_t)(value_942) * sizeof(uint8_t)))));
+                                                                                                                            uint8_t* value_943 = after;
+                                                                                                                            bool value_944 = zir_f_157b8ce5776e0448_starts_word(value_943, compiler_parse_types_ParserCString(StringLiteral("for"))) != 0;
+                                                                                                                            if (!value_944) {
+                                                                                                                                ZirSourceSpan value_945 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_945, compiler_parse_types_ParserCString(StringLiteral("#parallel requires a for region")));
                                                                                                                                 abort();
                                                                                                                             }
                                                                                                                             parallel_for = 1;
-                                                                                                                            uint8_t* value_962 = compiler_parse_types_ParserCString(StringLiteral("%s"));
-                                                                                                                            zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&(buffers->parallel_text.items)), (size_t)(sizeof(ParserArray32768_u8)), value_962, after);
+                                                                                                                            uint8_t* value_946 = compiler_parse_types_ParserCString(StringLiteral("%s"));
+                                                                                                                            zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&(buffers->parallel_text.items)), (size_t)(sizeof(ParserArray32768_u8)), value_946, after);
                                                                                                                             t = zir_f_157b8ce5776e0448_trim((uint8_t*)(&(buffers->parallel_text.items)));
                                                                                                                         }
                                                                                                                     }
@@ -5233,179 +5218,179 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                                         }
                                                                                                                         compiler_parse_types_ParserPost3(&(checks_count));
                                                                                                                     }
-                                                                                                                    int32_t value_963 = 0;
+                                                                                                                    int32_t value_947 = 0;
                                                                                                                     if (checks_count > 0) {
-                                                                                                                        value_963 = 1;
+                                                                                                                        value_947 = 1;
                                                                                                                     }
-                                                                                                                    int32_t statement_checks = value_963;
-                                                                                                                    uint8_t* value_964 = t;
-                                                                                                                    if (zir_f_157b8ce5776e0448_starts_word(value_964, compiler_parse_types_ParserCString(StringLiteral("#checks"))) != 0) {
-                                                                                                                        size_t value_965 = (size_t)(t);
-                                                                                                                        size_t value_966 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#checks")));
-                                                                                                                        uint8_t* after = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_965 + ((size_t)(value_966) * sizeof(uint8_t)))));
+                                                                                                                    int32_t statement_checks = value_947;
+                                                                                                                    uint8_t* value_948 = t;
+                                                                                                                    if (zir_f_157b8ce5776e0448_starts_word(value_948, compiler_parse_types_ParserCString(StringLiteral("#checks"))) != 0) {
+                                                                                                                        size_t value_949 = (size_t)(t);
+                                                                                                                        size_t value_950 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#checks")));
+                                                                                                                        uint8_t* after = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_949 + ((size_t)(value_950) * sizeof(uint8_t)))));
                                                                                                                         if ((int32_t)((int8_t)(after[0])) == 0) {
-                                                                                                                            ZirSourceSpan value_967 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_967, compiler_parse_types_ParserCString(StringLiteral("#checks needs a block or a statement after it")));
+                                                                                                                            ZirSourceSpan value_951 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_951, compiler_parse_types_ParserCString(StringLiteral("#checks needs a block or a statement after it")));
                                                                                                                             abort();
                                                                                                                         }
                                                                                                                         if ((int32_t)((int8_t)(after[0])) == 123) {
                                                                                                                             if (checks_count >= 64) {
-                                                                                                                                ZirSourceSpan value_968 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_968, compiler_parse_types_ParserCString(StringLiteral("too many nested #checks blocks")));
+                                                                                                                                ZirSourceSpan value_952 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_952, compiler_parse_types_ParserCString(StringLiteral("too many nested #checks blocks")));
                                                                                                                                 abort();
                                                                                                                             }
-                                                                                                                            int32_t value_969 = compiler_parse_types_ParserPost0(&(checks_count));
-                                                                                                                            int32_t* value_970 = &(tables->checks_depth.items[value_969]);
-                                                                                                                            (*value_970) = depth;
+                                                                                                                            int32_t value_953 = compiler_parse_types_ParserPost0(&(checks_count));
+                                                                                                                            int32_t* value_954 = &(tables->checks_depth.items[value_953]);
+                                                                                                                            (*value_954) = depth;
                                                                                                                         }
                                                                                                                         statement_checks = 1;
-                                                                                                                        uint8_t* value_971 = compiler_parse_types_ParserCString(StringLiteral("%s"));
-                                                                                                                        zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&(buffers->checks_text.items)), (size_t)(sizeof(ParserArray32768_u8)), value_971, after);
+                                                                                                                        uint8_t* value_955 = compiler_parse_types_ParserCString(StringLiteral("%s"));
+                                                                                                                        zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&(buffers->checks_text.items)), (size_t)(sizeof(ParserArray32768_u8)), value_955, after);
                                                                                                                         t = zir_f_157b8ce5776e0448_trim((uint8_t*)(&(buffers->checks_text.items)));
                                                                                                                     }
                                                                                                                     bck = zir_f_157b8ce5776e0448_parse_cond_start(t, &(bcnd));
-                                                                                                                    bool value_972 = !(from_queue != 0) && body_mcount > 0 && depth == (tables->body_mdepth.items)[((int32_t)((uint32_t)body_mcount - 1u))];
-                                                                                                                    bool value_973 = value_972;
-                                                                                                                    bool value_974 = value_973 && zir_f_157b8ce5776e0448_line_is_compile_else(t) != 0;
-                                                                                                                    int32_t value_975 = 0;
-                                                                                                                    if (value_974) {
-                                                                                                                        value_975 = 1;
+                                                                                                                    bool value_956 = !(from_queue != 0) && body_mcount > 0 && depth == (tables->body_mdepth.items)[((int32_t)((uint32_t)body_mcount - 1u))];
+                                                                                                                    bool value_957 = value_956;
+                                                                                                                    bool value_958 = value_957 && zir_f_157b8ce5776e0448_line_is_compile_else(t) != 0;
+                                                                                                                    int32_t value_959 = 0;
+                                                                                                                    if (value_958) {
+                                                                                                                        value_959 = 1;
                                                                                                                     }
-                                                                                                                    int32_t compile_else = value_975;
-                                                                                                                    bool value_976 = bck == 2 && body_mcount > 0 && depth == (tables->body_mdepth.items)[((int32_t)((uint32_t)body_mcount - 1u))];
-                                                                                                                    int32_t value_977 = 0;
-                                                                                                                    if (value_976) {
-                                                                                                                        value_977 = 1;
+                                                                                                                    int32_t compile_else = value_959;
+                                                                                                                    bool value_960 = bck == 2 && body_mcount > 0 && depth == (tables->body_mdepth.items)[((int32_t)((uint32_t)body_mcount - 1u))];
+                                                                                                                    int32_t value_961 = 0;
+                                                                                                                    if (value_960) {
+                                                                                                                        value_961 = 1;
                                                                                                                     }
-                                                                                                                    int32_t compile_else_if = value_977;
+                                                                                                                    int32_t compile_else_if = value_961;
                                                                                                                     if (bck == 1) {
-                                                                                                                        int32_t value_978 = 0;
+                                                                                                                        int32_t value_962 = 0;
                                                                                                                         if (body_mcount == 0 || (tables->body_mactive.items)[((int32_t)((uint32_t)body_mcount - 1u))] != 0) {
-                                                                                                                            value_978 = 1;
+                                                                                                                            value_962 = 1;
                                                                                                                         }
-                                                                                                                        int32_t parent_active = value_978;
-                                                                                                                        bool value_979 = parent_active != 0;
-                                                                                                                        bool value_980 = value_979;
-                                                                                                                        if (value_980) {
-                                                                                                                            ZirModule* value_981 = module;
-                                                                                                                            uint8_t* value_982 = bcnd;
-                                                                                                                            ZirSourceSpan value_983 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                            bool value_984 = zir_f_157b8ce5776e0448_select_compile_condition(value_981, &(tables->consts), value_982, value_983, &(tables->compile_context), path, (void *)0) != 0;
-                                                                                                                            value_980 = value_984;
+                                                                                                                        int32_t parent_active = value_962;
+                                                                                                                        bool value_963 = parent_active != 0;
+                                                                                                                        bool value_964 = value_963;
+                                                                                                                        if (value_964) {
+                                                                                                                            ZirModule* value_965 = module;
+                                                                                                                            uint8_t* value_966 = bcnd;
+                                                                                                                            ZirSourceSpan value_967 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                            bool value_968 = zir_f_157b8ce5776e0448_select_compile_condition(value_965, &(tables->consts), value_966, value_967, &(tables->compile_context), path, (void *)0) != 0;
+                                                                                                                            value_964 = value_968;
                                                                                                                         }
-                                                                                                                        int32_t value_985 = 0;
-                                                                                                                        if (value_980) {
-                                                                                                                            value_985 = 1;
+                                                                                                                        int32_t value_969 = 0;
+                                                                                                                        if (value_964) {
+                                                                                                                            value_969 = 1;
                                                                                                                         }
-                                                                                                                        int32_t chosen = value_985;
+                                                                                                                        int32_t chosen = value_969;
                                                                                                                         if (body_mcount >= 8) {
-                                                                                                                            ZirSourceSpan value_986 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_986, compiler_parse_types_ParserCString(StringLiteral("too many nested #if blocks")));
+                                                                                                                            ZirSourceSpan value_970 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_970, compiler_parse_types_ParserCString(StringLiteral("too many nested #if blocks")));
                                                                                                                             abort();
                                                                                                                         }
-                                                                                                                        int32_t* value_987 = &(tables->body_mdepth.items[body_mcount]);
-                                                                                                                        (*value_987) = depth;
-                                                                                                                        int32_t* value_988 = &(tables->body_mselected.items[body_mcount]);
-                                                                                                                        (*value_988) = chosen;
-                                                                                                                        int32_t* value_989 = &(tables->body_mparent_active.items[body_mcount]);
-                                                                                                                        (*value_989) = parent_active;
-                                                                                                                        int32_t* value_990 = &(tables->body_mactive.items[body_mcount]);
-                                                                                                                        int32_t value_991 = 0;
+                                                                                                                        int32_t* value_971 = &(tables->body_mdepth.items[body_mcount]);
+                                                                                                                        (*value_971) = depth;
+                                                                                                                        int32_t* value_972 = &(tables->body_mselected.items[body_mcount]);
+                                                                                                                        (*value_972) = chosen;
+                                                                                                                        int32_t* value_973 = &(tables->body_mparent_active.items[body_mcount]);
+                                                                                                                        (*value_973) = parent_active;
+                                                                                                                        int32_t* value_974 = &(tables->body_mactive.items[body_mcount]);
+                                                                                                                        int32_t value_975 = 0;
                                                                                                                         if (parent_active != 0 && chosen != 0) {
-                                                                                                                            value_991 = 1;
+                                                                                                                            value_975 = 1;
                                                                                                                         }
-                                                                                                                        (*value_990) = value_991;
+                                                                                                                        (*value_974) = value_975;
                                                                                                                         compiler_parse_types_ParserPost0(&(body_mcount));
                                                                                                                     } else {
                                                                                                                         if (compile_else_if != 0) {
                                                                                                                             int32_t i = (int32_t)((uint32_t)body_mcount - 1u);
-                                                                                                                            bool value_992 = (tables->body_mparent_active.items)[i] != 0 && !((tables->body_mselected.items)[i] != 0);
-                                                                                                                            bool value_993 = value_992;
-                                                                                                                            if (value_993) {
-                                                                                                                                ZirModule* value_994 = module;
-                                                                                                                                uint8_t* value_995 = bcnd;
-                                                                                                                                ZirSourceSpan value_996 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                bool value_997 = zir_f_157b8ce5776e0448_select_compile_condition(value_994, &(tables->consts), value_995, value_996, &(tables->compile_context), path, (void *)0) != 0;
-                                                                                                                                value_993 = value_997;
+                                                                                                                            bool value_976 = (tables->body_mparent_active.items)[i] != 0 && !((tables->body_mselected.items)[i] != 0);
+                                                                                                                            bool value_977 = value_976;
+                                                                                                                            if (value_977) {
+                                                                                                                                ZirModule* value_978 = module;
+                                                                                                                                uint8_t* value_979 = bcnd;
+                                                                                                                                ZirSourceSpan value_980 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                bool value_981 = zir_f_157b8ce5776e0448_select_compile_condition(value_978, &(tables->consts), value_979, value_980, &(tables->compile_context), path, (void *)0) != 0;
+                                                                                                                                value_977 = value_981;
                                                                                                                             }
-                                                                                                                            int32_t value_998 = 0;
-                                                                                                                            if (value_993) {
-                                                                                                                                value_998 = 1;
+                                                                                                                            int32_t value_982 = 0;
+                                                                                                                            if (value_977) {
+                                                                                                                                value_982 = 1;
                                                                                                                             }
-                                                                                                                            int32_t chosen = value_998;
-                                                                                                                            int32_t* value_999 = &(tables->body_mactive.items[i]);
-                                                                                                                            bool value_1000 = (tables->body_mparent_active.items)[i] != 0 && !((tables->body_mselected.items)[i] != 0) && chosen != 0;
-                                                                                                                            int32_t value_1001 = 0;
-                                                                                                                            if (value_1000) {
-                                                                                                                                value_1001 = 1;
+                                                                                                                            int32_t chosen = value_982;
+                                                                                                                            int32_t* value_983 = &(tables->body_mactive.items[i]);
+                                                                                                                            bool value_984 = (tables->body_mparent_active.items)[i] != 0 && !((tables->body_mselected.items)[i] != 0) && chosen != 0;
+                                                                                                                            int32_t value_985 = 0;
+                                                                                                                            if (value_984) {
+                                                                                                                                value_985 = 1;
                                                                                                                             }
-                                                                                                                            (*value_999) = value_1001;
-                                                                                                                            int32_t* value_1002 = &(tables->body_mselected.items[i]);
-                                                                                                                            (*value_1002) = (int32_t)((uint32_t)((*value_1002)) | (uint32_t)chosen);
+                                                                                                                            (*value_983) = value_985;
+                                                                                                                            int32_t* value_986 = &(tables->body_mselected.items[i]);
+                                                                                                                            (*value_986) = (int32_t)((uint32_t)((*value_986)) | (uint32_t)chosen);
                                                                                                                         } else {
                                                                                                                             if (compile_else != 0) {
                                                                                                                                 int32_t i = (int32_t)((uint32_t)body_mcount - 1u);
-                                                                                                                                int32_t* value_1003 = &(tables->body_mactive.items[i]);
-                                                                                                                                int32_t value_1004 = 0;
+                                                                                                                                int32_t* value_987 = &(tables->body_mactive.items[i]);
+                                                                                                                                int32_t value_988 = 0;
                                                                                                                                 if ((tables->body_mparent_active.items)[i] != 0 && !((tables->body_mselected.items)[i] != 0)) {
-                                                                                                                                    value_1004 = 1;
+                                                                                                                                    value_988 = 1;
                                                                                                                                 }
-                                                                                                                                (*value_1003) = value_1004;
-                                                                                                                                int32_t* value_1005 = &(tables->body_mselected.items[i]);
-                                                                                                                                (*value_1005) = 1;
+                                                                                                                                (*value_987) = value_988;
+                                                                                                                                int32_t* value_989 = &(tables->body_mselected.items[i]);
+                                                                                                                                (*value_989) = 1;
                                                                                                                             } else {
                                                                                                                                 if (bck == 2) {
-                                                                                                                                    ZirSourceSpan value_1006 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_1006, compiler_parse_types_ParserCString(StringLiteral("else #if without a matching #if")));
+                                                                                                                                    ZirSourceSpan value_990 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_990, compiler_parse_types_ParserCString(StringLiteral("else #if without a matching #if")));
                                                                                                                                     abort();
                                                                                                                                 } else {
                                                                                                                                     if ((int32_t)((int8_t)(t[0])) == 125 && body_mcount > 0 && depth == (tables->body_mdepth.items)[((int32_t)((uint32_t)body_mcount - 1u))]) {
                                                                                                                                         compiler_parse_types_ParserPost3(&(body_mcount));
                                                                                                                                     } else {
                                                                                                                                         if (body_mcount > 0 && !((tables->body_mactive.items)[((int32_t)((uint32_t)body_mcount - 1u))] != 0)) {
-                                                                                                                                            int32_t value_1007 = depth;
-                                                                                                                                            int32_t value_1008 = zir_f_157b8ce5776e0448_net_block_braces(t);
-                                                                                                                                            depth = (int32_t)((uint32_t)value_1007 + (uint32_t)value_1008);
+                                                                                                                                            int32_t value_991 = depth;
+                                                                                                                                            int32_t value_992 = zir_f_157b8ce5776e0448_net_block_braces(t);
+                                                                                                                                            depth = (int32_t)((uint32_t)value_991 + (uint32_t)value_992);
                                                                                                                                         } else {
-                                                                                                                                            uint8_t* value_1009 = t;
-                                                                                                                                            if (zir_f_157b8ce5776e0448_starts_word(value_1009, compiler_parse_types_ParserCString(StringLiteral("#insert"))) != 0) {
-                                                                                                                                                ZirSourceSpan value_1010 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                                uint8_t* value_1011 = compiler_parse_types_ParserCString(StringLiteral("procedure bodies cannot #insert; #insert splices declarations at file scope"));
-                                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_1010, value_1011);
+                                                                                                                                            uint8_t* value_993 = t;
+                                                                                                                                            if (zir_f_157b8ce5776e0448_starts_word(value_993, compiler_parse_types_ParserCString(StringLiteral("#insert"))) != 0) {
+                                                                                                                                                ZirSourceSpan value_994 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                                uint8_t* value_995 = compiler_parse_types_ParserCString(StringLiteral("procedure bodies cannot #insert; #insert splices declarations at file scope"));
+                                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_994, value_995);
                                                                                                                                                 abort();
                                                                                                                                             } else {
-                                                                                                                                                bool value_1012 = (int32_t)((int8_t)(t[0])) == 35;
-                                                                                                                                                bool value_1013 = value_1012;
-                                                                                                                                                if (value_1013) {
-                                                                                                                                                    uint8_t* value_1014 = t;
-                                                                                                                                                    bool value_1015 = zir_f_157b8ce5776e0448_strcmp(value_1014, compiler_parse_types_ParserCString(StringLiteral("#through"))) != 0;
-                                                                                                                                                    value_1013 = value_1015;
+                                                                                                                                                bool value_996 = (int32_t)((int8_t)(t[0])) == 35;
+                                                                                                                                                bool value_997 = value_996;
+                                                                                                                                                if (value_997) {
+                                                                                                                                                    uint8_t* value_998 = t;
+                                                                                                                                                    bool value_999 = zir_f_157b8ce5776e0448_strcmp(value_998, compiler_parse_types_ParserCString(StringLiteral("#through"))) != 0;
+                                                                                                                                                    value_997 = value_999;
                                                                                                                                                 }
-                                                                                                                                                bool value_1016 = value_1013;
-                                                                                                                                                bool value_1017 = value_1016;
-                                                                                                                                                if (value_1017) {
-                                                                                                                                                    uint8_t* value_1018 = t;
-                                                                                                                                                    bool value_1019 = zir_f_157b8ce5776e0448_strcmp(value_1018, compiler_parse_types_ParserCString(StringLiteral("#through;"))) != 0;
-                                                                                                                                                    value_1017 = value_1019;
+                                                                                                                                                bool value_1000 = value_997;
+                                                                                                                                                bool value_1001 = value_1000;
+                                                                                                                                                if (value_1001) {
+                                                                                                                                                    uint8_t* value_1002 = t;
+                                                                                                                                                    bool value_1003 = zir_f_157b8ce5776e0448_strcmp(value_1002, compiler_parse_types_ParserCString(StringLiteral("#through;"))) != 0;
+                                                                                                                                                    value_1001 = value_1003;
                                                                                                                                                 }
-                                                                                                                                                bool value_1020 = value_1017;
-                                                                                                                                                bool value_1021 = value_1020;
-                                                                                                                                                if (value_1021) {
-                                                                                                                                                    uint8_t* value_1022 = t;
-                                                                                                                                                    bool value_1023 = zir_f_157b8ce5776e0448_starts_word(value_1022, compiler_parse_types_ParserCString(StringLiteral("#asm"))) != 0;
-                                                                                                                                                    value_1021 = !value_1023;
+                                                                                                                                                bool value_1004 = value_1001;
+                                                                                                                                                bool value_1005 = value_1004;
+                                                                                                                                                if (value_1005) {
+                                                                                                                                                    uint8_t* value_1006 = t;
+                                                                                                                                                    bool value_1007 = zir_f_157b8ce5776e0448_starts_word(value_1006, compiler_parse_types_ParserCString(StringLiteral("#asm"))) != 0;
+                                                                                                                                                    value_1005 = !value_1007;
                                                                                                                                                 }
-                                                                                                                                                bool value_1024 = value_1021;
-                                                                                                                                                bool value_1025 = value_1024;
-                                                                                                                                                if (value_1025) {
-                                                                                                                                                    uint8_t* value_1026 = t;
-                                                                                                                                                    bool value_1027 = zir_f_157b8ce5776e0448_starts_word(value_1026, compiler_parse_types_ParserCString(StringLiteral("#parallel"))) != 0;
-                                                                                                                                                    value_1025 = !value_1027;
+                                                                                                                                                bool value_1008 = value_1005;
+                                                                                                                                                bool value_1009 = value_1008;
+                                                                                                                                                if (value_1009) {
+                                                                                                                                                    uint8_t* value_1010 = t;
+                                                                                                                                                    bool value_1011 = zir_f_157b8ce5776e0448_starts_word(value_1010, compiler_parse_types_ParserCString(StringLiteral("#parallel"))) != 0;
+                                                                                                                                                    value_1009 = !value_1011;
                                                                                                                                                 }
-                                                                                                                                                if (value_1025) {
-                                                                                                                                                    ZirSourceSpan value_1028 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                                    uint8_t* value_1029 = compiler_parse_types_ParserCString(StringLiteral("unknown function-body directive: %s"));
-                                                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_1028, value_1029, t);
+                                                                                                                                                if (value_1009) {
+                                                                                                                                                    ZirSourceSpan value_1012 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                                    uint8_t* value_1013 = compiler_parse_types_ParserCString(StringLiteral("unknown function-body directive: %s"));
+                                                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_1012, value_1013, t);
                                                                                                                                                     abort();
                                                                                                                                                 } else {
                                                                                                                                                     if ((int32_t)((int8_t)(t[0])) == 125) {
@@ -5417,26 +5402,26 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                                                                             }
                                                                                                                                                             compiler_parse_types_ParserPost2(&(eq));
                                                                                                                                                         }
-                                                                                                                                                        bool value_1030 = depth > 1;
-                                                                                                                                                        bool value_1031 = value_1030;
-                                                                                                                                                        if (value_1031) {
-                                                                                                                                                            uint8_t* value_1032 = eq;
-                                                                                                                                                            bool value_1033 = zir_f_157b8ce5776e0448_starts_word(value_1032, compiler_parse_types_ParserCString(StringLiteral("else"))) != 0;
-                                                                                                                                                            value_1031 = value_1033;
+                                                                                                                                                        bool value_1014 = depth > 1;
+                                                                                                                                                        bool value_1015 = value_1014;
+                                                                                                                                                        if (value_1015) {
+                                                                                                                                                            uint8_t* value_1016 = eq;
+                                                                                                                                                            bool value_1017 = zir_f_157b8ce5776e0448_starts_word(value_1016, compiler_parse_types_ParserCString(StringLiteral("else"))) != 0;
+                                                                                                                                                            value_1015 = value_1017;
                                                                                                                                                         }
-                                                                                                                                                        if (value_1031) {
-                                                                                                                                                            uint8_t* value_1034 = (uint8_t*)(eq);
-                                                                                                                                                            size_t value_1035 = compiler_parse_source_logical_room(buffers, eq);
-                                                                                                                                                            zir_f_157b8ce5776e0448_split_jai_control_line(value_1034, value_1035, (ParserArray32768_u8*)(&(buffers->onelineq.items)), &(onelineq_count), zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1));
-                                                                                                                                                            int32_t value_1036 = (int32_t)((uint32_t)pending_start_column + (uint32_t)(((ptrdiff_t)(((size_t)(eq) - (size_t)(t))) / (ptrdiff_t)(sizeof(uint8_t)))));
-                                                                                                                                                            ZirSourceSpan span = zir_f_157b8ce5776e0448_SpanEnd((uint8_t*)(&(buffers->rel.items)), line_no, value_1036, line_no, pending_end_column);
-                                                                                                                                                            ZirFunction* value_1037 = fn;
-                                                                                                                                                            uint8_t* value_1038 = compiler_parse_types_ParserCString(StringLiteral("}"));
-                                                                                                                                                            zir_f_157b8ce5776e0448_FunctionAddStmt(value_1037, (ZirStmtKind)(2), value_1038, zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1));
+                                                                                                                                                        if (value_1015) {
+                                                                                                                                                            uint8_t* value_1018 = (uint8_t*)(eq);
+                                                                                                                                                            size_t value_1019 = compiler_parse_source_logical_room(buffers, eq);
+                                                                                                                                                            zir_f_157b8ce5776e0448_split_jai_control_line(value_1018, value_1019, (ParserArray32768_u8*)(&(buffers->onelineq.items)), &(onelineq_count), zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1));
+                                                                                                                                                            int32_t value_1020 = (int32_t)((uint32_t)pending_start_column + (uint32_t)(((ptrdiff_t)(((size_t)(eq) - (size_t)(t))) / (ptrdiff_t)(sizeof(uint8_t)))));
+                                                                                                                                                            ZirSourceSpan span = zir_f_157b8ce5776e0448_SpanEnd((uint8_t*)(&(buffers->rel.items)), line_no, value_1020, line_no, pending_end_column);
+                                                                                                                                                            ZirFunction* value_1021 = fn;
+                                                                                                                                                            uint8_t* value_1022 = compiler_parse_types_ParserCString(StringLiteral("}"));
+                                                                                                                                                            zir_f_157b8ce5776e0448_FunctionAddStmt(value_1021, (ZirStmtKind)(2), value_1022, zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1));
                                                                                                                                                             zir_f_157b8ce5776e0448_FunctionAddStmt(fn, (ZirStmtKind)(6), eq, span);
-                                                                                                                                                            int32_t value_1039 = depth;
-                                                                                                                                                            int32_t value_1040 = zir_f_157b8ce5776e0448_net_block_braces(t);
-                                                                                                                                                            depth = (int32_t)((uint32_t)value_1039 + (uint32_t)value_1040);
+                                                                                                                                                            int32_t value_1023 = depth;
+                                                                                                                                                            int32_t value_1024 = zir_f_157b8ce5776e0448_net_block_braces(t);
+                                                                                                                                                            depth = (int32_t)((uint32_t)value_1023 + (uint32_t)value_1024);
                                                                                                                                                         } else {
                                                                                                                                                             if (depth > 0) {
                                                                                                                                                                 compiler_parse_types_ParserPost3(&(depth));
@@ -5447,43 +5432,43 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                                                                                 fn = (void *)0;
                                                                                                                                                                 local_count = 0;
                                                                                                                                                             } else {
-                                                                                                                                                                ZirFunction* value_1041 = fn;
-                                                                                                                                                                uint8_t* value_1042 = t;
-                                                                                                                                                                zir_f_157b8ce5776e0448_FunctionAddStmt(value_1041, (ZirStmtKind)(2), value_1042, zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1));
+                                                                                                                                                                ZirFunction* value_1025 = fn;
+                                                                                                                                                                uint8_t* value_1026 = t;
+                                                                                                                                                                zir_f_157b8ce5776e0448_FunctionAddStmt(value_1025, (ZirStmtKind)(2), value_1026, zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1));
                                                                                                                                                             }
                                                                                                                                                         }
                                                                                                                                                     } else {
                                                                                                                                                         int32_t using_binding = 0;
-                                                                                                                                                        void* value_1043 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray160_u8));
-                                                                                                                                                        ParserArray160_u8* using_filter_storage_42 = (ParserArray160_u8*)(value_1043);
+                                                                                                                                                        void* value_1027 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray160_u8));
+                                                                                                                                                        ParserArray160_u8* using_filter_storage_42 = (ParserArray160_u8*)(value_1027);
                                                                                                                                                         zir_f_157b8ce5776e0448_memset((void*)(using_filter_storage_42), 0, sizeof(ParserArray160_u8));
-                                                                                                                                                        uint8_t* value_1044 = &(((using_filter_storage_42[0]).items)[0]);
-                                                                                                                                                        (*value_1044) = 0;
-                                                                                                                                                        uint8_t* value_1045 = &(buffers->using_path_text.items[0]);
-                                                                                                                                                        (*value_1045) = 0;
-                                                                                                                                                        uint8_t* value_1046 = t;
-                                                                                                                                                        bool value_1047 = zir_f_157b8ce5776e0448_starts_word(value_1046, compiler_parse_types_ParserCString(StringLiteral("using"))) != 0;
-                                                                                                                                                        bool value_1048 = value_1047;
-                                                                                                                                                        if (!value_1048) {
-                                                                                                                                                            uint8_t* value_1049 = t;
-                                                                                                                                                            bool value_1050 = zir_f_157b8ce5776e0448_strncmp(value_1049, compiler_parse_types_ParserCString(StringLiteral("using,")), (size_t)(6LL)) == 0;
-                                                                                                                                                            value_1048 = value_1050;
+                                                                                                                                                        uint8_t* value_1028 = &(((using_filter_storage_42[0]).items)[0]);
+                                                                                                                                                        (*value_1028) = 0;
+                                                                                                                                                        uint8_t* value_1029 = &(buffers->using_path_text.items[0]);
+                                                                                                                                                        (*value_1029) = 0;
+                                                                                                                                                        uint8_t* value_1030 = t;
+                                                                                                                                                        bool value_1031 = zir_f_157b8ce5776e0448_starts_word(value_1030, compiler_parse_types_ParserCString(StringLiteral("using"))) != 0;
+                                                                                                                                                        bool value_1032 = value_1031;
+                                                                                                                                                        if (!value_1032) {
+                                                                                                                                                            uint8_t* value_1033 = t;
+                                                                                                                                                            bool value_1034 = zir_f_157b8ce5776e0448_strncmp(value_1033, compiler_parse_types_ParserCString(StringLiteral("using,")), (size_t)(6LL)) == 0;
+                                                                                                                                                            value_1032 = value_1034;
                                                                                                                                                         }
-                                                                                                                                                        if (value_1048) {
-                                                                                                                                                            bool value_1051 = zir_f_157b8ce5776e0448_isspace((int32_t)(t[5])) != 0;
-                                                                                                                                                            if (!value_1051 && (int32_t)((int8_t)(t[5])) != 44) {
-                                                                                                                                                                ZirSourceSpan value_1052 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_1052, compiler_parse_types_ParserCString(StringLiteral("using modifiers are not supported")));
+                                                                                                                                                        if (value_1032) {
+                                                                                                                                                            bool value_1035 = zir_f_157b8ce5776e0448_isspace((int32_t)(t[5])) != 0;
+                                                                                                                                                            if (!value_1035 && (int32_t)((int8_t)(t[5])) != 44) {
+                                                                                                                                                                ZirSourceSpan value_1036 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_1036, compiler_parse_types_ParserCString(StringLiteral("using modifiers are not supported")));
                                                                                                                                                                 abort();
                                                                                                                                                             }
                                                                                                                                                             uint8_t* after = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(t) + ((size_t)(5LL) * sizeof(uint8_t)))));
                                                                                                                                                             zir_f_157b8ce5776e0448_parse_using_modifiers(&(after), (uint8_t*)(&((using_filter_storage_42[0]).items)), (size_t)(sizeof(ParserArray160_u8)), (uint8_t*)(&(buffers->rel.items)), line_no);
-                                                                                                                                                            uint8_t* value_1053 = compiler_parse_types_ParserCString(StringLiteral("%s"));
-                                                                                                                                                            zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&(buffers->using_path_text.items)), (size_t)(sizeof(ParserArray32768_u8)), value_1053, after);
+                                                                                                                                                            uint8_t* value_1037 = compiler_parse_types_ParserCString(StringLiteral("%s"));
+                                                                                                                                                            zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&(buffers->using_path_text.items)), (size_t)(sizeof(ParserArray32768_u8)), value_1037, after);
                                                                                                                                                             t = zir_f_157b8ce5776e0448_trim((uint8_t*)(&(buffers->using_path_text.items)));
                                                                                                                                                             if ((int32_t)((int8_t)(t[0])) == 0) {
-                                                                                                                                                                ZirSourceSpan value_1054 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_1054, compiler_parse_types_ParserCString(StringLiteral("using needs a record binding")));
+                                                                                                                                                                ZirSourceSpan value_1038 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_1038, compiler_parse_types_ParserCString(StringLiteral("using needs a record binding")));
                                                                                                                                                                 abort();
                                                                                                                                                             }
                                                                                                                                                             using_binding = 1;
@@ -5491,34 +5476,34 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                                                                         int32_t foreign_column = 0;
                                                                                                                                                         uint8_t* foreign_hint = zir_f_157b8ce5776e0448_foreign_syntax_hint(t, &(foreign_column));
                                                                                                                                                         if (foreign_hint != ((void *)0)) {
-                                                                                                                                                            ZirSourceSpan value_1055 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_1055, foreign_hint);
+                                                                                                                                                            ZirSourceSpan value_1039 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_1039, foreign_hint);
                                                                                                                                                             abort();
                                                                                                                                                         }
-                                                                                                                                                        uint8_t* value_1056 = t;
-                                                                                                                                                        if (zir_f_157b8ce5776e0448_starts_word(value_1056, compiler_parse_types_ParserCString(StringLiteral("match"))) != 0) {
+                                                                                                                                                        uint8_t* value_1040 = t;
+                                                                                                                                                        if (zir_f_157b8ce5776e0448_starts_word(value_1040, compiler_parse_types_ParserCString(StringLiteral("match"))) != 0) {
                                                                                                                                                             uint8_t* after_match = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(t) + ((size_t)(5LL) * sizeof(uint8_t)))));
-                                                                                                                                                            bool value_1057 = (int32_t)((int8_t)(t[5])) == 33 || (int32_t)((int8_t)(t[5])) == 63;
-                                                                                                                                                            bool value_1058 = value_1057;
-                                                                                                                                                            if (!value_1058) {
-                                                                                                                                                                bool value_1059 = zir_f_157b8ce5776e0448_isspace((int32_t)(t[5])) != 0;
-                                                                                                                                                                bool value_1060 = value_1059 && (int32_t)((int8_t)(after_match[0])) != 61 && (int32_t)((int8_t)(after_match[0])) != 58;
-                                                                                                                                                                bool value_1061 = value_1060 && (int32_t)((int8_t)(after_match[0])) != 43 && (int32_t)((int8_t)(after_match[0])) != 45;
-                                                                                                                                                                bool value_1062 = value_1061 && (int32_t)((int8_t)(after_match[0])) != 42 && (int32_t)((int8_t)(after_match[0])) != 47;
-                                                                                                                                                                bool value_1063 = value_1062 && (int32_t)((int8_t)(after_match[0])) != 37 && (int32_t)((int8_t)(after_match[0])) != 38;
-                                                                                                                                                                bool value_1064 = value_1063 && (int32_t)((int8_t)(after_match[0])) != 124 && (int32_t)((int8_t)(after_match[0])) != 94;
-                                                                                                                                                                bool value_1065 = value_1064 && (int32_t)((int8_t)(after_match[0])) != 46 && (int32_t)((int8_t)(after_match[0])) != 40;
-                                                                                                                                                                value_1058 = value_1065;
+                                                                                                                                                            bool value_1041 = (int32_t)((int8_t)(t[5])) == 33 || (int32_t)((int8_t)(t[5])) == 63;
+                                                                                                                                                            bool value_1042 = value_1041;
+                                                                                                                                                            if (!value_1042) {
+                                                                                                                                                                bool value_1043 = zir_f_157b8ce5776e0448_isspace((int32_t)(t[5])) != 0;
+                                                                                                                                                                bool value_1044 = value_1043 && (int32_t)((int8_t)(after_match[0])) != 61 && (int32_t)((int8_t)(after_match[0])) != 58;
+                                                                                                                                                                bool value_1045 = value_1044 && (int32_t)((int8_t)(after_match[0])) != 43 && (int32_t)((int8_t)(after_match[0])) != 45;
+                                                                                                                                                                bool value_1046 = value_1045 && (int32_t)((int8_t)(after_match[0])) != 42 && (int32_t)((int8_t)(after_match[0])) != 47;
+                                                                                                                                                                bool value_1047 = value_1046 && (int32_t)((int8_t)(after_match[0])) != 37 && (int32_t)((int8_t)(after_match[0])) != 38;
+                                                                                                                                                                bool value_1048 = value_1047 && (int32_t)((int8_t)(after_match[0])) != 124 && (int32_t)((int8_t)(after_match[0])) != 94;
+                                                                                                                                                                bool value_1049 = value_1048 && (int32_t)((int8_t)(after_match[0])) != 46 && (int32_t)((int8_t)(after_match[0])) != 40;
+                                                                                                                                                                value_1042 = value_1049;
                                                                                                                                                             }
-                                                                                                                                                            bool value_1066 = value_1058;
-                                                                                                                                                            bool value_1067 = value_1066;
-                                                                                                                                                            if (value_1067) {
-                                                                                                                                                                uint8_t* value_1068 = zir_f_157b8ce5776e0448_strchr(t, 123);
-                                                                                                                                                                value_1067 = (value_1068 != (uint8_t*)(((void *)0)));
+                                                                                                                                                            bool value_1050 = value_1042;
+                                                                                                                                                            bool value_1051 = value_1050;
+                                                                                                                                                            if (value_1051) {
+                                                                                                                                                                uint8_t* value_1052 = zir_f_157b8ce5776e0448_strchr(t, 123);
+                                                                                                                                                                value_1051 = (value_1052 != (uint8_t*)(((void *)0)));
                                                                                                                                                             }
-                                                                                                                                                            if (value_1067) {
-                                                                                                                                                                ZirSourceSpan value_1069 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_1069, compiler_parse_types_ParserCString(StringLiteral("match is not Jai syntax; use if value == { case ... }")));
+                                                                                                                                                            if (value_1051) {
+                                                                                                                                                                ZirSourceSpan value_1053 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_1053, compiler_parse_types_ParserCString(StringLiteral("match is not Jai syntax; use if value == { case ... }")));
                                                                                                                                                                 abort();
                                                                                                                                                             }
                                                                                                                                                         }
@@ -5527,112 +5512,112 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                                                                             kind = (ZirStmtKind)(5);
                                                                                                                                                         }
                                                                                                                                                         if (using_binding != 0 && (int32_t)(kind) != 3 && (int32_t)(kind) != 5) {
-                                                                                                                                                            ZirSourceSpan value_1070 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_1070, compiler_parse_types_ParserCString(StringLiteral("using needs a record binding")));
+                                                                                                                                                            ZirSourceSpan value_1054 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_1054, compiler_parse_types_ParserCString(StringLiteral("using needs a record binding")));
                                                                                                                                                             abort();
                                                                                                                                                         }
                                                                                                                                                         int32_t brace_delta = zir_f_157b8ce5776e0448_net_block_braces(t);
-                                                                                                                                                        int32_t value_1071 = 0;
+                                                                                                                                                        int32_t value_1055 = 0;
                                                                                                                                                         if (fn != (ZirFunction*)(((void *)0))) {
-                                                                                                                                                            value_1071 = fn->stmt_count;
+                                                                                                                                                            value_1055 = fn->stmt_count;
                                                                                                                                                         } else {
-                                                                                                                                                            value_1071 = 0;
+                                                                                                                                                            value_1055 = 0;
                                                                                                                                                         }
-                                                                                                                                                        int32_t first_statement = value_1071;
-                                                                                                                                                        void* value_1072 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
-                                                                                                                                                        ParserArray128_u8* block_callee_storage_43 = (ParserArray128_u8*)(value_1072);
+                                                                                                                                                        int32_t first_statement = value_1055;
+                                                                                                                                                        void* value_1056 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
+                                                                                                                                                        ParserArray128_u8* block_callee_storage_43 = (ParserArray128_u8*)(value_1056);
                                                                                                                                                         zir_f_157b8ce5776e0448_memset((void*)(block_callee_storage_43), 0, sizeof(ParserArray128_u8));
-                                                                                                                                                        void* value_1073 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
-                                                                                                                                                        ParserArray128_u8* block_name_storage_44 = (ParserArray128_u8*)(value_1073);
+                                                                                                                                                        void* value_1057 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
+                                                                                                                                                        ParserArray128_u8* block_name_storage_44 = (ParserArray128_u8*)(value_1057);
                                                                                                                                                         zir_f_157b8ce5776e0448_memset((void*)(block_name_storage_44), 0, sizeof(ParserArray128_u8));
-                                                                                                                                                        uint8_t* value_1074 = t;
-                                                                                                                                                        if (zir_f_157b8ce5776e0448_looks_like_non_jai_control(value_1074, compiler_parse_types_ParserCString(StringLiteral("guard"))) != 0) {
-                                                                                                                                                            ZirSourceSpan value_1075 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_1075, compiler_parse_types_ParserCString(StringLiteral("guard is not Jai syntax; use if and return")));
+                                                                                                                                                        uint8_t* value_1058 = t;
+                                                                                                                                                        if (zir_f_157b8ce5776e0448_looks_like_non_jai_control(value_1058, compiler_parse_types_ParserCString(StringLiteral("guard"))) != 0) {
+                                                                                                                                                            ZirSourceSpan value_1059 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_1059, compiler_parse_types_ParserCString(StringLiteral("guard is not Jai syntax; use if and return")));
                                                                                                                                                             abort();
                                                                                                                                                         }
-                                                                                                                                                        bool value_1076 = (int32_t)((int8_t)(t[0])) == 99;
-                                                                                                                                                        if (value_1076 && zir_f_157b8ce5776e0448_isspace((int32_t)(t[1])) != 0) {
+                                                                                                                                                        bool value_1060 = (int32_t)((int8_t)(t[0])) == 99;
+                                                                                                                                                        if (value_1060 && zir_f_157b8ce5776e0448_isspace((int32_t)(t[1])) != 0) {
                                                                                                                                                             uint8_t* rest = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(t) + ((size_t)(1LL) * sizeof(uint8_t)))));
-                                                                                                                                                            bool value_1077 = zir_f_157b8ce5776e0448_isalpha((int32_t)(rest[0])) != 0;
-                                                                                                                                                            if (value_1077 || (int32_t)((int8_t)(rest[0])) == 95) {
-                                                                                                                                                                ZirSourceSpan value_1078 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_1078, compiler_parse_types_ParserCString(StringLiteral("raw C statements are not Jai syntax; use #foreign")));
+                                                                                                                                                            bool value_1061 = zir_f_157b8ce5776e0448_isalpha((int32_t)(rest[0])) != 0;
+                                                                                                                                                            if (value_1061 || (int32_t)((int8_t)(rest[0])) == 95) {
+                                                                                                                                                                ZirSourceSpan value_1062 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_1062, compiler_parse_types_ParserCString(StringLiteral("raw C statements are not Jai syntax; use #foreign")));
                                                                                                                                                                 abort();
                                                                                                                                                             }
                                                                                                                                                         }
-                                                                                                                                                        uint8_t* value_1079 = t;
-                                                                                                                                                        if (zir_f_157b8ce5776e0448_looks_like_non_jai_control(value_1079, compiler_parse_types_ParserCString(StringLiteral("switch"))) != 0) {
-                                                                                                                                                            ZirSourceSpan value_1080 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_1080, compiler_parse_types_ParserCString(StringLiteral("switch is not Jai syntax; use if value == { case ... }")));
+                                                                                                                                                        uint8_t* value_1063 = t;
+                                                                                                                                                        if (zir_f_157b8ce5776e0448_looks_like_non_jai_control(value_1063, compiler_parse_types_ParserCString(StringLiteral("switch"))) != 0) {
+                                                                                                                                                            ZirSourceSpan value_1064 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_1064, compiler_parse_types_ParserCString(StringLiteral("switch is not Jai syntax; use if value == { case ... }")));
                                                                                                                                                             abort();
                                                                                                                                                         }
-                                                                                                                                                        uint8_t* value_1081 = t;
-                                                                                                                                                        bool value_1082 = zir_f_157b8ce5776e0448_looks_like_non_jai_control(value_1081, compiler_parse_types_ParserCString(StringLiteral("goto"))) != 0;
-                                                                                                                                                        if (value_1082 || zir_f_157b8ce5776e0448_looks_like_label(t) != 0) {
-                                                                                                                                                            ZirSourceSpan value_1083 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_1083, compiler_parse_types_ParserCString(StringLiteral("goto and labels are not Jai syntax; use structured control flow")));
+                                                                                                                                                        uint8_t* value_1065 = t;
+                                                                                                                                                        bool value_1066 = zir_f_157b8ce5776e0448_looks_like_non_jai_control(value_1065, compiler_parse_types_ParserCString(StringLiteral("goto"))) != 0;
+                                                                                                                                                        if (value_1066 || zir_f_157b8ce5776e0448_looks_like_label(t) != 0) {
+                                                                                                                                                            ZirSourceSpan value_1067 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_1067, compiler_parse_types_ParserCString(StringLiteral("goto and labels are not Jai syntax; use structured control flow")));
                                                                                                                                                             abort();
                                                                                                                                                         }
-                                                                                                                                                        bool value_1084 = (int32_t)(kind) == 3;
-                                                                                                                                                        bool value_1085 = value_1084;
-                                                                                                                                                        if (value_1085) {
-                                                                                                                                                            uint8_t* value_1086 = zir_f_157b8ce5776e0448_strchr(t, 58);
-                                                                                                                                                            value_1085 = (value_1086 == (uint8_t*)(((void *)0)));
+                                                                                                                                                        bool value_1068 = (int32_t)(kind) == 3;
+                                                                                                                                                        bool value_1069 = value_1068;
+                                                                                                                                                        if (value_1069) {
+                                                                                                                                                            uint8_t* value_1070 = zir_f_157b8ce5776e0448_strchr(t, 58);
+                                                                                                                                                            value_1069 = (value_1070 == (uint8_t*)(((void *)0)));
                                                                                                                                                         }
-                                                                                                                                                        if (value_1085) {
-                                                                                                                                                            ZirSourceSpan value_1087 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_1087, compiler_parse_types_ParserCString(StringLiteral("C-style local declarations are not Jai syntax; use name: Type")));
+                                                                                                                                                        if (value_1069) {
+                                                                                                                                                            ZirSourceSpan value_1071 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_1071, compiler_parse_types_ParserCString(StringLiteral("C-style local declarations are not Jai syntax; use name: Type")));
                                                                                                                                                             abort();
                                                                                                                                                         }
                                                                                                                                                         if (zir_f_157b8ce5776e0448_parse_block_call_header(t, (uint8_t*)(&((block_callee_storage_43[0]).items)), (size_t)(sizeof(ParserArray128_u8)), (uint8_t*)(&((block_name_storage_44[0]).items)), (size_t)(sizeof(ParserArray128_u8))) != 0) {
-                                                                                                                                                            ZirSourceSpan value_1088 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_1088, compiler_parse_types_ParserCString(StringLiteral("block calls are not Jai syntax; call with a record literal")));
+                                                                                                                                                            ZirSourceSpan value_1072 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                                                            zir_f_157b8ce5776e0448_die_at(value_1072, compiler_parse_types_ParserCString(StringLiteral("block calls are not Jai syntax; call with a record literal")));
                                                                                                                                                             abort();
                                                                                                                                                         }
                                                                                                                                                         ZirSourceSpan span = zir_f_157b8ce5776e0448_SpanEnd((uint8_t*)(&(buffers->rel.items)), pending_start_line, pending_start_column, line_no, pending_end_column);
-                                                                                                                                                        bool value_1089 = (int32_t)(kind) == 6;
-                                                                                                                                                        bool value_1090 = value_1089;
-                                                                                                                                                        if (value_1090) {
-                                                                                                                                                            uint8_t* value_1091 = t;
-                                                                                                                                                            bool value_1092 = zir_f_157b8ce5776e0448_starts_word(value_1091, compiler_parse_types_ParserCString(StringLiteral("if"))) != 0;
-                                                                                                                                                            value_1090 = value_1092;
+                                                                                                                                                        bool value_1073 = (int32_t)(kind) == 6;
+                                                                                                                                                        bool value_1074 = value_1073;
+                                                                                                                                                        if (value_1074) {
+                                                                                                                                                            uint8_t* value_1075 = t;
+                                                                                                                                                            bool value_1076 = zir_f_157b8ce5776e0448_starts_word(value_1075, compiler_parse_types_ParserCString(StringLiteral("if"))) != 0;
+                                                                                                                                                            value_1074 = value_1076;
                                                                                                                                                         }
-                                                                                                                                                        if (value_1090) {
+                                                                                                                                                        if (value_1074) {
                                                                                                                                                             uint8_t* condition = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(t) + ((size_t)(2LL) * sizeof(uint8_t)))));
-                                                                                                                                                            uint8_t* value_1093 = condition;
-                                                                                                                                                            if (zir_f_157b8ce5776e0448_starts_word(value_1093, compiler_parse_types_ParserCString(StringLiteral("#complete"))) != 0) {
-                                                                                                                                                                size_t value_1094 = (size_t)(condition);
-                                                                                                                                                                size_t value_1095 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#complete")));
-                                                                                                                                                                condition = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_1094 + ((size_t)(value_1095) * sizeof(uint8_t)))));
+                                                                                                                                                            uint8_t* value_1077 = condition;
+                                                                                                                                                            if (zir_f_157b8ce5776e0448_starts_word(value_1077, compiler_parse_types_ParserCString(StringLiteral("#complete"))) != 0) {
+                                                                                                                                                                size_t value_1078 = (size_t)(condition);
+                                                                                                                                                                size_t value_1079 = zir_f_157b8ce5776e0448_strlen(compiler_parse_types_ParserCString(StringLiteral("#complete")));
+                                                                                                                                                                condition = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)((value_1078 + ((size_t)(value_1079) * sizeof(uint8_t)))));
                                                                                                                                                             }
-                                                                                                                                                            uint8_t* value_1096 = condition;
-                                                                                                                                                            uint8_t* equals = zir_f_157b8ce5776e0448_strstr(value_1096, compiler_parse_types_ParserCString(StringLiteral("==")));
-                                                                                                                                                            bool value_1097 = equals != (uint8_t*)(((void *)0));
-                                                                                                                                                            bool value_1098 = value_1097;
-                                                                                                                                                            if (value_1098) {
-                                                                                                                                                                uint8_t* value_1099 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(equals) + ((size_t)(2LL) * sizeof(uint8_t)))));
-                                                                                                                                                                value_1098 = ((int32_t)((int8_t)(value_1099[0])) == 123);
+                                                                                                                                                            uint8_t* value_1080 = condition;
+                                                                                                                                                            uint8_t* equals = zir_f_157b8ce5776e0448_strstr(value_1080, compiler_parse_types_ParserCString(StringLiteral("==")));
+                                                                                                                                                            bool value_1081 = equals != (uint8_t*)(((void *)0));
+                                                                                                                                                            bool value_1082 = value_1081;
+                                                                                                                                                            if (value_1082) {
+                                                                                                                                                                uint8_t* value_1083 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(equals) + ((size_t)(2LL) * sizeof(uint8_t)))));
+                                                                                                                                                                value_1082 = ((int32_t)((int8_t)(value_1083[0])) == 123);
                                                                                                                                                             }
-                                                                                                                                                            bool value_1100 = value_1098;
-                                                                                                                                                            bool value_1101 = value_1100;
-                                                                                                                                                            if (value_1101) {
-                                                                                                                                                                uint8_t* value_1102 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(equals) + ((size_t)(2LL) * sizeof(uint8_t)))));
-                                                                                                                                                                uint8_t* value_1103 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_1102) + ((size_t)(1LL) * sizeof(uint8_t)))));
-                                                                                                                                                                value_1101 = ((int32_t)((int8_t)(value_1103[0])) == 0);
+                                                                                                                                                            bool value_1084 = value_1082;
+                                                                                                                                                            bool value_1085 = value_1084;
+                                                                                                                                                            if (value_1085) {
+                                                                                                                                                                uint8_t* value_1086 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(equals) + ((size_t)(2LL) * sizeof(uint8_t)))));
+                                                                                                                                                                uint8_t* value_1087 = zir_f_157b8ce5776e0448_skip_ws((uint8_t*)(((size_t)(value_1086) + ((size_t)(1LL) * sizeof(uint8_t)))));
+                                                                                                                                                                value_1085 = ((int32_t)((int8_t)(value_1087[0])) == 0);
                                                                                                                                                             }
-                                                                                                                                                            if (value_1101) {
+                                                                                                                                                            if (value_1085) {
                                                                                                                                                                 kind = (ZirStmtKind)(16);
                                                                                                                                                             }
                                                                                                                                                         }
                                                                                                                                                         if ((int32_t)(kind) == 10 && results_count > 0) {
-                                                                                                                                                            uint8_t* value_1104 = t;
-                                                                                                                                                            size_t value_1105 = compiler_parse_source_logical_room(buffers, t);
-                                                                                                                                                            zir_f_157b8ce5776e0448_lower_multiple_return(value_1104, value_1105, (uint8_t*)(&(buffers->results_record.items)), results_count, span);
+                                                                                                                                                            uint8_t* value_1088 = t;
+                                                                                                                                                            size_t value_1089 = compiler_parse_source_logical_room(buffers, t);
+                                                                                                                                                            zir_f_157b8ce5776e0448_lower_multiple_return(value_1088, value_1089, (uint8_t*)(&(buffers->results_record.items)), results_count, span);
                                                                                                                                                         }
                                                                                                                                                         if ((int32_t)(kind) == 5 && !(using_binding != 0) && !(parallel_for != 0)) {
-                                                                                                                                                            void* value_1106 = zir_f_157b8ce5776e0448_AllocateOrExit((size_t)(64LL) * (size_t)(sizeof(ParserArray4096_u8)));
-                                                                                                                                                            ParserArray4096_u8* pieces = (ParserArray4096_u8*)(value_1106);
+                                                                                                                                                            void* value_1090 = zir_f_157b8ce5776e0448_AllocateOrExit((size_t)(64LL) * (size_t)(sizeof(ParserArray4096_u8)));
+                                                                                                                                                            ParserArray4096_u8* pieces = (ParserArray4096_u8*)(value_1090);
                                                                                                                                                             int32_t piece_count = zir_f_157b8ce5776e0448_expand_builder_print(t, pieces, 64, span);
                                                                                                                                                             {
                                                                                                                                                                 int32_t piece = 0;
@@ -5641,8 +5626,8 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                                                                                     if (!loop_131) {
                                                                                                                                                                         break;
                                                                                                                                                                     }
-                                                                                                                                                                    ZirStmt* value_1107 = zir_f_157b8ce5776e0448_FunctionAddStmt(fn, (ZirStmtKind)(5), (uint8_t*)(&(((pieces[piece]).items)[0])), span);
-                                                                                                                                                                    if (value_1107 == (ZirStmt*)(((void *)0))) {
+                                                                                                                                                                    ZirStmt* value_1091 = zir_f_157b8ce5776e0448_FunctionAddStmt(fn, (ZirStmtKind)(5), (uint8_t*)(&(((pieces[piece]).items)[0])), span);
+                                                                                                                                                                    if (value_1091 == (ZirStmt*)(((void *)0))) {
                                                                                                                                                                         zir_f_157b8ce5776e0448_die(compiler_parse_types_ParserCString(StringLiteral("out of memory expanding BuilderPrint")));
                                                                                                                                                                         abort();
                                                                                                                                                                     }
@@ -5665,29 +5650,29 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                                                                                 goto zir_loop_continue_2;
                                                                                                                                                             }
                                                                                                                                                         }
-                                                                                                                                                        void* value_1108 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray3_u8));
-                                                                                                                                                        ParserArray3_u8* binding_operator_storage_45 = (ParserArray3_u8*)(value_1108);
+                                                                                                                                                        void* value_1092 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray3_u8));
+                                                                                                                                                        ParserArray3_u8* binding_operator_storage_45 = (ParserArray3_u8*)(value_1092);
                                                                                                                                                         zir_f_157b8ce5776e0448_memset((void*)(binding_operator_storage_45), 0, sizeof(ParserArray3_u8));
-                                                                                                                                                        uint8_t* value_1109 = (uint8_t*)(binding_operator_storage_45);
-                                                                                                                                                        zir_f_157b8ce5776e0448_copy_text(value_1109, sizeof(ParserArray3_u8), compiler_parse_types_ParserCString(StringLiteral("")));
-                                                                                                                                                        bool value_1110 = ((int32_t)(kind) == 3 || (int32_t)(kind) == 4 || (int32_t)(kind) == 5) && !(using_binding != 0) && !(parallel_for != 0);
-                                                                                                                                                        int32_t value_1111 = 0;
-                                                                                                                                                        if (value_1110) {
-                                                                                                                                                            int32_t value_1112 = zir_f_157b8ce5776e0448_split_multiple_binding(t, (ParserArray128_u8*)(&(buffers->binding_targets.items)), 16, (uint8_t*)(&((binding_operator_storage_45[0]).items)), (uint8_t*)(&(buffers->binding_value.items)), (size_t)(sizeof(ParserArray4096_u8)));
-                                                                                                                                                            value_1111 = value_1112;
+                                                                                                                                                        uint8_t* value_1093 = (uint8_t*)(binding_operator_storage_45);
+                                                                                                                                                        zir_f_157b8ce5776e0448_copy_text(value_1093, sizeof(ParserArray3_u8), compiler_parse_types_ParserCString(StringLiteral("")));
+                                                                                                                                                        bool value_1094 = ((int32_t)(kind) == 3 || (int32_t)(kind) == 4 || (int32_t)(kind) == 5) && !(using_binding != 0) && !(parallel_for != 0);
+                                                                                                                                                        int32_t value_1095 = 0;
+                                                                                                                                                        if (value_1094) {
+                                                                                                                                                            int32_t value_1096 = zir_f_157b8ce5776e0448_split_multiple_binding(t, (ParserArray128_u8*)(&(buffers->binding_targets.items)), 16, (uint8_t*)(&((binding_operator_storage_45[0]).items)), (uint8_t*)(&(buffers->binding_value.items)), (size_t)(sizeof(ParserArray4096_u8)));
+                                                                                                                                                            value_1095 = value_1096;
                                                                                                                                                         } else {
-                                                                                                                                                            value_1111 = 0;
+                                                                                                                                                            value_1095 = 0;
                                                                                                                                                         }
-                                                                                                                                                        int32_t bound = value_1111;
+                                                                                                                                                        int32_t bound = value_1095;
                                                                                                                                                         if (bound != 0) {
-                                                                                                                                                            void* value_1113 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
-                                                                                                                                                            ParserArray128_u8* temporary_storage_46 = (ParserArray128_u8*)(value_1113);
+                                                                                                                                                            void* value_1097 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
+                                                                                                                                                            ParserArray128_u8* temporary_storage_46 = (ParserArray128_u8*)(value_1097);
                                                                                                                                                             zir_f_157b8ce5776e0448_memset((void*)(temporary_storage_46), 0, sizeof(ParserArray128_u8));
-                                                                                                                                                            uint8_t* value_1114 = compiler_parse_types_ParserCString(StringLiteral("results_%d_"));
-                                                                                                                                                            zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&((temporary_storage_46[0]).items)), (size_t)(sizeof(ParserArray128_u8)), value_1114, compiler_parse_types_ParserPre7(&(results_serial)));
+                                                                                                                                                            uint8_t* value_1098 = compiler_parse_types_ParserCString(StringLiteral("results_%d_"));
+                                                                                                                                                            zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&((temporary_storage_46[0]).items)), (size_t)(sizeof(ParserArray128_u8)), value_1098, compiler_parse_types_ParserPre7(&(results_serial)));
                                                                                                                                                             zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&(buffers->binding_line.items)), (size_t)(sizeof(ParserArray4096_u8)), compiler_parse_types_ParserCString(StringLiteral("%s := %s;")), (uint8_t*)(&((temporary_storage_46[0]).items)), (uint8_t*)(&(buffers->binding_value.items)));
-                                                                                                                                                            ZirStmt* value_1115 = zir_f_157b8ce5776e0448_FunctionAddStmt(fn, (ZirStmtKind)(3), (uint8_t*)(&(buffers->binding_line.items)), span);
-                                                                                                                                                            if (value_1115 == (ZirStmt*)(((void *)0))) {
+                                                                                                                                                            ZirStmt* value_1099 = zir_f_157b8ce5776e0448_FunctionAddStmt(fn, (ZirStmtKind)(3), (uint8_t*)(&(buffers->binding_line.items)), span);
+                                                                                                                                                            if (value_1099 == (ZirStmt*)(((void *)0))) {
                                                                                                                                                                 zir_f_157b8ce5776e0448_die(compiler_parse_types_ParserCString(StringLiteral("out of memory binding several results")));
                                                                                                                                                                 abort();
                                                                                                                                                             }
@@ -5699,21 +5684,21 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                                                                                         if (!loop_132) {
                                                                                                                                                                             break;
                                                                                                                                                                         }
-                                                                                                                                                                        bool value_1116 = zir_f_157b8ce5776e0448_strcmp((uint8_t*)(&(((buffers->binding_targets.items[target]).items)[0])), compiler_parse_types_ParserCString(StringLiteral("_"))) != 0;
-                                                                                                                                                                        if (!value_1116) {
+                                                                                                                                                                        bool value_1100 = zir_f_157b8ce5776e0448_strcmp((uint8_t*)(&(((buffers->binding_targets.items[target]).items)[0])), compiler_parse_types_ParserCString(StringLiteral("_"))) != 0;
+                                                                                                                                                                        if (!value_1100) {
                                                                                                                                                                             compiler_parse_types_ParserPost0(&(target));
                                                                                                                                                                             goto zir_loop_continue_30;
                                                                                                                                                                         }
-                                                                                                                                                                        uint8_t* value_1117 = compiler_parse_types_ParserCString(StringLiteral("%s %s %s.value_%d;"));
-                                                                                                                                                                        zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&(buffers->binding_line.items)), (size_t)(sizeof(ParserArray4096_u8)), value_1117, (uint8_t*)(&(((buffers->binding_targets.items[target]).items)[0])), (uint8_t*)(&((binding_operator_storage_45[0]).items)), (uint8_t*)(&((temporary_storage_46[0]).items)), target);
-                                                                                                                                                                        int64_t value_1118 = 0;
+                                                                                                                                                                        uint8_t* value_1101 = compiler_parse_types_ParserCString(StringLiteral("%s %s %s.value_%d;"));
+                                                                                                                                                                        zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&(buffers->binding_line.items)), (size_t)(sizeof(ParserArray4096_u8)), value_1101, (uint8_t*)(&(((buffers->binding_targets.items[target]).items)[0])), (uint8_t*)(&((binding_operator_storage_45[0]).items)), (uint8_t*)(&((temporary_storage_46[0]).items)), target);
+                                                                                                                                                                        int64_t value_1102 = 0;
                                                                                                                                                                         if ((int32_t)((int8_t)(((binding_operator_storage_45[0]).items)[0])) == 58) {
-                                                                                                                                                                            value_1118 = 3LL;
+                                                                                                                                                                            value_1102 = 3LL;
                                                                                                                                                                         } else {
-                                                                                                                                                                            value_1118 = 4LL;
+                                                                                                                                                                            value_1102 = 4LL;
                                                                                                                                                                         }
-                                                                                                                                                                        ZirStmt* value_1119 = zir_f_157b8ce5776e0448_FunctionAddStmt(fn, (ZirStmtKind)((int32_t)(value_1118)), (uint8_t*)(&(buffers->binding_line.items)), span);
-                                                                                                                                                                        if (value_1119 == (ZirStmt*)(((void *)0))) {
+                                                                                                                                                                        ZirStmt* value_1103 = zir_f_157b8ce5776e0448_FunctionAddStmt(fn, (ZirStmtKind)((int32_t)(value_1102)), (uint8_t*)(&(buffers->binding_line.items)), span);
+                                                                                                                                                                        if (value_1103 == (ZirStmt*)(((void *)0))) {
                                                                                                                                                                             zir_f_157b8ce5776e0448_die(compiler_parse_types_ParserCString(StringLiteral("out of memory binding several results")));
                                                                                                                                                                             abort();
                                                                                                                                                                         }
@@ -5741,53 +5726,53 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                                                                         compiler_parse_source_mark_checks(fn, first_statement, statement_checks);
                                                                                                                                                         if (statement != (ZirStmt*)(((void *)0)) && parallel_for != 0) {
                                                                                                                                                             if ((int32_t)(kind) != 8) {
-                                                                                                                                                                ZirSourceSpan value_1120 = span;
-                                                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_1120, compiler_parse_types_ParserCString(StringLiteral("#parallel requires a for region")));
+                                                                                                                                                                ZirSourceSpan value_1104 = span;
+                                                                                                                                                                zir_f_157b8ce5776e0448_die_at(value_1104, compiler_parse_types_ParserCString(StringLiteral("#parallel requires a for region")));
                                                                                                                                                                 abort();
                                                                                                                                                             }
-                                                                                                                                                            int32_t* value_1121 = &(statement->is_parallel);
-                                                                                                                                                            (*value_1121) = 1;
-                                                                                                                                                            int32_t* value_1122 = &(statement->is_gpu);
-                                                                                                                                                            (*value_1122) = parallel_gpu;
+                                                                                                                                                            int32_t* value_1105 = &(statement->is_parallel);
+                                                                                                                                                            (*value_1105) = 1;
+                                                                                                                                                            int32_t* value_1106 = &(statement->is_gpu);
+                                                                                                                                                            (*value_1106) = parallel_gpu;
                                                                                                                                                         }
                                                                                                                                                         if (statement != (ZirStmt*)(((void *)0)) && using_binding != 0) {
-                                                                                                                                                            int32_t* value_1123 = &(statement->is_using);
-                                                                                                                                                            (*value_1123) = 1;
+                                                                                                                                                            int32_t* value_1107 = &(statement->is_using);
+                                                                                                                                                            (*value_1107) = 1;
                                                                                                                                                             if ((int32_t)(kind) == 5) {
-                                                                                                                                                                void* value_1124 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
-                                                                                                                                                                ParserArray128_u8* name_storage_47 = (ParserArray128_u8*)(value_1124);
+                                                                                                                                                                void* value_1108 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
+                                                                                                                                                                ParserArray128_u8* name_storage_47 = (ParserArray128_u8*)(value_1108);
                                                                                                                                                                 zir_f_157b8ce5776e0448_memset((void*)(name_storage_47), 0, sizeof(ParserArray128_u8));
                                                                                                                                                                 if (zir_f_157b8ce5776e0448_strlen(t) >= (size_t)(sizeof(ParserArray128_u8))) {
-                                                                                                                                                                    ZirSourceSpan value_1125 = span;
-                                                                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_1125, compiler_parse_types_ParserCString(StringLiteral("using field path is too long")));
+                                                                                                                                                                    ZirSourceSpan value_1109 = span;
+                                                                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_1109, compiler_parse_types_ParserCString(StringLiteral("using field path is too long")));
                                                                                                                                                                     abort();
                                                                                                                                                                 }
                                                                                                                                                                 zir_f_157b8ce5776e0448_copy_text((uint8_t*)(&((name_storage_47[0]).items)), (size_t)(sizeof(ParserArray128_u8)), t);
                                                                                                                                                                 size_t length = zir_f_157b8ce5776e0448_strlen((uint8_t*)(&((name_storage_47[0]).items)));
-                                                                                                                                                                bool value_1126 = length > (size_t)(0LL);
-                                                                                                                                                                if (value_1126) {
-                                                                                                                                                                    uint8_t value_1127[128] = {0};
-                                                                                                                                                                    memmove(value_1127, (name_storage_47[0]).items, sizeof(value_1127));
-                                                                                                                                                                    value_1126 = ((int32_t)((int8_t)((value_1127)[(length - (size_t)(1LL))])) == 59);
+                                                                                                                                                                bool value_1110 = length > (size_t)(0LL);
+                                                                                                                                                                if (value_1110) {
+                                                                                                                                                                    uint8_t value_1111[128] = {0};
+                                                                                                                                                                    memmove(value_1111, (name_storage_47[0]).items, sizeof(value_1111));
+                                                                                                                                                                    value_1110 = ((int32_t)((int8_t)((value_1111)[(length - (size_t)(1LL))])) == 59);
                                                                                                                                                                 }
-                                                                                                                                                                if (value_1126) {
-                                                                                                                                                                    size_t value_1128 = compiler_parse_types_ParserPre15(&(length));
-                                                                                                                                                                    uint8_t* value_1129 = &(((name_storage_47[0]).items)[value_1128]);
-                                                                                                                                                                    (*value_1129) = 0;
+                                                                                                                                                                if (value_1110) {
+                                                                                                                                                                    size_t value_1112 = compiler_parse_types_ParserPre15(&(length));
+                                                                                                                                                                    uint8_t* value_1113 = &(((name_storage_47[0]).items)[value_1112]);
+                                                                                                                                                                    (*value_1113) = 0;
                                                                                                                                                                 }
                                                                                                                                                                 zir_f_157b8ce5776e0448_trim_in_place((uint8_t*)(&((name_storage_47[0]).items)));
-                                                                                                                                                                bool value_1130 = zir_f_157b8ce5776e0448_is_member_path_text((uint8_t*)(&((name_storage_47[0]).items))) != 0;
-                                                                                                                                                                if (!value_1130) {
-                                                                                                                                                                    ZirSourceSpan value_1131 = span;
-                                                                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_1131, compiler_parse_types_ParserCString(StringLiteral("using needs a record binding or field path")));
+                                                                                                                                                                bool value_1114 = zir_f_157b8ce5776e0448_is_member_path_text((uint8_t*)(&((name_storage_47[0]).items))) != 0;
+                                                                                                                                                                if (!value_1114) {
+                                                                                                                                                                    ZirSourceSpan value_1115 = span;
+                                                                                                                                                                    zir_f_157b8ce5776e0448_die_at(value_1115, compiler_parse_types_ParserCString(StringLiteral("using needs a record binding or field path")));
                                                                                                                                                                     abort();
                                                                                                                                                                 }
-                                                                                                                                                                const char ** value_1132 = &(statement->names.name);
-                                                                                                                                                                uint8_t* value_1133 = zir_f_157b8ce5776e0448_KeepName((uint8_t*)(&((name_storage_47[0]).items)));
-                                                                                                                                                                (*value_1132) = (const char *)(value_1133);
-                                                                                                                                                                const char ** value_1134 = &(statement->type);
-                                                                                                                                                                uint8_t* value_1135 = zir_f_157b8ce5776e0448_KeepName((uint8_t*)(&((using_filter_storage_42[0]).items)));
-                                                                                                                                                                (*value_1134) = (const char *)(value_1135);
+                                                                                                                                                                const char ** value_1116 = &(statement->names.name);
+                                                                                                                                                                uint8_t* value_1117 = zir_f_157b8ce5776e0448_KeepName((uint8_t*)(&((name_storage_47[0]).items)));
+                                                                                                                                                                (*value_1116) = (const char *)(value_1117);
+                                                                                                                                                                const char ** value_1118 = &(statement->type);
+                                                                                                                                                                uint8_t* value_1119 = zir_f_157b8ce5776e0448_KeepName((uint8_t*)(&((using_filter_storage_42[0]).items)));
+                                                                                                                                                                (*value_1118) = (const char *)(value_1119);
                                                                                                                                                                 zir_f_157b8ce5776e0448_CompilerFree((void*)(name_storage_47));
                                                                                                                                                             }
                                                                                                                                                         }
@@ -5810,8 +5795,8 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
                                                                                                                     }
                                                                                                                 } else {
                                                                                                                     if ((uint32_t)(mode) == 0 && (int32_t)((int8_t)(t[0])) != 0) {
-                                                                                                                        ZirSourceSpan value_1136 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-                                                                                                                        zir_f_157b8ce5776e0448_die_at(value_1136, compiler_parse_types_ParserCString(StringLiteral("invalid top-level declaration")));
+                                                                                                                        ZirSourceSpan value_1120 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+                                                                                                                        zir_f_157b8ce5776e0448_die_at(value_1120, compiler_parse_types_ParserCString(StringLiteral("invalid top-level declaration")));
                                                                                                                         abort();
                                                                                                                     }
                                                                                                                 }
@@ -5847,24 +5832,24 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
         zir_loop_break_2: ;
     }
     if ((uint32_t)(mode) != 0) {
-        ZirSourceSpan value_1137 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-        zir_f_157b8ce5776e0448_die_at(value_1137, compiler_parse_types_ParserCString(StringLiteral("unterminated declaration or function body")));
+        ZirSourceSpan value_1121 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+        zir_f_157b8ce5776e0448_die_at(value_1121, compiler_parse_types_ParserCString(StringLiteral("unterminated declaration or function body")));
         abort();
     }
     if (tframe_count > 0 || type_frame_count > 0 || body_mcount > 0) {
-        ZirSourceSpan value_1138 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
-        zir_f_157b8ce5776e0448_die_at(value_1138, compiler_parse_types_ParserCString(StringLiteral("unterminated #if block")));
+        ZirSourceSpan value_1122 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), line_no, 1);
+        zir_f_157b8ce5776e0448_die_at(value_1122, compiler_parse_types_ParserCString(StringLiteral("unterminated #if block")));
         abort();
     }
     if (program_export != 0) {
-        ZirSourceSpan value_1139 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), program_export_line, 1);
-        zir_f_157b8ce5776e0448_die_at(value_1139, compiler_parse_types_ParserCString(StringLiteral("#program_export must precede a function declaration")));
+        ZirSourceSpan value_1123 = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items)), program_export_line, 1);
+        zir_f_157b8ce5776e0448_die_at(value_1123, compiler_parse_types_ParserCString(StringLiteral("#program_export must precede a function declaration")));
         abort();
     }
     module = &(program->modules[0]);
     compiler_parse_source_add_open_enum_defines(module, &(tables->consts));
-    bool value_1140 = compiler_parse_source_finish_module_bodies(program, path, root, resolver, resolver_context, &(tables->consts));
-    if (!value_1140) {
+    bool value_1124 = compiler_parse_source_finish_module_bodies(program, path, root, resolver, resolver_context, &(tables->consts));
+    if (!value_1124) {
         zir_f_157b8ce5776e0448_ProgramFree(program);
         zir_f_157b8ce5776e0448_CompilerFree((void*)(tables->consts.items));
         zir_f_157b8ce5776e0448_CompilerFree((void*)(tables->future_constants.items));
@@ -5884,19 +5869,19 @@ compiler_parse_source_parse_source_with_buffers(uint8_t* path, uint8_t* root, ui
     module = &(program->modules[0]);
     uint8_t* relative_path = (uint8_t*)(&(buffers->rel.items[0]));
     if (uses_formatting != 0) {
-        ZirModule* value_1141 = module;
-        uint8_t* value_1142 = relative_path;
-        uint8_t* value_1143 = compiler_parse_types_ParserCString(StringLiteral("std/format"));
-        uint8_t* value_1144 = compiler_parse_types_ParserCString(StringLiteral("format"));
-        compiler_parse_source_ensure_source_import(value_1141, value_1142, value_1143, value_1144, compiler_parse_types_ParserCString(StringLiteral("#import \"std/format\";")));
+        ZirModule* value_1125 = module;
+        uint8_t* value_1126 = relative_path;
+        uint8_t* value_1127 = compiler_parse_types_ParserCString(StringLiteral("std/format"));
+        uint8_t* value_1128 = compiler_parse_types_ParserCString(StringLiteral("format"));
+        compiler_parse_source_ensure_source_import(value_1125, value_1126, value_1127, value_1128, compiler_parse_types_ParserCString(StringLiteral("#import \"std/format\";")));
     }
-    bool value_1145 = uses_resizable_arrays != 0;
-    if (value_1145 || compiler_parse_source_names_vec_types(module) != 0) {
-        ZirModule* value_1146 = module;
-        uint8_t* value_1147 = relative_path;
-        uint8_t* value_1148 = compiler_parse_types_ParserCString(StringLiteral("std/vec"));
-        uint8_t* value_1149 = compiler_parse_types_ParserCString(StringLiteral("vec"));
-        compiler_parse_source_ensure_source_import(value_1146, value_1147, value_1148, value_1149, compiler_parse_types_ParserCString(StringLiteral("#import \"std/vec\";")));
+    bool value_1129 = uses_resizable_arrays != 0;
+    if (value_1129 || compiler_parse_source_names_vec_types(module) != 0) {
+        ZirModule* value_1130 = module;
+        uint8_t* value_1131 = relative_path;
+        uint8_t* value_1132 = compiler_parse_types_ParserCString(StringLiteral("std/vec"));
+        uint8_t* value_1133 = compiler_parse_types_ParserCString(StringLiteral("vec"));
+        compiler_parse_source_ensure_source_import(value_1130, value_1131, value_1132, value_1133, compiler_parse_types_ParserCString(StringLiteral("#import \"std/vec\";")));
     }
     {
         int32_t i = 0;
@@ -5931,32 +5916,31 @@ static void
 compiler_parse_source_parse_file_constant(uint8_t* t, uint8_t* path, int32_t line_no, ZirModule* module, ParseSourceBuffers* buffers, ZirConsts* constants, ZirConsts* future_constants, CompileParseContext* context, int32_t scope_public, int32_t scope_file)
 {
     ZirSourceSpan span = zir_f_157b8ce5776e0448_Span((uint8_t*)(&(buffers->rel.items[0])), line_no, 1);
-    uint8_t* value_0 = t;
-    uint8_t* colons = zir_f_157b8ce5776e0448_strstr(value_0, compiler_parse_types_ParserCString(StringLiteral("::")));
+    uint8_t* colons = compiler_parse_source_code_colons(t);
     uint8_t* expr = (uint8_t*)(((size_t)((uint8_t*)(colons)) + ((size_t)(2LL) * sizeof(uint8_t))));
-    void* value_1 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
-    ParserArray128_u8* cname_storage_37 = (ParserArray128_u8*)(value_1);
+    void* value_0 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ParserArray128_u8));
+    ParserArray128_u8* cname_storage_37 = (ParserArray128_u8*)(value_0);
     zir_f_157b8ce5776e0448_memset((void*)(cname_storage_37), 0, sizeof(ParserArray128_u8));
     size_t cn = (size_t)(0LL);
     uint8_t* q = t;
     while (true) {
-        bool value_2 = q < colons;
-        bool value_3 = value_2;
-        if (value_3) {
-            bool value_4 = zir_f_157b8ce5776e0448_isalnum((int32_t)(q[0])) != 0;
-            value_3 = (value_4 || (int32_t)((int8_t)(q[0])) == 95);
+        bool value_1 = q < colons;
+        bool value_2 = value_1;
+        if (value_2) {
+            bool value_3 = zir_f_157b8ce5776e0448_isalnum((int32_t)(q[0])) != 0;
+            value_2 = (value_3 || (int32_t)((int8_t)(q[0])) == 95);
         }
-        bool loop_120 = value_3 && cn + (size_t)(1LL) < (size_t)(sizeof(ParserArray128_u8));
+        bool loop_120 = value_2 && cn + (size_t)(1LL) < (size_t)(sizeof(ParserArray128_u8));
         if (!loop_120) {
             break;
         }
-        size_t value_5 = compiler_parse_types_ParserPost5(&(cn));
-        uint8_t* value_6 = &(((cname_storage_37[0]).items)[value_5]);
-        uint8_t* value_7 = compiler_parse_types_ParserPost2(&(q));
-        (*value_6) = value_7[0];
+        size_t value_4 = compiler_parse_types_ParserPost5(&(cn));
+        uint8_t* value_5 = &(((cname_storage_37[0]).items)[value_4]);
+        uint8_t* value_6 = compiler_parse_types_ParserPost2(&(q));
+        (*value_5) = value_6[0];
     }
-    uint8_t* value_8 = &(((cname_storage_37[0]).items)[cn]);
-    (*value_8) = 0;
+    uint8_t* value_7 = &(((cname_storage_37[0]).items)[cn]);
+    (*value_7) = 0;
     while (true) {
         bool loop_121 = (int32_t)((int8_t)(expr[0])) == 32 || (int32_t)((int8_t)(expr[0])) == 9;
         if (!loop_121) {
@@ -5966,35 +5950,35 @@ compiler_parse_source_parse_file_constant(uint8_t* t, uint8_t* path, int32_t lin
     }
     size_t expression_length = zir_f_157b8ce5776e0448_strlen(expr);
     while (true) {
-        bool value_9 = expression_length > (size_t)(0LL);
-        bool loop_122 = value_9 && zir_f_157b8ce5776e0448_isspace((int32_t)(expr[(expression_length - (size_t)(1LL))])) != 0;
+        bool value_8 = expression_length > (size_t)(0LL);
+        bool loop_122 = value_8 && zir_f_157b8ce5776e0448_isspace((int32_t)(expr[(expression_length - (size_t)(1LL))])) != 0;
         if (!loop_122) {
             break;
         }
-        size_t value_10 = compiler_parse_types_ParserPre15(&(expression_length));
-        uint8_t* value_11 = &(expr[value_10]);
-        (*value_11) = 0;
+        size_t value_9 = compiler_parse_types_ParserPre15(&(expression_length));
+        uint8_t* value_10 = &(expr[value_9]);
+        (*value_10) = 0;
     }
     if (expression_length > (size_t)(0LL) && (int32_t)((int8_t)(expr[(expression_length - (size_t)(1LL))])) == 59) {
-        size_t value_12 = compiler_parse_types_ParserPre15(&(expression_length));
-        uint8_t* value_13 = &(expr[value_12]);
-        (*value_13) = 0;
+        size_t value_11 = compiler_parse_types_ParserPre15(&(expression_length));
+        uint8_t* value_12 = &(expr[value_11]);
+        (*value_12) = 0;
     }
     while (true) {
-        bool value_14 = expression_length > (size_t)(0LL);
-        bool loop_123 = value_14 && zir_f_157b8ce5776e0448_isspace((int32_t)(expr[(expression_length - (size_t)(1LL))])) != 0;
+        bool value_13 = expression_length > (size_t)(0LL);
+        bool loop_123 = value_13 && zir_f_157b8ce5776e0448_isspace((int32_t)(expr[(expression_length - (size_t)(1LL))])) != 0;
         if (!loop_123) {
             break;
         }
-        size_t value_15 = compiler_parse_types_ParserPre15(&(expression_length));
-        uint8_t* value_16 = &(expr[value_15]);
-        (*value_16) = 0;
+        size_t value_14 = compiler_parse_types_ParserPre15(&(expression_length));
+        uint8_t* value_15 = &(expr[value_14]);
+        (*value_15) = 0;
     }
-    uint8_t* value_17 = expr;
-    uint8_t* value_18 = zir_f_157b8ce5776e0448_find_unquoted(value_17, compiler_parse_types_ParserCString(StringLiteral("#this")), 1LL != 0);
-    if (value_18 != (uint8_t*)(((void *)0))) {
-        ZirSourceSpan value_19 = span;
-        zir_f_157b8ce5776e0448_die_at(value_19, compiler_parse_types_ParserCString(StringLiteral("#this requires a procedure or type scope")));
+    uint8_t* value_16 = expr;
+    uint8_t* value_17 = zir_f_157b8ce5776e0448_find_unquoted(value_16, compiler_parse_types_ParserCString(StringLiteral("#this")), 1LL != 0);
+    if (value_17 != (uint8_t*)(((void *)0))) {
+        ZirSourceSpan value_18 = span;
+        zir_f_157b8ce5776e0448_die_at(value_18, compiler_parse_types_ParserCString(StringLiteral("#this requires a procedure or type scope")));
         abort();
     }
     {
@@ -6004,187 +5988,187 @@ compiler_parse_source_parse_file_constant(uint8_t* t, uint8_t* path, int32_t lin
             if (!loop_124) {
                 break;
             }
-            bool value_20 = zir_f_157b8ce5776e0448_strcmp((uint8_t*)(&((module->parameters[i]).name)), (uint8_t*)(&((cname_storage_37[0]).items))) != 0;
-            if (!value_20) {
-                ZirSourceSpan value_21 = span;
-                zir_f_157b8ce5776e0448_die_at(value_21, compiler_parse_types_ParserCString(StringLiteral("%s is a module parameter; its value comes from #module_parameters")), (uint8_t*)(&((cname_storage_37[0]).items)));
+            bool value_19 = zir_f_157b8ce5776e0448_strcmp((uint8_t*)(&((module->parameters[i]).name)), (uint8_t*)(&((cname_storage_37[0]).items))) != 0;
+            if (!value_19) {
+                ZirSourceSpan value_20 = span;
+                zir_f_157b8ce5776e0448_die_at(value_20, compiler_parse_types_ParserCString(StringLiteral("%s is a module parameter; its value comes from #module_parameters")), (uint8_t*)(&((cname_storage_37[0]).items)));
                 abort();
             }
             compiler_parse_types_ParserPost0(&(i));
         }
     }
     if ((int32_t)((int8_t)(((cname_storage_37[0]).items)[0])) != 0 && (int32_t)((int8_t)(expr[0])) != 0) {
-        uint8_t* value_22 = expr;
-        if (zir_f_157b8ce5776e0448_starts_word(value_22, compiler_parse_types_ParserCString(StringLiteral("#define"))) != 0) {
-            ZirSourceSpan value_23 = span;
-            zir_f_157b8ce5776e0448_die_at(value_23, compiler_parse_types_ParserCString(StringLiteral("use '%s :: value'; #define is not Ziran syntax")), (uint8_t*)(&((cname_storage_37[0]).items)));
+        uint8_t* value_21 = expr;
+        if (zir_f_157b8ce5776e0448_starts_word(value_21, compiler_parse_types_ParserCString(StringLiteral("#define"))) != 0) {
+            ZirSourceSpan value_22 = span;
+            zir_f_157b8ce5776e0448_die_at(value_22, compiler_parse_types_ParserCString(StringLiteral("use '%s :: value'; #define is not Ziran syntax")), (uint8_t*)(&((cname_storage_37[0]).items)));
             abort();
         } else {
             ZirDefine* def = (void *)0;
             int32_t deferred_run = 0;
             if ((constants[0]).count == (constants[0]).capacity) {
-                int32_t value_24 = 0;
+                int32_t value_23 = 0;
                 if ((constants[0]).capacity > 0) {
-                    value_24 = (int32_t)((uint32_t)((constants[0]).capacity) * 2u);
+                    value_23 = (int32_t)((uint32_t)((constants[0]).capacity) * 2u);
                 } else {
-                    value_24 = 16;
+                    value_23 = 16;
                 }
-                int32_t capacity = value_24;
-                void* value_25 = zir_f_157b8ce5776e0448_CompilerRealloc((void*)((constants[0]).items), (size_t)(capacity) * (size_t)(sizeof(ZirConst)));
-                ZirConst* items = (ZirConst*)(value_25);
+                int32_t capacity = value_23;
+                void* value_24 = zir_f_157b8ce5776e0448_CompilerRealloc((void*)((constants[0]).items), (size_t)(capacity) * (size_t)(sizeof(ZirConst)));
+                ZirConst* items = (ZirConst*)(value_24);
                 if (items == (ZirConst*)(((void *)0))) {
                     zir_f_157b8ce5776e0448_die(compiler_parse_types_ParserCString(StringLiteral("out of memory")));
                     abort();
                 }
-                ZirConst** value_26 = &((constants[0]).items);
-                (*value_26) = items;
-                int32_t* value_27 = &((constants[0]).capacity);
-                (*value_27) = capacity;
+                ZirConst** value_25 = &((constants[0]).items);
+                (*value_25) = items;
+                int32_t* value_26 = &((constants[0]).capacity);
+                (*value_26) = capacity;
             }
-            uint8_t* value_28 = expr;
-            bool value_29 = zir_f_157b8ce5776e0448_starts_word(value_28, compiler_parse_types_ParserCString(StringLiteral("#run"))) != 0;
-            if (value_29 && compiler_parse_source_plain_number_array(zir_f_157b8ce5776e0448_trim((uint8_t*)((uint8_t*)(((size_t)(expr) + ((size_t)(4LL) * sizeof(uint8_t))))))) != 0) {
+            uint8_t* value_27 = expr;
+            bool value_28 = zir_f_157b8ce5776e0448_starts_word(value_27, compiler_parse_types_ParserCString(StringLiteral("#run"))) != 0;
+            if (value_28 && compiler_parse_source_plain_number_array(zir_f_157b8ce5776e0448_trim((uint8_t*)((uint8_t*)(((size_t)(expr) + ((size_t)(4LL) * sizeof(uint8_t))))))) != 0) {
                 expr = zir_f_157b8ce5776e0448_trim((uint8_t*)((uint8_t*)(((size_t)(expr) + ((size_t)(4LL) * sizeof(uint8_t))))));
             } else {
-                uint8_t* value_30 = expr;
-                if (zir_f_157b8ce5776e0448_starts_word(value_30, compiler_parse_types_ParserCString(StringLiteral("#run"))) != 0) {
-                    void* value_31 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ZirConsts));
-                    ZirConsts* visible_storage_38 = (ZirConsts*)(value_31);
+                uint8_t* value_29 = expr;
+                if (zir_f_157b8ce5776e0448_starts_word(value_29, compiler_parse_types_ParserCString(StringLiteral("#run"))) != 0) {
+                    void* value_30 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(ZirConsts));
+                    ZirConsts* visible_storage_38 = (ZirConsts*)(value_30);
                     zir_f_157b8ce5776e0448_memset((void*)(visible_storage_38), 0, sizeof(ZirConsts));
-                    ZirConsts* value_32 = &(visible_storage_38[0]);
-                    ZirConsts value_33 = zir_f_157b8ce5776e0448_visible_compile_constants(&(constants[0]), &(future_constants[0]));
-                    (*value_32) = value_33;
+                    ZirConsts* value_31 = &(visible_storage_38[0]);
+                    ZirConsts value_32 = zir_f_157b8ce5776e0448_visible_compile_constants(&(constants[0]), &(future_constants[0]));
+                    (*value_31) = value_32;
                     zir_f_157b8ce5776e0448_visible_compile_module(module, &(context[0]), &(visible_storage_38[0]), &(buffers->run_scope));
                     zir_f_157b8ce5776e0448_expand_compile_expr((uint8_t*)(&(buffers->expanded.items)), (size_t)(sizeof(ParserArray4096_u8)), &(visible_storage_38[0]), zir_f_157b8ce5776e0448_trim((uint8_t*)((uint8_t*)(((size_t)(expr) + ((size_t)(4LL) * sizeof(uint8_t)))))), (uint8_t*)(&(buffers->rel.items)));
                     int32_t folded = 0;
                     uint8_t* folded_value = (void *)0;
                     {
-                        uint8_t* value_34 = zir_f_157b8ce5776e0448_strstr((uint8_t*)(&(buffers->expanded.items)), compiler_parse_types_ParserCString(StringLiteral("size_of")));
-                        int32_t value_35 = 0;
-                        if (value_34 != (uint8_t*)(((void *)0))) {
-                            value_35 = 1;
+                        uint8_t* value_33 = zir_f_157b8ce5776e0448_strstr((uint8_t*)(&(buffers->expanded.items)), compiler_parse_types_ParserCString(StringLiteral("size_of")));
+                        int32_t value_34 = 0;
+                        if (value_33 != (uint8_t*)(((void *)0))) {
+                            value_34 = 1;
                         }
-                        int32_t attempt = value_35;
+                        int32_t attempt = value_34;
                         while (true) {
                             bool loop_125 = attempt < 2 && !(folded != 0);
                             if (!loop_125) {
                                 break;
                             }
-                            void* value_36 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(CompileValue));
-                            CompileValue* typed_storage_39 = (CompileValue*)(value_36);
+                            void* value_35 = zir_f_157b8ce5776e0448_AllocateOrExit(sizeof(CompileValue));
+                            CompileValue* typed_storage_39 = (CompileValue*)(value_35);
                             zir_f_157b8ce5776e0448_memset((void*)(typed_storage_39), 0, sizeof(CompileValue));
                             int32_t fuel = 8000000;
-                            CompileValue* value_37 = &(typed_storage_39[0]);
+                            CompileValue* value_36 = &(typed_storage_39[0]);
                             {
-                                CompileValue* value = value_37;
-                                int32_t* value_39 = &(value->kind);
-                                (*value_39) = 0;
-                                int64_t* value_40 = &(value->integer);
-                                (*value_40) = 0LL;
-                                double* value_41 = &(value->real);
-                                (*value_41) = (double)(0LL);
-                                uint8_t* value_42 = &(value->type.items[0]);
-                                (*value_42) = 0;
-                                uint8_t** value_43 = &(value->kept);
-                                (*value_43) = (void *)0;
-                                uint8_t* value_44 = &(value->spelling.items[0]);
-                                (*value_44) = 0;
-                                ZirModule** value_45 = &(value->type_owner);
-                                (*value_45) = (void *)0;
+                                CompileValue* value = value_36;
+                                int32_t* value_38 = &(value->kind);
+                                (*value_38) = 0;
+                                int64_t* value_39 = &(value->integer);
+                                (*value_39) = 0LL;
+                                double* value_40 = &(value->real);
+                                (*value_40) = (double)(0LL);
+                                uint8_t* value_41 = &(value->type.items[0]);
+                                (*value_41) = 0;
+                                uint8_t** value_42 = &(value->kept);
+                                (*value_42) = (void *)0;
+                                uint8_t* value_43 = &(value->spelling.items[0]);
+                                (*value_43) = 0;
+                                ZirModule** value_44 = &(value->type_owner);
+                                (*value_44) = (void *)0;
                             }
-                            bool value_46 = attempt == 1 && (context[0]).resolver != (ZirCompileImportResolver)(((void *)0));
-                            bool value_47 = value_46;
-                            if (value_47) {
-                                ZirCompileImportResolver value_48 = (context[0]).resolver;
-                                bool value_49 = value_48((context[0]).resolver_context, context->program, &(buffers->run_scope), path, context->root, (uint8_t*)(&(buffers->expanded.items))) != 0;
-                                value_47 = !value_49;
+                            bool value_45 = attempt == 1 && (context[0]).resolver != (ZirCompileImportResolver)(((void *)0));
+                            bool value_46 = value_45;
+                            if (value_46) {
+                                ZirCompileImportResolver value_47 = (context[0]).resolver;
+                                bool value_48 = value_47((context[0]).resolver_context, context->program, &(buffers->run_scope), path, context->root, (uint8_t*)(&(buffers->expanded.items))) != 0;
+                                value_46 = !value_48;
                             }
-                            if (value_47) {
-                                ZirSourceSpan value_50 = span;
-                                zir_f_157b8ce5776e0448_die_at(value_50, compiler_parse_types_ParserCString(StringLiteral("cannot resolve imports for #run expression")));
+                            if (value_46) {
+                                ZirSourceSpan value_49 = span;
+                                zir_f_157b8ce5776e0448_die_at(value_49, compiler_parse_types_ParserCString(StringLiteral("cannot resolve imports for #run expression")));
                                 abort();
                             }
-                            bool value_51 = zir_f_157b8ce5776e0448_evaluate_typed_expression(&(buffers->run_scope), &(visible_storage_38[0]), (uint8_t*)(&(buffers->expanded.items)), span, 1, &(fuel), &(typed_storage_39[0])) != 0;
-                            int32_t value_52 = 0;
-                            if (value_51 && (uint32_t)((typed_storage_39[0]).kind) != 0) {
-                                value_52 = 1;
+                            bool value_50 = zir_f_157b8ce5776e0448_evaluate_typed_expression(&(buffers->run_scope), &(visible_storage_38[0]), (uint8_t*)(&(buffers->expanded.items)), span, 1, &(fuel), &(typed_storage_39[0])) != 0;
+                            int32_t value_51 = 0;
+                            if (value_50 && (uint32_t)((typed_storage_39[0]).kind) != 0) {
+                                value_51 = 1;
                             }
-                            folded = value_52;
+                            folded = value_51;
                             if (folded != 0) {
-                                CompileValue* value_53 = &(typed_storage_39[0]);
-                                uint8_t* value_54 = (void *)0;
+                                CompileValue* value_52 = &(typed_storage_39[0]);
+                                uint8_t* value_53 = (void *)0;
                                 {
-                                    CompileValue* value = value_53;
-                                    uint8_t* value_56 = (void *)0;
+                                    CompileValue* value = value_52;
+                                    uint8_t* value_55 = (void *)0;
                                     if (value->kept != (uint8_t*)(((void *)0))) {
-                                        value_56 = value->kept;
+                                        value_55 = value->kept;
                                     } else {
-                                        value_56 = (uint8_t*)(&(value->spelling.items));
+                                        value_55 = (uint8_t*)(&(value->spelling.items));
                                     }
-                                    value_54 = value_56;
+                                    value_53 = value_55;
                                 }
-                                folded_value = zir_f_157b8ce5776e0448_KeepText(value_54);
+                                folded_value = zir_f_157b8ce5776e0448_KeepText(value_53);
                             }
                             compiler_parse_types_ParserPost0(&(attempt));
                             zir_f_157b8ce5776e0448_CompilerFree((void*)(typed_storage_39));
                         }
                     }
                     if (!(folded != 0)) {
-                        uint8_t* value_57 = compiler_parse_types_ParserCString(StringLiteral("#run %s"));
-                        int32_t written = zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&(buffers->run_value.items)), (size_t)(sizeof(ParserArray4096_u8)), value_57, zir_f_157b8ce5776e0448_trim((uint8_t*)((uint8_t*)(((size_t)(expr) + ((size_t)(4LL) * sizeof(uint8_t)))))));
+                        uint8_t* value_56 = compiler_parse_types_ParserCString(StringLiteral("#run %s"));
+                        int32_t written = zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&(buffers->run_value.items)), (size_t)(sizeof(ParserArray4096_u8)), value_56, zir_f_157b8ce5776e0448_trim((uint8_t*)((uint8_t*)(((size_t)(expr) + ((size_t)(4LL) * sizeof(uint8_t)))))));
                         if (written < 0 || (size_t)(written) >= (size_t)(sizeof(ParserArray4096_u8))) {
-                            ZirSourceSpan value_58 = span;
-                            zir_f_157b8ce5776e0448_die_at(value_58, compiler_parse_types_ParserCString(StringLiteral("#run expression is too long")));
+                            ZirSourceSpan value_57 = span;
+                            zir_f_157b8ce5776e0448_die_at(value_57, compiler_parse_types_ParserCString(StringLiteral("#run expression is too long")));
                             abort();
                         }
                         deferred_run = 1;
                     }
                     zir_f_157b8ce5776e0448_free_visible_compile_module(&(buffers->run_scope));
                     zir_f_157b8ce5776e0448_CompilerFree((void*)((visible_storage_38[0]).items));
-                    uint8_t* value_59 = (void *)0;
+                    uint8_t* value_58 = (void *)0;
                     if (folded != 0) {
-                        value_59 = (uint8_t*)(folded_value);
+                        value_58 = (uint8_t*)(folded_value);
                     } else {
-                        value_59 = (uint8_t*)(&(buffers->run_value.items));
+                        value_58 = (uint8_t*)(&(buffers->run_value.items));
                     }
-                    expr = value_59;
+                    expr = value_58;
                     zir_f_157b8ce5776e0448_CompilerFree((void*)(visible_storage_38));
                 }
             }
-            bool value_60 = !(deferred_run != 0);
-            bool value_61 = value_60;
-            if (value_61) {
-                uint8_t* value_62 = expr;
-                uint8_t* value_63 = zir_f_157b8ce5776e0448_find_unquoted(value_62, compiler_parse_types_ParserCString(StringLiteral("#ifx")), 0LL != 0);
-                value_61 = (value_63 != (uint8_t*)(((void *)0)));
+            bool value_59 = !(deferred_run != 0);
+            bool value_60 = value_59;
+            if (value_60) {
+                uint8_t* value_61 = expr;
+                uint8_t* value_62 = zir_f_157b8ce5776e0448_find_unquoted(value_61, compiler_parse_types_ParserCString(StringLiteral("#ifx")), 0LL != 0);
+                value_60 = (value_62 != (uint8_t*)(((void *)0)));
             }
-            if (value_61) {
+            if (value_60) {
                 zir_f_157b8ce5776e0448_copy_text((uint8_t*)(&(buffers->selected_value.items)), (size_t)(sizeof(ParserArray4096_u8)), expr);
                 zir_f_157b8ce5776e0448_lower_compile_ifx_value((uint8_t*)(&(buffers->selected_value.items)), (size_t)(sizeof(ParserArray4096_u8)), module, &(constants[0]), span, 1);
                 expr = (uint8_t*)(&(buffers->selected_value.items));
             }
-            bool value_64 = !(deferred_run != 0);
-            bool value_65 = value_64;
-            if (value_65) {
-                uint8_t* value_66 = expr;
-                uint8_t* value_67 = zir_f_157b8ce5776e0448_find_unquoted(value_66, compiler_parse_types_ParserCString(StringLiteral("#ifx")), 0LL != 0);
-                value_65 = (value_67 == (uint8_t*)(((void *)0)));
+            bool value_63 = !(deferred_run != 0);
+            bool value_64 = value_63;
+            if (value_64) {
+                uint8_t* value_65 = expr;
+                uint8_t* value_66 = zir_f_157b8ce5776e0448_find_unquoted(value_65, compiler_parse_types_ParserCString(StringLiteral("#ifx")), 0LL != 0);
+                value_64 = (value_66 == (uint8_t*)(((void *)0)));
             }
-            bool value_68 = value_65;
-            bool value_69 = value_68;
-            if (value_69) {
-                uint8_t* value_70 = expr;
-                uint8_t* value_71 = zir_f_157b8ce5776e0448_find_unquoted(value_70, compiler_parse_types_ParserCString(StringLiteral("size_of")), 1LL != 0);
-                value_69 = (value_71 != (uint8_t*)(((void *)0)));
+            bool value_67 = value_64;
+            bool value_68 = value_67;
+            if (value_68) {
+                uint8_t* value_69 = expr;
+                uint8_t* value_70 = zir_f_157b8ce5776e0448_find_unquoted(value_69, compiler_parse_types_ParserCString(StringLiteral("size_of")), 1LL != 0);
+                value_68 = (value_70 != (uint8_t*)(((void *)0)));
             }
-            bool value_72 = value_69;
-            bool value_73 = value_72;
-            if (value_73) {
-                uint8_t* value_74 = expr;
-                uint8_t* value_75 = zir_f_157b8ce5776e0448_find_unquoted(value_74, compiler_parse_types_ParserCString(StringLiteral("type_of")), 1LL != 0);
-                value_73 = (value_75 == (uint8_t*)(((void *)0)));
+            bool value_71 = value_68;
+            bool value_72 = value_71;
+            if (value_72) {
+                uint8_t* value_73 = expr;
+                uint8_t* value_74 = zir_f_157b8ce5776e0448_find_unquoted(value_73, compiler_parse_types_ParserCString(StringLiteral("type_of")), 1LL != 0);
+                value_72 = (value_74 == (uint8_t*)(((void *)0)));
             }
-            if (value_73) {
+            if (value_72) {
                 if (expr != (uint8_t*)(&(buffers->selected_value.items))) {
                     zir_f_157b8ce5776e0448_copy_text((uint8_t*)(&(buffers->selected_value.items)), (size_t)(sizeof(ParserArray4096_u8)), expr);
                 }
@@ -6201,8 +6185,8 @@ compiler_parse_source_parse_file_constant(uint8_t* t, uint8_t* path, int32_t lin
                             if (!loop_126) {
                                 break;
                             }
-                            bool value_76 = zir_f_157b8ce5776e0448_strcmp((uint8_t*)(&((module->defines[i]).name)), expr) != 0;
-                            if (!value_76) {
+                            bool value_75 = zir_f_157b8ce5776e0448_strcmp((uint8_t*)(&((module->defines[i]).name)), expr) != 0;
+                            if (!value_75) {
                                 known_alias = 1;
                                 goto zir_loop_break_7;
                             }
@@ -6221,8 +6205,8 @@ compiler_parse_source_parse_file_constant(uint8_t* t, uint8_t* path, int32_t lin
                                 if (!loop_127) {
                                     break;
                                 }
-                                bool value_77 = zir_f_157b8ce5776e0448_strcmp((uint8_t*)(&(((((constants[0]).items)[i]).name).items)), expr) != 0;
-                                if (!value_77) {
+                                bool value_76 = zir_f_157b8ce5776e0448_strcmp((uint8_t*)(&(((((constants[0]).items)[i]).name).items)), expr) != 0;
+                                if (!value_76) {
                                     known_alias = 1;
                                     goto zir_loop_break_8;
                                 }
@@ -6234,66 +6218,66 @@ compiler_parse_source_parse_file_constant(uint8_t* t, uint8_t* path, int32_t lin
                     }
                 }
             }
-            bool value_78 = module->using_count > 0;
-            bool value_79 = value_78 && zir_f_157b8ce5776e0448_is_identifier_text(expr) != 0;
-            bool value_80 = value_79 && !(known_alias != 0);
-            bool value_81 = value_80;
-            if (value_81) {
-                uint8_t* value_82 = expr;
-                bool value_83 = zir_f_157b8ce5776e0448_strcmp(value_82, compiler_parse_types_ParserCString(StringLiteral("true"))) != 0;
-                value_81 = value_83;
+            bool value_77 = module->using_count > 0;
+            bool value_78 = value_77 && zir_f_157b8ce5776e0448_is_identifier_text(expr) != 0;
+            bool value_79 = value_78 && !(known_alias != 0);
+            bool value_80 = value_79;
+            if (value_80) {
+                uint8_t* value_81 = expr;
+                bool value_82 = zir_f_157b8ce5776e0448_strcmp(value_81, compiler_parse_types_ParserCString(StringLiteral("true"))) != 0;
+                value_80 = value_82;
             }
-            bool value_84 = value_81;
-            bool value_85 = value_84;
-            if (value_85) {
-                uint8_t* value_86 = expr;
-                bool value_87 = zir_f_157b8ce5776e0448_strcmp(value_86, compiler_parse_types_ParserCString(StringLiteral("false"))) != 0;
-                value_85 = value_87;
+            bool value_83 = value_80;
+            bool value_84 = value_83;
+            if (value_84) {
+                uint8_t* value_85 = expr;
+                bool value_86 = zir_f_157b8ce5776e0448_strcmp(value_85, compiler_parse_types_ParserCString(StringLiteral("false"))) != 0;
+                value_84 = value_86;
             }
-            bool value_88 = value_85;
-            bool value_89 = value_88;
-            if (value_89) {
-                uint8_t* value_90 = expr;
-                bool value_91 = zir_f_157b8ce5776e0448_strcmp(value_90, compiler_parse_types_ParserCString(StringLiteral("null"))) != 0;
-                value_89 = value_91;
+            bool value_87 = value_84;
+            bool value_88 = value_87;
+            if (value_88) {
+                uint8_t* value_89 = expr;
+                bool value_90 = zir_f_157b8ce5776e0448_strcmp(value_89, compiler_parse_types_ParserCString(StringLiteral("null"))) != 0;
+                value_88 = value_90;
             }
-            int32_t value_92 = 0;
-            if (value_89) {
-                value_92 = 1;
+            int32_t value_91 = 0;
+            if (value_88) {
+                value_91 = 1;
             }
-            int32_t using_alias = value_92;
-            uint8_t* value_93 = expr;
-            uint8_t* value_94 = zir_f_157b8ce5776e0448_find_unquoted(value_93, compiler_parse_types_ParserCString(StringLiteral("#defined")), 0LL != 0);
-            bool value_95 = value_94 == (uint8_t*)(((void *)0));
-            bool value_96 = value_95;
-            if (value_96) {
-                bool value_97 = zir_f_157b8ce5776e0448_is_identifier_text(expr) != 0;
-                value_96 = (!value_97 || known_alias != 0 || using_alias != 0);
+            int32_t using_alias = value_91;
+            uint8_t* value_92 = expr;
+            uint8_t* value_93 = zir_f_157b8ce5776e0448_find_unquoted(value_92, compiler_parse_types_ParserCString(StringLiteral("#defined")), 0LL != 0);
+            bool value_94 = value_93 == (uint8_t*)(((void *)0));
+            bool value_95 = value_94;
+            if (value_95) {
+                bool value_96 = zir_f_157b8ce5776e0448_is_identifier_text(expr) != 0;
+                value_95 = (!value_96 || known_alias != 0 || using_alias != 0);
             }
-            if (value_96) {
+            if (value_95) {
                 def = zir_f_157b8ce5776e0448_ModuleAddDefine(module, (uint8_t*)(&((cname_storage_37[0]).items)), expr, span);
                 if (def != (ZirDefine*)(((void *)0))) {
-                    int32_t* value_98 = &(def->is_public);
-                    (*value_98) = scope_public;
-                    int32_t* value_99 = &(def->is_file_private);
-                    (*value_99) = scope_file;
-                    int32_t* value_100 = &(def->requires_open_enum);
-                    (*value_100) = using_alias;
+                    int32_t* value_97 = &(def->is_public);
+                    (*value_97) = scope_public;
+                    int32_t* value_98 = &(def->is_file_private);
+                    (*value_98) = scope_file;
+                    int32_t* value_99 = &(def->requires_open_enum);
+                    (*value_99) = using_alias;
                 }
             }
-            ZirConst* value_101 = (ZirConst*)(((size_t)((constants[0]).items) + ((size_t)((constants[0]).count) * sizeof(ZirConst))));
-            zir_f_157b8ce5776e0448_memset((void*)(value_101), 0, (size_t)(sizeof(ZirConst)));
+            ZirConst* value_100 = (ZirConst*)(((size_t)((constants[0]).items) + ((size_t)((constants[0]).count) * sizeof(ZirConst))));
+            zir_f_157b8ce5776e0448_memset((void*)(value_100), 0, (size_t)(sizeof(ZirConst)));
             zir_f_157b8ce5776e0448_snprintf((uint8_t*)(&(((((constants[0]).items)[(constants[0]).count]).name).items)), (size_t)(sizeof(ParserArray128_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&((cname_storage_37[0]).items)));
-            uint8_t** value_102 = &((((constants[0]).items)[(constants[0]).count]).expr);
-            uint8_t* value_103 = zir_f_157b8ce5776e0448_KeepText(expr);
-            (*value_102) = value_103;
+            uint8_t** value_101 = &((((constants[0]).items)[(constants[0]).count]).expr);
+            uint8_t* value_102 = zir_f_157b8ce5776e0448_KeepText(expr);
+            (*value_101) = value_102;
             zir_f_157b8ce5776e0448_copy_text((uint8_t*)(&(((((constants[0]).items)[(constants[0]).count]).path).items)), (size_t)(sizeof(ParserArray1024_u8)), (uint8_t*)(&(buffers->rel.items)));
-            int32_t* value_104 = &((((constants[0]).items)[(constants[0]).count]).is_file_private);
-            (*value_104) = scope_file;
-            int32_t* value_105 = &((((constants[0]).items)[(constants[0]).count]).is_public);
-            (*value_105) = scope_public;
-            int32_t* value_106 = &((((constants[0]).items)[(constants[0]).count]).source_line);
-            (*value_106) = line_no;
+            int32_t* value_103 = &((((constants[0]).items)[(constants[0]).count]).is_file_private);
+            (*value_103) = scope_file;
+            int32_t* value_104 = &((((constants[0]).items)[(constants[0]).count]).is_public);
+            (*value_104) = scope_public;
+            int32_t* value_105 = &((((constants[0]).items)[(constants[0]).count]).source_line);
+            (*value_105) = line_no;
             compiler_parse_types_ParserPost0(&((constants[0]).count));
         }
     }
@@ -6649,6 +6633,33 @@ compiler_parse_source_names_vec_types(ZirModule* module)
         }
     }
     return 0;
+}
+
+static uint8_t*
+compiler_parse_source_code_colons(uint8_t* t)
+{
+    int64_t at = 0LL;
+    while (t[at] != 0) {
+        if (t[at] == 34) {
+            at = (int64_t)((uint64_t)at + UINT64_C(1));
+            while (t[at] != 0 && t[at] != 34) {
+                int64_t value_0 = 0;
+                if (t[at] == 92 && t[((int64_t)((uint64_t)at + UINT64_C(1)))] != 0) {
+                    value_0 = 2LL;
+                } else {
+                    value_0 = 1LL;
+                }
+                at = (int64_t)((uint64_t)at + (uint64_t)value_0);
+            }
+            if (t[at] == 0) {
+                return (void *)0;
+            }
+        } else if (t[at] == 58 && t[((int64_t)((uint64_t)at + UINT64_C(1)))] == 58) {
+            return (uint8_t*)(((size_t)(t) + (size_t)(at)));
+        }
+        at = (int64_t)((uint64_t)at + UINT64_C(1));
+    }
+    return (void *)0;
 }
 
 ZirProgram*

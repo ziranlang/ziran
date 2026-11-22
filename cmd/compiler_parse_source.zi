@@ -1251,14 +1251,14 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                                                     die_at(Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), ParserCString("state blocks are not Jai syntax; declare named globals"))
                                                                     unreachable
                                                                 } else {
-                                                                    if (((cast(u32)(mode) == cast(u32)(0)) && (strstr(t, ParserCString("::")) != cast(*u8)((null)))) && (starts_word(skip_ws(cast(*u8)(cast(usize)(strstr(t, ParserCString("::"))) + cast(usize)(2) * size_of(u8))), ParserCString("#type")) != 0)) {
+                                                                    if (((cast(u32)(mode) == cast(u32)(0)) && (code_colons(t) != cast(*u8)((null)))) && (starts_word(skip_ws(cast(*u8)(cast(usize)(code_colons(t)) + cast(usize)(2) * size_of(u8))), ParserCString("#type")) != 0)) {
                                                                         name_storage_32 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
                                                                         defer CompilerFree(cast(*void)name_storage_32)
                                                                         memset(cast(*void)name_storage_32, 0, size_of(ParserArray128_u8))
                                                                         ret_storage_33 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
                                                                         defer CompilerFree(cast(*void)ret_storage_33)
                                                                         memset(cast(*void)ret_storage_33, 0, size_of(ParserArray128_u8))
-                                                                        declaration: *u8 = skip_ws(cast(*u8)(cast(usize)(strstr(t, ParserCString("::"))) + cast(usize)(2) * size_of(u8)))
+                                                                        declaration: *u8 = skip_ws(cast(*u8)(cast(usize)(code_colons(t)) + cast(usize)(2) * size_of(u8)))
                                                                         parameters: *u8 = skip_ws(cast(*u8)(cast(usize)(declaration) + cast(usize)(strlen(ParserCString("#type"))) * size_of(u8)))
                                                                         if (((!(parse_symbol_before_colons(t, cast(*u8)(*((name_storage_32[0]).items)), cast(usize)size_of(ParserArray128_u8)) != 0) || (cast(s32)(cast(s8)((parameters)[0])) != 40)) || (strchr(t, 123) != cast(*u8)((null)))) || (cast(s32)(cast(s8)((t)[(strlen(t) - cast(usize)(1))])) != 59)) {
                                                                             die_at(Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), ParserCString("procedure type requires Name :: #type (Types) -> Result;"))
@@ -1322,7 +1322,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                                                             memset(cast(*void)ret_storage_35, 0, size_of(ParserArray128_u8))
                                                                             has_body: s32 = cast(s32)(strchr(t, 123) != cast(*u8)((null)))
                                                                             conversion: s32 = 0
-                                                                            marker: *u8 = strstr(t, ParserCString("::"))
+                                                                            marker: *u8 = code_colons(t)
                                                                             if (marker != cast(*u8)((null))) {
                                                                                 marker = skip_ws(cast(*u8)(cast(usize)(marker) + cast(usize)(2) * size_of(u8)))
                                                                                 if (starts_word(marker, ParserCString("#as")) != 0) {
@@ -1502,22 +1502,22 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
                                                                                 die_at(Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), ParserCString("#global is not Jai syntax; declare a variable with name: Type"))
                                                                                 unreachable
                                                                             } else {
-                                                                                if ((((cast(u32)(mode) == cast(u32)(0)) && ((isalpha(cast(s32)(((cast(u8)((t)[0]))))) != 0) || (cast(s32)(cast(s8)((t)[0])) == 95))) && (strchr(t, 58) != cast(*u8)((null)))) && (strstr(t, ParserCString("::")) == cast(*u8)((null)))) {
+                                                                                if ((((cast(u32)(mode) == cast(u32)(0)) && ((isalpha(cast(s32)(((cast(u8)((t)[0]))))) != 0) || (cast(s32)(cast(s8)((t)[0])) == 95))) && (strchr(t, 58) != cast(*u8)((null)))) && (code_colons(t) == cast(*u8)((null)))) {
                                                                                     parse_file_global(module, t, Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), scope_public, scope_file, null, cast(usize)(0))
                                                                                 } else {
-                                                                                    if (((cast(u32)(mode) == cast(u32)(0)) && (strstr(t, ParserCString("::")) != cast(*u8)((null)))) && (strstr(t, ParserCString("#type")) != cast(*u8)((null)))) {
+                                                                                    if (((cast(u32)(mode) == cast(u32)(0)) && (code_colons(t) != cast(*u8)((null)))) && (strstr(t, ParserCString("#type")) != cast(*u8)((null)))) {
                                                                                         die_at(Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), ParserCString("C declarator #type is not Jai syntax; use Name :: #type (arguments) -> Result;"))
                                                                                         unreachable
                                                                                     } else {
-                                                                                        if (((cast(u32)(mode) == cast(u32)(0)) && (strstr(t, ParserCString("::")) != cast(*u8)((null)))) && (starts_word(skip_ws(cast(*u8)(cast(usize)(strstr(t, ParserCString("::"))) + cast(usize)(2) * size_of(u8))), ParserCString("specialize")) != 0)) {
+                                                                                        if (((cast(u32)(mode) == cast(u32)(0)) && (code_colons(t) != cast(*u8)((null)))) && (starts_word(skip_ws(cast(*u8)(cast(usize)(code_colons(t)) + cast(usize)(2) * size_of(u8))), ParserCString("specialize")) != 0)) {
                                                                                             die_at(Span(cast(*u8)(*(((buffers).rel).items)), line_no, 1), ParserCString("use Jai-style type application: Name :: Generic(Type)"))
                                                                                             unreachable
                                                                                         } else {
-                                                                                            if ((((((((cast(u32)(mode) == cast(u32)(0)) && (strstr(t, ParserCString("::")) != cast(*u8)((null)))) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(strstr(t, ParserCString("::"))) + cast(usize)(2) * size_of(u8))), ParserCString("struct")) != 0)) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(strstr(t, ParserCString("::"))) + cast(usize)(2) * size_of(u8))), ParserCString("union")) != 0)) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(strstr(t, ParserCString("::"))) + cast(usize)(2) * size_of(u8))), ParserCString("enum")) != 0)) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(strstr(t, ParserCString("::"))) + cast(usize)(2) * size_of(u8))), ParserCString("enum_flags")) != 0)) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(strstr(t, ParserCString("::"))) + cast(usize)(2) * size_of(u8))), ParserCString("variant")) != 0)) && !(looks_like_function_header(t) != 0)) {
+                                                                                            if ((((((((cast(u32)(mode) == cast(u32)(0)) && (code_colons(t) != cast(*u8)((null)))) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(code_colons(t)) + cast(usize)(2) * size_of(u8))), ParserCString("struct")) != 0)) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(code_colons(t)) + cast(usize)(2) * size_of(u8))), ParserCString("union")) != 0)) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(code_colons(t)) + cast(usize)(2) * size_of(u8))), ParserCString("enum")) != 0)) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(code_colons(t)) + cast(usize)(2) * size_of(u8))), ParserCString("enum_flags")) != 0)) && !(starts_word(skip_ws(cast(*u8)(cast(usize)(code_colons(t)) + cast(usize)(2) * size_of(u8))), ParserCString("variant")) != 0)) && !(looks_like_function_header(t) != 0)) {
                                                                                                 parse_file_constant(t, path, line_no, module, buffers, *tables.consts, *tables.future_constants, *tables.compile_context, scope_public, scope_file)
                                                                                             } else {
-                                                                                                if ((cast(u32)(mode) == cast(u32)(0)) && (strstr(t, ParserCString("::")) != cast(*u8)((null)))) {
-                                                                                                    colons: *u8 = strstr(t, ParserCString("::"))
+                                                                                                if ((cast(u32)(mode) == cast(u32)(0)) && (code_colons(t) != cast(*u8)((null)))) {
+                                                                                                    colons: *u8 = code_colons(t)
                                                                                                     after: *u8 = cast(*u8)(cast(usize)(colons) + cast(usize)(2) * size_of(u8))
                                                                                                     tname_storage_40 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
                                                                                                     defer CompilerFree(cast(*void)tname_storage_40)
@@ -2094,7 +2094,7 @@ parse_source_with_buffers :: (path: *u8, root: *u8, source: *u8, resolver: ZirCo
 parse_file_constant :: (t: *u8, path: *u8, line_no: s32, module: *IR.ZirModule, buffers: *ParseSourceBuffers,
     constants: *ZirConsts, future_constants: *ZirConsts, context: *CompileParseContext, scope_public: s32, scope_file: s32) {
     span := Span(cast(*u8)*buffers.rel.items[0], line_no, 1)
-    colons: *u8 = strstr(t, ParserCString("::"))
+    colons: *u8 = code_colons(t)
     expr: *u8 = cast(*u8)(cast(usize)(cast(*u8)(colons)) + cast(usize)(2) * size_of(u8))
     cname_storage_37 := cast(*ParserArray128_u8)AllocateOrExit(size_of(ParserArray128_u8))
     defer CompilerFree(cast(*void)cname_storage_37)
@@ -2398,6 +2398,25 @@ names_vec_types :: (module: *IR.ZirModule) -> s32 {
         }
     }
     return 0
+}
+
+
+#scope_file
+// The first `::` in T outside string literals, or null: a constant's value
+// may hold "NAME :: value" as text.
+code_colons :: (t: *u8) -> *u8 {
+    at: s64 = 0
+    while t[at] != 0 {
+        if t[at] == #char "\"" {
+            at += 1
+            while t[at] != 0 && t[at] != #char "\"" { at += ifx t[at] == #char "\\" && t[at + 1] != 0 then 2 else 1 }
+            if t[at] == 0 { return null }
+        } else if t[at] == #char ":" && t[at + 1] == #char ":" {
+            return cast(*u8)(cast(usize)t + cast(usize)at)
+        }
+        at += 1
+    }
+    return null
 }
 
 #scope_export

@@ -36,6 +36,39 @@ Same :: (a: *Image, b: *Image) -> bool {
     return true
 }
 
+progress_calls: s32;
+progress_stop: s32;
+progress_work: s64;
+progress_invalid: bool;
+
+Progress :: (work: s64) -> bool {
+    progress_calls += 1
+    if work <= 0 || work > 262144 { progress_invalid = true }
+    progress_work += work
+    return progress_stop == 0 || progress_calls < progress_stop
+}
+
+DecodeProgress :: (bytes: []u8, jpeg: bool) -> Image {
+    if jpeg { return ReadJPEGWithProgress(bytes, Progress) }
+    return ReadPNGWithProgress(bytes, Progress)
+}
+
+ProgressCases :: (bytes: []u8, jpeg: bool, expected: *Image) -> bool {
+    progress_calls = 0; progress_stop = 0; progress_work = 0; progress_invalid = false
+    decoded := DecodeProgress(bytes, jpeg)
+    defer VecFree(decoded.pixels)
+    if !Same(*decoded, expected) || progress_calls < 3 || progress_work <= 0 || progress_invalid { return false }
+    calls := progress_calls
+    for stop: 1..calls {
+        progress_calls = 0; progress_stop = stop
+        cancelled := DecodeProgress(bytes, jpeg)
+        defer VecFree(cancelled.pixels)
+        if ImageValid(*cancelled) || cancelled.pixels.count != 0 || progress_calls != stop { return false }
+    }
+    progress_stop = 0
+    return true
+}
+
 Number :: (text: string) -> s32 { value, ok := TextInteger(text); return cast(s32)value }
 
 // Tool mode for the Pillow comparison: decode IN to raw RGBA, or resize it.
@@ -69,6 +102,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !WritePNG(*picture, *bytes) { return 1 }
     again := ReadPNG(VecSlice(bytes, 0, bytes.count))
     if !Same(*picture, *again) { return 2 }
+    if !ProgressCases(VecSlice(bytes, 0, bytes.count), false, *again) { return 21 }
     opaque: Vec(u8)
     if !WritePNG(*picture, *opaque, false) { return 3 }
     flat := ReadPNG(VecSlice(opaque, 0, opaque.count))
@@ -129,6 +163,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     dg := cast(s32)decoded_jpeg.pixels[mid + 1] - 160
     db := cast(s32)decoded_jpeg.pixels[mid + 2] - 200
     if dr < -4 || dr > 4 || dg < -4 || dg > 4 || db < -4 || db > 4 || decoded_jpeg.pixels[mid + 3] != 255 { return 19 }
+    if !ProgressCases(VecSlice(jpeg, 0, jpeg.count), true, *decoded_jpeg) { return 22 }
     broken_jpeg := ReadJPEG(VecSlice(jpeg, 0, 10))
     if ImageValid(*broken_jpeg) { return 20 }
     return 0

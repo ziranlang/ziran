@@ -1374,6 +1374,18 @@ of your own has that name.
 Dependencies from other Git repositories import the same way, as
 `#import "NAME/Module"`; see [Packages](PACKAGES.md).
 
+### Cancellable image decoding
+
+`std/png_linux.ReadPNGWithProgress(bytes, progress)` and
+`std/jpeg.ReadJPEGWithProgress(bytes, progress)` accept `std/image.ImageProgress`,
+a procedure `(work: s64) -> bool`. The decoder reports positive increments of
+processed input, decoded samples and output bytes at bounded checkpoints.
+Work units describe progress rather than an instruction count. Return `false`
+to stop; decoding then releases temporary and output storage and returns an
+empty, invalid `Image`. Callbacks must not reenter the same decode.
+`ReadPNG(bytes)` and `ReadJPEG(bytes)` retain their ordinary signatures and
+uninterrupted decoding behavior.
+
 ### Vector capacity and initialized length
 
 Import `vec` to use `Vec(T)`. `VecReserve(values, capacity: s64) -> bool`

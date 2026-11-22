@@ -19,6 +19,12 @@
 using Vectors :: #import "vec"
 
 #scope_file
+PngUninterrupted :: (work: s64) -> bool { unused work; return true }
+
+PngContinue :: (progress: ImageProgress, work: s64) -> bool {
+    return progress == null || work <= 0 || progress(work)
+}
+
 PNG_LIMIT :: 268435456;
 
 Big32 :: (bytes: []u8, at: s64) -> u32 {
@@ -162,7 +168,7 @@ PngDecodeSym :: (input: []u8, bit_pos: *s64, tree: *PngHuff) -> s32 {
     return -1
 }
 
-PngInflate :: (input: []u8, output: *Vec(u8), expected: s64) -> bool {
+PngInflate :: (input: []u8, output: *Vec(u8), expected: s64, progress: ImageProgress) -> bool {
     if input.count < 6 || expected < 0 { return false }
     cmf := cast(u32)input[0]
     flg := cast(u32)input[1]
@@ -172,6 +178,7 @@ PngInflate :: (input: []u8, output: *Vec(u8), expected: s64) -> bool {
     dist_tree: PngHuff
     cl_tree: PngHuff
     lengths: [320]s32
+    checkpoint: s64 = 2
     while true {
         bfinal := PngBits(input, *bit_pos, 1)
         btype := PngBits(input, *bit_pos, 2)
@@ -239,6 +246,11 @@ PngInflate :: (input: []u8, output: *Vec(u8), expected: s64) -> bool {
                 if !PngBuildHuff(*dist_tree, lengths[hlit:hlit + hdist], hdist) { return false }
             }
             while true {
+                completed := output.count + bit_pos/8
+                if completed-checkpoint >= 16384 {
+                    if !PngContinue(progress, completed-checkpoint) { return false }
+                    checkpoint = completed
+                }
                 sym := PngDecodeSym(input, *bit_pos, *lit_tree)
                 if sym < 0 { return false }
                 if sym < 256 {
@@ -265,6 +277,9 @@ PngInflate :: (input: []u8, output: *Vec(u8), expected: s64) -> bool {
                 }
             }
         }
+        completed := output.count + bit_pos/8
+        if !PngContinue(progress, completed-checkpoint) { return false }
+        checkpoint = completed
         if bfinal == 1 { break }
     }
     byte_pos := (bit_pos + 7) >> 3
@@ -274,7 +289,9 @@ PngInflate :: (input: []u8, output: *Vec(u8), expected: s64) -> bool {
     for i: 0..output.count - 1 {
         s1 = (s1 + cast(u32)(<<output)[i]) % 65521
         s2 = (s2 + s1) % 65521
+        if (i+1) % 16384 == 0 && !PngContinue(progress, 16384) { return false }
     }
+    if !PngContinue(progress, output.count % 16384) { return false }
     adler := (s2 << 16) | s1
     return adler == Big32(input, byte_pos)
 }
@@ -283,9 +300,14 @@ PngInflate :: (input: []u8, output: *Vec(u8), expected: s64) -> bool {
 // The picture a whole PNG file's bytes hold; an invalid Image (see
 // ImageValid) when they are not a PNG this reads.
 ReadPNG :: (bytes: []u8) -> Image {
+    return ReadPNGWithProgress(bytes, PngUninterrupted)
+}
+
+ReadPNGWithProgress :: (bytes: []u8, progress: ImageProgress) -> Image {
     signature: [8]u8 = .[137, 80, 78, 71, 13, 10, 26, 10]
     if bytes.count < 8 { return NewImage(0, 0) }
     for index: 0..7 { if bytes[index] != signature[index] { return NewImage(0, 0) } }
+    if !PngContinue(progress, 8) { return NewImage(0, 0) }
     header: Header
     have_header := false
     palette: [256][4]u8
@@ -343,7 +365,11 @@ ReadPNG :: (bytes: []u8) -> Image {
                 for channel: 0..2 { key[channel] = (cast(s32)bytes[body + channel * 2] << 8) | cast(s32)bytes[body + channel * 2 + 1] }
             }
         } else if kind[0] == #char "I" && kind[1] == #char "D" && kind[2] == #char "A" && kind[3] == #char "T" {
-            for index: 0..length - 1 { VecPush(packed, bytes[body + index]) }
+            for index: 0..length - 1 {
+                VecPush(packed, bytes[body + index])
+                if (index+1) % 16384 == 0 && !PngContinue(progress, 16384) { return NewImage(0, 0) }
+            }
+            if !PngContinue(progress, length % 16384) { return NewImage(0, 0) }
         } else if kind[0] == #char "I" && kind[1] == #char "E" && kind[2] == #char "N" && kind[3] == #char "D" {
             ended = true
             break
@@ -372,8 +398,10 @@ ReadPNG :: (bytes: []u8) -> Image {
     }
     data: Vec(u8)
     defer VecFree(data)
-    if !PngInflate(VecSlice(packed, 0, packed.count), *data, expected) || data.count != expected { return NewImage(0, 0) }
-    result := NewImage(header.width, header.height)
+    if !PngInflate(VecSlice(packed, 0, packed.count), *data, expected, progress) || data.count != expected { return NewImage(0, 0) }
+    result: Image
+    result.width = header.width; result.height = header.height
+    if !VecResize(result.pixels, cast(s64)header.width*header.height*4) { return NewImage(0, 0) }
     step := cast(s64)((header.channels * header.depth + 7) / 8)
     offset: s64 = 0
     for pass: 0..passes - 1 {
@@ -419,6 +447,7 @@ ReadPNG :: (bytes: []u8) -> Image {
                     result.pixels[to + 3] = alpha
                 }
             }
+            if !PngContinue(progress, size+cast(s64)width*4) { VecFree(result.pixels); return NewImage(0, 0) }
             previous = row
             offset += size + 1
         }

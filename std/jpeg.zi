@@ -11,6 +11,12 @@
 using Vectors :: #import "vec"
 
 #scope_file
+JpegUninterrupted :: (work: s64) -> bool { unused work; return true }
+
+JpegContinue :: (progress: ImageProgress, work: s64) -> bool {
+    return progress == null || work <= 0 || progress(work)
+}
+
 ZIGZAG: [64]u8 = .[0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5, 12, 19, 26, 33, 40, 48,
     41, 34, 27, 20, 13, 6, 7, 14, 21, 28, 35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30,
     37, 44, 51, 58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63];
@@ -534,7 +540,13 @@ JpegCheckRestart :: (r: *JpegReader, comps: []JpegComp, eob_run: *s32) {
 // 3-channel YCbCr with any standard chroma subsampling) into an Image.
 // Returns an invalid Image (see ImageValid) when BYTES is not a supported JPEG.
 ReadJPEG :: (bytes: []u8) -> Image {
+    return ReadJPEGWithProgress(bytes, JpegUninterrupted)
+}
+
+ReadJPEGWithProgress :: (bytes: []u8, progress: ImageProgress) -> Image {
     if bytes.count < 4 || bytes[0] != 255 || bytes[1] != 216 { return NewImage(0, 0) }
+    if !JpegContinue(progress, 4) { return NewImage(0, 0) }
+    work: s64
     q_tables: [4][64]s32
     q_valid: [4]bool
     dc_huff: [4]JpegHuff
@@ -649,7 +661,7 @@ ReadJPEG :: (bytes: []u8) -> Image {
                 comps[c].blocks_h = (cast(s32)((cast(s64)height * comps[c].v_samp + v_max - 1) / v_max) + 7) / 8
                 total_coeffs := cast(s64)comps[c].stride * (mcu_rows * comps[c].v_samp) * 64
                 if !VecResize(comps[c].coeffs, total_coeffs) { return NewImage(0, 0) }
-                for idx: 0..total_coeffs - 1 { comps[c].coeffs[idx] = 0 }
+                if !JpegContinue(progress, 1) { return NewImage(0, 0) }
             }
             have_sof = true
         } else if marker >= 195 && marker <= 207 {
@@ -716,6 +728,8 @@ ReadJPEG :: (bytes: []u8) -> Image {
                             ok = JpegDecodeBlockProgACRefine(*reader, *ac_huff[ta], *eob_run, *comps[c].coeffs, base, ss, se, al)
                         }
                         if !ok { return NewImage(0, 0) }
+                        work += 64
+                        if work >= 1024 { if !JpegContinue(progress, work) { return NewImage(0, 0) }; work = 0 }
                         mcu_count += 1
                         unused total_units
                     }
@@ -742,6 +756,8 @@ ReadJPEG :: (bytes: []u8) -> Image {
                                         ok = JpegDecodeBlockProgDC(*reader, *dc_huff[td], *comps[c].dc_pred, *comps[c].coeffs, base, ah, al)
                                     }
                                     if !ok { return NewImage(0, 0) }
+                                    work += 64
+                                    if work >= 1024 { if !JpegContinue(progress, work) { return NewImage(0, 0) }; work = 0 }
                                 }
                             }
                         }
@@ -753,9 +769,11 @@ ReadJPEG :: (bytes: []u8) -> Image {
             at = reader.pos
             continue
         }
+        if !JpegContinue(progress, seg_len) { return NewImage(0, 0) }
         at = seg_end
     }
 
+    if !JpegContinue(progress, work) { return NewImage(0, 0) }; work = 0
     if !have_sof || !have_scan { return NewImage(0, 0) }
     for c: 0..n_comp - 1 {
         if !q_valid[comps[c].tq] { return NewImage(0, 0) }
@@ -811,11 +829,16 @@ ReadJPEG :: (bytes: []u8) -> Image {
                         }
                     }
                 }
+                work += 64
+                if work >= 1024 { if !JpegContinue(progress, work) { return NewImage(0, 0) }; work = 0 }
             }
         }
     }
+    if !JpegContinue(progress, work) { return NewImage(0, 0) }
 
-    result := NewImage(width, height)
+    result: Image
+    result.width = width; result.height = height
+    if !VecResize(result.pixels, cast(s64)width*height*4) { return NewImage(0, 0) }
     if n_comp == 1 {
         pw := comps[0].stride * 8
         for y: 0..height - 1 {
@@ -829,6 +852,7 @@ ReadJPEG :: (bytes: []u8) -> Image {
                 result.pixels[at_px + 2] = g
                 result.pixels[at_px + 3] = 255
             }
+            if !JpegContinue(progress, cast(s64)width*4) { VecFree(result.pixels); return NewImage(0, 0) }
         }
     } else {
         pw0 := comps[0].stride * 8
@@ -858,6 +882,7 @@ ReadJPEG :: (bytes: []u8) -> Image {
                 result.pixels[at_px + 2] = JpegClampByte(yv + 1.772 * cb)
                 result.pixels[at_px + 3] = 255
             }
+            if !JpegContinue(progress, cast(s64)width*4) { VecFree(result.pixels); return NewImage(0, 0) }
         }
     }
     return result

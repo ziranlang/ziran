@@ -66,9 +66,12 @@ MachineX64Relocation :: struct {
     instruction: s32
 }
 
-// Byte offsets of a function, the first byte after its prologue, the first
-// byte of the traps its checks branch to after its blocks, and its end.
-MachineX64Function :: struct { begin: s64; body: s64; cold: s64; end: s64 }
+// Byte offsets of a function: its first byte, the first byte after its
+// prologue, the first byte of the traps its checks branch to after its
+// blocks, its end, and the first byte of its frame setup. That last one
+// follows an early return that leaves before any frame exists, so unwind
+// data must not assume the frame starts at the function's first byte.
+MachineX64Function :: struct { begin: s64; body: s64; cold: s64; end: s64; frame: s64 }
 MachineX64Range :: struct { begin: s64; end: s64 }
 
 MachineX64Image :: struct {
@@ -106,6 +109,7 @@ FunctionAlignment :: 32
 Layout :: struct {
     function_begin: Vec(s64)
     function_body: Vec(s64)
+    function_frame: Vec(s64)
     function_cold: Vec(s64)
     function_end: Vec(s64)
     block_begin: Vec(s64)
@@ -134,6 +138,7 @@ State :: struct {
     emit: bool
     function_begin: []s64
     function_body: []s64
+    function_frame: []s64
     function_cold: []s64
     function_end: []s64
     block_begin: []s64
@@ -199,6 +204,7 @@ Spend :: (state: *State, count: s64) -> bool {
 LayoutFree :: (layout: *Layout) {
     VecFree(layout.function_begin)
     VecFree(layout.function_body)
+    VecFree(layout.function_frame)
     VecFree(layout.function_cold)
     VecFree(layout.function_end)
     VecFree(layout.block_begin)
@@ -2937,6 +2943,7 @@ Prologue :: (state: *State) -> bool {
     if frame.dynamic_allocation || frame.callee_saved_float != 0 { return Fail(state, .Frame) }
     if frame.size < 0 || frame.size > 2147483647 { return Fail(state, .Frame) }
     if !EarlyReturn(state) { return false }
+    if !Place(state, state.function_frame, state.function) { return false }
     if !state.frameless {
         X86Push(*state.writer, X86Rbp)
         X86Move(*state.writer, X86Rbp, X86Rsp)
@@ -2989,6 +2996,7 @@ Pass :: (state: *State) -> bool {
         if function.calling != .Internal {
             if !Spend(state, 1) || !Place(state, state.function_begin, function_index) ||
                 !Place(state, state.function_body, function_index) ||
+                !Place(state, state.function_frame, function_index) ||
                 !Place(state, state.function_cold, function_index) ||
                 !Place(state, state.function_end, function_index) { return false }
             continue
@@ -3211,6 +3219,7 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
     defer LayoutFree(*layout)
     if !Filled(*layout.function_begin, program.functions.count) ||
         !Filled(*layout.function_body, program.functions.count) ||
+        !Filled(*layout.function_frame, program.functions.count) ||
         !Filled(*layout.function_cold, program.functions.count) ||
         !Filled(*layout.function_end, program.functions.count) ||
         !Filled(*layout.block_begin, program.blocks.count) ||
@@ -3248,6 +3257,7 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
     state := State.{program = program, writer = .{limit = limit}, diagnostic = NoDiagnostic(),
         remaining = limits.work,
         function_begin = layout.function_begin[:], function_body = layout.function_body[:],
+        function_frame = layout.function_frame[:],
         function_cold = layout.function_cold[:], function_end = layout.function_end[:], block_begin = layout.block_begin[:],
         instruction_begin = layout.instruction_begin[:], instruction_end = layout.instruction_end[:],
         relocation_of = layout.relocation_of[:], heads = layout.heads[:],
@@ -3288,7 +3298,8 @@ Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64O
     }
     for index: cast(s64)0..program.functions.count - 1 {
         output.functions[index] = .{begin = layout.function_begin[index], body = layout.function_body[index],
-            cold = layout.function_cold[index], end = layout.function_end[index]}
+            cold = layout.function_cold[index], end = layout.function_end[index],
+            frame = layout.function_frame[index]}
     }
     for index: cast(s64)0..program.instructions.count - 1 {
         output.instructions[index] = .{begin = layout.instruction_begin[index], end = layout.instruction_end[index]}

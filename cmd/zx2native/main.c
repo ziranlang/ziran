@@ -763,6 +763,12 @@ main(int argc, char **argv)
             assembly_host_abi_gap(view, diagnostic.function, native_target);
             goto done;
         }
+        if(diagnostic.problem == MachineProblem_UnsupportedTarget) {
+            Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-platform-service-unavailable",
+                "assembly.gap.machine-platform-service-unavailable: selected target %s has no formatter, host binding or executable runtime for what this program calls; no alternate engine was selected",
+                target_row);
+            goto done;
+        }
         if(diagnostic.problem != MachineProblem_None) {
             Diagnostic((ZirSourceSpan){0}, "assembly.machine",
                 "machine pipeline rejected the program: problem=%d function=%d block=%d instruction=%d operand=%d virtual=%d; no alternate engine was selected",

@@ -11,6 +11,7 @@ using Vectors :: #import "std/vec"
 using X64 :: #import "compiler_x86_64"
 using X64Image :: #import "compiler_x86_image"
 using A64 :: #import "compiler_aarch64"
+using A64Elf :: #import "compiler_aarch64_elf"
 using V7 :: #import "compiler_armv7"
 
 // Owner for one complete direct machine pipeline. The borrowed executable
@@ -266,14 +267,46 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
     program := MachineProgramView(*built.machine)
     if target.arch == .AArch64 || target.arch == .ArmV7 {
-        // Neither ARM target has an AOT executable writer.
-        if emit_executable {
-            MachineNativeFree(*built)
-            return Problem(.UnsupportedTarget)
-        }
         if target.arch == .ArmV7 { diagnostic = MachineV7EncodeAllocated(program, limits, *built.encoded_v7) }
         else { diagnostic = MachineA64EncodeAllocated(program, limits, *built.encoded_a64) }
         if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
+        if emit_executable {
+            if links.libraries.count > 0 { MachineNativeFree(*built); return Problem(.Unsupported) }
+            empty: [0]u8
+            measured: MachineA64ElfResult
+            if target.arch == .AArch64 {
+                encoded := MachineA64View(*built.encoded_a64)
+                extents: Vec(A64Elf.MachineA64ElfFunction)
+                if !VecResizeBounded(extents, encoded.functions.count, encoded.functions.count) {
+                    MachineNativeFree(*built)
+                    return Problem(.Allocation)
+                }
+                for index: cast(s64)0..encoded.functions.count - 1 {
+                    extents[index] = .{begin = encoded.functions[index].begin,
+                        body = encoded.functions[index].body, end = encoded.functions[index].end}
+                }
+                defer VecFree(extents)
+                code := MachineA64ElfCode.{code = encoded.code, functions = extents[:],
+                    relocations = A64.MachineA64MachineView(*built.encoded_a64).relocations,
+                    entry = encoded.entry}
+                measured = MachineA64ElfEncode(program, code, empty[:])
+                diagnostic = measured.diagnostic
+                if diagnostic.problem == .None && (measured.size <= 0 || measured.size > limits.bytes ||
+                    !VecResizeBounded(built.executable, measured.size, limits.bytes)) {
+                    diagnostic = Problem(ifx measured.size > limits.bytes then MachineProblem.Limit else MachineProblem.Allocation)
+                }
+                if diagnostic.problem == .None {
+                    written := MachineA64ElfEncode(program, code, built.executable[:])
+                    diagnostic = written.diagnostic
+                    if diagnostic.problem == .None && written.size != measured.size { diagnostic = Problem(.Relocation) }
+                }
+            } else {
+                // No ARMv7 standalone container yet: the row stays a named gap.
+                diagnostic = Problem(.UnsupportedTarget)
+            }
+            if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
+            built.image = built.executable[:]
+        }
         built.valid = true
         NativeExchange(output, *built)
         MachineNativeFree(*built)

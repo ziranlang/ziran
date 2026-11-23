@@ -1,0 +1,272 @@
+using Bytes :: #import "compiler_arm_bytes"
+using Image :: #import "compiler_machine_image"
+using Target :: #import "compiler_target"
+
+// Runtime routines an AArch64 Linux or Android native executable carries,
+// emitted with the ARM writer, each only when the program calls it.
+// Positions are virtual offsets in the image, so a PC-relative field reaches
+// any runtime state through its position. Only the primitives that reach the
+// operating system differ from x86-64: Linux and Android make system calls
+// through SVC 0.
+//
+// Exit(w0 = status) ends the process.
+//
+// Console: write_all(w0 = fd, x1 = bytes, x2 = count) writes every byte, or
+// exits 125 when a write fails.
+//
+// AAPCS64: x0-x7 carry arguments, x8 a record result address, x16/x17 are
+// the IP0/IP1 intra-procedure registers, x18 is platform-reserved and x29
+// the frame pointer. The routines keep x19-x28 and the frame registers.
+
+MachineA64RuntimeTrapExit :: 125
+
+// The system calls the routines use: write (64), exit_group (94).
+MachineA64SysWrite :: 64
+MachineA64SysExit :: 94
+
+// What the routines use, as image positions.
+MachineA64RuntimePlaces :: struct {
+    trap: s64
+    os: TargetOS
+}
+
+MachineA64RuntimeUses :: struct {
+    // Exit, for the trap stub.
+    exit: bool
+    // The console entries called.
+    write_all: bool
+}
+
+// Entry offsets of the emitted routines and the end of their code.
+MachineA64RuntimeEntries :: struct {
+    exit: s64
+    write_all: s64
+    end: s64
+}
+
+Label :: enum s32 {
+    Exit; WriteAll; WriteLoop; WriteAgain; WriteDone; WriteFail
+}
+
+LabelCount :: 6
+
+Emitter :: struct {
+    writer: Bytes.ArmWriter
+    places: MachineA64RuntimePlaces
+    labels: [LabelCount]s64
+}
+
+Mark :: (emitter: *Emitter, label: Label) { emitter.labels[cast(s64)label] = emitter.writer.at }
+
+At :: (emitter: *Emitter, label: Label) -> s64 { return emitter.labels[cast(s64)label] }
+
+// Writes one 32-bit instruction word.
+Op :: (emitter: *Emitter, word: u32) { Bytes.ArmWord(*emitter.writer, word) }
+
+NoLabel :: (emitter: *Emitter, target: s64) -> s32 {
+    return ifx target < 0 then -1 else cast(s32)target
+}
+
+// The signed word delta from the four-byte branch field at the current
+// position to TARGET, or -1 while measuring.
+Delta :: (emitter: *Emitter, target: s64) -> s64 {
+    return Bytes.ArmBranchDelta(*emitter.writer, target)
+}
+
+BranchTo :: (emitter: *Emitter, label: Label) {
+    delta := Delta(emitter, At(emitter, label))
+    field := Bytes.ArmField(*emitter.writer, delta, 26)
+    Op(emitter, cast(u32)(0x14000000 | field))
+}
+
+CallTo :: (emitter: *Emitter, label: Label) {
+    delta := Delta(emitter, At(emitter, label))
+    field := Bytes.ArmField(*emitter.writer, delta, 26)
+    Op(emitter, cast(u32)(0x94000000 | field))
+}
+
+// B.cond with the raw condition CODE to LABEL.
+BranchConditionTo :: (emitter: *Emitter, code: s32, label: Label) {
+    delta := Delta(emitter, At(emitter, label))
+    field := Bytes.ArmField(*emitter.writer, delta, 19)
+    Op(emitter, cast(u32)(0x54000000 | field << 5 | cast(u64)code & 15))
+}
+
+// CBNZ W<rt>, LABEL.
+CompareZeroBranchTo :: (emitter: *Emitter, rt: s32, label: Label, nonzero: bool) {
+    delta := Delta(emitter, At(emitter, label))
+    field := Bytes.ArmField(*emitter.writer, delta, 19)
+    word: u64 = 0x34000000 | field << 5 | cast(u64)rt & 31
+    if nonzero { word = word | 0x1000000 }
+    Op(emitter, cast(u32)word)
+}
+
+// MOVZ/MOVK sequence for VALUE in X<rd>.
+MoveImmediate64 :: (emitter: *Emitter, rd: s32, value: u64) {
+    count := Bytes.ArmHalfCount(value, 64)
+    Op(emitter, cast(u32)(0xd2800000 | cast(u64)Bytes.ArmHalf(value, 0) << 5 | cast(u64)rd & 31))
+    half: s32 = 1
+    while half < count {
+        Op(emitter, cast(u32)(0xf2800000 | cast(u64)half << 21 |
+            cast(u64)Bytes.ArmHalf(value, half) << 5 | cast(u64)rd & 31))
+        half += 1
+    }
+}
+
+// MOVZ for the 32-bit VALUE in W<rd>.
+MoveImmediate32 :: (emitter: *Emitter, rd: s32, value: u32) {
+    count := Bytes.ArmHalfCount(value, 32)
+    Op(emitter, cast(u32)(0x52800000 | cast(u64)Bytes.ArmHalf(value, 0) << 5 | cast(u64)rd & 31))
+    half: s32 = 1
+    while half < count {
+        Op(emitter, cast(u32)(0x72800000 | cast(u64)half << 21 |
+            cast(u64)Bytes.ArmHalf(value, half) << 5 | cast(u64)rd & 31))
+        half += 1
+    }
+}
+
+// MOV X<rd>, X<rn>.
+MoveRegister :: (emitter: *Emitter, rd: s32, rn: s32) {
+    Op(emitter, cast(u32)(0xaa0003e0 | cast(u64)rn << 16 | cast(u64)rd & 31))
+}
+
+// ADD/SUB X<rd>, X<rn>, #VALUE in the 12-bit scaled form.
+AddSubImmediate :: (emitter: *Emitter, rd: s32, rn: s32, value: s64, subtract: bool) {
+    word: u64 = 0x91000000
+    if subtract { word = word | 0x40000000 }
+    word = word | cast(u64)value << 10 | cast(u64)rn << 5 | cast(u64)rd & 31
+    Op(emitter, cast(u32)word)
+}
+
+// ADD/SUB X<rd>, X<rn>, X<rm>.
+AddSubRegister :: (emitter: *Emitter, rd: s32, rn: s32, rm: s32, subtract: bool) {
+    word: u64 = 0x8b000000
+    if subtract { word = word | 0x40000000 }
+    word = word | cast(u64)rm << 16 | cast(u64)rn << 5 | cast(u64)rd & 31
+    Op(emitter, cast(u32)word)
+}
+
+// CMP X<rn>, X<rm>: SUBS with the zero register destination.
+CompareRegister :: (emitter: *Emitter, rn: s32, rm: s32) {
+    Op(emitter, cast(u32)(0xeb00001f | cast(u64)rm << 16 | cast(u64)rn << 5))
+}
+
+// CMP X<rn>, #VALUE.
+CompareImmediate :: (emitter: *Emitter, rn: s32, value: u64) {
+    Op(emitter, cast(u32)(0xf100001f | cast(u64)value << 10 | cast(u64)rn << 5))
+}
+
+// LDR X<rt>, [X<rn>, #OFFSET] (word scaled) or STR.
+LoadWord :: (emitter: *Emitter, rt: s32, rn: s32, offset: s64) {
+    Op(emitter, cast(u32)(0xf9400000 | cast(u64)(offset / 8) << 10 | cast(u64)rn << 5 | cast(u64)rt & 31))
+}
+
+StoreWord :: (emitter: *Emitter, rt: s32, rn: s32, offset: s64) {
+    Op(emitter, cast(u32)(0xf9000000 | cast(u64)(offset / 8) << 10 | cast(u64)rn << 5 | cast(u64)rt & 31))
+}
+
+// LDR W<rt>, [X<rn>, #OFFSET] and STR W<rt>, [X<rn>, #OFFSET].
+LoadHalf :: (emitter: *Emitter, rt: s32, rn: s32, offset: s64) {
+    Op(emitter, cast(u32)(0xb9400000 | cast(u64)(offset / 4) << 10 | cast(u64)rn << 5 | cast(u64)rt & 31))
+}
+
+StoreHalf :: (emitter: *Emitter, rt: s32, rn: s32, offset: s64) {
+    Op(emitter, cast(u32)(0xb9000000 | cast(u64)(offset / 4) << 10 | cast(u64)rn << 5 | cast(u64)rt & 31))
+}
+
+// LDRB W<rt>, [X<rn>, #OFFSET] and STRB W<rt>, [X<rn>, #OFFSET].
+LoadByte :: (emitter: *Emitter, rt: s32, rn: s32, offset: s64) {
+    Op(emitter, cast(u32)(0x39400000 | cast(u64)offset << 10 | cast(u64)rn << 5 | cast(u64)rt & 31))
+}
+
+StoreByte :: (emitter: *Emitter, rt: s32, rn: s32, offset: s64) {
+    Op(emitter, cast(u32)(0x39000000 | cast(u64)offset << 10 | cast(u64)rn << 5 | cast(u64)rt & 31))
+}
+
+// STP X<rt>, X<rt2>, [SP, #-16]! and LDP X<rt>, X<rt2>, [SP], #16.
+PushPair :: (emitter: *Emitter, rt: s32, rt2: s32) {
+    Op(emitter, cast(u32)(0xa9800000 | cast(u64)rt2 << 10 | cast(u64)rt))
+}
+
+PopPair :: (emitter: *Emitter, rt: s32, rt2: s32) {
+    Op(emitter, cast(u32)(0xa8c00000 | cast(u64)rt2 << 10 | cast(u64)rt))
+}
+
+SaveFrame :: (emitter: *Emitter) {
+    Op(emitter, 0xa9bf7bfd)   // stp x29, x30, [sp, #-16]!
+    Op(emitter, 0x910003fd)   // mov x29, sp
+}
+
+RestoreFrame :: (emitter: *Emitter) {
+    Op(emitter, 0xa8c17bfd)   // ldp x29, x30, [sp], #16
+    Op(emitter, 0xd65f03c0)   // ret
+}
+
+// SVC 0 with the call number in X8. The result lands in X0.
+Syscall :: (emitter: *Emitter, number: u64) {
+    MoveImmediate64(emitter, 8, number)
+    Op(emitter, 0xd4000001)
+}
+
+// Exit(w0 = status): Linux and Android end the process with exit_group.
+EmitExit :: (emitter: *Emitter) {
+    Mark(emitter, .Exit)
+    Syscall(emitter, MachineA64SysExit)
+    Op(emitter, 0xd4200000)   // brk #0, never reached
+}
+
+// write_all(w0 = fd, x1 = bytes, x2 = count): every byte, retrying EINTR
+// and partial progress, or exit 125. It is called, so it returns to x30.
+EmitWrite :: (emitter: *Emitter) {
+    Mark(emitter, .WriteAll)
+    Mark(emitter, .WriteLoop)
+    CompareZeroBranchTo(emitter, 2, .WriteDone, false)
+    Mark(emitter, .WriteAgain)
+    Syscall(emitter, MachineA64SysWrite)
+    // CMN x0, #4 sets Z when x0 == -4 (EINTR).
+    Op(emitter, cast(u32)(0xb100001f | cast(u64)4 << 10))
+    BranchConditionTo(emitter, 0, .WriteAgain)
+    // A zero or negative result is a failed write.
+    CompareImmediate(emitter, 0, 0)
+    BranchConditionTo(emitter, 13, .WriteFail)
+    AddSubRegister(emitter, 1, 1, 0, false)
+    AddSubRegister(emitter, 2, 2, 0, true)
+    CompareZeroBranchTo(emitter, 2, .WriteAgain, true)
+    Mark(emitter, .WriteDone)
+    Op(emitter, 0xd65f03c0)   // ret
+    Mark(emitter, .WriteFail)
+    MoveImmediate32(emitter, 0, MachineA64RuntimeTrapExit)
+    BranchTo(emitter, .Exit)
+}
+
+Emit :: (emitter: *Emitter, uses: MachineA64RuntimeUses) {
+    // A refused or failed write exits through the runtime's exit.
+    if uses.exit { EmitExit(emitter) }
+    if uses.write_all { EmitWrite(emitter) }
+}
+
+#scope_export
+
+MachineA64RuntimeConsole :: (uses: MachineA64RuntimeUses) -> bool {
+    return uses.write_all
+}
+
+// Measures, then with a non-empty OUTPUT writes, the routines USES names at
+// position AT. Writing reproduces the measured positions exactly.
+MachineA64RuntimeEmit :: (output: []u8, at: s64, uses: MachineA64RuntimeUses,
+    places: MachineA64RuntimePlaces, entries: *MachineA64RuntimeEntries) -> bool {
+    if cast(s64)Label.WriteFail + 1 != LabelCount { return false }
+    measure: Emitter
+    measure.writer = .{at = at, limit = 9223372036854775807}
+    measure.places = places
+    Emit(*measure, uses)
+    if measure.writer.failed { return false }
+    labels := measure.labels
+    <<entries = .{exit = labels[cast(s64)Label.Exit], write_all = labels[cast(s64)Label.WriteAll],
+        end = measure.writer.at}
+    if output.count == 0 { return true }
+    write := measure
+    write.writer = .{output = output, at = at, limit = output.count}
+    Emit(*write, uses)
+    return !write.writer.failed && write.writer.at == measure.writer.at
+}

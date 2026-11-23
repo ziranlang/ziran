@@ -58,8 +58,16 @@ pass, from a private index on origin/master.
    81/81.
 7. **Standalone ELFs for AArch64 and ARMv7** (`zx2native --target`). This
    needs a per-architecture runtime with a maintained source instead of a
-   byte blob (the x86 runtime split of the Windows PE lane is the model). It
-   is the last row.
+   byte blob (the x86 runtime split of the Windows PE lane is the model). AArch64
+   is done (2026-11-23): `compiler_aarch64_runtime.zi` emits the exit and
+   write-all routines as AArch64 words, and `compiler_aarch64_elf.zi` writes a
+   static ELF64 (EM_AARCH64) whose entry stub sets the stack limit, calls the
+   initializers and the entry, and ends through the runtime, resolving every
+   image relocation at link time. `zx2native --target aarch64 --platform
+   linux|android` writes it; the Pixel runs both, recorded in
+   `bench/results/zx-aarch64-elf-pixel-2026-11-23.json`. A program that calls
+   a formatter or a host capability is still a named gap. ARMv7 remains: it
+   needs the same runtime and an EM_ARM ELF32 container.
 
 No row adds an engine fallback. Anything native code cannot run on these
 targets fails preflight with a named gap, as on x86-64.

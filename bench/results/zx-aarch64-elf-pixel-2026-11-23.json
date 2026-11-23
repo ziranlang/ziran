@@ -1,0 +1,52 @@
+{
+  "test": "zx_aarch64_standalone_elf",
+  "date": "2026-11-23T13:03:32Z",
+  "revision": "9f0288b60ffc88651381047ca0c8d8a96fdaff8d",
+  "worktree_clean": false,
+  "host": {
+    "name": "omega",
+    "machine": "x86_64"
+  },
+  "device": {
+    "serial": "09231JEC206210",
+    "adb_host": "wao@thinkpad.local",
+    "model": "Pixel 4a",
+    "abi": "arm64-v8a"
+  },
+  "note": "Every image is a static ELF64 EM_AARCH64 from zx2native; each ran on the Pixel and printed its expected text.",
+  "cases": [
+    {
+      "program": "raw2",
+      "platform": "linux",
+      "bytes": 4112,
+      "sha256": "5317710633c3812c650911efda320aafdc46610669980fd9dea0898147675853",
+      "stdout": "Hello, World!",
+      "passed": true
+    },
+    {
+      "program": "loop",
+      "platform": "linux",
+      "bytes": 4112,
+      "sha256": "67006f4e2d1f54f1e9d1e0b36ef9477756351feec118a415ff164f597987b0da",
+      "stdout": "Sum ok",
+      "passed": true
+    },
+    {
+      "program": "raw2",
+      "platform": "android",
+      "bytes": 4112,
+      "sha256": "5317710633c3812c650911efda320aafdc46610669980fd9dea0898147675853",
+      "stdout": "Hello, World!",
+      "passed": true
+    },
+    {
+      "program": "loop",
+      "platform": "android",
+      "bytes": 4112,
+      "sha256": "67006f4e2d1f54f1e9d1e0b36ef9477756351feec118a415ff164f597987b0da",
+      "stdout": "Sum ok",
+      "passed": true
+    }
+  ],
+  "passed": true
+}

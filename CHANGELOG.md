@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- `zx2native --target aarch64 --platform linux|android` writes a static AArch64 ELF with its own runtime: the entry stub sets the stack limit, calls the initializers and the entry, and ends through the runtime's exit; the console writer is AArch64 machine code emitted from Ziran source. The image resolves every relocation at link time, so it needs no loader. A program that calls a formatter or a host capability is still a named gap.
 ## [0.8.0] - 2026-11-23
 
 - Build native AArch64 and ARMv7 images with indexed relocation lookup, so each image relocation visits only its own instruction's machine relocations instead of scanning the whole program. Both devices pass the 81-program parity.

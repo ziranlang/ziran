@@ -1,0 +1,539 @@
+using Bytes :: #import "compiler_arm_bytes"
+using Machine :: #import "compiler_machine_ir"
+using Runtime :: #import "compiler_aarch64_runtime"
+using Target :: #import "compiler_target"
+
+// Deterministic, sectionless Linux or Android AArch64 ELF image for allocated
+// machine IR, carrying only what the program uses. The first PT_LOAD maps the
+// file from offset 0: the ELF headers, then (16-byte aligned) the text and
+// the read-only globals after it. It is read/execute only. A second PT_LOAD
+// exists only when the program needs writable state. Its bytes follow the
+// text in the file and map one page higher in memory, so the two segments
+// never share a page and the file needs no padding. It is read/write but
+// never executable. Positions are virtual offsets from MachineA64ElfBase. No
+// runtime, assembler or foreign object participates.
+//
+// A program with no host capabilities is static: no dynamic linker runs.
+// Host capabilities are a named gap on this row, so a program that imports
+// one fails before output rather than linking a foreign object.
+//
+// The entry stub is Ziran-owned: it sets the stack limit when any function
+// checks its stack, calls each initializer in order, calls the entry and ends
+// through the runtime's exit with the entry's status. The trap handler stores
+// the trap code and exits 125. Every symbolic address materializes as the
+// loader would relocate it, so a standalone image needs no loader.
+
+MachineA64ElfBase :: 0x400000
+MachineA64ElfPage :: 4096
+MachineA64ElfHeaderSize :: 64
+MachineA64ElfProgramHeaderSize :: 56
+MachineA64ElfTrapExit :: 125
+// 8 MiB: the stack limit an x86-64 image reserves, which the ARM rows match.
+MachineA64ElfStackBytes :: 0x7c0000
+
+// File offsets, and the data segment's virtual offset from MachineA64ElfBase
+// (both 0 without a data segment); a piece the image does not carry has
+// offset -1.
+MachineA64ElfResult :: struct {
+    diagnostic: MachineDiagnostic
+    size: s64
+    text_offset: s64
+    text_size: s64
+    startup_size: s64
+    data_offset: s64
+    data_address: s64
+    data_size: s64
+    fuel_offset: s64
+    trap_status_offset: s64
+    pointer_offset: s64
+}
+
+// The machine-code image an AArch64 encoder published, in the form the
+// container needs: its code, function extents, entry and the image-level
+// relocations, which carry each field's width and section.
+MachineA64ElfCode :: struct {
+    code: []u8
+    functions: []MachineA64ElfFunction
+    relocations: []MachineRelocation
+    entry: s32
+}
+
+// One function's byte extents within the code section.
+MachineA64ElfFunction :: struct { begin: s64; body: s64; end: s64 }
+
+#scope_file
+
+// What the image references, which decides what it carries.
+MachineA64ElfNeeds :: struct {
+    runtime: Runtime.MachineA64RuntimeUses
+    fuel: bool
+    trap: bool
+    stack: bool
+    pointer: bool
+}
+
+// The writable-state positions within the data segment.
+MachineA64DataLayout :: struct {
+    globals_size: s64
+    fuel: s64
+    trap_status: s64
+    stack_limit: s64
+    pointer_header: s64
+    // Bytes stored, and in memory with the zero fill.
+    size: s64
+    memory: s64
+}
+
+// Positions of an image's parts.
+MachineA64ElfLayout :: struct {
+    needs: MachineA64ElfNeeds
+    headers: s64
+    text: s64
+    startup_size: s64
+    // The trap stub, or zero when nothing traps.
+    trap: s64
+    routines: Runtime.MachineA64RuntimeEntries
+    text_end: s64
+    constants: s64
+    constants_size: s64
+    data: s64
+    // Where the output takes the data's stored bytes.
+    data_file: s64
+    data_layout: MachineA64DataLayout
+}
+
+Failure :: (problem: MachineProblem) -> MachineA64ElfResult {
+    return .{diagnostic = .{problem = problem, function = MachineNoId, block = MachineNoId,
+        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}}
+}
+
+NoDiagnostic :: () -> MachineDiagnostic {
+    return .{problem = .None, function = MachineNoId, block = MachineNoId,
+        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}
+}
+
+Problem :: (problem: MachineProblem) -> MachineDiagnostic {
+    diagnostic := NoDiagnostic()
+    diagnostic.problem = problem
+    return diagnostic
+}
+
+Align :: (value: s64, alignment: s64) -> s64 {
+    return (value + alignment - 1) & ~(alignment - 1)
+}
+
+PutLittle :: (output: []u8, at: s64, value: u64, count: s32) {
+    for index: 0..count - 1 {
+        output[at + index] = cast(u8)((value >> cast(u64)(index * 8)) & 255)
+    }
+}
+
+PutWord :: (output: []u8, at: s64, word: u32) {
+    PutLittle(output, at, cast(u64)word, 4)
+}
+
+ReadWord :: (output: []u8, at: s64) -> u32 {
+    return cast(u32)(cast(u64)output[at] | cast(u64)output[at + 1] << 8 |
+        cast(u64)output[at + 2] << 16 | cast(u64)output[at + 3] << 24)
+}
+
+// The entry stub's fixed size: the stack limit's absolute MOVZ/MOVK pair, the
+// stack pointer and slack, and the store; then a call per initializer, the
+// entry call and the exit. Every instruction is four bytes.
+StackSetupWords :: 7
+StartupSize :: (program: MachineProgram, layout: MachineA64ElfLayout) -> s64 {
+    words := program.initializers.count + 2
+    if layout.needs.stack { words += StackSetupWords }
+    end := layout.text + words * 4
+    return words * 4 + (16 - end % 16) % 16
+}
+
+Code :: (layout: MachineA64ElfLayout) -> s64 { return layout.text + layout.startup_size }
+
+// What the image references: fuel, traps, the stack limit and the pointer
+// runtime.
+ImageNeeds :: (program: MachineProgram, code: MachineA64ElfCode) -> MachineA64ElfNeeds {
+    needs: MachineA64ElfNeeds
+    for relocation: code.relocations {
+        if relocation.kind == .FuelCounter { needs.fuel = true }
+        if relocation.kind == .RuntimeTrap { needs.trap = true }
+        if relocation.kind == .StackLimit { needs.stack = true }
+        if relocation.kind == .PointerRuntime { needs.pointer = true }
+    }
+    // The entry ends through the runtime's exit.
+    needs.runtime.exit = true
+    for relocation: code.relocations {
+        if relocation.kind == .PlatformService && FunctionName(program, relocation.symbol, "ziran.platform.write_all") {
+            needs.runtime.write_all = true
+        }
+    }
+    return needs
+}
+
+// Whether a global's type has a size and alignment the image can place.
+ValidGlobal :: (program: MachineProgram, global: MachineGlobal) -> bool {
+    if global.type < 0 || global.type >= program.types.count { return false }
+    type := program.types[global.type]
+    return type.size > 0 && type.size <= 2147483647 && type.alignment > 0 &&
+        type.alignment <= 4096 && (type.alignment & (type.alignment - 1)) == 0
+}
+
+GlobalsMeasure :: (program: MachineProgram, writable: bool, size: *s64) -> MachineDiagnostic {
+    at: s64 = 0
+    for global: program.globals {
+        if !ValidGlobal(program, global) { return Problem(.Unsupported) }
+        if global.writable != writable { continue }
+        type := program.types[global.type]
+        at = Align(at, type.alignment)
+        if at > 2147483647 - type.size { return Problem(.Limit) }
+        at += type.size
+    }
+    <<size = at
+    return NoDiagnostic()
+}
+
+GlobalOffset :: (program: MachineProgram, symbol: s32, writable: bool, offset: *s64) -> bool {
+    if symbol < 0 || symbol >= program.globals.count { return false }
+    if program.globals[symbol].writable != writable { return false }
+    at: s64 = 0
+    for index: cast(s64)0..program.globals.count - 1 {
+        global := program.globals[index]
+        if !ValidGlobal(program, global) { return false }
+        if global.writable != writable { continue }
+        type := program.types[global.type]
+        at = Align(at, type.alignment)
+        if index == symbol { <<offset = at; return true }
+        at += type.size
+    }
+    return false
+}
+
+// The writable state's positions: the globals' bytes, then the stored words
+// and, when used, the zero fill.
+DataMeasure :: (program: MachineProgram, needs: MachineA64ElfNeeds, layout: *MachineA64DataLayout) -> MachineDiagnostic {
+    diagnostic := GlobalsMeasure(program, true, *layout.globals_size)
+    if diagnostic.problem != .None { return diagnostic }
+    at := layout.globals_size
+    layout.fuel = -1; layout.trap_status = -1; layout.stack_limit = -1; layout.pointer_header = -1
+    if needs.fuel { layout.fuel = Align(at, 8); at = layout.fuel + 8 }
+    if needs.trap { layout.trap_status = Align(at, 4); at = layout.trap_status + 4 }
+    if needs.stack { layout.stack_limit = Align(at, 8); at = layout.stack_limit + 8 }
+    if needs.pointer {
+        layout.pointer_header = Align(at, 8)
+        at = layout.pointer_header + MachinePointerHeaderBytes
+    }
+    // Every stored byte is part of the segment's file size; only the frame
+    // arena that the loader zero fills extends past it.
+    layout.size = at
+    layout.memory = at
+    if needs.pointer { layout.memory = at + MachinePointerArenaBytes }
+    return NoDiagnostic()
+}
+
+// Lays out the text from LAYOUT.text: the entry stub, code, trap stub and
+// runtime, ending at text_end.
+TextLayout :: (program: MachineProgram, code: MachineA64ElfCode, layout: *MachineA64ElfLayout) -> MachineDiagnostic {
+    if layout.text <= 0 || layout.text > 2147483647 - MachineA64ElfPage { return Problem(.Limit) }
+    layout.startup_size = StartupSize(program, <<layout)
+    if layout.startup_size > 2147483647 - layout.text - code.code.count - TrapStubBytes {
+        return Problem(.Limit)
+    }
+    end := Code(<<layout) + code.code.count
+    layout.trap = 0
+    if layout.needs.trap { layout.trap = end; end += TrapStubBytes }
+    places := Runtime.MachineA64RuntimePlaces.{trap = layout.trap, os = .Linux}
+    measuring: []u8
+    if !Runtime.MachineA64RuntimeEmit(measuring, Align(end, 16), layout.needs.runtime, places,
+        *layout.routines) {
+        return Problem(.Limit)
+    }
+    layout.text_end = layout.routines.end
+    if layout.text_end > 2147483647 - MachineA64ElfPage { return Problem(.Limit) }
+    return NoDiagnostic()
+}
+
+TrapStubBytes :: 20
+
+// The full layout: text first, the read-only globals 16-byte aligned after
+// it, then the data segment.
+ElfLayout :: (program: MachineProgram, code: MachineA64ElfCode, layout: *MachineA64ElfLayout) -> MachineDiagnostic {
+    layout.needs = ImageNeeds(program, code)
+    diagnostic := GlobalsMeasure(program, false, *layout.constants_size)
+    if diagnostic.problem != .None { return diagnostic }
+    diagnostic = DataMeasure(program, layout.needs, *layout.data_layout)
+    if diagnostic.problem != .None { return diagnostic }
+    layout.headers = ifx HasData(<<layout) then 2 else 1
+    layout.text = Align(MachineA64ElfHeaderSize + layout.headers * MachineA64ElfProgramHeaderSize, 16)
+    diagnostic = TextLayout(program, code, layout)
+    if diagnostic.problem != .None { return diagnostic }
+    layout.constants = Align(layout.text_end, 16)
+    read_end := layout.constants + layout.constants_size
+    if read_end > 2147483647 - MachineA64ElfPage { return Problem(.Limit) }
+    // The data segment's file offset is page aligned, so its virtual address
+    // is exactly one page above it: no page carries both segments' bytes, and
+    // an absolute address computed from the virtual offset is the mapped one.
+    layout.data_file = read_end
+    layout.data = read_end
+    if HasData(<<layout) {
+        layout.data_file = Align(layout.data_file, MachineA64ElfPage)
+        layout.data = layout.data_file + MachineA64ElfPage
+    }
+    return NoDiagnostic()
+}
+
+// Whether SYMBOL, a function of PROGRAM, is named NAME.
+FunctionName :: (program: MachineProgram, symbol: s32, name: string) -> bool {
+    if symbol < 0 || symbol >= program.functions.count { return false }
+    function := program.functions[symbol]
+    if function.name_offset < 0 || function.name_length != name.count ||
+        function.name_offset > program.text.count - function.name_length { return false }
+    for index: cast(s64)0..name.count - 1 {
+        if program.text[function.name_offset + index] != cast(u8)name[index] { return false }
+    }
+    return true
+}
+
+// A direct B or BL from the field at AT to TARGET.
+PutBranch :: (output: []u8, at: s64, target: s64, link: bool) -> bool {
+    delta := target - at
+    if (delta & 3) != 0 || delta < -134217728 || delta >= 134217728 { return false }
+    base: u32 = 0x14000000
+    if link { base = 0x94000000 }
+    PutWord(output, at, base | (cast(u32)(delta / 4) & 0x03ffffff))
+    return true
+}
+
+// The absolute address TARGET in X<rd>: MOVZ for half 0 and MOVK for each
+// remaining information-carrying half.
+PutAddress :: (output: []u8, at: s64, rd: s32, target: u64) -> bool {
+    count := Bytes.ArmHalfCount(target, 64)
+    PutWord(output, at, 0xd2800000 | cast(u32)Bytes.ArmHalf(target, 0) << 5 | cast(u32)rd & 31)
+    half: s32 = 1
+    while half < count {
+        PutWord(output, at + cast(s64)half * 4, 0xf2800000 | cast(u32)half << 21 |
+            cast(u32)Bytes.ArmHalf(target, half) << 5 | cast(u32)rd & 31)
+        half += 1
+    }
+    return true
+}
+
+// The entry stub: the stack limit when used, a call per initializer, the entry
+// call, then the exit with the entry's status in w0.
+WriteStartup :: (program: MachineProgram, code: MachineA64ElfCode, layout: MachineA64ElfLayout, output: []u8) -> bool {
+    at := layout.text
+    if layout.needs.stack {
+        limit := MachineA64ElfBase + layout.data + layout.data_layout.stack_limit
+        // MOVZ/MOVK x15 = limit; mov x16, sp; MOVZ/MOVK x17 = stack bytes;
+        // sub x16, x16, x17; str x16, [x15]
+        PutAddress(output, at, 15, cast(u64)limit)
+        at += 8
+        // mov x16, sp: MOV reads register 31 as sp, unlike the shifted
+        // arithmetic form.
+        PutWord(output, at, 0x91000000 | 31 << 5 | 16)
+        at += 4
+        PutAddress(output, at, 17, MachineA64ElfStackBytes)
+        at += 8
+        // sub x16, sp, x17 in the extended-register form, where register 31
+        // is sp rather than the zero register.
+        PutWord(output, at, 0xcb3163f0)   // sub x16, sp, x17
+        at += 4
+        PutWord(output, at, 0xf90001f0)   // str x16, [x15]
+        at += 4
+    }
+    base := Code(layout)
+    for initializer: program.initializers {
+        if !PutBranch(output, at, base + code.functions[initializer].begin, true) { return false }
+        at += 4
+    }
+    if !PutBranch(output, at, base + code.functions[code.entry].begin, true) { return false }
+    at += 4
+    return PutBranch(output, at, layout.routines.exit, false)
+}
+
+ProgramHeader :: (output: []u8, at: s64, kind: u64, flags: u64, offset: s64, address: s64,
+    file_size: s64, memory_size: s64, alignment: s64) {
+    PutLittle(output, at, kind, 4); PutLittle(output, at + 4, flags, 4)
+    PutLittle(output, at + 8, cast(u64)offset, 8)
+    PutLittle(output, at + 16, cast(u64)address, 8); PutLittle(output, at + 24, cast(u64)address, 8)
+    PutLittle(output, at + 32, cast(u64)file_size, 8)
+    PutLittle(output, at + 40, cast(u64)memory_size, 8)
+    PutLittle(output, at + 48, cast(u64)alignment, 8)
+}
+
+// The absolute address a relocation resolves to, or -1 when the program needs
+// a facility this row does not carry.
+RelocationTarget :: (program: MachineProgram, code: MachineA64ElfCode, layout: MachineA64ElfLayout,
+    relocation: MachineRelocation) -> s64 {
+    if relocation.kind == .ConstantAddress {
+        offset: s64 = 0
+        if !GlobalOffset(program, relocation.symbol, false, *offset) { return -1 }
+        return MachineA64ElfBase + layout.constants + offset
+    }
+    if relocation.kind == .GlobalAddress {
+        offset: s64 = 0
+        if !GlobalOffset(program, relocation.symbol, true, *offset) { return -1 }
+        return MachineA64ElfBase + layout.data + offset
+    }
+    if relocation.kind == .FunctionAddress {
+        if relocation.symbol < 0 || relocation.symbol >= program.functions.count { return -1 }
+        if program.functions[relocation.symbol].calling != .Internal { return -1 }
+        return MachineA64ElfBase + Code(layout) + code.functions[relocation.symbol].begin
+    }
+    if relocation.kind == .FuelCounter { return MachineA64ElfBase + layout.data + layout.data_layout.fuel }
+    if relocation.kind == .StackLimit { return MachineA64ElfBase + layout.data + layout.data_layout.stack_limit }
+    if relocation.kind == .PointerRuntime { return MachineA64ElfBase + layout.data + layout.data_layout.pointer_header }
+    if relocation.kind == .RuntimeTrap { return MachineA64ElfBase + layout.trap }
+    if relocation.kind == .PlatformService {
+        // write_all is the runtime's writer; the formatters are not carried
+        // on this row yet, and a program that calls one is a named gap.
+        if FunctionName(program, relocation.symbol, "ziran.platform.write_all") {
+            return MachineA64ElfBase + layout.routines.write_all
+        }
+        return -1
+    }
+    return -1
+}
+
+// Writes one resolved relocation's field at file offset AT: a width-2 field
+// is one MOVZ/MOVK half selected by the addend, a width-4 field a BL
+// displacement whose addend is the shared -4.
+WriteRelocation :: (output: []u8, at: s64, field: s64, width: s32, target: s64, addend: s64) -> bool {
+    if width == 2 {
+        if addend < 0 || addend % 2 != 0 || addend > 6 { return false }
+        half := addend / 2
+        word := ReadWord(output, at)
+        if (word & 0x9f800000) != 0x92800000 || (word >> 29 & 3) < 2 || (word >> 21 & 3) != cast(u32)half {
+            return false
+        }
+        PutWord(output, at, (word & ~(0xffff << 5)) | (cast(u32)((cast(u64)target >> cast(u64)(16 * half)) & 0xffff)) << 5)
+        return true
+    }
+    if width != 4 { return false }
+    // AArch64 BL is PC-relative from the instruction itself. The encoder
+    // records the shared -4 addend for x86's end-of-instruction convention,
+    // so the field is the instruction's own address and the addend cancels.
+    if addend != -4 { return false }
+    delta := target - field
+    if (delta & 3) != 0 || delta < -134217728 || delta >= 134217728 { return false }
+    PutWord(output, at, 0x94000000 | (cast(u32)(delta / 4) & 0x03ffffff))
+    return true
+}
+
+// Writes one global's initializer bytes into its image section.
+WriteGlobal :: (program: MachineProgram, symbol: s32, at: s64, output: []u8) -> bool {
+    global := program.globals[symbol]
+    if global.constant < 0 { return global.writable }
+    constant := program.constants[global.constant]
+    type := program.types[global.type]
+    if constant.bytes_count == 0 {
+        if type.size > 8 { return false }
+        PutLittle(output, at, constant.bits, cast(s32)type.size)
+        return true
+    }
+    if constant.bytes_count != type.size { return false }
+    for index: cast(s64)0..constant.bytes_count - 1 {
+        output[at + index] = program.data[constant.bytes_begin + index]
+    }
+    return true
+}
+
+WriteImage :: (program: MachineProgram, code: MachineA64ElfCode, layout: MachineA64ElfLayout, output: []u8) -> bool {
+    for index: cast(s64)0..output.count - 1 { output[index] = 0 }
+    // ELF64 little-endian ET_EXEC, EM_AARCH64, its program headers, no
+    // sections.
+    output[0] = 0x7f; output[1] = 69; output[2] = 76; output[3] = 70
+    output[4] = 2; output[5] = 1; output[6] = 1
+    PutLittle(output, 16, 2, 2); PutLittle(output, 18, 183, 2); PutLittle(output, 20, 1, 4)
+    PutLittle(output, 24, cast(u64)(MachineA64ElfBase + layout.text), 8)
+    PutLittle(output, 32, MachineA64ElfHeaderSize, 8)
+    PutLittle(output, 52, MachineA64ElfHeaderSize, 2)
+    PutLittle(output, 54, MachineA64ElfProgramHeaderSize, 2)
+    PutLittle(output, 56, cast(u64)layout.headers, 2)
+    ph := cast(s64)MachineA64ElfHeaderSize
+    // RX PT_LOAD: the headers, text, read-only globals and runtime.
+    read_end := layout.constants + layout.constants_size
+    ProgramHeader(output, ph, 1, 5, 0, MachineA64ElfBase, read_end, read_end, MachineA64ElfPage)
+    if HasData(layout) {
+        ph += MachineA64ElfProgramHeaderSize
+        ProgramHeader(output, ph, 1, 6, layout.data_file, MachineA64ElfBase + layout.data,
+            layout.data_layout.size, layout.data_layout.memory, MachineA64ElfPage)
+    }
+    if !WriteStartup(program, code, layout, output) { return false }
+    base := Code(layout)
+    for index: cast(s64)0..code.code.count - 1 { output[base + index] = code.code[index] }
+    // The trap handler: the machine trap sequence arrives with its code in
+    // w0; store it and exit 125.
+    if layout.needs.trap {
+        trap := layout.trap
+        // MOVZ/MOVK x16 = status; str w0, [x16]; MOVZ w0, #125; b exit
+        PutAddress(output, trap, 16, cast(u64)(MachineA64ElfBase + layout.data + layout.data_layout.trap_status))
+        PutWord(output, trap + 8, 0xb9000000 | 16 << 5)   // str w0, [x16]
+        PutWord(output, trap + 12, 0x52800fa0)   // mov w0, #125
+        PutWord(output, trap + 16, 0x00000000)   // b exit, patched below
+        if !PutBranch(output, trap + 16, layout.routines.exit, false) { return false }
+    }
+    places := Runtime.MachineA64RuntimePlaces.{trap = layout.trap, os = .Linux}
+    routines: Runtime.MachineA64RuntimeEntries
+    start := Align(base + code.code.count + ifx layout.needs.trap then TrapStubBytes else 0, 16)
+    if !Runtime.MachineA64RuntimeEmit(output, start, layout.needs.runtime, places, *routines) {
+        return false
+    }
+    if routines.end != layout.routines.end {
+        return false
+    }
+    // Every symbolic field takes its resolved absolute address or BL
+    // displacement, as the loader would.
+    for relocation: code.relocations {
+        target := RelocationTarget(program, code, layout, relocation)
+        if target < 0 { return false }
+        if !WriteRelocation(output, base + relocation.offset, MachineA64ElfBase + base + relocation.offset, relocation.width, target, relocation.addend) {
+            return false
+        }
+    }
+    for symbol: cast(s64)0..program.globals.count - 1 {
+        global := program.globals[symbol]
+        offset: s64 = 0
+        if !GlobalOffset(program, cast(s32)symbol, global.writable, *offset) { return false }
+        at := ifx global.writable then layout.data_file + offset else layout.constants + offset
+        if !WriteGlobal(program, cast(s32)symbol, at, output) { return false }
+    }
+    return true
+}
+
+HasData :: (layout: MachineA64ElfLayout) -> bool { return layout.data_layout.size > 0 }
+
+#scope_export
+
+// Empty OUTPUT measures. A non-empty OUTPUT must have exactly the measured
+// length. Verification, complete relocation resolution and i32 range checks
+// all finish before the first output byte is changed.
+MachineA64ElfEncode :: (program: MachineProgram, code: MachineA64ElfCode, output: []u8) -> MachineA64ElfResult {
+    layout: MachineA64ElfLayout
+    layout.headers = 1
+    diagnostic := ElfLayout(program, code, *layout)
+    if diagnostic.problem != .None {
+        return .{diagnostic = diagnostic}
+    }
+    data := layout.data_layout
+    has_data := HasData(layout)
+    result := MachineA64ElfResult.{diagnostic = diagnostic, size = layout.data_file + data.size,
+        text_offset = layout.text, text_size = layout.constants + layout.constants_size - layout.text,
+        startup_size = layout.startup_size,
+        data_offset = ifx has_data then layout.data_file else 0,
+        data_address = ifx has_data then layout.data else 0, data_size = data.size,
+        fuel_offset = ifx data.fuel >= 0 then layout.data_file + data.fuel else -1,
+        trap_status_offset = ifx data.trap_status >= 0 then layout.data_file + data.trap_status else -1,
+        pointer_offset = ifx data.pointer_header >= 0 then layout.data_file + data.pointer_header else -1}
+    // A relocation this row cannot resolve names a facility the target does
+    // not carry, which is a gap rather than a malformed image.
+    for relocation: code.relocations {
+        if RelocationTarget(program, code, layout, relocation) < 0 { return Failure(.UnsupportedTarget) }
+    }
+    if output.count == 0 { return result }
+    if output.count != result.size { return Failure(.Limit) }
+    if !WriteImage(program, code, layout, output) { return Failure(.Relocation) }
+    return result
+}
+
+// Writes the whole image: headers, entry stub, code, trap stub, runtime,
+// resolved relocations and the globals' initializer bytes.

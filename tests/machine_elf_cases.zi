@@ -283,7 +283,7 @@ Preservation :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     before_count := before.count
     fingerprint: u64 = 1469598103934665603
     for byte: before { fingerprint = (fingerprint ^ byte) * 1099511628211 }
-    unsupported := Target.TargetDescribe(.AArch64, .Linux).target
+    unsupported := Target.TargetDescribe(.AArch64, .Windows).target
     diagnostic := BuildTarget(owner, unsupported)
     after := Pipeline.MachineNativeView(owner)
     actual: u64 = 1469598103934665603

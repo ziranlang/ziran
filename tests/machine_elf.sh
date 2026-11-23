@@ -121,22 +121,31 @@ if grep -Eq '(^|[[:space:]])(INTERP|DYNAMIC)([[:space:]]|$)' "$work/hello.progra
     exit 1
 fi
 
-for target_platform in 'aarch64 linux' 'armv7 android'; do
-    set -- $target_platform
-    target=$1
-    platform=$2
-    row=$target-$platform
-    printf 'preserve-output\n' > "$work/$row.elf"
-    if ZIRAN_DIAGNOSTICS=json "$zx2native" --target "$target" --platform "$platform" \
-        -o "$work/$row.elf" "$work/app.zx" > "$work/$row.log" 2>&1; then
-        echo "native ELF accepted unsupported target row $row" >&2
-        exit 1
-    fi
-    grep -Fq 'assembly.gap.machine-platform-service-unavailable' "$work/$row.log"
-    grep -Fq "$target" "$work/$row.log"
-    grep -Fq "$platform" "$work/$row.log"
-    printf 'preserve-output\n' | cmp - "$work/$row.elf"
-done
+# AArch64 writes a static ELF: EM_AARCH64 (183), one RX segment and no
+# interpreter. The program it carries calls no platform service, so nothing
+# links against a foreign object.
+"$zx2native" --target aarch64 --platform linux -o "$work/aarch64-linux.elf" "$work/app.zx"
+python3 - "$work/aarch64-linux.elf" <<'PYCHECK'
+import struct, sys
+data = open(sys.argv[1], 'rb').read()
+assert data[:4] == b'\x7fELF' and data[4] == 2 and data[5] == 1, 'not an ELF64 little-endian image'
+assert struct.unpack_from('<H', data, 18)[0] == 183, 'not an AArch64 image'
+assert struct.unpack_from('<H', data, 16)[0] == 2, 'not an ET_EXEC image'
+PYCHECK
+
+# ARMv7 has no standalone container yet, so the row stays a named gap and the
+# output is untouched.
+row=armv7-android
+printf 'preserve-output\n' > "$work/$row.elf"
+if ZIRAN_DIAGNOSTICS=json "$zx2native" --target armv7 --platform android \
+    -o "$work/$row.elf" "$work/app.zx" > "$work/$row.log" 2>&1; then
+    echo "native ELF accepted unsupported target row $row" >&2
+    exit 1
+fi
+grep -Fq 'assembly.gap.machine-platform-service-unavailable' "$work/$row.log"
+grep -Fq 'armv7' "$work/$row.log"
+grep -Fq 'android' "$work/$row.log"
+printf 'preserve-output\n' | cmp - "$work/$row.elf"
 
 compile_native "$work/source-a" "$work" app:Answer "$work/app.zi"
 compile_native "$work/source-b" "$work" app:Answer "$work/app.zi"

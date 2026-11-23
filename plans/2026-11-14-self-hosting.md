@@ -52,7 +52,9 @@ package resolution, and executable ZX asset collection. Both compiler stages
 link the Ziran modules. The C boundary supplies host paths and streams and
 preserves the existing C signatures. The checked IR format remains version 66.
 Entry linking for the C, Go and native backends, `compiler_zx_link`, replaces
-`zir_link.c` with the same exported C entry points.
+`zir_link.c` with the same exported C entry points. From S17, inline assembly
+checking and C emission, `compiler_inline_asm`, replaces `zir_asm.c` and
+`zir_asm.h`.
 
 S16–S18 remain open for the remaining portable ZX and host interfaces, inline
 assembly and tool drivers, and the stage-0 through stage-2 fixed-point proof.
@@ -210,7 +212,7 @@ C ABI/storage boundary:
 | Current C | Evidence / role | Ziran target | Delete |
 |---|---|---|---|
 | `zir.c` / `zir.h` | target/host queries `CompilerHostOS:31`, target parsing `:87`, capability check `:151`; program/module construction `ProgramNew:1632`, `ModuleAddImport:1752` | `compiler_frontend_ir` + `compiler_target_bridge`. `zir.h` serves remaining C tools | S15 / S17 |
-| `zir_asm.c` / `zir_asm.h` | inline assembly parse/check and C/Go assembly emission; `CheckAssemblyBlock:998`, `CheckAssembly:1180`, `EmitAssembly:1826`, block helpers `:2094` | `compiler_inline_asm` | S17 |
+| `compiler_inline_asm.zi` | inline assembly parse/check and C assembly emission, read with `compiler_inline_asm_check.zi` and `compiler_inline_asm_emit.zi` | `compiler_inline_asm` | S17 |
 | `compiler_zx_assets.zi` / `zir_link.h` | executable asset collection and byte ordering | `compiler_zx_assets`; C declarations in `zir_link.h` | S16 persistence |
 | `zir_body.h` | `CanEmitBody` ABI for the shared C and Go emitters | `compiler_portable_body` is bootstrapped. `zir_services.c` keeps the thread-local memo and expression scratch | `zir_body.c` removed |
 | `zir_borrow.c` / `.h` | ownership/lifetime analysis; public `CheckSliceLifetimes:2001` | `compiler_borrow` | S12 |
@@ -557,15 +559,20 @@ No step commits before its implementation and proof are complete.
 
 ### S17 — inline assembly, editor, native names and tool drivers
 
-- Add `cmd/compiler_inline_asm.zi`, `cmd/compiler_native_names.zi`,
-  `cmd/compiler_profile.zi`, `cmd/compiler_cli.zi`, `cmd/compiler_edit.zi`,
-  `cmd/zi2c.zi`, `cmd/zi2go.zi`, and `cmd/zi2zx.zi`; port
-  `zir_asm.c`, `zir_native.c`, `zir_profile.c`, `zir_command.h`, `zir_edit.c`,
-  and the remaining `main.c` drivers. Keep the existing tool names and flags
+- `compiler_inline_asm` (`cmd/compiler_inline_asm.zi` with the loaded
+  `compiler_inline_asm_check.zi` and `compiler_inline_asm_emit.zi`) replaces
+  `zir_asm.c` and `zir_asm.h`: variant reading and constant resolution,
+  register, clobber and template checks, block bindings, and GNU C emission
+  with feature helpers, runtime selection and the `ZIRAN_ASM_CHECK` build.
+  Its C names are unchanged for the Ziran callers.
+- Add `cmd/compiler_profile.zi`, `cmd/compiler_cli.zi`, `cmd/compiler_edit.zi`,
+  `cmd/zi2c.zi`, `cmd/zi2go.zi`, and `cmd/zi2zx.zi`; port `zir_profile.c`,
+  `zir_command.h`, `zir_edit.c`, and the remaining `main.c` drivers. Native
+  names are already `cmd/compiler_native_names.zi`. Keep the existing tool names and flags
   until the separate naming-cutover item lands.
 - Change Makefile tool targets and editor links to Ziran drivers. The `ziran`
   package driver is already Ziran; no change beyond imports.
-- Delete `cmd/zir/zir_asm.c/.h`, `zir_native.c/.h`, `zir_profile.c/.h`,
+- Delete `cmd/zir/zir_profile.c/.h`,
   `zir_command.h`, `zir_edit.c/.h`, and all `main.c` files in `cmd/zir-asm`,
   `cmd/zir-c`, `cmd/zir-go`, and `cmd/zir-zx`.
 - Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=tool_diagnostics`.

@@ -30,6 +30,8 @@
 
 - Entry linking for the C, Go and native backends now builds from Ziran source.
 
+- Inline assembly checking and its C emission now build from Ziran source.
+
 - Compile hot packed ZX integer instruction runs on Linux i386 with bounded executable storage and the interpreter's work, fuel and failure locations.
 
 - Speed up large record and array loads in the ZX instruction engine.

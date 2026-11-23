@@ -12,33 +12,6 @@ enum { ZIR_C = ZirTarget_ZIR_C, ZIR_GO = ZirTarget_ZIR_GO };
 #define VectorTypeHere(type, target) ((const char *)VectorTypeHereZiran((void *)(type), target))
 #define TargetType(type, target) ((const char *)TargetTypeZiran((void *)(type), target))
 
-void EmitAssemblyHelpers(FILE *out, const ZirModule *module, const ZirFunction *function,
-                         ZirTarget target, const char *result_type, const char *args);
-/* Emits guarded native returns before the ordinary portable body. */
-void EmitAssembly(FILE *out, const ZirModule *module, const ZirFunction *function,
-                 ZirTarget target, const char *result_type);
-/* Native-only bridge: set *available when a variant executes. The caller
- * adds that pointer to args and retains responsibility for portable fallback. */
-void EmitAssemblyTryHelpers(FILE *out, const ZirModule *module, const ZirFunction *function,
-                            ZirTarget target, const char *result_type, const char *args,
-                            const char *available);
-void EmitAssemblyTry(FILE *out, const ZirModule *module, const ZirFunction *function,
-                     ZirTarget target, const char *result_type, const char *available);
-/* A C availability predicate, without executing any author-supplied template. */
-void EmitAssemblyAvailable(FILE *out, const ZirFunction *function, int statement);
-void EmitAssemblyBlockHelpersAt(FILE *out, const ZirModule *module,
-                                const ZirFunction *function, int statement);
-typedef void (*ZirAssemblyOperandResolver)(void *context, int operand,
-                                           char *out, size_t size);
-int EmitAssemblyBlockMapped(FILE *out, const ZirModule *module,
-                            const ZirFunction *function, int statement,
-                            ZirAssemblyOperandResolver resolve, void *context);
-void EmitAssemblyBlockHelpers(FILE *out, const ZirModule *module,
-                              const ZirFunction *function, ZirTarget target);
-/* Opens a native block plus its conditional portable body; caller closes
- * the two scopes when this returns nonzero. */
-int EmitAssemblyBlock(FILE *out, const ZirModule *module,
-                      const ZirFunction *function, int statement, ZirTarget target);
 /* Resolve target symbol spelling and call ABI. Input contains identifiers and
  * captured argument names only, never a source expression to reinterpret. */
 typedef void (*ZirResolveTarget)(void *context, const char *text, char *out, size_t size);

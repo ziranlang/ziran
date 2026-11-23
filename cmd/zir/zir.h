@@ -332,19 +332,4 @@ int GeneratedOutputPrune(const char *out_dir, const char *marker);
 FILE *GeneratedOutputOpen(const char *path, char *temp, size_t size);
 int GeneratedOutputReplace(const char *temp, const char *path);
 
-/* Assembly variants supplement an ordinary checked, portable body. */
-const char *ExtractAssemblyModifiers(char *header, ZirSourceSpan span);
-int CheckAssembly(const ZirModule *module, const ZirFunction *function);
-const char *AssemblyBlockText(const char *header, ZirSourceSpan span);
-/* Put the literal of each constant string an #asm argument names in place
- * of the name, once #run constants are known. */
-int ResolveAssemblyConstants(ZirModule *module);
-typedef const char *(*ZirAssemblyBinding)(void *context, const char *name);
-int CheckAssemblyBlock(const ZirFunction *function, int statement,
-                       ZirAssemblyBinding binding, void *context);
-/* Checked storage references, including native-only operand uses. */
-int AssemblyBlockOperands(const ZirFunction *function, int statement,
-                           const char **names, const char **types, int capacity,
-                           int *outputs);
-
 #endif /* ZIRAN_ZIR_H */

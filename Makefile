@@ -276,7 +276,7 @@ PARSE_PORT_MODULES := parse_types parse_condition parse_discover parse_source \
     frontend_parse parse_s14_types $(S14_PARSE_MODULES)
 SUPPORT_PORT_MODULES := context document diagnostic files source_store overlay semantic sha256
 PERSISTENCE_PORT_MODULES := zir_serial load package_resolve zx_assets
-FRONTEND_PORT_MODULES := context_types $(SUPPORT_PORT_MODULES) frontend_ir law_runtime target_bridge $(PERSISTENCE_PORT_MODULES) zx_link
+FRONTEND_PORT_MODULES := context_types $(SUPPORT_PORT_MODULES) frontend_ir law_runtime target_bridge $(PERSISTENCE_PORT_MODULES) zx_link inline_asm
 compiler-port-dir = $(if $(filter 1,$(BOOTSTRAP)),bootstrap/compiler_$(1),$(BUILD_DIR)/compiler-$(subst _,-,$(1)))
 compiler-port-seed = $(addprefix bootstrap/compiler_$(1)/compiler_$(1).,c h)
 compiler-port-ready = $(if $(filter 1,$(BOOTSTRAP)),$(call compiler-port-seed,$(1)),$(call compiler-port-dir,$(1))/.generated)
@@ -312,7 +312,7 @@ RANGE_MODULES := compiler_c_range compiler_c_range_facts compiler_c_range_values
     compiler_c_range_callers compiler_c_range_fill
 RANGE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/c-range/%.o,$(RANGE_MODULES))
 override CFLAGS += -I$(RANGE_C)
-FRONTEND := cmd/zir/zir_memory.c cmd/zir/zir_asm.c cmd/zir/zir_profile.c cmd/zir/zir_services.c \
+FRONTEND := cmd/zir/zir_memory.c cmd/zir/zir_profile.c cmd/zir/zir_services.c \
     cmd/zir/zir_atomics.c cmd/zir/zir_diagnostic_host.c \
     cmd/zir/zir_files_host.c cmd/zir/zir_sha256_host.c
 PERSISTENCE_HOST := cmd/zir/zir_persistence_host.c
@@ -583,7 +583,7 @@ WASM_PRIVATE_HEADERS ?= $(BUILD_DIR)/wasm-private
 else
 PARSE_LOCALIZE := --wildcard --localize-symbol='private_parse_*' --localize-symbol='compiler_parse_*' \
     --localize-symbol='compiler_frontend_parse_*' --localize-symbol='compiler_ir_cleanup_*' \
-    $(foreach module,$(PERSISTENCE_PORT_MODULES) zx_link,--localize-symbol='compiler_$(module)_*')
+    $(foreach module,$(PERSISTENCE_PORT_MODULES) zx_link inline_asm,--localize-symbol='compiler_$(module)_*')
 endif
 PARSE_PRIVATE_HEADERS := $(or $(WASM_PRIVATE_HEADERS),$(BUILD_DIR)/private-symbols)
 $(PARSE_PRIVATE_HEADERS)/%.h: cmd/zir/zir_%_internal.h scripts/private-symbols.py
@@ -885,6 +885,10 @@ $(eval $(call compiler-port-rules,frontend_ir,$(FRONTEND_SUPPORT_HEADERS) $(call
 $(eval $(call compiler-port-rules,law_runtime,$(PARSE_PORT_HEADERS) $(CHECK_PORT_HEADERS),$(PARSE_PORT_IMPORTS) cmd/compiler_check_types.zi))
 $(eval $(call compiler-port-rules,target_bridge,$(PARSE_PORT_HEADERS) $(CHECK_PORT_HEADERS) $(TYPE_READY),$(PARSE_PORT_IMPORTS) cmd/compiler_check_types.zi cmd/compiler_type.zi))
 $(call obj,cmd/zir/zir_memory.c): $(FRONTEND_SUPPORT_HEADERS) $(call compiler-port-ready,context_types)
+
+# Inline assembly: one module read from three source files.
+$(eval $(call compiler-port-rules,inline_asm,$(IR_READY) $(NATIVE_NAMES_READY),$(GO_PORT_IMPORTS) \
+    cmd/compiler_inline_asm_check.zi cmd/compiler_inline_asm_emit.zi))
 
 # Entry linking: one module read from three source files.
 $(eval $(call compiler-port-rules,zx_link,$(IR_READY),cmd/compiler_ir.zi cmd/compiler_zx_link_prune.zi cmd/compiler_zx_link_reach.zi))

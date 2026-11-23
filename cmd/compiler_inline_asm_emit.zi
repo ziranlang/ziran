@@ -1,0 +1,969 @@
+// GNU C emission for `#asm` variants: inline statements, isolated feature
+// helpers, runtime selection and the ZIRAN_ASM_CHECK comparison build.
+// Loaded by compiler_inline_asm.zi.
+
+AssemblyOperandResolver :: #type (context: *void, operand: s32, out: *u8, size: usize) #c_call;
+
+NATIVE_NAME_SIZE :: 512
+REGION_TEXT_SIZE :: 768
+
+// Quote decoded bytes, never interpolate them as host-language source.
+AssemblyByte :: (out: *void, byte: u8) {
+    if byte == #char "\"" || byte == #char "\\" {
+        fprintf(out, CStr("\\%c"), cast(s32)byte)
+    } else if byte < 32 || byte >= 127 {
+        fprintf(out, CStr("\\%03o"), cast(s32)byte)
+    } else {
+        fputc(cast(s32)byte, out)
+    }
+}
+
+AssemblyString :: (out: *void, text: *u8) {
+    fputc(#char "\"", out)
+    at := text
+    while at[0] != 0 {
+        AssemblyByte(out, at[0])
+        at = PtrAdd(at, 1)
+    }
+    fputc(#char "\"", out)
+}
+
+// GNU operand aliases are C identifiers too. Emit positional references
+// so a legal Ziran alias such as 'register' never becomes a host keyword.
+// Keep escaped percent signs, modifiers, unknown names and literal data.
+AssemblyOperandText :: (out: *void, text: *u8, names: **u8, count: s32, in_template: bool) {
+    fputc(#char "\"", out)
+    at := text
+    while at[0] != 0 {
+        if in_template && at[0] == #char "%" && at[1] == #char "%" {
+            fputs(CStr("%%"), out)
+            at = PtrAdd(at, 2)
+            continue
+        }
+        name: *u8 = at
+        if in_template {
+            if name[0] == #char "%" {
+                name = PtrAdd(name, 1)
+                while IsAlpha(name[0]) { name = PtrAdd(name, 1) }
+            } else {
+                name = null
+            }
+        }
+        close: *u8 = null
+        if name != null && name[0] == #char "[" { close = strchr(PtrAdd(name, 1), #char "]") }
+        index: s32 = -1
+        if close != null { index = OperandNamed(names, count, PtrAdd(name, 1), Distance(name, close) - 1) }
+        if index >= 0 {
+            while cast(usize)at < cast(usize)name {
+                AssemblyByte(out, at[0])
+                at = PtrAdd(at, 1)
+            }
+            fprintf(out, CStr("%d"), index)
+            at = PtrAdd(close, 1)
+        } else {
+            AssemblyByte(out, at[0])
+            at = PtrAdd(at, 1)
+        }
+    }
+    fputc(#char "\"", out)
+}
+
+// Both helper definitions and their calls use exactly the same guards.
+AssemblyGuard :: (out: *void, assembly: *Assembly) {
+    fprintf(out, CStr("!defined(ZIRAN_NO_ASM) && (defined(__GNUC__) || defined(__clang__)) && (%s)"),
+            architecture_guards[assembly.architecture])
+    if assembly.features == 0 { return }
+    if IsX86(assembly.architecture) { fputs(CStr(" && !defined(_MSC_VER)"), out) }
+    // NEON exists on ARMv7-A and later application cores; a soft-float ABI
+    // has no VFP/NEON registers, and bionic declares getauxval from API 18.
+    if assembly.architecture == ASM_ARM {
+        fputs(CStr(" && defined(__linux__) && !defined(__SOFTFP__) && __ARM_ARCH >= 7 && __ARM_ARCH_PROFILE == 'A' && (!defined(__ANDROID__) || __ANDROID_API__ >= 18)"), out)
+    }
+    if assembly.architecture == ASM_AARCH64 { fputs(CStr(" && defined(__linux__)"), out) }
+    for i: cast(s32)0..CPU_FEATURE_COUNT - 1 {
+        if !HasFeature(assembly, i) { continue }
+        if assembly.architecture == ASM_AARCH64 || assembly.architecture == ASM_ARM {
+            fprintf(out, CStr(" && defined(%s)"), FeatureHardwareCapability(i))
+        } else if assembly.architecture == ASM_WASM32 {
+            fprintf(out, CStr(" && defined(__wasm_%s__)"), FeatureWasm32(i))
+        }
+    }
+}
+
+// The highest #target tier an x86 variant's features need, or 0.
+AssemblyTier :: (assembly: *Assembly) -> s32 {
+    tier: s32 = 0
+    if !IsX86(assembly.architecture) { return 0 }
+    for i: cast(s32)0..CPU_FEATURE_COUNT - 1 {
+        if HasFeature(assembly, i) && feature_tiers[i] > tier { tier = feature_tiers[i] }
+    }
+    return tier
+}
+
+// Linux AArch64 and ARMv7 detect features through the kernel's AT_HWCAP;
+// x86 vector features also read ZIRAN_SIMD_TIER from the environment.
+AssemblyIncludes :: (out: *void, assembly: *Assembly) {
+    // The selection cache.
+    fputs(CStr("#ifndef ZIRAN_ASM_LOAD\n#define ZIRAN_ASM_LOAD(p) __atomic_load_n((p), __ATOMIC_ACQUIRE)\n#define ZIRAN_ASM_STORE(p, v) __atomic_store_n((p), (v), __ATOMIC_RELEASE)\n#endif\n"), out)
+    if AssemblyTier(assembly) != 0 { fputs(CStr("#if !defined(ZIRAN_NO_ASM)\n#include <stdlib.h>\n#endif\n"), out) }
+    if assembly.features == 0 || (assembly.architecture != ASM_AARCH64 && assembly.architecture != ASM_ARM) { return }
+    machine := ifx assembly.architecture == ASM_ARM then CStr("__arm__") else CStr("__aarch64__")
+    fprintf(out, CStr("#if !defined(ZIRAN_NO_ASM) && defined(__linux__) && defined(%s)\n#include <sys/auxv.h>\n#include <asm/hwcap.h>\n#endif\n"), machine)
+}
+
+// ARMv7 helpers always run in A32 state, so one template serves Thumb-2 and
+// ARM builds. GCC selects the FPU; Clang names the LLVM feature.
+AssemblyAttribute :: (out: *void, assembly: *Assembly) {
+    arm := assembly.architecture == ASM_ARM
+    compilers: s32 = ifx arm then 2 else 1
+    for compiler: cast(s32)0..compilers - 1 {
+        if arm { fputs(ifx compiler != 0 then CStr("#else\n") else CStr("#if defined(__clang__)\n"), out) }
+        fputs(CStr("__attribute__((noinline, unused, target(\""), out)
+        first := true
+        if arm {
+            fputs(CStr("arm"), out)
+            first = false
+        }
+        for i: cast(s32)0..CPU_FEATURE_COUNT - 1 {
+            if !HasFeature(assembly, i) { continue }
+            if !first { fputc(#char ",", out) }
+            if compiler != 0 { fputs(CStr("fpu="), out) }
+            fputs(FeatureOption(assembly.architecture, i), out)
+            first = false
+        }
+        // NEON needs the full D-register bank even when the caller was
+        // compiled with -mfpu=vfpv3-d16. Clang keeps d32 separate from neon.
+        if arm && compiler == 0 && assembly.features != 0 { fputs(CStr(",d32"), out) }
+        fputs(CStr("\")))"), out)
+        if arm { fputc(10, out) }
+    }
+    if arm { fputs(CStr("#endif\n"), out) }
+}
+
+// Clang assembles inline ARM templates for the translation unit's FPU, not
+// the helper's target attribute; GCC already emits the same directive.
+AssemblyTemplatePrefix :: (out: *void, assembly: *Assembly) {
+    if assembly.architecture != ASM_ARM || assembly.features == 0 { return }
+    for i: cast(s32)0..CPU_FEATURE_COUNT - 1 {
+        if HasFeature(assembly, i) { fprintf(out, CStr("\".fpu %s\\n\\t\" "), FeatureArm(i)) }
+    }
+}
+
+// Whether MEMBER is a whole word somewhere in an enum's BODY.
+EnumHasMember :: (body: *u8, member: *u8) -> bool {
+    length := strlen(member)
+    at := strstr(body, member)
+    while at != null {
+        starts := cast(usize)at == cast(usize)body
+        if !starts {
+            before := PtrSub(at, 1)
+            starts = !IsIdent(before[0])
+        }
+        if starts && !IsIdent(at[length]) { return true }
+        at = strstr(PtrAdd(at, 1), member)
+    }
+    return false
+}
+
+// Whether one of CURRENT's own native names is NAME.
+ModuleUsesName :: (current: *IR.ZirModule, target: Native.ZirTarget, name: *u8) -> bool {
+    native: [512]u8
+    for i: cast(s32)0..current.function_count - 1 {
+        function := cast(*IR.ZirFunction)(cast(usize)current.functions + cast(usize)i * size_of(IR.ZirFunction))
+        NativeCFunctionName(current, function, *native[0], NATIVE_NAME_SIZE)
+        if Same(*native[0], name) || Same(*function.name[0], name) { return true }
+    }
+    for i: cast(s32)0..current.global_count - 1 {
+        variable := cast(*IR.ZirGlobal)(cast(usize)current.globals + cast(usize)i * size_of(IR.ZirGlobal))
+        TargetGlobalName(current, target, *variable.name[0], *native[0], NATIVE_NAME_SIZE)
+        if Same(*native[0], name) { return true }
+    }
+    for i: cast(s32)0..current.define_count - 1 {
+        constant := cast(*IR.ZirDefine)(cast(usize)current.defines + cast(usize)i * size_of(IR.ZirDefine))
+        TargetDefineName(current, target, *constant.name[0], *native[0], NATIVE_NAME_SIZE)
+        if Same(*native[0], name) { return true }
+    }
+    for i: cast(s32)0..current.type_count - 1 {
+        type := cast(*IR.ZirType)(cast(usize)current.types + cast(usize)i * size_of(IR.ZirType))
+        NativeTypeName(current, type, *native[0], NATIVE_NAME_SIZE)
+        if Same(*native[0], name) { return true }
+        length := strlen(*native[0])
+        if type.is_enum != 0 && strncmp(name, *native[0], length) == 0 && name[length] == #char "_" &&
+           EnumHasMember(*type.body[0], PtrAdd(name, length + 1)) { return true }
+    }
+    for i: cast(s32)0..current.import_count - 1 {
+        imported := cast(*IR.ZirImport)(cast(usize)current.imports + cast(usize)i * size_of(IR.ZirImport))
+        if imported.kind != .EXTERN { continue }
+        NativeCForeignName(current, imported, *native[0], NATIVE_NAME_SIZE)
+        if Same(*native[0], name) || Same(*imported.extern_symbol[0], name) { return true }
+    }
+    return false
+}
+
+// Whether NAME is already a native name in MODULE or a module it reaches
+// through its imports.
+AssemblyNameUsed :: (module: *IR.ZirModule, target: Native.ZirTarget, name: *u8) -> bool {
+    capacity: usize = 16
+    count: usize = 1
+    modules := cast(**IR.ZirModule)AllocateOrExit(capacity * size_of(*IR.ZirModule))
+    modules[0] = module
+    used := false
+    next: usize = 0
+    while next < count && !used {
+        current := modules[next]
+        used = ModuleUsesName(current, target, name)
+        for i: cast(s32)0..current.import_count - 1 {
+            if used { break }
+            imported := cast(*IR.ZirImport)(cast(usize)current.imports + cast(usize)i * size_of(IR.ZirImport))
+            dependency := imported.resolved_module
+            if dependency == null { continue }
+            seen := false
+            for m: cast(usize)0..count - 1 {
+                if modules[m] == dependency { seen = true }
+            }
+            if seen { continue }
+            if count == capacity {
+                grown := cast(**IR.ZirModule)AllocateOrExit(capacity * 2 * size_of(*IR.ZirModule))
+                memcpy(cast(*u8)grown, cast(*u8)modules, capacity * size_of(*IR.ZirModule))
+                free(cast(*u8)modules)
+                modules = grown
+                capacity = capacity * 2
+            }
+            modules[count] = dependency
+            count += 1
+        }
+        next += 1
+    }
+    free(cast(*u8)modules)
+    return used
+}
+
+FunctionIndex :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 {
+    return cast(s32)((cast(usize)fn - cast(usize)module.functions) / size_of(IR.ZirFunction))
+}
+
+AssemblyHelperName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, ordinal: s32, out: *u8, size: usize) {
+    function := FunctionIndex(module, fn)
+    serial: s32 = 0
+    while true {
+        snprintf(out, size, CStr("ziran_assembly_%d_%d_%d"), function, ordinal, serial)
+        if !AssemblyNameUsed(module, target, out) { return }
+        serial += 1
+    }
+}
+
+// The expanded clobber list as C strings: ranges become registers, ARMv7 q
+// registers their d halves, and memory is added where operands imply it.
+EmitClobbers :: (out: *void, assembly: *Assembly, implied_memory: bool) {
+    set: RegisterSet
+    memory: s32 = 0
+    first := true
+    items: [30]*u8
+    count := OperandList(assembly.part[4], *items[0])
+    if !Modelled(assembly.architecture) {
+        for i: cast(s32)0..count - 1 {
+            if !first { fputs(CStr(", "), out) }
+            AssemblyString(out, items[i])
+            first = false
+            if Same(items[i], CStr("memory")) { memory = 1 }
+        }
+    } else {
+        nowhere: IR.ZirSourceSpan
+        Zero(cast(*u8)*nowhere, size_of(IR.ZirSourceSpan))
+        if ClobberSet(assembly, *set, *memory, nowhere) == 0 { exit(1) }
+        for slot: cast(s32)0..127 {
+            if !RegisterHas(*set, slot) { continue }
+            name: [16]u8
+            if !first { fputs(CStr(", "), out) }
+            AssemblyString(out, RegisterClobberName(assembly.architecture, slot, *name[0], 16))
+            first = false
+        }
+        for i: cast(s32)0..count - 1 {
+            if Same(items[i], CStr("cc")) {
+                fputs(ifx first then CStr("\"cc\"") else CStr(", \"cc\""), out)
+                first = false
+            }
+        }
+    }
+    if memory != 0 || implied_memory { fputs(ifx first then CStr("\"memory\"") else CStr(", \"memory\""), out) }
+}
+
+AssemblyBody :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, result_type: *u8,
+                 assembly: *Assembly, outputs: *AssemblyOutputs, available: *u8) {
+    parameters := ParametersOf(FunctionArgs(fn))
+    names: [30]*u8
+    for i: cast(s32)0..outputs.count - 1 { names[i] = OutputName(outputs, i) }
+    for i: cast(s32)0..parameters.count - 1 {
+        named := ParameterAt(parameters, i)
+        names[outputs.count + i] = named.name
+    }
+    result_name: [IR.ZIR_NAME_MAX]u8
+    ArrayAbiName(fn, -1, *result_name[0], IR.ZIR_NAME_MAX)
+    if outputs.count != 0 { fprintf(out, CStr("        %s %s;\n"), result_type, *result_name[0]) }
+    if available != null { fprintf(out, CStr("        *%s = 1;\n"), available) }
+    fputs(CStr("        __asm__"), out)
+    options := assembly.part[5]
+    if options[0] != 0 { fputs(CStr(" __volatile__"), out) }
+    fputc(#char "(", out)
+    AssemblyTemplatePrefix(out, assembly)
+    AssemblyOperandText(out, assembly.part[1], *names[0], outputs.count + parameters.count, true)
+    constraints: [30]*u8
+    OperandList(assembly.part[2], *constraints[0])
+    fputs(CStr("\n            : "), out)
+    for i: cast(s32)0..outputs.count - 1 {
+        if i != 0 { fputs(CStr(", "), out) }
+        AssemblyString(out, constraints[i])
+        fprintf(out, CStr(" (%s"), *result_name[0])
+        if outputs.record != 0 {
+            record := FindType(module, *fn.return_type[0], null)
+            field: [512]u8
+            TargetFieldName(record, target, *outputs.fields[i].name[0], *field[0], NATIVE_NAME_SIZE)
+            fprintf(out, CStr(".%s"), *field[0])
+        }
+        fputc(#char ")", out)
+    }
+    OperandList(assembly.part[3], *constraints[0])
+    fputs(CStr("\n            : "), out)
+    memory := false
+    for i: cast(s32)0..parameters.count - 1 {
+        parameter := ParameterAt(parameters, i)
+        name: [512]u8
+        TargetBindingName(fn, target, parameter.name, *name[0], NATIVE_NAME_SIZE)
+        if i != 0 { fputs(CStr(", "), out) }
+        AssemblyOperandText(out, constraints[i], *names[0], outputs.count, false)
+        slice := SliceOperand(parameter.type)
+        fprintf(out, ifx slice then CStr(" ((%s).data)") else CStr(" (%s)"), *name[0])
+        if slice || (parameter.type != null && parameter.type[0] == #char "*") { memory = true }
+    }
+    // Assembly may reach any memory a pointer or slice operand points to.
+    fputs(CStr("\n            : "), out)
+    EmitClobbers(out, assembly, memory)
+    fputs(CStr(");\n        return"), out)
+    if outputs.count != 0 { fprintf(out, CStr(" %s"), *result_name[0]) }
+    fputs(CStr(";\n"), out)
+}
+
+// The outputs of a procedure whose assembly was already checked; exits
+// when either step fails, as emission has no diagnostic path of its own.
+CheckedOutputs :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> *AssemblyOutputs {
+    outputs := NewAssemblyOutputs()
+    if outputs == null || CheckAssembly(module, fn) == 0 || AssemblyOutputsOf(module, fn, outputs) == 0 { exit(1) }
+    return outputs
+}
+
+AssemblyHelpers :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, result_type: *u8,
+                    args: *u8, available: *u8) {
+    if fn.assembly_text == null || fn.assembly_text[0] == 0 { return }
+    outputs := CheckedOutputs(module, fn)
+    cursor := fn.assembly_text
+    ordinal: s32 = 0
+    if available == null {
+        fputs(CStr("#if defined(ZIRAN_ASM_CHECK) && !defined(ZIRAN_NO_ASM)\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#endif\n"), out)
+    }
+    while NextByte(cursor) != 0 {
+        assembly: Assembly
+        if ReadAssembly(*cursor, *assembly, fn.span) == 0 { exit(1) }
+        selected := RuntimeSelected(*assembly)
+        // A check build calls every variant on its own, inline ones too.
+        if selected || available == null {
+            AssemblyIncludes(out, *assembly)
+            fputs(ifx selected then CStr("#if ") else CStr("#if defined(ZIRAN_ASM_CHECK) && "), out)
+            AssemblyGuard(out, *assembly)
+            fputc(10, out)
+            helper: [IR.ZIR_NAME_MAX]u8
+            AssemblyHelperName(module, fn, target, ordinal, *helper[0], IR.ZIR_NAME_MAX)
+            if selected {
+                AssemblyAttribute(out, *assembly)
+            } else {
+                fputs(CStr("__attribute__((noinline, unused))"), out)
+            }
+            fprintf(out, CStr(" static %s\n%s(%s)\n{\n"), result_type, *helper[0], args)
+            AssemblyBody(out, module, fn, target, result_type, *assembly, outputs, available)
+            fputs(CStr("}\n#endif\n"), out)
+        }
+        ordinal += 1
+    }
+    FreeAssemblyOutputs(outputs)
+}
+
+// The memory a parameter's assembly may change, which a check compares:
+// a slice's elements, or the scalar a pointer points to. Writes the byte
+// count and address as C expressions; false when there is none.
+CheckRegion :: (fn: *IR.ZirFunction, target: Native.ZirTarget, parameter: *Parameter, size: *u8, address: *u8, length: usize) -> bool {
+    name: [512]u8
+    element: [IR.ZIR_NAME_MAX]u8
+    type := parameter.type
+    TargetBindingName(fn, target, parameter.name, *name[0], NATIVE_NAME_SIZE)
+    if type != null && SliceElementType(type, *element[0], IR.ZIR_NAME_MAX) != 0 && OperandType(*element[0]) {
+        scalar := CStr("void *")
+        if element[0] != #char "*" { scalar = TargetType(ScalarType(*element[0]), target) }
+        snprintf(size, length, CStr("(size_t)(%s).length * sizeof(%s)"), *name[0], scalar)
+        snprintf(address, length, CStr("(%s).data"), *name[0])
+        return true
+    }
+    if type == null || type[0] != #char "*" { return false }
+    pointee := skip_ws(PtrAdd(type, 1))
+    if !OperandType(pointee) || (pointee[0] != #char "*" && Same(ScalarType(pointee), CStr("void"))) { return false }
+    snprintf(size, length, CStr("sizeof(*(%s))"), *name[0])
+    snprintf(address, length, CStr("(void *)(%s)"), *name[0])
+    return true
+}
+
+CheckFailure :: (out: *void, fn: *IR.ZirFunction, assembly: *Assembly, what: *u8) {
+    fputs(CStr(" {\n                    fprintf(stderr, \"ziran: #asm check failed: %s variant \\\"%s\\\" differs from its portable body in %s\\n\", "), out)
+    AssemblyString(out, *fn.name[0])
+    fputs(CStr(", "), out)
+    AssemblyString(out, assembly.part[0])
+    fputs(CStr(", "), out)
+    AssemblyString(out, what)
+    fputs(CStr(");\n                    abort();\n                }\n"), out)
+}
+
+// A ZIRAN_ASM_CHECK build runs the portable body and then each variant
+// this CPU can run on the same inputs, aborts on any difference in the
+// result or the memory CheckRegion covers, and returns the portable
+// result. ZIRAN_SIMD_TIER limits which variants run as it does dispatch.
+AssemblyCheck :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, result_type: *u8,
+                  outputs: *AssemblyOutputs) {
+    parameters := ParametersOf(FunctionArgs(fn))
+    native: [512]u8
+    flag: [IR.ZIR_NAME_MAX]u8
+    call: [IR.ZIR_TEXT_MAX]u8
+    size: [768]u8
+    address: [768]u8
+    used: usize = 0
+    NativeCFunctionName(module, fn, *native[0], NATIVE_NAME_SIZE)
+    ArrayAbiName(fn, 65, *flag[0], IR.ZIR_NAME_MAX)
+    call[0] = 0
+    for i: cast(s32)0..parameters.count - 1 {
+        argument := ParameterAt(parameters, i)
+        name: [512]u8
+        TargetBindingName(fn, target, argument.name, *name[0], NATIVE_NAME_SIZE)
+        used += cast(usize)snprintf(*call[used], IR.ZIR_TEXT_MAX - used, CStr("%s%s"), ifx i != 0 then CStr(", ") else CStr(""), *name[0])
+        if used >= IR.ZIR_TEXT_MAX { exit(1) }
+    }
+    fprintf(out, CStr("#if defined(ZIRAN_ASM_CHECK) && !defined(ZIRAN_NO_ASM)\n    {\n        static __thread int %s;\n        if(!%s) {\n"), *flag[0], *flag[0])
+    for i: cast(s32)0..parameters.count - 1 {
+        if !CheckRegion(fn, target, ParameterAt(parameters, i), *size[0], *address[0], REGION_TEXT_SIZE) { continue }
+        fprintf(out, CStr("            size_t ziran_size_%d = %s;\n            unsigned char *ziran_in_%d = malloc(ziran_size_%d + 1), *ziran_port_%d = malloc(ziran_size_%d + 1);\n            if(!ziran_in_%d || !ziran_port_%d) abort();\n            if(ziran_size_%d) memcpy(ziran_in_%d, %s, ziran_size_%d);\n"),
+                i, *size[0], i, i, i, i, i, i, i, i, *address[0], i)
+    }
+    fprintf(out, CStr("            %s = 1;\n            "), *flag[0])
+    if outputs.count != 0 { fprintf(out, CStr("%s ziran_portable = "), result_type) }
+    fprintf(out, CStr("%s(%s);\n            %s = 0;\n"), *native[0], *call[0], *flag[0])
+    for i: cast(s32)0..parameters.count - 1 {
+        if CheckRegion(fn, target, ParameterAt(parameters, i), *size[0], *address[0], REGION_TEXT_SIZE) {
+            fprintf(out, CStr("            if(ziran_size_%d) memcpy(ziran_port_%d, %s, ziran_size_%d);\n"), i, i, *address[0], i)
+        }
+    }
+    cursor := fn.assembly_text
+    ordinal: s32 = 0
+    while NextByte(cursor) != 0 {
+        assembly: Assembly
+        if ReadAssembly(*cursor, *assembly, fn.span) == 0 { exit(1) }
+        helper: [IR.ZIR_NAME_MAX]u8
+        AssemblyHelperName(module, fn, target, ordinal, *helper[0], IR.ZIR_NAME_MAX)
+        ordinal += 1
+        fputs(CStr("#if "), out)
+        AssemblyGuard(out, *assembly)
+        fputs(CStr("\n            if("), out)
+        if RuntimeSelected(*assembly) {
+            AssemblyPredicate(out, *assembly)
+        } else {
+            fputc(#char "1", out)
+        }
+        fputs(CStr(") {\n"), out)
+        for i: cast(s32)0..parameters.count - 1 {
+            if CheckRegion(fn, target, ParameterAt(parameters, i), *size[0], *address[0], REGION_TEXT_SIZE) {
+                fprintf(out, CStr("                if(ziran_size_%d) memcpy(%s, ziran_in_%d, ziran_size_%d);\n"), i, *address[0], i, i)
+            }
+        }
+        fputs(CStr("                "), out)
+        if outputs.count != 0 { fprintf(out, CStr("%s ziran_variant = "), result_type) }
+        fprintf(out, CStr("%s(%s);\n"), *helper[0], *call[0])
+        if outputs.count != 0 && outputs.record != 0 {
+            record := FindType(module, *fn.return_type[0], null)
+            for i: cast(s32)0..outputs.count - 1 {
+                field: [512]u8
+                TargetFieldName(record, target, *outputs.fields[i].name[0], *field[0], NATIVE_NAME_SIZE)
+                fprintf(out, CStr("                if(memcmp(&ziran_variant.%s, &ziran_portable.%s, sizeof(ziran_portable.%s)))"),
+                        *field[0], *field[0], *field[0])
+                CheckFailure(out, fn, *assembly, *outputs.fields[i].name[0])
+            }
+        } else if outputs.count != 0 {
+            fputs(CStr("                if(memcmp(&ziran_variant, &ziran_portable, sizeof(ziran_portable)))"), out)
+            CheckFailure(out, fn, *assembly, CStr("its result"))
+        }
+        for i: cast(s32)0..parameters.count - 1 {
+            compared := ParameterAt(parameters, i)
+            if CheckRegion(fn, target, compared, *size[0], *address[0], REGION_TEXT_SIZE) {
+                fprintf(out, CStr("                if(ziran_size_%d && memcmp(%s, ziran_port_%d, ziran_size_%d))"), i, *address[0], i, i)
+                CheckFailure(out, fn, *assembly, compared.name)
+            }
+        }
+        fputs(CStr("            }\n#endif\n"), out)
+    }
+    for i: cast(s32)0..parameters.count - 1 {
+        if CheckRegion(fn, target, ParameterAt(parameters, i), *size[0], *address[0], REGION_TEXT_SIZE) {
+            fprintf(out, CStr("            if(ziran_size_%d) memcpy(%s, ziran_port_%d, ziran_size_%d);\n            free(ziran_in_%d); free(ziran_port_%d);\n"),
+                    i, *address[0], i, i, i, i)
+        }
+    }
+    fprintf(out, CStr("            return%s;\n        }\n    }\n#else\n"), ifx outputs.count != 0 then CStr(" ziran_portable") else CStr(""))
+}
+
+// Clang before 19 has no "lzcnt" for __builtin_cpu_supports, so it reads
+// the CPUID bit (extended leaf 0x80000001, ECX bit 5) directly.
+LzcntCpuid :: () -> *u8 {
+    return CStr("__extension__ ({\n    unsigned int zir_leaf = 0x80000000u, zir_b, zir_c = 0, zir_d, zir_lzcnt = 0;\n    __asm__(\"cpuid\" : \"+a\"(zir_leaf), \"=b\"(zir_b), \"+c\"(zir_c), \"=d\"(zir_d));\n    if(zir_leaf >= 0x80000001u) {\n        zir_leaf = 0x80000001u; zir_c = 0;\n        __asm__(\"cpuid\" : \"+a\"(zir_leaf), \"=b\"(zir_b), \"+c\"(zir_c), \"=d\"(zir_d));\n        zir_lzcnt = (zir_c & 0x20u) != 0;\n    }\n    zir_lzcnt; })")
+}
+
+AssemblyPredicate :: (out: *void, assembly: *Assembly) {
+    first := true
+    for i: cast(s32)0..CPU_FEATURE_COUNT - 1 {
+        if !HasFeature(assembly, i) { continue }
+        if !first { fputs(CStr(" && "), out) }
+        if assembly.architecture == ASM_AARCH64 || assembly.architecture == ASM_ARM {
+            fprintf(out, CStr("(getauxval(AT_HWCAP) & %s) != 0"), FeatureHardwareCapability(i))
+        } else if Same(feature_names[i], CStr("lzcnt")) {
+            fprintf(out, CStr("(\n#if defined(__clang__) && __clang_major__ < 19\n%s\n#else\n__builtin_cpu_supports(\"lzcnt\")\n#endif\n)"), LzcntCpuid())
+        } else {
+            fprintf(out, CStr("__builtin_cpu_supports(\"%s\")"), feature_names[i])
+        }
+        first = false
+    }
+    // ZIRAN_SIMD_TIER, read as ziran_simd.h reads it for #target clones,
+    // hides a feature beyond the forced tier.
+    tier := AssemblyTier(assembly)
+    if tier != 0 {
+        fprintf(out, CStr(" && !__extension__ ({\n    const char *zir_tier = getenv(\"ZIRAN_SIMD_TIER\");\n    zir_tier != NULL && zir_tier[0] >= '1' && zir_tier[0] < '%c' && zir_tier[1] == '\\0'; })"),
+                48 + tier)
+    }
+}
+
+// The arguments of a call to a feature helper: the procedure's own
+// parameters, then the availability flag of a try call.
+EmitHelperArguments :: (out: *void, fn: *IR.ZirFunction, target: Native.ZirTarget, parameters: *Parameters, available: *u8) {
+    for i: cast(s32)0..parameters.count - 1 {
+        passed := ParameterAt(parameters, i)
+        name: [512]u8
+        TargetBindingName(fn, target, passed.name, *name[0], NATIVE_NAME_SIZE)
+        fprintf(out, CStr("%s%s"), ifx i != 0 then CStr(", ") else CStr(""), *name[0])
+    }
+    if available != null { fprintf(out, CStr("%s%s"), ifx parameters.count != 0 then CStr(", ") else CStr(""), available) }
+}
+
+AssemblyFunction :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, result_type: *u8,
+                     available: *u8) {
+    if fn.assembly_text == null || fn.assembly_text[0] == 0 { return }
+    outputs := CheckedOutputs(module, fn)
+    parameters := ParametersOf(FunctionArgs(fn))
+    cursor := fn.assembly_text
+    features: s32 = 0
+    if available == null { AssemblyCheck(out, module, fn, target, result_type, outputs) }
+    while NextByte(cursor) != 0 {
+        guarded: Assembly
+        if ReadAssembly(*cursor, *guarded, fn.span) == 0 { exit(1) }
+        if RuntimeSelected(*guarded) {
+            fputs(ifx features == 0 then CStr("#if ") else CStr(" || ("), out)
+            features += 1
+            AssemblyGuard(out, *guarded)
+            if features > 1 { fputc(#char ")", out) }
+        }
+    }
+    if features != 0 {
+        state: [IR.ZIR_NAME_MAX]u8
+        selected: [IR.ZIR_NAME_MAX]u8
+        ArrayAbiName(fn, -1, *state[0], IR.ZIR_NAME_MAX)
+        ArrayAbiName(fn, 64, *selected[0], IR.ZIR_NAME_MAX)
+        fprintf(out, CStr("\n    {\n        static int %s;\n        int %s = ZIRAN_ASM_LOAD(&%s);\n        if(%s == 0) {\n            %s = 1;\n"),
+                *state[0], *selected[0], *state[0], *selected[0], *selected[0])
+        fputs(CStr("#if defined(__x86_64__) || defined(__i386__)\n            __builtin_cpu_init();\n#endif\n"), out)
+        cursor = fn.assembly_text
+        ordinal: s32 = 0
+        while NextByte(cursor) != 0 {
+            probed: Assembly
+            if ReadAssembly(*cursor, *probed, fn.span) == 0 { exit(1) }
+            if RuntimeSelected(*probed) {
+                fputs(CStr("#if "), out)
+                AssemblyGuard(out, *probed)
+                fputc(10, out)
+                fprintf(out, CStr("            if(%s == 1 && ("), *selected[0])
+                AssemblyPredicate(out, *probed)
+                fprintf(out, CStr(")) %s = %d;\n#endif\n"), *selected[0], ordinal + 2)
+            }
+            ordinal += 1
+        }
+        fprintf(out, CStr("            ZIRAN_ASM_STORE(&%s, %s);\n        }\n"), *state[0], *selected[0])
+        cursor = fn.assembly_text
+        ordinal = 0
+        while NextByte(cursor) != 0 {
+            called: Assembly
+            if ReadAssembly(*cursor, *called, fn.span) == 0 { exit(1) }
+            if RuntimeSelected(*called) {
+                helper: [IR.ZIR_NAME_MAX]u8
+                AssemblyHelperName(module, fn, target, ordinal, *helper[0], IR.ZIR_NAME_MAX)
+                fputs(CStr("#if "), out)
+                AssemblyGuard(out, *called)
+                fputc(10, out)
+                fprintf(out, CStr("        if(%s == %d) { "), *selected[0], ordinal + 2)
+                if outputs.count != 0 { fputs(CStr("return "), out) }
+                fprintf(out, CStr("%s("), *helper[0])
+                EmitHelperArguments(out, fn, target, parameters, available)
+                fprintf(out, CStr(");%s }\n#endif\n"), ifx outputs.count != 0 then CStr("") else CStr(" return;"))
+            }
+            ordinal += 1
+        }
+        fputs(CStr("    }\n#endif\n"), out)
+    }
+    cursor = fn.assembly_text
+    while NextByte(cursor) != 0 {
+        direct: Assembly
+        if ReadAssembly(*cursor, *direct, fn.span) == 0 { exit(1) }
+        if RuntimeSelected(*direct) { continue }
+        fputs(CStr("#if "), out)
+        AssemblyGuard(out, *direct)
+        fputs(CStr("\n    {\n"), out)
+        AssemblyBody(out, module, fn, target, result_type, *direct, outputs, available)
+        fputs(CStr("    }\n#endif\n"), out)
+    }
+    if available == null { fputs(CStr("#endif\n"), out) }
+    FreeAssemblyOutputs(outputs)
+}
+
+#program_export
+EmitAssemblyHelpers :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, result_type: *u8,
+                        args: *u8) {
+    AssemblyHelpers(out, module, fn, target, result_type, args, null)
+}
+
+#program_export
+EmitAssembly :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, result_type: *u8) {
+    AssemblyFunction(out, module, fn, target, result_type, null)
+}
+
+#program_export
+EmitAssemblyTryHelpers :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, result_type: *u8,
+                           args: *u8, available: *u8) {
+    AssemblyHelpers(out, module, fn, target, result_type, args, available)
+}
+
+#program_export
+EmitAssemblyTry :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, result_type: *u8,
+                    available: *u8) {
+    AssemblyFunction(out, module, fn, target, result_type, available)
+}
+
+// Statements that return 1 from a generated availability probe when a
+// variant of the procedure, or of the block at STATEMENT, can run here.
+#program_export
+EmitAssemblyAvailable :: (out: *void, fn: *IR.ZirFunction, statement: s32) {
+    cursor := fn.assembly_text
+    if statement >= 0 {
+        st := StatementAt(fn, statement)
+        cursor = st.assembly_text
+    }
+    while cursor != null && NextByte(cursor) != 0 {
+        assembly: Assembly
+        if ReadAssembly(*cursor, *assembly, fn.span) == 0 { exit(1) }
+        fputs(CStr("#if "), out)
+        AssemblyGuard(out, *assembly)
+        fputc(10, out)
+        if RuntimeSelected(*assembly) {
+            if IsX86(assembly.architecture) { fputs(CStr("    __builtin_cpu_init();\n"), out) }
+            fputs(CStr("    if("), out)
+            AssemblyPredicate(out, *assembly)
+            fputs(CStr(") return 1;\n"), out)
+        } else {
+            fputs(CStr("    return 1;\n"), out)
+        }
+        fputs(CStr("#endif\n"), out)
+    }
+    fputs(CStr("    return 0;\n"), out)
+}
+
+BlockHelperName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, statement: s32, variant: s32,
+                    name: *u8, size: usize) {
+    function := FunctionIndex(module, fn)
+    serial: s32 = 0
+    while true {
+        snprintf(name, size, CStr("ziran_assembly_block_%d_%d_%d_%d"), function, statement, variant, serial)
+        if !AssemblyNameUsed(module, target, name) { return }
+        serial += 1
+    }
+}
+
+// Register-only scalar outputs can use the native return register. Memory
+// constraints retain the caller's actual storage, including pointer aliases.
+BlockReturnsRegister :: (bindings: *BlockBindings) -> bool {
+    if bindings.outputs != 1 { return false }
+    constraint := bindings.items[0].constraint
+    return Same(constraint, CStr("=r")) || Same(constraint, CStr("=&r"))
+}
+
+// A procedure value cannot be absent, so callers without an operand
+// resolver pass this one and leave MAPPED unset.
+UnmappedOperand :: (context: *void, operand: s32, out: *u8, size: usize) {}
+
+// The native spelling of a block operand at its use site: the resolver's
+// when the caller MAPPED operands itself, else the binding's own name.
+BlockOperandName :: (fn: *IR.ZirFunction, target: Native.ZirTarget, bindings: *BlockBindings, position: s32,
+                     resolver: AssemblyOperandResolver, context: *void, mapped: bool, out: *u8) {
+    if mapped {
+        resolver(context, position, out, NATIVE_NAME_SIZE)
+    } else {
+        TargetBindingName(fn, target, bindings.items[position].name, out, NATIVE_NAME_SIZE)
+    }
+}
+
+BlockAssemblyBody :: (out: *void, fn: *IR.ZirFunction, statement: s32, target: Native.ZirTarget, assembly: *Assembly,
+                      bindings: *BlockBindings, helper: bool, resolver: AssemblyOperandResolver, context: *void, mapped: bool) {
+    names: [30]*u8
+    total := BlockOperands(bindings)
+    for i: cast(s32)0..total - 1 { names[i] = bindings.items[i].alias }
+    fputs(CStr("        __asm__"), out)
+    options := assembly.part[5]
+    if options[0] != 0 { fputs(CStr(" __volatile__"), out) }
+    fputc(#char "(", out)
+    if helper { AssemblyTemplatePrefix(out, assembly) }
+    AssemblyOperandText(out, assembly.part[1], *names[0], total, true)
+    for direction: cast(s32)0..1 {
+        fputs(CStr("\n            : "), out)
+        count := ifx direction != 0 then bindings.inputs else bindings.outputs
+        for i: cast(s32)0..count - 1 {
+            position := ifx direction != 0 then bindings.outputs + i else i
+            constraint := bindings.items[position].constraint
+            if i != 0 { fputs(CStr(", "), out) }
+            AssemblyOperandText(out, constraint, *names[0], bindings.outputs, false)
+            if helper && direction == 0 && BlockReturnsRegister(bindings) {
+                fputs(CStr(" (ziran_result)"), out)
+            } else if helper {
+                stored := direction == 0 || AssemblyInputNeedsStorage(constraint) != 0
+                fprintf(out, CStr(" (%sziran_operand_%d)"), ifx stored then CStr("*") else CStr(""), position)
+            } else {
+                native: [512]u8
+                BlockOperandName(fn, target, bindings, position, resolver, context, mapped, *native[0])
+                fprintf(out, CStr(" (%s)"), *native[0])
+            }
+        }
+    }
+    memory := false
+    for i: cast(s32)0..total - 1 {
+        type := BlockBindingType(fn, statement, bindings.items[i].name)
+        if type != null && type[0] == #char "*" { memory = true }
+    }
+    fputs(CStr("\n            : "), out)
+    EmitClobbers(out, assembly, memory)
+    fputs(CStr(");\n"), out)
+}
+
+BlockNativeType :: (module: *IR.ZirModule, type: *u8, target: Native.ZirTarget, out: *u8, size: usize, span: IR.ZirSourceSpan) {
+    pointers: usize = 0
+    rest := type
+    while rest != null && rest[0] == #char "*" {
+        pointers += 1
+        rest = skip_ws(PtrAdd(rest, 1))
+    }
+    scalar: *u8 = null
+    if rest != null { scalar = TargetType(ScalarType(rest), target) }
+    if scalar != null {
+        snprintf(out, size, CStr("%s"), scalar)
+    } else {
+        owner: *IR.ZirModule = null
+        declared: *IR.ZirType = null
+        if rest != null { declared = FindType(module, rest, *owner) }
+        if declared == null {
+            AssemblyError(span, CStr("cannot lower #asm block binding type"))
+            exit(1)
+        }
+        NativeTypeName(owner, declared, out, size)
+    }
+    used := strlen(out)
+    if used + pointers + 1 > size { exit(1) }
+    for added: cast(usize)1..pointers {
+        out[used] = #char "*"
+        used += 1
+    }
+    out[used] = 0
+}
+
+// One isolated helper for a feature variant of the block at STATEMENT.
+EmitBlockHelper :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, statement: s32,
+                    variant: s32, assembly: *Assembly, bindings: *BlockBindings, span: IR.ZirSourceSpan) {
+    AssemblyIncludes(out, assembly)
+    fputs(CStr("#if "), out)
+    AssemblyGuard(out, assembly)
+    fputc(10, out)
+    name: [IR.ZIR_NAME_MAX]u8
+    BlockHelperName(module, fn, target, statement, variant, *name[0], IR.ZIR_NAME_MAX)
+    AssemblyAttribute(out, assembly)
+    returned: [512]u8
+    strcpy(*returned[0], CStr("void"))
+    first_argument: s32 = ifx BlockReturnsRegister(bindings) then 1 else 0
+    if first_argument != 0 {
+        BlockNativeType(module, BlockBindingType(fn, statement, bindings.items[0].name), target, *returned[0], NATIVE_NAME_SIZE, span)
+    }
+    fprintf(out, CStr(" static %s\n%s("), *returned[0], *name[0])
+    total := BlockOperands(bindings)
+    for i: first_argument..total - 1 {
+        type := BlockBindingType(fn, statement, bindings.items[i].name)
+        native: [512]u8
+        BlockNativeType(module, type, target, *native[0], NATIVE_NAME_SIZE, span)
+        qualifier := CStr(" ")
+        if i < bindings.outputs {
+            qualifier = CStr(" *")
+        } else if AssemblyInputNeedsStorage(bindings.items[i].constraint) != 0 {
+            qualifier = CStr(" const *")
+        }
+        fprintf(out, CStr("%s%s%sziran_operand_%d"), ifx i > first_argument then CStr(", ") else CStr(""), *native[0], qualifier, i)
+    }
+    if first_argument == total { fputs(CStr("void"), out) }
+    fputs(CStr(")\n{\n"), out)
+    if first_argument != 0 { fprintf(out, CStr("    %s ziran_result;\n"), *returned[0]) }
+    BlockAssemblyBody(out, fn, statement, target, assembly, bindings, true, UnmappedOperand, null, false)
+    if first_argument != 0 { fputs(CStr("    return ziran_result;\n"), out) }
+    fputs(CStr("}\n#endif\n"), out)
+}
+
+AssemblyBlockHelpers :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, begin: s32, end: s32) {
+    for statement: begin..end - 1 {
+        st := StatementAt(fn, statement)
+        if !StatementHasAssembly(st) { continue }
+        if CheckBlockStatement(fn, statement) == 0 { exit(1) }
+        cursor := st.assembly_text
+        variant: s32 = 0
+        while NextByte(cursor) != 0 {
+            assembly: Assembly
+            bindings: BlockBindings
+            Zero(cast(*u8)*bindings, size_of(BlockBindings))
+            if ReadAssembly(*cursor, *assembly, st.span) == 0 || ReadBlockBindings(*assembly, *bindings, st.span) == 0 { exit(1) }
+            if RuntimeSelected(*assembly) { EmitBlockHelper(out, module, fn, target, statement, variant, *assembly, *bindings, st.span) }
+            variant += 1
+        }
+    }
+}
+
+// The call that runs a feature variant of a block through its helper.
+EmitBlockHelperCall :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget, statement: s32,
+                        variant: s32, bindings: *BlockBindings, resolver: AssemblyOperandResolver, context: *void, mapped: bool) {
+    helper: [IR.ZIR_NAME_MAX]u8
+    name: [512]u8
+    BlockHelperName(module, fn, target, statement, variant, *helper[0], IR.ZIR_NAME_MAX)
+    first_argument: s32 = ifx BlockReturnsRegister(bindings) then 1 else 0
+    fputs(CStr("            "), out)
+    if first_argument != 0 {
+        BlockOperandName(fn, target, bindings, 0, resolver, context, mapped, *name[0])
+        fprintf(out, CStr("%s = "), *name[0])
+    }
+    fprintf(out, CStr("%s("), *helper[0])
+    for i: first_argument..BlockOperands(bindings) - 1 {
+        BlockOperandName(fn, target, bindings, i, resolver, context, mapped, *name[0])
+        by_address := i < bindings.outputs || AssemblyInputNeedsStorage(bindings.items[i].constraint) != 0
+        fprintf(out, CStr("%s%s%s"), ifx i > first_argument then CStr(", ") else CStr(""), ifx by_address then CStr("&") else CStr(""), *name[0])
+    }
+    fputs(CStr(");\n"), out)
+}
+
+// Opens the statement for an #asm block: each variant that can run here,
+// then the test that guards the portable body. 1 when the block was
+// emitted, 0 when the statement has no assembly for this target.
+AssemblyBlock :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, statement: s32, target: Native.ZirTarget,
+                  resolver: AssemblyOperandResolver, context: *void, mapped: bool) -> s32 {
+    if target != .ZIR_C { return 0 }
+    st := StatementAt(fn, statement)
+    if !StatementHasAssembly(st) { return 0 }
+    if CheckBlockStatement(fn, statement) == 0 { exit(1) }
+    cursor := st.assembly_text
+    features := false
+    while NextByte(cursor) != 0 {
+        scanned: Assembly
+        if ReadAssembly(*cursor, *scanned, st.span) == 0 { exit(1) }
+        if RuntimeSelected(*scanned) { features = true }
+    }
+    done: [IR.ZIR_NAME_MAX]u8
+    state: [IR.ZIR_NAME_MAX]u8
+    selected: [IR.ZIR_NAME_MAX]u8
+    ArrayAbiName(fn, 1000 + statement * 3, *done[0], IR.ZIR_NAME_MAX)
+    ArrayAbiName(fn, 1001 + statement * 3, *state[0], IR.ZIR_NAME_MAX)
+    ArrayAbiName(fn, 1002 + statement * 3, *selected[0], IR.ZIR_NAME_MAX)
+    fprintf(out, CStr("    {\n        int %s = 0;\n"), *done[0])
+    if features {
+        cursor = st.assembly_text
+        guards: s32 = 0
+        while NextByte(cursor) != 0 {
+            guarded: Assembly
+            if ReadAssembly(*cursor, *guarded, st.span) == 0 { exit(1) }
+            fputs(ifx guards != 0 then CStr(" || (") else CStr("#if ("), out)
+            guards += 1
+            AssemblyGuard(out, *guarded)
+            fputc(#char ")", out)
+        }
+        fprintf(out, CStr("\n        static int %s;\n        int %s = ZIRAN_ASM_LOAD(&%s);\n        if(%s == 0) {\n            %s = 1;\n"),
+                *state[0], *selected[0], *state[0], *selected[0], *selected[0])
+        fputs(CStr("#if (defined(__x86_64__) || defined(__i386__)) && !defined(_MSC_VER)\n            __builtin_cpu_init();\n#endif\n"), out)
+        cursor = st.assembly_text
+        probe: s32 = 0
+        while NextByte(cursor) != 0 {
+            probed: Assembly
+            if ReadAssembly(*cursor, *probed, st.span) == 0 { exit(1) }
+            fputs(CStr("#if "), out)
+            AssemblyGuard(out, *probed)
+            fputc(10, out)
+            fprintf(out, CStr("            if(%s == 1"), *selected[0])
+            if RuntimeSelected(*probed) {
+                fputs(CStr(" && ("), out)
+                AssemblyPredicate(out, *probed)
+                fputc(#char ")", out)
+            }
+            fprintf(out, CStr(") %s = %d;\n#endif\n"), *selected[0], probe + 2)
+            probe += 1
+        }
+        fprintf(out, CStr("            ZIRAN_ASM_STORE(&%s, %s);\n        }\n#endif\n"), *state[0], *selected[0])
+    }
+    cursor = st.assembly_text
+    variant: s32 = 0
+    while NextByte(cursor) != 0 {
+        assembly: Assembly
+        bindings: BlockBindings
+        Zero(cast(*u8)*bindings, size_of(BlockBindings))
+        if ReadAssembly(*cursor, *assembly, st.span) == 0 || ReadBlockBindings(*assembly, *bindings, st.span) == 0 { exit(1) }
+        fputs(CStr("#if "), out)
+        AssemblyGuard(out, *assembly)
+        fputc(10, out)
+        if features {
+            fprintf(out, CStr("        if(%s == %d) {\n"), *selected[0], variant + 2)
+        } else {
+            fprintf(out, CStr("        if(!%s) {\n"), *done[0])
+        }
+        if RuntimeSelected(*assembly) {
+            EmitBlockHelperCall(out, module, fn, target, statement, variant, *bindings, resolver, context, mapped)
+        } else {
+            BlockAssemblyBody(out, fn, statement, target, *assembly, *bindings, false, resolver, context, mapped)
+        }
+        fprintf(out, CStr("            %s = 1;\n        }\n#endif\n"), *done[0])
+        variant += 1
+    }
+    fprintf(out, CStr("        if(!%s) {\n"), *done[0])
+    return 1
+}
+
+#program_export
+EmitAssemblyBlockHelpers :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, target: Native.ZirTarget) {
+    AssemblyBlockHelpers(out, module, fn, target, 0, fn.stmt_count)
+}
+
+#program_export
+EmitAssemblyBlockHelpersAt :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, statement: s32) {
+    AssemblyBlockHelpers(out, module, fn, .ZIR_C, statement, statement + 1)
+}
+
+#program_export
+EmitAssemblyBlock :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, statement: s32, target: Native.ZirTarget) -> s32 {
+    return AssemblyBlock(out, module, fn, statement, target, UnmappedOperand, null, false)
+}
+
+#program_export
+EmitAssemblyBlockMapped :: (out: *void, module: *IR.ZirModule, fn: *IR.ZirFunction, statement: s32,
+                            resolver: AssemblyOperandResolver, context: *void) -> s32 {
+    return AssemblyBlock(out, module, fn, statement, .ZIR_C, resolver, context, resolver != null)
+}

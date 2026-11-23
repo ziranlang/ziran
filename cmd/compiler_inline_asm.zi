@@ -1,0 +1,617 @@
+// Inline assembly: `#asm` variants on procedures and on blocks.
+//
+// This file reads variants as the source reader kept them and resolves
+// their constant arguments. compiler_inline_asm_check.zi checks operands,
+// clobbers and templates; compiler_inline_asm_emit.zi writes the GNU C
+// statements, feature helpers and runtime selection.
+IR :: #import "compiler_ir"
+Native :: #import "compiler_native_names"
+
+#load "compiler_inline_asm_check.zi";
+#load "compiler_inline_asm_emit.zi";
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+malloc :: (size: usize) -> *void #foreign libc "malloc";
+calloc :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+free :: (memory: *u8) #foreign libc "free";
+exit :: (status: s32) #foreign libc "exit";
+memcpy :: (dst: *u8, src: *u8, count: usize) -> *u8 #foreign libc "memcpy";
+memmove :: (dst: *u8, src: *u8, count: usize) -> *u8 #foreign libc "memmove";
+memset :: (dst: *u8, value: s32, count: usize) -> *u8 #foreign libc "memset";
+memchr :: (s: *u8, c: s32, n: usize) -> *u8 #foreign libc "memchr";
+memcmp :: (a: *u8, b: *u8, n: usize) -> s32 #foreign libc "memcmp";
+strlen :: (s: *u8) -> usize #foreign libc "strlen";
+strcmp :: (a: *u8, b: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (a: *u8, b: *u8, n: usize) -> s32 #foreign libc "strncmp";
+strchr :: (s: *u8, c: s32) -> *u8 #foreign libc "strchr";
+strstr :: (s: *u8, needle: *u8) -> *u8 #foreign libc "strstr";
+strcpy :: (dst: *u8, src: *u8) -> *u8 #foreign libc "strcpy";
+strtol :: (s: *u8, end: **u8, base: s32) -> s64 #foreign libc "strtol";
+snprintf :: (out: *u8, size: usize, fmt: *u8, args: ..any) -> s32 #foreign libc "snprintf";
+fprintf :: (stream: *void, fmt: *u8, args: ..any) -> s32 #foreign libc "fprintf";
+fputs :: (s: *u8, stream: *void) -> s32 #foreign libc "fputs";
+fputc :: (c: s32, stream: *void) -> s32 #foreign libc "fputc";
+
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, fmt: *u8, args: ..any) #foreign compiler "Diagnostic";
+KeepText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
+KeepName :: (text: *u8) -> *u8 #foreign compiler "KeepName";
+RawTextExpand :: (text: *u8) -> *u8 #foreign compiler "RawTextExpand";
+DecodeStringLiteral :: (source: *u8, out: *u8, capacity: usize, length: *usize) -> s32 #foreign compiler "DecodeStringLiteral";
+EvaluateCompileLiteral :: (module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan, executing: s32,
+                           literal: **u8, type_owner: **IR.ZirModule) -> s32 #foreign compiler "EvaluateCompileLiteral";
+skip_ws :: (s: *u8) -> *u8 #foreign compiler "skip_ws";
+is_ident_char :: (c: s32) -> s32 #foreign compiler "is_ident_char";
+trim_in_place :: (s: *u8) -> *u8 #foreign compiler "trim_in_place";
+ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
+TargetTypeZiran :: (type: *void, target: s32) -> *void #foreign compiler "TargetTypeZiran";
+SliceElementType :: (type: *u8, element: *u8, size: usize) -> s32 #foreign compiler "SliceElementType";
+TemplateParameterIndex :: (list: *u8, name: *u8, length: usize) -> s32 #foreign compiler "TemplateParameterIndex";
+FindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+NativeCFunctionName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, out: *u8, size: usize) #foreign compiler "NativeCFunctionName";
+NativeCForeignName :: (module: *IR.ZirModule, foreign: *IR.ZirImport, out: *u8, size: usize) #foreign compiler "NativeCForeignName";
+NativeTypeName :: (owner: *IR.ZirModule, type: *IR.ZirType, out: *u8, size: usize) #foreign compiler "NativeTypeName";
+TargetGlobalName :: (module: *IR.ZirModule, target: Native.ZirTarget, name: *u8, out: *u8, size: usize) #foreign compiler "TargetGlobalName";
+TargetDefineName :: (module: *IR.ZirModule, target: Native.ZirTarget, name: *u8, out: *u8, size: usize) #foreign compiler "TargetDefineName";
+TargetFieldName :: (record: *IR.ZirType, target: Native.ZirTarget, name: *u8, out: *u8, size: usize) #foreign compiler "TargetFieldName";
+TargetBindingName :: (fn: *IR.ZirFunction, target: Native.ZirTarget, name: *u8, out: *u8, size: usize) #foreign compiler "TargetBindingName";
+ArrayAbiName :: (fn: *IR.ZirFunction, parameter: s32, out: *u8, size: usize) #foreign compiler "ArrayAbiName";
+
+Parameter :: struct {
+    text: *u8
+    name: *u8
+    type: *u8
+    binding_name: *u8
+    value_type: *u8
+    default_value: *u8
+    is_using: s32
+}
+Parameters :: struct {
+    count: s32
+    items: [1]Parameter
+}
+ParametersOf :: (text: *u8) -> *Parameters #foreign compiler "ParametersOf";
+
+StaticText :: struct { data: *u8; length: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+PtrAdd :: (p: *u8, n: usize) -> *u8 { return cast(*u8)(cast(usize)p + n) }
+PtrSub :: (p: *u8, n: usize) -> *u8 { return cast(*u8)(cast(usize)p - n) }
+// Bytes from FROM up to TO, which lies at or after it.
+Distance :: (from: *u8, to: *u8) -> usize { return cast(usize)to - cast(usize)from }
+// Clears SIZE bytes of a record.
+Zero :: (memory: *u8, size: usize) { memset(memory, 0, size) }
+// The first byte after any leading space: 0 at the end of the text.
+NextByte :: (text: *u8) -> u8 {
+    rest := skip_ws(text)
+    return rest[0]
+}
+
+IsAlpha :: (c: u8) -> bool { return (c >= #char "a" && c <= #char "z") || (c >= #char "A" && c <= #char "Z") }
+IsDigit :: (c: u8) -> bool { return c >= #char "0" && c <= #char "9" }
+IsAlnum :: (c: u8) -> bool { return IsAlpha(c) || IsDigit(c) }
+IsSpace :: (c: u8) -> bool { return c == #char " " || (c >= 9 && c <= 13) }
+IsIdent :: (c: u8) -> bool { return is_ident_char(cast(s32)c) != 0 }
+ToLower :: (c: u8) -> u8 { return ifx c >= #char "A" && c <= #char "Z" then c + 32 else c }
+Same :: (a: *u8, b: *u8) -> bool { return strcmp(a, b) == 0 }
+// Whether NAME spells exactly the LENGTH bytes at TEXT.
+SameSpan :: (name: *u8, text: *u8, length: usize) -> bool {
+    return strlen(name) == length && strncmp(name, text, length) == 0
+}
+// Whether TEXT begins `#asm` as a word of its own.
+StartsAssembly :: (text: *u8) -> bool {
+    return strncmp(text, CStr("#asm"), 4) == 0 && !IsIdent(text[4])
+}
+
+FunctionArgs :: (fn: *IR.ZirFunction) -> *u8 { return ifx fn.args_text != null then fn.args_text else CStr("") }
+ParameterAt :: (parameters: *Parameters, index: s32) -> *Parameter {
+    return cast(*Parameter)(cast(usize)(*parameters.items[0]) + cast(usize)index * size_of(Parameter))
+}
+StatementAt :: (fn: *IR.ZirFunction, index: s32) -> *IR.ZirStmt {
+    return cast(*IR.ZirStmt)(cast(usize)fn.stmts + cast(usize)index * size_of(IR.ZirStmt))
+}
+StatementHasAssembly :: (st: *IR.ZirStmt) -> bool {
+    return st.kind == .BLOCK_OPEN && st.assembly_text != null && st.assembly_text[0] != 0
+}
+TargetType :: (type: *u8, target: Native.ZirTarget) -> *u8 {
+    return cast(*u8)TargetTypeZiran(cast(*void)type, cast(s32)target)
+}
+
+ASSEMBLY_OPERANDS :: 30
+
+// Checked operand metadata shared with the native emitters. Outputs precede
+// inputs; function outputs bind result fields (or "out"), block outputs bind
+// locals. Names, types and decoded template bytes borrow the text store.
+AssemblyOperand :: struct {
+    constraint: *u8
+    alias: *u8
+    binding: *u8
+    type: *u8
+}
+
+AssemblyVariant :: struct {
+    target: *u8
+    text: *u8
+    clobbers: *u8
+    options: *u8
+    outputs: s32
+    inputs: s32
+    record: s32
+    operands: [30]AssemblyOperand
+}
+
+// Six literal strings: architecture, template, outputs, inputs, clobbers,
+// options. Semicolons separate operands without stealing constraint commas.
+Assembly :: struct {
+    part: [6]*u8
+    architecture: s32
+    features: u64
+}
+
+ASM_X86_64 :: 0
+ASM_X86 :: 1
+ASM_AARCH64 :: 2
+ASM_ARM :: 3
+ASM_WASM32 :: 4
+ARCHITECTURE_COUNT :: 11
+
+architecture_names: [11]*u8 = .{CStr("x86_64"), CStr("x86"), CStr("aarch64"), CStr("arm"), CStr("wasm32"),
+    CStr("riscv64"), CStr("riscv32"), CStr("powerpc64"), CStr("powerpc"), CStr("s390x"), CStr("loongarch64")};
+architecture_guards: [11]*u8 = .{CStr("defined(__x86_64__)"), CStr("defined(__i386__)"),
+    CStr("defined(__aarch64__)"), CStr("defined(__arm__)"), CStr("defined(__wasm32__)"),
+    CStr("defined(__riscv) && __riscv_xlen == 64"), CStr("defined(__riscv) && __riscv_xlen == 32"),
+    CStr("defined(__powerpc64__)"), CStr("defined(__powerpc__) && !defined(__powerpc64__)"),
+    CStr("defined(__s390x__)"), CStr("defined(__loongarch64)")};
+
+// Runtime predicates and code-generation options are separate: an isolated
+// helper may use these instructions, while its caller keeps the build's ISA.
+// Each architecture has the helper's target option, or none where the
+// feature does not exist; the hardware capability is the Linux AT_HWCAP bit
+// on AArch64 and ARMv7. WebAssembly features are build options instead; see
+// RuntimeSelected. The tier is the lowest ZIRAN_SIMD_TIER (1 SSE2 .. 4 AVX2,
+// as for #target clones) a CPU with an x86 vector feature reaches, 5 beyond
+// AVX2; a forced lower tier hides the feature. 0 marks features outside the
+// tiers.
+CPU_FEATURE_COUNT :: 21
+FEATURE_X86_COUNT :: 14
+
+feature_names: [21]*u8 = .{CStr("popcnt"), CStr("sse2"), CStr("ssse3"), CStr("sse4.1"), CStr("sse4.2"),
+    CStr("avx"), CStr("avx2"), CStr("avx512f"), CStr("bmi"), CStr("bmi2"), CStr("lzcnt"), CStr("fma"),
+    CStr("aes"), CStr("pclmul"), CStr("crc32"), CStr("pmull"), CStr("sha2"), CStr("atomics"), CStr("simd"),
+    CStr("neon"), CStr("simd128")};
+feature_tiers: [21]s32 = .{0, 0, 2, 3, 4, 4, 4, 5, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+// The x86 option is the feature's own name for the first fourteen features.
+FeatureX86 :: (feature: s32) -> *u8 {
+    return ifx feature < FEATURE_X86_COUNT then feature_names[feature] else null
+}
+
+FeatureAArch64 :: (feature: s32) -> *u8 {
+    if feature == 12 || feature == 15 { return CStr("+aes") }
+    if feature == 14 { return CStr("+crc") }
+    if feature == 16 { return CStr("+sha2") }
+    if feature == 17 { return CStr("+lse") }
+    if feature == 18 { return CStr("+simd") }
+    return null
+}
+
+FeatureHardwareCapability :: (feature: s32) -> *u8 {
+    if feature == 12 { return CStr("HWCAP_AES") }
+    if feature == 14 { return CStr("HWCAP_CRC32") }
+    if feature == 15 { return CStr("HWCAP_PMULL") }
+    if feature == 16 { return CStr("HWCAP_SHA2") }
+    if feature == 17 { return CStr("HWCAP_ATOMICS") }
+    if feature == 18 { return CStr("HWCAP_ASIMD") }
+    if feature == 19 { return CStr("HWCAP_NEON") }
+    return null
+}
+
+FeatureArm :: (feature: s32) -> *u8 { return ifx feature == 19 then CStr("neon") else null }
+FeatureWasm32 :: (feature: s32) -> *u8 { return ifx feature == 20 then CStr("simd128") else null }
+
+FeatureOption :: (architecture: s32, feature: s32) -> *u8 {
+    if architecture == ASM_X86_64 || architecture == ASM_X86 { return FeatureX86(feature) }
+    if architecture == ASM_AARCH64 { return FeatureAArch64(feature) }
+    if architecture == ASM_ARM { return FeatureArm(feature) }
+    if architecture == ASM_WASM32 { return FeatureWasm32(feature) }
+    return null
+}
+
+FeatureBit :: (feature: s32) -> u64 { return cast(u64)1 << cast(u64)feature }
+HasFeature :: (assembly: *Assembly, feature: s32) -> bool { return (assembly.features & FeatureBit(feature)) != 0 }
+IsX86 :: (architecture: s32) -> bool { return architecture == ASM_X86_64 || architecture == ASM_X86 }
+
+// An engine validates a WebAssembly module whole, so a module holding SIMD
+// instructions cannot load where SIMD is missing. Its feature variants are
+// therefore compiled in only when the build enables the feature, inline and
+// without a helper or a cached runtime check.
+RuntimeSelected :: (assembly: *Assembly) -> bool {
+    return assembly.features != 0 && assembly.architecture != ASM_WASM32
+}
+
+AssemblyError :: (span: IR.ZirSourceSpan, message: *u8) -> s32 {
+    Diagnostic(span, CStr("check.assembly"), CStr("%s"), message)
+    return 0
+}
+
+AssemblyTarget :: (assembly: *Assembly, span: IR.ZirSourceSpan) -> s32 {
+    name := assembly.part[0]
+    end := strchr(name, #char "+")
+    length := ifx end != null then Distance(name, end) else strlen(name)
+    assembly.architecture = -1
+    assembly.features = 0
+    for i: cast(s32)0..ARCHITECTURE_COUNT - 1 {
+        if SameSpan(architecture_names[i], name, length) { assembly.architecture = i }
+    }
+    if assembly.architecture < 0 { return AssemblyError(span, CStr("unknown #asm architecture")) }
+    while end != null {
+        name = PtrAdd(end, 1)
+        end = strchr(name, #char "+")
+        length = ifx end != null then Distance(name, end) else strlen(name)
+        feature: s32 = -1
+        for i: cast(s32)0..CPU_FEATURE_COUNT - 1 {
+            if SameSpan(feature_names[i], name, length) && FeatureOption(assembly.architecture, i) != null { feature = i }
+        }
+        if feature < 0 { return AssemblyError(span, CStr("unknown or unsupported #asm CPU feature for architecture")) }
+        if HasFeature(assembly, feature) { return AssemblyError(span, CStr("duplicate #asm CPU feature")) }
+        assembly.features = assembly.features | FeatureBit(feature)
+    }
+    return 1
+}
+
+// One #asm argument at the cursor, which moves past it: a literal string,
+// quotes included, from START for LENGTH bytes (1), or the name of a
+// constant string, `NAME` or `Module.NAME` (2). 0 for anything else and -1
+// for a string without its closing quote.
+AssemblyArgument :: (cursor: **u8, start: **u8, length: *usize) -> s32 {
+    at := skip_ws(<<cursor)
+    first := at
+    <<start = at
+    if at[0] == #char "\"" {
+        at = PtrAdd(at, 1)
+        while at[0] != 0 && at[0] != #char "\"" {
+            if at[0] == #char "\\" && at[1] != 0 { at = PtrAdd(at, 1) }
+            at = PtrAdd(at, 1)
+        }
+        if at[0] != #char "\"" { return -1 }
+        at = PtrAdd(at, 1)
+    } else {
+        while true {
+            if !IsAlpha(at[0]) && at[0] != #char "_" { return 0 }
+            while IsIdent(at[0]) { at = PtrAdd(at, 1) }
+            if at[0] != #char "." { break }
+            at = PtrAdd(at, 1)
+        }
+    }
+    <<length = Distance(first, at)
+    <<cursor = at
+    return ifx first[0] == #char "\"" then 1 else 2
+}
+
+// The decoded bytes of the literal at START, kept, or null after a
+// diagnostic. A marker stands for the body of a long literal, quotes and
+// escapes included; that body decodes like any other.
+AssemblyLiteral :: (start: *u8, length: usize, span: IR.ZirSourceSpan) -> *u8 {
+    literal := cast(*u8)malloc(length + 1)
+    decoded := cast(*u8)malloc(length + 1)
+    if literal == null || decoded == null {
+        free(literal)
+        free(decoded)
+        AssemblyError(span, CStr("out of memory reading #asm"))
+        return null
+    }
+    memcpy(literal, start, length)
+    literal[length] = 0
+    decoded_length: usize = 0
+    valid: s32 = 0
+    expanded: *u8 = null
+    if strchr(literal, 31) != null { expanded = RawTextExpand(literal) }
+    if expanded != null {
+        free(decoded)
+        decoded = cast(*u8)malloc(strlen(expanded) + 1)
+        if decoded != null { valid = DecodeStringLiteral(expanded, decoded, strlen(expanded), *decoded_length) }
+        free(expanded)
+    } else {
+        valid = DecodeStringLiteral(literal, decoded, length, *decoded_length)
+    }
+    free(literal)
+    if valid == 0 || memchr(decoded, 0, decoded_length) != null {
+        free(decoded)
+        AssemblyError(span, CStr("invalid #asm string (embedded NUL is forbidden)"))
+        return null
+    }
+    decoded[decoded_length] = 0
+    kept := KeepText(decoded)
+    free(decoded)
+    return kept
+}
+
+// Four to six arguments: clobbers and options may be left out. A template
+// can be a raw #string body of any length; the source reader keeps a long
+// one aside behind a marker, which KeepText expands. With NAMES, as the
+// source is read, the template, operands and clobbers may name constant
+// strings; they stay empty here until ResolveAssemblyConstants puts each
+// constant's literal in place of its name.
+ReadVariant :: (cursor: **u8, assembly: *Assembly, span: IR.ZirSourceSpan, names: bool) -> s32 {
+    at := skip_ws(<<cursor)
+    if strncmp(at, CStr("#asm"), 4) != 0 || NextByte(PtrAdd(at, 4)) != #char "(" {
+        return AssemblyError(span, CStr("#asm requires four to six literal strings in parentheses"))
+    }
+    at = PtrAdd(skip_ws(PtrAdd(at, 4)), 1)
+    for i: cast(s32)0..5 { assembly.part[i] = CStr("") }
+    for i: cast(s32)0..5 {
+        start: *u8 = null
+        length: usize = 0
+        operand := i >= 1 && i <= 4
+        kind := AssemblyArgument(*at, *start, *length)
+        if kind < 0 { return AssemblyError(span, CStr("unterminated #asm string")) }
+        if kind == 2 && operand {
+            if !names { return AssemblyError(span, CStr("#asm constant name was not resolved")) }
+        } else if kind != 1 {
+            if operand {
+                return AssemblyError(span, CStr("#asm template, operands and clobbers must be literal strings or constant string names"))
+            }
+            return AssemblyError(span, CStr("#asm architecture and options must be literal strings"))
+        } else {
+            kept := AssemblyLiteral(start, length, span)
+            if kept == null { return 0 }
+            assembly.part[i] = kept
+        }
+        at = skip_ws(at)
+        next := at[0]
+        at = PtrAdd(at, 1)
+        if next == #char ")" && i >= 3 { break }
+        expected: u8 = ifx i == 5 then #char ")" else #char ","
+        if next != expected { return AssemblyError(span, CStr("#asm requires four to six literal strings")) }
+    }
+    if AssemblyTarget(assembly, span) == 0 { return 0 }
+    options := assembly.part[5]
+    if options[0] != 0 && !Same(options, CStr("volatile")) {
+        return AssemblyError(span, CStr("#asm options must be empty or volatile"))
+    }
+    <<cursor = at
+    return 1
+}
+
+// A variant after ResolveAssemblyConstants: every argument is a literal.
+ReadAssembly :: (cursor: **u8, assembly: *Assembly, span: IR.ZirSourceSpan) -> s32 {
+    return ReadVariant(cursor, assembly, span, false)
+}
+
+AssemblyText :: struct {
+    data: *u8
+    used: usize
+    capacity: usize
+}
+
+AssemblyTextAdd :: (text: *AssemblyText, bytes: *u8, length: usize) {
+    if text.used + length + 1 > text.capacity {
+        capacity: usize = ifx text.capacity != 0 then text.capacity else 256
+        while text.used + length + 1 > capacity { capacity = capacity * 2 }
+        data := cast(*u8)AllocateOrExit(capacity)
+        if text.used != 0 { memcpy(data, text.data, text.used) }
+        free(text.data)
+        text.data = data
+        text.capacity = capacity
+    }
+    memcpy(PtrAdd(text.data, text.used), bytes, length)
+    text.used += length
+    text.data[text.used] = 0
+}
+
+// TEXT, a run of #asm variants as the source reader kept them, with each
+// constant name replaced by the literal of the string it names in MODULE.
+// TEXT itself when it names none; null after a diagnostic.
+ResolveAssemblyText :: (module: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan) -> *u8 {
+    if strstr(text, CStr("#asm")) == null { return text }
+    out: AssemblyText
+    at := text
+    copied := text
+    changed := false
+    while true {
+        at = skip_ws(at)
+        if at[0] == 0 { break }
+        if strncmp(at, CStr("#asm"), 4) != 0 || NextByte(PtrAdd(at, 4)) != #char "(" { break }
+        at = PtrAdd(skip_ws(PtrAdd(at, 4)), 1)
+        for i: cast(s32)0..5 {
+            start: *u8 = null
+            length: usize = 0
+            if AssemblyArgument(*at, *start, *length) == 2 {
+                name: [IR.ZIR_NAME_MAX]u8
+                literal: *u8 = null
+                if length >= size_of([IR.ZIR_NAME_MAX]u8) {
+                    free(out.data)
+                    AssemblyError(span, CStr("#asm constant name is too long"))
+                    return null
+                }
+                memcpy(*name[0], start, length)
+                name[length] = 0
+                if EvaluateCompileLiteral(module, *name[0], span, 0, *literal, null) == 0 ||
+                   literal == null || literal[0] != #char "\"" {
+                    free(out.data)
+                    Diagnostic(span, CStr("check.assembly"), CStr("#asm argument %s is not a constant string"), *name[0])
+                    return null
+                }
+                AssemblyTextAdd(*out, copied, Distance(copied, start))
+                AssemblyTextAdd(*out, literal, strlen(literal))
+                copied = at
+                changed = true
+            }
+            at = skip_ws(at)
+            if at[0] != #char "," { break }
+            at = PtrAdd(at, 1)
+        }
+        if at[0] == #char ")" { at = PtrAdd(at, 1) }
+    }
+    if !changed { return text }
+    AssemblyTextAdd(*out, copied, strlen(copied))
+    resolved := KeepText(out.data)
+    free(out.data)
+    return resolved
+}
+
+// Whether RESOLVED is SOURCE, variants as the source reader kept them, with
+// each constant name argument in SOURCE replaced by a literal string.
+AssemblyTextMatches :: (source: *u8, resolved: *u8) -> bool {
+    left := source
+    right := resolved
+    while true {
+        a: *u8 = null
+        b: *u8 = null
+        na: usize = 0
+        nb: usize = 0
+        left = skip_ws(left)
+        right = skip_ws(right)
+        ka := AssemblyArgument(*left, *a, *na)
+        if ka == 0 {
+            if left[0] != right[0] { return false }
+            if left[0] == 0 { return true }
+            left = PtrAdd(left, 1)
+            right = PtrAdd(right, 1)
+            continue
+        }
+        kb := AssemblyArgument(*right, *b, *nb)
+        if ka < 0 || kb <= 0 { return false }
+        if ka == 2 && kb == 1 { continue }
+        if ka != kb || na != nb || memcmp(a, b, na) != 0 { return false }
+    }
+    return false
+}
+
+#program_export
+ResolveAssemblyConstants :: (module: *IR.ZirModule) -> s32 {
+    for f: cast(s32)0..module.function_count - 1 {
+        fn := cast(*IR.ZirFunction)(cast(usize)module.functions + cast(usize)f * size_of(IR.ZirFunction))
+        if fn.assembly_text != null && fn.assembly_text[0] != 0 {
+            text := ResolveAssemblyText(module, fn.assembly_text, fn.span)
+            if text == null { return 0 }
+            fn.assembly_text = text
+        }
+        for i: cast(s32)0..fn.stmt_count - 1 {
+            st := StatementAt(fn, i)
+            if !StatementHasAssembly(st) { continue }
+            text := ResolveAssemblyText(module, st.assembly_text, st.span)
+            if text == null { return 0 }
+            // A named argument binds saved metadata to the constant's value,
+            // just as a literal binds it to its source spelling.
+            source := AssemblyBlockText(st.text, st.span)
+            if source == null { return 0 }
+            source = ResolveAssemblyText(module, source, st.span)
+            if source == null { return 0 }
+            if !AssemblyTextMatches(source, text) {
+                return AssemblyError(st.span, CStr("#asm block metadata does not match its source"))
+            }
+            st.names.assembly_text = text
+        }
+    }
+    return 1
+}
+
+// Moves the #asm variants that follow a procedure signature out of HEADER
+// and returns them kept, or null when it has none. Scanning stays outside
+// strings: #asm, braces, and quotes inside an instruction template must
+// never be interpreted by the ordinary source parser.
+#program_export
+ExtractAssemblyModifiers :: (header: *u8, span: IR.ZirSourceSpan) -> *u8 {
+    // Ordinary procedures never need the annotation scanner.
+    if strstr(header, CStr("#asm")) == null { return null }
+    kept: [IR.ZIR_TEXT_MAX]u8
+    used: usize = 0
+    parentheses: s32 = 0
+    parameters_complete := false
+    at := header
+    while at[0] != 0 && !(at[0] == #char "{" && parentheses == 0) {
+        if at[0] == #char "\"" || at[0] == #char "'" {
+            quote := at[0]
+            at = PtrAdd(at, 1)
+            while at[0] != 0 && at[0] != quote {
+                if at[0] == #char "\\" && at[1] != 0 { at = PtrAdd(at, 1) }
+                at = PtrAdd(at, 1)
+            }
+            if at[0] != 0 { at = PtrAdd(at, 1) }
+        } else if StartsAssembly(at) {
+            if parentheses != 0 || !parameters_complete {
+                AssemblyError(span, CStr("#asm must follow the procedure signature"))
+                exit(1)
+            }
+            end := at
+            assembly: Assembly
+            if ReadVariant(*end, *assembly, span, true) == 0 { exit(1) }
+            length := Distance(at, end)
+            if used + length + 2 > size_of([IR.ZIR_TEXT_MAX]u8) {
+                AssemblyError(span, CStr("#asm variants exceed size limit"))
+                exit(1)
+            }
+            memcpy(*kept[used], at, length)
+            used += length
+            kept[used] = #char " "
+            used += 1
+            memmove(at, end, strlen(end) + 1)
+        } else {
+            if at[0] == #char "(" {
+                parentheses += 1
+            } else if at[0] == #char ")" && parentheses > 0 {
+                parentheses -= 1
+                if parentheses == 0 { parameters_complete = true }
+            }
+            at = PtrAdd(at, 1)
+        }
+    }
+    if used == 0 { return null }
+    kept[used] = 0
+    return KeepText(*kept[0])
+}
+
+// The variants that open an #asm block, kept without the brace that starts
+// its portable body; null after a diagnostic.
+#program_export
+AssemblyBlockText :: (header: *u8, span: IR.ZirSourceSpan) -> *u8 {
+    start := skip_ws(header)
+    at := start
+    count: s32 = 0
+    while StartsAssembly(at) {
+        assembly: Assembly
+        if ReadVariant(*at, *assembly, span, true) == 0 { return null }
+        count += 1
+        at = skip_ws(at)
+    }
+    if count == 0 || at[0] != #char "{" || NextByte(PtrAdd(at, 1)) != 0 {
+        AssemblyError(span, CStr("#asm block requires variants followed by a portable body"))
+        return null
+    }
+    length := Distance(start, at)
+    while length != 0 && IsSpace(start[length - 1]) { length -= 1 }
+    text: [IR.ZIR_TEXT_MAX]u8
+    if length >= size_of([IR.ZIR_TEXT_MAX]u8) {
+        AssemblyError(span, CStr("#asm block variants exceed size limit"))
+        return null
+    }
+    memcpy(*text[0], start, length)
+    text[length] = 0
+    return KeepText(*text[0])
+}
+
+// The items of a semicolon-separated operand or clobber list, trimmed and
+// kept; -1 when one is empty, too long, or beyond the operand limit.
+OperandList :: (text: *u8, items: **u8) -> s32 {
+    count: s32 = 0
+    if text[0] == 0 { return 0 }
+    at := text
+    while true {
+        end := strchr(at, #char ";")
+        length := ifx end != null then Distance(at, end) else strlen(at)
+        item: [IR.ZIR_NAME_MAX]u8
+        if length >= size_of([IR.ZIR_NAME_MAX]u8) || count == ASSEMBLY_OPERANDS { return -1 }
+        memcpy(*item[0], at, length)
+        item[length] = 0
+        trimmed := trim_in_place(*item[0])
+        if trimmed[0] == 0 { return -1 }
+        items[count] = KeepText(trimmed)
+        count += 1
+        if end == null { break }
+        at = PtrAdd(end, 1)
+    }
+    return count
+}

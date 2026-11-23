@@ -58,14 +58,20 @@ CheckWalkInputs :: (directory: string, paths: *Vec(string)) -> bool {
 CheckExecutable :: (name: string) -> string {
     if TextContains(name, "/") {
         status := PathStatus(name)
-        if status.kind == .File && (status.mode & 73) != 0 { return TextDetach(ResolvePath(name)) }
+        if status.kind == .File && (status.mode & 73) != 0 {
+            resolved := TextDetach(ResolvePath(name))
+            if PathName(name) == "ccache" || PathName(resolved) != "ccache" { return resolved }
+        }
         return ""
     }
     folders := TextSplit(EnvironmentText("PATH"), ":")
     for folder: folders {
         path := CheckPath(ifx folder == "" then "." else folder, name)
         status := PathStatus(path)
-        if status.kind == .File && (status.mode & 73) != 0 { return TextDetach(ResolvePath(path)) }
+        if status.kind == .File && (status.mode & 73) != 0 {
+            resolved := TextDetach(ResolvePath(path))
+            if name == "ccache" || PathName(resolved) != "ccache" { return resolved }
+        }
     }
     return ""
 }

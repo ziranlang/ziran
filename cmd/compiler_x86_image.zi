@@ -76,9 +76,11 @@ MachineX64ImageNeeds :: struct {
 // Positions of an image's parts. MachineX64ImageMeasure fills the needs and
 // sizes; the container then sets os and text for MachineX64ImageText, and
 // constants, data, data_file and on Windows the import slots before
-// MachineX64ImageResolve. A Linux container that links host libraries sets
-// hosts, the capabilities it imports in function order, before
-// MachineX64ImageMeasure, and MachineX64ImageText places their veneers.
+// MachineX64ImageResolve. A container that links host libraries sets hosts,
+// the capabilities it imports in function order, and one whose executable
+// supplies the ZX Runner's files and clock services sets builtins the same
+// way, before MachineX64ImageMeasure, and MachineX64ImageText places their
+// veneers after the imports'.
 MachineX64ImageLayout :: struct {
     os: TargetOS
     needs: MachineX64ImageNeeds
@@ -99,6 +101,10 @@ MachineX64ImageLayout :: struct {
     data_layout: MachineX64DataLayout
     imports: MachineWin64Slots
     hosts: []MachineX64HostImport
+    // The built-in services' imports, after the hosts' veneers, and the
+    // kernel32 functions they call, as a MachineWin64ImportBit mask.
+    builtins: []MachineX64HostImport
+    builtin_imports: u32
 }
 
 #scope_file
@@ -438,6 +444,26 @@ HostsMeasure :: (program: MachineProgram, hosts: []MachineX64HostImport) -> Mach
     return NoDiagnostic()
 }
 
+// The built-in services are host functions too: each once, in order, each
+// provided by the executable itself (MachineX64HostBuiltin) with the
+// signature its service takes, and each has a veneer.
+BuiltinsMeasure :: (program: MachineProgram, builtins: []MachineX64HostImport) -> MachineDiagnostic {
+    previous: s32 = -1
+    for host: builtins {
+        if host.function <= previous || host.function >= program.functions.count ||
+            program.functions[host.function].calling != .Host || host.library != Host.MachineX64HostBuiltin {
+            return Problem(.Relocation)
+        }
+        previous = host.function
+        if !Host.MachineX64HostBuiltinSupported(program, host) {
+            diagnostic := Problem(.HostAbi)
+            diagnostic.function = host.function
+            return diagnostic
+        }
+    }
+    return NoDiagnostic()
+}
+
 // The position a relocation's field reaches, or false when the image has no
 // such target.
 RelocationTarget :: (program: MachineProgram, layout: MachineX64ImageLayout,
@@ -457,7 +483,9 @@ RelocationTarget :: (program: MachineProgram, layout: MachineX64ImageLayout,
     if relocation.kind == .PointerRuntime { piece = data.pointer_header }
     if piece >= 0 { <<target = layout.data + piece; return true }
     if relocation.kind == .HostCapability {
-        index := HostIndex(layout.hosts, relocation.symbol)
+        index := HostIndex(layout.builtins, relocation.symbol)
+        if index >= 0 { <<target = layout.builtins[index].veneer; return true }
+        index = HostIndex(layout.hosts, relocation.symbol)
         if index < 0 { return false }
         <<target = layout.hosts[index].veneer
         return true
@@ -694,7 +722,18 @@ MachineX64ImageMeasure :: (program: MachineProgram, image: MachineX64Image,
     }
     hosts_diagnostic := HostsMeasure(program, layout.hosts)
     if hosts_diagnostic.problem != .None { return hosts_diagnostic }
+    builtins_diagnostic := BuiltinsMeasure(program, layout.builtins)
+    if builtins_diagnostic.problem != .None { return builtins_diagnostic }
     layout.needs = ImageNeeds(program, image)
+    // A built-in service that reads grows its block through the runtime's
+    // resize entry, which needs the heap; a growth the runtime refuses goes
+    // to the service's own failure path, but a trapped one needs the stub.
+    if Host.MachineX64HostBuiltinResize(program, layout.builtins) {
+        layout.needs.runtime.resize = true
+        layout.needs.trap = true
+        layout.needs.runtime.exit = true
+    }
+    layout.builtin_imports = Host.MachineX64HostBuiltinImports(program, layout.builtins)
     data_diagnostic := DataMeasure(program, layout.needs, ifx Windows(<<layout) then cast(s64)0 else layout.hosts.count, *layout.data_layout)
     if data_diagnostic.problem != .None { return data_diagnostic }
     return GlobalsMeasure(program, false, *layout.constants_size)
@@ -724,12 +763,24 @@ MachineX64ImageText :: (program: MachineProgram, image: MachineX64Image,
         layout.float = Align(end + 16 - FloatAlignment, 16) - 16 + FloatAlignment
         end = layout.float + FloatSize
     }
-    // Each veneer's size depends only on its signature, never on its slot.
+    // Each veneer's size depends only on its signature, never on its slot or
+    // on where the runtime's resize entry lies.
     if layout.hosts.count > 0 { end = Align(end, 16) }
     for index: cast(s64)0..layout.hosts.count - 1 {
         layout.hosts[index].veneer = end
         measure := X86Writer.{at = end, limit = 2147483647 - Page}
-        if !MachineX64HostVeneer(*measure, program, layout.hosts[index], 0) { return Problem(.Limit) }
+        if !MachineX64HostVeneer(*measure, program, layout.hosts[index], 0, layout.routines.resize, layout.imports) {
+            return Problem(.Limit)
+        }
+        end = measure.at
+    }
+    if layout.builtins.count > 0 { end = Align(end, 16) }
+    for index: cast(s64)0..layout.builtins.count - 1 {
+        layout.builtins[index].veneer = end
+        measure := X86Writer.{at = end, limit = 2147483647 - Page}
+        if !MachineX64HostVeneer(*measure, program, layout.builtins[index], 0, layout.routines.resize, layout.imports) {
+            return Problem(.Limit)
+        }
         end = measure.at
     }
     layout.text_end = end
@@ -842,9 +893,18 @@ MachineX64ImageWrite :: (program: MachineProgram, image: MachineX64Image, layout
     for index: cast(s64)0..layout.hosts.count - 1 {
         host := layout.hosts[index]
         writer := X86Writer.{output = output, at = host.veneer, limit = layout.text_end}
-        if !MachineX64HostVeneer(*writer, program, host, HostSlot(layout, index)) ||
+        following := layout.text_end
+        if layout.builtins.count > 0 { following = layout.builtins[0].veneer }
+        if !MachineX64HostVeneer(*writer, program, host, HostSlot(layout, index), layout.routines.resize, layout.imports) ||
             index + 1 < layout.hosts.count && writer.at != layout.hosts[index + 1].veneer ||
-            index + 1 == layout.hosts.count && writer.at != layout.text_end { return false }
+            index + 1 == layout.hosts.count && writer.at != following { return false }
+    }
+    for index: cast(s64)0..layout.builtins.count - 1 {
+        host := layout.builtins[index]
+        writer := X86Writer.{output = output, at = host.veneer, limit = layout.text_end}
+        if !MachineX64HostVeneer(*writer, program, host, 0, layout.routines.resize, layout.imports) ||
+            index + 1 < layout.builtins.count && writer.at != layout.builtins[index + 1].veneer ||
+            index + 1 == layout.builtins.count && writer.at != layout.text_end { return false }
     }
 
     for relocation: image.relocations {

@@ -147,29 +147,34 @@ ExecutableEncode :: (program: MachineProgram, image: MachineX64Image, output: []
     hosts: MachineElfHosts) -> Encoded {
     if program.target.os == .Windows {
         pe := MachinePeEncode(program, image, output, fuel,
-            .{libraries = hosts.libraries, imports = hosts.imports})
+            .{libraries = hosts.libraries, imports = hosts.imports, builtins = hosts.builtins})
         return .{diagnostic = pe.diagnostic, size = pe.size}
     }
     elf := MachineElfEncode(program, image, output, fuel, hosts)
     return .{diagnostic = elf.diagnostic, size = elf.size}
 }
 
-// The imports of every host function of PROGRAM, in function order, from the
-// libraries LINKS names. A host function no library provides fails with its
-// function named.
+// The imports of every host function of PROGRAM, in function order: the
+// capabilities the libraries LINKS names provide fill IMPORTS, and the
+// services the executable supplies itself (MachineX64HostBuiltin) fill
+// BUILTINS; both are in function order. A host function no provider names
+// fails with its function named.
 HostImports :: (lir: LirProgram, program: MachineProgram, links: MachineHostLinks,
-    imports: *Vec(MachineX64HostImport)) -> MachineDiagnostic {
+    imports: *Vec(MachineX64HostImport), builtins: *Vec(MachineX64HostImport)) -> MachineDiagnostic {
     for function_id: cast(s64)0..program.functions.count - 1 {
         if program.functions[function_id].calling != .Host { continue }
         provider: s32 = -1
         if function_id < links.providers.count { provider = links.providers[function_id] }
-        if provider < 0 || cast(s64)provider >= links.libraries.count || function_id >= lir.functions.count {
+        builtin := provider == Host.MachineX64HostBuiltin
+        if function_id >= lir.functions.count ||
+            !builtin && (provider < 0 || cast(s64)provider >= links.libraries.count) {
             diagnostic := Problem(.Unsupported)
             diagnostic.function = cast(s32)function_id
             return diagnostic
         }
         source := lir.functions[function_id]
-        if !VecPush(<<imports, MachineX64HostImport.{function = cast(s32)function_id, library = provider,
+        target := ifx builtin then builtins else imports
+        if !VecPush(<<target, MachineX64HostImport.{function = cast(s32)function_id, library = provider,
             parameters = source.parameters, result = source.result}) { return Problem(.Allocation) }
     }
     return NoDiagnostic()
@@ -342,8 +347,9 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     if emit_executable {
         image := MachineX64View(*built.encoded)
         imports: Vec(MachineX64HostImport)
-        diagnostic = HostImports(lir, program, links, *imports)
-        hosts := MachineElfHosts.{libraries = links.libraries, imports = imports[:]}
+        builtins: Vec(MachineX64HostImport)
+        diagnostic = HostImports(lir, program, links, *imports, *builtins)
+        hosts := MachineElfHosts.{libraries = links.libraries, imports = imports[:], builtins = builtins[:]}
         empty: [0]u8
         measured: Encoded
         if diagnostic.problem == .None {
@@ -360,6 +366,7 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
             if diagnostic.problem == .None && written.size != measured.size { diagnostic = Problem(.Relocation) }
         }
         VecFree(imports)
+        VecFree(builtins)
         if diagnostic.problem != .None {
             MachineNativeFree(*built)
             return diagnostic
@@ -386,10 +393,11 @@ MachineCodeBuildUnbounded :: (lir: LirProgram, target: TargetDescription, limits
     return Build(lir, target, limits, output, false, MachineX64InitialFuel, none)
 }
 
-// The host libraries a Linux x86-64 executable links its host capabilities
-// from: their absolute paths, and for each function of the program the
-// index of the library that provides it, or -1. Both are empty for a program
-// that calls no host capability.
+// The host libraries a Linux x86-64 or Windows x86-64 executable links its
+// host capabilities from: their absolute paths, and for each function of the
+// program the index of the library that provides it, -1, or
+// MachineX64HostBuiltin for a files or clock service the executable supplies
+// itself. Both are empty for a program that calls no host capability.
 MachineHostLinks :: struct {
     libraries: []string
     providers: []s32
@@ -398,7 +406,8 @@ MachineHostLinks :: struct {
 // FUEL is the AOT executable's starting budget; MachineX64InitialFuel is
 // unbounded, as for a bundle run. The executable is an ELF on Linux and a PE
 // on Windows; a Linux ELF links the host libraries LINKS names for its host
-// capabilities, and one that calls none is static.
+// capabilities, carries the ZX Runner's files and clock services itself, and
+// is static when it links nothing.
 MachineNativeBuild :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
     output: *MachineNativeOwner, fuel: s64, links: MachineHostLinks) -> MachineDiagnostic {
     return Build(lir, target, limits, output, true, fuel, links)
@@ -409,14 +418,16 @@ MachineNativeBuild :: (lir: LirProgram, target: TargetDescription, limits: Machi
 MachineNativeElfLayout :: (lir: LirProgram, owner: *MachineNativeOwner, links: MachineHostLinks) -> MachineElfResult {
     program := owner.machine.program
     imports: Vec(MachineX64HostImport)
+    builtins: Vec(MachineX64HostImport)
     result: MachineElfResult
-    result.diagnostic = HostImports(lir, program, links, *imports)
+    result.diagnostic = HostImports(lir, program, links, *imports, *builtins)
     if result.diagnostic.problem == .None {
         empty: [0]u8
         result = MachineElfEncode(program, MachineX64View(*owner.encoded), empty[:], MachineX64InitialFuel,
-            .{libraries = links.libraries, imports = imports[:]})
+            .{libraries = links.libraries, imports = imports[:], builtins = builtins[:]})
     }
     VecFree(imports)
+    VecFree(builtins)
     return result
 }
 
@@ -424,13 +435,15 @@ MachineNativeElfLayout :: (lir: LirProgram, owner: *MachineNativeOwner, links: M
 MachineNativePeLayout :: (lir: LirProgram, owner: *MachineNativeOwner, links: MachineHostLinks) -> MachinePeResult {
     program := owner.machine.program
     imports: Vec(MachineX64HostImport)
+    builtins: Vec(MachineX64HostImport)
     result: MachinePeResult
-    result.diagnostic = HostImports(lir, program, links, *imports)
+    result.diagnostic = HostImports(lir, program, links, *imports, *builtins)
     if result.diagnostic.problem == .None {
         empty: []u8
         result = MachinePeEncode(program, MachineX64View(*owner.encoded), empty, MachineX64InitialFuel,
-            .{libraries = links.libraries, imports = imports[:]})
+            .{libraries = links.libraries, imports = imports[:], builtins = builtins[:]})
     }
     VecFree(imports)
+    VecFree(builtins)
     return result
 }

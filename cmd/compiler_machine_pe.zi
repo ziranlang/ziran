@@ -30,10 +30,13 @@ using X64Image :: #import "compiler_x86_image"
 // prologue carries x64 unwind data: a .pdata RUNTIME_FUNCTION and the .xdata
 // UNWIND_INFO that walks its pushed frame pointer and stack allocation.
 
-// Registered DLL names and their named capabilities in function order.
+// Registered DLL names and their named capabilities in function order, and
+// the files and clock services the executable supplies itself, which reach
+// kernel32 through the image's own imports.
 MachinePeHosts :: struct {
     libraries: []string
     imports: []MachineX64HostImport
+    builtins: []MachineX64HostImport
 }
 
 MachinePeImageBase :: 0x140000000
@@ -170,6 +173,7 @@ PeLayout :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachinePe
     image := *layout.image
     image.os = .Windows
     image.hosts = hosts.imports
+    image.builtins = hosts.builtins
     layout.libraries = hosts.libraries
     diagnostic := MachineX64ImageMeasure(program, encoded, image)
     if diagnostic.problem != .None { return diagnostic }
@@ -183,7 +187,7 @@ PeLayout :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachinePe
     // before it is placed.
     rdata := Align(image.text_end, MachinePeSectionAlignment)
     image.constants = rdata
-    layout.imports = MachineX64RuntimeImports(image.needs.runtime)
+    layout.imports = MachineX64RuntimeImports(image.needs.runtime) | image.builtin_imports
     for which: cast(s64)0..MachineWin64ImportCount - 1 {
         if Imported(<<layout, which) { layout.import_count += 1 }
     }

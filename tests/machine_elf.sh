@@ -51,8 +51,9 @@ ZI
 run_status() {
     executable=$1
     expected=$2
+    directory=${3:-.}
     set +e
-    "$executable"
+    (cd "$directory" && "$executable")
     actual=$?
     set -e
     if test "$actual" -ne "$expected"; then
@@ -202,6 +203,98 @@ Answer :: () -> s32 {
 ZI
 compile_native "$work/long-elf" "$work" long:Answer "$work/long.zi"
 run_status "$work/long-elf" 20
+
+# Files and clock platform services come from code the image carries itself:
+# a program that uses every service links no host library, stays a static
+# executable with no interpreter or dynamic section, and answers 42 from a
+# directory it makes, fills, lists, renames and empties under its working
+# directory, a name outside ASCII and a 16 KiB read included, leaving nothing
+# behind.
+cat > "$work/files.zi" <<'ZI'
+Files :: #import "std/guest_files";
+Clock :: #import "std/guest_clock";
+
+Big :: () -> string {
+    out: Vec(u8)
+    for block: 0..255 { BuilderAppend(out, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789++") }
+    return BuilderFinish(out)
+}
+
+// Whether LISTING, one name per line, carries NAME.
+Has :: (listing: string, name: string) -> bool {
+    start: s64 = 0
+    while start < listing.count {
+        end := start
+        while end < listing.count && listing[end] != cast(u8)10 { end += 1 }
+        if listing[start:end] == name { return true }
+        start = end + 1
+    }
+    return false
+}
+
+#program_export
+main :: () -> s32 {
+    base := "files-case"
+    if !Files.DirectoryMake(base) { return 1 }
+    if Files.FileStatus(base) != -2 { return 2 }
+    if !Files.DirectoryMake(base) { return 3 }
+    if !Files.FileWrite("files-case/a.txt", "alpha") { return 4 }
+    if Files.FileStatus("files-case/a.txt") != 5 { return 5 }
+    big := Big()
+    if big.count != 16384 { return 100 }
+    if !Files.FileWrite("files-case/big.bin", big) { return 6 }
+    if Files.FileStatus("files-case/big.bin") != 16384 { return 7 }
+    data, ok := Files.FileRead("files-case/big.bin")
+    if !ok || data != big { return 8 }
+    if Files.FileStatus("files-case/missing") != -1 { return 9 }
+    if !Files.FileWrite("files-case/Paraguái.txt", "í") { return 10 }
+    listing := Files.DirectoryList(base)
+    if !Has(listing, "a.txt") || !Has(listing, "big.bin") || !Has(listing, "Paraguái.txt") ||
+        listing.count != "a.txt\nbig.bin\nParaguái.txt".count { return 11 }
+    if !Files.FileRename("files-case/a.txt", "files-case/b.txt") { return 12 }
+    if Files.FileStatus("files-case/a.txt") != -1 || Files.FileStatus("files-case/b.txt") != 5 { return 13 }
+    if !Files.FileRemove("files-case/b.txt") { return 14 }
+    if Files.FileStatus("files-case/b.txt") != -1 { return 15 }
+    if Files.FileRemove("files-case/b.txt") { return 16 }
+    if Files.FileRename("files-case/missing", "files-case/x") { return 17 }
+    if Files.FileWrite("files-case/sub/deep.txt", "x") { return 18 }
+    if Files.FileStatus("files-case") != -2 { return 19 }
+    again, ok2 := Files.FileRead("files-case/big.bin")
+    if !ok2 || again != big { return 20 }
+    if Files.FileStatus("") != -1 { return 21 }
+    if !Files.FileWrite("files-case/empty", "") { return 22 }
+    empty, ok3 := Files.FileRead("files-case/empty")
+    if !ok3 || empty != "" { return 23 }
+    start := Clock.MonotonicNanoseconds()
+    if start < 0 { return 24 }
+    wall := Clock.WallMilliseconds()
+    if Clock.MonotonicNanoseconds() < start { return 25 }
+    if wall < 1700000000000 || wall > 4102444800000 { return 26 }
+    if !Files.FileRemove("files-case/empty") || !Files.FileRemove("files-case/big.bin") ||
+        !Files.FileRemove("files-case/Paraguái.txt") { return 27 }
+    if Files.DirectoryList("files-case") != "" { return 28 }
+    if Files.DirectoryList("files-case/missing") != "" { return 29 }
+    whole, ok4 := Files.FileRead("files-case")
+    if ok4 || whole != "" { return 30 }
+    if Clock.MonotonicNanoseconds() < start { return 31 }
+    return 42
+}
+ZI
+"$zi2zx" --root "$work" --module-path "$repo/std" --entry files:main -o "$work/files.zx" "$work/files.zi"
+"$zx2native" -o "$work/files-elf" "$work/files.zx"
+file "$work/files-elf" > "$work/files.file"
+grep -Fq 'statically linked' "$work/files.file"
+readelf -lW "$work/files-elf" > "$work/files.program-headers"
+if grep -Eq '(^|[[:space:]])(INTERP|DYNAMIC)([[:space:]]|$)' "$work/files.program-headers"; then
+    echo "native files program unexpectedly depends on an interpreter or dynamic loader" >&2
+    exit 1
+fi
+mkdir "$work/files-run"
+run_status "$work/files-elf" 42 "$work/files-run"
+if test -n "$(ls -A "$work/files-run/files-case")"; then
+    echo "native files program left files behind" >&2
+    exit 1
+fi
 
 # A record built from a field of another record aliases that field through a
 # chain of folded values: no use may name an eliminated virtual.

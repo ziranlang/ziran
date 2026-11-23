@@ -15,8 +15,11 @@ using X64Image :: #import "compiler_x86_image"
 // virtual offsets from MachineElfBase. No runtime, assembler or foreign
 // object participates.
 //
-// A program with no host capabilities is static: no dynamic linker runs. One
-// that imports host capabilities links the host libraries that provide them,
+// A program with no host capabilities is static: no dynamic linker runs. The
+// ZX Runner's files and clock services (std/guest_files and std/guest_clock)
+// are built in: the executable carries their veneers, makes the system calls
+// itself and stays static. A program that imports other host capabilities
+// links the host libraries that provide them,
 // as a C program links a host's symbols by name: PT_INTERP names the system's
 // dynamic linker, PT_DYNAMIC lists each library as a DT_NEEDED path, and each
 // capability is an undefined function symbol whose R_X86_64_GLOB_DAT
@@ -32,12 +35,16 @@ MachineElfProgramHeaderSize :: 56
 MachineElfInterpreter :: "/lib64/ld-linux-x86-64.so.2"
 
 // The host libraries an executable links and the capabilities it imports
-// from them; both empty for a static executable.
+// from them, and the services it supplies itself; a static executable has
+// no libraries or imports.
 MachineElfHosts :: struct {
     // Absolute paths, one DT_NEEDED each, in order.
     libraries: []string
     // In function order; each import's library indexes libraries.
     imports: []MachineX64HostImport
+    // The built-in files and clock services, in function order; they link
+    // nothing and have no dynamic symbol.
+    builtins: []MachineX64HostImport
 }
 
 // File offsets, and the data segment's virtual offset from MachineElfBase
@@ -195,6 +202,7 @@ ElfLayout :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachineE
     image := *layout.image
     image.os = .Linux
     image.hosts = hosts.imports
+    image.builtins = hosts.builtins
     diagnostic := MachineX64ImageMeasure(program, encoded, image)
     if diagnostic.problem != .None { return diagnostic }
     // PT_INTERP, both PT_LOADs, PT_DYNAMIC and PT_GNU_STACK when linking.
@@ -348,8 +356,8 @@ NameAt :: (bytes: []u8, at: s64, end: s64, name: string) -> bool {
 // Empty OUTPUT measures. A non-empty OUTPUT must have exactly the measured
 // length. Verification, complete relocation resolution and i32 range checks
 // all finish before the first output byte is changed. HOSTS names the host
-// libraries a program that calls host capabilities links; a program with
-// none takes empty HOSTS and is static.
+// libraries a program that calls host capabilities links, and the services
+// the executable carries itself; a program with neither is static.
 MachineElfEncode :: (program: MachineProgram, encoded: MachineX64Image, output: []u8,
     fuel: s64, hosts: MachineElfHosts) -> MachineElfResult {
     if fuel < 0 { return Failure(.Fuel) }

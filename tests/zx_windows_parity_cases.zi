@@ -309,6 +309,48 @@ ConsoleLines :: (test: *NativeTest, tools: string, wine: string) -> bool {
     return true
 }
 
+// Files and clock platform services come from code the image carries
+// itself. The program links no host library: its ELF stays static, its .exe
+// imports exactly the kernel32 functions the veneers call, and both answer
+// 42 from a directory the program makes, fills, lists, renames and empties
+// under the working directory, with a name outside ASCII and a 16 KiB read
+// that grows its block, leaving nothing behind.
+FilesClock :: (test: *NativeTest, tools: string, wine: string) -> bool {
+    app := CheckPath(test.work, "files.zi")
+    unused NativeWrite(test, app, "Files :: #import \"std/guest_files\";\nClock :: #import \"std/guest_clock\";\n\nBig :: () -> string {\n    out: Vec(u8)\n    for block: 0..255 { BuilderAppend(out, \"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789++\") }\n    return BuilderFinish(out)\n}\n\n// Whether LISTING, one name per line, carries NAME.\nHas :: (listing: string, name: string) -> bool {\n    start: s64 = 0\n    while start < listing.count {\n        end := start\n        while end < listing.count && listing[end] != cast(u8)10 { end += 1 }\n        if listing[start:end] == name { return true }\n        start = end + 1\n    }\n    return false\n}\n\n#program_export\nmain :: () -> s32 {\n    base := \"files-case\"\n    if !Files.DirectoryMake(base) { return 1 }\n    if Files.FileStatus(base) != -2 { return 2 }\n    if !Files.DirectoryMake(base) { return 3 }\n    if !Files.FileWrite(\"files-case/a.txt\", \"alpha\") { return 4 }\n    if Files.FileStatus(\"files-case/a.txt\") != 5 { return 5 }\n    big := Big()\n    if big.count != 16384 { return 100 }\n    if !Files.FileWrite(\"files-case/big.bin\", big) { return 6 }\n    if Files.FileStatus(\"files-case/big.bin\") != 16384 { return 7 }\n    data, ok := Files.FileRead(\"files-case/big.bin\")\n    if !ok || data != big { return 8 }\n    if Files.FileStatus(\"files-case/missing\") != -1 { return 9 }\n    if !Files.FileWrite(\"files-case/Paraguái.txt\", \"í\") { return 10 }\n    listing := Files.DirectoryList(base)\n    if !Has(listing, \"a.txt\") || !Has(listing, \"big.bin\") || !Has(listing, \"Paraguái.txt\") ||\n        listing.count != \"a.txt\\nbig.bin\\nParaguái.txt\".count { return 11 }\n    if !Files.FileRename(\"files-case/a.txt\", \"files-case/b.txt\") { return 12 }\n    if Files.FileStatus(\"files-case/a.txt\") != -1 || Files.FileStatus(\"files-case/b.txt\") != 5 { return 13 }\n    if !Files.FileRemove(\"files-case/b.txt\") { return 14 }\n    if Files.FileStatus(\"files-case/b.txt\") != -1 { return 15 }\n    if Files.FileRemove(\"files-case/b.txt\") { return 16 }\n    if Files.FileRename(\"files-case/missing\", \"files-case/x\") { return 17 }\n    if Files.FileWrite(\"files-case/sub/deep.txt\", \"x\") { return 18 }\n    if Files.FileStatus(\"files-case\") != -2 { return 19 }\n    again, ok2 := Files.FileRead(\"files-case/big.bin\")\n    if !ok2 || again != big { return 20 }\n    if Files.FileStatus(\"\") != -1 { return 21 }\n    if !Files.FileWrite(\"files-case/empty\", \"\") { return 22 }\n    empty, ok3 := Files.FileRead(\"files-case/empty\")\n    if !ok3 || empty != \"\" { return 23 }\n    start := Clock.MonotonicNanoseconds()\n    if start < 0 { return 24 }\n    wall := Clock.WallMilliseconds()\n    if Clock.MonotonicNanoseconds() < start { return 25 }\n    if wall < 1700000000000 || wall > 4102444800000 { return 26 }\n    if !Files.FileRemove(\"files-case/empty\") || !Files.FileRemove(\"files-case/big.bin\") ||\n        !Files.FileRemove(\"files-case/Paraguái.txt\") { return 27 }\n    if Files.DirectoryList(\"files-case\") != \"\" { return 28 }\n    if Files.DirectoryList(\"files-case/missing\") != \"\" { return 29 }\n    whole, ok4 := Files.FileRead(\"files-case\")\n    if ok4 || whole != \"\" { return 30 }\n    if Clock.MonotonicNanoseconds() < start { return 31 }\n    return 42\n}\n")
+    zx := CheckPath(test.work, "files.zx")
+    lower := string.[CheckPath(tools, "zi2zx"), "--root", test.work, "-I", CheckPath(test.repo, "std"),
+        "--entry", "files:main", "-o", zx, app]
+    unused NativeRun(test, lower[:])
+    elf := CheckPath(test.work, "files.elf")
+    exe := CheckPath(test.work, "files.exe")
+    if test.failed || !Executables(test, tools, zx, elf, exe) { return false }
+    imports := string.["ExitProcess", "WriteFile", "VirtualAlloc", "VirtualFree", "MultiByteToWideChar",
+        "WideCharToMultiByte", "GetFileAttributesExW", "CreateFileW", "ReadFile", "CloseHandle",
+        "DeleteFileW", "MoveFileExW", "CreateDirectoryW", "FindFirstFileW", "FindNextFileW", "FindClose",
+        "QueryPerformanceCounter", "QueryPerformanceFrequency", "GetSystemTimeAsFileTime"]
+    count: s64 = 0
+    if !PeCheck(test, exe, imports[:], *count) { return false }
+    folder := CheckPath(test.work, "files-case")
+    native := string.[elf]
+    emulated := string.["env", "-u", "TMPDIR", wine, exe]
+    for index: cast(s64)0..1 {
+        label := ifx index == 0 then "Linux" else "Wine"
+        if IsDirectory(folder) && !RemoveTree(folder) {
+            return NativeAssert(test, false, "cannot clear the files case directory")
+        }
+        run: NativeCommand
+        if index == 0 { run = NativeInvoke(test, native[:], test.work) }
+        else { run = NativeInvoke(test, emulated[:], test.work) }
+        parts := string.["files and clock under ", label, ": status ", CheckNumber(run.code), ", output ", Excerpt(run.output)]
+        if !NativeAssert(test, run.code == 42 && run.output == "", TextDetach(TextJoin(parts[:], ""))) { return false }
+        left: Vec(string)
+        if !NativeAssert(test, IsDirectory(folder) && ListDirectory(folder, *left) && left.count == 0,
+            CheckConcat("files and clock under ", CheckConcat(label, ": the program left files behind"))) { return false }
+    }
+    return true
+}
+
 // Real named DLL imports, two providers, Win64 register/stack placement,
 // aggregate arguments, floating results and narrow signed/unsigned results.
 WindowsHosts :: (test: *NativeTest, tools: string, wine: string) -> bool {
@@ -458,6 +500,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     }
     if !NativeAssert(*test, unwind > 0, "no Windows image carried x64 unwind data") { return 1 }
     unused NativeAssert(*test, ConsoleLines(*test, tools, wine), "console line mode failed")
+    unused NativeAssert(*test, FilesClock(*test, tools, wine), "built-in files and clock failed")
     unused NativeAssert(*test, WindowsHosts(*test, tools, wine), "Windows external hosts failed")
     server := CheckExecutable("wineserver")
     if server != "" {
@@ -467,6 +510,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if test.failed { return 1 }
     print("Windows console line mode: the first line reaches a terminal while the program works, on Linux and Windows\n")
     print("Windows named DLL hosts: two providers, Win64 scalar/record/float arguments, IAT/map/determinism and explicit gaps passed\n")
+    print("Windows built-in files and clock: every service under Wine as on Linux, exact kernel32 imports, nothing left behind\n")
     version := string.["env", "-u", "TMPDIR", wine, "--version"]
     print("Windows parity: % programs print and exit as their Linux native ELFs, as PE32+ executables under %",
         cases.count + 1, NativeInvoke(*test, version[:]).output)

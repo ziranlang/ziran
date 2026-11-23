@@ -21,7 +21,7 @@ assembly_usage(void)
 {
     fputs("usage: zx2native [--target x86_64|aarch64|armv7] [--platform linux|android|windows] [--emit elf|map|image] [--fuel N] -o FILE INPUT.zx\n"
           "elf writes the platform's executable: an ELF on Linux, a PE32+ .exe on Windows\n"
-          "x86-64 Linux ELF and Windows PE link capabilities from registered host libraries\n"
+          "x86-64 Linux ELF and Windows PE carry the files and clock services themselves and link other capabilities from registered host libraries\n"
           "map selection: [--function-id N [--block-id N]] [--address-begin N --address-end N]\n"
           "--fuel sets an executable's starting fuel; it is unbounded by default, as for a bundle run\n"
           "zx2native reads only decoded and verified ZX and uses only the no-fallback machine-IR path\n"
@@ -95,8 +95,9 @@ assembly_read(const char *path, size_t *size)
  * ZIRAN_HOST_PATH's absolute directories, or $XDG_DATA_HOME/ziran/hosts
  * (~/.local/share/ziran/hosts) and then $XDG_DATA_DIRS (/usr/local/share and
  * /usr/share) with /ziran/hosts, each directory's in name order. A Linux
- * x86-64 ELF links each capability from the first library that defines it;
- * a capability none defines is a gap. */
+ * x86-64 ELF or Windows PE links each capability the image does not carry
+ * itself from the first library that defines it; a capability none defines
+ * is a gap. */
 typedef struct AssemblyHostLibrary {
     char *path;
     unsigned char *bytes;
@@ -236,27 +237,43 @@ assembly_hosts_load(AssemblyHosts *hosts)
 }
 #endif
 
-/* Every host capability of PROGRAM needs a library that defines it. Linux
- * ELF and Windows PE on x86-64 link them; other rows are gaps. Platform services
- * are lowered by the machine pipeline itself. Fills HOSTS->links. */
+/* Every host capability of PROGRAM needs a provider. Linux ELF and Windows PE
+ * on x86-64 carry the ZX Runner's files and clock services themselves (a -2
+ * provider, MachineX64HostBuiltin) and link every other capability from a
+ * library that defines it; other rows are gaps. Platform services are lowered
+ * by the machine pipeline itself. Fills HOSTS->links. */
 static int
 assembly_machine_hosts(const LirProgram *program, TargetDescription target, AssemblyHosts *hosts)
 {
     const LirFunction *functions = program->functions.data;
+    const String *modules = program->modules.data;
     int linking = target.arch == TargetArch_X86_64 &&
         (target.os == TargetOS_Linux || target.os == TargetOS_Windows);
+    int allocated = 0;
     int loaded = 0;
     for(int64_t index = 0; index < program->functions.length; index++) {
         if(!functions[index].external || ZxPlatformService(program, index) != ZX_SERVICE_NONE) continue;
         String name = functions[index].name;
+        int builtin = linking && functions[index].module >= 0 &&
+            functions[index].module < program->modules.length &&
+            compiler_target_TargetBuiltinHost(modules[functions[index].module], name) != TargetService_Invalid;
+        if(linking && !allocated) {
+            allocated = 1;
+            hosts->providers = malloc((size_t)program->functions.length * sizeof(*hosts->providers));
+            if(hosts->providers == NULL) { DiagnosticOutOfMemory(); return 1; }
+            for(int64_t at = 0; at < program->functions.length; at++) hosts->providers[at] = -1;
+            /* Every host function has its provider entry from here on, so a
+             * program whose capabilities are all built in loads no library. */
+            hosts->links.providers = (Slice){hosts->providers, program->functions.length};
+        }
+        if(builtin) {
+            hosts->providers[index] = MachineX64HostBuiltin;
+            continue;
+        }
+        /* The libraries are read once, when the first capability needs one. */
         if(linking && !loaded) {
             loaded = 1;
-            hosts->providers = malloc((size_t)program->functions.length * sizeof(*hosts->providers));
-            if(hosts->providers == NULL || !assembly_hosts_load(hosts)) {
-                if(hosts->providers == NULL) DiagnosticOutOfMemory();
-                return 1;
-            }
-            for(int64_t at = 0; at < program->functions.length; at++) hosts->providers[at] = -1;
+            if(!assembly_hosts_load(hosts)) return 1;
             hosts->paths = calloc(hosts->count ? hosts->count : 1, sizeof(*hosts->paths));
             if(hosts->paths == NULL) { DiagnosticOutOfMemory(); return 1; }
         }
@@ -286,7 +303,6 @@ assembly_machine_hosts(const LirProgram *program, TargetDescription target, Asse
             hosts->links.libraries = (Slice){hosts->paths, hosts->links.libraries.length + 1};
         }
         hosts->providers[index] = library->linked;
-        hosts->links.providers = (Slice){hosts->providers, program->functions.length};
     }
     return 0;
 }

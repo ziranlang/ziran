@@ -73,7 +73,26 @@ only what its runtime calls, is DYNAMIC_BASE/HIGH_ENTROPY_VA with base
 relocations for the pointer runtime's addresses and NX_COMPAT, and commits an
 8 MiB stack, so frames need no probes; every function with a prologue carries
 x64 unwind data (.pdata and .xdata), and a console gets each line once it ends
-where a redirected descriptor gets whole buffers. Every other described row
+where a redirected descriptor gets whole buffers. Both images also supply the
+ZX Runner's file and clock services themselves
+([`compiler_x86_host.zi`](../cmd/compiler_x86_host.zi)): a program that imports
+`FileStatusHost`, `FileReadHost`, `FileWriteHost`, `FileRemoveHost`,
+`FileRenameHost`, `DirectoryMakeHost`, `DirectoryListHost`,
+`MonotonicNanosecondsHost` or `WallMillisecondsHost` with the signatures
+`std/guest_files.zi` and `std/guest_clock.zi` declare gets a veneer after the
+library ones instead of a host-capability gap. The linker keeps these apart
+from library imports, so the ELF stays static and the PE imports only what its
+veneers call. Linux veneers make the system calls directly with the path in a
+4 KiB stack slot; Windows veneers widen UTF-8 paths to UTF-16 with
+`MultiByteToWideChar`, convert listed names back with `WideCharToMultiByte`,
+and import `GetFileAttributesExW`, `CreateFileW`, `ReadFile`, `WriteFile`,
+`DeleteFileW`, `MoveFileExW`, `CreateDirectoryW`, `FindFirstFileW`,
+`FindNextFileW`, `FindClose`, `QueryPerformanceCounter`,
+`QueryPerformanceFrequency` and `GetSystemTimeAsFileTime` as needed. A read
+or a listing grows a heap block through the runtime's resize entry, at least
+doubling it, and shrinks it to the final length; the block stays allocated.
+The built-in veneers carry no unwind records, since the unwind writer covers
+the program's own functions only. Every other described row
 fails before input/output with
 `assembly.gap.machine-platform-service-unavailable` because it has no
 executable writer or process-entry/`write_all`/exit runtime. Once a registry row

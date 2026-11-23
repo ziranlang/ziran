@@ -335,7 +335,7 @@ TARGET_ROW_COUNT :: 12
 TargetRowAt :: (index: s32) -> TargetRow {
     if index == 0 {
         return .{arch = .X86_64, os = .Linux, state = .Gap, executable = "elf", milestone = "M2-M3",
-            note = "Machine IR stops before register allocation and encoding; the native ZX loader and runtime cutover are not implemented."}
+            note = "zx2native writes a static ELF with the files and clock services built in, or linking registered host libraries; the native ZX loader and runtime cutover are not implemented."}
     }
     if index == 1 {
         return .{arch = .X86_64, os = .Android, state = .Gap, milestone = "M4",
@@ -343,7 +343,7 @@ TargetRowAt :: (index: s32) -> TargetRow {
     }
     if index == 2 {
         return .{arch = .X86_64, os = .Windows, state = .Gap, executable = "pe", milestone = "M5",
-            note = "zx2native writes a PE32+ console executable whose runtime calls kernel32 through its IAT, with x64 unwind data and console line mode; no in-process loader, files or clock."}
+            note = "zx2native writes a PE32+ console executable whose runtime calls kernel32 through its IAT, with x64 unwind data, console line mode and the files and clock services built in; no in-process loader."}
     }
     if index == 3 {
         return .{arch = .X86_64, os = .MacOS, state = .Gap, milestone = "M5",
@@ -450,4 +450,21 @@ TargetPreflightCode :: (problem: TargetPreflightProblem) -> string {
     if problem == .OsService { return "assembly.gap.os-service" }
     if problem == .Target { return "assembly.gap.target-unimplemented" }
     return ""
+}
+
+// The OS service a linking executable supplies itself for the host capability
+// MODULE:NAME, which the ZX Runner provides to every bundle: guest_clock's
+// MonotonicNanosecondsHost and WallMillisecondsHost read the clock, and
+// guest_files' FileStatusHost, FileReadHost, FileWriteHost, FileRemoveHost,
+// FileRenameHost, DirectoryMakeHost and DirectoryListHost reach the files.
+// Any other capability needs a registered host library.
+TargetBuiltinHost :: (module: string, name: string) -> TargetService {
+    if module == "guest_clock" {
+        if name == "MonotonicNanosecondsHost" || name == "WallMillisecondsHost" { return .Clock }
+        return .Invalid
+    }
+    if module == "guest_files" && (name == "FileStatusHost" || name == "FileReadHost" ||
+        name == "FileWriteHost" || name == "FileRemoveHost" || name == "FileRenameHost" ||
+        name == "DirectoryMakeHost" || name == "DirectoryListHost") { return .Files }
+    return .Invalid
 }

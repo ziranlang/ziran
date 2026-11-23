@@ -43,6 +43,11 @@ MachineX64HostImport :: struct {
     slot: s64
 }
 
+// The library field of an import the executable provides itself: the ZX
+// Runner's files and clock services (MachineX64HostBuiltinSupported), which
+// need no host library.
+MachineX64HostBuiltin :: -2
+
 #scope_file
 
 Rax :: 0
@@ -248,9 +253,15 @@ MachineX64HostSupported :: (program: MachineProgram, host: MachineX64HostImport)
 // IMPORT's veneer at the writer's position, calling through the slot at
 // position SLOT: push rbp; mov rbp, rsp; the argument moves; call [rip +
 // slot]; the result's widening; pop rbp; ret. A measuring writer only counts
-// its bytes, which never depend on the slot's position.
+// its bytes, which never depend on the slot's position. A built-in service
+// (library MachineX64HostBuiltin) gets its own veneer instead, growing
+// buffers through the runtime's RESIZE entry and on Windows calling kernel32
+// through IMPORTS.
 MachineX64HostVeneer :: (writer: *X86Writer, program: MachineProgram, host: MachineX64HostImport,
-    slot: s64) -> bool {
+    slot: s64, resize: s64, imports: MachineWin64Slots) -> bool {
+    if host.library == MachineX64HostBuiltin {
+        return BuiltinVeneer(writer, program, host, resize, imports)
+    }
     if !MachineX64HostSupported(program, host) { return false }
     if program.target.os == .Windows {
         if !WindowsArguments(program, host, writer, true) { return false }
@@ -268,4 +279,1142 @@ MachineX64HostVeneer :: (writer: *X86Writer, program: MachineProgram, host: Mach
     X86Byte(writer, 93)
     X86Return(writer)
     return !writer.failed
+}
+
+// Whether IMPORT, provided by the executable itself, names one of the ZX
+// Runner's services and has the signature that service takes: a path string
+// for the file services, and a string result for the two that read, an s64
+// for the status and clock services and a bool for the rest.
+MachineX64HostBuiltinSupported :: (program: MachineProgram, host: MachineX64HostImport) -> bool {
+    if host.library != MachineX64HostBuiltin || host.function < 0 || host.function >= program.functions.count {
+        return false
+    }
+    return BuiltinSignature(program, host, BuiltinOf(program, host.function))
+}
+
+// The kernel32 functions the built-in services of BUILTINS need on Windows, as
+// an import mask in MachineWin64Import order.
+MachineX64HostBuiltinImports :: (program: MachineProgram, builtins: []MachineX64HostImport) -> u32 {
+    imports: u32 = 0
+    for host: builtins {
+        if host.function < 0 || host.function >= program.functions.count { continue }
+        imports = imports | BuiltinImports(BuiltinOf(program, host.function))
+    }
+    return imports
+}
+
+// Whether a built-in service of BUILTINS grows a block through the runtime's
+// resize entry: the two that read a file or a directory.
+MachineX64HostBuiltinResize :: (program: MachineProgram, builtins: []MachineX64HostImport) -> bool {
+    for host: builtins {
+        if host.function < 0 || host.function >= program.functions.count { continue }
+        kind := BuiltinOf(program, host.function)
+        if kind == .FileRead || kind == .DirectoryList { return true }
+    }
+    return false
+}
+
+#scope_file
+
+// The ZX Runner services a linking x86-64 executable supplies itself, named
+// by its host function; compiler_target.zi's TargetBuiltinHost also tells
+// them by module before a provider is chosen.
+MachineX64Builtin :: enum s32 {
+    None; FileStatus; FileRead; FileWrite; FileRemove; FileRename; DirectoryMake; DirectoryList
+    Monotonic; Wall
+}
+
+Rdx :: 2
+Rbx :: 3
+Rsi :: 6
+Rdi :: 7
+R8 :: 8
+R9 :: 9
+R10 :: 10
+R12 :: 12
+R13 :: 13
+R14 :: 14
+R15 :: 15
+// Condition codes compiler_x86_bytes.zi leaves to the user: jo and js.
+Overflow :: 0
+Sign :: 8
+
+NameIs :: (program: MachineProgram, function: s32, expected: string) -> bool {
+    if function < 0 || function >= program.functions.count { return false }
+    named := program.functions[function]
+    if named.name_offset < 0 || cast(s64)named.name_length != expected.count ||
+        cast(s64)named.name_offset > program.text.count - expected.count { return false }
+    for index: cast(s64)0..expected.count - 1 {
+        if program.text[named.name_offset + index] != cast(u8)expected[index] { return false }
+    }
+    return true
+}
+
+BuiltinOf :: (program: MachineProgram, function: s32) -> MachineX64Builtin {
+    if NameIs(program, function, "FileStatusHost") { return .FileStatus }
+    if NameIs(program, function, "FileReadHost") { return .FileRead }
+    if NameIs(program, function, "FileWriteHost") { return .FileWrite }
+    if NameIs(program, function, "FileRemoveHost") { return .FileRemove }
+    if NameIs(program, function, "FileRenameHost") { return .FileRename }
+    if NameIs(program, function, "DirectoryMakeHost") { return .DirectoryMake }
+    if NameIs(program, function, "DirectoryListHost") { return .DirectoryList }
+    if NameIs(program, function, "MonotonicNanosecondsHost") { return .Monotonic }
+    if NameIs(program, function, "WallMillisecondsHost") { return .Wall }
+    return .None
+}
+
+StringType :: (program: MachineProgram, id: s32) -> bool {
+    return ValidType(program, id) && Words(program, program.types[id]) == 2
+}
+
+Integer64 :: (program: MachineProgram, id: s32) -> bool {
+    if !ValidType(program, id) { return false }
+    type := program.types[id]
+    return type.kind == .Integer && type.bits == 64
+}
+
+Boolean :: (program: MachineProgram, id: s32) -> bool {
+    return ValidType(program, id) && program.types[id].kind == .Bool
+}
+
+BuiltinSignature :: (program: MachineProgram, host: MachineX64HostImport, kind: MachineX64Builtin) -> bool {
+    if kind == .None { return false }
+    strings: s64 = 1
+    if kind == .FileWrite || kind == .FileRename { strings = 2 }
+    if kind == .Monotonic || kind == .Wall { strings = 0 }
+    if host.parameters.count != strings { return false }
+    for id: host.parameters {
+        if !StringType(program, id) { return false }
+    }
+    if kind == .FileRead || kind == .DirectoryList { return StringType(program, host.result) }
+    if kind == .FileStatus || kind == .Monotonic || kind == .Wall { return Integer64(program, host.result) }
+    return Boolean(program, host.result)
+}
+
+BuiltinImports :: (kind: MachineX64Builtin) -> u32 {
+    if kind == .Monotonic {
+        return MachineWin64ImportBit(.QueryPerformanceCounter) | MachineWin64ImportBit(.QueryPerformanceFrequency)
+    }
+    if kind == .Wall { return MachineWin64ImportBit(.GetSystemTimeAsFileTime) }
+    text := MachineWin64ImportBit(.MultiByteToWideChar)
+    if kind == .FileStatus { return text | MachineWin64ImportBit(.GetFileAttributesExW) }
+    if kind == .FileRead {
+        return text | MachineWin64ImportBit(.CreateFileW) | MachineWin64ImportBit(.ReadFile) |
+            MachineWin64ImportBit(.CloseHandle)
+    }
+    if kind == .FileWrite {
+        return text | MachineWin64ImportBit(.CreateFileW) | MachineWin64ImportBit(.WriteFile) |
+            MachineWin64ImportBit(.CloseHandle)
+    }
+    if kind == .FileRemove { return text | MachineWin64ImportBit(.DeleteFileW) }
+    if kind == .FileRename { return text | MachineWin64ImportBit(.MoveFileExW) }
+    if kind == .DirectoryMake {
+        return text | MachineWin64ImportBit(.CreateDirectoryW) | MachineWin64ImportBit(.GetFileAttributesExW)
+    }
+    if kind == .DirectoryList {
+        return text | MachineWin64ImportBit(.FindFirstFileW) | MachineWin64ImportBit(.FindNextFileW) |
+            MachineWin64ImportBit(.FindClose) | MachineWin64ImportBit(.WideCharToMultiByte)
+    }
+    return 0
+}
+
+// The forward branches of one built-in veneer: positions relative to the
+// veneer's start, recorded by a measuring pass and followed by a writing one.
+BuiltinLabel :: enum s32 {
+    Skip; Skip2; Fail; Second; Third; Fourth; Fifth; Sixth; Seventh; Eighth; Ninth; Tenth; End
+    EnsureEntry; EnsureAgain; EnsureCap; EnsureCall; EnsureDone
+}
+
+// The Linux file veneers' frame, below rbp: the saved registers, five
+// scratch qwords (the offset, extent, length, name and need), the path and a
+// directory or stat buffer; rsp stays 16-byte aligned across calls.
+FileFrame :: 8280
+PathAt :: -4176
+BufferAt :: -8272
+OffAt :: -48
+EndAt :: -56
+LenAt :: -64
+NameAt :: -72
+NeedAt :: -80
+CapAt :: -88
+
+// The Windows file veneers' frame, below rsp once aligned: the shadow space,
+// stack arguments, two UTF-16 paths, a buffer for find data or attribute
+// data or a converted name, and scratch qwords.
+WinFrame :: 20608
+WinWide :: 64
+WinWide2 :: 8272
+WinBuffer :: 16480
+WinSlot :: 20560
+
+BuiltinEmitter :: struct {
+    writer: X86Writer
+    start: s64
+    labels: [19]s64
+    resize: s64
+    imports: MachineWin64Slots
+    windows: bool
+    // The scratch slots' base register and positions.
+    base: s32
+    off_at: s64
+    end_at: s64
+    len_at: s64
+    name_at: s64
+    need_at: s64
+    cap_at: s64
+}
+
+Mark :: (e: *BuiltinEmitter, label: BuiltinLabel) { e.labels[cast(s64)label] = e.writer.at - e.start }
+
+At :: (e: *BuiltinEmitter, label: BuiltinLabel) -> s64 { return e.start + e.labels[cast(s64)label] }
+
+Jump :: (e: *BuiltinEmitter, label: BuiltinLabel) { X86Jump32(*e.writer, At(e, label)) }
+
+JumpIf :: (e: *BuiltinEmitter, condition: s32, label: BuiltinLabel) {
+    X86JumpCondition32(*e.writer, condition, At(e, label))
+}
+
+Pop :: (e: *BuiltinEmitter, register: s32) {
+    if register >= 8 { X86Byte(*e.writer, 65) }
+    X86Byte(*e.writer, cast(u8)(88 + (register & 7)))
+}
+
+// and eax, 1: a Win64 BOOL to the bool the program keeps.
+LowBit :: (e: *BuiltinEmitter) {
+    X86Encode(*e.writer, 0, false, 131, 1, 4, X86Direct(Rax), trailing = 1)
+    X86Little(*e.writer, 1, 1)
+}
+
+// cld; push rbp; mov rbp, rsp; save rbx and r12-r15, the block, its
+// capacity and count, the descriptor and the result's address.
+Enter :: (e: *BuiltinEmitter) {
+    X86Byte(*e.writer, 252)
+    X86Push(*e.writer, Rbp)
+    X86Move(*e.writer, Rbp, X86Rsp)
+    X86Push(*e.writer, Rbx)
+    X86Push(*e.writer, R12)
+    X86Push(*e.writer, R13)
+    X86Push(*e.writer, R14)
+    X86Push(*e.writer, R15)
+    X86ArithmeticImmediate(*e.writer, X86Subtract, X86Rsp, FileFrame)
+}
+
+// mov rsp, rbp - 40; restore the registers; pop rbp; ret.
+Leave :: (e: *BuiltinEmitter) {
+    X86Lea(*e.writer, X86Rsp, X86At(Rbp, -40))
+    Pop(e, R15)
+    Pop(e, R14)
+    Pop(e, R13)
+    Pop(e, R12)
+    Pop(e, Rbx)
+    X86Byte(*e.writer, 93)
+    X86Return(*e.writer)
+}
+
+Syscall :: (e: *BuiltinEmitter, number: u64) {
+    X86MoveImmediate32(*e.writer, Rax, number)
+    X86Byte(*e.writer, 15)
+    X86Byte(*e.writer, 5)
+}
+
+// After a system call: -4095 or less in rax is an error, to LABEL.
+Failed :: (e: *BuiltinEmitter, label: BuiltinLabel) {
+    X86CompareImmediate(*e.writer, Rax, -4096)
+    JumpIf(e, X86AboveEqual, label)
+}
+
+// The path at [rbp + DATA], [rbp + COUNT] copied to [rbp + AT] and
+// NUL-terminated: a NUL inside it or 4096 bytes or more goes to FAIL, as the
+// ZX Runner refuses both.
+Path :: (e: *BuiltinEmitter, data: s64, count: s64, at: s64, fail: BuiltinLabel, skip: BuiltinLabel) {
+    X86Load(*e.writer, X86Rcx, X86At(Rbp, count), 8, false)
+    X86CompareImmediate(*e.writer, X86Rcx, 4096)
+    JumpIf(e, X86AboveEqual, fail)
+    X86Load(*e.writer, X86Rdi, X86At(Rbp, data), 8, false)
+    X86MoveImmediate32(*e.writer, Rax, 0)
+    X86Arithmetic(*e.writer, X86Test, X86Rcx, X86Rcx)
+    JumpIf(e, X86Equal, skip)
+    X86Byte(*e.writer, 242)
+    X86Byte(*e.writer, 174)
+    JumpIf(e, X86Equal, fail)
+    Mark(e, skip)
+    X86Load(*e.writer, Rsi, X86At(Rbp, data), 8, false)
+    X86Load(*e.writer, X86Rcx, X86At(Rbp, count), 8, false)
+    X86Lea(*e.writer, X86Rdi, X86At(Rbp, at))
+    X86Byte(*e.writer, 243)
+    X86Byte(*e.writer, 164)
+    X86StoreImmediate(*e.writer, X86At(X86Rdi, 0), 0, 1)
+}
+
+// The growth routine a reading veneer calls with the need in rdi: the block
+// in rbx (count r13, capacity r12) grows to hold that much more, at least
+// doubling the capacity and never below 4096, through the runtime's resize
+// with the previous capacity as the old count. The need and the new capacity
+// wait in their slots across the call, which keeps no caller register; a
+// refused resize, which leaves the old block live, goes to FAIL. The routine
+// keeps rsp 16-byte aligned across its own call, so on Windows the body's
+// rsp-relative slots sit 16 bytes above the routine's rsp.
+EnsureRoutine :: (e: *BuiltinEmitter) {
+    extra := ifx e.windows then 16 else 0
+    Mark(e, .EnsureEntry)
+    X86ArithmeticImmediate(*e.writer, X86Subtract, X86Rsp, 8)
+    Mark(e, .EnsureAgain)
+    X86Move(*e.writer, Rax, R13)
+    X86Arithmetic(*e.writer, X86Add, Rax, Rdi)
+    X86Arithmetic(*e.writer, X86Compare, R12, Rax)
+    JumpIf(e, X86AboveEqual, .EnsureDone)
+    X86Move(*e.writer, Rdx, R12)
+    X86Arithmetic(*e.writer, X86Add, Rdx, Rdx)
+    X86Arithmetic(*e.writer, X86Compare, Rdx, Rax)
+    JumpIf(e, X86AboveEqual, .EnsureCap)
+    X86Move(*e.writer, Rdx, Rax)
+    Mark(e, .EnsureCap)
+    X86MoveImmediate(*e.writer, Rax, 4096)
+    X86Arithmetic(*e.writer, X86Compare, Rdx, Rax)
+    JumpIf(e, X86AboveEqual, .EnsureCall)
+    X86Move(*e.writer, Rdx, Rax)
+    Mark(e, .EnsureCall)
+    X86Store(*e.writer, X86At(e.base, e.cap_at + extra), Rdx, 8)
+    X86Store(*e.writer, X86At(e.base, e.need_at + extra), Rdi, 8)
+    X86Move(*e.writer, Rdi, Rbx)
+    X86Move(*e.writer, Rsi, R12)
+    X86MoveImmediate(*e.writer, X86Rcx, 1)
+    X86Call32(*e.writer, e.resize)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Fail)
+    X86Move(*e.writer, Rbx, Rax)
+    X86Load(*e.writer, R12, X86At(e.base, e.cap_at + extra), 8, false)
+    X86Load(*e.writer, Rdi, X86At(e.base, e.need_at + extra), 8, false)
+    Jump(e, .EnsureAgain)
+    Mark(e, .EnsureDone)
+    X86ArithmeticImmediate(*e.writer, X86Add, X86Rsp, 8)
+    X86Return(*e.writer)
+}
+
+// Grows the block through the veneer's routine, with the need in rdi.
+Ensure :: (e: *BuiltinEmitter) {
+    X86Call32(*e.writer, At(e, .EnsureEntry))
+}
+
+// The file read whole (rbx, r13) shrunk to its count through the runtime,
+// then {data, count} through r15; an empty read is {0, 0}. A refused shrink
+// keeps the old block in rbx, so the failure path can still release it.
+Shrink :: (e: *BuiltinEmitter, fail: BuiltinLabel, result: BuiltinLabel) {
+    X86Arithmetic(*e.writer, X86Compare, R13, R12)
+    JumpIf(e, X86Equal, result)
+    X86Arithmetic(*e.writer, X86Test, R13, R13)
+    JumpIf(e, X86Equal, result)
+    X86Move(*e.writer, Rdi, Rbx)
+    X86Move(*e.writer, Rsi, R12)
+    X86Move(*e.writer, Rdx, R13)
+    X86MoveImmediate(*e.writer, X86Rcx, 1)
+    X86Call32(*e.writer, e.resize)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, fail)
+    X86Move(*e.writer, Rbx, Rax)
+    Mark(e, result)
+    X86Store(*e.writer, X86At(R15, 0), Rbx, 8)
+    X86Store(*e.writer, X86At(R15, 8), R13, 8)
+    X86Move(*e.writer, Rax, R15)
+}
+
+// Releases the block and answers {0, 0}: the failure of a reading service.
+Empty :: (e: *BuiltinEmitter, done: BuiltinLabel) {
+    X86Arithmetic(*e.writer, X86Test, Rbx, Rbx)
+    JumpIf(e, X86Equal, done)
+    X86Move(*e.writer, Rdi, Rbx)
+    X86Move(*e.writer, Rsi, R12)
+    X86MoveImmediate(*e.writer, Rdx, 0)
+    X86MoveImmediate(*e.writer, X86Rcx, 1)
+    X86Call32(*e.writer, e.resize)
+    Mark(e, done)
+    X86StoreImmediate(*e.writer, X86At(R15, 0), 0, 8)
+    X86StoreImmediate(*e.writer, X86At(R15, 8), 0, 8)
+    X86Move(*e.writer, Rax, R15)
+}
+
+// Linux, System V: the path's status by newfstatat, -1 for a missing path and
+// -2 for a directory.
+LinuxStatus :: (e: *BuiltinEmitter) {
+    Enter(e)
+    Path(e, 16, 24, PathAt, .Fail, .Skip)
+    X86MoveImmediate(*e.writer, X86Rdi, cast(u64)(-100))
+    X86Lea(*e.writer, Rsi, X86At(Rbp, PathAt))
+    X86Lea(*e.writer, X86Rdx, X86At(Rbp, BufferAt))
+    X86MoveImmediate(*e.writer, R10, 0)
+    Syscall(e, 262)
+    Failed(e, .Fail)
+    X86Load(*e.writer, Rax, X86At(Rbp, BufferAt + 24), 4, false)
+    X86ArithmeticImmediate(*e.writer, X86And, Rax, 0xf000)
+    X86CompareImmediate(*e.writer, Rax, 0x4000)
+    JumpIf(e, X86Equal, .Second)
+    X86Load(*e.writer, Rax, X86At(Rbp, BufferAt + 48), 8, false)
+    Jump(e, .Third)
+    Mark(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 0xffffffffffffffff)
+    Jump(e, .Third)
+    Mark(e, .Second)
+    X86MoveImmediate(*e.writer, Rax, 0xfffffffffffffffe)
+    Mark(e, .Third)
+    Leave(e)
+}
+
+LinuxRemove :: (e: *BuiltinEmitter) {
+    Enter(e)
+    Path(e, 16, 24, PathAt, .Fail, .Skip)
+    X86MoveImmediate(*e.writer, X86Rdi, cast(u64)(-100))
+    X86Lea(*e.writer, Rsi, X86At(Rbp, PathAt))
+    X86MoveImmediate(*e.writer, Rdx, 0)
+    Syscall(e, 263)
+    Failed(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 1)
+    Jump(e, .Second)
+    Mark(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 0)
+    Mark(e, .Second)
+    Leave(e)
+}
+
+LinuxRename :: (e: *BuiltinEmitter) {
+    Enter(e)
+    Path(e, 16, 24, PathAt, .Fail, .Skip)
+    Path(e, 32, 40, BufferAt, .Fail, .Skip2)
+    X86MoveImmediate(*e.writer, X86Rdi, cast(u64)(-100))
+    X86Lea(*e.writer, Rsi, X86At(Rbp, PathAt))
+    X86MoveImmediate(*e.writer, Rdx, cast(u64)(-100))
+    X86Lea(*e.writer, R10, X86At(Rbp, BufferAt))
+    Syscall(e, 264)
+    Failed(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 1)
+    Jump(e, .Second)
+    Mark(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 0)
+    Mark(e, .Second)
+    Leave(e)
+}
+
+// mkdirat, or a directory already there, as the ZX Runner's CreateDirectory.
+LinuxMake :: (e: *BuiltinEmitter) {
+    Enter(e)
+    Path(e, 16, 24, PathAt, .Fail, .Skip)
+    X86MoveImmediate(*e.writer, X86Rdi, cast(u64)(-100))
+    X86Lea(*e.writer, Rsi, X86At(Rbp, PathAt))
+    X86MoveImmediate(*e.writer, Rdx, 493)
+    Syscall(e, 258)
+    X86CompareImmediate(*e.writer, Rax, -4096)
+    JumpIf(e, X86Below, .Second)
+    X86MoveImmediate(*e.writer, X86Rdi, cast(u64)(-100))
+    X86Lea(*e.writer, Rsi, X86At(Rbp, PathAt))
+    X86Lea(*e.writer, Rdx, X86At(Rbp, BufferAt))
+    X86MoveImmediate(*e.writer, R10, 0)
+    Syscall(e, 262)
+    Failed(e, .Fail)
+    X86Load(*e.writer, Rax, X86At(Rbp, BufferAt + 24), 4, false)
+    X86ArithmeticImmediate(*e.writer, X86And, Rax, 0xf000)
+    X86CompareImmediate(*e.writer, Rax, 0x4000)
+    JumpIf(e, X86Equal, .Second)
+    Mark(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 0)
+    Jump(e, .Third)
+    Mark(e, .Second)
+    X86MoveImmediate(*e.writer, Rax, 1)
+    Mark(e, .Third)
+    Leave(e)
+}
+
+// openat with O_WRONLY | O_CREAT | O_TRUNC and 0644, write until all is
+// written, retrying EINTR; false when the open or a write fails or close
+// does.
+LinuxWrite :: (e: *BuiltinEmitter) {
+    Enter(e)
+    Path(e, 16, 24, PathAt, .Fail, .Skip)
+    X86MoveImmediate(*e.writer, X86Rdi, cast(u64)(-100))
+    X86Lea(*e.writer, Rsi, X86At(Rbp, PathAt))
+    X86MoveImmediate(*e.writer, Rdx, 577)
+    X86MoveImmediate(*e.writer, R10, 420)
+    Syscall(e, 257)
+    Failed(e, .Fail)
+    X86Move(*e.writer, Rbx, Rax)
+    X86Load(*e.writer, R12, X86At(Rbp, 32), 8, false)
+    X86Load(*e.writer, R13, X86At(Rbp, 40), 8, false)
+    Mark(e, .Second)
+    X86Arithmetic(*e.writer, X86Test, R13, R13)
+    JumpIf(e, X86Equal, .Third)
+    X86Move(*e.writer, Rdi, Rbx)
+    X86Move(*e.writer, Rsi, R12)
+    X86Move(*e.writer, Rdx, R13)
+    Syscall(e, 1)
+    X86CompareImmediate(*e.writer, Rax, -4)
+    JumpIf(e, X86Equal, .Second)
+    Failed(e, .Fourth)
+    X86Arithmetic(*e.writer, X86Add, R12, Rax)
+    X86Arithmetic(*e.writer, X86Subtract, R13, Rax)
+    Jump(e, .Second)
+    Mark(e, .Third)
+    X86Move(*e.writer, Rdi, Rbx)
+    Syscall(e, 3)
+    Failed(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 1)
+    Jump(e, .Fifth)
+    Mark(e, .Fourth)
+    X86Move(*e.writer, Rdi, Rbx)
+    Syscall(e, 3)
+    Mark(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 0)
+    Mark(e, .Fifth)
+    Leave(e)
+}
+
+// openat O_RDONLY and read to its end into a block grown through the
+// runtime, then shrunk to the count; a missing or unreadable path, or a
+// refused growth, answers an empty string.
+LinuxRead :: (e: *BuiltinEmitter) {
+    Enter(e)
+    X86Move(*e.writer, R15, Rax)
+    X86MoveImmediate(*e.writer, R14, 0xffffffffffffffff)
+    X86MoveImmediate(*e.writer, Rbx, 0)
+    X86MoveImmediate(*e.writer, R12, 0)
+    X86MoveImmediate(*e.writer, R13, 0)
+    Path(e, 16, 24, PathAt, .Fail, .Skip)
+    X86MoveImmediate(*e.writer, X86Rdi, cast(u64)(-100))
+    X86Lea(*e.writer, Rsi, X86At(Rbp, PathAt))
+    X86MoveImmediate(*e.writer, Rdx, 0)
+    X86MoveImmediate(*e.writer, R10, 0)
+    Syscall(e, 257)
+    Failed(e, .Fail)
+    X86Move(*e.writer, R14, Rax)
+    Mark(e, .Second)
+    X86Arithmetic(*e.writer, X86Compare, R12, R13)
+    JumpIf(e, X86Above, .Third)
+    X86MoveImmediate(*e.writer, Rdi, 1)
+    Ensure(e)
+    Mark(e, .Third)
+    X86Move(*e.writer, Rdi, R14)
+    X86Lea(*e.writer, Rsi, X86Indexed(Rbx, R13, 0))
+    X86Move(*e.writer, Rdx, R12)
+    X86Arithmetic(*e.writer, X86Subtract, Rdx, R13)
+    Syscall(e, 0)
+    X86CompareImmediate(*e.writer, Rax, -4)
+    JumpIf(e, X86Equal, .Third)
+    Failed(e, .Fail)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Fifth)
+    X86Arithmetic(*e.writer, X86Add, R13, Rax)
+    Jump(e, .Second)
+    Mark(e, .Fifth)
+    X86Move(*e.writer, Rdi, R14)
+    Syscall(e, 3)
+    Shrink(e, .Fail, .Sixth)
+    Jump(e, .Seventh)
+    Mark(e, .Fail)
+    X86Arithmetic(*e.writer, X86Test, R14, R14)
+    JumpIf(e, Sign, .Ninth)
+    X86Move(*e.writer, Rdi, R14)
+    Syscall(e, 3)
+    Mark(e, .Ninth)
+    Empty(e, .Tenth)
+    Mark(e, .Seventh)
+    Leave(e)
+}
+
+// openat O_RDONLY | O_DIRECTORY and getdents64 in kernel order, skipping
+// "." and "..", the names joined by newlines without a trailing one.
+LinuxList :: (e: *BuiltinEmitter) {
+    Enter(e)
+    X86Move(*e.writer, R15, Rax)
+    X86MoveImmediate(*e.writer, R14, 0xffffffffffffffff)
+    X86MoveImmediate(*e.writer, Rbx, 0)
+    X86MoveImmediate(*e.writer, R12, 0)
+    X86MoveImmediate(*e.writer, R13, 0)
+    Path(e, 16, 24, PathAt, .Fail, .Skip)
+    X86MoveImmediate(*e.writer, X86Rdi, cast(u64)(-100))
+    X86Lea(*e.writer, Rsi, X86At(Rbp, PathAt))
+    X86MoveImmediate(*e.writer, Rdx, 65536)
+    X86MoveImmediate(*e.writer, R10, 0)
+    Syscall(e, 257)
+    Failed(e, .Fail)
+    X86Move(*e.writer, R14, Rax)
+    Mark(e, .Second)
+    X86Move(*e.writer, Rdi, R14)
+    X86Lea(*e.writer, Rsi, X86At(Rbp, BufferAt))
+    X86MoveImmediate(*e.writer, Rdx, 4096)
+    Syscall(e, 217)
+    Failed(e, .Fifth)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Fifth)
+    X86Store(*e.writer, X86At(Rbp, EndAt), Rax, 8)
+    X86StoreImmediate(*e.writer, X86At(Rbp, OffAt), 0, 8)
+    Mark(e, .Third)
+    X86Load(*e.writer, Rax, X86At(Rbp, OffAt), 8, false)
+    X86Load(*e.writer, X86Rcx, X86At(Rbp, EndAt), 8, false)
+    X86Arithmetic(*e.writer, X86Compare, Rax, X86Rcx)
+    JumpIf(e, X86AboveEqual, .Second)
+    X86Lea(*e.writer, Rsi, X86At(Rbp, BufferAt + 19))
+    X86Arithmetic(*e.writer, X86Add, Rsi, Rax)
+    X86Load(*e.writer, Rdx, X86At(Rsi, -3), 2, false)
+    X86Arithmetic(*e.writer, X86Add, Rax, Rdx)
+    X86Store(*e.writer, X86At(Rbp, OffAt), Rax, 8)
+    X86Load(*e.writer, Rax, X86At(Rsi, 0), 1, false)
+    X86CompareImmediate(*e.writer, Rax, 46)
+    JumpIf(e, X86NotEqual, .Fourth)
+    X86Load(*e.writer, Rax, X86At(Rsi, 1), 1, false)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Third)
+    X86CompareImmediate(*e.writer, Rax, 46)
+    JumpIf(e, X86NotEqual, .Fourth)
+    X86Load(*e.writer, Rax, X86At(Rsi, 2), 1, false)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Third)
+    Mark(e, .Fourth)
+    X86Store(*e.writer, X86At(Rbp, NameAt), Rsi, 8)
+    X86Move(*e.writer, X86Rdi, Rsi)
+    X86MoveImmediate32(*e.writer, X86Rcx, 4096)
+    X86MoveImmediate32(*e.writer, Rax, 0)
+    X86Byte(*e.writer, 242)
+    X86Byte(*e.writer, 174)
+    X86Arithmetic(*e.writer, X86Subtract, X86Rdi, Rsi)
+    X86ArithmeticImmediate(*e.writer, X86Subtract, X86Rdi, 1)
+    X86Store(*e.writer, X86At(Rbp, LenAt), Rdi, 8)
+    X86Arithmetic(*e.writer, X86Test, R13, R13)
+    JumpIf(e, X86Equal, .Eighth)
+    X86ArithmeticImmediate(*e.writer, X86Add, Rdi, 1)
+    Ensure(e)
+    X86StoreImmediate(*e.writer, X86Indexed(Rbx, R13, 0), 10, 1)
+    X86ArithmeticImmediate(*e.writer, X86Add, R13, 1)
+    Jump(e, .Ninth)
+    Mark(e, .Eighth)
+    X86Load(*e.writer, Rdi, X86At(Rbp, LenAt), 8, false)
+    Ensure(e)
+    Mark(e, .Ninth)
+    X86Load(*e.writer, X86Rcx, X86At(Rbp, LenAt), 8, false)
+    X86Load(*e.writer, Rsi, X86At(Rbp, NameAt), 8, false)
+    X86Lea(*e.writer, X86Rdi, X86Indexed(Rbx, R13, 0))
+    X86Arithmetic(*e.writer, X86Add, R13, X86Rcx)
+    X86Byte(*e.writer, 243)
+    X86Byte(*e.writer, 164)
+    Jump(e, .Third)
+    Mark(e, .Fifth)
+    X86Move(*e.writer, Rdi, R14)
+    Syscall(e, 3)
+    Shrink(e, .Fail, .Sixth)
+    Jump(e, .Seventh)
+    Mark(e, .Fail)
+    X86Arithmetic(*e.writer, X86Test, R14, R14)
+    JumpIf(e, Sign, .Tenth)
+    X86Move(*e.writer, Rdi, R14)
+    Syscall(e, 3)
+    Mark(e, .Tenth)
+    Empty(e, .End)
+    Mark(e, .Seventh)
+    Leave(e)
+}
+
+// clock_gettime(CLOCK_MONOTONIC): seconds * 1e9 + nanoseconds, -1 on failure
+// or overflow.
+LinuxMonotonic :: (e: *BuiltinEmitter) {
+    X86Push(*e.writer, Rbp)
+    X86Move(*e.writer, Rbp, X86Rsp)
+    X86ArithmeticImmediate(*e.writer, X86Subtract, X86Rsp, 32)
+    X86MoveImmediate(*e.writer, X86Rdi, 1)
+    X86Lea(*e.writer, Rsi, X86At(Rbp, -16))
+    Syscall(e, 228)
+    Failed(e, .Fail)
+    X86Load(*e.writer, Rax, X86At(Rbp, -16), 8, false)
+    X86MultiplyImmediate(*e.writer, Rax, Rax, 1000000000)
+    JumpIf(e, Overflow, .Fail)
+    X86Load(*e.writer, X86Rcx, X86At(Rbp, -8), 8, false)
+    X86Arithmetic(*e.writer, X86Add, Rax, X86Rcx)
+    JumpIf(e, Overflow, .Fail)
+    Jump(e, .Second)
+    Mark(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 0xffffffffffffffff)
+    Mark(e, .Second)
+    X86Move(*e.writer, X86Rsp, Rbp)
+    X86Byte(*e.writer, 93)
+    X86Return(*e.writer)
+}
+
+// clock_gettime(CLOCK_REALTIME): seconds * 1000 + nanoseconds / 1e6, -1 on
+// failure.
+LinuxWall :: (e: *BuiltinEmitter) {
+    X86Push(*e.writer, Rbp)
+    X86Move(*e.writer, Rbp, X86Rsp)
+    X86ArithmeticImmediate(*e.writer, X86Subtract, X86Rsp, 32)
+    X86MoveImmediate(*e.writer, X86Rdi, 0)
+    X86Lea(*e.writer, Rsi, X86At(Rbp, -16))
+    Syscall(e, 228)
+    Failed(e, .Fail)
+    X86Load(*e.writer, Rax, X86At(Rbp, -16), 8, false)
+    X86MultiplyImmediate(*e.writer, R8, Rax, 1000)
+    JumpIf(e, Overflow, .Fail)
+    X86Load(*e.writer, Rax, X86At(Rbp, -8), 8, false)
+    X86MoveImmediate(*e.writer, X86Rcx, 1000000)
+    X86MoveImmediate(*e.writer, Rdx, 0)
+    X86Group3(*e.writer, 6, X86Rcx)
+    X86Arithmetic(*e.writer, X86Add, Rax, R8)
+    JumpIf(e, Overflow, .Fail)
+    Jump(e, .Second)
+    Mark(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 0xffffffffffffffff)
+    Mark(e, .Second)
+    X86Move(*e.writer, X86Rsp, Rbp)
+    X86Byte(*e.writer, 93)
+    X86Return(*e.writer)
+}
+
+// Windows: the Win64 frame of the file veneers, probed page by page. The
+// probe counts down in rax, so a veneer whose result address arrives in rax
+// parks it at [rbp - 48], below the saved registers, and takes it into r15
+// once the frame stands.
+WinEnter :: (e: *BuiltinEmitter, result: bool) {
+    X86Byte(*e.writer, 252)
+    X86Push(*e.writer, Rbp)
+    X86Move(*e.writer, Rbp, X86Rsp)
+    X86Push(*e.writer, Rbx)
+    X86Push(*e.writer, R12)
+    X86Push(*e.writer, R13)
+    X86Push(*e.writer, R14)
+    X86Push(*e.writer, R15)
+    if result { X86Push(*e.writer, Rax) }
+    X86Win64ProbedFrame(*e.writer, WinFrame)
+    if result { X86Load(*e.writer, R15, X86At(Rbp, -48), 8, false) }
+}
+
+WinCall :: (e: *BuiltinEmitter, entry: MachineWin64Import) {
+    X86Win64Call(*e.writer, e.imports, entry)
+}
+
+// The path at [rbp + DATA], [rbp + COUNT] as UTF-16 at [rsp + AT],
+// NUL-terminated, through MultiByteToWideChar: a NUL inside it, 4096 bytes
+// or more, or a failed conversion goes to FAIL. rax is then its length in
+// UTF-16 units.
+WidenPath :: (e: *BuiltinEmitter, data: s64, count: s64, at: s64, fail: BuiltinLabel, skip: BuiltinLabel) {
+    X86Load(*e.writer, X86Rcx, X86At(Rbp, count), 8, false)
+    X86CompareImmediate(*e.writer, X86Rcx, 4096)
+    JumpIf(e, X86AboveEqual, fail)
+    X86Load(*e.writer, X86Rdi, X86At(Rbp, data), 8, false)
+    X86MoveImmediate32(*e.writer, Rax, 0)
+    X86Arithmetic(*e.writer, X86Test, X86Rcx, X86Rcx)
+    JumpIf(e, X86Equal, skip)
+    X86Byte(*e.writer, 242)
+    X86Byte(*e.writer, 174)
+    JumpIf(e, X86Equal, fail)
+    Mark(e, skip)
+    X86MoveImmediate32(*e.writer, X86Rcx, 65001)
+    X86MoveImmediate(*e.writer, Rdx, 0)
+    X86Load(*e.writer, R8, X86At(Rbp, data), 8, false)
+    X86Load(*e.writer, R9, X86At(Rbp, count), 8, false)
+    X86Lea(*e.writer, Rax, X86At(X86Rsp, at))
+    X86Store(*e.writer, X86At(X86Rsp, 32), Rax, 8)
+    X86StoreImmediate(*e.writer, X86At(X86Rsp, 40), 4095, 8)
+    WinCall(e, .MultiByteToWideChar)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, fail)
+    X86StoreImmediate(*e.writer, X86Indexed(X86Rsp, Rax, at, 1), 0, 2)
+}
+
+// CreateFileW(WIDE, ACCESS, share 0, 0, DISPOSITION, FILE_ATTRIBUTE_NORMAL,
+// 0); the handle in rax, INVALID_HANDLE_VALUE (-1) on failure.
+CreateFile :: (e: *BuiltinEmitter, wide: s64, access: u64, disposition: u64) {
+    X86Lea(*e.writer, X86Rcx, X86At(X86Rsp, wide))
+    X86MoveImmediate(*e.writer, Rdx, access)
+    X86MoveImmediate(*e.writer, R8, 0)
+    X86MoveImmediate(*e.writer, R9, 0)
+    X86StoreImmediate(*e.writer, X86At(X86Rsp, 32), disposition, 8)
+    X86StoreImmediate(*e.writer, X86At(X86Rsp, 40), 0x80, 8)
+    X86StoreImmediate(*e.writer, X86At(X86Rsp, 48), 0, 8)
+    WinCall(e, .CreateFileW)
+}
+
+// GetFileAttributesExW(WIDE, 0, [rsp + WinBuffer]): WIN32_FILE_ATTRIBUTE_DATA
+// at [rsp + WinBuffer], the attributes at 0 and the size's high and low
+// halves at 28 and 32, or a zero rax.
+Attributes :: (e: *BuiltinEmitter, wide: s64) {
+    X86Lea(*e.writer, X86Rcx, X86At(X86Rsp, wide))
+    X86MoveImmediate(*e.writer, Rdx, 0)
+    X86Lea(*e.writer, R8, X86At(X86Rsp, WinBuffer))
+    WinCall(e, .GetFileAttributesExW)
+}
+
+WinStatus :: (e: *BuiltinEmitter) {
+    WinEnter(e, false)
+    WidenPath(e, 16, 24, WinWide, .Fail, .Skip)
+    Attributes(e, WinWide)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Fail)
+    X86Load(*e.writer, Rax, X86At(X86Rsp, WinBuffer), 4, false)
+    X86ArithmeticImmediate(*e.writer, X86And, Rax, 0x10)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Second)
+    X86MoveImmediate(*e.writer, Rax, 0xfffffffffffffffe)
+    Jump(e, .Third)
+    Mark(e, .Second)
+    X86Load(*e.writer, Rax, X86At(X86Rsp, WinBuffer + 32), 4, false)
+    X86Load(*e.writer, X86Rcx, X86At(X86Rsp, WinBuffer + 28), 4, false)
+    X86ShiftImmediate(*e.writer, 4, X86Rcx, 32)
+    X86Arithmetic(*e.writer, X86Or, Rax, X86Rcx)
+    Jump(e, .Third)
+    Mark(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 0xffffffffffffffff)
+    Mark(e, .Third)
+    Leave(e)
+}
+
+WinRemove :: (e: *BuiltinEmitter) {
+    WinEnter(e, false)
+    WidenPath(e, 16, 24, WinWide, .Fail, .Skip)
+    X86Lea(*e.writer, X86Rcx, X86At(X86Rsp, WinWide))
+    WinCall(e, .DeleteFileW)
+    LowBit(e)
+    Jump(e, .Second)
+    Mark(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 0)
+    Mark(e, .Second)
+    Leave(e)
+}
+
+// MoveFileExW(source, destination, MOVEFILE_REPLACE_EXISTING).
+WinRename :: (e: *BuiltinEmitter) {
+    WinEnter(e, false)
+    WidenPath(e, 16, 24, WinWide, .Fail, .Skip)
+    WidenPath(e, 32, 40, WinWide2, .Fail, .Skip2)
+    X86Lea(*e.writer, X86Rcx, X86At(X86Rsp, WinWide))
+    X86Lea(*e.writer, Rdx, X86At(X86Rsp, WinWide2))
+    X86MoveImmediate(*e.writer, R8, 1)
+    WinCall(e, .MoveFileExW)
+    LowBit(e)
+    Jump(e, .Second)
+    Mark(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 0)
+    Mark(e, .Second)
+    Leave(e)
+}
+
+// CreateDirectoryW, or a directory already there.
+WinMake :: (e: *BuiltinEmitter) {
+    WinEnter(e, false)
+    WidenPath(e, 16, 24, WinWide, .Fail, .Skip)
+    X86Lea(*e.writer, X86Rcx, X86At(X86Rsp, WinWide))
+    X86MoveImmediate(*e.writer, Rdx, 0)
+    WinCall(e, .CreateDirectoryW)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86NotEqual, .Second)
+    Attributes(e, WinWide)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Fail)
+    X86Load(*e.writer, Rax, X86At(X86Rsp, WinBuffer), 4, false)
+    X86ArithmeticImmediate(*e.writer, X86And, Rax, 0x10)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Fail)
+    Mark(e, .Second)
+    X86MoveImmediate(*e.writer, Rax, 1)
+    Jump(e, .Third)
+    Mark(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 0)
+    Mark(e, .Third)
+    Leave(e)
+}
+
+// CreateFileW CREATE_ALWAYS and WriteFile in chunks of at most 1 GiB until
+// all is written; false when the open or a write fails or CloseHandle does.
+WinWrite :: (e: *BuiltinEmitter) {
+    WinEnter(e, false)
+    WidenPath(e, 16, 24, WinWide, .Fail, .Skip)
+    CreateFile(e, WinWide, 0x40000000, 2)
+    X86CompareImmediate(*e.writer, Rax, -1)
+    JumpIf(e, X86Equal, .Fail)
+    X86Move(*e.writer, Rbx, Rax)
+    X86Load(*e.writer, R12, X86At(Rbp, 32), 8, false)
+    X86Load(*e.writer, R13, X86At(Rbp, 40), 8, false)
+    Mark(e, .Second)
+    X86Arithmetic(*e.writer, X86Test, R13, R13)
+    JumpIf(e, X86Equal, .Third)
+    X86Move(*e.writer, R8, R13)
+    X86MoveImmediate(*e.writer, Rax, 0x40000000)
+    X86Arithmetic(*e.writer, X86Compare, R8, Rax)
+    JumpIf(e, X86BelowEqual, .Sixth)
+    X86Move(*e.writer, R8, Rax)
+    Mark(e, .Sixth)
+    X86StoreImmediate(*e.writer, X86At(X86Rsp, 32), 0, 8)
+    X86Lea(*e.writer, R9, X86At(X86Rsp, WinSlot))
+    X86Move(*e.writer, X86Rcx, Rbx)
+    X86Move(*e.writer, Rdx, R12)
+    WinCall(e, .WriteFile)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Fourth)
+    X86Load(*e.writer, Rax, X86At(X86Rsp, WinSlot), 4, false)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Fourth)
+    X86Arithmetic(*e.writer, X86Add, R12, Rax)
+    X86Arithmetic(*e.writer, X86Subtract, R13, Rax)
+    Jump(e, .Second)
+    Mark(e, .Third)
+    X86Move(*e.writer, X86Rcx, Rbx)
+    WinCall(e, .CloseHandle)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 1)
+    Jump(e, .Fifth)
+    Mark(e, .Fourth)
+    X86Move(*e.writer, X86Rcx, Rbx)
+    WinCall(e, .CloseHandle)
+    Mark(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 0)
+    Mark(e, .Fifth)
+    Leave(e)
+}
+
+// CreateFileW OPEN_EXISTING and ReadFile into a block grown through the
+// runtime, then shrunk to the count; a missing or unreadable path answers an
+// empty string.
+WinRead :: (e: *BuiltinEmitter) {
+    WinEnter(e, true)
+    X86MoveImmediate(*e.writer, R14, 0xffffffffffffffff)
+    X86MoveImmediate(*e.writer, Rbx, 0)
+    X86MoveImmediate(*e.writer, R12, 0)
+    X86MoveImmediate(*e.writer, R13, 0)
+    WidenPath(e, 16, 24, WinWide, .Fail, .Skip)
+    CreateFile(e, WinWide, 0x80000000, 3)
+    X86CompareImmediate(*e.writer, Rax, -1)
+    JumpIf(e, X86Equal, .Fail)
+    X86Move(*e.writer, R14, Rax)
+    Mark(e, .Second)
+    X86Arithmetic(*e.writer, X86Compare, R12, R13)
+    JumpIf(e, X86Above, .Third)
+    X86MoveImmediate(*e.writer, Rdi, 1)
+    Ensure(e)
+    Mark(e, .Third)
+    X86Move(*e.writer, R8, R12)
+    X86Arithmetic(*e.writer, X86Subtract, R8, R13)
+    X86MoveImmediate(*e.writer, Rax, 0x40000000)
+    X86Arithmetic(*e.writer, X86Compare, R8, Rax)
+    JumpIf(e, X86BelowEqual, .Fourth)
+    X86Move(*e.writer, R8, Rax)
+    Mark(e, .Fourth)
+    X86StoreImmediate(*e.writer, X86At(X86Rsp, 32), 0, 8)
+    X86Lea(*e.writer, R9, X86At(X86Rsp, WinSlot))
+    X86Move(*e.writer, X86Rcx, R14)
+    X86Lea(*e.writer, Rdx, X86Indexed(Rbx, R13, 0))
+    WinCall(e, .ReadFile)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Fail)
+    X86Load(*e.writer, Rdi, X86At(X86Rsp, WinSlot), 4, false)
+    X86Arithmetic(*e.writer, X86Test, Rdi, Rdi)
+    JumpIf(e, X86Equal, .Fifth)
+    X86Arithmetic(*e.writer, X86Add, R13, Rdi)
+    Jump(e, .Second)
+    Mark(e, .Fifth)
+    X86Move(*e.writer, X86Rcx, R14)
+    WinCall(e, .CloseHandle)
+    Shrink(e, .Fail, .Sixth)
+    Jump(e, .Seventh)
+    Mark(e, .Fail)
+    X86CompareImmediate(*e.writer, R14, -1)
+    JumpIf(e, X86Equal, .Eighth)
+    X86Move(*e.writer, X86Rcx, R14)
+    WinCall(e, .CloseHandle)
+    Mark(e, .Eighth)
+    Empty(e, .Ninth)
+    Mark(e, .Seventh)
+    Leave(e)
+}
+
+// FindFirstFileW(WIDE\\*, [rsp + WinBuffer]) and FindNextFileW in the
+// directory's order, skipping "." and "..", each name as UTF-8 through
+// WideCharToMultiByte, joined by newlines without a trailing one.
+WinList :: (e: *BuiltinEmitter) {
+    WinEnter(e, true)
+    X86MoveImmediate(*e.writer, R14, 0xffffffffffffffff)
+    X86MoveImmediate(*e.writer, Rbx, 0)
+    X86MoveImmediate(*e.writer, R12, 0)
+    X86MoveImmediate(*e.writer, R13, 0)
+    WidenPath(e, 16, 24, WinWide, .Fail, .Skip)
+    X86StoreImmediate(*e.writer, X86Indexed(X86Rsp, Rax, WinWide, 1), 92, 2)
+    X86ArithmeticImmediate(*e.writer, X86Add, Rax, 1)
+    X86StoreImmediate(*e.writer, X86Indexed(X86Rsp, Rax, WinWide, 1), 42, 2)
+    X86ArithmeticImmediate(*e.writer, X86Add, Rax, 1)
+    X86StoreImmediate(*e.writer, X86Indexed(X86Rsp, Rax, WinWide, 1), 0, 2)
+    X86Lea(*e.writer, X86Rcx, X86At(X86Rsp, WinWide))
+    X86Lea(*e.writer, Rdx, X86At(X86Rsp, WinBuffer))
+    WinCall(e, .FindFirstFileW)
+    X86CompareImmediate(*e.writer, Rax, -1)
+    JumpIf(e, X86Equal, .Fail)
+    X86Move(*e.writer, R14, Rax)
+    Mark(e, .Second)
+    // WideCharToMultiByte(65001, 0, cFileName, -1, name, 1024, 0, 0).
+    X86MoveImmediate32(*e.writer, X86Rcx, 65001)
+    X86MoveImmediate(*e.writer, Rdx, 0)
+    X86Lea(*e.writer, R8, X86At(X86Rsp, WinBuffer + 44))
+    X86MoveImmediate(*e.writer, R9, 0xffffffffffffffff)
+    X86Lea(*e.writer, Rax, X86At(X86Rsp, WinBuffer + 640))
+    X86Store(*e.writer, X86At(X86Rsp, 32), Rax, 8)
+    X86StoreImmediate(*e.writer, X86At(X86Rsp, 40), 1024, 8)
+    X86StoreImmediate(*e.writer, X86At(X86Rsp, 48), 0, 8)
+    X86StoreImmediate(*e.writer, X86At(X86Rsp, 56), 0, 8)
+    WinCall(e, .WideCharToMultiByte)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Tenth)
+    X86ArithmeticImmediate(*e.writer, X86Subtract, Rax, 1)
+    X86Store(*e.writer, X86At(X86Rsp, WinSlot + 8), Rax, 8)
+    X86Lea(*e.writer, Rdx, X86At(X86Rsp, WinBuffer + 640))
+    X86Load(*e.writer, Rax, X86At(Rdx, 0), 1, false)
+    X86CompareImmediate(*e.writer, Rax, 46)
+    JumpIf(e, X86NotEqual, .Third)
+    X86Load(*e.writer, Rax, X86At(Rdx, 1), 1, false)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Tenth)
+    X86CompareImmediate(*e.writer, Rax, 46)
+    JumpIf(e, X86NotEqual, .Third)
+    X86Load(*e.writer, Rax, X86At(Rdx, 2), 1, false)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Tenth)
+    Mark(e, .Third)
+    X86Arithmetic(*e.writer, X86Test, R13, R13)
+    JumpIf(e, X86Equal, .Fourth)
+    X86Load(*e.writer, Rdi, X86At(X86Rsp, WinSlot + 8), 8, false)
+    X86ArithmeticImmediate(*e.writer, X86Add, Rdi, 1)
+    Ensure(e)
+    X86StoreImmediate(*e.writer, X86Indexed(Rbx, R13, 0), 10, 1)
+    X86ArithmeticImmediate(*e.writer, X86Add, R13, 1)
+    Jump(e, .End)
+    Mark(e, .Fourth)
+    X86Load(*e.writer, Rdi, X86At(X86Rsp, WinSlot + 8), 8, false)
+    Ensure(e)
+    Mark(e, .End)
+    X86Load(*e.writer, X86Rcx, X86At(X86Rsp, WinSlot + 8), 8, false)
+    X86Lea(*e.writer, Rsi, X86At(X86Rsp, WinBuffer + 640))
+    X86Lea(*e.writer, Rdi, X86Indexed(Rbx, R13, 0))
+    X86Arithmetic(*e.writer, X86Add, R13, X86Rcx)
+    X86Byte(*e.writer, 243)
+    X86Byte(*e.writer, 164)
+    Mark(e, .Tenth)
+    X86Move(*e.writer, X86Rcx, R14)
+    X86Lea(*e.writer, Rdx, X86At(X86Rsp, WinBuffer))
+    WinCall(e, .FindNextFileW)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86NotEqual, .Second)
+    X86Move(*e.writer, X86Rcx, R14)
+    WinCall(e, .FindClose)
+    Shrink(e, .Fail, .Sixth)
+    Jump(e, .Seventh)
+    Mark(e, .Fail)
+    X86CompareImmediate(*e.writer, R14, -1)
+    JumpIf(e, X86Equal, .Eighth)
+    X86Move(*e.writer, X86Rcx, R14)
+    WinCall(e, .FindClose)
+    Mark(e, .Eighth)
+    Empty(e, .Ninth)
+    Mark(e, .Seventh)
+    Leave(e)
+}
+
+// QueryPerformanceCounter over QueryPerformanceFrequency, scaled to
+// nanoseconds as seconds * 1e9 + (ticks % frequency) * 1e9 / frequency, each
+// product through mul so a counter of any age fits; -1 when either fails or
+// the seconds overflow.
+WinMonotonic :: (e: *BuiltinEmitter) {
+    X86Win64Frame(*e.writer, 64)
+    X86Lea(*e.writer, X86Rcx, X86At(X86Rsp, 32))
+    WinCall(e, .QueryPerformanceCounter)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Fail)
+    X86Lea(*e.writer, X86Rcx, X86At(X86Rsp, 40))
+    WinCall(e, .QueryPerformanceFrequency)
+    X86Arithmetic(*e.writer, X86Test, Rax, Rax)
+    JumpIf(e, X86Equal, .Fail)
+    X86Load(*e.writer, Rax, X86At(X86Rsp, 32), 8, false)
+    X86Load(*e.writer, X86Rcx, X86At(X86Rsp, 40), 8, false)
+    X86Arithmetic(*e.writer, X86Test, X86Rcx, X86Rcx)
+    JumpIf(e, X86Equal, .Fail)
+    X86MoveImmediate(*e.writer, Rdx, 0)
+    X86Group3(*e.writer, 6, X86Rcx)
+    X86Move(*e.writer, R9, Rdx)
+    X86MultiplyImmediate(*e.writer, R8, Rax, 1000000000)
+    JumpIf(e, Overflow, .Fail)
+    X86Move(*e.writer, Rax, R9)
+    X86MoveImmediate32(*e.writer, X86Rcx, 1000000000)
+    X86Group3(*e.writer, 4, X86Rcx)
+    X86Load(*e.writer, X86Rcx, X86At(X86Rsp, 40), 8, false)
+    X86Group3(*e.writer, 6, X86Rcx)
+    X86Arithmetic(*e.writer, X86Add, Rax, R8)
+    Jump(e, .Second)
+    Mark(e, .Fail)
+    X86MoveImmediate(*e.writer, Rax, 0xffffffffffffffff)
+    Mark(e, .Second)
+    X86Win64Unframe(*e.writer)
+    X86Return(*e.writer)
+}
+
+// GetSystemTimeAsFileTime: 100 ns since 1601 to milliseconds since 1970.
+WinWall :: (e: *BuiltinEmitter) {
+    X86Win64Frame(*e.writer, 64)
+    X86Lea(*e.writer, X86Rcx, X86At(X86Rsp, 32))
+    WinCall(e, .GetSystemTimeAsFileTime)
+    X86Load(*e.writer, Rax, X86At(X86Rsp, 32), 8, false)
+    X86MoveImmediate(*e.writer, X86Rcx, 10000)
+    X86MoveImmediate(*e.writer, Rdx, 0)
+    X86Group3(*e.writer, 6, X86Rcx)
+    X86MoveImmediate(*e.writer, X86Rcx, 11644473600000)
+    X86Arithmetic(*e.writer, X86Subtract, Rax, X86Rcx)
+    X86Win64Unframe(*e.writer)
+    X86Return(*e.writer)
+}
+
+BuiltinBody :: (e: *BuiltinEmitter, kind: MachineX64Builtin) -> bool {
+    if e.windows {
+        if kind == .FileStatus { WinStatus(e); return true }
+        if kind == .FileRead { WinRead(e); EnsureRoutine(e); return true }
+        if kind == .FileWrite { WinWrite(e); return true }
+        if kind == .FileRemove { WinRemove(e); return true }
+        if kind == .FileRename { WinRename(e); return true }
+        if kind == .DirectoryMake { WinMake(e); return true }
+        if kind == .DirectoryList { WinList(e); EnsureRoutine(e); return true }
+        if kind == .Monotonic { WinMonotonic(e); return true }
+        if kind == .Wall { WinWall(e); return true }
+        return false
+    }
+    if kind == .FileStatus { LinuxStatus(e); return true }
+    if kind == .FileRead { LinuxRead(e); EnsureRoutine(e); return true }
+    if kind == .FileWrite { LinuxWrite(e); return true }
+    if kind == .FileRemove { LinuxRemove(e); return true }
+    if kind == .FileRename { LinuxRename(e); return true }
+    if kind == .DirectoryMake { LinuxMake(e); return true }
+    if kind == .DirectoryList { LinuxList(e); EnsureRoutine(e); return true }
+    if kind == .Monotonic { LinuxMonotonic(e); return true }
+    if kind == .Wall { LinuxWall(e); return true }
+    return false
+}
+
+// The built-in IMPORT's veneer at the writer's position: a measuring pass
+// records its branches, a writing pass follows them.
+BuiltinVeneer :: (writer: *X86Writer, program: MachineProgram, host: MachineX64HostImport,
+    resize: s64, imports: MachineWin64Slots) -> bool {
+    kind := BuiltinOf(program, host.function)
+    if kind == .None || !BuiltinSignature(program, host, kind) { return false }
+    windows := program.target.os == .Windows
+    measure: BuiltinEmitter
+    measure.writer = .{at = writer.at, limit = writer.limit}
+    measure.start = writer.at
+    measure.resize = resize
+    measure.imports = imports
+    measure.windows = windows
+    measure.base = ifx windows then X86Rsp else Rbp
+    measure.off_at = ifx windows then WinSlot + 24 else OffAt
+    measure.end_at = ifx windows then WinSlot + 32 else EndAt
+    measure.len_at = ifx windows then WinSlot + 8 else LenAt
+    measure.name_at = ifx windows then WinSlot + 16 else NameAt
+    measure.need_at = ifx windows then WinSlot else NeedAt
+    measure.cap_at = ifx windows then WinSlot + 40 else CapAt
+    if !BuiltinBody(*measure, kind) { return false }
+    if measure.writer.failed { return false }
+    if writer.output.count == 0 {
+        writer.at = measure.writer.at
+        return true
+    }
+    write := measure
+    write.writer = .{output = writer.output, at = writer.at, limit = writer.limit}
+    if !BuiltinBody(*write, kind) { return false }
+    if write.writer.failed || write.writer.at != measure.writer.at { return false }
+    writer.at = write.writer.at
+    return true
 }

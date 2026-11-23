@@ -6,10 +6,11 @@ line when the work lands. Keep detail in the referenced plan.
 ## Native assembly target (ASSEMBLY/)
 
 - M5 objects and linking: Mach-O and archives, the external C ABI with foreign
-  libraries, files and clock platform services, a real Windows host run, and
-  an in-process loader; test with `tests/zx_windows_parity_cases.zi` plus
-  per-row tests. Landed slice: `zx2native --platform windows` writes PE32+
-  with x64 unwind data and console line mode.
+  libraries, a real Windows host run, and an in-process loader; test with
+  `tests/zx_windows_parity_cases.zi` plus per-row tests. Landed slice:
+  `zx2native --platform windows` writes PE32+ with x64 unwind data and console
+  line mode, and both Linux and Windows executables supply the file and clock
+  services.
 - M6 inspection and cutover: unwind, debug and profiler mapping, then the
   owner's full before/after ZX comparison on Alpha's physical host.
 - Native code quality: warm native ZX remains slower than the M0 TinyCC tier

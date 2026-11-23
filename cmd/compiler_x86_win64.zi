@@ -9,11 +9,18 @@ using Bytes :: #import "compiler_x86_bytes"
 // preserves (rbx, rbp, r12-r15) is nonvolatile in Win64 too, and so are rdi
 // and rsi, so a runtime routine keeps its own contract across a call.
 
-// The kernel32 functions a runtime may call, in import order.
+// The kernel32 functions a runtime or a built-in host capability may call, in
+// import order: the runtime's six, then those the files and clock veneers use
+// (compiler_x86_host.zi).
 MachineWin64Import :: enum s32 {
     ExitProcess; GetStdHandle; WriteFile; VirtualAlloc; VirtualFree; GetConsoleMode
+    MultiByteToWideChar; WideCharToMultiByte
+    GetFileAttributesExW; CreateFileW; ReadFile; CloseHandle
+    DeleteFileW; MoveFileExW; CreateDirectoryW
+    FindFirstFileW; FindNextFileW; FindClose
+    QueryPerformanceCounter; QueryPerformanceFrequency; GetSystemTimeAsFileTime
 }
-MachineWin64ImportCount :: 6
+MachineWin64ImportCount :: 21
 
 // The image's IAT slot for each import, as a runtime position; a slot the
 // image does not import is never called.
@@ -30,7 +37,22 @@ MachineWin64ImportName :: (entry: MachineWin64Import) -> string {
     if entry == .WriteFile { return "WriteFile" }
     if entry == .VirtualAlloc { return "VirtualAlloc" }
     if entry == .VirtualFree { return "VirtualFree" }
-    return "GetConsoleMode"
+    if entry == .GetConsoleMode { return "GetConsoleMode" }
+    if entry == .MultiByteToWideChar { return "MultiByteToWideChar" }
+    if entry == .WideCharToMultiByte { return "WideCharToMultiByte" }
+    if entry == .GetFileAttributesExW { return "GetFileAttributesExW" }
+    if entry == .CreateFileW { return "CreateFileW" }
+    if entry == .ReadFile { return "ReadFile" }
+    if entry == .CloseHandle { return "CloseHandle" }
+    if entry == .DeleteFileW { return "DeleteFileW" }
+    if entry == .MoveFileExW { return "MoveFileExW" }
+    if entry == .CreateDirectoryW { return "CreateDirectoryW" }
+    if entry == .FindFirstFileW { return "FindFirstFileW" }
+    if entry == .FindNextFileW { return "FindNextFileW" }
+    if entry == .FindClose { return "FindClose" }
+    if entry == .QueryPerformanceCounter { return "QueryPerformanceCounter" }
+    if entry == .QueryPerformanceFrequency { return "QueryPerformanceFrequency" }
+    return "GetSystemTimeAsFileTime"
 }
 
 // An aligned call frame: push rbp; mov rbp, rsp; and rsp, -16; sub rsp,
@@ -41,6 +63,25 @@ X86Win64Frame :: (writer: *X86Writer, bytes: s64) {
     X86Move(writer, X86Rbp, X86Rsp)
     X86ArithmeticImmediate(writer, X86And, X86Rsp, -16)
     X86SubtractStack(writer, bytes)
+}
+
+// The rest of X86Win64Frame for a frame of at least a page, under the frame
+// pointer its caller has already pushed: and rsp, -16, then the frame taken
+// one page at a time, each page touched as it is taken so a large frame
+// cannot step over the guard page. BYTES is a multiple of 16 and at least
+// 4096.
+X86Win64ProbedFrame :: (writer: *X86Writer, bytes: s64) {
+    X86ArithmeticImmediate(writer, X86And, X86Rsp, -16)
+    X86MoveImmediate(writer, X86Rax, cast(u64)bytes)
+    probe := writer.at
+    X86ArithmeticImmediate(writer, X86Subtract, X86Rsp, 4096)
+    X86Encode(writer, 0, true, 133, 1, X86Rax, X86At(X86Rsp, 0))
+    X86ArithmeticImmediate(writer, X86Subtract, X86Rax, 4096)
+    X86CompareImmediate(writer, X86Rax, 4096)
+    X86Byte(writer, cast(u8)(112 + X86AboveEqual))
+    X86Byte(writer, cast(u8)(probe - (writer.at + 1)))
+    X86Arithmetic(writer, X86Subtract, X86Rsp, X86Rax)
+    X86Encode(writer, 0, true, 133, 1, X86Rax, X86At(X86Rsp, 0))
 }
 
 // call [rip + the IAT slot of ENTRY].

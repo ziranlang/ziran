@@ -174,8 +174,15 @@ main(int argc, char **argv)
     if(!ProgramsLoadWithDefines(&set, root, module_paths, module_path_count,
                                 defines, define_count,
                                 (const char *const *)(argv + first_file),
-                                argc - first_file))
+                                argc - first_file)) {
+        /* Loading ends at the first syntax or import error, before any
+         * other file is checked. Say so under that error, as its excerpt and
+         * fix lines are: an empty rest of the output is not a clean result.
+         * The JSON stream stays one record per diagnostic. */
+        if(DiagnosticErrorCount() > 0 && !DiagnosticJsonEnabled())
+            fputs("  note: checking stopped at this error; errors after it, in this file and in other files, are not listed until it is fixed\n", stderr);
         goto done;
+    }
     count = set.count;
     if(!CheckCanonicalPrograms(set.programs, count,
                                (const char *const *)set.paths)) {

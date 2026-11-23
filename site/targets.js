@@ -8,24 +8,17 @@
     if (!response.ok) throw new Error();
     data = await response.json();
   } catch (_) {
-    live.textContent = 'The interactive snapshot could not load. The matrix links still open the generated files. Reload to try again.';
+    live.textContent = 'Inspector unavailable. Open an artifact link directly.';
     return;
   }
   const byId = new Map(data.examples.map(example => [example.id, example]));
   const labels = {source: 'Source', c: 'C', go: 'Go', zx: 'ZX', wasm: 'WebAssembly', zir: 'ZIR'};
-  const descriptions = {
-    source: 'The exact source used for every target in this row.',
-    c: 'Readable generated C and its headers. Choose a file to inspect the complete output.',
-    go: 'Readable generated Go, including imported modules. Choose a file to inspect it.',
-    zx: 'The real .zx bundle, decoded by zi-inspect. Download the binary to run it with ziran.',
-    wasm: 'The actual WebAssembly binary: header, sections, imports, exports and a byte preview. Download it or run it below.',
-    zir: 'The saved ZIR, decoded by zi-inspect: declarations, typed expressions and statement links. ZIR is an intermediate stage.',
-  };
   const tabs = [...document.querySelectorAll('[data-view]')];
   const files = document.getElementById('matrix-file');
   const download = document.getElementById('matrix-download');
   const runButton = document.getElementById('matrix-run-wasm');
   const fileLabel = document.getElementById('matrix-file-label');
+  const inspector = document.getElementById('inspect');
   let selected = data.examples[0];
   let view = 'source';
   const platformSelect = document.getElementById('matrix-platform');
@@ -79,15 +72,14 @@
       if (current === revision) code.textContent = text;
     } catch (error) { if (current === revision) code.textContent = error.message; }
   }
-  function select(example, nextView, updateHash = true) {
+  function select(example, nextView, updateHash = true, reveal = true) {
+    if (reveal) inspector.open = true;
     stop();
     revision++;
     selected = example;
     view = nextView;
     live.textContent = '';
     document.getElementById('inspect-heading').textContent = example.title;
-    document.getElementById('matrix-result').textContent = example.stdout ? 'Printed output verified' : 'Expected result: ' + example.expected;
-    document.getElementById('matrix-view-description').textContent = descriptions[view];
     document.getElementById('output-view').setAttribute('aria-labelledby', 'view-' + view);
     tabs.forEach(tab => { const active = tab.dataset.view === view; tab.setAttribute('aria-selected', String(active)); tab.tabIndex = active ? 0 : -1; });
     document.querySelectorAll('.matrix-cell').forEach(cell => {
@@ -104,14 +96,7 @@
       const shown = text(example, view);
       document.getElementById('matrix-emission').textContent = withUnit(shown.emission, texts.units.emission);
       document.getElementById('matrix-execution').textContent = withUnit(shown.run, texts.units.run);
-      const measured = measurement(example, view);
-      document.getElementById('matrix-sample-range').textContent = measured ?
-        data.platforms[platform].label + ' · ' + measured.batch_samples_ms.length + ' measured batches × ' +
-        measured.batches.toLocaleString() + ' calls · per-call range ' + shown.range + ' ' + texts.units.run +
-        ' · ' + measured.sample_statistics.excluded_indices.length + ' outliers excluded (1.5×IQR)' :
-        'ZIR is a shared compiler stage; it has no platform execution samples.';
       document.getElementById('matrix-size').textContent = withUnit(shown.size, 'bytes');
-      document.getElementById('matrix-verified').textContent = view === 'zir' ? 'Checked' : example.stdout ? 'Output matches' : cell.result;
       document.getElementById('matrix-command').textContent = cell.command + (measurement(example, view)?.command ? '\n\n' + measurement(example, view).command : '');
     }
     if (supported) {
@@ -124,7 +109,6 @@
       loadFile();
     } else {
       code.textContent = cell.diagnostic;
-      document.getElementById('matrix-view-description').textContent = 'This program is outside the WebAssembly subset. The compiler rejected it with this diagnostic; no artifact or timing is reported.';
     }
     if (updateHash) history.replaceState(null, '', '#' + example.id + '/' + view);
   }
@@ -147,23 +131,15 @@
   files.addEventListener('change', loadFile);
   function refreshMatrix() {
     const metric = document.getElementById('matrix-metric').value;
-    const snapshot = data.platforms[platform];
+    const unit = metric === 'size' ? 'bytes emitted' :
+      metric === 'emission' ? texts.units.emission + ' to emit' : texts.units.run + ' per call';
     document.querySelectorAll('.matrix-cell').forEach(link => {
       const example = byId.get(link.dataset.example), target = link.dataset.target;
-      link.querySelector('.matrix-value').textContent = text(example, target)[metric] || '—';
-      link.querySelector('.matrix-state').textContent = target === 'zir' ? 'Shared stage' : 'Verified';
+      const value = text(example, target)[metric] || '—';
+      link.querySelector('.matrix-value').textContent = value;
+      link.setAttribute('aria-label', example.title + ': ' + labels[target] + ', ' + value + ' ' + unit + '. Inspect output');
     });
-    document.getElementById('matrix-unit').textContent = metric === 'size' ? 'bytes emitted' :
-      metric === 'emission' ? texts.units.emission + ' to emit' : texts.units.run + ' per call';
-    document.querySelectorAll('[data-runtime]').forEach(label => {
-      label.textContent = snapshot.runtimes[label.dataset.runtime].split(' · ').slice(1).join(' · ');
-    });
-    document.getElementById('matrix-metric-note').textContent = metric === 'size' ? 'Emitted file bytes, including C headers and imported modules; excludes linked executables and external runtimes. Size and emission are independent of the platform selector.' : metric === 'emission' ? 'Measured on the desktop build host: load, check, link and emit. Downstream C and Go builds are excluded. The selected platform changes execution measurements.' : snapshot.methodology + ' ZIR is a shared stage with no execution timing.';
-    document.getElementById('matrix-provenance').textContent = snapshot.samples + ' measured batches. Raw samples and provenance below.';
-    const snapshotLink = document.createElement('a');
-    snapshotLink.href = 'generated/targets/matrix.json';
-    snapshotLink.textContent = 'Download all samples and provenance ↓';
-    document.getElementById('matrix-provenance').append(' ', snapshotLink);
+    document.getElementById('matrix-unit').textContent = (metric === 'size' ? '' : 'Median ') + unit;
   }
   document.getElementById('matrix-metric').addEventListener('change', refreshMatrix);
   platformSelect.addEventListener('change', () => {
@@ -172,14 +148,14 @@
     url.searchParams.set('platform', platform);
     history.replaceState(null, '', url);
     refreshMatrix();
-    select(selected, view, false);
+    select(selected, view, false, false);
   });
   runButton.addEventListener('click', () => {
     stop();
     try {
       worker = new Worker('target-wasm-worker.js');
       runButton.disabled = true;
-      live.textContent = 'Loading and running the WebAssembly artifact…';
+      live.textContent = 'Running…';
       const current = worker;
       const fail = message => { if (worker !== current) return; stop(); live.textContent = message; };
       deadline = setTimeout(() => fail('Run stopped after 10 seconds. Try again.'), 10000);
@@ -188,11 +164,12 @@
         if (worker !== current) return;
         const result = event.data;
         stop();
-        live.textContent = result.ok ? 'Verified in your browser: ' + (result.stdout || result.result) + ' · ' + result.elapsed.toFixed(2) + ' ms including download, compilation and execution. This live run is separate from the saved benchmark.' : result.message;
+        live.textContent = result.ok ? 'Browser result: ' + (result.stdout || result.result).toString().trim() + ' · ' + result.elapsed.toFixed(2) + ' ms total' : result.message;
       };
       current.postMessage({path: selected.targets.wasm.files[0].path, expected: selected.expected, stdout: selected.stdout});
     } catch (_) { stop(); live.textContent = 'This browser could not start the WebAssembly runner.'; }
   });
+  inspector.addEventListener('toggle', () => { if (!inspector.open) stop(); });
   document.querySelector('.matrix-views').hidden = false;
   document.querySelector('.matrix-metric').hidden = false;
   document.querySelector('.matrix-platform').hidden = true;
@@ -200,7 +177,7 @@
   function fromHash() {
     const [id, target] = location.hash.slice(1).split('/');
     if (byId.has(id) && Object.hasOwn(labels, target)) select(byId.get(id), target, false);
-    else select(selected, view, false);
+    else select(selected, view, false, false);
   }
   window.addEventListener('hashchange', fromHash);
   fromHash();

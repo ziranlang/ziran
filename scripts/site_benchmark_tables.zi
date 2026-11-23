@@ -69,7 +69,6 @@ Scenarios :: (out: *Vec(u8), doc: *JsonDocument, widget: bool) -> bool {
             } else if !present || !verified { return false }
             TimingCell(out, times[column], link, diagnostic)
         }
-        Ratios(out, times[0], times[2], times[3])
         Append(out, "</tr>")
     }
     TableEnd(out)
@@ -88,7 +87,7 @@ KernelNote :: (id: string) -> string {
 KernelTable :: (out: *Vec(u8), doc: *JsonDocument) -> bool {
     revision := Field(doc, doc.root, "revision")
     if revision.count != 40 { return false }
-    Append(out, "<section class=\"section benchmark-section\" id=\"kernel-tiers\"><h2>Compiler kernels</h2><p>Small programs compare calls, memory and instruction throughput across execution tiers.</p>")
+    Append(out, "<section class=\"section benchmark-section\" id=\"kernel-tiers\"><h2>Compiler kernels</h2>")
     TableStart(out, "Compiler kernel results", "Median µs per call", "ZX native", true)
     rows := JsonMember(doc, doc.root, "kernels")
     if JsonCount(doc, rows) == 0 { return false }
@@ -104,15 +103,10 @@ KernelTable :: (out: *Vec(u8), doc: *JsonDocument) -> bool {
             if times[column] <= 0.0 { return false }
             TimingCell(out, times[column])
         }
-        Ratios(out, times[0], times[3], times[4])
         Append(out, "</tr>")
     }
     TableEnd(out)
-    Append(out, "<p>All calls are warm. The host gate repeats jobs when clock speed or a busy sibling thread would skew the result. <a href=\"")
-    Escape(out, KERNELS)
-    Append(out, "\">Samples and exclusions</a> · <a href=\"https://github.com/ziranlang/ziran/commit/")
-    Escape(out, revision)
-    Append(out, "\">Measured compiler revision</a></p></section>")
+    Append(out, "</section>")
     return true
 }
 
@@ -153,7 +147,7 @@ SceneTable :: (out: *Vec(u8), doc: *JsonDocument) -> bool {
         if !TextHasPrefix(identity, "identity true ") || identity != gpu { return false }
     }
     samples: s64 = 60
-    Append(out, "<section class=\"section benchmark-section\" id=\"kryon-scenes\"><h2>Kryon 3D scenes</h2><p>Animated scenes rendered on the GPU through Kryon's OpenGL ES backend, at two sizes.</p>")
+    Append(out, "<section class=\"section benchmark-section\" id=\"kryon-scenes\"><h2>Kryon 3D scenes</h2>")
     Append(out, "<div class=\"matrix-scroll\" role=\"region\" tabindex=\"0\" aria-label=\"Kryon 3D scenes\"><table class=\"target-matrix bench-table\"><caption class=\"sr-only\">Kryon 3D scenes</caption><thead><tr><th scope=\"col\">Scene<small>µs per frame</small></th><th scope=\"col\">640×360<small>Mean</small></th><th scope=\"col\">640×360<small>p95</small></th><th scope=\"col\">1920×1080<small>Mean</small></th><th scope=\"col\">1920×1080<small>p95</small></th></tr></thead><tbody>")
     scenes := string.["lit-meshes", "skinned-character", "textured-room", "particle-field"]
     sizes := string.["640x360", "1920x1080"]
@@ -167,17 +161,7 @@ SceneTable :: (out: *Vec(u8), doc: *JsonDocument) -> bool {
         }
         Append(out, "</tr>")
     }
-    Append(out, "</tbody></table></div><p>Each scene and size times 60 completed frames after ")
-    Append(out, Numbers.FormatNumber(cast(float64)warmup))
-    Append(out, " warmup frames and hashes every frame. Scene construction, shader compilation, warmup and hashing are outside the timing; p95 is nearest rank. GPU: ")
-    Escape(out, gpu["identity true ".count:])
-    Append(out, ". <a href=\"")
-    Escape(out, SCENES)
-    Append(out, "\">Frame times and hashes</a> · <a href=\"")
-    Escape(out, SCENE_LOG)
-    Append(out, "\">Raw records</a> · <a href=\"https://github.com/kryonlabs/kryon/commit/")
-    Escape(out, revision)
-    Append(out, "\">Kryon revision</a></p></section>")
+    Append(out, "</tbody></table></div></section>")
     return true
 }
 
@@ -190,10 +174,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !Load(*widget, WIDGETS) || !Load(*text, JSON_TEXT) || !Load(*kernels, KERNELS) || !Load(*scenes, SCENES) { return 1 }
     widgets: Vec(u8); json: Vec(u8); tiers: Vec(u8); visual: Vec(u8)
     if !Scenarios(*widgets, *widget, true) { print("invalid widget receipt\n"); return 1 }
-    Append(*widgets, "<p>Warm calls reuse the runner and widget sessions. The Wasm runs use no step budget. <a href=\"generated/library-targets/matrix.json\">Samples and paint checksums</a> · <a href=\"generated/library-targets/sources.zip\">Sources</a> · <a href=\"generated/library-targets/checked-ir.zip\">Checked IR</a></p>")
-    Append(*json, "<section class=\"section benchmark-section\" id=\"json-text\"><h2>JSON and UTF-8</h2><p>Inputs are prepared during warmup. Timed calls parse or serialize, allocate output and validate the result.</p>")
+    Append(*json, "<section class=\"section benchmark-section\" id=\"json-text\"><h2>JSON and UTF-8</h2>")
     if !Scenarios(*json, *text, false) { print("invalid JSON and UTF-8 receipt\n"); return 1 }
-    Append(*json, "<p><a href=\"generated/json-text/matrix.json\">Samples, exclusions and verified outputs</a></p></section>")
+    Append(*json, "</section>")
     if !KernelTable(*tiers, *kernels) { print("invalid kernel receipt\n"); return 1 }
     if !SceneTable(*visual, *scenes) { print("invalid Kryon scene receipt\n"); return 1 }
     result := ReplaceSection(page, "library_matrix", BuilderFinish(widgets))

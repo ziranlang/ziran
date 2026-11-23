@@ -331,13 +331,11 @@ def render(data):
                 continue
             supported = cell['status'] == 'ok'
             href = (cell.get('inspection') or (cell['files'][0] if supported else cell['diagnostic_file']))['path']
-            label = ('Shared stage' if target == 'zir' else 'Verified') if supported else 'Unavailable'
             value = texts['cells'][example['id']][target]['run']
             cells.append(f'<td><a href="{escape(href)}" class="matrix-cell" data-example="{example["id"]}" data-target="{target}" '
-                         f'aria-label="{escape(example["title"])}: {TARGETS[target]}, {label}">'
-                         f'<span class="matrix-state {"is-ok" if supported else "is-limited"}">{label}</span>'
+                         f'aria-label="{escape(example["title"])}: {TARGETS[target]}, {value} {texts["units"]["run"]} per call. Inspect output">'
                          f'<strong class="matrix-value">{value}</strong></a></td>')
-        rows.append(f'<tr><th scope="row"><strong>{escape(example["title"])}</strong><small>{escape(example["id"])}.zi</small></th>{"".join(cells)}</tr>')
+        rows.append(f'<tr><th scope="row">{escape(example["title"])}</th>{"".join(cells)}</tr>')
     first = data['examples'][0]
     content = (SITE / first['source']).read_text()
     fragment = '<!-- generated:target_matrix -->'
@@ -350,7 +348,9 @@ def render(data):
     source = re.sub(r'(?s)(<!-- generated:target_source -->).*?(<!-- /generated:target_source -->)',
                     lambda match: match[1] + escape(content) + match[2], source)
     source = re.sub(r'<small id="matrix-unit">[^<]*</small>',
-                    lambda match: '<small id="matrix-unit">' + texts['units']['run'] + ' per call</small>', source)
+                    lambda match: '<small id="matrix-unit">' + 'Median ' + texts['units']['run'] + ' per call</small>', source)
+    source = re.sub(r'(<option value="run">)[^<]*', lambda match: match[1] + 'Execution time (' + texts['units']['run'] + '/call)', source)
+    source = re.sub(r'(<option value="emission">)[^<]*', lambda match: match[1] + 'Emission time (' + texts['units']['emission'] + ')', source)
     payload = json.dumps(texts, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
     return re.sub(r'(?s)(<!-- generated:target_texts -->).*?(<!-- /generated:target_texts -->)',
                   lambda match: match[1] + '<script type="application/json" id="matrix-texts">' + payload + '</script>' + match[2],

@@ -32,20 +32,6 @@ Clock :: (out: *Vec(u8), ms: float64) {
     Append(out, ifx ms > 0.0 then Numbers.FormatTime(ms, 1) else "—")
 }
 
-RatioValue :: (out: *Vec(u8), value: float64, baseline: float64) {
-    if baseline <= 0.0 || value <= 0.0 { Append(out, "—"); return }
-    Append(out, Numbers.FormatNumber(value / baseline))
-    Append(out, "×")
-}
-
-Ratios :: (out: *Vec(u8), baseline: float64, zx: float64, wasm: float64) {
-    Append(out, "<td class=\"bench-ratios\"><span>ZX ")
-    RatioValue(out, zx, baseline)
-    Append(out, "</span><span>Wasm ")
-    RatioValue(out, wasm, baseline)
-    Append(out, "</span></td>")
-}
-
 TableStart :: (out: *Vec(u8), title: string, unit: string, zx_title: string, engine: bool = false) {
     Append(out, "<div class=\"matrix-scroll\" role=\"region\" tabindex=\"0\" aria-label=\"")
     Escape(out, title)
@@ -57,7 +43,7 @@ TableStart :: (out: *Vec(u8), title: string, unit: string, zx_title: string, eng
     if engine { Append(out, "<th scope=\"col\">ZX engine</th>") }
     Append(out, "<th scope=\"col\">")
     Escape(out, zx_title)
-    Append(out, "</th><th scope=\"col\">Wasm</th><th scope=\"col\">Ratio to C</th></tr></thead><tbody>")
+    Append(out, "</th><th scope=\"col\">Wasm</th></tr></thead><tbody>")
 }
 
 TableEnd :: (out: *Vec(u8)) {
@@ -69,7 +55,6 @@ RowStart :: (out: *Vec(u8), name: string, note: string, link: string = "") {
     if link != "" { Append(out, "<a href=\""); Escape(out, link); Append(out, "\">") }
     Escape(out, name)
     if link != "" { Append(out, "</a>") }
-    if note != "" { Append(out, "<small>"); Escape(out, note); Append(out, "</small>") }
     Append(out, "</th>")
 }
 

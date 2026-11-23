@@ -3,15 +3,6 @@
 
 #include "zir.h"
 
-typedef struct ProgramSet {
-    CompilerContext *context;
-    int owns_context;
-    ZirProgram **programs;
-    char **paths;
-    char **roots;
-    int count;
-} ProgramSet;
-
 /* Load explicit inputs and their extensionless module imports. Module paths
  * are ordinary search roots, independent of any UI library. */
 int ProgramsLoad(ProgramSet *set, const char *root,

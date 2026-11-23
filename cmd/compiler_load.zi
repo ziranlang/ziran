@@ -1,0 +1,1713 @@
+// Load and resolve explicit source or checked IR inputs and their module graph.
+IR :: #import "compiler_ir"
+using Parser :: #import "compiler_parse_types"
+Packages :: #import "compiler_package_resolve"
+Check :: #import "compiler_check_types"
+Serial :: #import "compiler_zir_serial"
+
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+
+AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
+CanonicalPath :: (path: *u8) -> *u8 #foreign compiler "CanonicalPath";
+CompilerBuiltinDirectory :: (kind: s32) -> *u8 #foreign compiler "CompilerBuiltinDirectory";
+CompilerCalloc :: (count: usize, size: usize) -> *void #foreign compiler "CompilerCalloc";
+CompilerContextClose :: (context_local: *u8) -> s32 #foreign compiler "CompilerContextClose";
+CompilerContextCurrent :: () -> *u8 #foreign compiler "CompilerContextCurrent";
+CompilerContextDispose :: (context_local: *u8) #foreign compiler "CompilerContextDispose";
+CompilerContextOpen :: () -> *u8 #foreign compiler "CompilerContextOpen";
+CompilerContextSelect :: (context_local: *u8) -> *u8 #foreign compiler "CompilerContextSelect";
+CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
+CompilerMalloc :: (size: usize) -> *void #foreign compiler "CompilerMalloc";
+CompilerPathIsRegular :: (path: *u8) -> s32 #foreign compiler "CompilerPathIsRegular";
+CompilerRealloc :: (pointer: *void, size: usize) -> *void #foreign compiler "CompilerRealloc";
+CompilerStrdup :: (text: *u8) -> *u8 #foreign compiler "CompilerStrdup";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, varargs: ..any) #foreign compiler "Diagnostic";
+DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+DuplicatePrefix :: (text: *u8, limit: usize) -> *u8 #foreign compiler "DuplicatePrefix";
+ExecutablePath :: (output: *u8, capacity: usize) -> s32 #foreign compiler "ExecutablePath";
+ModuleParametersBind :: (module: *IR.ZirModule, parameters: *u8, site: IR.ZirSourceSpan, values: **u8, report: s32) -> s32 #foreign compiler "ModuleParametersBind";
+PathIsAbsolute :: (path: *u8) -> s32 #foreign compiler "PathIsAbsolute";
+ProfileEnd :: (phase: *u8, started: u64) #foreign compiler "ProfileEnd";
+ProfileStart :: () -> u64 #foreign compiler "ProfileStart";
+ProgramFree :: (program: *IR.ZirProgram) #foreign compiler "ProgramFree";
+S15HostOS :: () -> s32 #foreign compiler "S15HostOS";
+SourceOverlayAllowed :: (path: *u8) -> s32 #foreign compiler "SourceOverlayAllowed";
+Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+SymbolLookupsChanged :: () #foreign compiler "SymbolLookupsChanged";
+TypeLayout :: (module: *IR.ZirModule, type: *u8, size: *usize, alignment: *usize) -> s32 #foreign compiler "TypeLayout";
+copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
+getenv :: (__name: *u8) -> *u8 #foreign libc "getenv";
+memchr :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memchr";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+memmove :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memmove";
+parse_module_with_imports :: (path: *u8, root: *u8, resolver: ZirCompileImportResolver, context_local: *void, defines: **u8, define_count: s32, site: *IR.ZirImport) -> *IR.ZirProgram #foreign compiler "parse_module_with_imports";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+strchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strchr";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+strrchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strrchr";
+strstr :: (__haystack: *u8, __needle: *u8) -> *u8 #foreign libc "strstr";
+isalnum :: (byte: s32) -> s32 #foreign libc "isalnum";
+isalpha :: (byte: s32) -> s32 #foreign libc "isalpha";
+isspace :: (byte: s32) -> s32 #foreign libc "isspace";
+
+
+ParserArray32__u8 :: struct {
+    items: [32]*u8
+}
+
+LoadContext :: struct {
+    set: *IR.ProgramSet
+    root: *u8
+    module_paths: **u8
+    module_path_names: **u8
+    module_path_count: s32
+    defines: **u8
+    define_count: s32
+    active: ParserArray32__u8
+    active_count: s32
+    packages: *Packages.ZirPackageMap
+    site: *IR.ZirImport
+}
+
+ParserArray2048_u8 :: struct {
+    items: [2048]u8
+}
+
+ParserArray3072_u8 :: struct {
+    items: [3072]u8
+}
+
+LoadImportBuffers :: struct {
+    directory: ParserArray2048_u8
+    owner_file: ParserArray3072_u8
+    mapped_path: ParserArray3072_u8
+    parent: ParserArray3072_u8
+    module_root: ParserArray3072_u8
+    candidate: ParserArray3072_u8
+}
+
+ParserArray1024_u8 :: struct {
+    items: [1024]u8
+}
+
+ParserArray128_u8 :: struct {
+    items: [128]u8
+}
+
+ParserArray3__u8 :: struct {
+    items: [3]*u8
+}
+
+ParserArray2__u8 :: struct {
+    items: [2]*u8
+}
+
+ParserArray5__IR_ZirModule :: struct {
+    items: [5]*IR.ZirModule
+}
+
+ParserArray4096_u8 :: struct {
+    items: [4096]u8
+}
+
+ParserArray14_u8 :: struct {
+    items: [14]u8
+}
+
+ToolchainStandardDirectory_resolved: s32;
+ToolchainStandardDirectory_directory: ParserArray1024_u8;
+ToolchainIncludeDirectory_resolved: s32;
+ToolchainIncludeDirectory_directory: ParserArray1024_u8;
+canonical_standard_directory_resolved: s32;
+canonical_standard_directory_directory: *u8;
+PersistenceSet0 :: (p: *u8, value: u8) -> u8 { p[0] = value; return value }
+
+PersistencePost1 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] + 1; return old }
+
+PersistenceSet2 :: (p: *IR.ProgramSet, value: IR.ProgramSet) -> IR.ProgramSet { p[0] = value; return value }
+
+PersistencePost3 :: (p: **u8) -> *u8 { old := p[0]; p[0] = cast(*u8)(cast(usize)p[0] + size_of(u8)); return old }
+
+PersistencePost4 :: (p: *usize) -> usize { old := p[0]; p[0] = p[0] + 1; return old }
+
+PersistencePost5 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] - 1; return old }
+
+PersistenceSet6 :: (p: **u8, value: *u8) -> *u8 { p[0] = value; return value }
+
+
+#scope_file
+load_import_frame: u8;
+load_import_scratch :: (context_local: *LoadContext, owner_source: *u8, owner_root: *u8, import_local: *IR.ZirImport) -> s32 {
+    buffers := cast(*LoadImportBuffers)ParserScratchTake(*load_import_frame, size_of(LoadImportBuffers))
+    defer ParserScratchRelease(*load_import_frame, cast(*void)buffers)
+    return load_import_with_buffers(context_local, owner_source, owner_root, import_local, buffers)
+}
+
+
+#scope_file
+toolchain_directory_usable :: (path: *u8, probe_file: *u8) -> s32 {
+    probe: ParserArray1024_u8
+    return cast(s32)((snprintf(cast(*u8)(*((probe).items)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s/%s"), path, probe_file) < cast(s32)(cast(usize)size_of(ParserArray1024_u8))) && (CompilerPathIsRegular(cast(*u8)(*((probe).items))) != 0))
+}
+
+
+#scope_file
+toolchain_directory :: (name: *u8, probe_file: *u8, variable: *u8, built: *u8, directory: *u8, size: usize) {
+    (directory)[0] = cast(u8)(0)
+    configured: *u8 = getenv(variable)
+    if ((configured != cast(*u8)((null))) && ((configured)[0] != 0)) {
+        if (toolchain_directory_usable(configured, probe_file) != 0) {
+            copy_text(directory, size, configured)
+        }
+        return
+    }
+    executable: ParserArray1024_u8
+    length: s32 = ExecutablePath(cast(*u8)(*((executable).items)), cast(usize)size_of(ParserArray1024_u8))
+    if (length > 0) {
+        (executable).items[length] = cast(u8)(0)
+        {
+            up: s32 = 0
+            while check_loop_1 := (up < 3) {
+                slash: *u8 = strrchr(cast(*u8)(*((executable).items)), 47)
+                if (slash == cast(*u8)((null))) {
+                    break check_loop_1
+                }
+                PersistenceSet0(slash, cast(u8)(0))
+                if (up == 0) {
+                    PersistencePost1(*(up))
+                    continue check_loop_1
+                }
+                candidate: ParserArray1024_u8
+                if ((snprintf(cast(*u8)(*((candidate).items)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s/%s"), cast(*u8)(*((executable).items)), name) < cast(s32)(cast(usize)size_of(ParserArray1024_u8))) && (toolchain_directory_usable(cast(*u8)(*((candidate).items)), probe_file) != 0)) {
+                    copy_text(directory, size, cast(*u8)(*((candidate).items)))
+                    return
+                }
+                PersistencePost1(*(up))
+            }
+        }
+    }
+    if (((built)[0] != 0) && (toolchain_directory_usable(built, probe_file) != 0)) {
+        copy_text(directory, size, built)
+    }
+}
+
+
+#scope_export
+ToolchainStandardDirectory :: () -> *u8 {
+    if !(ToolchainStandardDirectory_resolved != 0) {
+        toolchain_directory(ParserCString("std"), ParserCString("text.zi"), ParserCString("ZIRAN_STD"), CompilerBuiltinDirectory(0), cast(*u8)(*((ToolchainStandardDirectory_directory).items)), cast(usize)size_of(ParserArray1024_u8))
+    }
+    ToolchainStandardDirectory_resolved = 1
+    return (ifx ((ToolchainStandardDirectory_directory).items[0] != 0) then cast(*u8)(*((ToolchainStandardDirectory_directory).items)) else null)
+}
+
+
+#scope_export
+ToolchainIncludeDirectory :: () -> *u8 {
+    if !(ToolchainIncludeDirectory_resolved != 0) {
+        toolchain_directory(ParserCString("include"), ParserCString("zir_string.h"), ParserCString("ZIRAN_INCLUDE"), CompilerBuiltinDirectory(1), cast(*u8)(*((ToolchainIncludeDirectory_directory).items)), cast(usize)size_of(ParserArray1024_u8))
+    }
+    ToolchainIncludeDirectory_resolved = 1
+    return (ifx ((ToolchainIncludeDirectory_directory).items[0] != 0) then cast(*u8)(*((ToolchainIncludeDirectory_directory).items)) else null)
+}
+
+
+#scope_export
+#program_export "ProgramsFree"
+ProgramsFree :: (set: *IR.ProgramSet) {
+    {
+        i: s32 = 0
+        while check_loop_2 := (i < (set).count) {
+            ProgramFree(((set).programs)[i])
+            CompilerFree(cast(*void)((cast(**u8)set.paths)[i]))
+            CompilerFree(cast(*void)((cast(**u8)set.roots)[i]))
+            PersistencePost1(*(i))
+        }
+    }
+    CompilerFree(cast(*void)((set).programs))
+    CompilerFree(cast(*void)((set).paths))
+    CompilerFree(cast(*void)((set).roots))
+    if ((set).owns_context != 0) {
+        CompilerContextDispose(set.context)
+    }
+    PersistenceSet2(set, IR.ProgramSet.{})
+}
+
+
+#scope_file
+module_named :: (set: *IR.ProgramSet, target: *u8) -> s32 {
+    {
+        i: s32 = 0
+        while check_loop_3 := (i < (set).count) {
+            {
+                m: s32 = 0
+                while check_loop_4 := (m < (((set).programs)[i]).module_count) {
+                    if (strcmp(cast(*u8)(*((((((set).programs)[i]).modules)[m]).name)), target) == 0) {
+                        return 1
+                    }
+                    PersistencePost1(*(m))
+                }
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+module_loaded :: (set: *IR.ProgramSet, target: *u8) -> s32 {
+    {
+        i: s32 = 0
+        while check_loop_5 := (i < (set).count) {
+            {
+                m: s32 = 0
+                while check_loop_6 := (m < (((set).programs)[i]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)((((set).programs)[i]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    stem: ParserArray1024_u8
+                    length: usize
+                    if (strcmp(cast(*u8)(*((module).name)), target) == 0) {
+                        return 1
+                    }
+                    if (snprintf(cast(*u8)(*((stem).items)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s"), cast(*u8)(*((module).source_path))) >= cast(s32)(cast(usize)size_of(ParserArray1024_u8))) {
+                        PersistencePost1(*(m))
+                        continue check_loop_6
+                    }
+                    length = strlen(cast(*u8)(*((stem).items)))
+                    if ((length > cast(usize)(3)) && (strcmp(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(cast(*u8)(*((stem).items))) + cast(usize)(length) * size_of(u8))) - cast(usize)(3) * size_of(u8)), ParserCString(".zi")) == 0)) {
+                        (stem).items[(length - cast(usize)(3))] = cast(u8)(0)
+                    }
+                    if (strcmp(cast(*u8)(*((stem).items)), target) == 0) {
+                        return 1
+                    }
+                    PersistencePost1(*(m))
+                }
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+module_path_package :: (context_local: *LoadContext, source: *u8) -> *u8 {
+    package: *u8 = null
+    longest: usize = cast(usize)(0)
+    {
+        i: s32 = 0
+        while check_loop_7 := (i < (context_local).module_path_count) {
+            directory: *u8 = ((context_local).module_paths)[i]
+            length: usize = strlen(directory)
+            if ((((((context_local).module_path_names)[i] == cast(*u8)((null))) || (length <= longest)) || (strncmp(source, directory, length) != 0)) || (cast(s32)(cast(s8)((source)[length])) != 47)) {
+                PersistencePost1(*(i))
+                continue check_loop_7
+            }
+            package = ((context_local).module_path_names)[i]
+            longest = length
+            PersistencePost1(*(i))
+        }
+    }
+    return package
+}
+
+
+#scope_file
+package_scoped :: (context_local: *LoadContext, package: *u8) -> s32 {
+    if (((context_local).packages != cast(*Packages.ZirPackageMap)((null))) || (package == cast(*u8)((null)))) {
+        return 0
+    }
+    {
+        i: s32 = 0
+        while check_loop_8 := (i < (context_local).module_path_count) {
+            if ((((context_local).module_path_names)[i] != cast(*u8)((null))) && (strcmp(((context_local).module_path_names)[i], package) == 0)) {
+                return 1
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+package_identity :: (package: *u8, module: *u8, output: *u8, size: usize) -> s32 {
+    hash: u64 = cast(u64)(1469598103934665603)
+    {
+        at: *u8 = cast(*u8)(package)
+        while check_loop_9 := ((at)[0] != 0) {
+            hash ^= cast(u64)((at)[0])
+            hash *= cast(u64)(1099511628211)
+            PersistencePost3(*(at))
+        }
+    }
+    written: s32 = snprintf(output, size, ParserCString("p%016llx_%s"), cast(u64)(hash), module)
+    return cast(s32)((written > 0) && (cast(usize)(written) < size))
+}
+
+
+#scope_file
+import_loaded :: (context_local: *LoadContext, import_local: *IR.ZirImport, path: *u8) {
+    canonical: *u8 = CanonicalPath(path)
+    set: *IR.ProgramSet = (context_local).set
+    if (canonical != cast(*u8)((null))) {
+        {
+            i: s32 = 0
+            while check_loop_10 := (i < (set).count) {
+                if ((strcmp((cast(**u8)set.paths)[i], canonical) == 0) && ((((set).programs)[i]).module_count == 1)) {
+                    snprintf(cast(*u8)(*((import_local).target)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s"), cast(*u8)(*((((((set).programs)[i]).modules)[0]).name)))
+                }
+                PersistencePost1(*(i))
+            }
+        }
+    }
+    CompilerFree(cast(*void)(canonical))
+}
+
+
+#scope_file
+add_program_named :: (context_local: *LoadContext, path: *u8, root: *u8, identity: *u8) -> s32 {
+    set: *IR.ProgramSet = (context_local).set
+    canonical: *u8 = CanonicalPath(path)
+    lexical: *u8 = null
+    program: *IR.ZirProgram
+    if (canonical == cast(*u8)((null))) {
+        Diagnostic(Span(path, 1, 1), ParserCString("module.input"), ParserCString("cannot open module input: %s"), path)
+        return 0
+    }
+    if !(SourceOverlayAllowed(canonical) != 0) {
+        Diagnostic(Span(path, 1, 1), ParserCString("module.input"), ParserCString("module import escapes the edit root and explicit search roots: %s"), path)
+        CompilerFree(cast(*void)(canonical))
+        return 0
+    }
+    {
+        i: s32 = 0
+        while check_loop_11 := (i < (set).count) {
+            if (strcmp((cast(**u8)set.paths)[i], canonical) == 0) {
+                CompilerFree(cast(*void)(canonical))
+                return 1
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while check_loop_12 := (i < (context_local).active_count) {
+            if (strcmp(((context_local).active).items[i], canonical) == 0) {
+                Diagnostic(Span(path, 1, 1), ParserCString("module.compile_cycle"), ParserCString("cyclic compile-time import: %s"), path)
+                CompilerFree(cast(*void)(canonical))
+                return 0
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    if ((context_local).active_count == 32) {
+        Diagnostic(Span(path, 1, 1), ParserCString("module.compile_depth"), ParserCString("compile-time import chain is too deep"))
+        CompilerFree(cast(*void)(canonical))
+        return 0
+    }
+    slash: *u8 = strrchr(path, 47)
+    if (S15HostOS() == 1) {
+        backslash: *u8 = strrchr(path, 92)
+        if ((backslash != cast(*u8)((null))) && ((slash == cast(*u8)((null))) || (backslash > slash))) {
+            slash = backslash
+        }
+    }
+    parent_length: usize = (ifx (slash == cast(*u8)((null))) then cast(usize)(0) else cast(usize)(((cast(isize)(cast(usize)(slash) - cast(usize)(path)) / cast(isize)size_of(u8)))))
+    if (S15HostOS() == 1) {
+        if ((parent_length > cast(usize)(0)) && (cast(s32)(cast(s8)((path)[(parent_length - cast(usize)(1))])) == 58)) {
+            PersistencePost4(*(parent_length))
+        }
+    }
+    parent_path: *u8 = (ifx (parent_length == cast(usize)(0)) then CompilerStrdup((ifx (slash == path) then ParserCString("/") else ParserCString("."))) else DuplicatePrefix(path, parent_length))
+    parent: *u8 = (ifx (parent_path == cast(*u8)((null))) then null else CanonicalPath(parent_path))
+    CompilerFree(cast(*void)(parent_path))
+    if (parent != cast(*u8)((null))) {
+        leaf: *u8 = (ifx (slash == cast(*u8)((null))) then path else cast(*u8)(cast(usize)(slash) + cast(usize)(1) * size_of(u8)))
+        length: usize = ((strlen(parent) + strlen(leaf)) + cast(usize)(2))
+        lexical = cast(*u8)(CompilerMalloc(length))
+        if (lexical != cast(*u8)((null))) {
+            snprintf(lexical, length, ParserCString("%s/%s"), parent, leaf)
+        }
+        CompilerFree(cast(*void)(parent))
+    }
+    ((context_local).active).items[PersistencePost1(*((context_local).active_count))] = canonical
+    lexical_length: usize = (ifx (lexical == cast(*u8)((null))) then cast(usize)(0) else strlen(lexical))
+    program = (ifx (lexical == cast(*u8)((null))) then null else (ifx ((lexical_length > cast(usize)(3)) && (strcmp(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(lexical) + cast(usize)(lexical_length) * size_of(u8))) - cast(usize)(3) * size_of(u8)), ParserCString(".zi")) == 0)) then parse_module_with_imports(lexical, root, cast(ZirCompileImportResolver)(early_resolve_imports), cast(*void)(context_local), (context_local).defines, (context_local).define_count, (context_local).site) else Serial.ProgramLoad(lexical, root)))
+    PersistencePost5(*((context_local).active_count))
+    CompilerFree(cast(*void)(lexical))
+    if (program == cast(*IR.ZirProgram)((null))) {
+        CompilerFree(cast(*void)(canonical))
+        return 0
+    }
+    if (identity != cast(*u8)((null))) {
+        if (((program).module_count != 1) || (snprintf(cast(*u8)(*((((program).modules)[0]).source_path)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s.zi"), identity) >= cast(s32)(cast(usize)size_of(ParserArray1024_u8)))) {
+            Diagnostic(Span(path, 1, 1), ParserCString("module.identity"), ParserCString("directory module has an invalid identity: %s"), identity)
+            ProgramFree(program)
+            CompilerFree(cast(*void)(canonical))
+            return 0
+        }
+        snprintf(cast(*u8)(*((((program).modules)[0]).name)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s"), identity)
+    }
+    scope: *u8 = module_path_package(context_local, canonical)
+    if (!(Serial.PathIsIR(path) != 0) && (package_scoped(context_local, scope) != 0)) {
+        scoped: ParserArray128_u8
+        if ((((program).module_count != 1) || !(package_identity(scope, cast(*u8)(*((((program).modules)[0]).name)), cast(*u8)(*((scoped).items)), cast(usize)size_of(ParserArray128_u8)) != 0)) || (snprintf(cast(*u8)(*((((program).modules)[0]).source_path)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s.zi"), cast(*u8)(*((scoped).items))) >= cast(s32)(cast(usize)size_of(ParserArray1024_u8)))) {
+            Diagnostic(Span(path, 1, 1), ParserCString("module.identity"), ParserCString("package module has an invalid identity: %s"), path)
+            ProgramFree(program)
+            CompilerFree(cast(*void)(canonical))
+            return 0
+        }
+        snprintf(cast(*u8)(*((((program).modules)[0]).name)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s"), cast(*u8)(*((scoped).items)))
+    }
+    if (((context_local).packages != cast(*Packages.ZirPackageMap)((null))) && !(Serial.PathIsIR(path) != 0)) {
+        mapped: *u8 = Packages.PackageModuleName((context_local).packages, canonical)
+        owner: *u8 = Packages.PackageOwner((context_local).packages, canonical)
+        if (owner == cast(*u8)((null))) {
+            Diagnostic(Span(path, 1, 1), ParserCString("package.scope"), ParserCString("source file is outside the package graph: %s"), path)
+            ProgramFree(program)
+            CompilerFree(cast(*void)(canonical))
+            return 0
+        }
+        if ((strcmp(owner, ParserCString("root")) != 0) && (mapped == cast(*u8)((null)))) {
+            Diagnostic(Span(path, 1, 1), ParserCString("package.module"), ParserCString("source file is not a declared package module: %s"), path)
+            ProgramFree(program)
+            CompilerFree(cast(*void)(canonical))
+            return 0
+        }
+        if (mapped != cast(*u8)((null))) {
+            if ((((program).module_count != 1) || (snprintf(cast(*u8)(*((((program).modules)[0]).name)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s"), mapped) >= cast(s32)(cast(usize)size_of(ParserArray128_u8)))) || (snprintf(cast(*u8)(*((((program).modules)[0]).source_path)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s.zi"), mapped) >= cast(s32)(cast(usize)size_of(ParserArray1024_u8)))) {
+                Diagnostic(Span(path, 1, 1), ParserCString("package.identity"), ParserCString("invalid mapped module identity"))
+                ProgramFree(program)
+                CompilerFree(cast(*void)(canonical))
+                return 0
+            }
+        }
+    } else {
+        if ((context_local).packages != cast(*Packages.ZirPackageMap)((null))) {
+            mapped: *u8 = Packages.PackageModuleName((context_local).packages, canonical)
+            if ((mapped != cast(*u8)((null))) && (((program).module_count != 1) || (strcmp(cast(*u8)(*((((program).modules)[0]).name)), mapped) != 0))) {
+                Diagnostic(Span(path, 1, 1), ParserCString("package.identity"), ParserCString("saved package module does not declare its mapped identity %s"), mapped)
+                ProgramFree(program)
+                CompilerFree(cast(*void)(canonical))
+                return 0
+            }
+        }
+    }
+    if ((program).module_count == 1) {
+        standard_module_name(context_local, canonical, cast(*u8)(*((((program).modules)[0]).standard_name)), cast(usize)size_of(ParserArray128_u8))
+    }
+    {
+        m: s32 = 0
+        while check_loop_13 := (m < (program).module_count) {
+            if (module_named(set, cast(*u8)(*((((program).modules)[m]).name))) != 0) {
+                Diagnostic((((program).modules)[m]).span, ParserCString("module.duplicate"), ParserCString("duplicate module identity: %s"), cast(*u8)(*((((program).modules)[m]).name)))
+                ProgramFree(program)
+                CompilerFree(cast(*void)(canonical))
+                return 0
+            }
+            PersistencePost1(*(m))
+        }
+    }
+    if (((((set).count == 2147483647) || (cast(usize)((set).count) >= ((cast(usize)-1) / cast(usize)size_of(*IR.ZirProgram)))) || (cast(usize)((set).count) >= ((cast(usize)-1) / cast(usize)size_of(*u8)))) || (cast(usize)((set).count) >= ((cast(usize)-1) / cast(usize)size_of(*u8)))) {
+        Diagnostic(Span(path, 1, 1), ParserCString("module.limit"), ParserCString("module graph exceeds addressable storage"))
+        ProgramFree(program)
+        CompilerFree(cast(*void)(canonical))
+        return 0
+    }
+    programs: **IR.ZirProgram = cast(**IR.ZirProgram)(CompilerRealloc(cast(*void)((set).programs), (cast(usize)((((set).count + 1))) * cast(usize)size_of(*IR.ZirProgram))))
+    if (programs == cast(**IR.ZirProgram)((null))) {
+        ProgramFree(program)
+        CompilerFree(cast(*void)(canonical))
+        return 0
+    }
+    (set).programs = programs
+    paths: **u8 = cast(**u8)(CompilerRealloc(cast(*void)((set).paths), (cast(usize)((((set).count + 1))) * cast(usize)size_of(*u8))))
+    if (paths == cast(**u8)((null))) {
+        ProgramFree(program)
+        CompilerFree(cast(*void)(canonical))
+        return 0
+    }
+    (set).paths = paths
+    roots: **u8 = cast(**u8)(CompilerRealloc(cast(*void)((set).roots), (cast(usize)((((set).count + 1))) * cast(usize)size_of(*u8))))
+    if (roots == cast(**u8)((null))) {
+        ProgramFree(program)
+        CompilerFree(cast(*void)(canonical))
+        return 0
+    }
+    (set).roots = roots
+    saved_root: *u8 = CompilerStrdup(root)
+    if (saved_root == cast(*u8)((null))) {
+        ProgramFree(program)
+        CompilerFree(cast(*void)(canonical))
+        return 0
+    }
+    ((set).programs)[(set).count] = program
+    paths[set.count] = canonical
+    roots[set.count] = saved_root
+    PersistencePost1(*((set).count))
+    return 1
+}
+
+
+#scope_file
+path_within :: (path: *u8, directory: *u8) -> s32 {
+    length: usize = strlen(directory)
+    return cast(s32)((strncmp(path, directory, length) == 0) && ((cast(s32)(cast(s8)((path)[length])) == 47) || (cast(s32)(cast(s8)((directory)[(length - cast(usize)(1))])) == 47)))
+}
+
+
+#scope_file
+standard_search_path :: (context_local: *LoadContext, i: s32) -> s32 {
+    directory: *u8 = ((context_local).module_paths)[i]
+    base: *u8 = strrchr(directory, 47)
+    probe: ParserArray2048_u8
+    if (((context_local).module_path_names)[i] != cast(*u8)((null))) {
+        return cast(s32)(strcmp(((context_local).module_path_names)[i], ParserCString("std")) == 0)
+    }
+    return cast(s32)((((base != cast(*u8)((null))) && (strcmp(cast(*u8)(cast(usize)(base) + cast(usize)(1) * size_of(u8)), ParserCString("std")) == 0)) && (snprintf(cast(*u8)(*((probe).items)), cast(usize)size_of(ParserArray2048_u8), ParserCString("%s/text.zi"), directory) < cast(s32)(cast(usize)size_of(ParserArray2048_u8)))) && (CompilerPathIsRegular(cast(*u8)(*((probe).items))) != 0))
+}
+
+
+#scope_file
+canonical_standard_directory :: () -> *u8 {
+    if (!(canonical_standard_directory_resolved != 0) && (ToolchainStandardDirectory() != cast(*u8)((null)))) {
+        canonical_standard_directory_directory = CanonicalPath(ToolchainStandardDirectory())
+    }
+    canonical_standard_directory_resolved = 1
+    return canonical_standard_directory_directory
+}
+
+
+#scope_file
+standard_source :: (context_local: *LoadContext, path: *u8) -> s32 {
+    standard: *u8 = canonical_standard_directory()
+    {
+        i: s32 = 0
+        while check_loop_14 := (i < (context_local).module_path_count) {
+            if ((standard_search_path(context_local, i) != 0) && (path_within(path, ((context_local).module_paths)[i]) != 0)) {
+                return 1
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    return cast(s32)((standard != cast(*u8)((null))) && (path_within(path, standard) != 0))
+}
+
+
+#scope_file
+standard_module_name :: (context_local: *LoadContext, path: *u8, name: *u8, size: usize) {
+    owner: *u8 = (ifx ((context_local).packages == cast(*Packages.ZirPackageMap)((null))) then null else Packages.PackageOwner((context_local).packages, path))
+    leaf: *u8 = strrchr(path, 47)
+    length: usize
+    (name)[0] = cast(u8)(0)
+    if (!(standard_source(context_local, path) != 0) && ((owner == cast(*u8)((null))) || (strcmp(owner, ParserCString("std")) != 0))) {
+        return
+    }
+    leaf = (ifx (leaf == cast(*u8)((null))) then path else cast(*u8)(cast(usize)(leaf) + cast(usize)(1) * size_of(u8)))
+    length = strlen(leaf)
+    if ((length > cast(usize)(3)) && (strcmp(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(leaf) + cast(usize)(length) * size_of(u8))) - cast(usize)(3) * size_of(u8)), ParserCString(".zi")) == 0)) {
+        length -= cast(usize)(3)
+    } else {
+        if ((length > cast(usize)(4)) && (strcmp(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(leaf) + cast(usize)(length) * size_of(u8))) - cast(usize)(4) * size_of(u8)), ParserCString(".zir")) == 0)) {
+            length -= cast(usize)(4)
+        } else {
+            return
+        }
+    }
+    if (length < size) {
+        snprintf(name, size, ParserCString("%.*s"), cast(s32)(length), leaf)
+    }
+}
+
+
+#scope_file
+module_candidate :: (directory: *u8, target: *u8, path: *u8, size: usize) -> s32 {
+    suffixes: ParserArray3__u8 = .{items = .{ParserCString(".zi"), ParserCString(".zir"), ParserCString("/module.zi")}}
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_15 := (i < (cast(usize)size_of(ParserArray3__u8) / cast(usize)size_of(*u8))) {
+            if ((snprintf(path, size, ParserCString("%s/%s%s"), directory, target, (suffixes).items[i]) < cast(s32)(size)) && (CompilerPathIsRegular(path) != 0)) {
+                return 1
+            }
+            PersistencePost4(*(i))
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+loaded_module_path :: (set: *IR.ProgramSet, target: *u8) -> *u8 {
+    {
+        i: s32 = 0
+        while check_loop_16 := (i < (set).count) {
+            {
+                m: s32 = 0
+                while check_loop_17 := (m < (((set).programs)[i]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)((((set).programs)[i]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    stem: ParserArray1024_u8
+                    length: usize
+                    if (strcmp(cast(*u8)(*((module).name)), target) == 0) {
+                        return (cast(**u8)set.paths)[i]
+                    }
+                    if (snprintf(cast(*u8)(*((stem).items)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s"), cast(*u8)(*((module).source_path))) >= cast(s32)(cast(usize)size_of(ParserArray1024_u8))) {
+                        PersistencePost1(*(m))
+                        continue check_loop_17
+                    }
+                    length = strlen(cast(*u8)(*((stem).items)))
+                    if ((length > cast(usize)(3)) && (strcmp(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(cast(*u8)(*((stem).items))) + cast(usize)(length) * size_of(u8))) - cast(usize)(3) * size_of(u8)), ParserCString(".zi")) == 0)) {
+                        (stem).items[(length - cast(usize)(3))] = cast(u8)(0)
+                    }
+                    if (strcmp(cast(*u8)(*((stem).items)), target) == 0) {
+                        return (cast(**u8)set.paths)[i]
+                    }
+                    PersistencePost1(*(m))
+                }
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    return null
+}
+
+
+#scope_file
+input_root :: (context_local: *LoadContext, input: *u8, canonical_root: *u8) -> *u8 {
+    canonical: *u8 = CanonicalPath(input)
+    root: *u8 = canonical_root
+    if ((canonical == cast(*u8)((null))) || (path_within(canonical, canonical_root) != 0)) {
+        CompilerFree(cast(*void)(canonical))
+        return root
+    }
+    {
+        i: s32 = 0
+        while check_loop_18 := (i < (context_local).module_path_count) {
+            if (path_within(canonical, ((context_local).module_paths)[i]) != 0) {
+                root = ((context_local).module_paths)[i]
+                break check_loop_18
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    CompilerFree(cast(*void)(canonical))
+    return root
+}
+
+
+#scope_file
+add_program :: (context_local: *LoadContext, path: *u8, root: *u8) -> s32 {
+    return add_program_named(context_local, path, root, null)
+}
+
+
+#scope_file
+module_target_part :: (part: *u8, length: usize) -> s32 {
+    if ((length == cast(usize)(0)) || (!(isalpha(cast(s32)(((cast(u8)((part)[0]))))) != 0) && (cast(s32)(cast(s8)((part)[0])) != 95))) {
+        return 0
+    }
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_19 := (i < length) {
+            if (!(isalnum(cast(s32)(((cast(u8)((part)[i]))))) != 0) && (cast(s32)(cast(s8)((part)[i])) != 95)) {
+                return 0
+            }
+            PersistencePost4(*(i))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+module_target :: (target: *u8) -> s32 {
+    part: *u8 = target
+    {
+        while check_loop_20 := true {
+            slash: *u8 = strchr(part, 47)
+            length: usize = (ifx (slash == cast(*u8)((null))) then strlen(part) else cast(usize)(((cast(isize)(cast(usize)(slash) - cast(usize)(part)) / cast(isize)size_of(u8)))))
+            if !(module_target_part(part, length) != 0) {
+                return 0
+            }
+            if (slash == cast(*u8)((null))) {
+                return 1
+            }
+            part = cast(*u8)(cast(usize)(slash) + cast(usize)(1) * size_of(u8))
+        }
+    }
+    unreachable
+}
+
+
+#scope_file
+try_module :: (context_local: *LoadContext, directory: *u8, load_root: *u8, target: *u8, prefer_ir: s32, import_local: *IR.ZirImport) -> s32 {
+    candidate: ParserArray2048_u8
+    extensions: ParserArray2__u8 = .{items = .{(ifx (prefer_ir != 0) then ParserCString(".zir") else ParserCString(".zi")), (ifx (prefer_ir != 0) then ParserCString(".zi") else ParserCString(".zir"))}}
+    {
+        i: s32 = 0
+        while check_loop_21 := (i < 2) {
+            if (snprintf(cast(*u8)(*((candidate).items)), cast(usize)size_of(ParserArray2048_u8), ParserCString("%s/%s%s"), directory, target, (extensions).items[i]) >= cast(s32)(cast(usize)size_of(ParserArray2048_u8))) {
+                PersistencePost1(*(i))
+                continue check_loop_21
+            }
+            if !(CompilerPathIsRegular(cast(*u8)(*((candidate).items))) != 0) {
+                PersistencePost1(*(i))
+                continue check_loop_21
+            }
+            if !(add_program(context_local, cast(*u8)(*((candidate).items)), load_root) != 0) {
+                return (-1)
+            }
+            import_loaded(context_local, import_local, cast(*u8)(*((candidate).items)))
+            return 1
+            PersistencePost1(*(i))
+        }
+    }
+    if (snprintf(cast(*u8)(*((candidate).items)), cast(usize)size_of(ParserArray2048_u8), ParserCString("%s/%s/module.zi"), directory, target) < cast(s32)(cast(usize)size_of(ParserArray2048_u8))) {
+        if (CompilerPathIsRegular(cast(*u8)(*((candidate).items))) != 0) {
+            module_root: ParserArray2048_u8
+            if (snprintf(cast(*u8)(*((module_root).items)), cast(usize)size_of(ParserArray2048_u8), ParserCString("%s/%s"), directory, target) >= cast(s32)(cast(usize)size_of(ParserArray2048_u8))) {
+                return (-1)
+            }
+            if !(add_program_named(context_local, cast(*u8)(*((candidate).items)), cast(*u8)(*((module_root).items)), target) != 0) {
+                return (-1)
+            }
+            import_loaded(context_local, import_local, cast(*u8)(*((candidate).items)))
+            return 1
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+plain_candidate :: (context_local: *LoadContext, owner_path: *u8, owner_root: *u8, name: *u8, buffers: *LoadImportBuffers) -> *u8 {
+    slash: *u8 = strrchr(owner_path, 47)
+    path: *u8 = cast(*u8)(*(((buffers).mapped_path).items))
+    size: usize = cast(usize)size_of(ParserArray3072_u8)
+    if ((slash != cast(*u8)((null))) && (cast(usize)(((cast(isize)(cast(usize)(slash) - cast(usize)(owner_path)) / cast(isize)size_of(u8)))) < cast(usize)size_of(ParserArray2048_u8))) {
+        memcpy(cast(*void)(cast(*u8)(*(((buffers).directory).items))), cast(*void)(owner_path), cast(usize)(((cast(isize)(cast(usize)(slash) - cast(usize)(owner_path)) / cast(isize)size_of(u8)))))
+        ((buffers).directory).items[(cast(isize)(cast(usize)(slash) - cast(usize)(owner_path)) / cast(isize)size_of(u8))] = cast(u8)(0)
+        if (module_candidate(cast(*u8)(*(((buffers).directory).items)), name, path, size) != 0) {
+            return path
+        }
+    }
+    if ((module_candidate(owner_root, name, path, size) != 0) || (module_candidate((context_local).root, name, path, size) != 0)) {
+        return path
+    }
+    {
+        i: s32 = 0
+        while check_loop_22 := (i < (context_local).module_path_count) {
+            if ((((context_local).module_path_names)[i] == cast(*u8)((null))) && (module_candidate(((context_local).module_paths)[i], name, path, size) != 0)) {
+                return path
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    return null
+}
+
+
+#scope_file
+load_standard_import :: (context_local: *LoadContext, owner_path: *u8, owner_root: *u8, import_local: *IR.ZirImport, buffers: *LoadImportBuffers) -> s32 {
+    set: *IR.ProgramSet = (context_local).set
+    home: *u8 = null
+    name: ParserArray128_u8
+    if (snprintf(cast(*u8)(*((name).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s"), cast(*u8)(*((import_local).target))) >= cast(s32)(cast(usize)size_of(ParserArray128_u8))) {
+        return (-1)
+    }
+    {
+        pass: s32 = 0
+        while check_loop_23 := ((home == cast(*u8)((null))) && (pass < 2)) {
+            {
+                i: s32 = 0
+                while check_loop_24 := ((home == cast(*u8)((null))) && (i < (context_local).module_path_count)) {
+                    if ((((cast(s32)(((context_local).module_path_names)[i] != cast(*u8)((null)))) == (cast(s32)(pass == 0))) && (standard_search_path(context_local, i) != 0)) && (module_candidate(((context_local).module_paths)[i], cast(*u8)(*((name).items)), cast(*u8)(*(((buffers).candidate).items)), cast(usize)size_of(ParserArray3072_u8)) != 0)) {
+                        home = ((context_local).module_paths)[i]
+                    }
+                    PersistencePost1(*(i))
+                }
+            }
+            PersistencePost1(*(pass))
+        }
+    }
+    if (((home == cast(*u8)((null))) && (ToolchainStandardDirectory() != cast(*u8)((null)))) && (module_candidate(ToolchainStandardDirectory(), cast(*u8)(*((name).items)), cast(*u8)(*(((buffers).candidate).items)), cast(usize)size_of(ParserArray3072_u8)) != 0)) {
+        home = ToolchainStandardDirectory()
+    }
+    if (home == cast(*u8)((null))) {
+        return (-1)
+    }
+    canonical: *u8 = CanonicalPath(cast(*u8)(*(((buffers).candidate).items)))
+    if (canonical == cast(*u8)((null))) {
+        return (-1)
+    }
+    {
+        i: s32 = 0
+        while check_loop_25 := (i < (set).count) {
+            if (strcmp((cast(**u8)set.paths)[i], canonical) == 0) {
+                if ((((set).programs)[i]).module_count == 1) {
+                    snprintf(cast(*u8)(*((import_local).target)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s"), cast(*u8)(*((((((set).programs)[i]).modules)[0]).name)))
+                }
+                CompilerFree(cast(*void)(canonical))
+                return 1
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    claimer: *u8 = loaded_module_path(set, cast(*u8)(*((name).items)))
+    found: *u8 = null
+    if (claimer == cast(*u8)((null))) {
+        plain: *u8 = plain_candidate(context_local, owner_path, owner_root, cast(*u8)(*((name).items)), buffers)
+        claimer = PersistenceSet6(*(found), (ifx (plain == cast(*u8)((null))) then null else CanonicalPath(plain)))
+    }
+    claimed: s32 = cast(s32)(((claimer != cast(*u8)((null))) && (strcmp(claimer, canonical) != 0)) && !(standard_source(context_local, claimer) != 0))
+    CompilerFree(cast(*void)(found))
+    CompilerFree(cast(*void)(canonical))
+    if !(claimed != 0) {
+        if (module_loaded(set, cast(*u8)(*((name).items))) != 0) {
+            return 1
+        }
+        return cast(s32)(try_module(context_local, home, home, cast(*u8)(*((name).items)), 0, import_local) > 0)
+    }
+    identity: ParserArray128_u8
+    if (snprintf(cast(*u8)(*((identity).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("std_%s"), cast(*u8)(*((name).items))) >= cast(s32)(cast(usize)size_of(ParserArray128_u8))) {
+        Diagnostic((import_local).span, ParserCString("module.identity"), ParserCString("standard module identity is too long: std/%s"), cast(*u8)(*((name).items)))
+        return 0
+    }
+    length: usize = strlen(cast(*u8)(*(((buffers).candidate).items)))
+    snprintf(cast(*u8)(*(((buffers).module_root).items)), cast(usize)size_of(ParserArray3072_u8), ParserCString("%s"), home)
+    if ((length > cast(usize)(10)) && (strcmp(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(cast(*u8)(*(((buffers).candidate).items))) + cast(usize)(length) * size_of(u8))) - cast(usize)(10) * size_of(u8)), ParserCString("/module.zi")) == 0)) {
+        snprintf(cast(*u8)(*(((buffers).module_root).items)), cast(usize)size_of(ParserArray3072_u8), ParserCString("%.*s"), cast(s32)(((length - cast(usize)(10)))), cast(*u8)(*(((buffers).candidate).items)))
+    }
+    if !(add_program_named(context_local, cast(*u8)(*(((buffers).candidate).items)), cast(*u8)(*(((buffers).module_root).items)), cast(*u8)(*((identity).items))) != 0) {
+        return 0
+    }
+    snprintf(cast(*u8)(*((import_local).target)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s"), cast(*u8)(*((identity).items)))
+    return 1
+}
+
+
+#scope_file
+package_file_allowed :: (context_local: *LoadContext, owner_source: *u8, import_local: *IR.ZirImport, path: *u8) -> s32 {
+    if ((context_local).packages == cast(*Packages.ZirPackageMap)((null))) {
+        return 1
+    }
+    canonical: *u8 = CanonicalPath(path)
+    owner: *u8 = Packages.PackageOwner((context_local).packages, owner_source)
+    target_owner: *u8 = (ifx (canonical == cast(*u8)((null))) then null else Packages.PackageOwner((context_local).packages, canonical))
+    allowed: s32 = cast(s32)(((owner != cast(*u8)((null))) && (target_owner != cast(*u8)((null)))) && (strcmp(owner, target_owner) == 0))
+    if !(allowed != 0) {
+        Diagnostic((import_local).span, ParserCString("package.scope"), ParserCString("explicit import must stay inside its owning package: %s"), path)
+    }
+    CompilerFree(cast(*void)(canonical))
+    return allowed
+}
+
+
+#scope_file
+load_import_with_buffers :: (context_local: *LoadContext, owner_source: *u8, owner_root: *u8, import_local: *IR.ZirImport, buffers: *LoadImportBuffers) -> s32 {
+    set: *IR.ProgramSet = (context_local).set
+    target: *u8 = cast(*u8)(*((import_local).target))
+    owner_path: *u8 = owner_source
+    prefer_ir: s32 = Serial.PathIsIR(owner_source)
+    explicit_path: s32 = cast(s32)((strncmp(cast(*u8)(*((import_local).signature)), ParserCString("file:"), cast(usize)(5)) == 0) || (strncmp(cast(*u8)(*((import_local).signature)), ParserCString("dir:"), cast(usize)(4)) == 0))
+    if ((((context_local).packages != cast(*Packages.ZirPackageMap)((null))) && (prefer_ir != 0)) && (Packages.PackageModuleName((context_local).packages, owner_source) != cast(*u8)((null)))) {
+        owner: *u8 = Packages.PackageOwner((context_local).packages, owner_source)
+        if ((owner == cast(*u8)((null))) || !(Packages.PackageResolveSaved((context_local).packages, owner, target, cast(*u8)(*(((buffers).mapped_path).items)), cast(usize)size_of(ParserArray3072_u8)) != 0)) {
+            Diagnostic((import_local).span, ParserCString("package.not_found"), ParserCString("saved import %s is outside the dependency scope of %s"), target, owner_source)
+            return 0
+        }
+        return add_program(context_local, cast(*u8)(*(((buffers).mapped_path).items)), owner_root)
+    }
+    if ((((context_local).packages != cast(*Packages.ZirPackageMap)((null))) && !(prefer_ir != 0)) && !(explicit_path != 0)) {
+        if (((import_local).resolved_module != cast(*IR.ZirModule)((null))) && (module_loaded(set, cast(*u8)(*((import_local).target))) != 0)) {
+            return 1
+        }
+        owner: *u8 = Packages.PackageOwner((context_local).packages, owner_source)
+        mapped_name: ParserArray128_u8
+        if ((owner == cast(*u8)((null))) || !(Packages.PackageResolve((context_local).packages, owner, target, cast(*u8)(*(((buffers).mapped_path).items)), cast(usize)size_of(ParserArray3072_u8), cast(*u8)(*((mapped_name).items)), cast(usize)size_of(ParserArray128_u8)) != 0)) {
+            choices: *u8 = (ifx (owner == cast(*u8)((null))) then null else Packages.PackageAmbiguity((context_local).packages, owner, target))
+            if (choices != cast(*u8)((null))) {
+                Diagnostic((import_local).span, ParserCString("package.ambiguous"), ParserCString("module %s is exported by more than one dependency; import one of %s"), target, choices)
+            } else {
+                if (strchr(target, 47) != cast(*u8)((null))) {
+                    Diagnostic((import_local).span, ParserCString("package.not_found"), ParserCString("module %s is not exported by a direct dependency; ziran pkg list shows the importable modules"), target)
+                } else {
+                    Diagnostic((import_local).span, ParserCString("package.not_found"), ParserCString("module %s is not in package %s or its direct dependencies (%s)"), target, (ifx (owner == cast(*u8)((null))) then ParserCString("?") else owner), owner_source)
+                }
+            }
+            return 0
+        }
+        snprintf(cast(*u8)(*((import_local).target)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s"), cast(*u8)(*((mapped_name).items)))
+        if (module_loaded(set, cast(*u8)(*((mapped_name).items))) != 0) {
+            return 1
+        }
+        snprintf(cast(*u8)(*(((buffers).parent).items)), cast(usize)size_of(ParserArray3072_u8), ParserCString("%s"), cast(*u8)(*(((buffers).mapped_path).items)))
+        slash: *u8 = strrchr(cast(*u8)(*(((buffers).parent).items)), 47)
+        if (slash == cast(*u8)((null))) {
+            return 0
+        }
+        PersistenceSet0(slash, cast(u8)(0))
+        return add_program_named(context_local, cast(*u8)(*(((buffers).mapped_path).items)), cast(*u8)(*(((buffers).parent).items)), (ifx (strcmp(cast(*u8)(cast(usize)(slash) + cast(usize)(1) * size_of(u8)), ParserCString("module.zi")) == 0) then cast(*u8)(*((mapped_name).items)) else null))
+    }
+    standard_import: s32 = 0
+    named: s32 = 0
+    if (!(prefer_ir != 0) && (strchr(target, 47) != cast(*u8)((null)))) {
+        prefix: usize = cast(usize)(((cast(isize)(cast(usize)(strchr(target, 47)) - cast(usize)(target)) / cast(isize)size_of(u8))))
+        {
+            i: s32 = 0
+            while check_loop_26 := (i < (context_local).module_path_count) {
+                if (((((context_local).module_path_names)[i] != cast(*u8)((null))) && (strlen(((context_local).module_path_names)[i]) == prefix)) && (strncmp(((context_local).module_path_names)[i], target, prefix) == 0)) {
+                    named = 1
+                }
+                PersistencePost1(*(i))
+            }
+        }
+        if (!(named != 0) && (strncmp(target, ParserCString("std/"), cast(usize)(4)) != 0)) {
+            Diagnostic((import_local).span, ParserCString("package.project"), ParserCString("package import %s needs a project (run with --project next to a ziran.toml that depends on it) or --module-path %.*s=DIR"), target, cast(s32)(prefix), target)
+            return 0
+        }
+        package: ParserArray128_u8
+        snprintf(cast(*u8)(*((package).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%.*s"), cast(s32)(prefix), target)
+        memmove(cast(*void)(cast(*u8)(*((import_local).target))), cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(target) + cast(usize)(prefix) * size_of(u8))) + cast(usize)(1) * size_of(u8))), (strlen(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(target) + cast(usize)(prefix) * size_of(u8))) + cast(usize)(1) * size_of(u8))) + cast(usize)(1)))
+        standard_import = cast(s32)((strcmp(cast(*u8)(*((package).items)), ParserCString("std")) == 0) && !(package_scoped(context_local, cast(*u8)(*((package).items))) != 0))
+        if ((named != 0) && !(standard_import != 0)) {
+            identity: ParserArray128_u8
+            snprintf(cast(*u8)(*((identity).items)), cast(usize)size_of(ParserArray128_u8), ParserCString("%s"), target)
+            if ((package_scoped(context_local, cast(*u8)(*((package).items))) != 0) && !(package_identity(cast(*u8)(*((package).items)), target, cast(*u8)(*((identity).items)), cast(usize)size_of(ParserArray128_u8)) != 0)) {
+                Diagnostic((import_local).span, ParserCString("module.identity"), ParserCString("package module identity is too long: %s/%s"), cast(*u8)(*((package).items)), target)
+                return 0
+            }
+            if (module_loaded(set, cast(*u8)(*((identity).items))) != 0) {
+                snprintf(cast(*u8)(*((import_local).target)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s"), cast(*u8)(*((identity).items)))
+                return 1
+            }
+            {
+                i: s32 = 0
+                while check_loop_27 := (i < (context_local).module_path_count) {
+                    if ((((context_local).module_path_names)[i] == cast(*u8)((null))) || (strcmp(((context_local).module_path_names)[i], cast(*u8)(*((package).items))) != 0)) {
+                        PersistencePost1(*(i))
+                        continue check_loop_27
+                    }
+                    result: s32 = try_module(context_local, ((context_local).module_paths)[i], ((context_local).module_paths)[i], target, prefer_ir, import_local)
+                    if (result != 0) {
+                        return cast(s32)(result > 0)
+                    }
+                    PersistencePost1(*(i))
+                }
+            }
+            Diagnostic((import_local).span, ParserCString("module.not_found"), ParserCString("cannot find %s/%s in --module-path %s=DIR"), cast(*u8)(*((package).items)), target, cast(*u8)(*((package).items)))
+            return 0
+        }
+    }
+    if (!(prefer_ir != 0) && (cast(s32)(cast(s8)((SpanPath((import_local).span))[0])) != 0)) {
+        if (PathIsAbsolute(SpanPath((import_local).span)) != 0) {
+            owner_path = SpanPath((import_local).span)
+        } else {
+            if (CompilerPathIsRegular(SpanPath((import_local).span)) != 0) {
+                owner_path = SpanPath((import_local).span)
+            } else {
+                if (snprintf(cast(*u8)(*(((buffers).owner_file).items)), cast(usize)size_of(ParserArray3072_u8), ParserCString("%s/%s"), owner_root, SpanPath((import_local).span)) < cast(s32)(cast(usize)size_of(ParserArray3072_u8))) {
+                    owner_path = cast(*u8)(*(((buffers).owner_file).items))
+                }
+            }
+        }
+    }
+    if (standard_import != 0) {
+        result: s32 = load_standard_import(context_local, owner_path, owner_root, import_local, buffers)
+        if (result >= 0) {
+            return result
+        }
+        if (named != 0) {
+            Diagnostic((import_local).span, ParserCString("module.not_found"), ParserCString("cannot find std/%s in --module-path std=DIR"), target)
+            return 0
+        }
+    }
+    slash: *u8 = strrchr(owner_path, 47)
+    if (!(prefer_ir != 0) && (strncmp(cast(*u8)(*((import_local).signature)), ParserCString("dir:"), cast(usize)(4)) == 0)) {
+        directory_length: usize = (ifx (slash == cast(*u8)((null))) then cast(usize)(0) else cast(usize)(((cast(isize)(cast(usize)(slash) - cast(usize)(owner_path)) / cast(isize)size_of(u8)))))
+        if ((((slash == cast(*u8)((null))) || (snprintf(cast(*u8)(*(((buffers).module_root).items)), cast(usize)size_of(ParserArray3072_u8), ParserCString("%.*s/%s"), cast(s32)(directory_length), owner_path, cast(*u8)(cast(usize)(cast(*u8)(*((import_local).signature))) + cast(usize)(4) * size_of(u8))) >= cast(s32)(cast(usize)size_of(ParserArray3072_u8)))) || (snprintf(cast(*u8)(*(((buffers).candidate).items)), cast(usize)size_of(ParserArray3072_u8), ParserCString("%s/module.zi"), cast(*u8)(*(((buffers).module_root).items))) >= cast(s32)(cast(usize)size_of(ParserArray3072_u8)))) || !(CompilerPathIsRegular(cast(*u8)(*(((buffers).candidate).items))) != 0)) {
+            Diagnostic((import_local).span, ParserCString("module.not_found"), ParserCString("cannot find imported directory module: %s"), cast(*u8)(cast(usize)(cast(*u8)(*((import_local).signature))) + cast(usize)(4) * size_of(u8)))
+            return 0
+        }
+        if !(package_file_allowed(context_local, owner_source, import_local, cast(*u8)(*(((buffers).candidate).items))) != 0) {
+            return 0
+        }
+        if !(add_program_named(context_local, cast(*u8)(*(((buffers).candidate).items)), cast(*u8)(*(((buffers).module_root).items)), target) != 0) {
+            return 0
+        }
+        import_loaded(context_local, import_local, cast(*u8)(*(((buffers).candidate).items)))
+        return 1
+    }
+    if (!(prefer_ir != 0) && (strncmp(cast(*u8)(*((import_local).signature)), ParserCString("file:"), cast(usize)(5)) == 0)) {
+        directory_length: usize = (ifx (slash == cast(*u8)((null))) then cast(usize)(0) else cast(usize)(((cast(isize)(cast(usize)(slash) - cast(usize)(owner_path)) / cast(isize)size_of(u8)))))
+        if (((slash == cast(*u8)((null))) || (snprintf(cast(*u8)(*(((buffers).candidate).items)), cast(usize)size_of(ParserArray3072_u8), ParserCString("%.*s/%s"), cast(s32)(directory_length), owner_path, cast(*u8)(cast(usize)(cast(*u8)(*((import_local).signature))) + cast(usize)(5) * size_of(u8))) >= cast(s32)(cast(usize)size_of(ParserArray3072_u8)))) || !(CompilerPathIsRegular(cast(*u8)(*(((buffers).candidate).items))) != 0)) {
+            Diagnostic((import_local).span, ParserCString("module.not_found"), ParserCString("cannot find imported file: %s"), cast(*u8)(cast(usize)(cast(*u8)(*((import_local).signature))) + cast(usize)(5) * size_of(u8)))
+            return 0
+        }
+        if !(package_file_allowed(context_local, owner_source, import_local, cast(*u8)(*(((buffers).candidate).items))) != 0) {
+            return 0
+        }
+        canonical: *u8 = CanonicalPath(cast(*u8)(*(((buffers).candidate).items)))
+        if (canonical == cast(*u8)((null))) {
+            Diagnostic((import_local).span, ParserCString("module.not_found"), ParserCString("cannot find imported file: %s"), cast(*u8)(cast(usize)(cast(*u8)(*((import_local).signature))) + cast(usize)(5) * size_of(u8)))
+            return 0
+        }
+        parent: *u8 = strrchr(canonical, 47)
+        if (parent == cast(*u8)((null))) {
+            CompilerFree(cast(*void)(canonical))
+            return 0
+        }
+        PersistenceSet0(parent, cast(u8)(0))
+        loaded: s32 = add_program(context_local, cast(*u8)(*(((buffers).candidate).items)), canonical)
+        CompilerFree(cast(*void)(canonical))
+        if (loaded != 0) {
+            import_loaded(context_local, import_local, cast(*u8)(*(((buffers).candidate).items)))
+        }
+        return loaded
+    }
+    owner_package: *u8 = module_path_package(context_local, owner_source)
+    if (!(prefer_ir != 0) && (package_scoped(context_local, owner_package) != 0)) {
+        identity: ParserArray128_u8
+        if !(package_identity(owner_package, target, cast(*u8)(*((identity).items)), cast(usize)size_of(ParserArray128_u8)) != 0) {
+            Diagnostic((import_local).span, ParserCString("module.identity"), ParserCString("package module identity is too long: %s"), target)
+            return 0
+        }
+        result: s32 = module_loaded(set, cast(*u8)(*((identity).items)))
+        if (((result == 0) && (slash != cast(*u8)((null)))) && (cast(usize)(((cast(isize)(cast(usize)(slash) - cast(usize)(owner_path)) / cast(isize)size_of(u8)))) < cast(usize)size_of(ParserArray2048_u8))) {
+            memcpy(cast(*void)(cast(*u8)(*(((buffers).directory).items))), cast(*void)(owner_path), cast(usize)(((cast(isize)(cast(usize)(slash) - cast(usize)(owner_path)) / cast(isize)size_of(u8)))))
+            ((buffers).directory).items[(cast(isize)(cast(usize)(slash) - cast(usize)(owner_path)) / cast(isize)size_of(u8))] = cast(u8)(0)
+            result = try_module(context_local, cast(*u8)(*(((buffers).directory).items)), owner_root, target, prefer_ir, import_local)
+        }
+        {
+            i: s32 = 0
+            while check_loop_28 := ((result == 0) && (i < (context_local).module_path_count)) {
+                if ((((context_local).module_path_names)[i] != cast(*u8)((null))) && (strcmp(((context_local).module_path_names)[i], owner_package) == 0)) {
+                    result = try_module(context_local, ((context_local).module_paths)[i], ((context_local).module_paths)[i], target, prefer_ir, import_local)
+                }
+                PersistencePost1(*(i))
+            }
+        }
+        if (result > 0) {
+            snprintf(cast(*u8)(*((import_local).target)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s"), cast(*u8)(*((identity).items)))
+        }
+        if (result != 0) {
+            return cast(s32)(result > 0)
+        }
+    }
+    if (module_loaded(set, target) != 0) {
+        return 1
+    }
+    if (slash != cast(*u8)((null))) {
+        length: usize = cast(usize)(((cast(isize)(cast(usize)(slash) - cast(usize)(owner_path)) / cast(isize)size_of(u8))))
+        if (length < cast(usize)size_of(ParserArray2048_u8)) {
+            memcpy(cast(*void)(cast(*u8)(*(((buffers).directory).items))), cast(*void)(owner_path), length)
+            ((buffers).directory).items[length] = cast(u8)(0)
+            result: s32 = try_module(context_local, cast(*u8)(*(((buffers).directory).items)), owner_root, target, prefer_ir, import_local)
+            if (result != 0) {
+                return cast(s32)(result > 0)
+            }
+        }
+    }
+    result: s32 = try_module(context_local, owner_root, owner_root, target, prefer_ir, import_local)
+    if (result != 0) {
+        return cast(s32)(result > 0)
+    }
+    if (strcmp((context_local).root, owner_root) != 0) {
+        result = try_module(context_local, (context_local).root, (context_local).root, target, prefer_ir, import_local)
+        if (result != 0) {
+            return cast(s32)(result > 0)
+        }
+    }
+    {
+        i: s32 = 0
+        while check_loop_29 := (i < (context_local).module_path_count) {
+            if (((context_local).module_path_names)[i] != cast(*u8)((null))) {
+                PersistencePost1(*(i))
+                continue check_loop_29
+            }
+            result = try_module(context_local, ((context_local).module_paths)[i], ((context_local).module_paths)[i], target, prefer_ir, import_local)
+            if (result != 0) {
+                return cast(s32)(result > 0)
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    {
+        i: s32 = 0
+        while check_loop_30 := (i < (context_local).module_path_count) {
+            if ((((context_local).module_path_names)[i] == cast(*u8)((null))) || (strcmp(((context_local).module_path_names)[i], ParserCString("std")) != 0)) {
+                PersistencePost1(*(i))
+                continue check_loop_30
+            }
+            result = try_module(context_local, ((context_local).module_paths)[i], ((context_local).module_paths)[i], target, prefer_ir, import_local)
+            if (result != 0) {
+                return cast(s32)(result > 0)
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    standard: *u8 = ToolchainStandardDirectory()
+    if (standard != cast(*u8)((null))) {
+        result = try_module(context_local, standard, standard, target, prefer_ir, import_local)
+        if (result != 0) {
+            return cast(s32)(result > 0)
+        }
+    }
+    package: *u8 = module_path_package(context_local, owner_source)
+    {
+        i: s32 = 0
+        while check_loop_31 := ((package != cast(*u8)((null))) && (i < (context_local).module_path_count)) {
+            if ((((context_local).module_path_names)[i] == cast(*u8)((null))) || (strcmp(((context_local).module_path_names)[i], package) != 0)) {
+                PersistencePost1(*(i))
+                continue check_loop_31
+            }
+            result = try_module(context_local, ((context_local).module_paths)[i], ((context_local).module_paths)[i], target, prefer_ir, import_local)
+            if (result != 0) {
+                return cast(s32)(result > 0)
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    Diagnostic((import_local).span, ParserCString("module.not_found"), ParserCString("cannot find imported module: %s"), target)
+    return 0
+}
+
+
+#scope_file
+load_import :: (context_local: *LoadContext, owner_source: *u8, owner_root: *u8, import_local: *IR.ZirImport) -> s32 {
+    previous: *IR.ZirImport = (context_local).site
+    (context_local).site = import_local
+    loaded: s32 = load_import_scratch(context_local, owner_source, owner_root, import_local)
+    (context_local).site = previous
+    return loaded
+}
+
+
+#scope_file
+loaded_import_target :: (set: *IR.ProgramSet, program: *IR.ZirProgram, import_local: *IR.ZirImport) -> *IR.ZirModule {
+    {
+        p: s32 = (-1)
+        while check_loop_32 := (p < (set).count) {
+            candidates: *IR.ZirProgram = (ifx (p < 0) then program else ((set).programs)[p])
+            {
+                m: s32 = 0
+                while check_loop_33 := (m < (candidates).module_count) {
+                    candidate: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)((candidates).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    stem: ParserArray1024_u8
+                    snprintf(cast(*u8)(*((stem).items)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s"), cast(*u8)(*((candidate).source_path)))
+                    length: usize = strlen(cast(*u8)(*((stem).items)))
+                    if ((length > cast(usize)(3)) && (strcmp(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(cast(*u8)(*((stem).items))) + cast(usize)(length) * size_of(u8))) - cast(usize)(3) * size_of(u8)), ParserCString(".zi")) == 0)) {
+                        (stem).items[(length - cast(usize)(3))] = cast(u8)(0)
+                    }
+                    if ((strcmp(cast(*u8)(*((import_local).target)), cast(*u8)(*((candidate).name))) == 0) || (strcmp(cast(*u8)(*((import_local).target)), cast(*u8)(*((stem).items))) == 0)) {
+                        return candidate
+                    }
+                    PersistencePost1(*(m))
+                }
+            }
+            PersistencePost1(*(p))
+        }
+    }
+    return null
+}
+
+
+#scope_file
+same_parameters :: (module: *IR.ZirModule, values: **u8) -> s32 {
+    {
+        i: s32 = 0
+        while check_loop_34 := (i < (module).parameter_count) {
+            if (strcmp((values)[i], (((module).parameters)[i]).value) != 0) {
+                return 0
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+check_module_parameters :: (set: *IR.ProgramSet) -> s32 {
+    ok: s32 = 1
+    total: s32 = 0
+    parameterized: s32 = 0
+    {
+        p: s32 = 0
+        while check_loop_35 := (p < (set).count) {
+            {
+                m: s32 = 0
+                while check_loop_36 := (m < (((set).programs)[p]).module_count) {
+                    module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)((((set).programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    PersistencePost1(*(total))
+                    parameterized |= cast(s32)((module).parameter_count > 0)
+                    {
+                        i: s32 = 0
+                        while check_loop_37 := (i < (module).import_count) {
+                            parameterized |= cast(s32)(((((module).imports)[i]).parameters != cast(*u8)((null))) && (cast(s32)(cast(s8)(((((module).imports)[i]).parameters)[0])) != 0))
+                            PersistencePost1(*(i))
+                        }
+                    }
+                    PersistencePost1(*(m))
+                }
+            }
+            PersistencePost1(*(p))
+        }
+    }
+    if !(parameterized != 0) {
+        return 1
+    }
+    bound: **IR.ZirModule = cast(**IR.ZirModule)(AllocateOrExit((cast(usize)(((total + 1))) * cast(usize)size_of(*IR.ZirModule))))
+    agreeing: **IR.ZirImport = cast(**IR.ZirImport)(AllocateOrExit((cast(usize)(((total + 1))) * cast(usize)size_of(*IR.ZirImport))))
+    bound_count: s32 = 0
+    {
+        pass: s32 = 0
+        while check_loop_38 := ((ok != 0) && (pass < 2)) {
+            {
+                p: s32 = 0
+                while check_loop_39 := ((ok != 0) && (p < (set).count)) {
+                    {
+                        m: s32 = 0
+                        while check_loop_40 := ((ok != 0) && (m < (((set).programs)[p]).module_count)) {
+                            module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)((((set).programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                            {
+                                i: s32 = 0
+                                while check_loop_41 := ((ok != 0) && (i < (module).import_count)) {
+                                    import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
+                                    if ((cast(s32)((import_local).kind) != cast(s32)(1)) && (cast(s32)((import_local).kind) != cast(s32)(2))) {
+                                        PersistencePost1(*(i))
+                                        continue check_loop_41
+                                    }
+                                    target: *IR.ZirModule = loaded_import_target(set, ((set).programs)[p], import_local)
+                                    parameters: *u8 = (ifx ((import_local).parameters != cast(*u8)((null))) then (import_local).parameters else ParserCString(""))
+                                    if ((target == cast(*IR.ZirModule)((null))) || (((target).parameter_count == 0) && (cast(s32)(cast(s8)((parameters)[0])) == 0))) {
+                                        PersistencePost1(*(i))
+                                        continue check_loop_41
+                                    }
+                                    values: **u8 = cast(**u8)(AllocateOrExit((cast(usize)((((target).parameter_count + 1))) * cast(usize)size_of(*u8))))
+                                    known: s32 = ModuleParametersBind(target, parameters, (import_local).span, values, cast(s32)(pass == 1))
+                                    origin: s32 = 0
+                                    while check_loop_42 := ((origin < bound_count) && ((bound)[origin] != target)) {
+                                        PersistencePost1(*(origin))
+                                    }
+                                    if ((((pass == 0) && (known != 0)) && (same_parameters(target, values) != 0)) && (origin == bound_count)) {
+                                        (bound)[bound_count] = target
+                                        (agreeing)[PersistencePost1(*(bound_count))] = import_local
+                                    } else {
+                                        if ((pass == 1) && !(known != 0)) {
+                                            ok = 0
+                                        } else {
+                                            if ((pass == 1) && !(same_parameters(target, values) != 0)) {
+                                                k: s32 = 0
+                                                while check_loop_43 := (strcmp((values)[k], (((target).parameters)[k]).value) == 0) {
+                                                    PersistencePost1(*(k))
+                                                }
+                                                parameter: *IR.ZirModuleParameter = cast(*IR.ZirModuleParameter)(cast(usize)((target).parameters) + cast(usize)(k) * size_of(IR.ZirModuleParameter))
+                                                if (origin < bound_count) {
+                                                    Diagnostic((import_local).span, ParserCString("module.parameter_conflict"), ParserCString("this import binds %s = %s of module %s, but the import at %s:%d binds %s = %s; one program binds a module's parameters once"), cast(*u8)(*((parameter).name)), (values)[k], cast(*u8)(*((target).name)), SpanPath(((agreeing)[origin]).span), (((agreeing)[origin]).span).line, cast(*u8)(*((parameter).name)), (parameter).value)
+                                                } else {
+                                                    Diagnostic((import_local).span, ParserCString("module.parameter_conflict"), ParserCString("this import binds %s = %s of module %s, but the program already loaded it with %s = %s; one program binds a module's parameters once"), cast(*u8)(*((parameter).name)), (values)[k], cast(*u8)(*((target).name)), cast(*u8)(*((parameter).name)), (parameter).value)
+                                                }
+                                                ok = 0
+                                            }
+                                        }
+                                    }
+                                    CompilerFree(cast(*void)(values))
+                                    PersistencePost1(*(i))
+                                }
+                            }
+                            PersistencePost1(*(m))
+                        }
+                    }
+                    PersistencePost1(*(p))
+                }
+            }
+            PersistencePost1(*(pass))
+        }
+    }
+    CompilerFree(cast(*void)(bound))
+    CompilerFree(cast(*void)(agreeing))
+    return ok
+}
+
+
+#scope_file
+early_target :: (context_local: *LoadContext, current: *IR.ZirProgram, import_local: *IR.ZirImport) -> *IR.ZirModule {
+    found: *IR.ZirModule = null
+    candidates: ParserArray5__IR_ZirModule
+    candidate_count: s32 = 0
+    total: s32 = 0
+    {
+        p: s32 = (-1)
+        while check_loop_44 := (p < ((context_local).set).count) {
+            program: *IR.ZirProgram = (ifx (p < 0) then current else (((context_local).set).programs)[p])
+            {
+                m: s32 = 0
+                while check_loop_45 := (m < (program).module_count) {
+                    candidate: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)((program).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                    stem: ParserArray1024_u8
+                    length: usize
+                    snprintf(cast(*u8)(*((stem).items)), cast(usize)size_of(ParserArray1024_u8), ParserCString("%s"), cast(*u8)(*((candidate).source_path)))
+                    length = strlen(cast(*u8)(*((stem).items)))
+                    if ((length > cast(usize)(3)) && (strcmp(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(cast(*u8)(*((stem).items))) + cast(usize)(length) * size_of(u8))) - cast(usize)(3) * size_of(u8)), ParserCString(".zi")) == 0)) {
+                        (stem).items[(length - cast(usize)(3))] = cast(u8)(0)
+                    }
+                    if ((strcmp(cast(*u8)(*((import_local).target)), cast(*u8)(*((candidate).name))) != 0) && (strcmp(cast(*u8)(*((import_local).target)), cast(*u8)(*((stem).items))) != 0)) {
+                        PersistencePost1(*(m))
+                        continue check_loop_45
+                    }
+                    if (found == candidate) {
+                        PersistencePost1(*(m))
+                        continue check_loop_45
+                    }
+                    PersistencePost1(*(total))
+                    if (candidate_count < cast(s32)(((cast(usize)size_of(ParserArray5__IR_ZirModule) / cast(usize)size_of(*IR.ZirModule))))) {
+                        (candidates).items[PersistencePost1(*(candidate_count))] = candidate
+                    }
+                    found = candidate
+                    PersistencePost1(*(m))
+                }
+            }
+            PersistencePost1(*(p))
+        }
+    }
+    if (total > 1) {
+        listing: ParserArray4096_u8
+        used: usize = cast(usize)(0)
+        (listing).items[0] = cast(u8)(0)
+        {
+            i: s32 = 0
+            while check_loop_46 := (i < candidate_count) {
+                written: s32 = snprintf(cast(*u8)(cast(usize)(cast(*u8)(*((listing).items))) + cast(usize)(used) * size_of(u8)), (cast(usize)size_of(ParserArray4096_u8) - used), ParserCString("%s%s"), (ifx (i != 0) then ParserCString(", ") else ParserCString("")), cast(*u8)(*(((candidates).items[i]).source_path)))
+                if ((written < 0) || (cast(usize)(written) >= (cast(usize)size_of(ParserArray4096_u8) - used))) {
+                    break check_loop_46
+                }
+                used += cast(usize)(written)
+                PersistencePost1(*(i))
+            }
+        }
+        if ((total > candidate_count) && ((used + cast(usize)size_of(ParserArray14_u8)) < cast(usize)size_of(ParserArray4096_u8))) {
+            written: s32 = snprintf(cast(*u8)(cast(usize)(cast(*u8)(*((listing).items))) + cast(usize)(used) * size_of(u8)), (cast(usize)size_of(ParserArray4096_u8) - used), ParserCString(" (%d more)"), (total - candidate_count))
+            if ((written > 0) && (cast(usize)(written) < (cast(usize)size_of(ParserArray4096_u8) - used))) {
+                used += cast(usize)(written)
+            }
+        }
+        Diagnostic((import_local).span, ParserCString("module.ambiguous"), ParserCString("ambiguous Ziran import: %s matches %d modules: %s; keep one file or import the module by its unique path"), cast(*u8)(*((import_local).target)), total, cast(*u8)(*((listing).items)))
+        return null
+    }
+    return found
+}
+
+
+#scope_file
+condition_needs_open_layout :: (module: *IR.ZirModule, condition: *u8) -> s32 {
+    {
+        cursor: *u8 = condition
+        while check_loop_47 := ((PersistenceSet6(*(cursor), strstr(cursor, ParserCString("size_of(")))) != cast(*u8)((null))) {
+            start_local: *u8 = cast(*u8)(cast(usize)(cursor) + cast(usize)(8) * size_of(u8))
+            end_local: *u8 = start_local
+            depth: s32 = 1
+            while check_loop_48 := (((end_local)[0] != 0) && (depth > 0)) {
+                if (cast(s32)(cast(s8)((end_local)[0])) == 40) {
+                    PersistencePost1(*(depth))
+                } else {
+                    if (cast(s32)(cast(s8)((end_local)[0])) == 41) {
+                        PersistencePost5(*(depth))
+                    }
+                }
+                if (depth > 0) {
+                    PersistencePost3(*(end_local))
+                }
+            }
+            if ((depth != 0) || (cast(usize)(((cast(isize)(cast(usize)(end_local) - cast(usize)(start_local)) / cast(isize)size_of(u8)))) >= cast(usize)(4096))) {
+                cursor = cast(*u8)(cast(usize)(cursor) + cast(usize)(8) * size_of(u8))
+                continue check_loop_47
+            }
+            type: ParserArray4096_u8
+            memcpy(cast(*void)(cast(*u8)(*((type).items))), cast(*void)(start_local), cast(usize)(((cast(isize)(cast(usize)(end_local) - cast(usize)(start_local)) / cast(isize)size_of(u8)))))
+            (type).items[(cast(isize)(cast(usize)(end_local) - cast(usize)(start_local)) / cast(isize)size_of(u8))] = cast(u8)(0)
+            size: usize
+            alignment: usize
+            if !(TypeLayout(module, cast(*u8)(*((type).items)), *(size), *(alignment)) != 0) {
+                return 1
+            }
+            cursor = cast(*u8)(cast(usize)(cursor) + cast(usize)(8) * size_of(u8))
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+condition_needs_import :: (condition: *u8, import_local: *IR.ZirImport, need_open_layout: s32) -> s32 {
+    if ((cast(s32)((import_local).kind) == cast(s32)(1)) && (need_open_layout != 0)) {
+        return 1
+    }
+    {
+        p: *u8 = condition
+        while check_loop_49 := ((p)[0] != 0) {
+            if ((cast(s32)(cast(s8)((p)[0])) == 34) || (cast(s32)(cast(s8)((p)[0])) == 39)) {
+                quote: u8 = (PersistencePost3(*(p)))[0]
+                while check_loop_50 := (((p)[0] != 0) && (cast(s32)(cast(s8)((p)[0])) != cast(s32)(cast(s8)(quote)))) {
+                    if ((cast(s32)(cast(s8)((p)[0])) == 92) && ((p)[1] != 0)) {
+                        PersistencePost3(*(p))
+                    }
+                    PersistencePost3(*(p))
+                }
+                if ((p)[0] != 0) {
+                    PersistencePost3(*(p))
+                }
+                continue check_loop_49
+            }
+            if (!(isalpha(cast(s32)(((cast(u8)((p)[0]))))) != 0) && (cast(s32)(cast(s8)((p)[0])) != 95)) {
+                PersistencePost3(*(p))
+                continue check_loop_49
+            }
+            start_local: *u8 = p
+            while check_loop_51 := ((isalnum(cast(s32)(((cast(u8)((p)[0]))))) != 0) || (cast(s32)(cast(s8)((p)[0])) == 95)) {
+                PersistencePost3(*(p))
+            }
+            next: *u8 = p
+            while check_loop_52 := (isspace(cast(s32)(((cast(u8)((next)[0]))))) != 0) {
+                PersistencePost3(*(next))
+            }
+            length: usize = cast(usize)(((cast(isize)(cast(usize)(p) - cast(usize)(start_local)) / cast(isize)size_of(u8))))
+            if ((((cast(s32)((import_local).kind) == cast(s32)(2)) && (cast(s32)(cast(s8)((next)[0])) == 46)) && (strlen(cast(*u8)(*((import_local).name))) == length)) && (strncmp(start_local, cast(*u8)(*((import_local).name)), length) == 0)) {
+                return 1
+            }
+            if ((((((cast(s32)((import_local).kind) == cast(s32)(1)) && (cast(s32)(cast(s8)((next)[0])) == 40)) && ((start_local == condition) || (cast(s32)(cast(s8)((start_local)[(-1)])) != 46))) && !((length == cast(usize)(7)) && (strncmp(start_local, ParserCString("defined"), cast(usize)(7)) == 0))) && !((length == cast(usize)(7)) && (strncmp(start_local, ParserCString("size_of"), cast(usize)(7)) == 0))) && !((length == cast(usize)(7)) && (strncmp(start_local, ParserCString("type_of"), cast(usize)(7)) == 0))) {
+                return 1
+            }
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+early_resolve_imports :: (opaque: *void, program: *IR.ZirProgram, module: *IR.ZirModule, source_path: *u8, root: *u8, condition: *u8) -> s32 {
+    context_local: *LoadContext = cast(*LoadContext)(opaque)
+    load_all: s32 = cast(s32)(condition == cast(*u8)((null)))
+    need_open_layout: s32 = cast(s32)(!(load_all != 0) && (condition_needs_open_layout(module, condition) != 0))
+    {
+        i: s32 = 0
+        while check_loop_53 := (i < (module).import_count) {
+            import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
+            if ((cast(s32)((import_local).kind) != cast(s32)(1)) && (cast(s32)((import_local).kind) != cast(s32)(2))) {
+                PersistencePost1(*(i))
+                continue check_loop_53
+            }
+            if (!(load_all != 0) && !(condition_needs_import(condition, import_local, need_open_layout) != 0)) {
+                PersistencePost1(*(i))
+                continue check_loop_53
+            }
+            target: *IR.ZirModule = (ifx ((context_local).packages == cast(*Packages.ZirPackageMap)((null))) then early_target(context_local, program, import_local) else null)
+            if (target == cast(*IR.ZirModule)((null))) {
+                if !(load_import(context_local, source_path, root, import_local) != 0) {
+                    return 0
+                }
+                target = early_target(context_local, program, import_local)
+            }
+            if (target == cast(*IR.ZirModule)((null))) {
+                Diagnostic((import_local).span, ParserCString("module.not_found"), ParserCString("cannot link compile-time import: %s"), cast(*u8)(*((import_local).target)))
+                return 0
+            }
+            (import_local).resolved_module = target
+            SymbolLookupsChanged()
+            PersistencePost1(*(i))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+promote_input :: (set: *IR.ProgramSet, path: *u8, position: s32) -> s32 {
+    canonical := CanonicalPath(path)
+    if canonical == null {
+        return 0
+    }
+    defer CompilerFree(cast(*void)canonical)
+    programs := set.programs
+    paths := cast(**u8)set.paths
+    roots := cast(**u8)set.roots
+    for i: 0..set.count-1 {
+        if strcmp(paths[i], canonical) != 0 {
+            continue
+        }
+        if i < position {
+            return 1
+        }
+        program := programs[i]
+        saved_path := paths[i]
+        saved_root := roots[i]
+        count := cast(usize)(i - position)
+        memmove(cast(*void)*programs[position + 1], cast(*void)*programs[position], count * size_of(*IR.ZirProgram))
+        memmove(cast(*void)*paths[position + 1], cast(*void)*paths[position], count * size_of(*u8))
+        memmove(cast(*void)*roots[position + 1], cast(*void)*roots[position], count * size_of(*u8))
+        programs[position] = program
+        paths[position] = saved_path
+        roots[position] = saved_root
+        return 1
+    }
+    return 0
+}
+
+
+#scope_export
+ProgramsLoad :: (set: *IR.ProgramSet, root: *u8, module_paths: **u8, module_path_count: s32, inputs: **u8, input_count: s32) -> s32 {
+    return ProgramsLoadWithDefines(set, root, module_paths, module_path_count, null, 0, inputs, input_count)
+}
+
+
+#scope_file
+ProgramsLoadWithDefines_in_context :: (set: *IR.ProgramSet, root: *u8, module_paths: **u8, module_path_count: s32, defines: **u8, define_count: s32, inputs: **u8, input_count: s32) -> s32 {
+    profile_started: u64
+    canonical_root: *u8
+    canonical_paths: **u8
+    path_names: **u8
+    context_local: LoadContext
+    ok: s32
+    package_path: *u8
+    while goto_done := true {
+        profile_started = ProfileStart()
+        canonical_root = CanonicalPath(root)
+        canonical_paths = null
+        path_names = null
+        context_local = .{set}
+        ok = 0
+        PersistenceSet2(set, IR.ProgramSet.{})
+        if (((((canonical_root == cast(*u8)((null))) || (input_count <= 0)) || (module_path_count < 0)) || (define_count < 0)) || ((define_count > 0) && (defines == cast(**u8)((null))))) {
+            Diagnostic(Span(root, 1, 1), ParserCString("module.root"), ParserCString("module root is unavailable"))
+            break goto_done
+        }
+        canonical_paths = cast(**u8)(CompilerCalloc(cast(usize)(module_path_count), cast(usize)size_of(*u8)))
+        path_names = cast(**u8)(CompilerCalloc(cast(usize)(module_path_count), cast(usize)size_of(*u8)))
+        if ((module_path_count > 0) && ((canonical_paths == cast(**u8)((null))) || (path_names == cast(**u8)((null))))) {
+            break goto_done
+        }
+        {
+            i: s32 = 0
+            while check_loop_55 := (i < module_path_count) {
+                directory: *u8 = (module_paths)[i]
+                equals: *u8 = strchr(directory, 61)
+                if ((((equals != cast(*u8)((null))) && (equals > directory)) && (memchr(cast(*void)(directory), 47, cast(usize)(((cast(isize)(cast(usize)(equals) - cast(usize)(directory)) / cast(isize)size_of(u8))))) == (null))) && (module_target_part(directory, cast(usize)(((cast(isize)(cast(usize)(equals) - cast(usize)(directory)) / cast(isize)size_of(u8))))) != 0)) {
+                    (path_names)[i] = DuplicatePrefix(directory, cast(usize)(((cast(isize)(cast(usize)(equals) - cast(usize)(directory)) / cast(isize)size_of(u8)))))
+                    if ((path_names)[i] == cast(*u8)((null))) {
+                        break goto_done
+                    }
+                    directory = cast(*u8)(cast(usize)(equals) + cast(usize)(1) * size_of(u8))
+                }
+                (canonical_paths)[i] = CanonicalPath(directory)
+                if ((canonical_paths)[i] == cast(*u8)((null))) {
+                    Diagnostic(Span((module_paths)[i], 1, 1), ParserCString("module.path"), ParserCString("module search path is unavailable"))
+                    break goto_done
+                }
+                PersistencePost1(*(i))
+            }
+        }
+        (context_local).root = canonical_root
+        (context_local).module_paths = cast(**u8)(canonical_paths)
+        (context_local).module_path_names = cast(**u8)(path_names)
+        (context_local).module_path_count = module_path_count
+        (context_local).defines = defines
+        (context_local).define_count = define_count
+        package_path = getenv(ParserCString("ZIRAN_PACKAGE_MAP"))
+        if ((package_path != cast(*u8)((null))) && (cast(s32)(cast(s8)((package_path)[0])) != 0)) {
+            (context_local).packages = Packages.PackageMapLoad(package_path)
+            if ((context_local).packages == cast(*Packages.ZirPackageMap)((null))) {
+                break goto_done
+            }
+        }
+        {
+            i: s32 = 0
+            while check_loop_56 := (i < input_count) {
+                if (!(add_program(*(context_local), (inputs)[i], input_root(*(context_local), (inputs)[i], canonical_root)) != 0) || !(promote_input(set, (inputs)[i], i) != 0)) {
+                    break goto_done
+                }
+                PersistencePost1(*(i))
+            }
+        }
+        {
+            p: s32 = 0
+            while check_loop_57 := (p < (set).count) {
+                {
+                    m: s32 = 0
+                    while check_loop_58 := (m < (((set).programs)[p]).module_count) {
+                        module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)((((set).programs)[p]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                        {
+                            i: s32 = 0
+                            while check_loop_59 := (i < (module).import_count) {
+                                import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
+                                if (((cast(s32)((import_local).kind) != cast(s32)(1)) && (cast(s32)((import_local).kind) != cast(s32)(2))) || !(module_target(cast(*u8)(*((import_local).target))) != 0)) {
+                                    PersistencePost1(*(i))
+                                    continue check_loop_59
+                                }
+                                if !(load_import(*(context_local), (cast(**u8)set.paths)[p], (cast(**u8)set.roots)[p], import_local) != 0) {
+                                    break goto_done
+                                }
+                                PersistencePost1(*(i))
+                            }
+                        }
+                        PersistencePost1(*(m))
+                    }
+                }
+                PersistencePost1(*(p))
+            }
+        }
+        if !(check_module_parameters(set) != 0) {
+            break goto_done
+        }
+        ok = 1
+        break
+    }
+    {
+        i: s32 = 0
+        while check_loop_60 := (i < module_path_count) {
+            if (canonical_paths != cast(**u8)((null))) {
+                CompilerFree(cast(*void)((canonical_paths)[i]))
+            }
+            if (path_names != cast(**u8)((null))) {
+                CompilerFree(cast(*void)((path_names)[i]))
+            }
+            PersistencePost1(*(i))
+        }
+    }
+    CompilerFree(cast(*void)(canonical_paths))
+    CompilerFree(cast(*void)(path_names))
+    CompilerFree(cast(*void)(canonical_root))
+    Packages.PackageMapFree((context_local).packages)
+    if !(ok != 0) {
+        ProgramsFree(set)
+    }
+    ProfileEnd(ParserCString("load"), profile_started)
+    return ok
+}
+
+
+#scope_export
+ProgramsLoadWithDefines :: (set: *IR.ProgramSet, root: *u8, module_paths: **u8, module_path_count: s32, defines: **u8, define_count: s32, inputs: **u8, input_count: s32) -> s32 {
+    previous: *u8 = CompilerContextCurrent()
+    owner: *u8 = (ifx (previous != null) then previous else CompilerContextOpen())
+    if !(owner != null) {
+        DiagnosticOutOfMemory()
+        return 0
+    }
+    CompilerContextSelect(owner)
+    result: s32 = ProgramsLoadWithDefines_in_context(set, root, module_paths, module_path_count, defines, define_count, inputs, input_count)
+    CompilerContextSelect(previous)
+    if (result != 0) {
+        set.context = owner
+        (set).owns_context = cast(s32)(!(previous != null))
+    } else {
+        if !(previous != null) {
+            CompilerContextClose(owner)
+        }
+    }
+    return result
+}

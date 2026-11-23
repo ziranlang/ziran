@@ -3,6 +3,7 @@
 
 #include "zir.h"
 #include "zir_string_types.h"
+#include "compiler_bundle.h"
 
 /* Native entry pruning also retains exported implementations of host effects. */
 ZirProgram *NativeLink(const ZirProgram *program, const char *entry_module,
@@ -18,17 +19,6 @@ int BindHostProvider(ZirProgram *program, const char *spec);
 int BindHostModule(ZirProgram *program, const char *spec);
 
 /* Files `zi2zx --asset-dir` stores in executable ZX. */
-typedef struct ZxAsset {
-    char *name;
-    unsigned char *data;
-    uint32_t size;
-} ZxAsset;
-
-typedef struct ZxAssets {
-    ZxAsset *items;
-    size_t count;
-} ZxAssets;
-
 void ZxAssetsFree(ZxAssets *assets);
 int ZxAssetsCollect(ZxAssets *assets, const char *spec);
 /* Adds a copy of an asset in name order, as a bundle stores them; 0 when

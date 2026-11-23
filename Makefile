@@ -275,7 +275,8 @@ S14_PARSE_MODULES := parse_declaration parse_eval parse_typed ir_cleanup
 PARSE_PORT_MODULES := parse_types parse_condition parse_discover parse_source \
     frontend_parse parse_s14_types $(S14_PARSE_MODULES)
 SUPPORT_PORT_MODULES := context document diagnostic files source_store overlay semantic sha256
-FRONTEND_PORT_MODULES := context_types $(SUPPORT_PORT_MODULES) frontend_ir law_runtime target_bridge
+PERSISTENCE_PORT_MODULES := zir_serial load package_resolve zx_assets
+FRONTEND_PORT_MODULES := context_types $(SUPPORT_PORT_MODULES) frontend_ir law_runtime target_bridge $(PERSISTENCE_PORT_MODULES)
 compiler-port-dir = $(if $(filter 1,$(BOOTSTRAP)),bootstrap/compiler_$(1),$(BUILD_DIR)/compiler-$(subst _,-,$(1)))
 compiler-port-seed = $(addprefix bootstrap/compiler_$(1)/compiler_$(1).,c h)
 compiler-port-ready = $(if $(filter 1,$(BOOTSTRAP)),$(call compiler-port-seed,$(1)),$(call compiler-port-dir,$(1))/.generated)
@@ -311,11 +312,11 @@ RANGE_MODULES := compiler_c_range compiler_c_range_facts compiler_c_range_values
     compiler_c_range_callers compiler_c_range_fill
 RANGE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/c-range/%.o,$(RANGE_MODULES))
 override CFLAGS += -I$(RANGE_C)
-FRONTEND := cmd/zir/zir_memory.c cmd/zir/zir_asm.c cmd/zir/zir_serial.c cmd/zir/zir_load.c \
-    cmd/zir/zir_packages.c cmd/zir/zir_profile.c cmd/zir/zir_services.c \
+FRONTEND := cmd/zir/zir_memory.c cmd/zir/zir_asm.c cmd/zir/zir_profile.c cmd/zir/zir_services.c \
     cmd/zir/zir_atomics.c cmd/zir/zir_diagnostic_host.c \
     cmd/zir/zir_files_host.c cmd/zir/zir_sha256_host.c
-PORTABLE := cmd/zir/zir_link.c cmd/zir/zir_assets.c
+PERSISTENCE_HOST := cmd/zir/zir_persistence_host.c
+PORTABLE := cmd/zir/zir_link.c
 HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
 # std/simd's C helpers, vector types and typed Go helpers are generated at
 # build time by scripts/simd/header.zi, compiled from its seed in
@@ -448,7 +449,6 @@ $(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY) $(NATIVE_NAME
 	$(NICE) $(CC) $(CFLAGS) $($@_CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 
 $(call obj,cmd/zi2c/main.c): $(BACKEND_PROCESS_READY)
-$(call obj,cmd/zir/zir_serial.c): $(PARSE_READY)
 $(SCANNER_OBJECT): $(SCANNER_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SCANNER_C)/compiler_scan.c
@@ -540,7 +540,7 @@ $(PROOF_KERNEL_OBJECT): $(PROOF_KERNEL_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(PROOF_KERNEL_C)/compiler_proof_kernel.c
 
-$(call obj,$(PORTABLE) cmd/zi2zx/main.c): $(BUNDLE_READY)
+$(call obj,$(PORTABLE) cmd/zi2c/main.c cmd/zi2go/main.c cmd/zi2zir/main.c cmd/zi2zx/main.c tests/bundle_link_test.c): $(BUNDLE_READY)
 $(BUNDLE_MODULE_OBJECT): $(BUNDLE_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(BUNDLE_C)/compiler_bundle.c
@@ -584,7 +584,8 @@ ifneq ($(findstring wasm,$(TARGET_MACHINE)),)
 WASM_PRIVATE_HEADERS ?= $(BUILD_DIR)/wasm-private
 else
 PARSE_LOCALIZE := --wildcard --localize-symbol='private_parse_*' --localize-symbol='compiler_parse_*' \
-    --localize-symbol='compiler_frontend_parse_*' --localize-symbol='compiler_ir_cleanup_*'
+    --localize-symbol='compiler_frontend_parse_*' --localize-symbol='compiler_ir_cleanup_*' \
+    $(foreach module,$(PERSISTENCE_PORT_MODULES),--localize-symbol='compiler_$(module)_*')
 endif
 PARSE_PRIVATE_HEADERS := $(or $(WASM_PRIVATE_HEADERS),$(BUILD_DIR)/private-symbols)
 $(PARSE_PRIVATE_HEADERS)/%.h: cmd/zir/zir_%_internal.h scripts/private-symbols.py
@@ -594,7 +595,7 @@ $(call obj,$(PARSE_PARTS)): CFLAGS += -include $(PARSE_PRIVATE_HEADERS)/parse.h
 $(call obj,$(PARSE_PARTS)): $(PARSE_PRIVATE_HEADERS)/parse.h
 
 # Frontend services also use private parser scratch and text helpers.
-$(BUILD_DIR)/obj/parse.o: $(call obj,$(PARSE_PARTS)) $(PARSE_PORT_OBJECTS) $(FRONTEND_PORT_OBJECTS) Makefile
+$(BUILD_DIR)/obj/parse.o: $(call obj,$(PARSE_PARTS) $(PERSISTENCE_HOST)) $(PARSE_PORT_OBJECTS) $(FRONTEND_PORT_OBJECTS) Makefile
 	$(CC) -r -nostdlib -o $@ $(filter %.o,$^)
 	$(OBJCOPY) --localize-hidden $(PARSE_LOCALIZE) $@
 
@@ -640,7 +641,7 @@ $(BUILD_DIR)/obj/package-c/%.o: $(PACKAGE_C)/%.c $(BUILD_DIR)/.compiler-flags
 
 # Standalone commands fall back to this checkout's standard modules and C
 # headers when none sit beside the installed compiler.
-$(call obj,cmd/zir/zir_load.c): CFLAGS += -DZIRAN_STD_DIR='"$(abspath std)"' \
+$(call obj,$(PERSISTENCE_HOST))_CFLAGS += -DZIRAN_STD_DIR='"$(abspath std)"' \
     -DZIRAN_INCLUDE_DIR='"$(abspath include)"'
 
 # The native command imports a generated Ziran constant from VERSION.
@@ -673,15 +674,15 @@ $(BIN_DIR)/zi-fmt: $(FORMAT_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/.compiler-flag
 	$(NICE) $(CC) $(CFLAGS) -I$(FORMAT_C) -o $@ $(FORMAT_C)/*.c -lm
 
 EDIT_C := $(BUILD_DIR)/edit-c
-$(BIN_DIR)/zi-edit: cmd/edit.zi cmd/transport.zi cmd/format_source.zi cmd/diagnostics.zi std/json_document.zi cmd/zir/zir_edit.c cmd/zir/zir_edit.h $(BIN_DIR)/zi2c $(FRONTEND_OBJECTS) | $(BIN_DIR)
+$(BIN_DIR)/zi-edit: cmd/edit.zi cmd/transport.zi cmd/format_source.zi cmd/diagnostics.zi std/json_document.zi cmd/zir/zir_edit.c cmd/zir/zir_edit.h $(BIN_DIR)/zi2c $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) | $(BIN_DIR)
 	$(BIN_DIR)/zi2c --entry edit:main $(ZIRAN_DEFINES) --root cmd --module-path std -o $(EDIT_C) cmd/edit.zi
-	$(NICE) $(CC) $(CFLAGS) -I$(EDIT_C) -o $@ $(EDIT_C)/*.c cmd/zir/zir_edit.c $(FRONTEND_OBJECTS) -lm
+	$(NICE) $(CC) $(CFLAGS) -I$(EDIT_C) -o $@ $(EDIT_C)/*.c cmd/zir/zir_edit.c $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) -lm
 
 $(BIN_DIR)/zi2zir: $(call obj,cmd/zi2zir/main.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 	chmod 755 $@
 
-$(BIN_DIR)/zi-api: $(call obj,cmd/zir-api/main.c) $(FRONTEND_OBJECTS) | $(BIN_DIR)
+$(BIN_DIR)/zi-api: $(call obj,cmd/zir-api/main.c) $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 INSPECT_C := $(BUILD_DIR)/inspect-c
@@ -776,7 +777,7 @@ $(BIN_DIR)/zx2wasm: $(call obj,cmd/zx2wasm/main.c) $(BUILD_DIR)/libziran.a | $(B
 
 ifneq ($(BOOTSTRAP),1)
 $(BOOTSTRAP_BIN): $(BUILD_DIR)/runtime_headers.c
-$(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) \
+$(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(PERSISTENCE_HOST) \
     $(foreach module,$(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES) $(FRONTEND_PORT_MODULES),$(call compiler-port-seed,$(module))) \
     $(PORTABLE) cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi std/c_string.zi std/result.zi std/vec.zi \
     cmd/zi2c/main.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
@@ -887,6 +888,22 @@ $(eval $(call compiler-port-rules,law_runtime,$(PARSE_PORT_HEADERS) $(CHECK_PORT
 $(eval $(call compiler-port-rules,target_bridge,$(PARSE_PORT_HEADERS) $(CHECK_PORT_HEADERS) $(TYPE_READY),$(PARSE_PORT_IMPORTS) cmd/compiler_check_types.zi cmd/compiler_type.zi))
 $(call obj,cmd/zir/zir_memory.c): $(FRONTEND_SUPPORT_HEADERS) $(call compiler-port-ready,context_types)
 
+PARSE_COMPILER_SOURCES := cmd/compiler_parse.zi cmd/compiler_token.zi cmd/compiler_expr_ir.zi cmd/compiler_expression.zi \
+    cmd/compiler_ir.zi cmd/compiler_services.zi cmd/compiler_scan.zi cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_type.zi
+SERIAL_IMPORTS := $(PARSE_COMPILER_SOURCES) $(PARSE_PORT_IMPORTS) cmd/compiler_check_types.zi
+SERIAL_HEADERS := $(PARSE_PORT_HEADERS) $(CHECK_PORT_HEADERS) $(PARSE_READY) \
+    $(EXPRESSION_READY) $(SERVICES_READY) $(SCANNER_READY) $(SOURCE_READY) $(TEXT_READY) $(TYPE_READY) $(PROOF_KERNEL_READY)
+PERSISTENCE_FILES_IMPORTS := $(FRONTEND_SUPPORT_IMPORTS) cmd/compiler_context_types.zi cmd/compiler_files.zi
+PERSISTENCE_FILES_HEADERS := $(FRONTEND_SUPPORT_HEADERS) $(call compiler-port-ready,context_types) $(call compiler-port-ready,files)
+PACKAGE_RESOLVE_IMPORTS := $(PERSISTENCE_FILES_IMPORTS) cmd/compiler_source_store.zi std/vec.zi
+PACKAGE_RESOLVE_HEADERS := $(PERSISTENCE_FILES_HEADERS) $(call compiler-port-ready,source_store) $(PROOF_KERNEL_READY)
+$(eval $(call compiler-port-rules,zir_serial,$(SERIAL_HEADERS),$(SERIAL_IMPORTS)))
+$(eval $(call compiler-port-rules,package_resolve,$(PACKAGE_RESOLVE_HEADERS),$(PACKAGE_RESOLVE_IMPORTS)))
+$(eval $(call compiler-port-rules,load,$(SERIAL_HEADERS) $(PACKAGE_RESOLVE_HEADERS) $(call compiler-port-ready,zir_serial) $(call compiler-port-ready,package_resolve),$(SERIAL_IMPORTS) $(PACKAGE_RESOLVE_IMPORTS) cmd/compiler_zir_serial.zi cmd/compiler_package_resolve.zi))
+$(eval $(call compiler-port-rules,zx_assets,$(PERSISTENCE_FILES_HEADERS) $(BUNDLE_READY),$(PERSISTENCE_FILES_IMPORTS) cmd/compiler_bundle.zi))
+$(call obj,$(PERSISTENCE_HOST)): $(SERIAL_HEADERS) $(PACKAGE_RESOLVE_HEADERS) $(BUNDLE_READY) \
+    $(foreach module,$(PERSISTENCE_PORT_MODULES),$(call compiler-port-ready,$(module)))
+
 $(eval $(call compiler-port-rules,go_asm_x64,$(IR_READY) $(NATIVE_NAMES_READY),$(GO_PORT_IMPORTS)))
 $(eval $(call compiler-port-rules,go_asm,$(IR_READY) $(NATIVE_NAMES_READY) $(call compiler-port-ready,go_asm_x64),$(GO_PORT_IMPORTS) cmd/compiler_go_asm_x64.zi))
 $(eval $(call compiler-port-rules,go_backend,$(IR_READY) $(NATIVE_NAMES_READY) $(call compiler-port-ready,go_asm) $(call compiler-port-ready,go_asm_x64),$(GO_PORT_IMPORTS) cmd/compiler_go_asm.zi cmd/compiler_go_asm_x64.zi))
@@ -982,7 +999,7 @@ $(EXPRESSION_C)/.generated: cmd/compiler_expression.zi cmd/compiler_scan.zi cmd/
 	    -o $(EXPRESSION_C) cmd/compiler_expression.zi
 	touch $@
 
-$(PARSE_C)/.generated: cmd/compiler_parse.zi cmd/compiler_token.zi cmd/compiler_expr_ir.zi cmd/compiler_expression.zi cmd/compiler_ir.zi cmd/compiler_services.zi cmd/compiler_scan.zi cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_type.zi $(BOOTSTRAP_BIN)
+$(PARSE_C)/.generated: $(PARSE_COMPILER_SOURCES) $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
 	    -o $(PARSE_C) cmd/compiler_parse.zi
 	touch $@

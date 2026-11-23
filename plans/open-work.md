@@ -31,8 +31,10 @@ line when the work lands. Keep detail in the referenced plan.
 
 ## Compiler and tools
 
-- Self-hosting S5-S18: port the remaining `cmd/zir` C (checker, parser,
-  emitters, host API, Go backend) to Ziran; gate every step with
+- Self-hosting S16-S18: port the remaining compiler C to Ziran (portable
+  linking, the ZX command runner, the embedding and execution APIs, the Wasm
+  provider, inline assembly, the editor service and the tool drivers), then
+  prove the stage-0 to stage-2 fixed point; gate every step with
   `make check-bootstrap`. Detail: plans/2026-11-14-self-hosting.md (active
   lane).
 - Digest-keyed frontend check cache: reuse parse and check results keyed by

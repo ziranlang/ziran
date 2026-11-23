@@ -21,6 +21,7 @@ make -j4 -C "$root" BOOTSTRAP=1 BUILD_DIR="$work/build" \
     CC="$cc" AR="$ar" OBJCOPY="$objcopy" CFLAGS='-O2 -fPIC' \
     FRAMEFLAGS=-Wframe-larger-than=16384 "$work/build/libziran.a"
 "$cc" -D_GNU_SOURCE -std=c11 -static -I"$root/include" -I"$root/cmd/zir" -I"$root/bootstrap/compiler_ir" \
+    -I"$root/bootstrap/compiler_bundle" \
     "$root/tests/bundle_link_test.c" "$work/build/libziran.a" -lm \
     "$@" -o "$work/runtime.exe"
 echo 'compiler_runtime_windows: complete runtime compile and link passed'

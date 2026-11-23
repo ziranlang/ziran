@@ -47,9 +47,15 @@ checks into Ziran. Both compiler stages link the generated modules. The native
 boundary includes memory recovery, host I/O, TLS, atomics, variadic formatting,
 and CPU-specific SHA-256 instructions.
 
-S16–S18 remain open. They cover portable ZX and host interfaces, inline assembly
-and tool drivers, and the stage-0 through stage-2 fixed-point proof. The current
-`check-bootstrap` compares generated modules against the checked-in seed.
+S16's persistence ports cover the checked IR codec, module loading, locked
+package resolution, and executable ZX asset collection. Both compiler stages
+link the Ziran modules. The C boundary supplies host paths and streams and
+preserves the existing C signatures. The checked IR format remains version 66.
+
+S16–S18 remain open for the remaining portable ZX and host interfaces, inline
+assembly and tool drivers, and the stage-0 through stage-2 fixed-point proof.
+The current `check-bootstrap` compares generated modules against the checked-in
+seed.
 
 ## Why staged bootstrap is mandatory
 
@@ -203,7 +209,7 @@ C ABI/storage boundary:
 |---|---|---|---|
 | `zir.c` / `zir.h` | target/host queries `CompilerHostOS:31`, target parsing `:87`, capability check `:151`; program/module construction `ProgramNew:1632`, `ModuleAddImport:1752` | `compiler_frontend_ir` + `compiler_target_bridge`. `zir.h` serves remaining C tools | S15 / S17 |
 | `zir_asm.c` / `zir_asm.h` | inline assembly parse/check and C/Go assembly emission; `CheckAssemblyBlock:998`, `CheckAssembly:1180`, `EmitAssembly:1826`, block helpers `:2094` | `compiler_inline_asm` | S17 |
-| `zir_assets.c` / `zir_link.h` | asset collection `ZxAssetsCollect:113`; bundle rule call `:84` | `compiler_zx_assets` | S16 |
+| `compiler_zx_assets.zi` / `zir_link.h` | executable asset collection and byte ordering | `compiler_zx_assets`; C declarations in `zir_link.h` | S16 persistence |
 | `zir_body.h` | `CanEmitBody` ABI for the shared C and Go emitters | `compiler_portable_body` is bootstrapped. `zir_services.c` keeps the thread-local memo and expression scratch | `zir_body.c` removed |
 | `zir_borrow.c` / `.h` | ownership/lifetime analysis; public `CheckSliceLifetimes:2001` | `compiler_borrow` | S12 |
 | `zir_check.c` / `.h` | checker entry/lookup; first routines `:10`, file-private `:85` | `compiler_check` | S11/S12 |
@@ -238,11 +244,11 @@ C ABI/storage boundary:
 | `zir_host_exec.c` / `.h` | executable ZX engine facade; bundle open `ExecBundleOpen:421`, host instances `:1399`; no-engine stubs `:1396` onward | `compiler_zx_exec` | S16 |
 | `zir_law.c` / `.h` | laws and parallel-region checks `CheckLawGates:877`, `CheckParallelRegions:1856` | `compiler_law_runtime` | S15 |
 | `zir_link.c` | portable link/assets; `split_binding_name:27` | `compiler_zx_link` | S16 |
-| `zir_load.c` / `.h` | tool discovery/loading; toolchain probe `:46`, `ProgramLoad` use `:309` | `compiler_load` | S16 |
+| `compiler_load.zi` / `zir_load.h` | toolchain discovery and source or checked IR module loading | `compiler_load`; C declarations in `zir_load.h` | S16 persistence |
 | `zir_memory.c` / `.h` | compiler memory arenas `CompilerMemoryBegin:18` | Ziran allocator; only hooks remain in bootstrap runtime | S18 |
 | `zir_native.c` / `.h` | collision-safe native names `PrepareNativeNames:11` | `compiler_native_names` | S17 |
 | `zir_overlay.c` / `.h` | source overlay `SourceOverlayBegin:9` | `compiler_overlay` | S15 |
-| `zir_packages.c` / `.h` | package manifest resolution from `:48` | `compiler_package_resolve` | S16 |
+| `compiler_package_resolve.zi` / `zir_packages.h` | locked package resolution and saved module identities | `compiler_package_resolve`; C declarations in `zir_packages.h` | S16 persistence |
 | `zir_parse.c` / `.h` | module and global parsing, C API and recovery boundary | `compiler_frontend_parse` plus bootstrap recovery runtime | S14 / S18 |
 | `zir_parse_condition.c` | compile-time conditions and linked compile expressions | `compiler_parse_condition` | S13 |
 | `zir_parse_declaration.c` | declarations, imports and foreigns | `compiler_parse_declaration` | S14 |
@@ -256,7 +262,7 @@ C ABI/storage boundary:
 | `zir_scalar.h` | scalar width/mask helpers `:8-41` | `compiler_scalar` | S4 |
 | `zir_scratch.h` | recoverable scratch helper | Ziran allocator/exceptions; no separate module | S15 |
 | `zir_semantic.c` / `.h` | semantic IDs `SemanticId:7`, function IDs `:22` | `compiler_semantic` | S15 |
-| `zir_serial.c` / `.h` | saved ZIR codec and canonical checks `ProgramWrite:1777`, read `:1820`, load `:1905`, public read `:2125` | recreate `compiler_zir_serial` (the prior unused copy was removed, as recorded in `CHANGELOG.md:23`) | S16 |
+| `compiler_zir_serial.zi` / `zir_serial.h` | version-66 checked IR codec and canonical checks | `compiler_zir_serial`; C declarations in `zir_serial.h` | S16 persistence |
 | `zir_services.c` | generated-module service hooks `terminated:11`, keep `:28`, diagnose `:33`, add import `:42` | `compiler_services` and `compiler_portable_body` with native callbacks | S15 / S18 |
 | `zir_sha256.c` / `.h` | portable and hardware hashes from `:36`, `:74`, `:138` | `compiler_sha256` with native CPU detection and hardware instructions in `zir_sha256_host.c` | S15 |
 | `zir_simd.c` / `.h` | SIMD metadata/signatures from `:95` | `compiler_simd_metadata` | S7 |
@@ -525,21 +531,20 @@ No step commits before its implementation and proof are complete.
 
 ### S16 — portable ZX, host API and persistence
 
-- Add `cmd/compiler_zx_link.zi`, `cmd/compiler_zx_assets.zi`,
-  `cmd/compiler_zir_serial.zi`, `cmd/compiler_zx_run.zi`,
-  `cmd/compiler_zx_exec.zi`, `cmd/compiler_host_api.zi`,
-  `cmd/compiler_zx_wasm_host.zi`, `cmd/compiler_zx_wasm_web.zi`,
-  `cmd/compiler_load.zi`, and `cmd/compiler_package_resolve.zi`; port the S16
-  map rows, preserving the public embedding functions in `zir_host.c:45-998`
-  and executable APIs in `zir_host_exec.c:214-1455`.
-- Change Kryon-facing headers only if the C ABI names remain identical; update
-  `Makefile:144-182`, `Makefile:633-645`, and tests that link `libziran.a` to
-  generated objects. Add modules to bootstrap.
-- Delete `zir_link.c`, `zir_assets.c`, `zir_serial.c`,
-  `zir_host.c`, `zir_host_exec.c`, `zir_load.c`, `zir_packages.c`,
-  `zir_zx_wasm.c`, `zir_zx_wasm_web.c`, their headers/platform headers,
-  `zir_exec_console.h`, and `cmd/zir-asm/zx_exec_run.c/.h`.
-- Proof: `build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check CHECK_FILTER=bundle`.
+- `compiler_zir_serial`, `compiler_load`, `compiler_package_resolve`, and
+  `compiler_zx_assets` replace the four handwritten persistence sources.
+  The generated seeds support stage 0. `zir_persistence_host.c` supplies host
+  streams and translates the existing C call signatures. `ProgramSet`,
+  `ZxAsset`, and `ZxAssets` come from the generated headers.
+- Port portable linking, the portable command runner, the native embedding
+  and execution APIs, and the Wasm provider and web bridges. Preserve the
+  public embedding and executable APIs and add their modules to bootstrap.
+- Retire the replaced `zir_link.c`, `zir_host.c`, `zir_host_exec.c`,
+  `zir_zx_wasm.c`, `zir_zx_wasm_web.c`, `zir_exec_console.h`, and
+  `cmd/zi2zx/zx_exec_run.c` as those ports land.
+- Verify saved bytes and diagnostics against the previous compiler, then run
+  `env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check JOBS=2 CHECK_JOBS=2` and
+  `env -u DISPLAY -u WAYLAND_DISPLAY make check-bootstrap JOBS=2`.
 
 ### S17 — inline assembly, editor, native names and tool drivers
 

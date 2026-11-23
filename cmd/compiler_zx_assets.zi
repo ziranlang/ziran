@@ -1,0 +1,142 @@
+// Collect executable assets in the name order required by the bundle codec.
+Bundle :: #import "compiler_bundle"
+IR :: #import "compiler_ir"
+using Parser :: #import "compiler_parse_types"
+Files :: #import "compiler_files"
+
+#scope_file
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+CompilerMalloc :: (size: usize) -> *void #foreign compiler "CompilerMalloc";
+CompilerRealloc :: (memory: *void, size: usize) -> *void #foreign compiler "CompilerRealloc";
+CompilerStrdup :: (text: *u8) -> *u8 #foreign compiler "CompilerStrdup";
+CompilerFree :: (memory: *void) #foreign compiler "CompilerFree";
+CompilerFopen :: (path: *u8, mode: *u8) -> *void #foreign compiler "CompilerFopen";
+CompilerFclose :: (file: *void) -> s32 #foreign compiler "CompilerFclose";
+CompilerFileTell :: (file: *void) -> s64 #foreign compiler "CompilerFileTell";
+CompilerFileSeek :: (file: *void, offset: s64, origin: s32) -> s32 #foreign compiler "CompilerFileSeek";
+CompilerDirectoryOpen :: (path: *u8) -> *void #foreign compiler "CompilerDirectoryOpen";
+CompilerDirectoryNext :: (directory: *void) -> *u8 #foreign compiler "CompilerDirectoryNext";
+CompilerDirectoryCloseStatus :: (directory: *void) -> s32 #foreign compiler "CompilerDirectoryCloseStatus";
+CompilerPathEntryKindNoLinks :: (path: *u8) -> s32 #foreign compiler "CompilerPathEntryKindNoLinks";
+strcmp :: (a: *u8, b: *u8) -> s32 #foreign libc "strcmp";
+strchr :: (text: *u8, byte: s32) -> *u8 #foreign libc "strchr";
+strlen :: (text: *u8) -> usize #foreign libc "strlen";
+memcpy :: (out: *void, data: *void, size: usize) -> *void #foreign libc "memcpy";
+memmove :: (out: *void, data: *void, size: usize) -> *void #foreign libc "memmove";
+fread :: (out: *void, width: usize, count: usize, file: *void) -> usize #foreign libc "fread";
+fgetc :: (file: *void) -> s32 #foreign libc "fgetc";
+ferror :: (file: *void) -> s32 #foreign libc "ferror";
+
+#scope_export
+#program_export "ZxAssetsFree"
+ZxAssetsFree :: (assets: *Bundle.ZxAssets) {
+    if assets == null { return }
+    i: usize
+    while i < assets.count {
+        CompilerFree(cast(*void)assets.items[i].name)
+        CompilerFree(cast(*void)assets.items[i].data)
+        i += 1
+    }
+    CompilerFree(cast(*void)assets.items)
+    assets[0] = .{}
+}
+
+ZxAssetsAdd :: (assets: *Bundle.ZxAssets, name: *u8, data: *void, size: usize) -> s32 {
+    low: usize
+    high := assets.count
+    while low < high {
+        middle := low + (high - low) / 2
+        order := strcmp(cast(*u8)assets.items[middle].name, name)
+        if order == 0 { return 0 }
+        if order < 0 { low = middle + 1 }
+        else { high = middle }
+    }
+    if size > cast(usize)4294967295 || assets.count >= (cast(usize)-1) / size_of(Bundle.ZxAsset) - 1 { return 0 }
+    item := Bundle.ZxAsset.{name = CompilerStrdup(name), data = cast(*u8)CompilerMalloc(ifx size != 0 then size else 1), size = cast(u32)size}
+    items: *Bundle.ZxAsset
+    if item.name != null && item.data != null {
+        items = cast(*Bundle.ZxAsset)CompilerRealloc(cast(*void)assets.items, (assets.count + 1) * size_of(Bundle.ZxAsset))
+    }
+    if items == null {
+        CompilerFree(cast(*void)item.name)
+        CompilerFree(cast(*void)item.data)
+        return 0
+    }
+    if size != 0 { memcpy(cast(*void)item.data, data, size) }
+    memmove(cast(*void)*items[low + 1], cast(*void)*items[low], (assets.count - low) * size_of(Bundle.ZxAsset))
+    items[low] = item
+    assets.items = items
+    assets.count += 1
+    return 1
+}
+
+ZxAssetsCollect :: (assets: *Bundle.ZxAssets, spec: *u8) -> s32 {
+    if spec == null { return 0 }
+    separator := strchr(spec, #char "=")
+    if separator == null || separator == spec || separator[1] == 0 { return 0 }
+    name := Files.DuplicatePrefix(spec, cast(usize)separator - cast(usize)spec)
+    defer CompilerFree(cast(*void)name)
+    return cast(s32)(name != null && collect_path(assets, name, *separator[1]))
+}
+
+#scope_file
+collect_path :: (assets: *Bundle.ZxAssets, name: *u8, path: *u8) -> bool {
+    if !Bundle.AssetName(IR.CText(name)) { return false }
+    kind := CompilerPathEntryKindNoLinks(path)
+    if kind == 2 {
+        directory := CompilerDirectoryOpen(path)
+        if directory == null { return false }
+        okay := true
+        while okay {
+            entry := CompilerDirectoryNext(directory)
+            if entry == null { break }
+            spelling := IR.CText(entry)
+            if spelling == "." || spelling == ".." { continue }
+            child_name := join_path(name, entry)
+            child_path := join_path(path, entry)
+            okay = child_name != null && child_path != null && collect_path(assets, child_name, child_path)
+            CompilerFree(cast(*void)child_name)
+            CompilerFree(cast(*void)child_path)
+        }
+        if CompilerDirectoryCloseStatus(directory) != 0 { return false }
+        return okay
+    }
+    if kind != 1 { return false }
+    input := CompilerFopen(path, ParserCString("rb"))
+    if input == null { return false }
+    size: usize
+    data := read_rest(input, *size)
+    okay := data != null && ZxAssetsAdd(assets, name, data, size) != 0
+    if CompilerFclose(input) != 0 { okay = false }
+    CompilerFree(data)
+    return okay
+}
+
+read_rest :: (file: *void, size: *usize) -> *void {
+    start := CompilerFileTell(file)
+    if start < 0 || CompilerFileSeek(file, 0, 2) != 0 { return null }
+    end := CompilerFileTell(file)
+    if end < start || CompilerFileSeek(file, start, 0) != 0 { return null }
+    if cast(u64)(end - start) >= cast(u64)(cast(usize)-1) { return null }
+    size[0] = cast(usize)(end - start)
+    bytes := CompilerMalloc(ifx size[0] != 0 then size[0] else 1)
+    if bytes != null && (fread(bytes, 1, size[0], file) != size[0] || fgetc(file) != -1 || ferror(file) != 0) {
+        CompilerFree(bytes)
+        return null
+    }
+    return bytes
+}
+
+join_path :: (left: *u8, right: *u8) -> *u8 {
+    left_size := strlen(left)
+    right_size := strlen(right)
+    if left_size > (cast(usize)-1) - right_size - 2 { return null }
+    out := cast(*u8)CompilerMalloc(left_size + right_size + 2)
+    if out != null {
+        memcpy(cast(*void)out, cast(*void)left, left_size)
+        out[left_size] = #char "/"
+        memcpy(cast(*void)*out[left_size + 1], cast(*void)right, right_size + 1)
+    }
+    return out
+}

@@ -94,6 +94,8 @@ extern "C" {
 #define ExecutableIdentitySize 32
 #endif
 typedef struct Asset Asset;
+typedef struct ZxAsset ZxAsset;
+typedef struct ZxAssets ZxAssets;
 typedef int32_t ExecutableProblem;
 typedef struct ExecutableAttachment ExecutableAttachment;
 typedef struct ExecutableHeader ExecutableHeader;
@@ -119,6 +121,17 @@ typedef struct ExecutableWindow {
 struct Asset {
     String name;
     String data;
+};
+
+struct ZxAsset {
+    char * name;
+    uint8_t* data;
+    uint32_t size;
+};
+
+struct ZxAssets {
+    ZxAsset* items;
+    size_t count;
 };
 
 enum {

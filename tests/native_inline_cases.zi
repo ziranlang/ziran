@@ -1,5 +1,6 @@
 #import "native_test"
 #import "check_support"
+#import "binary_fixture_support"
 #import "std/byte_text_linux"
 #import "std/file_tree_linux"
 #import "std/json_document"
@@ -218,20 +219,8 @@ InlineNumericIds :: (test: *NativeTest) -> bool {
 }
 
 InlinePrimitiveTypes :: (test: *NativeTest) -> bool {
-    serialization := NativeRead(test, CheckPath(test.repo, "cmd/zir/zir_serial.c")); lines := TextLines(serialization); version: s64 = -1
-    prefix := "#define ZIR_FORMAT_VERSION "
-    for line: lines {
-        if TextHasPrefix(line, prefix) && TextHasSuffix(line, "u") {
-            number: JsonDocument
-            if !NativeAssert(test, JsonRead(*number, line[prefix.count:line.count - 1]), "invalid IR format version declaration") { return false }
-            value, valid := JsonInteger(*number, number.root)
-            if !NativeAssert(test, valid && value >= 0 && value <= 4294967295 && version < 0, "missing or duplicate IR format version") { return false }; version = value
-        }
-    }
-    if !NativeAssert(test, version >= 0, "IR format version declaration is missing") { return false }
     data := NativeRead(test, CheckPath(test.work, "ir/types.zir"))
-    if !NativeAssert(test, data.count >= 8 && data[:4] == "ZIR\x00", "invalid saved primitive type header") { return false }
-    for index: cast(s64)0..3 { if !NativeAssert(test, data[index + 4] == cast(u8)((cast(u64)version >> cast(u64)(index * 8)) & cast(u64)255), "saved primitive type format version differs") { return false } }
+    if !BinaryIRHeader(test, data) { return false }
     required := string.["s32", "s64", "float32", "float64"]; forbidden := string.["i32", "i64", "f32", "f64", "double"]
     for spelling: required { if !NativeAssert(test, TextContains(data, spelling), CheckConcat("saved IR omitted primitive spelling: ", spelling)) { return false } }
     for spelling: forbidden { if !NativeAssert(test, !TextContains(data, spelling), CheckConcat("saved IR retained obsolete primitive spelling: ", spelling)) { return false } }

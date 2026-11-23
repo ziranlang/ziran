@@ -1,0 +1,290 @@
+// Resolve imports against the lock graph supplied by the launcher.
+IR :: #import "compiler_ir"
+Files :: #import "compiler_files"
+Store :: #import "compiler_source_store"
+using Parser :: #import "compiler_parse_types"
+
+PackageRoot :: struct { id: *u8; path: *u8 }
+PackageModule :: struct { id: *u8; name: *u8; path: *u8; identity: [IR.ZIR_NAME_MAX]u8 }
+PackageDependency :: struct { owner: *u8; visible: *u8; target: *u8; exported: *u8 }
+PackageAmbiguous :: struct { owner: *u8; visible: *u8; choices: *u8 }
+ZirPackageMap :: struct {
+    roots: *PackageRoot
+    root_count: s32
+    modules: *PackageModule
+    module_count: s32
+    dependencies: *PackageDependency
+    dependency_count: s32
+    ambiguous: *PackageAmbiguous
+    ambiguous_count: s32
+}
+
+#scope_file
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+CompilerCalloc :: (count: usize, size: usize) -> *void #foreign compiler "CompilerCalloc";
+CompilerRealloc :: (memory: *void, size: usize) -> *void #foreign compiler "CompilerRealloc";
+CompilerStrdup :: (text: *u8) -> *u8 #foreign compiler "CompilerStrdup";
+CompilerFree :: (memory: *void) #foreign compiler "CompilerFree";
+CompilerFopen :: (path: *u8, mode: *u8) -> *void #foreign compiler "CompilerFopen";
+CompilerFclose :: (file: *void) -> s32 #foreign compiler "CompilerFclose";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, arguments: ..any) #foreign compiler "Diagnostic";
+strchr :: (text: *u8, byte: s32) -> *u8 #foreign libc "strchr";
+strcmp :: (left: *u8, right: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (left: *u8, right: *u8, length: usize) -> s32 #foreign libc "strncmp";
+strlen :: (text: *u8) -> usize #foreign libc "strlen";
+snprintf :: (out: *u8, capacity: usize, format: *u8, arguments: ..any) -> s32 #foreign libc "snprintf";
+
+next_field :: (cursor: **u8) -> *u8 {
+    start := cursor[0]
+    if start == null { return null }
+    tab := strchr(start, 9)
+    if tab != null {
+        tab[0] = 0
+        cursor[0] = *tab[1]
+    } else {
+        end := strchr(start, 10)
+        if end != null { end[0] = 0 }
+        cursor[0] = null
+    }
+    return start
+}
+
+copy_field :: (cursor: **u8) -> *u8 {
+    value := next_field(cursor)
+    return ifx value == null then null else CompilerStrdup(value)
+}
+
+read_row :: (map: *ZirPackageMap, line: *u8) -> bool {
+    cursor := line
+    kind := IR.CText(next_field(*cursor))
+    if cursor == null { return false }
+    if kind == "P" {
+        rows := cast(*PackageRoot)CompilerRealloc(cast(*void)map.roots, cast(usize)(map.root_count + 1) * size_of(PackageRoot))
+        if rows == null { return false }
+        map.roots = rows
+        row := *rows[map.root_count]
+        map.root_count += 1
+        row.id = copy_field(*cursor)
+        directory := next_field(*cursor)
+        row.path = null
+        if directory != null {
+            row.path = Files.CanonicalPath(directory)
+            if row.path == null { row.path = CompilerStrdup(directory) }
+        }
+        return row.id != null && row.path != null
+    }
+    if kind == "M" {
+        rows := cast(*PackageModule)CompilerRealloc(cast(*void)map.modules, cast(usize)(map.module_count + 1) * size_of(PackageModule))
+        if rows == null { return false }
+        map.modules = rows
+        row := *rows[map.module_count]
+        map.module_count += 1
+        row[0] = .{}
+        row.id = copy_field(*cursor)
+        row.name = copy_field(*cursor)
+        row.path = copy_field(*cursor)
+        if row.id == null || row.name == null || row.path == null { return false }
+        length: s32
+        if IR.CText(row.id) == "root" {
+            length = snprintf(*row.identity[0], IR.ZIR_NAME_MAX, ParserCString("%s"), row.name)
+        } else {
+            length = snprintf(*row.identity[0], IR.ZIR_NAME_MAX, ParserCString("%s_%s"), row.id, row.name)
+        }
+        return length > 0 && length < IR.ZIR_NAME_MAX
+    }
+    if kind == "D" {
+        rows := cast(*PackageDependency)CompilerRealloc(cast(*void)map.dependencies, cast(usize)(map.dependency_count + 1) * size_of(PackageDependency))
+        if rows == null { return false }
+        map.dependencies = rows
+        row := *rows[map.dependency_count]
+        map.dependency_count += 1
+        row[0] = .{}
+        row.owner = copy_field(*cursor)
+        row.visible = copy_field(*cursor)
+        row.target = copy_field(*cursor)
+        row.exported = copy_field(*cursor)
+        return row.owner != null && row.visible != null && row.target != null && row.exported != null
+    }
+    if kind == "A" {
+        rows := cast(*PackageAmbiguous)CompilerRealloc(cast(*void)map.ambiguous, cast(usize)(map.ambiguous_count + 1) * size_of(PackageAmbiguous))
+        if rows == null { return false }
+        map.ambiguous = rows
+        row := *rows[map.ambiguous_count]
+        map.ambiguous_count += 1
+        row[0] = .{}
+        row.owner = copy_field(*cursor)
+        row.visible = copy_field(*cursor)
+        row.choices = copy_field(*cursor)
+        return row.owner != null && row.visible != null && row.choices != null
+    }
+    return false
+}
+
+copy_spelling :: (out: *u8, size: usize, value: *u8) -> bool {
+    return snprintf(out, size, ParserCString("%s"), value) < cast(s32)size
+}
+
+#scope_export
+#program_export "PackageMapFree"
+PackageMapFree :: (map: *ZirPackageMap) {
+    if map == null { return }
+    for i: 0..map.root_count - 1 {
+        CompilerFree(cast(*void)map.roots[i].id)
+        CompilerFree(cast(*void)map.roots[i].path)
+    }
+    for i: 0..map.module_count - 1 {
+        CompilerFree(cast(*void)map.modules[i].id)
+        CompilerFree(cast(*void)map.modules[i].name)
+        CompilerFree(cast(*void)map.modules[i].path)
+    }
+    for i: 0..map.dependency_count - 1 {
+        CompilerFree(cast(*void)map.dependencies[i].owner)
+        CompilerFree(cast(*void)map.dependencies[i].visible)
+        CompilerFree(cast(*void)map.dependencies[i].target)
+        CompilerFree(cast(*void)map.dependencies[i].exported)
+    }
+    for i: 0..map.ambiguous_count - 1 {
+        CompilerFree(cast(*void)map.ambiguous[i].owner)
+        CompilerFree(cast(*void)map.ambiguous[i].visible)
+        CompilerFree(cast(*void)map.ambiguous[i].choices)
+    }
+    CompilerFree(cast(*void)map.roots)
+    CompilerFree(cast(*void)map.modules)
+    CompilerFree(cast(*void)map.dependencies)
+    CompilerFree(cast(*void)map.ambiguous)
+    CompilerFree(cast(*void)map)
+}
+
+PackageMapLoad :: (path: *u8) -> *ZirPackageMap {
+    file := CompilerFopen(path, ParserCString("r"))
+    if file == null {
+        Diagnostic(Store.Span(path, 1, 1), ParserCString("package.map"), ParserCString("cannot open package map"))
+        return null
+    }
+    map := cast(*ZirPackageMap)CompilerCalloc(1, size_of(ZirPackageMap))
+    line: *u8
+    capacity: usize
+    okay := map != null
+    while okay {
+        read := Files.ReadFileLine(file, *line, *capacity)
+        if read <= 0 { okay = read == 0; break }
+        okay = read_row(map, line)
+    }
+    CompilerFree(cast(*void)line)
+    CompilerFclose(file)
+    if okay { return map }
+    Diagnostic(Store.Span(path, 1, 1), ParserCString("package.map"), ParserCString("invalid package map"))
+    PackageMapFree(map)
+    return null
+}
+
+PackageOwner :: (map: *ZirPackageMap, path: *u8) -> *u8 {
+    owner: *u8
+    best: usize
+    for i: 0..map.root_count - 1 {
+        root := *map.roots[i]
+        length := strlen(root.path)
+        if length > best && strncmp(path, root.path, length) == 0 && (path[length] == #char "/" || path[length] == 0) {
+            owner = root.id
+            best = length
+        }
+    }
+    return owner
+}
+
+PackageModuleName :: (map: *ZirPackageMap, path: *u8) -> *u8 {
+    for i: 0..map.module_count - 1 {
+        if strcmp(map.modules[i].path, path) == 0 { return *map.modules[i].identity[0] }
+    }
+    return null
+}
+
+PackageResolve :: (map: *ZirPackageMap, owner: *u8, visible: *u8, path: *u8, path_size: usize, identity: *u8, identity_size: usize) -> s32 {
+    target := owner
+    name := visible
+    local := false
+    // The pinned standard package always owns an explicit std/ spelling.
+    if strncmp(visible, ParserCString("std/"), 4) == 0 {
+        target = ParserCString("std")
+        name = *visible[4]
+        local = true
+    }
+    if !local {
+        for i: 0..map.module_count - 1 {
+            module := *map.modules[i]
+            if strcmp(module.id, owner) == 0 && strcmp(module.name, visible) == 0 { local = true; break }
+        }
+    }
+    if !local {
+        target = null
+        for i: 0..map.dependency_count - 1 {
+            edge := *map.dependencies[i]
+            if strcmp(edge.owner, owner) == 0 && strcmp(edge.visible, visible) == 0 {
+                target = edge.target
+                name = edge.exported
+                break
+            }
+        }
+        if target == null {
+            if PackageAmbiguity(map, owner, visible) != null || strchr(visible, #char "/") != null { return 0 }
+            target = ParserCString("std")
+        }
+    }
+    for i: 0..map.module_count - 1 {
+        module := *map.modules[i]
+        if strcmp(module.id, target) == 0 && strcmp(module.name, name) == 0 {
+            return cast(s32)(copy_spelling(path, path_size, module.path) && copy_spelling(identity, identity_size, *module.identity[0]))
+        }
+    }
+    return 0
+}
+
+PackageResolveSaved :: (map: *ZirPackageMap, owner: *u8, identity: *u8, path: *u8, path_size: usize) -> s32 {
+    for i: 0..map.module_count - 1 {
+        module := *map.modules[i]
+        if strcmp(*module.identity[0], identity) != 0 { continue }
+        allowed := strcmp(module.id, owner) == 0 || IR.CText(module.id) == "std"
+        if !allowed {
+            for j: 0..map.dependency_count - 1 {
+                edge := *map.dependencies[j]
+                if strcmp(edge.owner, owner) == 0 && strcmp(edge.target, module.id) == 0 && strcmp(edge.exported, module.name) == 0 {
+                    allowed = true
+                    break
+                }
+            }
+        }
+        if allowed { return cast(s32)copy_spelling(path, path_size, module.path) }
+    }
+    return 0
+}
+
+PackageAmbiguity :: (map: *ZirPackageMap, owner: *u8, visible: *u8) -> *u8 {
+    for i: 0..map.ambiguous_count - 1 {
+        edge := *map.ambiguous[i]
+        if strcmp(edge.owner, owner) == 0 && strcmp(edge.visible, visible) == 0 { return edge.choices }
+    }
+    return null
+}
+
+PackageDependencyModule :: (map: *ZirPackageMap, owner: *u8, qualified: *u8, identity: *u8, identity_size: usize) -> s32 {
+    slash := strchr(qualified, #char "/")
+    if slash == null || slash == qualified || slash[1] == 0 { return 0 }
+    prefix := cast(usize)slash - cast(usize)qualified + 1
+    target: *u8
+    if strncmp(qualified, ParserCString("std/"), 4) == 0 { target = ParserCString("std") }
+    if target == null {
+        for i: 0..map.dependency_count - 1 {
+            edge := *map.dependencies[i]
+            if strcmp(edge.owner, owner) == 0 && strncmp(edge.visible, qualified, prefix) == 0 { target = edge.target; break }
+        }
+    }
+    if target == null { return 0 }
+    for i: 0..map.module_count - 1 {
+        module := *map.modules[i]
+        if strcmp(module.id, target) == 0 && strcmp(module.name, *slash[1]) == 0 {
+            return cast(s32)copy_spelling(identity, identity_size, *module.identity[0])
+        }
+    }
+    return 0
+}

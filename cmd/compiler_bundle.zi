@@ -4,6 +4,10 @@
 
 Asset :: struct { name: string; data: string }
 
+// Owned asset storage shared by the collector and the native bundle driver.
+ZxAsset :: struct { name: *u8 #c "char *"; data: *u8; size: u32 }
+ZxAssets :: struct { items: *ZxAsset; count: usize }
+
 // The decoder only frames sections; compiler_exec_link owns LIR decoding,
 // verification and storage.
 ExecutableProblem :: enum s32 {

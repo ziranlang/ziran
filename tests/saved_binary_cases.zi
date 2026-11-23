@@ -40,19 +40,7 @@ SavedBinaryAssembly :: (test: *NativeTest) -> bool {
 }
 
 SavedBinaryHeader :: (test: *NativeTest) -> bool {
-    lines := TextLines(NativeRead(test, CheckPath(test.repo, "cmd/zir/zir_serial.c"))); version: s64 = -1; prefix := "#define ZIR_FORMAT_VERSION "
-    for line: lines {
-        if TextHasPrefix(line, prefix) && TextHasSuffix(line, "u") {
-            document: JsonDocument
-            if !NativeAssert(test, version < 0 && JsonRead(*document, line[prefix.count:line.count - 1]), "duplicate or invalid IR format version") { return false }
-            value, valid := JsonInteger(*document, document.root)
-            if !NativeAssert(test, valid && value >= 0 && value <= 4294967295, "invalid IR version range") { return false }; version = value
-        }
-    }
-    data := NativeRead(test, CheckPath(test.work, "ir/hello.zir"))
-    if !NativeAssert(test, version >= 0 && data.count >= 8 && data[:4] == "ZIR\x00", "saved IR header is missing") { return false }
-    for index: cast(s64)0..3 { if !NativeAssert(test, data[4 + index] == cast(u8)((cast(u64)version >> cast(u64)(index * 8)) & cast(u64)255), "saved IR version differs from serializer") { return false } }
-    return true
+    return BinaryIRHeader(test, NativeRead(test, CheckPath(test.work, "ir/hello.zir")))
 }
 
 // Each expression's text is a slice of its statement's saved text, so the

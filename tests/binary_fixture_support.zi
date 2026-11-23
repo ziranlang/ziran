@@ -1,8 +1,31 @@
 #import "native_test"
 #import "check_support"
 #import "std/byte_text_linux"
+#import "std/json_document"
 #import "std/text_tools"
 using Vectors :: #import "std/vec"
+
+BinaryIRHeader :: (test: *NativeTest, data: string) -> bool {
+    if !NativeAssert(test, data.count >= 8 && data[:4] == "ZIR\x00", "saved IR header is missing") { return false }
+    codec := NativeRead(test, CheckPath(test.repo, "cmd/compiler_zir_serial.zi"))
+    lines := TextLines(codec)
+    prefix := "ZIR_FORMAT_VERSION :: "
+    version: s64 = -1
+    for line: lines {
+        if !TextHasPrefix(line, prefix) { continue }
+        document: JsonDocument
+        if !NativeAssert(test, version < 0 && JsonRead(*document, line[prefix.count:]), "duplicate or invalid IR format version") { return false }
+        value, valid := JsonInteger(*document, document.root)
+        if !NativeAssert(test, valid && value >= 0 && value <= 4294967295, "IR version is out of range") { return false }
+        version = value
+    }
+    if !NativeAssert(test, version >= 0, "IR format version declaration is missing") { return false }
+    for index: cast(s64)0..3 {
+        expected := cast(u8)(cast(u64)version >> cast(u64)(index * 8))
+        if !NativeAssert(test, data[4 + index] == expected, "saved IR version differs from serializer") { return false }
+    }
+    return !test.failed
+}
 
 BinaryOccurrences :: (data: string, pattern: string) -> s64 {
     if pattern.count == 0 { return 0 }

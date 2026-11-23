@@ -41,6 +41,7 @@ typedef struct ZirType ZirType;
 typedef struct ZirTypeField ZirTypeField;
 typedef struct ZirModule ZirModule;
 typedef struct ZirProgram ZirProgram;
+typedef struct ProgramSet ProgramSet;
 #ifdef ZIRAN_COMPILER_IR_H_PRIVATE
 typedef struct TextDescriptor TextDescriptor;
 #endif
@@ -458,6 +459,15 @@ struct ZirProgram {
     int32_t module_count;
     int32_t module_cap;
     int32_t checks;
+};
+
+struct ProgramSet {
+    struct CompilerContext * context;
+    int32_t owns_context;
+    ZirProgram** programs;
+    char ** paths;
+    char ** roots;
+    int32_t count;
 };
 #ifdef ZIRAN_COMPILER_IR_H_PRIVATE
 

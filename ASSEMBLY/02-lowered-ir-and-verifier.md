@@ -13,7 +13,7 @@ Create a structured, serializable representation of executable operations below 
 ## Existing integration points
 
 - [Checked compiler records](../cmd/compiler_ir.zi).
-- [ZIR reader and writer](../cmd/zir/zir_serial.c).
+- [ZIR reader and writer](../cmd/compiler_zir_serial.zi).
 - [Scalar semantic helpers](../cmd/zir/zir_scalar.h).
 - [Compiler embedding contract](../docs/COMPILER_API.md).
 

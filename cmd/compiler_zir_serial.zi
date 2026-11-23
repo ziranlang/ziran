@@ -1,0 +1,2474 @@
+// Read and write the versioned checked IR format and verify canonical saved inputs.
+IR :: #import "compiler_ir"
+using Parser :: #import "compiler_parse_types"
+Expr :: #import "compiler_parse"
+Check :: #import "compiler_check_types"
+
+#scope_file
+ZIR_FORMAT_VERSION :: 66
+
+compiler :: #system_library "ziran";
+libc :: #system_library "libc";
+
+CheckPrograms :: (programs: **IR.ZirProgram, count: s32) -> s32 #foreign compiler "CheckPrograms";
+CompilerCalloc :: (count: usize, size: usize) -> *void #foreign compiler "CompilerCalloc";
+CompilerContextClose :: (context_local: *u8) -> s32 #foreign compiler "CompilerContextClose";
+CompilerContextCurrent :: () -> *u8 #foreign compiler "CompilerContextCurrent";
+CompilerContextOpen :: () -> *u8 #foreign compiler "CompilerContextOpen";
+CompilerContextRetain :: (context_local: *u8) #foreign compiler "CompilerContextRetain";
+CompilerContextSelect :: (context_local: *u8) -> *u8 #foreign compiler "CompilerContextSelect";
+CompilerFclose :: (file: *void) -> s32 #foreign compiler "CompilerFclose";
+CompilerFileSeek :: (file: *void, offset: s64, origin: s32) -> s32 #foreign compiler "CompilerFileSeek";
+CompilerFopen :: (path: *u8, mode: *u8) -> *void #foreign compiler "CompilerFopen";
+CompilerFree :: (pointer: *void) #foreign compiler "CompilerFree";
+CompilerMalloc :: (size: usize) -> *void #foreign compiler "CompilerMalloc";
+CompilerMemoryPause :: () -> *void #foreign compiler "CompilerMemoryPause";
+CompilerMemoryResume :: (memory: *void) #foreign compiler "CompilerMemoryResume";
+CompilerMemoryStreams :: () -> s32 #foreign compiler "CompilerMemoryStreams";
+CompilerOpenMemoryOutput :: (data: **u8, size: *usize) -> *void #foreign compiler "CompilerOpenMemoryOutput";
+CompilerRealloc :: (pointer: *void, size: usize) -> *void #foreign compiler "CompilerRealloc";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, varargs: ..any) #foreign compiler "Diagnostic";
+DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+ExecutablePath :: (output: *u8, capacity: usize) -> s32 #foreign compiler "ExecutablePath";
+ExprSavedCursorLength :: (cursor: *Expr.ExprStatementCursor, text: *void, line: s32) -> usize #foreign compiler "ExprSavedCursorLength";
+ExprSavedSourceOffset :: (cursor: *Expr.ExprStatementCursor, text: *void, base: IR.ZirSourceSpan, span: IR.ZirSourceSpan) -> s64 #foreign compiler "ExprSavedSourceOffset";
+ExpressionOwners :: (fn: *IR.ZirFunction) -> *s32 #foreign compiler "ExpressionOwners";
+GoForeignTargetValid :: (target: *u8) -> s32 #foreign compiler "GoForeignTargetValid";
+KeepText :: (text: *u8) -> *u8 #foreign compiler "KeepText";
+MapTypeParts :: (module: *IR.ZirModule, name: *u8, key: *u8, key_size: usize, value: *u8, value_size: usize) -> s32 #foreign compiler "MapTypeParts";
+PrepareNativeNames :: (programs: **IR.ZirProgram, count: s32) -> s32 #foreign compiler "PrepareNativeNames";
+ProfileEnd :: (phase: *u8, started: u64) #foreign compiler "ProfileEnd";
+ProfileStart :: () -> u64 #foreign compiler "ProfileStart";
+ProgramFree :: (program: *IR.ZirProgram) #foreign compiler "ProgramFree";
+ProgramNew :: () -> *IR.ZirProgram #foreign compiler "ProgramNew";
+SavedParametersValid :: (module: *IR.ZirModule) -> s32 #foreign compiler "SavedParametersValid";
+SourceFile :: (path: *u8) -> s32 #foreign compiler "SourceFile";
+Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+SymbolLookupsChanged :: () #foreign compiler "SymbolLookupsChanged";
+VecElementType :: (module: *IR.ZirModule, type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "VecElementType";
+copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
+ferror :: (__stream: *void) -> s32 #foreign libc "ferror";
+fflush :: (__stream: *void) -> s32 #foreign libc "fflush";
+fgetc :: (__stream: *void) -> s32 #foreign libc "fgetc";
+fread :: (__ptr: *void, __size: usize, __n: usize, __stream: *void) -> usize #foreign libc "fread";
+fwrite :: (__ptr: *void, __size: usize, __n: usize, __s: *void) -> usize #foreign libc "fwrite";
+getenv :: (__name: *u8) -> *u8 #foreign libc "getenv";
+memchr :: (__s: *void, __c: s32, __n: usize) -> *void #foreign libc "memchr";
+memcmp :: (__s1: *void, __s2: *void, __n: usize) -> s32 #foreign libc "memcmp";
+memcpy :: (__dest: *void, __src: *void, __n: usize) -> *void #foreign libc "memcpy";
+parse_file :: (path: *u8, root: *u8) -> *IR.ZirProgram #foreign compiler "parse_file";
+skip_ws :: (s: *u8) -> *u8 #foreign compiler "skip_ws";
+snprintf :: (__s: *u8, __maxlen: usize, __format: *u8, varargs: ..any) -> s32 #foreign libc "snprintf";
+split_top_level :: (s: *u8, parts: *u8, max: s32, part_size: usize) -> s32 #foreign compiler "split_top_level";
+strchr :: (__s: *u8, __c: s32) -> *u8 #foreign libc "strchr";
+strcmp :: (__s1: *u8, __s2: *u8) -> s32 #foreign libc "strcmp";
+strlen :: (__s: *u8) -> usize #foreign libc "strlen";
+strncmp :: (__s1: *u8, __s2: *u8, __n: usize) -> s32 #foreign libc "strncmp";
+strnlen :: (__string: *u8, __maxlen: usize) -> usize #foreign libc "strnlen";
+tmpfile :: () -> *void #foreign libc "tmpfile";
+top_level_assignment :: (s: *u8) -> *u8 #foreign compiler "top_level_assignment";
+trim_in_place :: (s: *u8) -> *u8 #foreign compiler "trim_in_place";
+isalnum :: (byte: s32) -> s32 #foreign libc "isalnum";
+isalpha :: (byte: s32) -> s32 #foreign libc "isalpha";
+isdigit :: (byte: s32) -> s32 #foreign libc "isdigit";
+isspace :: (byte: s32) -> s32 #foreign libc "isspace";
+
+DescribeFields :: #type (record: *void, output: *Field) -> usize #c_call;
+
+ParserArray8192_u8 :: struct {
+    items: [8192]u8
+}
+
+CheckCanonicalProgramsBuffers :: struct {
+    left: ParserArray8192_u8
+    right: ParserArray8192_u8
+}
+
+FieldKind :: enum s32 { String; Text; Name; Integer; StatementKind; StatementName; StatementText; FunctionAssembly; AssemblyText; ExpressionText; Unsigned64; Span }
+
+Field :: struct {
+    offset: usize
+    size: usize
+    kind: FieldKind
+}
+
+serial_field :: (record: *void, member: *void, size: usize, kind: FieldKind) -> Field {
+    return .{offset = cast(usize)member - cast(usize)record, size = size, kind = kind}
+}
+
+ParserAnonymous3 :: union {
+    name: *u8
+    assembly_text: *u8
+}
+
+ParserArray1024_u8 :: struct {
+    items: [1024]u8
+}
+
+Reader :: struct {
+    in: *void
+    path: *u8
+    problem: *u8
+    budget: usize
+    block: *u8
+    start_local: usize
+    end_local: usize
+    last_file: s32
+    last_path: ParserArray1024_u8
+    strings: *SerialString
+    string_count: u32
+    string_capacity: u32
+    last_line: s32
+    has_span: s32
+    context_local: *u8
+    function: *IR.ZirFunction
+    last_owner: s32
+    last_bias: s64
+    cursor: Expr.ExprStatementCursor
+}
+
+SavedModuleShape :: struct {
+    function_count: s32
+    type_count: s32
+    type_names: *ParserArray128_u8
+}
+
+SerialString :: struct {
+    text: *u8
+    length: u32
+    kept: *u8
+}
+
+Writer :: struct {
+    out: *void
+    block: *u8
+    used: usize
+    bytes: usize
+    measure: s32
+    strings: *SerialString
+    string_count: u32
+    string_capacity: u32
+    slots: *u32
+    slot_count: u32
+    addresses: *usize
+    address_strings: *u32
+    address_count: u32
+    address_slot_count: u32
+    charged: usize
+    problem: *u8
+    last_line: s32
+    last_path: *u8
+    has_span: s32
+    function: *IR.ZirFunction
+    owners: *s32
+    last_owner: s32
+    last_bias: s64
+    cursor: Expr.ExprStatementCursor
+}
+
+ParserArray128_u8 :: struct {
+    items: [128]u8
+}
+
+ParserArray4096_u8 :: struct {
+    items: [4096]u8
+}
+
+ParserArray4_u8 :: struct {
+    items: [4]u8
+}
+
+ParserArray8_u8 :: struct {
+    items: [8]u8
+}
+
+// The largest revision-66 record schema has 30 fields.
+SerialFields :: struct {
+    items: [30]Field
+}
+
+ParserArray12_u8 :: struct {
+    items: [12]u8
+}
+
+ParserArray16_u8 :: struct {
+    items: [16]u8
+}
+
+ParserArray8__u8 :: struct {
+    items: [8]*u8
+}
+
+ParserArray10_u8 :: struct {
+    items: [10]u8
+}
+
+ParserArray2_s32 :: struct {
+    items: [2]s32
+}
+
+ParserArray2560_u8 :: struct {
+    items: [2560]u8
+}
+
+PersistencePost0 :: (p: *usize) -> usize { old := p[0]; p[0] = p[0] + 1; return old }
+
+PersistenceSet1 :: (p: *u8, value: u8) -> u8 { p[0] = value; return value }
+
+PersistencePost2 :: (p: **u8) -> *u8 { old := p[0]; p[0] = cast(*u8)(cast(usize)p[0] + size_of(u8)); return old }
+
+PersistencePost3 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] + 1; return old }
+
+PersistenceSet4 :: (p: *u32, value: u32) -> u32 { p[0] = value; return value }
+
+PersistenceSet5 :: (p: *u64, value: u64) -> u64 { p[0] = value; return value }
+
+PersistenceSet6 :: (p: *s32, value: s32) -> s32 { p[0] = value; return value }
+
+PersistencePost7 :: (p: *u32) -> u32 { old := p[0]; p[0] = p[0] + 1; return old }
+
+PersistencePre8 :: (p: *u32) -> u32 { old := p[0]; p[0] = p[0] + 1; return p[0] }
+
+PersistenceSet9 :: (p: **u8, value: *u8) -> *u8 { p[0] = value; return value }
+
+PersistencePost10 :: (p: *s64) -> s64 { old := p[0]; p[0] = p[0] + 1; return old }
+
+PersistenceSet11 :: (p: *IR.ZirModule, value: IR.ZirModule) -> IR.ZirModule { p[0] = value; return value }
+
+
+#scope_file
+canonical_check_frame: u8;
+CheckCanonicalPrograms_in_context :: (programs: **IR.ZirProgram, count: s32, input_paths: **u8) -> s32 {
+    buffers := cast(*CheckCanonicalProgramsBuffers)ParserScratchTake(*canonical_check_frame, size_of(CheckCanonicalProgramsBuffers))
+    defer ParserScratchRelease(*canonical_check_frame, cast(*void)buffers)
+    return CheckCanonicalPrograms_with_buffers(programs, count, input_paths, buffers)
+}
+
+
+#scope_file
+read_bytes :: (reader: *Reader, output: *void, count: usize) -> s32 {
+    to: *u8 = cast(*u8)(output)
+    while check_loop_1 := (count > cast(usize)(0)) {
+        if ((reader).start_local == (reader).end_local) {
+            if (count >= cast(usize)(65536)) {
+                return cast(s32)(fread(cast(*void)(to), cast(usize)(1), count, (reader).in) == count)
+            }
+            (reader).start_local = cast(usize)(0)
+            (reader).end_local = fread(cast(*void)((reader).block), cast(usize)(1), cast(usize)(65536), (reader).in)
+            if ((reader).end_local == cast(usize)(0)) {
+                return 0
+            }
+        }
+        amount: usize = ((reader).end_local - (reader).start_local)
+        if (amount > count) {
+            amount = count
+        }
+        memcpy(cast(*void)(to), cast(*void)(cast(*u8)(cast(usize)((reader).block) + cast(usize)((reader).start_local) * size_of(u8))), amount)
+        (reader).start_local += amount
+        to = cast(*u8)(cast(usize)(to) + cast(usize)(amount) * size_of(u8))
+        count -= amount
+    }
+    return 1
+}
+
+
+#scope_file
+read_byte :: (reader: *Reader, byte: *u8) -> s32 {
+    if ((reader).start_local == (reader).end_local) {
+        (reader).start_local = cast(usize)(0)
+        (reader).end_local = fread(cast(*void)((reader).block), cast(usize)(1), cast(usize)(65536), (reader).in)
+        if ((reader).end_local == cast(usize)(0)) {
+            return 0
+        }
+    }
+    PersistenceSet1(byte, ((reader).block)[PersistencePost0(*((reader).start_local))])
+    return 1
+}
+
+
+#scope_file
+flush_writer :: (writer: *Writer) -> s32 {
+    used: usize = (writer).used
+    (writer).used = cast(usize)(0)
+    if ((used > ((cast(usize)-1) - (writer).bytes)) || ((used != cast(usize)(0)) && (fwrite(cast(*void)((writer).block), cast(usize)(1), used, (writer).out) != used))) {
+        return 0
+    }
+    (writer).bytes += used
+    return 1
+}
+
+
+#scope_file
+write_bytes :: (writer: *Writer, data: *void, count: usize) -> s32 {
+    if ((writer).measure != 0) {
+        if (count > ((cast(usize)-1) - (writer).bytes)) {
+            return 0
+        }
+        (writer).bytes += count
+        return 1
+    }
+    if (count > (cast(usize)(65536) - (writer).used)) {
+        if !(flush_writer(writer) != 0) {
+            return 0
+        }
+        if (count >= cast(usize)(65536)) {
+            if ((count > ((cast(usize)-1) - (writer).bytes)) || (fwrite(data, cast(usize)(1), count, (writer).out) != count)) {
+                return 0
+            }
+            (writer).bytes += count
+            return 1
+        }
+    }
+    memcpy(cast(*void)(cast(*u8)(cast(usize)((writer).block) + cast(usize)((writer).used) * size_of(u8))), data, count)
+    (writer).used += count
+    return 1
+}
+
+
+#scope_file
+describe_import_fields :: (input: *void, output: *Field) -> usize {
+    record := cast(*IR.ZirImport)input
+    output[0] = serial_field(input, cast(*void)*record.kind, size_of(type_of(record.kind)), .Integer)
+    output[1] = serial_field(input, cast(*void)*record.extern_kind, size_of(type_of(record.extern_kind)), .Integer)
+    output[2] = serial_field(input, cast(*void)*record.is_public, size_of(type_of(record.is_public)), .Integer)
+    output[3] = serial_field(input, cast(*void)*record.is_file_private, size_of(type_of(record.is_file_private)), .Integer)
+    output[4] = serial_field(input, cast(*void)*record.name, size_of(type_of(record.name)), .String)
+    output[5] = serial_field(input, cast(*void)*record.target, size_of(type_of(record.target)), .String)
+    output[6] = serial_field(input, cast(*void)*record.extern_symbol, size_of(type_of(record.extern_symbol)), .String)
+    output[7] = serial_field(input, cast(*void)*record.signature, size_of(type_of(record.signature)), .String)
+    output[8] = serial_field(input, cast(*void)*record.args, size_of(type_of(record.args)), .String)
+    output[9] = serial_field(input, cast(*void)*record.return_type, size_of(type_of(record.return_type)), .String)
+    output[10] = serial_field(input, cast(*void)*record.must_use, size_of(type_of(record.must_use)), .Integer)
+    output[11] = serial_field(input, cast(*void)*record.is_varargs, size_of(type_of(record.is_varargs)), .Integer)
+    output[12] = serial_field(input, cast(*void)*record.go_results, size_of(type_of(record.go_results)), .Integer)
+    output[13] = serial_field(input, cast(*void)*record.go_field, size_of(type_of(record.go_field)), .Integer)
+    output[14] = serial_field(input, cast(*void)*record.go_defer, size_of(type_of(record.go_defer)), .Integer)
+    output[15] = serial_field(input, cast(*void)*record.go_variadic, size_of(type_of(record.go_variadic)), .Integer)
+    output[16] = serial_field(input, cast(*void)*record.reads_arguments, size_of(type_of(record.reads_arguments)), .Integer)
+    output[17] = serial_field(input, cast(*void)*record.parameters, IR.ZIR_TEXT_MAX, .Text)
+    output[18] = serial_field(input, cast(*void)*record.is_using, size_of(type_of(record.is_using)), .Integer)
+    output[19] = serial_field(input, cast(*void)*record.required, size_of(type_of(record.required)), .Integer)
+    output[20] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
+    return 21
+}
+
+
+#scope_file
+describe_statement_fields :: (input: *void, output: *Field) -> usize {
+    record := cast(*IR.ZirStmt)input
+    output[0] = serial_field(input, cast(*void)*record.kind, size_of(type_of(record.kind)), .StatementKind)
+    output[1] = serial_field(input, cast(*void)*record.text, IR.ZIR_TEXT_MAX, .StatementText)
+    output[2] = serial_field(input, cast(*void)*record.assembly_text, IR.ZIR_TEXT_MAX, .AssemblyText)
+    output[3] = serial_field(input, cast(*void)*record.is_else, size_of(type_of(record.is_else)), .Integer)
+    output[4] = serial_field(input, cast(*void)*record.is_using, size_of(type_of(record.is_using)), .Integer)
+    output[5] = serial_field(input, cast(*void)*record.loop_id, size_of(type_of(record.loop_id)), .Integer)
+    output[6] = serial_field(input, cast(*void)*record.target_id, size_of(type_of(record.target_id)), .Integer)
+    output[7] = serial_field(input, cast(*void)*record.for_form, size_of(type_of(record.for_form)), .Integer)
+    output[8] = serial_field(input, cast(*void)*record.for_step, size_of(type_of(record.for_step)), .Integer)
+    output[9] = serial_field(input, cast(*void)*record.expr_root, size_of(type_of(record.expr_root)), .Integer)
+    output[10] = serial_field(input, cast(*void)*record.lhs_root, size_of(type_of(record.lhs_root)), .Integer)
+    output[11] = serial_field(input, cast(*void)*record.name, IR.ZIR_NAME_MAX, .StatementName)
+    output[12] = serial_field(input, cast(*void)*record.type, IR.ZIR_NAME_MAX, .Name)
+    output[13] = serial_field(input, cast(*void)*record.assignment_op, size_of(type_of(record.assignment_op)), .String)
+    output[14] = serial_field(input, cast(*void)*record.is_parallel, size_of(type_of(record.is_parallel)), .Integer)
+    output[15] = serial_field(input, cast(*void)*record.is_gpu, size_of(type_of(record.is_gpu)), .Integer)
+    output[16] = serial_field(input, cast(*void)*record.checks, size_of(type_of(record.checks)), .Integer)
+    output[17] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
+    return 18
+}
+
+
+#scope_file
+describe_expression_fields :: (input: *void, output: *Field) -> usize {
+    record := cast(*IR.ZirExpr)input
+    output[0] = serial_field(input, cast(*void)*record.kind, size_of(type_of(record.kind)), .Integer)
+    output[1] = serial_field(input, cast(*void)*record.is_function_value, size_of(type_of(record.is_function_value)), .Integer)
+    output[2] = serial_field(input, cast(*void)*record.is_this, size_of(type_of(record.is_this)), .Integer)
+    output[3] = serial_field(input, cast(*void)*record.checked, size_of(type_of(record.checked)), .Integer)
+    output[4] = serial_field(input, cast(*void)*record.slot_type, IR.ZIR_NAME_MAX, .Name)
+    output[5] = serial_field(input, cast(*void)*record.name, IR.ZIR_NAME_MAX, .Name)
+    output[6] = serial_field(input, cast(*void)*record.argument_name, IR.ZIR_NAME_MAX, .Name)
+    output[7] = serial_field(input, cast(*void)*record.argument_index, size_of(type_of(record.argument_index)), .Integer)
+    output[8] = serial_field(input, cast(*void)*record.op, size_of(type_of(record.op)), .String)
+    output[9] = serial_field(input, cast(*void)*record.left, size_of(type_of(record.left)), .Integer)
+    output[10] = serial_field(input, cast(*void)*record.right, size_of(type_of(record.right)), .Integer)
+    output[11] = serial_field(input, cast(*void)*record.first_child, size_of(type_of(record.first_child)), .Integer)
+    output[12] = serial_field(input, cast(*void)*record.next_sibling, size_of(type_of(record.next_sibling)), .Integer)
+    output[13] = serial_field(input, cast(*void)*record.third, size_of(type_of(record.third)), .Integer)
+    output[14] = serial_field(input, cast(*void)*record.type, IR.ZIR_NAME_MAX, .Name)
+    output[15] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
+    output[16] = serial_field(input, cast(*void)*record.text, IR.ZIR_TEXT_MAX, .ExpressionText)
+    return 17
+}
+
+
+#scope_file
+describe_function_fields :: (input: *void, output: *Field) -> usize {
+    record := cast(*IR.ZirFunction)input
+    output[0] = serial_field(input, cast(*void)*record.name, size_of(type_of(record.name)), .String)
+    output[1] = serial_field(input, cast(*void)*record.args_text, IR.ZIR_TEXT_MAX, .Name)
+    output[2] = serial_field(input, cast(*void)*record.default_args_text, IR.ZIR_TEXT_MAX, .Name)
+    output[3] = serial_field(input, cast(*void)*record.using_parameters, size_of(type_of(record.using_parameters)), .Unsigned64)
+    output[4] = serial_field(input, cast(*void)*record.return_type, size_of(type_of(record.return_type)), .String)
+    output[5] = serial_field(input, cast(*void)*record.must_use, size_of(type_of(record.must_use)), .Integer)
+    output[6] = serial_field(input, cast(*void)*record.is_conversion, size_of(type_of(record.is_conversion)), .Integer)
+    output[7] = serial_field(input, cast(*void)*record.go_method, size_of(type_of(record.go_method)), .String)
+    output[8] = serial_field(input, cast(*void)*record.go_method_results, size_of(type_of(record.go_method_results)), .Integer)
+    output[9] = serial_field(input, cast(*void)*record.effect_class, size_of(type_of(record.effect_class)), .String)
+    output[10] = serial_field(input, cast(*void)*record.exported, size_of(type_of(record.exported)), .Integer)
+    output[11] = serial_field(input, cast(*void)*record.export_symbol, size_of(type_of(record.export_symbol)), .String)
+    output[12] = serial_field(input, cast(*void)*record.is_extern, size_of(type_of(record.is_extern)), .Integer)
+    output[13] = serial_field(input, cast(*void)*record.extern_kind, size_of(type_of(record.extern_kind)), .Integer)
+    output[14] = serial_field(input, cast(*void)*record.is_public, size_of(type_of(record.is_public)), .Integer)
+    output[15] = serial_field(input, cast(*void)*record.is_file_private, size_of(type_of(record.is_file_private)), .Integer)
+    output[16] = serial_field(input, cast(*void)*record.is_template, size_of(type_of(record.is_template)), .Integer)
+    output[17] = serial_field(input, cast(*void)*record.is_specialization, size_of(type_of(record.is_specialization)), .Integer)
+    output[18] = serial_field(input, cast(*void)*record.is_global_initializer, size_of(type_of(record.is_global_initializer)), .Integer)
+    output[19] = serial_field(input, cast(*void)*record.template_param, size_of(type_of(record.template_param)), .String)
+    output[20] = serial_field(input, cast(*void)*record.specialization_type, size_of(type_of(record.specialization_type)), .String)
+    output[21] = serial_field(input, cast(*void)*record.overload_name, size_of(type_of(record.overload_name)), .String)
+    output[22] = serial_field(input, cast(*void)*record.checked, size_of(type_of(record.checked)), .Integer)
+    output[23] = serial_field(input, cast(*void)*record.uses_host, size_of(type_of(record.uses_host)), .Integer)
+    output[24] = serial_field(input, cast(*void)*record.extern_target, size_of(type_of(record.extern_target)), .String)
+    output[25] = serial_field(input, cast(*void)*record.extern_symbol, size_of(type_of(record.extern_symbol)), .String)
+    output[26] = serial_field(input, cast(*void)*record.inlining, size_of(type_of(record.inlining)), .Integer)
+    output[27] = serial_field(input, cast(*void)*record.simd_target, size_of(type_of(record.simd_target)), .Integer)
+    output[28] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
+    output[29] = serial_field(input, cast(*void)*record.assembly_text, IR.ZIR_TEXT_MAX, .FunctionAssembly)
+    return 30
+}
+
+
+#scope_file
+describe_global_fields :: (input: *void, output: *Field) -> usize {
+    record := cast(*IR.ZirGlobal)input
+    output[0] = serial_field(input, cast(*void)*record.name, size_of(type_of(record.name)), .String)
+    output[1] = serial_field(input, cast(*void)*record.type, size_of(type_of(record.type)), .String)
+    output[2] = serial_field(input, cast(*void)*record.init, IR.ZIR_TEXT_MAX, .Text)
+    output[3] = serial_field(input, cast(*void)*record.is_static, size_of(type_of(record.is_static)), .Integer)
+    output[4] = serial_field(input, cast(*void)*record.is_file_private, size_of(type_of(record.is_file_private)), .Integer)
+    output[5] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
+    return 6
+}
+
+
+#scope_file
+describe_define_fields :: (input: *void, output: *Field) -> usize {
+    record := cast(*IR.ZirDefine)input
+    output[0] = serial_field(input, cast(*void)*record.name, size_of(type_of(record.name)), .String)
+    output[1] = serial_field(input, cast(*void)*record.value, IR.ZIR_TEXT_MAX, .Text)
+    output[2] = serial_field(input, cast(*void)*record.is_public, size_of(type_of(record.is_public)), .Integer)
+    output[3] = serial_field(input, cast(*void)*record.is_file_private, size_of(type_of(record.is_file_private)), .Integer)
+    output[4] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
+    return 5
+}
+
+
+#scope_file
+describe_parameter_fields :: (input: *void, output: *Field) -> usize {
+    record := cast(*IR.ZirModuleParameter)input
+    output[0] = serial_field(input, cast(*void)*record.name, size_of(type_of(record.name)), .String)
+    output[1] = serial_field(input, cast(*void)*record.type, size_of(type_of(record.type)), .String)
+    output[2] = serial_field(input, cast(*void)*record.default_value, IR.ZIR_TEXT_MAX, .Text)
+    output[3] = serial_field(input, cast(*void)*record.value, IR.ZIR_TEXT_MAX, .Text)
+    output[4] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
+    return 5
+}
+
+
+#scope_file
+describe_assert_fields :: (input: *void, output: *Field) -> usize {
+    record := cast(*IR.ZirAssert)input
+    output[0] = serial_field(input, cast(*void)*record.condition, size_of(type_of(record.condition)), .String)
+    output[1] = serial_field(input, cast(*void)*record.message, size_of(type_of(record.message)), .String)
+    output[2] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
+    return 3
+}
+
+
+#scope_file
+describe_law_fields :: (input: *void, output: *Field) -> usize {
+    record := cast(*IR.ZirLaw)input
+    output[0] = serial_field(input, cast(*void)*record.name, size_of(type_of(record.name)), .String)
+    output[1] = serial_field(input, cast(*void)*record.kind, size_of(type_of(record.kind)), .String)
+    output[2] = serial_field(input, cast(*void)*record.payload, size_of(type_of(record.payload)), .String)
+    output[3] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
+    output[4] = serial_field(input, cast(*void)*record.evidence.method, size_of(type_of(record.evidence.method)), .String)
+    output[5] = serial_field(input, cast(*void)*record.evidence.domain, size_of(type_of(record.evidence.domain)), .String)
+    output[6] = serial_field(input, cast(*void)*record.evidence.cases_checked, size_of(type_of(record.evidence.cases_checked)), .Unsigned64)
+    output[7] = serial_field(input, cast(*void)*record.evidence.counterexample, size_of(type_of(record.evidence.counterexample)), .String)
+    output[8] = serial_field(input, cast(*void)*record.evidence.waived, size_of(type_of(record.evidence.waived)), .Integer)
+    return 9
+}
+
+
+#scope_file
+describe_proof_fields :: (input: *void, output: *Field) -> usize {
+    record := cast(*IR.ZirProof)input
+    output[0] = serial_field(input, cast(*void)*record.name, size_of(type_of(record.name)), .String)
+    output[1] = serial_field(input, cast(*void)*record.source, size_of(type_of(record.source)), .String)
+    output[2] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
+    return 3
+}
+
+
+#scope_file
+describe_proof_step_fields :: (input: *void, output: *Field) -> usize {
+    record := cast(*IR.ZirProofStep)input
+    output[0] = serial_field(input, cast(*void)*record.kind, size_of(type_of(record.kind)), .Integer)
+    output[1] = serial_field(input, cast(*void)*record.target, size_of(type_of(record.target)), .String)
+    output[2] = serial_field(input, cast(*void)*record.term_root, size_of(type_of(record.term_root)), .Integer)
+    output[3] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
+    return 4
+}
+
+
+#scope_file
+describe_law_waiver_fields :: (input: *void, output: *Field) -> usize {
+    record := cast(*IR.ZirLawWaiver)input
+    output[0] = serial_field(input, cast(*void)*record.name, size_of(type_of(record.name)), .String)
+    output[1] = serial_field(input, cast(*void)*record.reason, size_of(type_of(record.reason)), .String)
+    output[2] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
+    return 3
+}
+
+
+#scope_file
+describe_type_fields :: (input: *void, output: *Field) -> usize {
+    record := cast(*IR.ZirType)input
+    output[0] = serial_field(input, cast(*void)*record.name, size_of(type_of(record.name)), .String)
+    output[1] = serial_field(input, cast(*void)*record.body, size_of(type_of(record.body)), .String)
+    output[2] = serial_field(input, cast(*void)*record.template_params, size_of(type_of(record.template_params)), .String)
+    output[3] = serial_field(input, cast(*void)*record.template_name, size_of(type_of(record.template_name)), .String)
+    output[4] = serial_field(input, cast(*void)*record.template_args, size_of(type_of(record.template_args)), .String)
+    output[5] = serial_field(input, cast(*void)*record.foreign_target, size_of(type_of(record.foreign_target)), .String)
+    output[6] = serial_field(input, cast(*void)*record.is_synthetic_application, size_of(type_of(record.is_synthetic_application)), .Integer)
+    output[7] = serial_field(input, cast(*void)*record.is_procedure_type, size_of(type_of(record.is_procedure_type)), .Integer)
+    output[8] = serial_field(input, cast(*void)*record.is_c_call, size_of(type_of(record.is_c_call)), .Integer)
+    output[9] = serial_field(input, cast(*void)*record.reads_arguments, size_of(type_of(record.reads_arguments)), .Integer)
+    output[10] = serial_field(input, cast(*void)*record.procedure_return_type, size_of(type_of(record.procedure_return_type)), .String)
+    output[11] = serial_field(input, cast(*void)*record.is_public, size_of(type_of(record.is_public)), .Integer)
+    output[12] = serial_field(input, cast(*void)*record.is_file_private, size_of(type_of(record.is_file_private)), .Integer)
+    output[13] = serial_field(input, cast(*void)*record.is_enum, size_of(type_of(record.is_enum)), .Integer)
+    output[14] = serial_field(input, cast(*void)*record.is_union, size_of(type_of(record.is_union)), .Integer)
+    output[15] = serial_field(input, cast(*void)*record.is_go_anonymous, size_of(type_of(record.is_go_anonymous)), .Integer)
+    output[16] = serial_field(input, cast(*void)*record.is_enum_flags, size_of(type_of(record.is_enum_flags)), .Integer)
+    output[17] = serial_field(input, cast(*void)*record.is_enum_specified, size_of(type_of(record.is_enum_specified)), .Integer)
+    output[18] = serial_field(input, cast(*void)*record.enum_backing, size_of(type_of(record.enum_backing)), .String)
+    output[19] = serial_field(input, cast(*void)*record.c_prefix, size_of(type_of(record.c_prefix)), .String)
+    output[20] = serial_field(input, cast(*void)*record.is_record_template, size_of(type_of(record.is_record_template)), .Integer)
+    output[21] = serial_field(input, cast(*void)*record.is_owned_vec, size_of(type_of(record.is_owned_vec)), .Integer)
+    output[22] = serial_field(input, cast(*void)*record.is_map, size_of(type_of(record.is_map)), .Integer)
+    output[23] = serial_field(input, cast(*void)*record.is_extern, size_of(type_of(record.is_extern)), .Integer)
+    output[24] = serial_field(input, cast(*void)*record.is_abi_incomplete, size_of(type_of(record.is_abi_incomplete)), .Integer)
+    output[25] = serial_field(input, cast(*void)*record.is_results, size_of(type_of(record.is_results)), .Integer)
+    output[26] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
+    return 27
+}
+
+
+#scope_file
+c_prefix_valid :: (prefix: *u8) -> s32 {
+    if (isdigit(cast(s32)(((cast(u8)((prefix)[0]))))) != 0) {
+        return 0
+    }
+    {
+        while check_loop_2 := ((prefix)[0] != 0) {
+            if (!(isalnum(cast(s32)(((cast(u8)((prefix)[0]))))) != 0) && (cast(s32)(cast(s8)((prefix)[0])) != 95)) {
+                return 0
+            }
+            PersistencePost2(*(prefix))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+enum_backing_valid :: (backing: *u8) -> s32 {
+    allowed: ParserArray8__u8 = .{items = .{ParserCString("s8"), ParserCString("u8"), ParserCString("s16"), ParserCString("u16"), ParserCString("s32"), ParserCString("u32"), ParserCString("s64"), ParserCString("u64")}}
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_3 := (i < (cast(usize)size_of(ParserArray8__u8) / cast(usize)size_of(*u8))) {
+            if (strcmp(backing, (allowed).items[i]) == 0) {
+                return 1
+            }
+            PersistencePost0(*(i))
+        }
+    }
+    return 0
+}
+
+
+#scope_file
+using_path_valid :: (path: *u8, allow_members: s32) -> s32 {
+    cursor: *u8 = cast(*u8)(path)
+    if (!(isalpha(cast(s32)((((cursor)[0])))) != 0) && (cast(s32)((cursor)[0]) != 95)) {
+        return 0
+    }
+    {
+        while check_loop_4 := true {
+            while check_loop_5 := ((isalnum(cast(s32)((((cursor)[0])))) != 0) || (cast(s32)((cursor)[0]) == 95)) {
+                PersistencePost2(*(cursor))
+            }
+            if (cast(s32)((cursor)[0]) == 0) {
+                return 1
+            }
+            if ((!(allow_members != 0) || (cast(s32)((PersistencePost2(*(cursor)))[0]) != 46)) || (!(isalpha(cast(s32)((((cursor)[0])))) != 0) && (cast(s32)((cursor)[0]) != 95))) {
+                return 0
+            }
+        }
+    }
+    unreachable
+}
+
+
+#scope_file
+specified_enum_body_valid :: (body: *u8) -> s32 {
+    members: s32 = 0
+    while check_loop_6 := ((body)[0] != 0) {
+        while check_loop_7 := ((cast(s32)(cast(s8)((body)[0])) == 44) || (isspace(cast(s32)(((cast(u8)((body)[0]))))) != 0)) {
+            PersistencePost2(*(body))
+        }
+        if !((body)[0] != 0) {
+            break check_loop_6
+        }
+        if (!(isalpha(cast(s32)(((cast(u8)((body)[0]))))) != 0) && (cast(s32)(cast(s8)((body)[0])) != 95)) {
+            return 0
+        }
+        while check_loop_8 := true {
+            PersistencePost2(*(body))
+            if !((isalnum(cast(s32)(((cast(u8)((body)[0]))))) != 0) || (cast(s32)(cast(s8)((body)[0])) == 95)) { break check_loop_8 }
+        }
+        while check_loop_9 := ((cast(s32)(cast(s8)((body)[0])) == 32) || (cast(s32)(cast(s8)((body)[0])) == 9)) {
+            PersistencePost2(*(body))
+        }
+        if (cast(s32)(cast(s8)((PersistencePost2(*(body)))[0])) != 61) {
+            return 0
+        }
+        while check_loop_10 := ((((body)[0] != 0) && (cast(s32)(cast(s8)((body)[0])) != 10)) && (cast(s32)(cast(s8)((body)[0])) != 44)) {
+            PersistencePost2(*(body))
+        }
+        PersistencePost3(*(members))
+    }
+    return cast(s32)(members > 0)
+}
+
+
+#scope_file
+default_signature_valid :: (function: *IR.ZirFunction) -> s32 {
+    if !((FunctionDefaultArgs(function))[0] != 0) {
+        return 1
+    }
+    parts: *ParserArray4096_u8 = cast(*ParserArray4096_u8)(CompilerCalloc(cast(usize)(64), cast(usize)size_of(ParserArray4096_u8)))
+    if (parts == cast(*ParserArray4096_u8)((null))) {
+        return 0
+    }
+    count: s32 = split_top_level(FunctionDefaultArgs(function), cast(*u8)(*((parts)[0]).items[0]), 64, cast(usize)size_of(ParserArray4096_u8))
+    normalized: ParserArray4096_u8
+    copy_text(cast(*u8)*normalized, size_of(ParserArray4096_u8), ParserCString(""))
+    used: usize = cast(usize)(0)
+    defaults: s32 = 0
+    valid: s32 = cast(s32)(count > 0)
+    {
+        i: s32 = 0
+        while check_loop_11 := ((valid != 0) && (i < count)) {
+            assignment: *u8 = top_level_assignment(cast(*u8)(*((parts)[i]).items[0]))
+            if (assignment != cast(*u8)((null))) {
+                if !((skip_ws(cast(*u8)(cast(usize)(assignment) + cast(usize)(1) * size_of(u8))))[0] != 0) {
+                    valid = 0
+                    break check_loop_11
+                }
+                PersistenceSet1(assignment, cast(u8)(0))
+                trim_in_place(cast(*u8)(*((parts)[i]).items[0]))
+                PersistencePost3(*(defaults))
+            }
+            written: s32 = snprintf(cast(*u8)(cast(usize)(cast(*u8)(*((normalized).items))) + cast(usize)(used) * size_of(u8)), (cast(usize)size_of(ParserArray4096_u8) - used), ParserCString("%s%s"), (ifx (i != 0) then ParserCString(", ") else ParserCString("")), cast(*u8)(*((parts)[i]).items[0]))
+            if ((written < 0) || (cast(usize)(written) >= (cast(usize)size_of(ParserArray4096_u8) - used))) {
+                valid = 0
+                break check_loop_11
+            }
+            used += cast(usize)(written)
+            PersistencePost3(*(i))
+        }
+    }
+    valid = cast(s32)(((valid != 0) && (defaults > 0)) && (strcmp(cast(*u8)(*((normalized).items)), FunctionArgs(function)) == 0))
+    CompilerFree(cast(*void)(parts))
+    return valid
+}
+
+
+#scope_file
+describe_module_fields :: (input: *void, output: *Field) -> usize {
+    record := cast(*IR.ZirModule)input
+    output[0] = serial_field(input, cast(*void)*record.name, size_of(type_of(record.name)), .String)
+    output[1] = serial_field(input, cast(*void)*record.source_path, size_of(type_of(record.source_path)), .String)
+    output[2] = serial_field(input, cast(*void)*record.span, size_of(type_of(record.span)), .Span)
+    output[3] = serial_field(input, cast(*void)*record.checks, size_of(type_of(record.checks)), .Integer)
+    return 4
+}
+
+
+#scope_file
+write_version :: (out: *Writer, value: u32) -> s32 {
+    bytes: ParserArray4_u8 = .{items = .{cast(u8)(value), cast(u8)(((value >> cast(u32)(8)))), cast(u8)(((value >> cast(u32)(16)))), cast(u8)(((value >> cast(u32)(24))))}}
+    return write_bytes(out, cast(*void)(cast(*u8)(*((bytes).items))), cast(usize)size_of(ParserArray4_u8))
+}
+
+
+#scope_file
+read_version :: (reader: *Reader, value: *u32) -> s32 {
+    bytes: ParserArray4_u8
+    if !(read_bytes(reader, cast(*void)(cast(*u8)(*((bytes).items))), cast(usize)size_of(ParserArray4_u8)) != 0) {
+        (reader).problem = ParserCString("truncated integer")
+        return 0
+    }
+    PersistenceSet4(value, (((cast(u32)((bytes).items[0]) | (cast(u32)((bytes).items[1]) << cast(u32)(8))) | (cast(u32)((bytes).items[2]) << cast(u32)(16))) | (cast(u32)((bytes).items[3]) << cast(u32)(24))))
+    return 1
+}
+
+
+#scope_file
+write_u64 :: (out: *Writer, value: u64) -> s32 {
+    bytes: ParserArray10_u8
+    used: usize = cast(usize)(0)
+    while check_loop_12 := true {
+        byte: u8 = cast(u8)(((value & cast(u64)(127))))
+        value >>= cast(u64)(7)
+        (bytes).items[PersistencePost0(*(used))] = cast(u8)(((cast(s32)(byte) | ((ifx (value != cast(u64)(0)) then 128 else 0)))))
+        if !(value != cast(u64)(0)) { break check_loop_12 }
+    }
+    return write_bytes(out, cast(*void)(cast(*u8)(*((bytes).items))), used)
+}
+
+
+#scope_file
+read_number :: (reader: *Reader, value: *u64, maximum: u64) -> s32 {
+    result: u64 = cast(u64)(0)
+    {
+        shift: s32 = 0
+        while check_loop_13 := (shift < 64) {
+            byte: u8
+            if !(read_byte(reader, *(byte)) != 0) {
+                (reader).problem = ParserCString("truncated integer")
+                return 0
+            }
+            if ((shift == 63) && (cast(s32)(byte) > 1)) {
+                break check_loop_13
+            }
+            result |= (cast(u64)(((cast(s32)(byte) & 127))) << cast(u64)(shift))
+            if (((cast(s32)(byte) & 128)) == 0) {
+                if ((cast(s32)(byte) == 0) && (shift > 0)) {
+                    (reader).problem = ParserCString("noncanonical integer")
+                    return 0
+                }
+                if (result > maximum) {
+                    (reader).problem = ParserCString("integer out of range")
+                    return 0
+                }
+                PersistenceSet5(value, result)
+                return 1
+            }
+            shift += 7
+        }
+    }
+    (reader).problem = ParserCString("integer out of range")
+    return 0
+}
+
+
+#scope_file
+read_u64 :: (reader: *Reader, value: *u64) -> s32 {
+    return read_number(reader, value, cast(u64)-1)
+}
+
+
+#scope_file
+write_u32 :: (out: *Writer, value: u32) -> s32 {
+    return write_u64(out, cast(u64)(value))
+}
+
+
+#scope_file
+read_u32 :: (reader: *Reader, value: *u32) -> s32 {
+    number: u64
+    if !(read_number(reader, *(number), cast(u64)((4294967295))) != 0) {
+        return 0
+    }
+    PersistenceSet4(value, cast(u32)(number))
+    return 1
+}
+
+
+#scope_file
+write_s32 :: (out: *Writer, value: s32) -> s32 {
+    bits: u32 = cast(u32)(value)
+    return write_u32(out, (((bits << cast(u32)(1))) ^ ((ifx (value < 0) then (4294967295) else cast(u32)(0)))))
+}
+
+
+#scope_file
+read_s32 :: (reader: *Reader, value: *s32) -> s32 {
+    bits: u32
+    if !(read_u32(reader, *(bits)) != 0) {
+        return 0
+    }
+    PersistenceSet6(value, cast(s32)(((((bits >> cast(u32)(1))) ^ ((0 - ((bits & 1))))))))
+    return 1
+}
+
+
+#scope_file
+string_hash :: (text: *u8, length: usize) -> u32 {
+    hash: u32 = 2166136261
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_14 := (i < length) {
+            hash = (((hash ^ cast(u32)(cast(u8)((text)[i])))) * 16777619)
+            PersistencePost0(*(i))
+        }
+    }
+    return hash
+}
+
+
+#scope_file
+writer_string_slot :: (out: *Writer, text: *u8, length: usize, slot: *u32) -> u32 {
+    mask: u32 = ((out).slot_count - cast(u32)(1))
+    at: u32 = (string_hash(text, length) & mask)
+    while check_loop_15 := (((out).slots)[at] != cast(u32)(0)) {
+        known: *SerialString = cast(*SerialString)(cast(usize)((out).strings) + cast(usize)((((out).slots)[at] - cast(u32)(1))) * size_of(SerialString))
+        if ((cast(usize)((known).length) == length) && (memcmp(cast(*void)((known).text), cast(*void)(text), length) == 0)) {
+            break check_loop_15
+        }
+        at = (((at + cast(u32)(1))) & mask)
+    }
+    PersistenceSet4(slot, at)
+    return ((out).slots)[at]
+}
+
+
+#scope_file
+writer_grow_strings :: (out: *Writer) -> s32 {
+    if ((out).string_count == (out).string_capacity) {
+        capacity: u32 = (ifx ((out).string_capacity != 0) then ((out).string_capacity * cast(u32)(2)) else cast(u32)(1024))
+        strings: *SerialString = cast(*SerialString)(CompilerRealloc(cast(*void)((out).strings), (cast(usize)(capacity) * cast(usize)size_of(SerialString))))
+        if (strings == cast(*SerialString)((null))) {
+            return 0
+        }
+        (out).strings = strings
+        (out).string_capacity = capacity
+    }
+    if (((((out).string_count + cast(u32)(1))) * cast(u32)(2)) <= (out).slot_count) {
+        return 1
+    }
+    count: u32 = (ifx ((out).slot_count != 0) then ((out).slot_count * cast(u32)(2)) else cast(u32)(2048))
+    slots: *u32 = cast(*u32)(CompilerCalloc(cast(usize)(count), cast(usize)size_of(u32)))
+    if (slots == cast(*u32)((null))) {
+        return 0
+    }
+    CompilerFree(cast(*void)((out).slots))
+    (out).slots = slots
+    (out).slot_count = count
+    {
+        i: u32 = cast(u32)(0)
+        while check_loop_16 := (i < (out).string_count) {
+            slot: u32
+            writer_string_slot(out, (((out).strings)[i]).text, cast(usize)((((out).strings)[i]).length), *(slot))
+            ((out).slots)[slot] = (i + cast(u32)(1))
+            PersistencePost7(*(i))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+address_slot :: (out: *Writer, address: usize) -> u32 {
+    mask := out.address_slot_count - 1
+    hash := cast(u64)address * cast(u64)0x9e3779b97f4a7c15
+    at := cast(u32)(hash >> 32) & mask
+    while out.address_strings[at] != 0 && out.addresses[at] != address {
+        at = (at + 1) & mask
+    }
+    return at
+}
+
+
+#scope_file
+writer_address_string :: (out: *Writer, address: *u8) -> u32 {
+    if ((out).address_slot_count == cast(u32)(0)) {
+        return cast(u32)(0)
+    }
+    return ((out).address_strings)[address_slot(out, cast(usize)(address))]
+}
+
+
+#scope_file
+writer_remember_address :: (out: *Writer, address: *u8, string_local: u32) -> s32 {
+    if (((((out).address_count + cast(u32)(1))) * cast(u32)(2)) > (out).address_slot_count) {
+        old_count: u32 = (out).address_slot_count
+        old_addresses: *usize = (out).addresses
+        old_strings: *u32 = (out).address_strings
+        count: u32 = (ifx (old_count != 0) then (old_count * cast(u32)(2)) else cast(u32)(4096))
+        (out).addresses = cast(*usize)(CompilerMalloc((cast(usize)(count) * cast(usize)size_of(usize))))
+        (out).address_strings = cast(*u32)(CompilerCalloc(cast(usize)(count), cast(usize)size_of(u32)))
+        if (((out).addresses == cast(*usize)((null))) || ((out).address_strings == cast(*u32)((null)))) {
+            CompilerFree(cast(*void)((out).addresses))
+            CompilerFree(cast(*void)((out).address_strings))
+            (out).addresses = old_addresses
+            (out).address_strings = old_strings
+            return 0
+        }
+        (out).address_slot_count = count
+        {
+            i: u32 = cast(u32)(0)
+            while check_loop_18 := (i < old_count) {
+                if ((old_strings)[i] != cast(u32)(0)) {
+                    at: u32 = address_slot(out, (old_addresses)[i])
+                    ((out).addresses)[at] = (old_addresses)[i]
+                    ((out).address_strings)[at] = (old_strings)[i]
+                }
+                PersistencePost7(*(i))
+            }
+        }
+        CompilerFree(cast(*void)(old_addresses))
+        CompilerFree(cast(*void)(old_strings))
+    }
+    at: u32 = address_slot(out, cast(usize)(address))
+    if (((out).address_strings)[at] == cast(u32)(0)) {
+        PersistencePost7(*((out).address_count))
+    }
+    ((out).addresses)[at] = cast(usize)(address)
+    ((out).address_strings)[at] = string_local
+    return 1
+}
+
+
+#scope_file
+writer_free_strings :: (out: *Writer) {
+    CompilerFree(cast(*void)((out).strings))
+    CompilerFree(cast(*void)((out).slots))
+    CompilerFree(cast(*void)((out).addresses))
+    CompilerFree(cast(*void)((out).address_strings))
+}
+
+
+#scope_file
+writer_charge :: (out: *Writer, count: usize, size: usize) -> s32 {
+    if ((size != cast(usize)(0)) && (count > (((cast(usize)((((256 * 1024) * 1024))) - (out).charged)) / size))) {
+        (out).problem = ParserCString("checked IR exceeds the 256 MiB IR read budget")
+        return 0
+    }
+    (out).charged += (count * size)
+    return 1
+}
+
+
+#scope_file
+write_tagged_string :: (out: *Writer, value: *u8, capacity: usize, scale: u32, new_tag: u32) -> s32 {
+    if (capacity == cast(usize)(0)) {
+        return 0
+    }
+    if (cast(s32)(cast(s8)((value)[0])) == 0) {
+        return write_u32(out, cast(u32)(0))
+    }
+    known: u32 = writer_address_string(out, value)
+    if (known != cast(u32)(0)) {
+        length: usize = cast(usize)((((out).strings)[(known - cast(u32)(1))]).length)
+        if (((length >= capacity) || !(writer_charge(out, length, cast(usize)(1)) != 0)) || ((known - cast(u32)(1)) > ((((4294967295) - cast(u32)(1))) / scale))) {
+            return 0
+        }
+        return write_u32(out, ((((known - cast(u32)(1))) * scale) + cast(u32)(1)))
+    }
+    length: usize = strnlen(value, capacity)
+    if (length == capacity) {
+        return 0
+    }
+    if (!(writer_charge(out, length, cast(usize)(1)) != 0) || (length > cast(usize)(((((4294967295) - new_tag)) / scale)))) {
+        return 0
+    }
+    if !(writer_grow_strings(out) != 0) {
+        return 0
+    }
+    slot: u32
+    known = writer_string_slot(out, value, length, *(slot))
+    if (known == cast(u32)(0)) {
+        ((out).strings)[(out).string_count] = SerialString.{value, cast(u32)(length), null}
+        ((out).slots)[slot] = PersistencePre8(*((out).string_count))
+        if (!(write_u32(out, ((cast(u32)(length) * scale) + new_tag)) != 0) || !(write_bytes(out, cast(*void)(value), length) != 0)) {
+            return 0
+        }
+        known = (out).string_count
+    } else {
+        if (((known - cast(u32)(1)) > ((((4294967295) - cast(u32)(1))) / scale)) || !(write_u32(out, ((((known - cast(u32)(1))) * scale) + cast(u32)(1))) != 0)) {
+            return 0
+        }
+    }
+    return writer_remember_address(out, value, known)
+}
+
+
+#scope_file
+write_string :: (out: *Writer, value: *u8, capacity: usize) -> s32 {
+    return write_tagged_string(out, value, capacity, cast(u32)(2), cast(u32)(0))
+}
+
+
+#scope_file
+writer_known_string :: (out: *Writer, value: *u8, length: usize) -> u32 {
+    known: u32 = writer_address_string(out, value)
+    if ((known != cast(u32)(0)) || ((out).slot_count == cast(u32)(0))) {
+        return known
+    }
+    slot: u32
+    return writer_string_slot(out, value, length, *(slot))
+}
+
+
+#scope_file
+read_tagged_string :: (reader: *Reader, reference: s32, value: u32, text: **u8, length: *u32, index_out: *u32) -> s32 {
+    PersistenceSet4(index_out, (4294967295))
+    if (reference != 0) {
+        index: u32 = value
+        if (index >= (reader).string_count) {
+            (reader).problem = ParserCString("invalid string reference")
+            return 0
+        }
+        if (cast(usize)((((reader).strings)[index]).length) > (reader).budget) {
+            (reader).problem = ParserCString("checked IR exceeds the 256 MiB IR read budget")
+            return 0
+        }
+        (reader).budget -= cast(usize)((((reader).strings)[index]).length)
+        PersistenceSet9(text, (((reader).strings)[index]).text)
+        PersistenceSet4(length, (((reader).strings)[index]).length)
+        PersistenceSet4(index_out, index)
+        return 1
+    }
+    size: u32 = value
+    if (cast(usize)(size) > (reader).budget) {
+        (reader).problem = ParserCString("checked IR exceeds the 256 MiB IR read budget")
+        return 0
+    }
+    (reader).budget -= cast(usize)(size)
+    if ((reader).string_count == (reader).string_capacity) {
+        capacity: u32 = (ifx ((reader).string_capacity != 0) then ((reader).string_capacity * cast(u32)(2)) else cast(u32)(1024))
+        strings: *SerialString = cast(*SerialString)(CompilerRealloc(cast(*void)((reader).strings), (cast(usize)(capacity) * cast(usize)size_of(SerialString))))
+        if (strings == cast(*SerialString)((null))) {
+            (reader).problem = ParserCString("out of memory reading IR")
+            return 0
+        }
+        (reader).strings = strings
+        (reader).string_capacity = capacity
+    }
+    bytes: *u8 = cast(*u8)(CompilerMalloc((cast(usize)(size) + cast(usize)(1))))
+    if (bytes == cast(*u8)((null))) {
+        (reader).problem = ParserCString("out of memory reading IR")
+        return 0
+    }
+    if !(read_bytes(reader, cast(*void)(bytes), cast(usize)(size)) != 0) {
+        CompilerFree(cast(*void)(bytes))
+        (reader).problem = ParserCString("truncated string")
+        return 0
+    }
+    if (memchr(cast(*void)(bytes), 0, cast(usize)(size)) != (null)) {
+        CompilerFree(cast(*void)(bytes))
+        (reader).problem = ParserCString("embedded NUL in string")
+        return 0
+    }
+    (bytes)[size] = cast(u8)(0)
+    PersistenceSet4(index_out, (reader).string_count)
+    ((reader).strings)[PersistencePost7(*((reader).string_count))] = SerialString.{bytes, size, null}
+    PersistenceSet9(text, bytes)
+    PersistenceSet4(length, size)
+    return 1
+}
+
+
+#scope_file
+read_serial_string_at :: (reader: *Reader, text: **u8, length: *u32, index_out: *u32) -> s32 {
+    tag: u32
+    PersistenceSet4(index_out, (4294967295))
+    if !(read_u32(reader, *(tag)) != 0) {
+        return 0
+    }
+    if (tag == cast(u32)(0)) {
+        PersistenceSet9(text, ParserCString(""))
+        PersistenceSet4(length, cast(u32)(0))
+        return 1
+    }
+    return read_tagged_string(reader, cast(s32)(((tag & cast(u32)(1))) != cast(u32)(0)), (tag / cast(u32)(2)), text, length, index_out)
+}
+
+
+#scope_file
+read_serial_string :: (reader: *Reader, text: **u8, length: *u32) -> s32 {
+    index: u32
+    return read_serial_string_at(reader, text, length, *(index))
+}
+
+
+#scope_file
+reader_kept :: (reader: *Reader, text: *u8, index: u32) -> *u8 {
+    if (index == (4294967295)) {
+        return KeepText(text)
+    }
+    string_local: *SerialString = cast(*SerialString)(cast(usize)((reader).strings) + cast(usize)(index) * size_of(SerialString))
+    if ((string_local).kept == cast(*u8)((null))) {
+        (string_local).kept = KeepText(text)
+    }
+    return (string_local).kept
+}
+
+
+#scope_file
+reader_free_strings :: (reader: *Reader) {
+    {
+        i: u32 = cast(u32)(0)
+        while check_loop_19 := (i < (reader).string_count) {
+            CompilerFree(cast(*void)(cast(*u8)((((reader).strings)[i]).text)))
+            PersistencePost7(*(i))
+        }
+    }
+    CompilerFree(cast(*void)((reader).strings))
+}
+
+
+#scope_file
+read_string :: (reader: *Reader, value: *u8, capacity: usize) -> s32 {
+    text: *u8
+    length: u32
+    if !(read_serial_string(reader, *(text), *(length)) != 0) {
+        return 0
+    }
+    if (cast(usize)(length) >= capacity) {
+        (reader).problem = ParserCString("string exceeds field limit")
+        return 0
+    }
+    memcpy(cast(*void)(value), cast(*void)(text), (cast(usize)(length) + cast(usize)(1)))
+    return 1
+}
+
+
+#scope_file
+write_span :: (out: *Writer, span: *IR.ZirSourceSpan) -> s32 {
+    path: *u8 = SpanPath((span)[0])
+    new_file: s32 = cast(s32)(!((out).has_span != 0) || ((path != (out).last_path) && (strcmp(path, (out).last_path) != 0)))
+    line_delta: s64 = (cast(s64)((span).line) - cast(s64)((out).last_line))
+    line_bits: u64 = (ifx (line_delta < cast(s64)(0)) then (((cast(u64)((-line_delta)) << cast(u64)(1))) - cast(u64)(1)) else (cast(u64)(line_delta) << cast(u64)(1)))
+    end_line_bits: u32 = (cast(u32)((span).end_line) - cast(u32)((span).line))
+    end_column_bits: u32 = (cast(u32)((span).end_column) - cast(u32)((span).column))
+    (out).has_span = 1
+    (out).last_path = path
+    (out).last_line = (span).line
+    return cast(s32)(((((write_u64(out, ((line_bits * cast(u64)(2)) + cast(u64)(new_file))) != 0) && (!(new_file != 0) || (write_string(out, path, cast(usize)(1024)) != 0))) && (write_u32(out, cast(u32)((span).column)) != 0)) && (write_s32(out, cast(s32)(end_line_bits)) != 0)) && (write_s32(out, cast(s32)(end_column_bits)) != 0))
+}
+
+
+#scope_file
+read_span :: (reader: *Reader, span: *IR.ZirSourceSpan) -> s32 {
+    path: ParserArray1024_u8
+    line_bits: u64
+    end_line_delta: s32
+    end_column_delta: s32
+    column: u32
+    if read_number(reader, *line_bits, cast(u64)1 << 34) == 0 {
+        return 0
+    }
+    new_file: s32 = cast(s32)(((line_bits & cast(u64)(1))))
+    line_bits >>= cast(u64)(1)
+    line_delta: s64 = (ifx ((line_bits & cast(u64)(1)) != 0) then (-cast(s64)(((((line_bits + cast(u64)(1))) >> cast(u64)(1))))) else cast(s64)(((line_bits >> cast(u64)(1)))))
+    if (!(new_file != 0) && !((reader).has_span != 0)) {
+        (reader).problem = ParserCString("span without a file")
+        return 0
+    }
+    if (new_file != 0) {
+        if !(read_string(reader, cast(*u8)(*((path).items)), cast(usize)size_of(ParserArray1024_u8)) != 0) {
+            return 0
+        }
+        if (((reader).has_span != 0) && (strcmp(cast(*u8)(*((path).items)), cast(*u8)(*(((reader).last_path).items))) == 0)) {
+            (reader).problem = ParserCString("noncanonical span file")
+            return 0
+        }
+        (reader).last_file = SourceFile(cast(*u8)(*((path).items)))
+        memcpy(cast(*void)(cast(*u8)(*(((reader).last_path).items))), cast(*void)(cast(*u8)(*((path).items))), (strlen(cast(*u8)(*((path).items))) + cast(usize)(1)))
+    }
+    (reader).has_span = 1
+    (span).context = (reader).context_local
+    (span).file = (reader).last_file
+    if ((!(read_u32(reader, *(column)) != 0) || !(read_s32(reader, *(end_line_delta)) != 0)) || !(read_s32(reader, *(end_column_delta)) != 0)) {
+        return 0
+    }
+    line: s64 = (cast(s64)((reader).last_line) + line_delta)
+    end_line: s64 = (line + cast(s64)(end_line_delta))
+    end_column: s64 = (cast(s64)(column) + cast(s64)(end_column_delta))
+    if (((((((line < cast(s64)(0)) || (line > cast(s64)((2147483647)))) || (end_line < cast(s64)(0))) || (end_line > cast(s64)((2147483647)))) || (column > cast(u32)((2147483647)))) || (end_column < cast(s64)(0))) || (end_column > cast(s64)((2147483647)))) {
+        (reader).problem = ParserCString("invalid source position")
+        return 0
+    }
+    (reader).last_line = cast(s32)(line)
+    (span).line = cast(s32)(line)
+    (span).column = cast(s32)(column)
+    (span).end_line = cast(s32)(end_line)
+    (span).end_column = cast(s32)(end_column)
+    return 1
+}
+
+
+#scope_file
+zigzag32 :: (value: s64) -> u32 {
+    bits: u32 = cast(u32)(cast(s32)(value))
+    return (((bits << cast(u32)(1))) ^ ((ifx (value < cast(s64)(0)) then (4294967295) else cast(u32)(0))))
+}
+
+
+#scope_file
+unzigzag32 :: (bits: u32) -> s32 {
+    return cast(s32)(((((bits >> cast(u32)(1))) ^ ((0 - ((bits & 1)))))))
+}
+
+
+#scope_file
+number_size :: (value: u64) -> usize {
+    size: usize = 1
+    while value >= 128 {
+        value >>= 7
+        size += 1
+    }
+    return size
+}
+
+
+#scope_file
+write_expression_text :: (out: *Writer, expression: *IR.ZirExpr) -> s32 {
+    text: *u8 = (ifx ((expression).text != null) then (expression).text else ParserCString(""))
+    if (cast(s32)(cast(s8)((text)[0])) == 0) {
+        return write_u32(out, cast(u32)(0))
+    }
+    size: usize = strlen(text)
+    function: *IR.ZirFunction = (out).function
+    best_owner: s32 = (-1)
+    best_bias: s64 = cast(s64)(0)
+    best_cost: usize = (cast(usize)-1)
+    if ((function != cast(*IR.ZirFunction)((null))) && (size <= cast(usize)((2147483647)))) {
+        index: s32 = cast(s32)(((cast(isize)(cast(usize)(expression) - cast(usize)((function).exprs)) / cast(isize)size_of(IR.ZirExpr))))
+        candidates: ParserArray2_s32 = .{items = .{(ifx ((out).owners != null) then ((out).owners)[index] else (-1)), (out).last_owner}}
+        {
+            c: s32 = 0
+            while check_loop_21 := (c < 2) {
+                owner: s32 = (candidates).items[c]
+                if (((owner < 0) || (owner >= (function).stmt_count)) || ((c == 1) && (owner == (candidates).items[0]))) {
+                    PersistencePost3(*(c))
+                    continue check_loop_21
+                }
+                statement: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((function).stmts) + cast(usize)(owner) * size_of(IR.ZirStmt))
+                saved: *u8 = (ifx ((statement).text != null) then (statement).text else ParserCString(""))
+                saved_size: usize = ExprSavedCursorLength(*((out).cursor), cast(*void)(saved), ((statement).span).line)
+                if ((saved_size > cast(usize)((2147483647))) || (size > saved_size)) {
+                    PersistencePost3(*(c))
+                    continue check_loop_21
+                }
+                base: s64 = ExprSavedSourceOffset(*((out).cursor), cast(*void)(saved), (statement).span, (expression).span)
+                low: s64 = (ifx (base > cast(s64)(256)) then (base - cast(s64)(256)) else cast(s64)(0))
+                high: s64 = (base + cast(s64)(256))
+                if (high > cast(s64)(((saved_size - size)))) {
+                    high = cast(s64)(((saved_size - size)))
+                }
+                {
+                    at: s64 = low
+                    while check_loop_22 := (at <= high) {
+                        if ((cast(s32)(cast(s8)((saved)[at])) != cast(s32)(cast(s8)((text)[0]))) || (memcmp(cast(*void)(cast(*u8)(cast(usize)(saved) + cast(usize)(at) * size_of(u8))), cast(*void)(text), size) != 0)) {
+                            PersistencePost10(*(at))
+                            continue check_loop_22
+                        }
+                        bias: s64 = (at - base)
+                        cost: usize = ((number_size(((cast(u64)(zigzag32(cast(s64)((owner - (out).last_owner)))) * cast(u64)(4)) + cast(u64)(3))) + number_size(((cast(u64)(size) * cast(u64)(2)) + cast(u64)((cast(s32)(bias != (out).last_bias)))))) + ((ifx (bias != (out).last_bias) then number_size(cast(u64)(zigzag32((bias - (out).last_bias)))) else cast(usize)(0))))
+                        if (cost < best_cost) {
+                            best_cost = cost
+                            best_owner = owner
+                            best_bias = bias
+                        }
+                        PersistencePost10(*(at))
+                    }
+                }
+                PersistencePost3(*(c))
+            }
+        }
+    }
+    known: u32 = writer_known_string(out, text, size)
+    explicit_cost: usize = (ifx (known != cast(u32)(0)) then number_size(((cast(u64)(((known - cast(u32)(1)))) * cast(u64)(4)) + cast(u64)(1))) else (number_size(((cast(u64)(size) * cast(u64)(4)) + cast(u64)(2))) + size))
+    if ((best_owner < 0) || (explicit_cost <= best_cost)) {
+        return write_tagged_string(out, text, (cast(usize)-1), cast(u32)(4), cast(u32)(2))
+    }
+    changed: s32 = cast(s32)(best_bias != (out).last_bias)
+    distance: u32 = zigzag32(cast(s64)((best_owner - (out).last_owner)))
+    change: u32 = zigzag32((best_bias - (out).last_bias))
+    if (((((distance > ((((4294967295) - cast(u32)(3))) / cast(u32)(4))) || !(writer_charge(out, size, cast(usize)(1)) != 0)) || !(write_u32(out, ((distance * cast(u32)(4)) + cast(u32)(3))) != 0)) || !(write_u32(out, ((cast(u32)(size) * cast(u32)(2)) + cast(u32)(changed))) != 0)) || ((changed != 0) && !(write_u32(out, change) != 0))) {
+        return 0
+    }
+    (out).last_owner = best_owner
+    (out).last_bias = best_bias
+    return 1
+}
+
+
+#scope_file
+read_expression_text :: (reader: *Reader, expression: *IR.ZirExpr) -> s32 {
+    tag: u32
+    if !(read_u32(reader, *(tag)) != 0) {
+        return 0
+    }
+    if ((tag == cast(u32)(0)) || (((tag & cast(u32)(3))) != cast(u32)(3))) {
+        text: *u8 = ParserCString("")
+        length: u32 = cast(u32)(0)
+        index: u32 = (4294967295)
+        if ((tag != cast(u32)(0)) && ((((tag & cast(u32)(3))) == cast(u32)(0)) || !(read_tagged_string(reader, cast(s32)(((tag & cast(u32)(3))) == cast(u32)(1)), (tag / cast(u32)(4)), *(text), *(length), *(index)) != 0))) {
+            if ((reader).problem == cast(*u8)((null))) {
+                (reader).problem = ParserCString("invalid expression text")
+            }
+            return 0
+        }
+        if ((tag != cast(u32)(0)) && (length == cast(u32)(0))) {
+            (reader).problem = ParserCString("invalid expression text")
+            return 0
+        }
+        (expression).text = reader_kept(reader, text, index)
+        return 1
+    }
+    measure: u32
+    change: u32 = cast(u32)(0)
+    if (!(read_u32(reader, *(measure)) != 0) || (((measure & cast(u32)(1)) != 0) && !(read_u32(reader, *(change)) != 0))) {
+        return 0
+    }
+    owner: s64 = (cast(s64)((reader).last_owner) + cast(s64)(unzigzag32((tag / cast(u32)(4)))))
+    bias: s64 = ((reader).last_bias + cast(s64)(unzigzag32(change)))
+    length: u32 = (measure / cast(u32)(2))
+    function: *IR.ZirFunction = (reader).function
+    saved: *u8 = (ifx (((function != cast(*IR.ZirFunction)((null))) && (owner >= cast(s64)(0))) && (owner < cast(s64)((function).stmt_count))) then (((function).stmts)[owner]).text else null)
+    saved_size: usize = (ifx (saved != null) then ExprSavedCursorLength(*((reader).cursor), cast(*void)(saved), ((((function).stmts)[owner]).span).line) else cast(usize)(0))
+    at: s64 = (ifx (saved != null) then (ExprSavedSourceOffset(*((reader).cursor), cast(*void)(saved), (((function).stmts)[owner]).span, (expression).span) + bias) else cast(s64)((-1)))
+    if ((((((saved == cast(*u8)((null))) || (length == cast(u32)(0))) || (((measure & cast(u32)(1)) != 0) && (change == cast(u32)(0)))) || (at < cast(s64)(0))) || (cast(u64)(cast(u64)(at)) > cast(u64)(saved_size))) || (cast(usize)(length) > (saved_size - cast(usize)(at)))) {
+        (reader).problem = ParserCString("invalid expression text reference")
+        return 0
+    }
+    if (cast(usize)(length) > (reader).budget) {
+        (reader).problem = ParserCString("checked IR exceeds the 256 MiB IR read budget")
+        return 0
+    }
+    (reader).budget -= cast(usize)(length)
+    copy: *u8 = cast(*u8)(CompilerMalloc((cast(usize)(length) + cast(usize)(1))))
+    if (copy == cast(*u8)((null))) {
+        (reader).problem = ParserCString("out of memory reading IR")
+        return 0
+    }
+    memcpy(cast(*void)(copy), cast(*void)(cast(*u8)(cast(usize)(saved) + cast(usize)(at) * size_of(u8))), cast(usize)(length))
+    (copy)[length] = cast(u8)(0)
+    (expression).text = KeepText(copy)
+    CompilerFree(cast(*void)(copy))
+    (reader).last_owner = cast(s32)(owner)
+    (reader).last_bias = bias
+    return 1
+}
+
+
+#scope_file
+write_described_fields :: (out: *Writer, record: *void, fields: *Field, count: usize) -> s32 {
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_23 := (i < count) {
+            value: *u8 = cast(*u8)(cast(usize)(cast(*u8)(record)) + cast(usize)(((fields)[i]).offset) * size_of(u8))
+            if (fields[i].kind == .String) {
+                if !(write_string(out, value, ((fields)[i]).size) != 0) {
+                    return 0
+                }
+            } else {
+                if ((fields[i].kind == .Name) || (fields[i].kind == .StatementName)) {
+                    name: *u8 = (cast(**u8)(value))[0]
+                    if ((fields[i].kind == .StatementName) && (cast(s32)(((cast(*IR.ZirStmt)(record))).kind) == cast(s32)(1))) {
+                        name = ParserCString("")
+                    }
+                    if !(write_string(out, (ifx (name != null) then name else ParserCString("")), ((fields)[i]).size) != 0) {
+                        return 0
+                    }
+                } else {
+                    if ((((fields[i].kind == .Text) || (fields[i].kind == .AssemblyText)) || (fields[i].kind == .StatementText)) || (fields[i].kind == .FunctionAssembly)) {
+                        text: *u8 = (cast(**u8)(value))[0]
+                        if ((fields[i].kind == .AssemblyText) && !(StatementHasAssembly(cast(*IR.ZirStmt)(record)) != 0)) {
+                            PersistencePost0(*(i))
+                            continue check_loop_23
+                        }
+                        limit: usize = (ifx (fields[i].kind == .AssemblyText) then ((fields)[i]).size else (cast(usize)-1))
+                        if !(write_string(out, (ifx (text != null) then text else ParserCString("")), limit) != 0) {
+                            return 0
+                        }
+                    } else {
+                        if (fields[i].kind == .StatementKind) {
+                            statement: *IR.ZirStmt = cast(*IR.ZirStmt)(record)
+                            kind: u32 = cast(u32)((statement).kind)
+                            if (StatementHasAssembly(statement) != 0) {
+                                kind |= cast(u32)(1073741824)
+                            }
+                            if !(write_u32(out, kind) != 0) {
+                                return 0
+                            }
+                        } else {
+                            if (fields[i].kind == .ExpressionText) {
+                                if !(write_expression_text(out, cast(*IR.ZirExpr)(record)) != 0) {
+                                    return 0
+                                }
+                            } else {
+                                if (fields[i].kind == .Integer) {
+                                    if !(write_s32(out, cast(s32)((cast(*s32)(value))[0])) != 0) {
+                                        return 0
+                                    }
+                                } else {
+                                    if (fields[i].kind == .Unsigned64) {
+                                        if !(write_u64(out, (cast(*u64)(value))[0]) != 0) {
+                                            return 0
+                                        }
+                                    } else {
+                                        if !(write_span(out, cast(*IR.ZirSourceSpan)(value)) != 0) {
+                                            return 0
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            PersistencePost0(*(i))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+read_described_fields :: (reader: *Reader, record: *void, fields: *Field, count: usize) -> s32 {
+    assembly_block: s32 = 0
+    {
+        i: usize = cast(usize)(0)
+        while check_loop_24 := (i < count) {
+            value: *u8 = cast(*u8)(cast(usize)(cast(*u8)(record)) + cast(usize)(((fields)[i]).offset) * size_of(u8))
+            if (fields[i].kind == .String) {
+                if !(read_string(reader, value, ((fields)[i]).size) != 0) {
+                    return 0
+                }
+            } else {
+                if ((fields[i].kind == .Name) || (fields[i].kind == .StatementName)) {
+                    name: *u8
+                    length: u32
+                    index: u32
+                    if !(read_serial_string_at(reader, *(name), *(length), *(index)) != 0) {
+                        return 0
+                    }
+                    if (cast(usize)(length) >= ((fields)[i]).size) {
+                        (reader).problem = ParserCString("string exceeds field limit")
+                        return 0
+                    }
+                    if ((fields[i].kind == .StatementName) && (cast(s32)(((cast(*IR.ZirStmt)(record))).kind) == cast(s32)(1))) {
+                        if ((name)[0] != 0) {
+                            (reader).problem = ParserCString("unexpected block binding name")
+                            return 0
+                        }
+                    } else {
+                        PersistenceSet9(cast(**u8)(value), reader_kept(reader, name, index))
+                    }
+                } else {
+                    if ((((fields[i].kind == .Text) || (fields[i].kind == .AssemblyText)) || (fields[i].kind == .StatementText)) || (fields[i].kind == .FunctionAssembly)) {
+                        if ((fields[i].kind == .AssemblyText) && !(assembly_block != 0)) {
+                            PersistenceSet9(cast(**u8)(value), ParserCString(""))
+                            PersistencePost0(*(i))
+                            continue check_loop_24
+                        }
+                        text: *u8
+                        length: u32
+                        index: u32
+                        if !(read_serial_string_at(reader, *(text), *(length), *(index)) != 0) {
+                            return 0
+                        }
+                        if ((fields[i].kind == .AssemblyText) && ((length == cast(u32)(0)) || (cast(usize)(length) >= ((fields)[i]).size))) {
+                            (reader).problem = (ifx (length == cast(u32)(0)) then ParserCString("empty assembly block metadata") else ParserCString("string exceeds field limit"))
+                            return 0
+                        }
+                        PersistenceSet9(cast(**u8)(value), reader_kept(reader, text, index))
+                    } else {
+                        if (fields[i].kind == .StatementKind) {
+                            kind: u32
+                            if !(read_u32(reader, *(kind)) != 0) {
+                                return 0
+                            }
+                            assembly_block = cast(s32)(((kind & cast(u32)(1073741824))) != cast(u32)(0))
+                            kind &= (~cast(u32)(1073741824))
+                            if ((assembly_block != 0) && (kind != cast(u32)(1))) {
+                                (reader).problem = ParserCString("assembly metadata requires a block statement")
+                                return 0
+                            }
+                            PersistenceSet6(cast(*s32)(value), cast(s32)(cast(s32)(kind)))
+                        } else {
+                            if (fields[i].kind == .ExpressionText) {
+                                if !(read_expression_text(reader, cast(*IR.ZirExpr)(record)) != 0) {
+                                    return 0
+                                }
+                            } else {
+                                if (fields[i].kind == .Integer) {
+                                    number: s32
+                                    if !(read_s32(reader, *(number)) != 0) {
+                                        return 0
+                                    }
+                                    PersistenceSet6(cast(*s32)(value), cast(s32)(number))
+                                } else {
+                                    if (fields[i].kind == .Unsigned64) {
+                                        if !(read_u64(reader, cast(*u64)(value)) != 0) {
+                                            return 0
+                                        }
+                                    } else {
+                                        if !(read_span(reader, cast(*IR.ZirSourceSpan)(value)) != 0) {
+                                            return 0
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            PersistencePost0(*(i))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+write_fields :: (out: *Writer, record: *void, describe: DescribeFields) -> s32 {
+    fields: SerialFields
+    count: usize = describe(record, cast(*Field)(*((fields).items)))
+    return write_described_fields(out, record, cast(*Field)(*((fields).items)), count)
+}
+
+
+#scope_file
+read_fields :: (reader: *Reader, record: *void, describe: DescribeFields) -> s32 {
+    fields: SerialFields
+    count: usize = describe(record, cast(*Field)(*((fields).items)))
+    return read_described_fields(reader, record, cast(*Field)(*((fields).items)), count)
+}
+
+
+#scope_file
+write_records :: (out: *Writer, records: *void, count: s32, size: usize, describe: DescribeFields) -> s32 {
+    if ((((count < 0) || ((count > 0) && (records == (null)))) || !(writer_charge(out, cast(usize)(count), size) != 0)) || !(write_u32(out, cast(u32)(count)) != 0)) {
+        return 0
+    }
+    if (count == 0) {
+        return 1
+    }
+    fields: SerialFields
+    field_count: usize = describe(records, cast(*Field)(*((fields).items)))
+    {
+        i: s32 = 0
+        while check_loop_25 := (i < count) {
+            if !(write_described_fields(out, cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(records)) + cast(usize)((cast(usize)(i) * size)) * size_of(u8))), cast(*Field)(*((fields).items)), field_count) != 0) {
+                return 0
+            }
+            PersistencePost3(*(i))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+read_records :: (reader: *Reader, count: *s32, size: usize, describe: DescribeFields) -> *void {
+    length: u32
+    if !(read_u32(reader, *(length)) != 0) {
+        return (null)
+    }
+    if ((length > cast(u32)((2147483647))) || (size == cast(usize)(0))) {
+        (reader).problem = ParserCString("record count exceeds IR limit")
+        return (null)
+    }
+    if (cast(usize)(length) > ((reader).budget / size)) {
+        (reader).problem = ParserCString("checked IR exceeds the 256 MiB IR read budget")
+        return (null)
+    }
+    (reader).budget -= (cast(usize)(length) * size)
+    PersistenceSet6(count, cast(s32)(length))
+    if (length == cast(u32)(0)) {
+        return (null)
+    }
+    records: *void = CompilerCalloc(cast(usize)(length), size)
+    if (records == (null)) {
+        (reader).problem = ParserCString("out of memory reading IR")
+        return (null)
+    }
+    fields: SerialFields
+    field_count: usize = describe(records, cast(*Field)(*((fields).items)))
+    {
+        i: u32 = cast(u32)(0)
+        while check_loop_26 := (i < length) {
+            if !(read_described_fields(reader, cast(*void)(cast(*u8)(cast(usize)(cast(*u8)(records)) + cast(usize)((cast(usize)(i) * size)) * size_of(u8))), cast(*Field)(*((fields).items)), field_count) != 0) {
+                CompilerFree(records)
+                return (null)
+            }
+            PersistencePost7(*(i))
+        }
+    }
+    return records
+}
+
+
+#scope_file
+write_function :: (out: *Writer, function: *IR.ZirFunction) -> s32 {
+    if (!(write_fields(out, cast(*void)(function), describe_function_fields) != 0) || !(write_records((out), cast(*void)(((function)).stmts), ((function)).stmt_count, cast(usize)size_of(IR.ZirStmt), describe_statement_fields) != 0)) {
+        return 0
+    }
+    owners: *s32 = ExpressionOwners(cast(*IR.ZirFunction)(function))
+    if (((function).expr_count > 0) && (owners == cast(*s32)((null)))) {
+        (out).problem = ParserCString("out of memory writing IR")
+        return 0
+    }
+    (out).function = function
+    (out).owners = owners
+    (out).last_owner = 0
+    (out).last_bias = cast(s64)(0)
+    ok: s32 = write_records((out), cast(*void)(((function)).exprs), ((function)).expr_count, cast(usize)size_of(IR.ZirExpr), describe_expression_fields)
+    (out).function = null
+    (out).owners = null
+    CompilerFree(cast(*void)(owners))
+    return ok
+}
+
+
+#scope_file
+read_function :: (reader: *Reader, function: *IR.ZirFunction) -> s32 {
+    if !(read_fields(reader, cast(*void)(function), describe_function_fields) != 0) {
+        return 0
+    }
+    while check_loop_27 := true {
+        ((function)).stmts = cast(*IR.ZirStmt)(read_records((reader), *(((function)).stmt_count), cast(usize)size_of(IR.ZirStmt), describe_statement_fields))
+        if (((reader)).problem != cast(*u8)((null))) {
+            return 0
+        }
+        if !(0 != 0) { break check_loop_27 }
+    }
+    (reader).function = function
+    (reader).last_owner = 0
+    (reader).last_bias = cast(s64)(0)
+    while check_loop_28 := true {
+        ((function)).exprs = cast(*IR.ZirExpr)(read_records((reader), *(((function)).expr_count), cast(usize)size_of(IR.ZirExpr), describe_expression_fields))
+        if (((reader)).problem != cast(*u8)((null))) {
+            return 0
+        }
+        if !(0 != 0) { break check_loop_28 }
+    }
+    (reader).function = null
+    (function).stmt_cap = (function).stmt_count
+    (function).expr_cap = (function).expr_count
+    (function).from_ir = 1
+    return 1
+}
+
+
+#scope_file
+write_law_graphs :: (out: *Writer, module: *IR.ZirModule) -> s32 {
+    {
+        l: s32 = 0
+        while check_loop_29 := (l < (module).law_count) {
+            claim: *IR.ZirFunction = (((module).laws)[l]).claim
+            if (!(write_u32(out, cast(u32)(cast(s32)(claim != cast(*IR.ZirFunction)((null))))) != 0) || ((claim != null) && (!(writer_charge(out, cast(usize)(1), cast(usize)size_of(IR.ZirFunction)) != 0) || !(write_function(out, claim) != 0)))) {
+                return 0
+            }
+            PersistencePost3(*(l))
+        }
+    }
+    if ((((module).proof_count < 0) || !(writer_charge(out, cast(usize)((module).proof_count), cast(usize)size_of(IR.ZirProof)) != 0)) || !(write_u32(out, cast(u32)((module).proof_count)) != 0)) {
+        return 0
+    }
+    {
+        p: s32 = 0
+        while check_loop_30 := (p < (module).proof_count) {
+            proof: *IR.ZirProof = cast(*IR.ZirProof)(cast(usize)((module).proofs) + cast(usize)(p) * size_of(IR.ZirProof))
+            if ((!(write_fields(out, cast(*void)(proof), describe_proof_fields) != 0) || !(write_function(out, *((proof).terms)) != 0)) || !(write_records((out), cast(*void)(((proof)).steps), ((proof)).step_count, cast(usize)size_of(IR.ZirProofStep), describe_proof_step_fields) != 0)) {
+                return 0
+            }
+            PersistencePost3(*(p))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+read_law_graphs :: (reader: *Reader, module: *IR.ZirModule) -> s32 {
+    {
+        l: s32 = 0
+        while check_loop_31 := (l < (module).law_count) {
+            has: u32
+            if (!(read_u32(reader, *(has)) != 0) || (has > cast(u32)(1))) {
+                return 0
+            }
+            if (has != 0) {
+                if ((reader).budget < cast(usize)size_of(IR.ZirFunction)) {
+                    return 0
+                }
+                (reader).budget -= cast(usize)size_of(IR.ZirFunction)
+                (((module).laws)[l]).claim = cast(*IR.ZirFunction)(CompilerCalloc(cast(usize)(1), cast(usize)size_of(IR.ZirFunction)))
+                if (!((((module).laws)[l]).claim != null) || !(read_function(reader, (((module).laws)[l]).claim) != 0)) {
+                    return 0
+                }
+            }
+            PersistencePost3(*(l))
+        }
+    }
+    count: u32
+    if ((!(read_u32(reader, *(count)) != 0) || (count > cast(u32)((2147483647)))) || (cast(usize)(count) > ((reader).budget / cast(usize)size_of(IR.ZirProof)))) {
+        return 0
+    }
+    (reader).budget -= (cast(usize)(count) * cast(usize)size_of(IR.ZirProof))
+    (module).proofs = cast(*IR.ZirProof)(CompilerCalloc(cast(usize)((ifx (count != 0) then count else cast(u32)(1))), cast(usize)size_of(IR.ZirProof)))
+    if !((module).proofs != null) {
+        return 0
+    }
+    (module).proof_count = PersistenceSet6(*((module).proof_cap), cast(s32)(count))
+    {
+        p: u32 = cast(u32)(0)
+        while check_loop_32 := (p < count) {
+            proof: *IR.ZirProof = cast(*IR.ZirProof)(cast(usize)((module).proofs) + cast(usize)(p) * size_of(IR.ZirProof))
+            if (!(read_fields(reader, cast(*void)(proof), describe_proof_fields) != 0) || !(read_function(reader, *((proof).terms)) != 0)) {
+                return 0
+            }
+            while check_loop_33 := true {
+                ((proof)).steps = cast(*IR.ZirProofStep)(read_records((reader), *(((proof)).step_count), cast(usize)size_of(IR.ZirProofStep), describe_proof_step_fields))
+                if (((reader)).problem != cast(*u8)((null))) {
+                    return 0
+                }
+                if !(0 != 0) { break check_loop_33 }
+            }
+            PersistencePost7(*(p))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+write_module :: (out: *Writer, module: *IR.ZirModule) -> s32 {
+    if ((((((((((((!(write_fields(out, cast(*void)(module), describe_module_fields) != 0) || !(write_records((out), cast(*void)(((module)).globals), ((module)).global_count, cast(usize)size_of(IR.ZirGlobal), describe_global_fields) != 0)) || !(write_records((out), cast(*void)(((module)).defines), ((module)).define_count, cast(usize)size_of(IR.ZirDefine), describe_define_fields) != 0)) || !(write_records((out), cast(*void)(((module)).asserts), ((module)).assert_count, cast(usize)size_of(IR.ZirAssert), describe_assert_fields) != 0)) || !(write_records((out), cast(*void)(((module)).laws), ((module)).law_count, cast(usize)size_of(IR.ZirLaw), describe_law_fields) != 0)) || !(write_law_graphs(out, module) != 0)) || !(write_records((out), cast(*void)(((module)).law_waivers), ((module)).law_waiver_count, cast(usize)size_of(IR.ZirLawWaiver), describe_law_waiver_fields) != 0)) || !(write_records((out), cast(*void)(((module)).types), ((module)).type_count, cast(usize)size_of(IR.ZirType), describe_type_fields) != 0)) || !(write_records((out), cast(*void)(((module)).imports), ((module)).import_count, cast(usize)size_of(IR.ZirImport), describe_import_fields) != 0)) || !(write_records((out), cast(*void)(((module)).parameters), ((module)).parameter_count, cast(usize)size_of(IR.ZirModuleParameter), describe_parameter_fields) != 0)) || ((module).function_count < 0)) || !(writer_charge(out, cast(usize)((module).function_count), cast(usize)size_of(IR.ZirFunction)) != 0)) || !(write_u32(out, cast(u32)((module).function_count)) != 0)) {
+        return 0
+    }
+    {
+        i: s32 = 0
+        while check_loop_34 := (i < (module).function_count) {
+            if !(write_function(out, cast(*IR.ZirFunction)(cast(usize)((module).functions) + cast(usize)(i) * size_of(IR.ZirFunction))) != 0) {
+                return 0
+            }
+            PersistencePost3(*(i))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+read_module :: (reader: *Reader, module: *IR.ZirModule) -> s32 {
+    count: u32
+    if !(read_fields(reader, cast(*void)(module), describe_module_fields) != 0) {
+        return 0
+    }
+    (module).context = (reader).context_local
+    while check_loop_35 := true {
+        ((module)).globals = cast(*IR.ZirGlobal)(read_records((reader), *(((module)).global_count), cast(usize)size_of(IR.ZirGlobal), describe_global_fields))
+        if (((reader)).problem != cast(*u8)((null))) {
+            return 0
+        }
+        if !(0 != 0) { break check_loop_35 }
+    }
+    while check_loop_36 := true {
+        ((module)).defines = cast(*IR.ZirDefine)(read_records((reader), *(((module)).define_count), cast(usize)size_of(IR.ZirDefine), describe_define_fields))
+        if (((reader)).problem != cast(*u8)((null))) {
+            return 0
+        }
+        if !(0 != 0) { break check_loop_36 }
+    }
+    while check_loop_37 := true {
+        ((module)).asserts = cast(*IR.ZirAssert)(read_records((reader), *(((module)).assert_count), cast(usize)size_of(IR.ZirAssert), describe_assert_fields))
+        if (((reader)).problem != cast(*u8)((null))) {
+            return 0
+        }
+        if !(0 != 0) { break check_loop_37 }
+    }
+    while check_loop_38 := true {
+        ((module)).laws = cast(*IR.ZirLaw)(read_records((reader), *(((module)).law_count), cast(usize)size_of(IR.ZirLaw), describe_law_fields))
+        if (((reader)).problem != cast(*u8)((null))) {
+            return 0
+        }
+        if !(0 != 0) { break check_loop_38 }
+    }
+    if !(read_law_graphs(reader, module) != 0) {
+        (reader).problem = ParserCString("invalid law or proof graph")
+        return 0
+    }
+    while check_loop_39 := true {
+        ((module)).law_waivers = cast(*IR.ZirLawWaiver)(read_records((reader), *(((module)).law_waiver_count), cast(usize)size_of(IR.ZirLawWaiver), describe_law_waiver_fields))
+        if (((reader)).problem != cast(*u8)((null))) {
+            return 0
+        }
+        if !(0 != 0) { break check_loop_39 }
+    }
+    while check_loop_40 := true {
+        ((module)).types = cast(*IR.ZirType)(read_records((reader), *(((module)).type_count), cast(usize)size_of(IR.ZirType), describe_type_fields))
+        if (((reader)).problem != cast(*u8)((null))) {
+            return 0
+        }
+        if !(0 != 0) { break check_loop_40 }
+    }
+    while check_loop_41 := true {
+        ((module)).imports = cast(*IR.ZirImport)(read_records((reader), *(((module)).import_count), cast(usize)size_of(IR.ZirImport), describe_import_fields))
+        if (((reader)).problem != cast(*u8)((null))) {
+            return 0
+        }
+        if !(0 != 0) { break check_loop_41 }
+    }
+    while check_loop_42 := true {
+        ((module)).parameters = cast(*IR.ZirModuleParameter)(read_records((reader), *(((module)).parameter_count), cast(usize)size_of(IR.ZirModuleParameter), describe_parameter_fields))
+        if (((reader)).problem != cast(*u8)((null))) {
+            return 0
+        }
+        if !(0 != 0) { break check_loop_42 }
+    }
+    if !(read_u32(reader, *(count)) != 0) {
+        return 0
+    }
+    if ((count > cast(u32)((2147483647))) || (cast(usize)(count) > ((reader).budget / cast(usize)size_of(IR.ZirFunction)))) {
+        (reader).problem = (ifx (count > cast(u32)((2147483647))) then ParserCString("function count exceeds IR limit") else ParserCString("checked IR exceeds the 256 MiB IR read budget"))
+        return 0
+    }
+    (reader).budget -= (cast(usize)(count) * cast(usize)size_of(IR.ZirFunction))
+    (module).function_count = PersistenceSet6(*((module).function_cap), cast(s32)(count))
+    (module).functions = cast(*IR.ZirFunction)(CompilerCalloc(cast(usize)((ifx (count != 0) then count else cast(u32)(1))), cast(usize)size_of(IR.ZirFunction)))
+    if ((module).functions == cast(*IR.ZirFunction)((null))) {
+        (reader).problem = ParserCString("out of memory reading functions")
+        return 0
+    }
+    {
+        i: u32 = cast(u32)(0)
+        while check_loop_43 := (i < count) {
+            if !(read_function(reader, cast(*IR.ZirFunction)(cast(usize)((module).functions) + cast(usize)(i) * size_of(IR.ZirFunction))) != 0) {
+                return 0
+            }
+            PersistencePost7(*(i))
+        }
+    }
+    (module).global_cap = (module).global_count
+    (module).define_cap = (module).define_count
+    (module).assert_cap = (module).assert_count
+    (module).type_cap = (module).type_count
+    (module).import_cap = (module).import_count
+    (module).parameter_cap = (module).parameter_count
+    return 1
+}
+
+
+#scope_file
+reference_valid :: (index: s32, count: s32) -> s32 {
+    return cast(s32)((index >= (-1)) && (index < count))
+}
+
+
+#scope_file
+export_symbol_valid :: (symbol: *u8) -> s32 {
+    if !((symbol)[0] != 0) {
+        return 1
+    }
+    if (!(isalpha(cast(s32)(((cast(u8)((symbol)[0]))))) != 0) && (cast(s32)(cast(s8)((symbol)[0])) != 95)) {
+        return 0
+    }
+    {
+        cursor: *u8 = cast(*u8)(cast(usize)(cast(*u8)(symbol)) + cast(usize)(1) * size_of(u8))
+        while check_loop_44 := ((cursor)[0] != 0) {
+            if (!(isalnum(cast(s32)((((cursor)[0])))) != 0) && (cast(s32)((cursor)[0]) != 95)) {
+                return 0
+            }
+            PersistencePost2(*(cursor))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+validate_program :: (program: *IR.ZirProgram) -> s32 {
+    {
+        m: s32 = 0
+        while check_loop_45 := (m < (program).module_count) {
+            module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)((program).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+            if (!(((module).name)[0] != 0) || !(((module).source_path)[0] != 0)) {
+                return 0
+            }
+            {
+                i: s32 = 0
+                while check_loop_46 := (i < (module).import_count) {
+                    if ((((((((((((((((cast(s32)((((module).imports)[i]).kind) < cast(s32)(1)) || (cast(s32)((((module).imports)[i]).kind) > cast(s32)(3))) || (((((module).imports)[i]).go_results != 0) && ((((module).imports)[i]).go_results != 1))) || (((((module).imports)[i]).go_field != 0) && ((((module).imports)[i]).go_field != 1))) || (((((module).imports)[i]).go_defer != 0) && ((((module).imports)[i]).go_defer != 1))) || (((((module).imports)[i]).go_variadic != 0) && ((((module).imports)[i]).go_variadic != 1))) || (((((module).imports)[i]).reads_arguments != 0) && (((((module).imports)[i]).reads_arguments != 1) || (cast(s32)((((module).imports)[i]).kind) != cast(s32)(3))))) || (((((module).imports)[i]).go_defer != 0) && (((((cast(s32)((((module).imports)[i]).kind) != cast(s32)(3)) || (cast(s32)((((module).imports)[i]).extern_kind) != cast(s32)(2))) || ((((module).imports)[i]).go_results != 0)) || ((((module).imports)[i]).go_field != 0)) || (strncmp(cast(*u8)(*((((module).imports)[i]).target)), ParserCString("go:"), cast(usize)(3)) != 0)))) || (((((module).imports)[i]).go_field != 0) && ((((cast(s32)((((module).imports)[i]).kind) != cast(s32)(3)) || (cast(s32)((((module).imports)[i]).extern_kind) != cast(s32)(2))) || ((((module).imports)[i]).go_results != 0)) || (strncmp(cast(*u8)(*((((module).imports)[i]).target)), ParserCString("go:"), cast(usize)(3)) != 0)))) || (((((module).imports)[i]).go_variadic != 0) && (((((cast(s32)((((module).imports)[i]).kind) != cast(s32)(3)) || (cast(s32)((((module).imports)[i]).extern_kind) != cast(s32)(2))) || ((((module).imports)[i]).go_field != 0)) || ((((module).imports)[i]).is_varargs != 0)) || (strncmp(cast(*u8)(*((((module).imports)[i]).target)), ParserCString("go:"), cast(usize)(3)) != 0)))) || (((((module).imports)[i]).go_results != 0) && (((cast(s32)((((module).imports)[i]).kind) != cast(s32)(3)) || (cast(s32)((((module).imports)[i]).extern_kind) != cast(s32)(2))) || (strncmp(cast(*u8)(*((((module).imports)[i]).target)), ParserCString("go:"), cast(usize)(3)) != 0)))) || (strncmp(cast(*u8)(*((((module).imports)[i]).signature)), ParserCString("c-header:"), cast(usize)(9)) == 0)) || (((((module).imports)[i]).must_use != 0) && ((((module).imports)[i]).must_use != 1))) || (((((module).imports)[i]).must_use != 0) && ((cast(s32)((((module).imports)[i]).kind) != cast(s32)(3)) || !(strcmp(cast(*u8)(*((((module).imports)[i]).return_type)), ParserCString("void")) != 0)))) || (((((module).imports)[i]).is_file_private != 0) && ((((module).imports)[i]).is_file_private != 1))) || (((((module).imports)[i]).is_file_private != 0) && ((((module).imports)[i]).is_public != 0))) {
+                        return 0
+                    }
+                    PersistencePost3(*(i))
+                }
+            }
+            if !(SavedParametersValid(module) != 0) {
+                return 0
+            }
+            {
+                g: s32 = 0
+                while check_loop_47 := (g < (module).global_count) {
+                    if ((((((module).globals)[g]).is_file_private != 0) && ((((module).globals)[g]).is_file_private != 1)) || (((((module).globals)[g]).is_file_private != 0) && !((((module).globals)[g]).is_static != 0))) {
+                        return 0
+                    }
+                    PersistencePost3(*(g))
+                }
+            }
+            {
+                d: s32 = 0
+                while check_loop_48 := (d < (module).define_count) {
+                    if ((((((module).defines)[d]).is_file_private != 0) && ((((module).defines)[d]).is_file_private != 1)) || (((((module).defines)[d]).is_file_private != 0) && ((((module).defines)[d]).is_public != 0))) {
+                        return 0
+                    }
+                    PersistencePost3(*(d))
+                }
+            }
+            {
+                t: s32 = 0
+                while check_loop_49 := (t < (module).type_count) {
+                    type: *IR.ZirType = cast(*IR.ZirType)(cast(usize)((module).types) + cast(usize)(t) * size_of(IR.ZirType))
+                    if ((((type).is_go_anonymous != 0) && ((type).is_go_anonymous != 1)) || (((type).is_go_anonymous != 0) && ((((((((type).is_enum != 0) || ((type).is_union != 0)) || ((type).is_extern != 0)) || ((type).is_procedure_type != 0)) || ((type).is_abi_incomplete != 0)) || ((type).is_map != 0)) || ((type).is_owned_vec != 0)))) {
+                        return 0
+                    }
+                    if ((((type).is_map != 0) && ((type).is_map != 1)) || (((type).is_map != 0) && (((!(MapTypeParts(module, cast(*u8)(*((type).name)), null, cast(usize)(0), null, cast(usize)(0)) != 0) || ((type).is_owned_vec != 0)) || ((type).is_abi_incomplete != 0)) || (((type).foreign_target)[0] != 0)))) {
+                        return 0
+                    }
+                    if ((((type).foreign_target)[0] != 0) && (((((((((!(GoForeignTargetValid(cast(*u8)(*((type).foreign_target))) != 0) || !((type).is_extern != 0)) || (((type).body)[0] != 0)) || ((type).is_enum != 0)) || ((type).is_union != 0)) || ((type).is_procedure_type != 0)) || ((type).is_record_template != 0)) || ((type).is_synthetic_application != 0)) || ((type).is_owned_vec != 0)) || ((type).is_abi_incomplete != 0))) {
+                        return 0
+                    }
+                    if ((((((((((((((((((((((((((((((type).is_file_private != 0) && ((type).is_file_private != 1)) || (((type).is_file_private != 0) && ((type).is_public != 0))) || (((type).is_procedure_type != 0) && !(((type).procedure_return_type)[0] != 0))) || (((type).is_c_call != 0) && ((type).is_c_call != 1))) || (((type).is_c_call != 0) && !((type).is_procedure_type != 0))) || (((type).reads_arguments != 0) && ((type).reads_arguments != 1))) || (((type).reads_arguments != 0) && (!((type).is_procedure_type != 0) || ((type).is_c_call != 0)))) || (!((type).is_procedure_type != 0) && (((type).procedure_return_type)[0] != 0))) || (cast(s32)(cast(s8)(((type).name)[0])) == 35)) || (((type).is_union != 0) && ((type).is_union != 1))) || (((type).is_union != 0) && (((((type).is_enum != 0) || ((type).is_procedure_type != 0)) || ((type).is_extern != 0)) || ((type).is_owned_vec != 0)))) || (((type).is_enum_flags != 0) && ((type).is_enum_flags != 1))) || (((type).is_enum_specified != 0) && ((type).is_enum_specified != 1))) || (((type).is_enum != 0) && !(enum_backing_valid(cast(*u8)(*((type).enum_backing))) != 0))) || (!((type).is_enum != 0) && (((((type).is_enum_flags != 0) || ((type).is_enum_specified != 0)) || (((type).enum_backing)[0] != 0)) || (((type).c_prefix)[0] != 0)))) || !(c_prefix_valid(cast(*u8)(*((type).c_prefix))) != 0)) || (((type).is_enum_specified != 0) && !(specified_enum_body_valid(cast(*u8)(*((type).body))) != 0))) || (((type).is_record_template != 0) && ((type).is_record_template != 1))) || (((type).is_owned_vec != 0) && ((type).is_owned_vec != 1))) || (((type).is_owned_vec != 0) && !(VecElementType(module, cast(*u8)(*((type).name)), null, cast(usize)(0)) != 0))) || (((type).is_abi_incomplete != 0) && ((type).is_abi_incomplete != 1))) || (((type).is_abi_incomplete != 0) && ((((((type).is_enum != 0) || ((type).is_procedure_type != 0)) || ((type).is_record_template != 0)) || ((type).is_extern != 0)) || ((type).is_owned_vec != 0)))) || ((type).is_type_instance != 0)) || (((type).is_synthetic_application != 0) && ((type).is_synthetic_application != 1))) || (((type).is_synthetic_application != 0) && ((((((type).is_record_template != 0) || ((type).is_enum != 0)) || ((type).is_procedure_type != 0)) || !(((type).template_name)[0] != 0)) || !(((type).template_args)[0] != 0)))) || (!((type).is_synthetic_application != 0) && ((((type).template_name)[0] != 0) || (((type).template_args)[0] != 0)))) || (((type).is_record_template != 0) && ((((((type).is_enum != 0) || ((type).is_procedure_type != 0)) || ((type).is_extern != 0)) || !(((type).template_params)[0] != 0)) || !(((type).body)[0] != 0)))) || (!((type).is_record_template != 0) && (((type).template_params)[0] != 0))) {
+                        return 0
+                    }
+                    PersistencePost3(*(t))
+                }
+            }
+            {
+                f: s32 = 0
+                while check_loop_50 := (f < (module).function_count) {
+                    function: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)((module).functions) + cast(usize)(f) * size_of(IR.ZirFunction))
+                    if ((((((((((((((((((((((((!(((function).name)[0] != 0) || !(default_signature_valid(function) != 0)) || !(export_symbol_valid(cast(*u8)(*((function).export_symbol))) != 0)) || !(export_symbol_valid(cast(*u8)(*((function).go_method))) != 0)) || (((function).go_method_results != 0) && ((function).go_method_results != 1))) || (((function).go_method_results != 0) && !(((function).go_method)[0] != 0))) || ((((function).go_method)[0] != 0) && (((((function).is_extern != 0) || ((function).is_template != 0)) || ((function).is_specialization != 0)) || ((function).is_global_initializer != 0)))) || ((((function).export_symbol)[0] != 0) && !((function).exported != 0))) || (((function).must_use != 0) && ((function).must_use != 1))) || ((function).inlining < 0)) || ((function).inlining > 2)) || (((function).simd_target != 0) && ((function).simd_target != 1))) || (((function).simd_target != 0) && ((function).is_extern != 0))) || (((function).inlining != 0) && ((function).is_extern != 0))) || (((function).must_use != 0) && !(strcmp(cast(*u8)(*((function).return_type)), ParserCString("void")) != 0))) || (((function).is_file_private != 0) && ((function).is_file_private != 1))) || (((function).is_file_private != 0) && ((function).is_public != 0))) || (((function).is_template != 0) && ((function).is_template != 1))) || (((function).using_parameters != 0) && !((function).is_template != 0))) || (((function).is_specialization != 0) && ((function).is_specialization != 1))) || (((function).is_global_initializer != 0) && ((function).is_global_initializer != 1))) || (((function).is_global_initializer != 0) && ((((((((((function).exported != 0) || ((function).is_public != 0)) || ((function).is_extern != 0)) || ((function).is_template != 0)) || ((function).is_specialization != 0)) || !((function).is_file_private != 0)) || ((FunctionArgs(function))[0] != 0)) || (strcmp(cast(*u8)(*((function).return_type)), ParserCString("void")) != 0)) || ((function).stmt_count == 0)))) || (((function).is_template != 0) && ((((((function).is_specialization != 0) || ((function).is_extern != 0)) || ((function).exported != 0)) || !(((function).template_param)[0] != 0)) || (((function).specialization_type)[0] != 0)))) || (((function).is_specialization != 0) && (((((function).is_extern != 0) || !(((function).template_param)[0] != 0)) || !(((function).specialization_type)[0] != 0)) || (strchr(cast(*u8)(*((function).specialization_type)), 36) != cast(*u8)((null)))))) || ((!((function).is_template != 0) && !((function).is_specialization != 0)) && ((((function).template_param)[0] != 0) || (((function).specialization_type)[0] != 0)))) {
+                        return 0
+                    }
+                    {
+                        s: s32 = 0
+                        while check_loop_51 := (s < (function).stmt_count) {
+                            statement: *IR.ZirStmt = cast(*IR.ZirStmt)(cast(usize)((function).stmts) + cast(usize)(s) * size_of(IR.ZirStmt))
+                            if ((((((((((((((((((cast(s32)((statement).kind) <= cast(s32)(0)) || (cast(s32)((statement).kind) > cast(s32)(16))) || (cast(s32)((statement).kind) == cast(s32)(16))) || (((statement).is_else != 0) && ((statement).is_else != 1))) || (((statement).is_using != 0) && ((statement).is_using != 1))) || (((statement).is_using != 0) && ((!((function).is_template != 0) || ((cast(s32)((statement).kind) != cast(s32)(3)) && (cast(s32)((statement).kind) != cast(s32)(5)))) || !(using_path_valid(((statement).names).name, cast(s32)(cast(s32)((statement).kind) == cast(s32)(5))) != 0)))) || (((statement).is_else != 0) && (cast(s32)((statement).kind) != cast(s32)(6)))) || ((statement).loop_id < 0)) || ((statement).target_id < 0)) || (((statement).loop_id != 0) && (cast(s32)((statement).kind) != cast(s32)(7)))) || ((statement).for_form < 0)) || ((statement).for_form > 2)) || (((statement).for_form != 0) && !((statement).loop_id != 0))) || ((statement).for_step < 0)) || (((statement).for_step != 0) && (cast(s32)((statement).kind) != cast(s32)(4)))) || ((((statement).target_id != 0) && (cast(s32)((statement).kind) != cast(s32)(11))) && (cast(s32)((statement).kind) != cast(s32)(12)))) || !(reference_valid((statement).expr_root, (function).expr_count) != 0)) || !(reference_valid((statement).lhs_root, (function).expr_count) != 0)) {
+                                return 0
+                            }
+                            PersistencePost3(*(s))
+                        }
+                    }
+                    {
+                        e: s32 = 0
+                        while check_loop_52 := (e < (function).expr_count) {
+                            expression: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)((function).exprs) + cast(usize)(e) * size_of(IR.ZirExpr))
+                            if ((((((((((((((((((cast(s32)((expression).kind) <= cast(s32)(0)) || (cast(s32)((expression).kind) > cast(s32)(17))) || ((cast(s32)((expression).kind) == cast(s32)(17)) && ((((((((strcmp((expression).text, ParserCString("#compile_time")) != 0) || (strcmp((expression).type, ParserCString("bool")) != 0)) || (((expression).name)[0] != 0)) || (((expression).op)[0] != 0)) || ((expression).left != (-1))) || ((expression).right != (-1))) || ((expression).third != (-1))) || ((expression).first_child != (-1))))) || (((expression).is_this != 0) && ((expression).is_this != 1))) || (((expression).checked != 0) && ((expression).checked != 1))) || ((((expression).is_this != 0) && (cast(s32)((expression).kind) != cast(s32)(1))) && (cast(s32)((expression).kind) != cast(s32)(5)))) || !(reference_valid((expression).left, (function).expr_count) != 0)) || !(reference_valid((expression).right, (function).expr_count) != 0)) || !(reference_valid((expression).first_child, (function).expr_count) != 0)) || !(reference_valid((expression).next_sibling, (function).expr_count) != 0)) || !(reference_valid((expression).third, (function).expr_count) != 0)) || ((expression).left >= e)) || ((expression).right >= e)) || ((expression).first_child >= e)) || ((expression).third >= e)) || ((expression).argument_index < (-1))) || ((expression).argument_index >= 64)) || (((expression).next_sibling >= 0) && ((expression).next_sibling <= e))) {
+                                return 0
+                            }
+                            {
+                                child: s32 = (expression).first_child
+                                while check_loop_53 := (child >= 0) {
+                                    if (child >= e) {
+                                        return 0
+                                    }
+                                    child = (((function).exprs)[child]).next_sibling
+                                }
+                            }
+                            PersistencePost3(*(e))
+                        }
+                    }
+                    PersistencePost3(*(f))
+                }
+            }
+            PersistencePost3(*(m))
+        }
+    }
+    return 1
+}
+
+
+#scope_file
+report_write_problem :: (program: *IR.ZirProgram, out: *Writer) -> s32 {
+    if ((((out).problem != cast(*u8)((null))) && (program != cast(*IR.ZirProgram)((null)))) && ((program).module_count > 0)) {
+        Diagnostic((((program).modules)[0]).span, ParserCString("zir.output"), ParserCString("%s"), (out).problem)
+    }
+    return 0
+}
+
+
+#scope_file
+write_program :: (program: *IR.ZirProgram, out: *Writer, validate: s32) -> s32 {
+    magic: ParserArray4_u8 = .{items = .{cast(u8)(90), cast(u8)(73), cast(u8)(82), cast(u8)(0)}}
+    if ((((((((program == cast(*IR.ZirProgram)((null))) || (out == cast(*Writer)((null)))) || ((validate != 0) && !(validate_program(program) != 0))) || !(write_bytes(out, cast(*void)(cast(*u8)(*((magic).items))), cast(usize)size_of(ParserArray4_u8)) != 0)) || !(write_version(out, cast(u32)ZIR_FORMAT_VERSION) != 0)) || ((program).module_count < 0)) || !(writer_charge(out, cast(usize)((program).module_count), cast(usize)size_of(IR.ZirModule)) != 0)) || !(write_u32(out, cast(u32)((program).module_count)) != 0)) {
+        return report_write_problem(program, out)
+    }
+    {
+        i: s32 = 0
+        while check_loop_54 := (i < (program).module_count) {
+            if !(write_module(out, cast(*IR.ZirModule)(cast(usize)((program).modules) + cast(usize)(i) * size_of(IR.ZirModule))) != 0) {
+                return report_write_problem(program, out)
+            }
+            PersistencePost3(*(i))
+        }
+    }
+    return cast(s32)(((out).measure != 0) || ((flush_writer(out) != 0) && (fflush((out).out) == 0)))
+}
+
+
+#scope_export
+ProgramWrite :: (program: *IR.ZirProgram, out: *void) -> s32 {
+    started: u64 = ProfileStart()
+    writer: Writer = .{out, cast(*u8)(CompilerMalloc(cast(usize)(65536)))}
+    result: s32 = cast(s32)((((writer).block != cast(*u8)((null))) && (out != (null))) && (write_program(program, *(writer), 1) != 0))
+    writer_free_strings(*(writer))
+    CompilerFree(cast(*void)((writer).block))
+    ProfileEnd(ParserCString("ir.write"), started)
+    return result
+}
+
+
+#scope_file
+ProgramRead_in_context :: (in: *void, path: *u8) -> *IR.ZirProgram {
+    magic: ParserArray4_u8
+    mismatch: ParserArray2560_u8
+    version: u32
+    count: u32
+    reader: Reader
+    program: *IR.ZirProgram
+    while goto_failed := true {
+        reader = .{in, path, null, cast(usize)((((256 * 1024) * 1024))), null, cast(usize)(0), cast(usize)(0)}
+        program = null
+        if ((in == (null)) || (path == cast(*u8)((null)))) {
+            return null
+        }
+        (reader).context_local = CompilerContextCurrent()
+        (reader).block = cast(*u8)(CompilerMalloc(cast(usize)(65536)))
+        if ((reader).block == cast(*u8)((null))) {
+            (reader).problem = ParserCString("out of memory reading IR")
+            break goto_failed
+        }
+        if (!(read_bytes(*(reader), cast(*void)(cast(*u8)(*((magic).items))), cast(usize)size_of(ParserArray4_u8)) != 0) || (memcmp(cast(*void)(cast(*u8)(*((magic).items))), cast(*void)(ParserCString("ZIR\000")), cast(usize)size_of(ParserArray4_u8)) != 0)) {
+            (reader).problem = ParserCString("invalid ZIR signature")
+            break goto_failed
+        }
+        if !(read_version(*(reader), *(version)) != 0) {
+            break goto_failed
+        }
+        if version != cast(u32)ZIR_FORMAT_VERSION {
+            reader_path: ParserArray1024_u8
+            if !(ExecutablePath(cast(*u8)(*((reader_path).items)), cast(usize)size_of(ParserArray1024_u8)) != 0) {
+                copy_text(cast(*u8)(*((reader_path).items)), cast(usize)size_of(ParserArray1024_u8), ParserCString("this tool"))
+            }
+            driver: *u8 = getenv(ParserCString("ZIRAN_DRIVER"))
+            snprintf(cast(*u8)(*((mismatch).items)), cast(usize)size_of(ParserArray2560_u8), ParserCString("unsupported ZIR version %u: %s reads ZIR %u%s%s, so a different Ziran toolchain wrote this file; rebuild it with this toolchain, or rebuild or reinstall the Ziran toolchain so every tool agrees"), cast(u32)(version), cast(*u8)(*((reader_path).items)), cast(u32)ZIR_FORMAT_VERSION, (ifx ((driver != null) && ((driver)[0] != 0)) then ParserCString(" and was started by ") else ParserCString("")), (ifx ((driver != null) && ((driver)[0] != 0)) then driver else ParserCString("")))
+            (reader).problem = cast(*u8)(*((mismatch).items))
+            break goto_failed
+        }
+        if !(read_u32(*(reader), *(count)) != 0) {
+            break goto_failed
+        }
+        if (((count == cast(u32)(0)) || (count > cast(u32)((2147483647)))) || (cast(usize)(count) > ((reader).budget / cast(usize)size_of(IR.ZirModule)))) {
+            (reader).problem = ParserCString("invalid module count")
+            break goto_failed
+        }
+        (reader).budget -= (cast(usize)(count) * cast(usize)size_of(IR.ZirModule))
+        program = ProgramNew()
+        if (program == cast(*IR.ZirProgram)((null))) {
+            (reader).problem = ParserCString("out of memory reading IR")
+            break goto_failed
+        }
+        (program).module_count = PersistenceSet6(*((program).module_cap), cast(s32)(count))
+        (program).modules = cast(*IR.ZirModule)(CompilerCalloc(cast(usize)(count), cast(usize)size_of(IR.ZirModule)))
+        if ((program).modules == cast(*IR.ZirModule)((null))) {
+            (reader).problem = ParserCString("out of memory reading modules")
+            break goto_failed
+        }
+        {
+            i: u32 = cast(u32)(0)
+            while check_loop_55 := (i < count) {
+                if !(read_module(*(reader), cast(*IR.ZirModule)(cast(usize)((program).modules) + cast(usize)(i) * size_of(IR.ZirModule))) != 0) {
+                    break goto_failed
+                }
+                PersistencePost7(*(i))
+            }
+        }
+        if ((((reader).start_local != (reader).end_local) || (fgetc(in) != ((-1)))) || (ferror(in) != 0)) {
+            (reader).problem = ParserCString("trailing or unreadable ZIR data")
+            break goto_failed
+        }
+        if !(validate_program(program) != 0) {
+            (reader).problem = ParserCString("invalid checked IR structure")
+            break goto_failed
+        }
+        reader_free_strings(*(reader))
+        CompilerFree(cast(*void)((reader).block))
+        return program
+        break
+    }
+    Diagnostic(Span(path, 1, 1), ParserCString("zir.invalid"), ParserCString("%s"), (ifx ((reader).problem != null) then (reader).problem else ParserCString("truncated ZIR data")))
+    reader_free_strings(*(reader))
+    CompilerFree(cast(*void)((reader).block))
+    ProgramFree(program)
+    return null
+}
+
+
+#scope_export
+PathIsIR :: (path: *u8) -> s32 {
+    length: usize = (ifx (path != null) then strlen(path) else cast(usize)(0))
+    return cast(s32)((length > cast(usize)(4)) && (strcmp(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(path) + cast(usize)(length) * size_of(u8))) - cast(usize)(4) * size_of(u8)), ParserCString(".zir")) == 0))
+}
+
+
+#scope_export
+ProgramLoad :: (path: *u8, root: *u8) -> *IR.ZirProgram {
+    program: *IR.ZirProgram
+    file: *void
+    length: usize = (ifx (path != null) then strlen(path) else cast(usize)(0))
+    if (!(PathIsIR(path) != 0) && !((length > cast(usize)(3)) && (strcmp(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(path) + cast(usize)(length) * size_of(u8))) - cast(usize)(3) * size_of(u8)), ParserCString(".zi")) == 0))) {
+        Diagnostic(Span(path, 1, 1), ParserCString("module.extension"), ParserCString("module input must be .zi source or .zir IR"))
+        return null
+    }
+    if !(PathIsIR(path) != 0) {
+        return parse_file(path, root)
+    }
+    file = CompilerFopen(path, ParserCString("rb"))
+    if (file == (null)) {
+        Diagnostic(Span(path, 1, 1), ParserCString("zir.input"), ParserCString("cannot open IR input"))
+        return null
+    }
+    program = ProgramRead(file, path)
+    CompilerFclose(file)
+    return program
+}
+
+
+#scope_file
+write_original_checked_program :: (program: *IR.ZirProgram, shapes: *SavedModuleShape, out: *void) -> s32 {
+    original: IR.ZirProgram
+    written: s32
+    while goto_done := true {
+        original = (program)[0]
+        (original).modules = cast(*IR.ZirModule)(CompilerCalloc(cast(usize)((program).module_count), cast(usize)size_of(IR.ZirModule)))
+        if ((original).modules == cast(*IR.ZirModule)((null))) {
+            return 0
+        }
+        written = 0
+        {
+            m: s32 = 0
+            while check_loop_56 := (m < (program).module_count) {
+                checked: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)((program).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)((original).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                PersistenceSet11(module, (checked)[0])
+                (module).function_count = ((shapes)[m]).function_count
+                (module).type_count = ((shapes)[m]).type_count
+                (module).types = null
+                if ((module).type_count > 0) {
+                    (module).types = cast(*IR.ZirType)(CompilerMalloc((cast(usize)((module).type_count) * cast(usize)size_of(IR.ZirType))))
+                    if ((module).types == cast(*IR.ZirType)((null))) {
+                        break goto_done
+                    }
+                }
+                {
+                    t: s32 = 0
+                    while check_loop_57 := (t < (module).type_count) {
+                        type: *IR.ZirType = null
+                        {
+                            c: s32 = 0
+                            while check_loop_58 := (c < (checked).type_count) {
+                                if !(strcmp(cast(*u8)(*((((checked).types)[c]).name)), cast(*u8)(*((((shapes)[m]).type_names)[t]).items[0])) != 0) {
+                                    type = cast(*IR.ZirType)(cast(usize)((checked).types) + cast(usize)(c) * size_of(IR.ZirType))
+                                    break check_loop_58
+                                }
+                                PersistencePost3(*(c))
+                            }
+                        }
+                        if (type == cast(*IR.ZirType)((null))) {
+                            break goto_done
+                        }
+                        ((module).types)[t] = (type)[0]
+                        PersistencePost3(*(t))
+                    }
+                }
+                PersistencePost3(*(m))
+            }
+        }
+        SymbolLookupsChanged()
+        written = ProgramWrite(*(original), out)
+        break
+    }
+    {
+        m: s32 = 0
+        while check_loop_59 := (m < (program).module_count) {
+            CompilerFree(cast(*void)((((original).modules)[m]).types))
+            PersistencePost3(*(m))
+        }
+    }
+    CompilerFree(cast(*void)((original).modules))
+    SymbolLookupsChanged()
+    return written
+}
+
+
+#scope_file
+CheckCanonicalPrograms_with_buffers :: (programs: **IR.ZirProgram, count: s32, input_paths: **u8, buffers: *CheckCanonicalProgramsBuffers) -> s32 {
+    before: *void
+    after: *void
+    saved_count: s32
+    before_data: *u8
+    after_data: *u8
+    before_size: usize
+    after_size: usize
+    first_saved: s32
+    valid: s32
+    original_counts: **SavedModuleShape
+    while goto_done := true {
+        while goto_failed := true {
+            before = null
+            after = null
+            saved_count = 0
+            before_data = null
+            after_data = null
+            before_size = cast(usize)(0)
+            after_size = cast(usize)(0)
+            first_saved = (-1)
+            valid = 0
+            original_counts = null
+            {
+                i: s32 = 0
+                while check_loop_60 := (i < count) {
+                    if ((input_paths == cast(**u8)((null))) || (PathIsIR((input_paths)[i]) != 0)) {
+                        if (first_saved < 0) {
+                            first_saved = i
+                        }
+                        PersistencePost3(*(saved_count))
+                    }
+                    PersistencePost3(*(i))
+                }
+            }
+            if (saved_count == 0) {
+                return cast(s32)((CheckPrograms(programs, count) != 0) && (PrepareNativeNames(programs, count) != 0))
+            }
+            original_counts = cast(**SavedModuleShape)(CompilerCalloc(cast(usize)(count), cast(usize)size_of(*SavedModuleShape)))
+            if (original_counts == cast(**SavedModuleShape)((null))) {
+                break goto_failed
+            }
+            {
+                i: s32 = 0
+                while check_loop_61 := (i < count) {
+                    if ((input_paths != cast(**u8)((null))) && !(PathIsIR((input_paths)[i]) != 0)) {
+                        PersistencePost3(*(i))
+                        continue check_loop_61
+                    }
+                    modules: s32 = ((programs)[i]).module_count
+                    (original_counts)[i] = cast(*SavedModuleShape)(CompilerCalloc(cast(usize)(modules), cast(usize)size_of(SavedModuleShape)))
+                    if ((original_counts)[i] == cast(*SavedModuleShape)((null))) {
+                        break goto_failed
+                    }
+                    {
+                        m: s32 = 0
+                        while check_loop_62 := (m < modules) {
+                            module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(((programs)[i]).modules) + cast(usize)(m) * size_of(IR.ZirModule))
+                            shape: *SavedModuleShape = cast(*SavedModuleShape)(cast(usize)((original_counts)[i]) + cast(usize)(m) * size_of(SavedModuleShape))
+                            (shape).function_count = (module).function_count
+                            (shape).type_count = (module).type_count
+                            if ((shape).type_count == 0) {
+                                PersistencePost3(*(m))
+                                continue check_loop_62
+                            }
+                            (shape).type_names = cast(*ParserArray128_u8)(CompilerMalloc((cast(usize)((shape).type_count) * cast(usize)size_of(ParserArray128_u8))))
+                            if ((shape).type_names == cast(*ParserArray128_u8)((null))) {
+                                break goto_failed
+                            }
+                            {
+                                t: s32 = 0
+                                while check_loop_63 := (t < (shape).type_count) {
+                                    copy_text(cast(*u8)(*(((shape).type_names)[t]).items[0]), cast(usize)size_of(ParserArray128_u8), cast(*u8)(*((((module).types)[t]).name)))
+                                    PersistencePost3(*(t))
+                                }
+                            }
+                            PersistencePost3(*(m))
+                        }
+                    }
+                    PersistencePost3(*(i))
+                }
+            }
+            if (CompilerMemoryStreams() != 0) {
+                before = CompilerOpenMemoryOutput(*(before_data), *(before_size))
+                after = CompilerOpenMemoryOutput(*(after_data), *(after_size))
+            } else {
+                before = tmpfile()
+                after = tmpfile()
+            }
+            if ((before == (null)) || (after == (null))) {
+                break goto_failed
+            }
+            {
+                i: s32 = 0
+                while check_loop_64 := (i < count) {
+                    if (((input_paths == cast(**u8)((null))) || (PathIsIR((input_paths)[i]) != 0)) && !(ProgramWrite((programs)[i], before) != 0)) {
+                        break goto_failed
+                    }
+                    PersistencePost3(*(i))
+                }
+            }
+            if (!(CheckPrograms(programs, count) != 0) || !(PrepareNativeNames(programs, count) != 0)) {
+                break goto_done
+            }
+            {
+                i: s32 = 0
+                while check_loop_65 := (i < count) {
+                    if ((original_counts)[i] == cast(*SavedModuleShape)((null))) {
+                        PersistencePost3(*(i))
+                        continue check_loop_65
+                    }
+                    if !(write_original_checked_program((programs)[i], (original_counts)[i], after) != 0) {
+                        break goto_failed
+                    }
+                    PersistencePost3(*(i))
+                }
+            }
+            if (CompilerMemoryStreams() != 0) {
+                before_status: s32 = CompilerFclose(before)
+                after_status: s32 = CompilerFclose(after)
+                before = null
+                after = null
+                if ((before_status != 0) || (after_status != 0)) {
+                    break goto_failed
+                }
+                if ((before_size != after_size) || (memcmp(cast(*void)(before_data), cast(*void)(after_data), before_size) != 0)) {
+                    Diagnostic(Span((ifx (input_paths != cast(**u8)((null))) then (input_paths)[first_saved] else ParserCString("<bundle>")), 1, 1), ParserCString("zir.noncanonical"), ParserCString("saved IR does not match the checked program"))
+                    break goto_done
+                }
+                valid = 1
+            } else {
+                if ((CompilerFileSeek(before, cast(s64)(0), 0) != 0) || (CompilerFileSeek(after, cast(s64)(0), 0) != 0)) {
+                    break goto_failed
+                }
+                {
+                    while check_loop_66 := true {
+                        left_count: usize = fread(cast(*void)(cast(*u8)(*(((buffers).left).items))), cast(usize)(1), cast(usize)size_of(ParserArray8192_u8), before)
+                        right_count: usize = fread(cast(*void)(cast(*u8)(*(((buffers).right).items))), cast(usize)(1), cast(usize)size_of(ParserArray8192_u8), after)
+                        if ((left_count != right_count) || (memcmp(cast(*void)(cast(*u8)(*(((buffers).left).items))), cast(*void)(cast(*u8)(*(((buffers).right).items))), left_count) != 0)) {
+                            Diagnostic(Span((ifx (input_paths != cast(**u8)((null))) then (input_paths)[first_saved] else ParserCString("<bundle>")), 1, 1), ParserCString("zir.noncanonical"), ParserCString("saved IR does not match the checked program"))
+                            break goto_done
+                        }
+                        if (left_count == cast(usize)(0)) {
+                            if ((ferror(before) != 0) || (ferror(after) != 0)) {
+                                break goto_failed
+                            }
+                            valid = 1
+                            break check_loop_66
+                        }
+                    }
+                }
+            }
+            break goto_done
+            break
+        }
+        Diagnostic(Span((ifx ((input_paths != cast(**u8)((null))) && (first_saved >= 0)) then (input_paths)[first_saved] else ParserCString("<bundle>")), 1, 1), ParserCString("zir.validation"), ParserCString("cannot validate saved IR"))
+        break
+    }
+    if (original_counts != cast(**SavedModuleShape)((null))) {
+        {
+            i: s32 = 0
+            while check_loop_67 := (i < count) {
+                if ((original_counts)[i] != cast(*SavedModuleShape)((null))) {
+                    {
+                        m: s32 = 0
+                        while check_loop_68 := (m < ((programs)[i]).module_count) {
+                            CompilerFree(cast(*void)((((original_counts)[i])[m]).type_names))
+                            PersistencePost3(*(m))
+                        }
+                    }
+                }
+                CompilerFree(cast(*void)((original_counts)[i]))
+                PersistencePost3(*(i))
+            }
+        }
+        CompilerFree(cast(*void)(original_counts))
+    }
+    if (before != (null)) {
+        CompilerFclose(before)
+    }
+    if (after != (null)) {
+        CompilerFclose(after)
+    }
+    if (CompilerMemoryStreams() != 0) {
+        CompilerFree(cast(*void)(before_data))
+        CompilerFree(cast(*void)(after_data))
+    }
+    return valid
+}
+
+
+#scope_export
+CheckCanonicalPrograms :: (programs: **IR.ZirProgram, count: s32, input_paths: **u8) -> s32 {
+    previous: *u8 = CompilerContextSelect((ifx (((count > 0) && (programs != null)) && ((programs)[0] != null)) then ((programs)[0]).context else CompilerContextCurrent()))
+    result: s32 = CheckCanonicalPrograms_in_context(programs, count, input_paths)
+    CompilerContextSelect(previous)
+    return result
+}
+
+
+#scope_export
+ProgramRead :: (in: *void, path: *u8) -> *IR.ZirProgram {
+    memory: *void = CompilerMemoryPause()
+    previous: *u8 = CompilerContextCurrent()
+    owner: *u8 = (ifx (previous != null) then previous else CompilerContextOpen())
+    if !(owner != null) {
+        CompilerMemoryResume(memory)
+        DiagnosticOutOfMemory()
+        return null
+    }
+    CompilerContextSelect(owner)
+    program: *IR.ZirProgram = ProgramRead_in_context(in, path)
+    if ((program != null) && !((program).context_retained != 0)) {
+        CompilerContextRetain(owner)
+        (program).context_retained = 1
+    }
+    if ((program != null) && !(previous != null)) {
+        (program).owns_context = 1
+    }
+    CompilerContextSelect(previous)
+    if (!(program != null) && !(previous != null)) {
+        CompilerContextClose(owner)
+    }
+    CompilerMemoryResume(memory)
+    return program
+}
+
+
+#scope_file
+FunctionDefaultArgs :: (fn: *IR.ZirFunction) -> *u8 {
+    return (ifx ((fn).default_args_text != null) then (fn).default_args_text else ParserCString(""))
+}
+
+
+#scope_file
+FunctionArgs :: (fn: *IR.ZirFunction) -> *u8 {
+    return (ifx ((fn).args_text != null) then (fn).args_text else ParserCString(""))
+}
+
+
+#scope_file
+StatementHasAssembly :: (statement: *IR.ZirStmt) -> s32 {
+    return cast(s32)(((cast(s32)((statement).kind) == cast(s32)(1)) && (((statement).names).assembly_text != null)) && ((((statement).names).assembly_text)[0] != 0))
+}

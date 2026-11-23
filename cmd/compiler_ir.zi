@@ -438,6 +438,17 @@ ZirProgram :: struct {
     checks: s32  // the build's --checks; a build option, never serialized
 }
 
+// An owned load result retains its context and the canonical path and root
+// for each program, in input order followed by its resolved imports.
+ProgramSet :: struct {
+    context: *u8 #c "struct CompilerContext *"
+    owns_context: s32
+    programs: **ZirProgram
+    paths: **u8 #c "char **"
+    roots: **u8 #c "char **"
+    count: s32
+}
+
 // C text the records keep, read and written from Ziran. A kept string is
 // NUL-terminated and lives as long as the program; a fixed buffer ends at
 // its first NUL byte.

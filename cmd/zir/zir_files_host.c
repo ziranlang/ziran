@@ -3,8 +3,10 @@
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include "zir_files.h"
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -155,7 +157,15 @@ const char *CompilerDirectoryNext(void *directory)
     return entry ? entry->d_name : NULL;
 }
 
-void CompilerDirectoryClose(void *directory) { closedir(directory); }
+int CompilerDirectoryCloseStatus(void *directory) { return closedir(directory); }
+
+void CompilerDirectoryClose(void *directory) { (void)CompilerDirectoryCloseStatus(directory); }
+
+static int entry_kind(const struct stat *info)
+{
+    if(S_ISREG(info->st_mode)) return 1;
+    return S_ISDIR(info->st_mode) ? 2 : 0;
+}
 
 int CompilerPathEntryKind(const char *path)
 {
@@ -165,7 +175,25 @@ int CompilerPathEntryKind(const char *path)
 #else
     int listed = lstat(path, &info) == 0;
 #endif
-    if(!listed) return 0;
-    if(S_ISREG(info.st_mode)) return 1;
-    return S_ISDIR(info.st_mode) ? 2 : 0;
+    return listed ? entry_kind(&info) : 0;
+}
+
+int CompilerPathEntryKindNoLinks(const char *path)
+{
+    struct stat info;
+    return FileStatusNoLinks(path, &info) == 0 ? entry_kind(&info) : 0;
+}
+
+int CompilerPathIsRegular(const char *path)
+{
+    struct stat info;
+    return stat(path, &info) == 0 && S_ISREG(info.st_mode);
+}
+
+int64_t CompilerFileTell(FILE *file) { return ftell(file); }
+
+int CompilerFileSeek(FILE *file, int64_t offset, int origin)
+{
+    if(offset < LONG_MIN || offset > LONG_MAX) return -1;
+    return fseek(file, (long)offset, origin);
 }

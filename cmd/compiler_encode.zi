@@ -232,13 +232,19 @@ ImageRelocationWidth :: (kind: NativeRelocationKind) -> s32 {
 }
 
 // Finds the machine operand of the source relocation matching the image
-// relocation's kind, or any relocation for the runtime trap handler.
-ImageOperand :: (program: MachineProgram, relocation: NativeRelocation,
-    kind: Image.MachineRelocationKind) -> s32 {
-    for source: program.relocations {
-        if source.instruction != relocation.instruction || source.symbol != relocation.symbol { continue }
-        if cast(s32)source.kind == cast(s32)kind ||
-            kind == .RuntimeTrap && source.kind != .Invalid { return source.operand }
+// relocation's kind, or any relocation for the runtime trap handler, by
+// scanning only the relocation's instruction.
+ImageOperand :: (program: MachineProgram, index: *MachineRelocationIndex,
+    relocation: NativeRelocation, kind: Image.MachineRelocationKind) -> s32 {
+    if relocation.instruction < 0 || relocation.instruction >= index.first.count { return MachineNoId }
+    at := index.first[relocation.instruction]
+    while at != MachineNoId {
+        source := program.relocations[at]
+        if source.symbol == relocation.symbol &&
+            (cast(s32)source.kind == cast(s32)kind || kind == .RuntimeTrap && source.kind != .Invalid) {
+            return source.operand
+        }
+        at = index.next[at]
     }
     return MachineNoId
 }
@@ -305,6 +311,9 @@ BuildMachineImage :: (program: MachineProgram, output: *$O,
     for index: cast(s64)0..program.initializers.count - 1 {
         owner.initializers[index] = program.initializers[index]
     }
+    sources: MachineRelocationIndex
+    defer MachineRelocationIndexFree(*sources)
+    if !MachineRelocationIndexBuild(*sources, program, limits.bytes) { return false }
     for index: cast(s64)0..output.relocations.count - 1 {
         relocation := output.relocations[index]
         kind := ImageRelocationKind(relocation.kind)
@@ -312,7 +321,7 @@ BuildMachineImage :: (program: MachineProgram, output: *$O,
         owner.relocations[index] = .{section = .Code, offset = relocation.offset,
             width = ImageRelocationWidth(relocation.kind),
             instruction = relocation.instruction,
-            operand = ImageOperand(program, relocation, kind), kind = kind,
+            operand = ImageOperand(program, *sources, relocation, kind), kind = kind,
             symbol = relocation.symbol, addend = relocation.addend}
     }
     stack_bytes: s64 = 16

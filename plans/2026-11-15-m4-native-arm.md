@@ -43,15 +43,19 @@ what the tree actually has.
 Each row is committed and pushed once its focused tests and the full suite
 pass, from a private index on origin/master.
 
-5. **ARMv7 unchecked forms.** With checks off by default, ARMv7 lowering still keeps checked
-   pointers until its encoder has the forms AArch64 has: arena-only frames,
-   raw Resize, the immediate element form and the nonzero member bound.
-   Then the Moto parity reruns on default bundles.
-6. **Linear image relocations on ARM.** `ImageOperand` in
-   `compiler_aarch64.zi` and `compiler_armv7.zi` scans every machine
-   relocation per image relocation. Once the native speed lane's
-   `MachineRelocationIndex` lands, both walk it as x86-64 does; the Kryon
-   player's 2 MB `app.zx` is the measure.
+5. **ARMv7 unchecked forms.** Done (2026-11-16, `ab5f39b9`): the encoder
+   has AArch64's arena-only frames, raw Resize, immediate element form and
+   nonzero member bound, so lowering keeps no checked pointer without
+   `--checks`. The Moto parity rerun on default bundles is
+   `bench/results/zx-android-parity-moto-2026-11-23.json` (81 programs).
+6. **Linear image relocations on ARM.** Done (2026-11-23): the shared ARM
+   image builder indexes the program's relocations with
+   `MachineRelocationIndex` and looks up only the relocation's instruction,
+   as x86-64 does, instead of scanning every machine relocation per image
+   relocation. Device receipts:
+   `bench/results/zx-android-parity-moto-2026-11-23.json` (armv7) and
+   `bench/results/zx-android-parity-pixel-2026-11-23.json` (aarch64), both
+   81/81.
 7. **Standalone ELFs for AArch64 and ARMv7** (`zx2native --target`). This
    needs a per-architecture runtime with a maintained source instead of a
    byte blob (the x86 runtime split of the Windows PE lane is the model). It

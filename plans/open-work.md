@@ -5,10 +5,10 @@ line when the work lands. Keep detail in the referenced plan.
 
 ## Native assembly target (ASSEMBLY/)
 
-- M4 ARM rows: ARMv7 unchecked encoder forms, linear image relocations on
-  ARM, and standalone AArch64/ARMv7 ELFs (`zx2native --target`); test with
-  `make android-parity` on the Moto (armv7) and Pixel 4a (aarch64). Detail:
-  plans/2026-11-15-m4-native-arm.md, rows 5-7.
+- M4 ARM row 7: standalone AArch64/ARMv7 ELFs (`zx2native --target`); test
+  with `make android-parity` on the Moto (armv7) and Pixel 4a (aarch64).
+  Rows 5 (ARMv7 unchecked forms) and 6 (linear image relocations on ARM)
+  are done; detail: plans/2026-11-15-m4-native-arm.md.
 - M5 objects and linking: x64 unwind data (`.pdata`/`.xdata`), Mach-O and
   archives, the external C ABI with foreign libraries, a console line mode,
   files and clock platform services, a real Windows host run, and an

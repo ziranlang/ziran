@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Build native AArch64 and ARMv7 images with indexed relocation lookup, so each image relocation visits only its own instruction's machine relocations instead of scanning the whole program. Both devices pass the 81-program parity.
 - Removed `std/rss_scan` (feed item and tag scanning: `FeedNextItem`, `FeedTag`, `FeedCopyText`). The standard library has no replacement; a program that needs it copies `std/rss_scan.zi` from commit c3ef9fb2, the last one that has it, into its own module root.
 
 - Removed `std/http_get_linux` (`GetHttps`, `GetHttpsCapped`). Use `std/net_http`: `SendCapped` with an `HttpRequest` whose `method` is `"GET"`. Commit 4c62f8b8 is the last one that has the old module.

@@ -67,6 +67,7 @@
   <url><loc>https://ziran-lang.org/std/base64</loc></url>
   <url><loc>https://ziran-lang.org/std/binary</loc></url>
   <url><loc>https://ziran-lang.org/std/binary_linux</loc></url>
+  <url><loc>https://ziran-lang.org/std/bundle_guest</loc></url>
   <url><loc>https://ziran-lang.org/std/bundle_host</loc></url>
   <url><loc>https://ziran-lang.org/std/byte_text</loc></url>
   <url><loc>https://ziran-lang.org/std/byte_text_linux</loc></url>
@@ -107,6 +108,7 @@
   <url><loc>https://ziran-lang.org/std/json_go</loc></url>
   <url><loc>https://ziran-lang.org/std/json_quote</loc></url>
   <url><loc>https://ziran-lang.org/std/json_scan</loc></url>
+  <url><loc>https://ziran-lang.org/std/list</loc></url>
   <url><loc>https://ziran-lang.org/std/map_go</loc></url>
   <url><loc>https://ziran-lang.org/std/mapped_file</loc></url>
   <url><loc>https://ziran-lang.org/std/mapped_file_linux</loc></url>
@@ -125,6 +127,7 @@
   <url><loc>https://ziran-lang.org/std/parallel_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/path</loc></url>
   <url><loc>https://ziran-lang.org/std/png_linux</loc></url>
+  <url><loc>https://ziran-lang.org/std/pool</loc></url>
   <url><loc>https://ziran-lang.org/std/process</loc></url>
   <url><loc>https://ziran-lang.org/std/process_capture_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/process_channel_linux</loc></url>
@@ -135,6 +138,7 @@
   <url><loc>https://ziran-lang.org/std/random_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/resample</loc></url>
   <url><loc>https://ziran-lang.org/std/result</loc></url>
+  <url><loc>https://ziran-lang.org/std/rune_text</loc></url>
   <url><loc>https://ziran-lang.org/std/select_go</loc></url>
   <url><loc>https://ziran-lang.org/std/simd</loc></url>
   <url><loc>https://ziran-lang.org/std/socket_linux</loc></url>
@@ -156,6 +160,7 @@
   <url><loc>https://ziran-lang.org/std/timer</loc></url>
   <url><loc>https://ziran-lang.org/std/timer_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/toml_document</loc></url>
+  <url><loc>https://ziran-lang.org/std/tuple</loc></url>
   <url><loc>https://ziran-lang.org/std/unicode</loc></url>
   <url><loc>https://ziran-lang.org/std/unicode_data</loc></url>
   <url><loc>https://ziran-lang.org/std/unicode_normalization</loc></url>
@@ -172,5 +177,6 @@
   <url><loc>https://ziran-lang.org/std/zip_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/zlib_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/zstd_go</loc></url>
+  <url><loc>https://ziran-lang.org/std/zx_conc</loc></url>
   <url><loc>https://ziran-lang.org/std/zx_module</loc></url>
 </urlset>

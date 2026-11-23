@@ -1,0 +1,1497 @@
+// ziran api - the checked API surface as text or deterministic bounded JSON:
+// modules, imports, constants, globals, types, functions, laws, ownership and
+// the attached KIND<TAB>SELECTOR<TAB>FILE.zi example sources. The frontend,
+// checker and document services keep their C entry points.
+
+IR :: #import "compiler_ir"
+Check :: #import "compiler_check_types"
+CLI :: #import "compiler_cli"
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+StaticText :: struct { data: *u8; count: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+
+EXAMPLE_LIMIT :: 64
+EXAMPLE_BYTES :: 16384
+ENTRY_BYTES :: IR.ZIR_NAME_MAX + 6
+
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, arguments: ..any) #foreign compiler "Diagnostic";
+DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+SetFormatArguments :: (argc: s32, argv: **u8) #foreign compiler "SetDiagnosticFormatFromArguments";
+SemanticId :: (module: *IR.ZirModule, kind: *u8, name: *u8, signature: *u8, result: *u8, id: *u8) #foreign compiler "SemanticId";
+DocumentForSpan :: (module: *IR.ZirModule, span: IR.ZirSourceSpan) -> *Check.ZirDocument #foreign compiler "DocumentForSpan";
+DocumentOffset :: (document: *Check.ZirDocument, line: s32, column: s32, offset: *usize) -> s32 #foreign compiler "DocumentOffset";
+DocumentDigest :: (bytes: *void, count: usize, hex: *u8) #foreign compiler "DocumentDigest";
+OperatorOfProcedure :: (name: *u8) -> *u8 #foreign compiler "OperatorOfProcedure";
+ParametersOf :: (text: *u8) -> *Check.ZirParameters #foreign compiler "ParametersOf";
+FindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+VecElementType :: (module: *IR.ZirModule, type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "VecElementType";
+SliceElementType :: (type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "SliceElementType";
+ArrayElementType :: (type: *u8, element: *u8, element_size: usize, capacity: *s32) -> s32 #foreign compiler "ArrayElementType";
+ScalarType :: (type: *u8) -> *u8 #foreign compiler "ScalarType";
+LawStatusName :: (status: s32) -> *u8 #foreign compiler "LawStatusName";
+TargetNameKnown :: (name: *u8) -> s32 #foreign compiler "TargetNameKnown";
+CheckTargetCapabilities :: (program: *IR.ZirProgram, target: *u8) -> s32 #foreign compiler "CheckTargetCapabilities";
+ProgramsLoadWithDefines :: (set: *IR.ProgramSet, root: *u8, module_paths: **u8, module_path_count: s32,
+                            defines: **u8, define_count: s32, inputs: **u8, input_count: s32) -> s32 #foreign compiler "ProgramsLoadWithDefines";
+ProgramsFree :: (set: *IR.ProgramSet) #foreign compiler "ProgramsFree";
+CheckCanonicalPrograms :: (programs: **IR.ZirProgram, count: s32, paths: **u8) -> s32 #foreign compiler "CheckCanonicalPrograms";
+SourceOverlayBegin :: (path: *u8, source: *u8, count: usize) -> s32 #foreign compiler "SourceOverlayBegin";
+SourceOverlayEnd :: () #foreign compiler "SourceOverlayEnd";
+StandardOutput :: () -> *void #foreign compiler "CompilerStandardOutput";
+ApiReadExampleFile :: (path: *u8, optional: s32, text: *u8, capacity: usize, bytes: *usize) -> s32 #foreign compiler "ZiranApiReadExampleFile";
+TextStreamOpen :: (stream: *TextStream, text: **u8, size: *usize) -> *void #foreign compiler "ZirTextStreamOpen";
+TextStreamClose :: (stream: *TextStream) -> s32 #foreign compiler "ZirTextStreamClose";
+
+malloc :: (size: usize) -> *void #foreign libc "malloc";
+calloc :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+free :: (memory: *void) #foreign libc "free";
+strdup :: (text: *u8) -> *u8 #foreign libc "strdup";
+strlen :: (text: *u8) -> usize #foreign libc "strlen";
+strcmp :: (left: *u8, right: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (left: *u8, right: *u8, count: usize) -> s32 #foreign libc "strncmp";
+strcasecmp :: (left: *u8, right: *u8) -> s32 #foreign libc "strcasecmp";
+strchr :: (text: *u8, byte: s32) -> *u8 #foreign libc "strchr";
+strrchr :: (text: *u8, byte: s32) -> *u8 #foreign libc "strrchr";
+strcspn :: (text: *u8, reject: *u8) -> usize #foreign libc "strcspn";
+getenv :: (name: *u8) -> *u8 #foreign libc "getenv";
+memchr :: (data: *void, byte: s32, count: usize) -> *void #foreign libc "memchr";
+memcpy :: (output: *void, input: *void, count: usize) -> *void #foreign libc "memcpy";
+snprintf :: (output: *u8, capacity: usize, format: *u8, arguments: ..any) -> s32 #foreign libc "snprintf";
+fprintf :: (file: *void, format: *u8, arguments: ..any) -> s32 #foreign libc "fprintf";
+fputc :: (byte: s32, file: *void) -> s32 #foreign libc "fputc";
+fputs :: (text: *u8, file: *void) -> s32 #foreign libc "fputs";
+fwrite :: (bytes: *void, size: usize, count: usize, file: *void) -> usize #foreign libc "fwrite";
+ferror :: (file: *void) -> s32 #foreign libc "ferror";
+fflush :: (file: *void) -> s32 #foreign libc "fflush";
+ftell :: (file: *void) -> isize #foreign libc "ftell";
+fclose :: (file: *void) -> s32 #foreign libc "fclose";
+exit :: (status: s32) #foreign libc "exit";
+isalnum :: (byte: s32) -> s32 #foreign libc "isalnum";
+isxdigit :: (byte: s32) -> s32 #foreign libc "isxdigit";
+
+// The C text stream record behind ZirTextStreamOpen.
+TextStream :: struct {
+    file: *void
+    data: *u8
+    length: usize
+    text: **u8
+    size: *usize
+}
+
+Order :: #type (left: *void, right: *void) -> s32 #c_call;
+qsort :: (base: *u8, count: usize, size: usize, order: Order) #foreign libc "qsort";
+
+ExampleSource :: struct {
+    module: *IR.ZirModule
+    file: *u8
+    text: *u8
+    entry: [ENTRY_BYTES]u8
+}
+
+ExampleAttachment :: struct {
+    source: *ExampleSource
+    kind: *u8
+    selector: *u8
+    line: s32
+    seen: s32
+}
+
+Examples :: struct {
+    sources: [EXAMPLE_LIMIT]ExampleSource
+    attachments: [EXAMPLE_LIMIT]ExampleAttachment
+    source_count: s32
+    attachment_count: s32
+    failed: s32
+    root: *u8
+    target: *u8
+    module_paths: **u8
+    defines: **u8
+    module_path_count: s32
+    define_count: s32
+}
+
+FunctionText :: struct {
+    args: [IR.ZIR_TEXT_MAX * 2]u8
+    result: [IR.ZIR_TEXT_MAX]u8
+    spelled: [IR.ZIR_TEXT_MAX]u8
+}
+
+VecBuiltin :: struct {
+    name: *u8
+    parameters: *u8
+    result: *u8
+    summary: *u8
+}
+
+vec_builtins: [14]VecBuiltin = .{
+    .{name = CStr("VecPush"), parameters = CStr("values: Vec($T), value: T"), result = CStr("bool"), summary = CStr("append one element; false when growth fails")},
+    .{name = CStr("VecPop"), parameters = CStr("values: Vec($T)"), result = CStr("Option(T)"), summary = CStr("remove the last element (#import \"std/option\")")},
+    .{name = CStr("VecGet"), parameters = CStr("values: Vec($T), index: s64"), result = CStr("Option(T)"), summary = CStr("copy one element when the index is in range")},
+    .{name = CStr("VecSlice"), parameters = CStr("values: Vec($T), low: s64, high: s64"), result = CStr("[]T"), summary = CStr("borrow elements low..high-1 in place")},
+    .{name = CStr("VecClear"), parameters = CStr("values: Vec($T)"), result = CStr("void"), summary = CStr("drop every element and keep the capacity")},
+    .{name = CStr("VecFree"), parameters = CStr("values: Vec($T)"), result = CStr("void"), summary = CStr("drop every element and the storage")},
+    .{name = CStr("VecSwap"), parameters = CStr("left: Vec($T), right: Vec($T)"), result = CStr("void"), summary = CStr("exchange the storage of two Vecs")},
+    .{name = CStr("VecClone"), parameters = CStr("values: Vec($T)"), result = CStr("bool"), summary = CStr("copy a Vec whose elements own nothing")},
+    .{name = CStr("VecReserve"), parameters = CStr("values: Vec($T), capacity: s64"), result = CStr("bool"), summary = CStr("reserve total capacity without changing count")},
+    .{name = CStr("VecResize"), parameters = CStr("values: Vec($T), count: s64"), result = CStr("bool"), summary = CStr("set count; new elements start at zero")},
+    .{name = CStr("VecResizeBounded"), parameters = CStr("values: Vec($T), count: s64, maximum_capacity: s64"), result = CStr("bool"), summary = CStr("VecResize with a capacity ceiling")},
+    .{name = CStr("BuilderAppend"), parameters = CStr("bytes: Vec(u8), text: string"), result = CStr("bool"), summary = CStr("append text bytes")},
+    .{name = CStr("BuilderPrint"), parameters = CStr("bytes: *Vec(u8), format: string, .."), result = CStr("void"), summary = CStr("append a format with one bare % per argument")},
+    .{name = CStr("BuilderFinish"), parameters = CStr("bytes: Vec(u8)"), result = CStr("string"), summary = CStr("take the bytes as text")},
+};
+
+#scope_file
+api_output: *void;
+api_stream: *TextStream;
+filter_module: *u8;
+filter_symbol: *u8;
+imports_only: s32;
+symbol_limit: s32 = 256;
+emitted: s32;
+matched: s32;
+byte_limit: usize = 65536;
+examples: Examples;
+#scope_export
+
+PutChar :: (byte: s32) {
+    unused fputc(byte, api_output)
+}
+
+Put :: (text: *u8) {
+    unused fputs(text, api_output)
+}
+
+NoSpan :: () -> IR.ZirSourceSpan {
+    span: IR.ZirSourceSpan = .{}
+    return span
+}
+
+CommandSpan :: () -> IR.ZirSourceSpan {
+    return Span(CStr("<command>"), 1, 1)
+}
+
+DocumentPath :: (document: *Check.ZirDocument) -> *u8 {
+    span: IR.ZirSourceSpan = .{}
+    span.context = cast(*u8)document.context
+    span.file = document.file
+    return SpanPath(span)
+}
+
+ExampleError :: (path: *u8, line: s32, message: *u8) -> s32 {
+    Diagnostic(NoSpan(), CStr("command.arguments"), CStr("%s:%d: API example: %s"), path, line, message)
+    return 0
+}
+
+// Return 0 only for a missing optional sidecar. Both inputs are bounded
+// regular files, so a directory, link or pipe cannot act as example text.
+ReadExampleFile :: (path: *u8, text: *u8, bytes: *usize, optional: s32) -> s32 {
+    read: usize = 0
+    status := ApiReadExampleFile(path, optional, text, EXAMPLE_BYTES + 1, *(read))
+    if status == 0 { return 0 }
+    if status < 0 {
+        unused ExampleError(path, 1, CStr("expected a readable regular file"))
+        return -1
+    }
+    if read > EXAMPLE_BYTES || memchr(cast(*void)text, 0, read) != null {
+        unused ExampleError(path, 1, CStr("expected text without NUL bytes, at most 16384 bytes"))
+        return -1
+    }
+    bytes[0] = read
+    text[read] = 0
+    return 1
+}
+
+ExampleUtf8 :: (text: *u8, bytes: usize) -> s32 {
+    i: usize = 0
+    while i < bytes {
+        lead := text[i]
+        i += 1
+        if lead < 128 { continue }
+        tail: usize = 0
+        if lead >= 194 && lead <= 223 { tail = 1 }
+        else if lead >= 224 && lead <= 239 { tail = 2 }
+        else if lead >= 240 && lead <= 244 { tail = 3 }
+        if tail == 0 || tail > bytes - i { return 0 }
+        if (lead == 224 && text[i] < 160) || (lead == 237 && text[i] >= 160) ||
+           (lead == 240 && text[i] < 144) || (lead == 244 && text[i] >= 144) { return 0 }
+        j: usize = 0
+        while j < tail {
+            if text[i] < 128 || text[i] > 191 { return 0 }
+            i += 1
+            j += 1
+        }
+    }
+    return 1
+}
+
+ExampleLine :: (cursor: **u8) -> *u8 {
+    line := cursor[0]
+    end := strchr(line, #char "\n")
+    if end != null {
+        end[0] = 0
+        cursor[0] = cast(*u8)(cast(usize)end + 1)
+    } else {
+        end = cast(*u8)(cast(usize)line + strlen(line))
+        cursor[0] = end
+    }
+    if cast(usize)end > cast(usize)line {
+        previous := cast(*u8)(cast(usize)end - 1)
+        if previous[0] == #char "\r" { previous[0] = 0 }
+    }
+    return line
+}
+
+ExampleBasename :: (file: *u8) -> s32 {
+    length := strcspn(file, CStr("."))
+    i: usize = 0
+    while i < length {
+        c := file[i]
+        if c != #char "_" && !(c >= #char "a" && c <= #char "z") &&
+           !(c >= #char "A" && c <= #char "Z") &&
+           !(i > 0 && c >= #char "0" && c <= #char "9") { return 0 }
+        i += 1
+    }
+    if length == 0 { return 0 }
+    return ifx strcmp(cast(*u8)(cast(usize)file + length), CStr(".zi")) == 0 then 1 else 0
+}
+
+ReadAttachments :: (module: *IR.ZirModule, path: *u8, text: *u8) -> s32 {
+    cursor := text
+    if strcmp(ExampleLine(*(cursor)), CStr("ziran-api-examples-v1")) != 0 {
+        return ExampleError(path, 1, CStr("expected ziran-api-examples-v1 header"))
+    }
+    line: s32 = 2
+    while cursor[0] != 0 {
+        kind := ExampleLine(*(cursor))
+        if kind[0] != 0 && kind[0] != #char "#" {
+            selector := strchr(kind, #char "\t")
+            if selector != null {
+                selector[0] = 0
+                selector = cast(*u8)(cast(usize)selector + 1)
+            }
+            file: *u8 = null
+            if selector != null { file = strchr(selector, #char "\t") }
+            if file != null {
+                file[0] = 0
+                file = cast(*u8)(cast(usize)file + 1)
+            }
+            if kind[0] == 0 || selector == null || selector[0] == 0 || file == null ||
+               ExampleBasename(file) == 0 {
+                return ExampleError(path, line, CStr("expected KIND<TAB>NAME_OR_ID<TAB>FILE.zi"))
+            }
+            if examples.attachment_count == EXAMPLE_LIMIT {
+                return ExampleError(path, line, CStr("too many attachments (maximum 64 per query)"))
+            }
+            source: *ExampleSource = null
+            i: s32 = 0
+            while i < examples.source_count {
+                candidate := *(examples.sources[cast(usize)i])
+                if candidate.module == module && strcmp(candidate.file, file) == 0 { source = candidate }
+                i += 1
+            }
+            if source == null {
+                source = *(examples.sources[cast(usize)examples.source_count])
+                examples.source_count += 1
+                source.module = module
+                source.file = strdup(file)
+                if source.file == null { DiagnosticOutOfMemory(); return 0 }
+            }
+            i = 0
+            while i < examples.attachment_count {
+                entry := *(examples.attachments[cast(usize)i])
+                if entry.source == source && strcmp(entry.kind, kind) == 0 &&
+                   strcmp(entry.selector, selector) == 0 {
+                    return ExampleError(path, line, CStr("duplicate attachment"))
+                }
+                i += 1
+            }
+            entry := *(examples.attachments[cast(usize)examples.attachment_count])
+            examples.attachment_count += 1
+            entry.source = source
+            entry.kind = strdup(kind)
+            entry.selector = strdup(selector)
+            entry.line = line
+            if entry.kind == null || entry.selector == null { DiagnosticOutOfMemory(); return 0 }
+        }
+        line += 1
+    }
+    return 1
+}
+
+// --module NAME selects a module by its checked name, or by the name an
+// import spells: a package module is checked as pHEX16_STEM and imported as
+// PACKAGE/STEM, a standard module as std/NAME.
+ModuleSelected :: (name: *u8) -> s32 {
+    if filter_module == null || strcmp(filter_module, name) == 0 { return 1 }
+    stem := name
+    if name[0] == #char "p" && strlen(name) > 18 && name[17] == #char "_" {
+        hex: s32 = 1
+        i: usize = 1
+        while i <= 16 {
+            if isxdigit(cast(s32)name[i]) == 0 { hex = 0 }
+            i += 1
+        }
+        if hex != 0 { stem = cast(*u8)(cast(usize)name + 18) }
+    }
+    wanted := strrchr(filter_module, #char "/")
+    // The launcher spells a dependency by its package identity: only that
+    // package's modules match.
+    if wanted != null && stem != name && cast(usize)wanted - cast(usize)filter_module == 17 &&
+       filter_module[0] == #char "p" && strncmp(filter_module, name, 17) != 0 { return 0 }
+    // An export is often spelled with a capital its file name lacks.
+    compared := filter_module
+    if wanted != null { compared = cast(*u8)(cast(usize)wanted + 1) }
+    return ifx strcasecmp(compared, stem) == 0 then 1 else 0
+}
+
+// Options may follow the input files: move every option, with its value, in
+// front of them so `ziran api app.zi --module NAME` reads as written.
+OptionsFirst :: (argc: s32, argv: **u8) {
+    valued: [10]*u8 = .{CStr("--target"), CStr("--target-os"), CStr("--target-cpu"),
+        CStr("--module"), CStr("--symbol"), CStr("--max-symbols"), CStr("--max-bytes"),
+        CStr("--root"), CStr("--module-path"), CStr("--define")}
+    ordered := cast(**u8)calloc(cast(usize)argc + 1, size_of(*u8))
+    if ordered == null { return }
+    defer free(cast(*void)ordered)
+    count: s32 = 1
+    pass: s32 = 0
+    while pass < 2 {
+        i: s32 = 1
+        while i < argc {
+            word := argv[cast(usize)i]
+            option: s32 = 0
+            if word[0] == #char "-" && word[1] == #char "-" { option = 1 }
+            value: s32 = 0
+            v: usize = 0
+            while option != 0 && v < 10 {
+                if strcmp(word, valued[v]) == 0 && i + 1 < argc { value = 1 }
+                v += 1
+            }
+            if option == (ifx pass == 0 then 1 else 0) {
+                ordered[cast(usize)count] = word
+                count += 1
+                if value != 0 {
+                    ordered[cast(usize)count] = argv[cast(usize)(i + 1)]
+                    count += 1
+                }
+            }
+            i += 1
+            if value != 0 { i += 1 }
+        }
+        pass += 1
+    }
+    memcpy(cast(*void)(cast(usize)argv + size_of(*u8)),
+           cast(*void)(cast(usize)ordered + size_of(*u8)),
+           cast(usize)(argc - 1) * size_of(*u8))
+}
+
+LoadAttachments :: (modules: **IR.ZirModule, count: s32) -> s32 {
+    text := cast(*u8)malloc(EXAMPLE_BYTES + 2)
+    if text == null { DiagnosticOutOfMemory(); return 0 }
+    defer free(cast(*void)text)
+    ok: s32 = 1
+    i: s32 = 0
+    while ok != 0 && i < count {
+        module := modules[cast(usize)i]
+        if module.document != null && ModuleSelected(*(module.name[0])) != 0 {
+            path: [IR.ZIR_PATH_MAX + 10]u8
+            length := snprintf(*path[0], size_of([IR.ZIR_PATH_MAX + 10]u8), CStr("%s.examples"),
+                               DocumentPath(cast(*Check.ZirDocument)(module.document)))
+            if length < 0 || cast(usize)length >= size_of([IR.ZIR_PATH_MAX + 10]u8) {
+                ok = ExampleError(DocumentPath(cast(*Check.ZirDocument)(module.document)), 1,
+                                  CStr("sidecar path is too long"))
+            } else {
+                bytes: usize = 0
+                found := ReadExampleFile(*path[0], text, *(bytes), 1)
+                if found > 0 { ok = ReadAttachments(module, *path[0], text) }
+                else if found < 0 { ok = 0 }
+            }
+        }
+        i += 1
+    }
+    return ok
+}
+
+ExampleMatches :: (entry: *ExampleAttachment, module: *IR.ZirModule, kind: *u8,
+                   name: *u8, id: *u8) -> s32 {
+    if entry.source.module != module || strcmp(entry.kind, kind) != 0 { return 0 }
+    if strcmp(entry.selector, name) == 0 || strcmp(entry.selector, id) == 0 { return 1 }
+    return 0
+}
+
+FnArgs :: (fn: *IR.ZirFunction) -> *u8 {
+    if fn.args_text == null { return CStr("") }
+    return fn.args_text
+}
+
+FnDefaultArgs :: (fn: *IR.ZirFunction) -> *u8 {
+    if fn.default_args_text == null { return CStr("") }
+    return fn.default_args_text
+}
+
+ExampleHasEntry :: (entry: *IR.ZirModule) -> s32 {
+    i: s32 = 0
+    while i < entry.function_count {
+        fn := *(entry.functions[cast(usize)i])
+        if fn.exported != 0 && fn.is_extern == 0 && fn.is_template == 0 &&
+           strcmp(*(fn.name[0]), CStr("main")) == 0 &&
+           (fn.export_symbol[0] == 0 || strcmp(*(fn.export_symbol[0]), CStr("main")) == 0) &&
+           FnArgs(fn)[0] == 0 && strcmp(*(fn.return_type[0]), CStr("s32")) == 0 { return 1 }
+        i += 1
+    }
+    return 0
+}
+
+ExampleImports :: (entry: *IR.ZirModule, owner: *IR.ZirModule) -> s32 {
+    i: s32 = 0
+    while i < entry.import_count {
+        target := entry.imports[cast(usize)i].resolved_module
+        if target != null && target.document != null &&
+           strcmp(*(target.name[0]), *(owner.name[0])) == 0 {
+            target_document := cast(*Check.ZirDocument)(target.document)
+            owner_document := cast(*Check.ZirDocument)(owner.document)
+            if strcmp(DocumentPath(target_document), DocumentPath(owner_document)) == 0 &&
+               strcmp(*(target_document.sha256.items[0]), *(owner_document.sha256.items[0])) == 0 {
+                return 1
+            }
+        }
+        i += 1
+    }
+    return 0
+}
+
+CheckApiPrograms :: (set: *IR.ProgramSet, target: *u8) -> s32 {
+    if CheckCanonicalPrograms(set.programs, set.count, set.paths) == 0 { return 0 }
+    if target != null {
+        i: s32 = 0
+        while i < set.count {
+            if CheckTargetCapabilities(set.programs[cast(usize)i], target) == 0 { return 0 }
+            i += 1
+        }
+    }
+    return 1
+}
+
+CheckExample :: (source: *ExampleSource) -> s32 {
+    owner_path := DocumentPath(cast(*Check.ZirDocument)(source.module.document))
+    slash := strrchr(owner_path, #char "/")
+    path: [IR.ZIR_PATH_MAX]u8
+    prefix: s32 = 0
+    if slash != null { prefix = cast(s32)(cast(usize)slash - cast(usize)owner_path + 1) }
+    length := snprintf(*path[0], size_of([IR.ZIR_PATH_MAX]u8), CStr("%.*s%s"), prefix, owner_path, source.file)
+    if length < 0 || cast(usize)length >= size_of([IR.ZIR_PATH_MAX]u8) {
+        return ExampleError(owner_path, 1, CStr("example source path is too long"))
+    }
+    if strcmp(*path[0], owner_path) == 0 {
+        return ExampleError(*path[0], 1, CStr("example source must be a separate file"))
+    }
+    text := cast(*u8)malloc(EXAMPLE_BYTES + 2)
+    if text == null { DiagnosticOutOfMemory(); return 0 }
+    bytes: usize = 0
+    ok: s32 = ifx ReadExampleFile(*path[0], text, *(bytes), 0) > 0 then 1 else 0
+    if ok != 0 && ExampleUtf8(text, bytes) == 0 {
+        ok = ExampleError(*path[0], 1, CStr("source must be UTF-8"))
+    }
+    if ok != 0 && SourceOverlayBegin(*path[0], text, bytes) == 0 {
+        ok = ExampleError(*path[0], 1, CStr("cannot snapshot source"))
+    }
+    if ok != 0 {
+        inputs: [1]*u8 = .{*path[0]}
+        set: IR.ProgramSet = .{}
+        ok = ifx ProgramsLoadWithDefines(*(set), examples.root, examples.module_paths,
+                                        examples.module_path_count, examples.defines,
+                                        examples.define_count, *inputs[0], 1) != 0 &&
+                CheckApiPrograms(*(set), examples.target) != 0 then 1 else 0
+        SourceOverlayEnd()
+        if ok != 0 {
+            entry := set.programs[0].modules[0]
+            hash: [65]u8
+            DocumentDigest(cast(*void)text, bytes, *hash[0])
+            entry_document := cast(*Check.ZirDocument)(entry.document)
+            if entry.document == null ||
+               strcmp(*(entry_document.sha256.items[0]), *hash[0]) != 0 {
+                ok = ExampleError(*path[0], 1, CStr("checked source did not match the example snapshot"))
+            } else if ExampleHasEntry(*(entry)) == 0 {
+                ok = ExampleError(*path[0], 1, CStr("expected #program_export main :: () -> s32"))
+            } else if ExampleImports(*(entry), source.module) == 0 {
+                ok = ExampleError(*path[0], 1, CStr("example must directly import the documented module"))
+            } else {
+                unused snprintf(*source.entry[0], ENTRY_BYTES, CStr("%s:main"), *(entry.name[0]))
+            }
+        }
+        ProgramsFree(*(set))
+    }
+    if ok != 0 { source.text = text } else { free(cast(*void)text) }
+    return ok
+}
+
+AttachmentsResolved :: () -> s32 {
+    i: s32 = 0
+    while i < examples.attachment_count {
+        entry := *(examples.attachments[cast(usize)i])
+        if entry.seen == 0 {
+            path: [IR.ZIR_PATH_MAX + 10]u8
+            unused snprintf(*path[0], size_of([IR.ZIR_PATH_MAX + 10]u8), CStr("%s.examples"),
+                            DocumentPath(cast(*Check.ZirDocument)(entry.source.module.document)))
+            return ExampleError(*path[0], entry.line,
+                                CStr("selector does not name a visible checked symbol of that kind"))
+        }
+        i += 1
+    }
+    return 1
+}
+
+FreeExamples :: () {
+    i: s32 = 0
+    while i < examples.attachment_count {
+        free(cast(*void)examples.attachments[cast(usize)i].kind)
+        free(cast(*void)examples.attachments[cast(usize)i].selector)
+        i += 1
+    }
+    i = 0
+    while i < examples.source_count {
+        free(cast(*void)examples.sources[cast(usize)i].file)
+        free(cast(*void)examples.sources[cast(usize)i].text)
+        i += 1
+    }
+}
+
+Usage :: () {
+    Diagnostic(NoSpan(), CStr("command.arguments"),
+        CStr("usage: ziran api [--json] [--diagnostics=text|json] [--target c|go|zx] [--target-os OS] [--target-cpu CPU] [--module NAME] [--symbol NAME|ID] [--imports-only] [--max-symbols N] [--max-bytes N] [--module-path DIR] [--define NAME] --root DIR file.zi|file.zir ..."))
+}
+
+JsonString :: (value: *u8) {
+    cursor := CStr("")
+    if value != null { cursor = value }
+    PutChar(#char "\"")
+    while cursor[0] != 0 {
+        byte := cursor[0]
+        if byte == #char "\"" || byte == #char "\\" {
+            PutChar(#char "\\")
+            PutChar(cast(s32)byte)
+        } else if byte < 32 {
+            unused fprintf(api_output, CStr("\\u%04x"), cast(s32)byte)
+        } else {
+            PutChar(cast(s32)byte)
+        }
+        cursor = cast(*u8)(cast(usize)cursor + 1)
+    }
+    PutChar(#char "\"")
+}
+
+JsonMember :: (key: *u8, value: *u8) {
+    JsonString(key)
+    PutChar(#char ":")
+    JsonString(value)
+}
+
+ExampleIndex :: (source: *ExampleSource) -> s32 {
+    base := cast(usize)(*(examples.sources[0]))
+    return cast(s32)((cast(usize)source - base) / size_of(ExampleSource))
+}
+
+ExampleJson :: (module: *IR.ZirModule, kind: *u8, name: *u8, id: *u8) {
+    included: [EXAMPLE_LIMIT]s32 = .{}
+    count: s32 = 0
+    i: s32 = 0
+    while examples.failed == 0 && i < examples.attachment_count {
+        entry := *(examples.attachments[cast(usize)i])
+        if ExampleMatches(entry, module, kind, name, id) != 0 {
+            source := entry.source
+            index := ExampleIndex(source)
+            if included[cast(usize)index] == 0 {
+                position: usize = 0
+                if StreamPosition(api_stream, *(position)) != 0 || position > byte_limit {
+                    i = examples.attachment_count
+                } else {
+                    if source.text == null && CheckExample(source) == 0 {
+                        examples.failed = 1
+                        i = examples.attachment_count
+                    } else {
+                        included[cast(usize)index] = 1
+                        if count != 0 { Put(CStr(",")) } else { Put(CStr(",\"examples\":[")) }
+                        count += 1
+                        Put(CStr("{\"schema_version\":1,"))
+                        JsonMember(CStr("path"), source.file)
+                        PutChar(#char ",")
+                        JsonMember(CStr("entry"), *source.entry[0])
+                        PutChar(#char ",")
+                        JsonMember(CStr("source"), source.text)
+                        PutChar(#char "}")
+                    }
+                }
+            }
+        }
+        i += 1
+    }
+    if count != 0 { PutChar(#char "]") }
+    else if strcmp(kind, CStr("function")) == 0 { Put(CStr(",\"examples\":null")) }
+}
+
+TakeSymbol :: (module: *IR.ZirModule, kind: *u8, given: *u8, signature: *u8, result: *u8) -> s32 {
+    name := given
+    id: [68]u8
+    operator_name: [16]u8
+    if strcmp(kind, CStr("function")) == 0 && OperatorOfProcedure(name) != null {
+        unused snprintf(*operator_name[0], 16, CStr("operator %s"), OperatorOfProcedure(name))
+        name = *operator_name[0]
+    }
+    if imports_only != 0 && strcmp(kind, CStr("import")) != 0 { return 0 }
+    SemanticId(module, kind, name, signature, result, *id[0])
+    i: s32 = 0
+    while i < examples.attachment_count {
+        entry := *(examples.attachments[cast(usize)i])
+        if ExampleMatches(entry, module, kind, name, *id[0]) != 0 { entry.seen = 1 }
+        i += 1
+    }
+    if filter_symbol != null && strcmp(filter_symbol, name) != 0 &&
+       strcmp(filter_symbol, *id[0]) != 0 { return 0 }
+    matched += 1
+    if emitted >= symbol_limit { return 0 }
+    position: usize = 0
+    if StreamPosition(api_stream, *(position)) != 0 || position > byte_limit { return 0 }
+    emitted += 1
+    return 1
+}
+
+DocumentJson :: (document: *Check.ZirDocument) {
+    if document == null {
+        Put(CStr("{\"available\":false,\"sha256\":null,\"bytes\":null}"))
+        return
+    }
+    Put(CStr("{\"available\":true,"))
+    JsonMember(CStr("sha256"), *(document.sha256.items[0]))
+    unused fprintf(api_output, CStr(",\"bytes\":%zu,\"rewritten\":%s}"), document.bytes,
+                   ifx document.rewritten != 0 then CStr("true") else CStr("false"))
+}
+
+SymbolMetadata :: (module: *IR.ZirModule, kind: *u8, name: *u8, signature: *u8,
+                   result: *u8, span: IR.ZirSourceSpan) {
+    id: [68]u8
+    begin: usize = 0
+    end: usize = 0
+    document := DocumentForSpan(module, span)
+    SemanticId(module, kind, name, signature, result, *id[0])
+    PutChar(#char ",")
+    JsonMember(CStr("id"), *id[0])
+    PutChar(#char ",")
+    JsonMember(CStr("symbol_kind"), kind)
+    Put(CStr(",\"document\":"))
+    DocumentJson(document)
+    Put(CStr(",\"span\":{\"kind\":\"declaration_anchor\","))
+    JsonMember(CStr("coordinate_space"),
+               ifx document != null && document.rewritten != 0 then CStr("rewritten_source") else CStr("source"))
+    PutChar(#char ",")
+    JsonMember(CStr("path"), SpanPath(span))
+    unused fprintf(api_output, CStr(",\"line\":%d,\"column\":%d,\"end_line\":%d,\"end_column\":%d,\"start_byte\":"),
+                   span.line, span.column, span.end_line, span.end_column)
+    known: s32 = 0
+    if DocumentOffset(document, span.line, span.column, *(begin)) != 0 &&
+       DocumentOffset(document, span.end_line, span.end_column, *(end)) != 0 &&
+       begin <= end { known = 1 }
+    if known != 0 {
+        unused fprintf(api_output, CStr("%zu,\"end_byte\":%zu}"), begin, end)
+    } else {
+        Put(CStr("null,\"end_byte\":null}"))
+    }
+    ExampleJson(module, kind, name, *id[0])
+}
+
+// Ownership comes from checked type identity and fields, not a spelling
+// heuristic. A template variable's ownership remains explicitly unknown.
+OwnedType :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 {
+    element: [IR.ZIR_NAME_MAX]u8
+    if depth > 32 { return -1 }
+    if VecElementType(module, type, null, 0) != 0 { return 1 }
+    if type[0] == #char "*" || SliceElementType(type, null, 0) != 0 ||
+       ScalarType(type)[0] != 0 { return 0 }
+    capacity: s32 = 0
+    if ArrayElementType(type, *element[0], size_of([IR.ZIR_NAME_MAX]u8), *(capacity)) != 0 {
+        return OwnedType(module, *element[0], depth + 1)
+    }
+    owner: *IR.ZirModule = null
+    record := FindType(module, type, *(owner))
+    if record == null { return -1 }
+    if record.is_enum != 0 || record.is_procedure_type != 0 ||
+       record.is_map != 0 || record.is_extern != 0 { return 0 }
+    offset: usize = 0
+    field: IR.ZirTypeField
+    unknown: s32 = 0
+    while TypeNextField(record, *(offset), *(field)) == 1 {
+        target := module
+        if owner != null { target = owner }
+        owned := OwnedType(target, *(field.type[0]), depth + 1)
+        if owned == 1 { return 1 }
+        if owned < 0 { unknown = 1 }
+    }
+    return ifx unknown != 0 then -1 else 0
+}
+
+OwnershipMode :: (module: *IR.ZirModule, type: *u8) {
+    if type == null || type[0] == 0 || strcmp(type, CStr("void")) == 0 {
+        JsonString(CStr("none"))
+    } else if type[0] == #char "*" || SliceElementType(type, null, 0) != 0 {
+        JsonString(CStr("borrow"))
+    } else {
+        owned := OwnedType(module, type, 0)
+        if owned < 0 { Put(CStr("null")) }
+        else { JsonString(ifx owned != 0 then CStr("move") else CStr("copy")) }
+    }
+}
+
+// The checker names each type application, such as Vec(u8), by a generated
+// __type_ name; write it back the way the source spells it.
+SourceSpelling :: (module: *IR.ZirModule, text: *u8, out: *u8, size: usize, depth: s32) {
+    used: usize = 0
+    cursor := text
+    while cursor[0] != 0 && used + 1 < size {
+        length: usize = 0
+        previous := cast(*u8)(cast(usize)cursor - 1)
+        if strncmp(cursor, CStr("__type_"), 7) == 0 &&
+           (cursor == text || (isalnum(cast(s32)previous[0]) == 0 &&
+            previous[0] != #char "_" && previous[0] != #char ".")) {
+            length = 7
+            while isxdigit(cast(s32)cursor[length]) != 0 { length += 1 }
+        }
+        name: [IR.ZIR_NAME_MAX]u8
+        type: *IR.ZirType = null
+        if length > 7 && length < size_of([IR.ZIR_NAME_MAX]u8) && depth < 16 {
+            memcpy(cast(*void)(*name[0]), cast(*void)cursor, length)
+            name[length] = 0
+            type = FindType(module, *name[0], null)
+        }
+        if type == null || type.is_synthetic_application == 0 {
+            out[used] = cursor[0]
+            used += 1
+            cursor = cast(*u8)(cast(usize)cursor + 1)
+            continue
+        }
+        arguments: [IR.ZIR_TEXT_MAX]u8
+        spaced: [IR.ZIR_TEXT_MAX]u8
+        SourceSpelling(module, *(type.template_args[0]), *arguments[0],
+                       size_of([IR.ZIR_TEXT_MAX]u8), depth + 1)
+        written: usize = 0
+        a := *arguments[0]
+        while a[0] != 0 && written + 3 < size_of([IR.ZIR_TEXT_MAX]u8) {
+            spaced[written] = a[0]
+            written += 1
+            if a[0] == #char "," && a[1] != #char " " {
+                spaced[written] = #char " "
+                written += 1
+            }
+            a = cast(*u8)(cast(usize)a + 1)
+        }
+        spaced[written] = 0
+        count := snprintf(cast(*u8)(cast(usize)out + used), size - used, CStr("%s(%s)"),
+                          *(type.template_name[0]), *spaced[0])
+        if count < 0 || cast(usize)count >= size - used { break }
+        used += cast(usize)count
+        cursor = cast(*u8)(cast(usize)cursor + length)
+    }
+    out[used] = 0
+}
+
+ShowFunction :: (module: *IR.ZirModule, fn: *IR.ZirFunction, json: s32) {
+    // Overloads share the name callers write; fn->name is unique. An
+    // operator procedure is listed as declared: operator +.
+    name := *(fn.overload_name[0])
+    if name[0] == 0 { name = *(fn.name[0]) }
+    operator_name: [16]u8
+    if OperatorOfProcedure(name) != null {
+        unused snprintf(*operator_name[0], 16, CStr("operator %s"), OperatorOfProcedure(name))
+        name = *operator_name[0]
+    }
+    text := cast(*FunctionText)calloc(1, size_of(FunctionText))
+    if text == null {
+        DiagnosticOutOfMemory()
+        exit(1)
+    }
+    defer free(cast(*void)text)
+    args_text := FnArgs(fn)
+    if FnDefaultArgs(fn)[0] != 0 && json == 0 { args_text = FnDefaultArgs(fn) }
+    SourceSpelling(module, args_text, *text.args[0], IR.ZIR_TEXT_MAX * 2, 0)
+    return_text := CStr("void")
+    if fn.return_type[0] != 0 { return_text = *(fn.return_type[0]) }
+    SourceSpelling(module, return_text, *text.result[0], IR.ZIR_TEXT_MAX, 0)
+    // Several results are checked as a generated record; list its types.
+    results: *IR.ZirType = null
+    if fn.return_type[0] != 0 { results = FindType(module, *(fn.return_type[0]), null) }
+    if results != null && results.is_results != 0 {
+        offset: usize = 0
+        used: usize = 0
+        field: IR.ZirTypeField
+        text.result[used] = #char "("
+        used += 1
+        while TypeNextField(results, *(offset), *(field)) == 1 && used + 4 < IR.ZIR_TEXT_MAX {
+            SourceSpelling(module, *(field.type[0]), *text.spelled[0], IR.ZIR_TEXT_MAX, 0)
+            separator := CStr("")
+            if used > 1 { separator = CStr(", ") }
+            written := snprintf(cast(*u8)(cast(usize)(*text.result[0]) + used),
+                                IR.ZIR_TEXT_MAX - used, CStr("%s%s"), separator, *text.spelled[0])
+            if written < 0 || cast(usize)written >= IR.ZIR_TEXT_MAX - used { break }
+            used += cast(usize)written
+        }
+        unused snprintf(cast(*u8)(cast(usize)(*text.result[0]) + used), IR.ZIR_TEXT_MAX - used, CStr(")"))
+    }
+    if json != 0 {
+        PutChar(#char "{")
+        JsonMember(CStr("name"), name)
+        PutChar(#char ",")
+        JsonMember(CStr("parameters"), *text.args[0])
+        PutChar(#char ",")
+        JsonMember(CStr("return_type"), *text.result[0])
+        PutChar(#char ",")
+        JsonMember(CStr("defaults"), FnDefaultArgs(fn))
+        PutChar(#char ",")
+        JsonMember(CStr("effect"), *(fn.effect_class[0]))
+        unused fprintf(api_output, CStr(",\"must_use\":%s,\"template\":%s,\"uses_host\":%s"),
+                       ifx fn.must_use != 0 then CStr("true") else CStr("false"),
+                       ifx fn.is_template != 0 then CStr("true") else CStr("false"),
+                       ifx fn.uses_host != 0 then CStr("true") else CStr("false"))
+        SymbolMetadata(module, CStr("function"), name, FnArgs(fn), *(fn.return_type[0]), fn.span)
+        Put(CStr(",\"ownership\":{\"result\":"))
+        OwnershipMode(module, *(fn.return_type[0]))
+        Put(CStr(",\"parameters\":["))
+        parameters := ParametersOf(FnArgs(fn))
+        i: s32 = 0
+        while i < parameters.count {
+            if i != 0 { PutChar(#char ",") }
+            PutChar(#char "{")
+            JsonMember(CStr("name"), parameters.items.items[i].binding_name)
+            Put(CStr(",\"mode\":"))
+            OwnershipMode(module, parameters.items.items[i].value_type)
+            PutChar(#char "}")
+            i += 1
+        }
+        Put(CStr("]},"))
+        JsonMember(CStr("path"), SpanPath(fn.span))
+        unused fprintf(api_output, CStr(",\"line\":%d}"), fn.span.line)
+    } else {
+        unused fprintf(api_output, CStr("  %s :: (%s) -> %s"), name, *text.args[0], *text.result[0])
+        if fn.is_template != 0 { Put(CStr(" [template]")) }
+        if fn.must_use != 0 { Put(CStr(" [must use]")) }
+        if fn.effect_class[0] != 0 { unused fprintf(api_output, CStr(" [effect: %s]"), *(fn.effect_class[0])) }
+        if fn.uses_host != 0 { Put(CStr(" [host]")) }
+        unused fprintf(api_output, CStr(" @ %s:%d\n"), SpanPath(fn.span), fn.span.line)
+    }
+}
+
+VisibleFunction :: (fn: *IR.ZirFunction) -> s32 {
+    if strncmp(*(fn.name[0]), CStr("__zi_dependency_"), 16) == 0 { return 0 }
+    // Default-expression helpers inherit their declaration's visibility.
+    // Their reserved generated names are never user-facing APIs, including
+    // when reading saved IR that no longer marks their source role.
+    if strncmp(*(fn.name[0]), CStr("zi_default_"), 11) == 0 && strlen(*(fn.name[0])) == 27 {
+        generated: s32 = 1
+        p := cast(*u8)(cast(usize)(*fn.name[0]) + 11)
+        while p[0] != 0 {
+            if isxdigit(cast(s32)p[0]) == 0 { generated = 0 }
+            p = cast(*u8)(cast(usize)p + 1)
+        }
+        if generated != 0 { return 0 }
+    }
+    return ifx fn.is_public != 0 && fn.is_file_private == 0 &&
+               fn.is_specialization == 0 && fn.is_global_initializer == 0 then 1 else 0
+}
+
+VisibleImport :: (item: *IR.ZirImport) -> s32 {
+    return ifx item.is_public != 0 && item.is_file_private == 0 then 1 else 0
+}
+
+ImportKind :: (item: *IR.ZirImport) -> *u8 {
+    if item.kind == .EXTERN { return CStr("foreign") }
+    if item.kind == .MODULE { return CStr("module") }
+    return CStr("open")
+}
+
+ExternKind :: (item: *IR.ZirImport) -> *u8 {
+    if item.extern_kind == .C { return CStr("c") }
+    if item.extern_kind == .GO { return CStr("go") }
+    if item.extern_kind == .HOST { return CStr("host") }
+    return CStr("")
+}
+
+// Vec and text operations the compiler implements itself. They have no
+// source declaration, so std/vec lists them here for callers to discover.
+ListsVecBuiltins :: (module: *IR.ZirModule) -> s32 {
+    return ifx strcmp(*(module.standard_name[0]), CStr("vec")) == 0 &&
+               filter_symbol == null then 1 else 0
+}
+
+ShowVecBuiltins :: (module: *IR.ZirModule, json: s32) {
+    if ListsVecBuiltins(module) == 0 { return }
+    i: usize = 0
+    while i < 14 {
+        builtin := vec_builtins[i]
+        if json != 0 {
+            if i != 0 { PutChar(#char ",") }
+            PutChar(#char "{")
+            JsonMember(CStr("name"), builtin.name)
+            PutChar(#char ",")
+            JsonMember(CStr("parameters"), builtin.parameters)
+            PutChar(#char ",")
+            JsonMember(CStr("return_type"), builtin.result)
+            PutChar(#char ",")
+            JsonMember(CStr("summary"), builtin.summary)
+            PutChar(#char "}")
+        } else {
+            unused fprintf(api_output, CStr("  builtin %s :: (%s) -> %s [%s]\n"),
+                           builtin.name, builtin.parameters, builtin.result, builtin.summary)
+        }
+        i += 1
+    }
+}
+
+ShowModule :: (module: *IR.ZirModule, json: s32) {
+    if json != 0 {
+        PutChar(#char "{")
+        JsonMember(CStr("name"), *(module.name[0]))
+        PutChar(#char ",")
+        JsonMember(CStr("source"), *(module.source_path[0]))
+        Put(CStr(",\"document\":"))
+        DocumentJson(cast(*Check.ZirDocument)(module.document))
+        Put(CStr(",\"imports\":["))
+        first: s32 = 1
+        i: s32 = 0
+        while i < module.import_count {
+            item := *(module.imports[cast(usize)i])
+            if VisibleImport(item) == 0 ||
+               TakeSymbol(module, CStr("import"), *item.name[0], *item.signature[0], *item.target[0]) == 0 {
+                i += 1
+                continue
+            }
+            if first == 0 { PutChar(#char ",") }
+            first = 0
+            PutChar(#char "{")
+            JsonMember(CStr("kind"), ImportKind(item))
+            PutChar(#char ",")
+            JsonMember(CStr("name"), *item.name[0])
+            PutChar(#char ",")
+            JsonMember(CStr("target"), *item.target[0])
+            Put(CStr(",\"resolved_module\":"))
+            if item.resolved_module != null { JsonString(*(item.resolved_module.name[0])) } else { Put(CStr("null")) }
+            PutChar(#char ",")
+            JsonMember(CStr("foreign_target"), ExternKind(item))
+            PutChar(#char ",")
+            JsonMember(CStr("foreign_symbol"), *item.extern_symbol[0])
+            PutChar(#char ",")
+            JsonMember(CStr("signature"), *item.signature[0])
+            PutChar(#char ",")
+            JsonMember(CStr("parameters"), *item.args[0])
+            PutChar(#char ",")
+            JsonMember(CStr("return_type"), *item.return_type[0])
+            unused fprintf(api_output, CStr(",\"must_use\":%s,\"required\":%s,\"using\":%s"),
+                           ifx item.must_use != 0 then CStr("true") else CStr("false"),
+                           ifx item.required != 0 then CStr("true") else CStr("false"),
+                           ifx item.is_using != 0 then CStr("true") else CStr("false"))
+            SymbolMetadata(module, CStr("import"), *item.name[0], *item.signature[0],
+                           *item.target[0], item.span)
+            PutChar(#char ",")
+            JsonMember(CStr("path"), SpanPath(item.span))
+            unused fprintf(api_output, CStr(",\"line\":%d}"), item.span.line)
+            i += 1
+        }
+        Put(CStr("],\"constants\":["))
+        first = 1
+        i = 0
+        while i < module.define_count {
+            item := *(module.defines[cast(usize)i])
+            if item.is_public == 0 || item.is_file_private != 0 ||
+               TakeSymbol(module, CStr("constant"), *item.name[0], CStr(""), CStr("")) == 0 {
+                i += 1
+                continue
+            }
+            if first == 0 { PutChar(#char ",") }
+            first = 0
+            PutChar(#char "{")
+            JsonMember(CStr("name"), *item.name[0])
+            PutChar(#char ",")
+            JsonMember(CStr("value"), item.value)
+            SymbolMetadata(module, CStr("constant"), *item.name[0], CStr(""), CStr(""), item.span)
+            PutChar(#char ",")
+            JsonMember(CStr("path"), SpanPath(item.span))
+            unused fprintf(api_output, CStr(",\"line\":%d}"), item.span.line)
+            i += 1
+        }
+        Put(CStr("],\"globals\":["))
+        first = 1
+        i = 0
+        while i < module.global_count {
+            item := *(module.globals[cast(usize)i])
+            if item.is_static != 0 || item.is_file_private != 0 ||
+               TakeSymbol(module, CStr("global"), *item.name[0], *item.type[0], CStr("")) == 0 {
+                i += 1
+                continue
+            }
+            if first == 0 { PutChar(#char ",") }
+            first = 0
+            PutChar(#char "{")
+            JsonMember(CStr("name"), *item.name[0])
+            PutChar(#char ",")
+            spelled: [IR.ZIR_TEXT_MAX]u8
+            SourceSpelling(module, *(item.type[0]), *spelled[0], IR.ZIR_TEXT_MAX, 0)
+            JsonMember(CStr("type"), *spelled[0])
+            PutChar(#char ",")
+            JsonMember(CStr("initializer"), item.init)
+            SymbolMetadata(module, CStr("global"), *item.name[0], *item.type[0], CStr(""), item.span)
+            PutChar(#char ",")
+            JsonMember(CStr("path"), SpanPath(item.span))
+            unused fprintf(api_output, CStr(",\"line\":%d}"), item.span.line)
+            i += 1
+        }
+        Put(CStr("],\"types\":["))
+        first = 1
+        i = 0
+        while i < module.type_count {
+            item := *(module.types[cast(usize)i])
+            if item.is_public == 0 || item.is_file_private != 0 || item.is_results != 0 ||
+               item.is_synthetic_application != 0 || item.is_type_instance != 0 ||
+               TakeSymbol(module, CStr("type"), *item.name[0], *item.template_params[0], CStr("")) == 0 {
+                i += 1
+                continue
+            }
+            if first == 0 { PutChar(#char ",") }
+            first = 0
+            PutChar(#char "{")
+            JsonMember(CStr("name"), *item.name[0])
+            PutChar(#char ",")
+            body: [IR.ZIR_TEXT_MAX * 2]u8
+            SourceSpelling(module, *(item.body[0]), *body[0], IR.ZIR_TEXT_MAX * 2, 0)
+            JsonMember(CStr("body"), *body[0])
+            PutChar(#char ",")
+            JsonMember(CStr("type_parameters"), *item.template_params[0])
+            unused fprintf(api_output, CStr(",\"record_template\":%s,\"enum\":%s,\"procedure\":%s,"),
+                           ifx item.is_record_template != 0 then CStr("true") else CStr("false"),
+                           ifx item.is_enum != 0 then CStr("true") else CStr("false"),
+                           ifx item.is_procedure_type != 0 then CStr("true") else CStr("false"))
+            JsonMember(CStr("return_type"), *item.procedure_return_type[0])
+            SymbolMetadata(module, CStr("type"), *item.name[0], *item.template_params[0],
+                           CStr(""), item.span)
+            Put(CStr(",\"ownership\":"))
+            OwnershipMode(module, *(item.name[0]))
+            PutChar(#char ",")
+            JsonMember(CStr("path"), SpanPath(item.span))
+            unused fprintf(api_output, CStr(",\"line\":%d}"), item.span.line)
+            i += 1
+        }
+        Put(CStr("],\"functions\":["))
+        first = 1
+        i = 0
+        while i < module.function_count {
+            fn := *(module.functions[cast(usize)i])
+            symbol_name := *(fn.name[0])
+            if fn.overload_name[0] != 0 { symbol_name = *(fn.overload_name[0]) }
+            if VisibleFunction(fn) == 0 ||
+               TakeSymbol(module, CStr("function"), symbol_name, FnArgs(fn), *(fn.return_type[0])) == 0 {
+                i += 1
+                continue
+            }
+            if first == 0 { PutChar(#char ",") }
+            first = 0
+            ShowFunction(module, fn, 1)
+            i += 1
+        }
+        Put(CStr("],\"laws\":["))
+        first = 1
+        i = 0
+        while i < module.law_count {
+            law := *(module.laws[cast(usize)i])
+            if TakeSymbol(module, CStr("law"), *law.name[0], *law.kind[0], CStr("")) == 0 {
+                i += 1
+                continue
+            }
+            if first == 0 { PutChar(#char ",") }
+            first = 0
+            Put(CStr("{\"visibility\":\"module_contract\","))
+            JsonMember(CStr("name"), *law.name[0])
+            PutChar(#char ",")
+            JsonMember(CStr("kind"), *law.kind[0])
+            PutChar(#char ",")
+            JsonMember(CStr("claim"), *law.payload[0])
+            Put(CStr(",\"status\":"))
+            if law.evaluated_in != null { JsonString(LawStatusName(law.evaluated_status)) } else { Put(CStr("null")) }
+            SymbolMetadata(module, CStr("law"), *law.name[0], *law.kind[0], CStr(""), law.span)
+            PutChar(#char "}")
+            i += 1
+        }
+        Put(CStr("]"))
+        if ListsVecBuiltins(module) != 0 {
+            Put(CStr(",\"builtins\":["))
+            ShowVecBuiltins(module, 1)
+            PutChar(#char "]")
+        }
+        PutChar(#char "}")
+    } else {
+        unused fprintf(api_output, CStr("module %s (%s)\n"), *(module.name[0]), *(module.source_path[0]))
+        i: s32 = 0
+        while i < module.import_count {
+            item := *(module.imports[cast(usize)i])
+            if VisibleImport(item) != 0 {
+                unused fprintf(api_output, CStr("  import %s %s"), ImportKind(item), *item.name[0])
+                if item.target[0] != 0 { unused fprintf(api_output, CStr(" -> %s"), *item.target[0]) }
+                if item.signature[0] != 0 { unused fprintf(api_output, CStr(" : %s"), *item.signature[0]) }
+                unused fprintf(api_output, CStr(" @ %s:%d\n"), SpanPath(item.span), item.span.line)
+            }
+            i += 1
+        }
+        i = 0
+        while i < module.define_count {
+            item := *(module.defines[cast(usize)i])
+            if item.is_public != 0 && item.is_file_private == 0 {
+                unused fprintf(api_output, CStr("  constant %s = %s @ %s:%d\n"),
+                               *item.name[0], item.value, SpanPath(item.span), item.span.line)
+            }
+            i += 1
+        }
+        i = 0
+        while i < module.global_count {
+            item := *(module.globals[cast(usize)i])
+            if item.is_static == 0 && item.is_file_private == 0 {
+                spelled: [IR.ZIR_TEXT_MAX]u8
+                SourceSpelling(module, *(item.type[0]), *spelled[0], IR.ZIR_TEXT_MAX, 0)
+                unused fprintf(api_output, CStr("  global %s: %s @ %s:%d\n"),
+                               *item.name[0], *spelled[0], SpanPath(item.span), item.span.line)
+            }
+            i += 1
+        }
+        i = 0
+        while i < module.type_count {
+            item := *(module.types[cast(usize)i])
+            if item.is_public != 0 && item.is_file_private == 0 && item.is_results == 0 &&
+               item.is_synthetic_application == 0 && item.is_type_instance == 0 {
+                unused fprintf(api_output, CStr("  type %s"), *item.name[0])
+                if item.template_params[0] != 0 {
+                    unused fprintf(api_output, CStr("(%s)"), *item.template_params[0])
+                }
+                // A record's fields and an enum's members on the same line: the
+                // body's lines joined with "; ", so one line names what a
+                // caller may set.
+                if item.body[0] != 0 && item.is_extern == 0 {
+                    Put(CStr(" {"))
+                    field: s32 = 0
+                    start: s32 = 1
+                    c := *(item.body[0])
+                    while c[0] != 0 {
+                        if c[0] == #char "\n" || c[0] == #char "\r" {
+                            start = 1
+                        } else if start != 0 && (c[0] == #char " " || c[0] == #char "\t") {
+                            c = cast(*u8)(cast(usize)c + 1)
+                            continue
+                        } else {
+                            if start != 0 {
+                                if field != 0 { Put(CStr("; ")) } else { Put(CStr(" ")) }
+                                field += 1
+                                start = 0
+                            }
+                            // The source may end a field with its own semicolon.
+                            rest := cast(*u8)(cast(usize)c + 1)
+                            while rest[0] == #char " " || rest[0] == #char "\t" {
+                                rest = cast(*u8)(cast(usize)rest + 1)
+                            }
+                            if c[0] == #char ";" &&
+                               (rest[0] == #char "\n" || rest[0] == #char "\r" || rest[0] == 0) {
+                                c = cast(*u8)(cast(usize)c + 1)
+                                continue
+                            }
+                            PutChar(cast(s32)c[0])
+                        }
+                        c = cast(*u8)(cast(usize)c + 1)
+                    }
+                    Put(CStr(" }"))
+                }
+                unused fprintf(api_output, CStr(" @ %s:%d\n"), SpanPath(item.span), item.span.line)
+            }
+            i += 1
+        }
+        i = 0
+        while i < module.function_count {
+            fn := *(module.functions[cast(usize)i])
+            if VisibleFunction(fn) != 0 { ShowFunction(module, fn, 0) }
+            i += 1
+        }
+        ShowVecBuiltins(module, 0)
+    }
+}
+
+ModuleOrder :: (left: *void, right: *void) -> s32 {
+    a := cast(**IR.ZirModule)left
+    b := cast(**IR.ZirModule)right
+    name := strcmp(*(a[0].name[0]), *(b[0].name[0]))
+    if name != 0 { return name }
+    return strcmp(*(a[0].source_path[0]), *(b[0].source_path[0]))
+}
+
+StreamPosition :: (stream: *TextStream, position: *usize) -> s32 {
+    if stream.file == null { return -1 }
+    if ferror(stream.file) != 0 { return -1 }
+    offset := ftell(stream.file)
+    if offset >= 0 {
+        position[0] = cast(usize)offset
+        return 0
+    }
+    if fflush(stream.file) != 0 { return -1 }
+    position[0] = stream.length
+    return 0
+}
+
+StreamClose :: (stream: *TextStream) -> s32 {
+    if stream.file == null { return -1 }
+    failed: s32 = 0
+    if ferror(stream.file) != 0 { failed = 1 }
+    if fclose(stream.file) != 0 { failed = 1 }
+    if failed == 0 && stream.data == null {
+        stream.data = cast(*u8)calloc(1, 1)
+        if stream.data == null { failed = 1 }
+    }
+    stream.file = null
+    if failed != 0 {
+        free(cast(*void)stream.data)
+        stream.data = null
+        return -1
+    }
+    stream.text[0] = stream.data
+    stream.size[0] = stream.length
+    stream.data = null
+    return 0
+}
+
+RenderApi :: (modules: **IR.ZirModule, count: s32, json: s32, requested_symbols: s32, bytes: *usize) -> *u8 {
+    text: *u8 = null
+    stream: TextStream = .{}
+    api_output = TextStreamOpen(*(stream), *(text), bytes)
+    if api_output == null { return null }
+    api_stream = *(stream)
+    emitted = 0
+    matched = 0
+    if json != 0 {
+        Put(CStr("{\"schema_version\":1,\"query\":{"))
+        JsonMember(CStr("module"), filter_module)
+        PutChar(#char ",")
+        JsonMember(CStr("symbol"), filter_symbol)
+        unused fprintf(api_output, CStr(",\"imports_only\":%s,\"max_symbols\":%d,\"max_bytes\":%zu},\"modules\":["),
+                       ifx imports_only != 0 then CStr("true") else CStr("false"), requested_symbols, byte_limit)
+    }
+    first: s32 = 1
+    i: s32 = 0
+    while i < count {
+        module := modules[cast(usize)i]
+        if ModuleSelected(*(module.name[0])) != 0 {
+            if json != 0 && first == 0 { PutChar(#char ",") }
+            first = 0
+            ShowModule(module, json)
+        }
+        i += 1
+    }
+    if json != 0 {
+        complete := ifx matched == emitted then CStr("true") else CStr("false")
+        symbol_limited := ifx matched > requested_symbols then CStr("true") else CStr("false")
+        byte_limited: *u8 = CStr("false")
+        if emitted < matched && symbol_limit < requested_symbols { byte_limited = CStr("true") }
+        unused fprintf(api_output, CStr("],\"truncation\":{\"matched_symbols\":%d,\"emitted_symbols\":%d,\"complete\":%s,\"symbol_limit\":%s,\"byte_limit\":%s}}\n"),
+                       matched, emitted, complete, symbol_limited, byte_limited)
+    }
+    failed: s32 = 0
+    if ferror(api_output) != 0 { failed = 1 }
+    if StreamClose(*(stream)) != 0 { failed = 1 }
+    api_output = StandardOutput()
+    api_stream = null
+    if failed != 0 {
+        free(cast(*void)text)
+        return null
+    }
+    return text
+}
+
+PositiveBound :: (text: *u8, minimum: usize, maximum: usize, value: *usize) -> s32 {
+    if text == null || text[0] == 0 { return 0 }
+    result: usize = 0
+    p := text
+    while p[0] != 0 {
+        if p[0] < #char "0" || p[0] > #char "9" ||
+           result > (maximum - cast(usize)(p[0] - #char "0")) / 10 { return 0 }
+        result = result * 10 + cast(usize)(p[0] - #char "0")
+        p = cast(*u8)(cast(usize)p + 1)
+    }
+    if result < minimum || result > maximum { return 0 }
+    value[0] = result
+    return 1
+}
+
+API_TARGET_C :: 0
+API_TARGET_GO :: 1
+API_TARGET_ZX :: 3
+
+RunApi :: (argc: s32, argv: **u8) -> s32 {
+    root: *u8 = null
+    max_symbols: *u8 = null
+    max_bytes: *u8 = null
+    target: *u8 = null
+    target_os_name: *u8 = null
+    target_cpu_name: *u8 = null
+    json: s32 = 0
+    result: s32 = 1
+    set: IR.ProgramSet = .{}
+    defer ProgramsFree(*(set))
+    defer FreeExamples()
+    module_paths := CLI.CommandModulePaths(argc)
+    if module_paths == null { return 1 }
+    defines: [64]*u8
+    define_count: s32 = 0
+    module_path_count: s32 = 0
+    api_output = StandardOutput()
+    SetFormatArguments(argc, argv)
+    options: [12]CLI.CommandOption = .{
+        .{name = CStr("--json"), flag = *(json)},
+        .{name = CStr("--target"), value = *(target)},
+        .{name = CStr("--target-os"), value = *(target_os_name)},
+        .{name = CStr("--target-cpu"), value = *(target_cpu_name)},
+        .{name = CStr("--module"), value = *(filter_module)},
+        .{name = CStr("--symbol"), value = *(filter_symbol)},
+        .{name = CStr("--imports-only"), flag = *(imports_only)},
+        .{name = CStr("--max-symbols"), value = *(max_symbols)},
+        .{name = CStr("--max-bytes"), value = *(max_bytes)},
+        .{name = CStr("--root"), value = *(root)},
+        .{name = CStr("--module-path"), value = module_paths, count = *(module_path_count), capacity = argc},
+        .{name = CStr("--define"), value = cast(**u8)(*defines[0]), count = *(define_count),
+          capacity = 64, valid = CLI.ValidDefine},
+    }
+    OptionsFirst(argc, argv)
+    first_file := CLI.ReadCommandOptions(argc, argv, *(options[0]), cast(usize)options.count)
+    if first_file < 0 {
+        Usage()
+        return 2
+    }
+    if root == null || first_file == 0 {
+        Usage()
+        return 2
+    }
+    bound: usize = 0
+    if (max_symbols != null && PositiveBound(max_symbols, 1, 4096, *(bound)) == 0) ||
+       (json == 0 && (filter_symbol != null || imports_only != 0 || max_symbols != null)) {
+        Usage()
+        return 2
+    }
+    if max_symbols != null { symbol_limit = cast(s32)bound }
+    if max_bytes != null && PositiveBound(max_bytes, 1024, 1048576, *(byte_limit)) == 0 {
+        Usage()
+        return 2
+    }
+    if target != null && TargetNameKnown(target) == 0 {
+        Diagnostic(CommandSpan(), CStr("command.arguments"), CStr("unknown API target: %s"), target)
+        return 2
+    }
+    backend: s32 = API_TARGET_C
+    if target == null || strcmp(target, CStr("zx")) == 0 { backend = API_TARGET_ZX }
+    else if strcmp(target, CStr("go")) == 0 { backend = API_TARGET_GO }
+    target_os: s32 = 0
+    if CLI.CommandConfigureTarget(backend, target_os_name, target_cpu_name, *(target_os)) == 0 {
+        Usage()
+        return 2
+    }
+    inputs := cast(**u8)(cast(usize)argv + cast(usize)first_file * size_of(*u8))
+    if ProgramsLoadWithDefines(*(set), root, module_paths, module_path_count,
+                               cast(**u8)(*defines[0]), define_count,
+                               inputs, argc - first_file) == 0 { return result }
+    if CheckApiPrograms(*(set), target) == 0 { return result }
+    module_count: s32 = 0
+    i: s32 = 0
+    while i < set.count {
+        module_count += set.programs[cast(usize)i].module_count
+        i += 1
+    }
+    modules := cast(**IR.ZirModule)calloc(cast(usize)module_count, size_of(*IR.ZirModule))
+    if modules == null { DiagnosticOutOfMemory(); return result }
+    defer free(cast(*void)modules)
+    index: s32 = 0
+    i = 0
+    while i < set.count {
+        program := set.programs[cast(usize)i]
+        m: s32 = 0
+        while m < program.module_count {
+            modules[cast(usize)index] = *(program.modules[cast(usize)m])
+            index += 1
+            m += 1
+        }
+        i += 1
+    }
+    qsort(cast(*u8)modules, cast(usize)module_count, size_of(*IR.ZirModule), ModuleOrder)
+    // A name that selects nothing is a mistake, not an empty API.
+    selected: s32 = 0
+    i = 0
+    while i < module_count {
+        selected += ModuleSelected(*(modules[cast(usize)i].name[0]))
+        i += 1
+    }
+    if selected == 0 {
+        names: [1024]u8
+        names[0] = 0
+        used: usize = 0
+        i = 0
+        while i < module_count && used + strlen(*(modules[cast(usize)i].name[0])) + 3 < 1024 {
+            separator := CStr("")
+            if i != 0 { separator = CStr(", ") }
+            used += cast(usize)snprintf(cast(*u8)(cast(usize)(*names[0]) + used), 1024 - used,
+                                       CStr("%s%s"), separator, *(modules[cast(usize)i].name[0]))
+            i += 1
+        }
+        written := getenv(CStr("ZIRAN_API_MODULE"))
+        chosen := filter_module
+        if written != null && written[0] != 0 { chosen = written }
+        Diagnostic(CommandSpan(), CStr("command.arguments"),
+                   CStr("--module %s names no checked module; write the name an import uses, such as PACKAGE/MODULE. Modules: %s"),
+                   chosen, *names[0])
+        return result
+    }
+    examples.root = root
+    examples.target = target
+    examples.module_paths = module_paths
+    examples.module_path_count = module_path_count
+    examples.defines = cast(**u8)(*defines[0])
+    examples.define_count = define_count
+    if json != 0 && imports_only == 0 && LoadAttachments(modules, module_count) == 0 { return result }
+    requested := symbol_limit
+    bytes: usize = 0
+    text := RenderApi(modules, module_count, json, requested, *(bytes))
+    if text != null && (examples.failed != 0 || AttachmentsResolved() == 0) {
+        free(cast(*void)text)
+        return result
+    }
+    if text != null && bytes > byte_limit && json != 0 {
+        free(cast(*void)text)
+        text = null
+        low: s32 = 0
+        high := requested
+        while low < high {
+            symbol_limit = low + (high - low + 1) / 2
+            trial := RenderApi(modules, module_count, json, requested, *(bytes))
+            if trial == null { break }
+            free(cast(*void)trial)
+            if bytes <= byte_limit { low = symbol_limit } else { high = symbol_limit - 1 }
+        }
+        symbol_limit = low
+        text = RenderApi(modules, module_count, json, requested, *(bytes))
+    }
+    if text == null {
+        DiagnosticOutOfMemory()
+    } else if bytes > byte_limit {
+        Diagnostic(NoSpan(), CStr("command.arguments"),
+                   CStr("API framing exceeds --max-bytes; select --module or increase the budget"))
+    } else {
+        if fwrite(cast(*void)text, 1, bytes, StandardOutput()) == bytes &&
+           ferror(StandardOutput()) == 0 { result = 0 }
+    }
+    free(cast(*void)text)
+    return result
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    return RunApi(argc, argv)
+}

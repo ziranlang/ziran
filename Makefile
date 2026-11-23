@@ -714,8 +714,18 @@ $(BIN_DIR)/zi2zir: cmd/zi2zir.zi cmd/compiler_cli.zi cmd/compiler_ir.zi $(BIN_DI
 	$(BIN_DIR)/zi2c --entry zi2zir:main $(ZIRAN_DEFINES) --root cmd --module-path std -o $(ZI2ZIR_C) cmd/zi2zir.zi
 	$(NICE) $(CC) $(CFLAGS) -I$(ZI2ZIR_C) -o $@ $(ZI2ZIR_C)/zi2zir.c $(FRONTEND_OBJECTS) $(BUNDLE_OBJECT) -lm
 
-$(BIN_DIR)/zi-api: $(call obj,cmd/zir-api/main.c) $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+# ziran api's driver is Ziran too (cmd/zi_api.zi); its generated copy links the
+# frontend objects it reads through.
+ZI_API_C := $(BUILD_DIR)/zi-api-c
+$(ZI_API_C)/.generated: cmd/zi_api.zi cmd/compiler_cli.zi cmd/compiler_ir.zi \
+    $(BIN_DIR)/zi2c
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --entry zi_api:main $(ZIRAN_DEFINES) \
+	    --root cmd --module-path std -o $(ZI_API_C) cmd/zi_api.zi
+	touch $@
+$(ZI_API_C)/%.c: $(ZI_API_C)/.generated
+	@test -f $@
+$(BIN_DIR)/zi-api: $(ZI_API_C)/zi_api.c $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) | $(BIN_DIR)
+	$(NICE) $(CC) $(CFLAGS) -I$(ZI_API_C) -o $@ $(ZI_API_C)/zi_api.c $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) -lm
 
 INSPECT_C := $(BUILD_DIR)/inspect-c
 $(BIN_DIR)/zi-inspect: cmd/inspect.zi cmd/compiler_ir.zi $(BIN_DIR)/zi2c $(FRONTEND_OBJECTS) $(BUNDLE_OBJECT) | $(BIN_DIR)

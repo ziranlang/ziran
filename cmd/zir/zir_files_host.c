@@ -1,6 +1,7 @@
 /* Host calls used by the compiler's path and generated-output code. */
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -189,6 +190,38 @@ int CompilerPathIsRegular(const char *path)
 {
     struct stat info;
     return stat(path, &info) == 0 && S_ISREG(info.st_mode);
+}
+
+/* The ziran api example sidecar read: 0 when an optional file is missing, 1
+ * when BYTES were read from a regular file (a link, directory or pipe fails),
+ * -1 for any other failure. The caller owns all length and content checks. */
+int ZiranApiReadExampleFile(const char *path, int optional, unsigned char *text,
+                            size_t capacity, size_t *bytes)
+{
+    int flags = O_RDONLY;
+#ifdef O_NONBLOCK
+    flags |= O_NONBLOCK;
+#endif
+#ifdef O_NOFOLLOW
+    flags |= O_NOFOLLOW;
+#endif
+#ifdef O_BINARY
+    flags |= O_BINARY;
+#endif
+    int descriptor = open(path, flags);
+    if(descriptor < 0 && optional && errno == ENOENT) return 0;
+    struct stat info;
+    FILE *file = descriptor >= 0 && FileStatusNoLinks(path, &info) == 0 &&
+                 fstat(descriptor, &info) == 0 && S_ISREG(info.st_mode) ?
+                 fdopen(descriptor, "rb") : NULL;
+    if(file == NULL) {
+        if(descriptor >= 0) close(descriptor);
+        return -1;
+    }
+    *bytes = fread(text, 1, capacity, file);
+    int failed = ferror(file);
+    if(fclose(file) != 0 || failed) return -1;
+    return 1;
 }
 
 int64_t CompilerFileTell(FILE *file) { return ftell(file); }

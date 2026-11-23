@@ -1005,6 +1005,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             (command == "build" && PkgHasArgument(flags, "--target=zx")) ||
             pack_checked || (command == "pkg" && count >= 1 && filtered[0] == "list") {
             if !PkgReadCheckedPins(root, launcher, locked, *checked_pins) {
+                if pkg_failure_reported { return 2 }
                 return PkgFail("invalid checked packages in ziran.zx.lock")
             }
             if command == "bundle" || compile || pack_dev {

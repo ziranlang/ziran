@@ -585,7 +585,8 @@ main :: () -> s32 {
         assert ('GET', checked_artifact) not in server.requests[before:]
         assert automatic_manifest.read_text() == bare_manifest and not (automatic / 'ziran.lock').exists()
         # A descriptor naming another package is still refused.
-        server.images[descriptor] = good_metadata.replace(identity.encode(), identity.encode()[:-1] + b'0')
+        other_package = identity[:-1] + ('1' if identity[-1] == '0' else '0')
+        server.images[descriptor] = good_metadata.replace(identity.encode(), other_package.encode())
         command(*add, failure='metadata does not match its repository revision, toolchain or profile', cwd=automatic)
         assert automatic_manifest.read_text() == bare_manifest and not (automatic / 'ziran.lock').exists()
         server.images[descriptor] = good_metadata
@@ -638,6 +639,44 @@ main :: () -> s32 {
         before = len(server.requests)
         command(*auto_bundle, cwd=automatic)
         assert command(ziran, 'run', '--backend', 'engine', auto_output) == '42'
+
+        # A lock kept across a Ziran upgrade: its checked entry belongs to
+        # another toolchain build. Builds name the command that fixes it, and
+        # `ziran lock` and `ziran update` look the library up again for this
+        # toolchain instead of refusing.
+        refreshed = json.loads(saved)
+        stale = json.loads(saved)
+        stale['packages'][0]['checked']['toolchain'] = 'p0000000000000000'
+        stale_lock = json.dumps(stale)
+        advice = 'for another Ziran toolchain build; run ziran lock to refresh it'
+        for refresh in ('lock', 'update'):
+            automatic_lock.write_text(stale_lock)
+            command(*auto_bundle, failure=advice, cwd=automatic)
+            command(*auto_bundle, '--locked', failure=advice, cwd=automatic)
+            command(ziran, 'check', '--offline', failure=advice, cwd=automatic)
+            command(ziran, refresh, cwd=automatic)
+            assert json.loads(automatic_lock.read_text()) == refreshed
+            command(*auto_bundle, cwd=automatic)
+        # With nothing published for this toolchain the package goes back to
+        # its source, which this registry-only server cannot serve; the lock
+        # on disk keeps its bytes.
+        automatic_lock.write_text(stale_lock)
+        other_descriptor = descriptor.replace('default.zx', 'other.zx')
+        other_metadata = server.images[other_descriptor]
+        server.images[other_descriptor] = other_metadata.replace(expected_tool.encode(), b'p0000000000000000')
+        env['XDG_CACHE_HOME'] = str(root / 'stale-toolchain-cache')
+        command(ziran, 'lock', failure='cannot check out', cwd=automatic)
+        env['XDG_CACHE_HOME'] = str(auto_cache)
+        assert automatic_lock.read_text() == stale_lock
+        server.images[other_descriptor] = other_metadata
+        # A wrong package id or digest in the saved entry is still refused.
+        for field, value in (('toolchain', 'not-an-identity'), ('sha256', 'abc')):
+            broken = json.loads(saved)
+            broken['packages'][0]['checked'][field] = value
+            automatic_lock.write_text(json.dumps(broken))
+            command(ziran, 'lock', failure='invalid ziran.lock', cwd=automatic)
+        automatic_lock.write_bytes(saved)
+        before = len(server.requests)
 
         override = root / 'override'
         override.mkdir()

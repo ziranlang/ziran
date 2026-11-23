@@ -506,6 +506,12 @@ resolution, so a new Ziran commit does not wait for every package to be
 republished. Invalid metadata or a missing advertised library stops
 resolution. A saved pin
 continues to identify the same exact library.</p>
+<p>A lock kept across a Ziran upgrade holds entries saved for the earlier
+toolchain. Builds, <code>--locked</code> ones included, stop and say to run <code>ziran lock</code>;
+<code>ziran lock</code> and <code>ziran update</code> then look each such library up again for the
+current toolchain under its saved profile, and a package with nothing
+published for it goes back to its source. A pin in <code>ziran.zx.lock</code>, an entry
+naming another package and a digest that does not match are still refused.</p>
 <pre><code class="language-sh">ziran add &quot;$repo&quot; --ref &quot;$commit&quot;
 ziran bundle --project --entry app:main -o app.zx app.zi
 ziran lock --offline

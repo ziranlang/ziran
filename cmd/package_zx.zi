@@ -262,7 +262,12 @@ PkgReadCheckedPins :: (root: string, launcher: string, locked: *PkgLock, pins: *
     tool := PkgLockId(locked.tool_url, locked.tool_commit, false)
     for item: locked.packages[0:locked.count] {
         if item.checked_profile == "" { continue }
-        if !PkgRegistrySegment(item.checked_profile) || item.checked_tool != tool { return false }
+        if !PkgRegistrySegment(item.checked_profile) { return false }
+        if item.checked_tool != tool {
+            unused PkgFail(PkgJoin3("ziran.lock records the checked library of ", item.name,
+                " for another Ziran toolchain build; run ziran lock to refresh it"))
+            return false
+        }
         pins.pins[pins.count] = .{package = item.id, profile = item.checked_profile, digest = item.checked_digest}
         pins.count += 1
     }
@@ -415,13 +420,20 @@ PkgDiscoverChecked :: (context: *void, item: *PkgLocked, locked: *PkgLock, offli
     tool := PkgLockId(locked.tool_url, locked.tool_commit, false)
     requested := PkgGetenv("ZIRAN_ZX_PROFILE")
     saved := item.checked_profile != ""
+    if saved && !PkgRegistrySegment(item.checked_profile) {
+        unused PkgFail("saved checked package has an invalid profile")
+        return false
+    }
+    // An entry saved under another toolchain build, as in a lock kept across
+    // a Ziran upgrade, is looked up again for this toolchain under its saved
+    // profile; with nothing published for it the package builds from source.
+    if saved && item.checked_tool != tool {
+        if requested == "" { requested = item.checked_profile }
+        item.checked_profile = ""; item.checked_digest = ""; item.checked_tool = ""
+        saved = false
+    }
     replacing := saved && requested != "" && requested != item.checked_profile
-    if saved && !replacing {
-        if item.checked_tool != tool || !PkgRegistrySegment(item.checked_profile) {
-            unused PkgFail("saved checked package requires a different toolchain or profile")
-            return false
-        }
-    } else {
+    if !saved || replacing {
         if offline || !PkgValidCommit(locked.tool_commit) {
             if !replacing { return true }
             unused PkgFail("changing a checked package profile needs an online lock and an exact toolchain")

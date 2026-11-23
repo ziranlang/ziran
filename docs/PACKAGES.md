@@ -627,6 +627,13 @@ republished. Invalid metadata or a missing advertised library stops
 resolution. A saved pin
 continues to identify the same exact library.
 
+A lock kept across a Ziran upgrade holds entries saved for the earlier
+toolchain. Builds, `--locked` ones included, stop and say to run `ziran lock`;
+`ziran lock` and `ziran update` then look each such library up again for the
+current toolchain under its saved profile, and a package with nothing
+published for it goes back to its source. A pin in `ziran.zx.lock`, an entry
+naming another package and a digest that does not match are still refused.
+
 ```sh
 ziran add "$repo" --ref "$commit"
 ziran bundle --project --entry app:main -o app.zx app.zi

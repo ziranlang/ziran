@@ -219,12 +219,41 @@ BindHostProvider :: (program: *IR.ZirProgram, spec: *u8) -> s32 {
             }
         }
     }
-    if matched == null || implementation == null || BoundToZiran(*matched.target[0]) {
-        Diagnostic(CommandSpan(), CStr("host.bind"), CStr("host capability or exported Ziran provider is missing or already bound: %s"), spec)
+    if matched == null {
+        Diagnostic(CommandSpan(), CStr("host.bind"), CStr("host capability is missing: %s; module %s declares no host capability %s"),
+                   spec, *source_module[0], *source_function[0])
+        return 0
+    }
+    if implementation == null {
+        Diagnostic(CommandSpan(), CStr("host.bind"), CStr("exported Ziran provider is missing: %s; no module %s exports %s"),
+                   spec, *provider_module[0], *provider_function[0])
+        return 0
+    }
+    if BoundToZiran(*matched.target[0]) {
+        BoundTwice(program, matched, *source[0], *provider_module[0], *provider_function[0])
         return 0
     }
     BindImport(matched, *provider_module[0], *provider_function[0])
     return 1
+}
+
+// The source file of the module named NAME in PROGRAM, or "?".
+ModuleFile :: (program: *IR.ZirProgram, name: *u8) -> *u8 {
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        if Same(*module.name[0], name) { return *module.source_path[0] }
+    }
+    return CStr("?")
+}
+
+// Reports a second binding of CAPABILITY, already bound to a Ziran
+// provider, naming both providers and their files.
+BoundTwice :: (program: *IR.ZirProgram, matched: *IR.ZirImport, capability: *u8, module: *u8, function: *u8) {
+    bound := PtrAdd(*matched.target[0], 6)
+    Diagnostic(CommandSpan(), CStr("host.bind"),
+               CStr("host capability %s is already bound by %s:%s (%s); %s:%s (%s) also provides it"),
+               capability, bound, *matched.extern_symbol[0], ModuleFile(program, bound),
+               module, function, ModuleFile(program, module))
 }
 
 // Binds every host capability no --bind has claimed to the exported Ziran

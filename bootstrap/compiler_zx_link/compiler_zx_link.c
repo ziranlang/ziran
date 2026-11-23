@@ -6787,26 +6787,112 @@ BindHostProvider(ZirProgram* program, uint8_t* spec)
             m = (int32_t)((uint32_t)m + 1u);
         }
     }
-    bool value_64 = matched == ((void *)0) || implementation == ((void *)0);
-    if (value_64 || compiler_zx_link_BoundToZiran(&(matched->target[0]))) {
-        ZirSourceSpan value_65 = compiler_zx_link_CommandSpan();
-        String value_66 = StringLiteral("host.bind");
-        uint8_t* value_67 = (void *)0;
+    if (matched == ((void *)0)) {
+        ZirSourceSpan value_64 = compiler_zx_link_CommandSpan();
+        String value_65 = StringLiteral("host.bind");
+        uint8_t* value_66 = (void *)0;
         {
-            String s = value_66;
-            value_67 = ((StaticText*)(&(s)))->data;
+            String s = value_65;
+            value_66 = ((StaticText*)(&(s)))->data;
         }
-        String value_69 = StringLiteral("host capability or exported Ziran provider is missing or already bound: %s");
-        uint8_t* value_70 = (void *)0;
+        String value_68 = StringLiteral("host capability is missing: %s; module %s declares no host capability %s");
+        uint8_t* value_69 = (void *)0;
         {
-            String s = value_69;
-            value_70 = ((StaticText*)(&(s)))->data;
+            String s = value_68;
+            value_69 = ((StaticText*)(&(s)))->data;
         }
-        zir_f_a880a0694b9f00fc_Diagnostic(value_65, value_67, value_70, spec);
+        zir_f_a880a0694b9f00fc_Diagnostic(value_64, value_66, value_69, spec, &(source_module[0]), &(source_function[0]));
+        return 0;
+    }
+    if (implementation == ((void *)0)) {
+        ZirSourceSpan value_71 = compiler_zx_link_CommandSpan();
+        String value_72 = StringLiteral("host.bind");
+        uint8_t* value_73 = (void *)0;
+        {
+            String s = value_72;
+            value_73 = ((StaticText*)(&(s)))->data;
+        }
+        String value_75 = StringLiteral("exported Ziran provider is missing: %s; no module %s exports %s");
+        uint8_t* value_76 = (void *)0;
+        {
+            String s = value_75;
+            value_76 = ((StaticText*)(&(s)))->data;
+        }
+        zir_f_a880a0694b9f00fc_Diagnostic(value_71, value_73, value_76, spec, &(provider_module[0]), &(provider_function[0]));
+        return 0;
+    }
+    if (compiler_zx_link_BoundToZiran(&(matched->target[0]))) {
+        compiler_zx_link_BoundTwice(program, matched, &(source[0]), &(provider_module[0]), &(provider_function[0]));
         return 0;
     }
     compiler_zx_link_BindImport(matched, &(provider_module[0]), &(provider_function[0]));
     return 1;
+}
+
+uint8_t*
+compiler_zx_link_ModuleFile(ZirProgram* program, uint8_t* name)
+{
+    {
+        int32_t range_first_0 = 0;
+        int32_t range_last_0 = (int32_t)((uint32_t)(program->module_count) - 1u);
+        int32_t m = range_first_0;
+        if (m <= range_last_0) for (;;) {
+            ZirProgram* value_0 = program;
+            ZirModule* value_1 = (void *)0;
+            {
+                ZirProgram* program = value_0;
+                int32_t index = m;
+                value_1 = &(program->modules[index]);
+            }
+            ZirModule* module = value_1;
+            if (compiler_zx_link_Same(&(module->name[0]), name)) {
+                return &(module->source_path[0]);
+            }
+            if (m == range_last_0) {
+                break;
+            }
+            m = (int32_t)((uint32_t)m + 1u);
+        }
+    }
+    String value_3 = StringLiteral("\?");
+    uint8_t* value_4 = (void *)0;
+    {
+        String s = value_3;
+        value_4 = ((StaticText*)(&(s)))->data;
+    }
+    return value_4;
+}
+
+void
+compiler_zx_link_BoundTwice(ZirProgram* program, ZirImport* matched, uint8_t* capability, uint8_t* module, uint8_t* function)
+{
+    uint8_t* value_0 = &(matched->target[0]);
+    uint8_t* value_1 = (void *)0;
+    {
+        uint8_t* p = value_0;
+        size_t n = 6;
+        value_1 = (uint8_t*)(((size_t)(p) + n));
+    }
+    uint8_t* bound = value_1;
+    ZirSourceSpan value_3 = compiler_zx_link_CommandSpan();
+    String value_4 = StringLiteral("host.bind");
+    uint8_t* value_5 = (void *)0;
+    {
+        String s = value_4;
+        value_5 = ((StaticText*)(&(s)))->data;
+    }
+    String value_7 = StringLiteral("host capability %s is already bound by %s:%s (%s); %s:%s (%s) also provides it");
+    uint8_t* value_8 = (void *)0;
+    {
+        String s = value_7;
+        value_8 = ((StaticText*)(&(s)))->data;
+    }
+    uint8_t* value_10 = capability;
+    uint8_t* value_11 = bound;
+    uint8_t* value_12 = compiler_zx_link_ModuleFile(program, bound);
+    uint8_t* value_13 = module;
+    uint8_t* value_14 = function;
+    zir_f_a880a0694b9f00fc_Diagnostic(value_3, value_5, value_8, value_10, value_11, &(matched->extern_symbol[0]), value_12, value_13, value_14, compiler_zx_link_ModuleFile(program, module));
 }
 
 int32_t

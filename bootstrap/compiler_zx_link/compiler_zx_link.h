@@ -928,6 +928,8 @@ bool compiler_zx_link_SplitBindingName(uint8_t* text, uint8_t* module, uint8_t* 
 bool compiler_zx_link_ResolveBindingModule(uint8_t* module);
 void compiler_zx_link_BindImport(ZirImport* matched, uint8_t* provider_module, uint8_t* function);
 int32_t BindHostProvider(ZirProgram* program, uint8_t* spec);
+uint8_t* compiler_zx_link_ModuleFile(ZirProgram* program, uint8_t* name);
+void compiler_zx_link_BoundTwice(ZirProgram* program, ZirImport* matched, uint8_t* capability, uint8_t* module, uint8_t* function);
 int32_t BindHostModule(ZirProgram* program, uint8_t* spec);
 int32_t compiler_zx_link_ModuleNameOrder(void* left, void* right);
 uint8_t* compiler_zx_link_CopyRecords(uint8_t* source, int32_t count, size_t size, bool* failed);

@@ -54,6 +54,32 @@ QualifiedHostCalls :: (test: *NativeTest) -> bool {
         CheckConcat("qualified call dropped a required result\n", discarded.error))
 }
 
+// A rejected --bind names the side that is missing, or both providers when
+// a capability is bound twice. Uses the solo host module and the
+// implementation provider QualifiedHostCalls writes.
+BindingDiagnostics :: (test: *NativeTest) -> bool {
+    source := CheckPath(test.work, "qualified.zi")
+    implementation := CheckPath(test.work, "implementation.zi")
+    second := CheckPath(test.work, "second.zi")
+    if !NativeWrite(test, source, "using Host :: #import \"solo\";\n#program_export\nAnswer :: () -> s64 { return Host.Only(Host.seed) }\n") ||
+       !NativeWrite(test, second, "#program_export\nOnly :: (value: s64) -> s64 { return value + 2 }\n") { return false }
+    specs: [3]string = .["solo:Nope=implementation:Only", "solo:Only=implementation:Nope", "solo:Only=second:Only"]
+    errors: [3]string = .["host capability is missing: solo:Nope=implementation:Only; module solo declares no host capability Nope",
+        "exported Ziran provider is missing: solo:Only=implementation:Nope; no module implementation exports Nope",
+        "host capability solo:Only is already bound by implementation:Only ("]
+    for spec, index: specs {
+        command: [15]string = .[test.ziran, "run", "--backend", "engine", "--root", test.work, "--entry", "qualified:Answer",
+            "--bind", "solo:Only=implementation:Only", "--bind", spec, source, implementation, second]
+        if index < 2 { command[9] = spec }
+        rejected := NativeInvoke(test, command[:])
+        if !NativeAssert(test, rejected.code != 0 && TextContains(rejected.error, errors[index]),
+            CheckConcat("unexpected --bind diagnostic for ", CheckConcat(spec, CheckConcat("\n", rejected.error)))) { return false }
+        if index == 2 && !NativeAssert(test, TextContains(rejected.error, "implementation.zi); second:Only (") &&
+           TextContains(rejected.error, "second.zi) also provides it"), CheckConcat("--bind diagnostic names no files\n", rejected.error)) { return false }
+    }
+    return true
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "host-bindings-")
@@ -114,7 +140,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         unused NativeRun(*test, run[:])
     }
     if !NativeAssert(*test, NativeSameFile(CheckPath(test.work, "single-source.zx"), CheckPath(test.work, "single-saved.zx")), "single host bundles differ") { return 1 }
-    if !QualifiedHostCalls(*test) { return 1 }
+    if !QualifiedHostCalls(*test) || !BindingDiagnostics(*test) { return 1 }
     // A host result record whose name is longer than eight bytes, as
     // Kryon's ReadBundleInput returns BundleInput: lowering keeps the whole
     // name and resolves the record.

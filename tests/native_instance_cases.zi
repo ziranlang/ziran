@@ -224,6 +224,26 @@ main :: (argc: s32, argv: **u8) -> s32 {
         if !NativeAssert(*test, rejected.code == 1 && TextContains(rejected.error, "problem=pointer"),
             CheckConcat("expected stale derived pointer trap: ", rejected.error)) { return 1 }
     }
+    compile_arena[5] = "heap_arena_reuse:TypedModelMemory"
+    compile_arena[7] = arena
+    unused NativeRun(*test, compile_arena[:])
+    for mode: modes {
+        run_model := string.[TextFromCString(argv[0]), mode, arena]
+        unused NativeRun(*test, run_model[:])
+    }
+    invalid_indices := string.["heap_arena_reuse:NegativeModelIndex", "heap_arena_reuse:PastModelExtent"]
+    for entry: invalid_indices {
+        compile_arena[5] = entry
+        compile_arena[7] = stale
+        unused NativeRun(*test, compile_arena[:])
+        for backend: backends {
+            run_stale[3] = backend
+            rejected = NativeInvoke(*test, run_stale[:])
+            if !NativeAssert(*test, rejected.code == 1 &&
+                (TextContains(rejected.error, "problem=pointer") || TextContains(rejected.error, "problem=bounds")),
+                CheckConcat("expected typed pointer index trap: ", rejected.error)) { return 1 }
+        }
+    }
     source := CheckPath(test.work, "instances.zi")
     if !NativeWrite(*test, source, "slot: s64 = 7;\n#program_export\nmain :: () -> s64 { slot += 1; return slot }\n") { return 1 }
     for checked: 0..1 {

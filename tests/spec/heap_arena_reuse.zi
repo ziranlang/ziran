@@ -79,3 +79,38 @@ StaleDerivedAddress :: () -> s32 {
     replacement.first.value = 42
     return cast(s32)older.value
 }
+
+WriteModelByte :: (data: *s8, index: s64, value: s8) { data[index] = value }
+
+ReadModelByte :: (data: *s8, index: s64) -> s8 {
+    byte := *data[index]
+    return <<byte
+}
+
+ModelEntry :: struct { name: [16]s8; id: s32 }
+
+#program_export
+TypedModelMemory :: () -> s32 {
+    model := New(ModelEntry)
+    defer free(model)
+    WriteModelByte(*model.name[1], 4, 97)
+    if ReadModelByte(*model.name[1], 4) != 97 || model.name[5] != 97 { return 1 }
+    entries: Vec(ModelEntry)
+    if !VecResize(entries, 4) { return 2 }
+    view := VecSlice(entries, 0, 4)
+    WriteModelByte(*view[2].name[1], 4, 42)
+    if view[2].name[5] != 42 || view[2].name[4] != 0 || view[1].name[5] != 0 { return 3 }
+    return cast(s32)ReadModelByte(*view[2].name[1], 4)
+}
+
+#program_export
+NegativeModelIndex :: () -> s32 {
+    buffer: [4]s8
+    return cast(s32)ReadModelByte(*buffer[1], -1)
+}
+
+#program_export
+PastModelExtent :: () -> s32 {
+    buffer: [4]s8
+    return cast(s32)ReadModelByte(*buffer[1], 3)
+}

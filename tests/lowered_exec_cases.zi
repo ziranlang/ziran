@@ -1230,6 +1230,59 @@ HeapResizeCase :: (mode: s32) -> LirExecResult {
     return result
 }
 
+// The grown block can fit between its two neighbors, but no single hole
+// can hold a replacement allocation. Keep the arena size and both values.
+HeapGrowFromAdjacentHoles :: () -> bool {
+    types: [3]LirType = .[.{.kind = .Void}, .{.kind = .Integer, .bits = 64, .is_signed = true},
+        .{.kind = .Pointer, .element = 1}]
+    constants: [7]LirConstant = .[.{.type = 1, .bits = 0}, .{.type = 1, .bits = 3},
+        .{.type = 1, .bits = 4}, .{.type = 1, .bits = 2}, .{.type = 1, .bits = 1},
+        .{.type = 1, .bits = 8}, .{.type = 1, .bits = 21}]
+    empty: [0]s32
+    allocate_below := s32.[0, 1, 2]
+    allocate_middle := s32.[0, 1, 3]
+    allocate_above := s32.[0, 1, 4]
+    allocate_guard := s32.[0, 1, 5]
+    write_middle := s32.[9, 7]
+    write_guard := s32.[11, 7]
+    free_below := s32.[8, 2, 1]
+    free_above := s32.[10, 4, 1]
+    grow := s32.[9, 3, 6]
+    read_middle := s32.[14]
+    read_guard := s32.[11]
+    add := s32.[15, 16]
+    returned := s32.[17]
+    instructions: [21]LirInstruction = .[
+        Instruction(.Null, 0, empty[:]),
+        Instruction(.Constant, 1, empty[:], 0), Instruction(.Constant, 2, empty[:], 1),
+        Instruction(.Constant, 3, empty[:], 2), Instruction(.Constant, 4, empty[:], 3),
+        Instruction(.Constant, 5, empty[:], 4), Instruction(.Constant, 6, empty[:], 5),
+        Instruction(.Constant, 7, empty[:], 6),
+        Instruction(.Resize, 8, allocate_below[:]), Instruction(.Resize, 9, allocate_middle[:]),
+        Instruction(.Resize, 10, allocate_above[:]), Instruction(.Resize, 11, allocate_guard[:]),
+        Instruction(.Store, -1, write_middle[:]), Instruction(.Store, -1, write_guard[:]),
+        Instruction(.Resize, 12, free_below[:]), Instruction(.Resize, 13, free_above[:]),
+        Instruction(.Resize, 14, grow[:]), Instruction(.Load, 15, read_middle[:]),
+        Instruction(.Load, 16, read_guard[:]), Instruction(.Add, 17, add[:]),
+        Instruction(.Return, -1, returned[:])]
+    for index: cast(s32)8..18 { instructions[index].effect = index - 7 }
+    values := s32.[2, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1]
+    blocks := LirBlock.[.{.instructions = instructions[:]}]
+    modules := string.["heap-grow-from-adjacent-holes"]
+    functions := LirFunction.[.{.module = 0, .name = "grow", .result = 1,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None { return false }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    if LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 19, *instance).problem != .None { return false }
+    result := LirExecRun(*instance)
+    return result.problem == .None && result.value.bits == 42 && instance.owned.count == 80
+}
+
 HeapResize :: () -> bool {
     kept := HeapResizeCase(0)
     fresh := HeapResizeCase(1)
@@ -1830,7 +1883,7 @@ Answer :: () -> s32 {
     if !DynamicElementExtent() { return 20 }
     if !BytesEqualExtent() { return 21 }
     if !TypedHostBoundary() { return 22 }
-    if !HeapResize() { return 23 }
+    if !HeapResize() || !HeapGrowFromAdjacentHoles() { return 23 }
     if !TypedHostShapes() { return 24 }
     if !CompactCodeChunks() { return 25 }
     // The smaller frame and its scalar word exactly fill the signed 32-bit byte limit.

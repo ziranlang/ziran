@@ -56,12 +56,12 @@ void ZiranCommandPriorityIo(int value)
 }
 
 /* Emission workers: pipe, fork, read/write and waitpid with EINTR retried,
- * so the generated driver never reads errno. */
+ * so the generated driver never reads errno. The zi2c worker path is POSIX;
+ * a Windows host has no fork and reports the worker as unavailable. */
 #include <string.h>
-#include <sys/wait.h>
 #if !defined(_WIN32)
+#include <sys/wait.h>
 #include <unistd.h>
-#endif
 
 int ZiranCommandPipe(int *descriptors, int *error)
 {
@@ -132,3 +132,54 @@ void ZiranCommandClearError(void)
 {
     errno = 0;
 }
+#else
+/* A Windows host has no fork/waitpid; zi2c reports the worker unavailable and
+ * runs its single-process path. */
+int ZiranCommandPipe(int *descriptors, int *error)
+{
+    (void)descriptors;
+    if(error) *error = ENOSYS;
+    return -1;
+}
+
+int ZiranCommandFork(int *error)
+{
+    if(error) *error = ENOSYS;
+    return -1;
+}
+
+long ZiranCommandReadRetry(int descriptor, void *output, size_t count, int *error)
+{
+    (void)descriptor; (void)output; (void)count;
+    if(error) *error = ENOSYS;
+    return -1;
+}
+
+int ZiranCommandWriteAll(int descriptor, const void *bytes, size_t count)
+{
+    (void)descriptor; (void)bytes; (void)count;
+    return 0;
+}
+
+long ZiranCommandWaitRetry(int process, int *status, int *error)
+{
+    (void)process; (void)status;
+    if(error) *error = ENOSYS;
+    return -1;
+}
+
+const char *ZiranCommandErrorText(int error)
+{
+    return strerror(error);
+}
+
+int ZiranCommandLastError(void)
+{
+    return errno;
+}
+
+void ZiranCommandClearError(void)
+{
+    errno = 0;
+}
+#endif

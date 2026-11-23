@@ -39,7 +39,10 @@ compiler, downstream toolchains, and validated runtime cases separately.</p>
 bundles use installed package-provided platform hosts through the same command;
 see <a href="zx.html#running-bundles">runtime providers</a>. <code>make install-user</code> also
 installs ZX Runner: <code>zx app.zx</code> runs a bundle with the toolchain's own
-runtime, and file managers open <code>.zx</code> files with it (<a href="zx.html#zx-runner">ZX Runner</a>).</p>
+runtime, and file managers open <code>.zx</code> files with it (<a href="zx.html#zx-runner">ZX Runner</a>).
+<code>python3 packaging/android/build.py</code> builds the same runner as an Android APK
+(<code>build/android-zx/zx-runner.apk</code>) with <a href="https://github.com/ziranlang/ziran/tree/master/packaging/android"><code>packaging/android</code></a>;
+it registers the <code>.zx</code> type for <code>VIEW</code> and <code>SEND</code>.</p>
 <h2 id="integer-literals">Integer literals</h2>
 <p>Integer literals are decimal, <code>0x</code> hex or <code>0b</code> binary, with <code>_</code> between
 digits: <code>1_000_000</code>, <code>0xDEAD_BEEF</code>, <code>0b1010_0101</code>. A <code>u64</code> literal may use the

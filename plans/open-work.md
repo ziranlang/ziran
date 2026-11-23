@@ -130,6 +130,22 @@ intra-command incremental elaboration, and remote artifact caches.
   allocation-failure behavior (docs/OWNED_VALUES.md); extend the borrow and
   owned-field tests when landed.
 
+## Release
+
+- Ziran 0.8.0 is prepared locally but unpushed: the release job in
+  `.gitea/workflows/check.yml` fires only on the master push that changes
+  `VERSION`, so push the prepared commit only after the CI task reports a
+  passing master check. Prepared: `VERSION` 0.8.0, the folded 61-entry
+  `[0.8.0]` section, `site/stdlib-release.json` (137 modules), and the
+  regenerated site. Verify with `sh tests/version.sh build/bin/ziran`,
+  `python3 scripts/site_pages.py --ziran build/bin/ziran --check`,
+  `python3 scripts/site_links.py` and `sh tests/site_targets.sh
+  build/bin/ziran`. To refold the changelog, use `work/llm-diag`'s
+  scratchpad `release_changelog.py CHANGELOG.md DATE`; `update_version.sh`
+  then rewrites `VERSION`, the site version strings and the inventory.
+  After the push, confirm `v0.8.0` at the releases page and the deployed
+  site once.
+
 ## Environment
 
 - `zstd_go` needs Go 1.25; Omega defaults to 1.24.4, so that check fails

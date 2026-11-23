@@ -315,6 +315,21 @@ by the <code>ZX\0\0</code> signature at offset 0. The desktop entry
 <code>org.ziran_lang.zx.desktop</code> runs the installed runner on that type and becomes
 its default opener through <code>xdg-mime</code>. The header has to start the file, so a
 bundle cannot carry a <code>#!</code> line; run it with <code>zx app.zx</code> or open it.</p>
+<h4 id="android">Android</h4>
+<p>ZX Runner is also an Android app, built from the same runner sources by
+<code>packaging/android/build.py</code>: the engine is
+cross-built with the NDK, the runner is generated with <code>ZX_ANDROID</code>, and
+<code>packaging/android/native/zx_android.c</code> answers <code>std/guest_window</code> from the
+activity's EGL surface. The app registers <code>application/x-ziran-bundle</code> and
+<code>*.zx</code> for <code>VIEW</code> and <code>SEND</code>, so a file manager, a browser download or a share
+opens it directly; its own launcher opens a picked program and keeps a recent
+list. Bundles run in-process on the linked runtime, exactly as on the
+desktop, and their standard output and errors appear in <code>logcat</code> under the
+<code>ZXRunner</code> tag.</p>
+<p><code>zx_android.c</code> presents each RGBA frame as one texture, letterboxed to the
+screen, and maps touch and key input back into the bundle's pixel space. The
+runner's <code>main</code> is the same program as the desktop one; the app only supplies
+the file path and the window.</p>
 <h2 id="writing-bundles">Writing bundles</h2>
 <p><code>zi2zx --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...</code>
 loads explicit inputs and their extensionless imports, lowers what the entry

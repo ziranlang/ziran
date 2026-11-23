@@ -2,7 +2,12 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-23
+
 - Build native AArch64 and ARMv7 images with indexed relocation lookup, so each image relocation visits only its own instruction's machine relocations instead of scanning the whole program. Both devices pass the 81-program parity.
+
+- ZX Runner: `make install-user` installs the `zx` command, the `.zx` file type (`application/x-ziran-bundle`, recognized by name and by its `ZX\0\0` header) and a desktop entry that file managers use to open `.zx` files. `zx app.zx` runs any bundle with the toolchain's runtime and hands it to no other program. It first explains a file that is not a ZX program or uses an older or newer ZX format, and names a bundle that needs platform capabilities, such as a window, that the runner does not provide. Started without a terminal, it also shows failures in a dialog.
+
 - Removed `std/rss_scan` (feed item and tag scanning: `FeedNextItem`, `FeedTag`, `FeedCopyText`). The standard library has no replacement; a program that needs it copies `std/rss_scan.zi` from commit c3ef9fb2, the last one that has it, into its own module root.
 
 - Removed `std/http_get_linux` (`GetHttps`, `GetHttpsCapped`). Use `std/net_http`: `SendCapped` with an `HttpRequest` whose `method` is `"GET"`. Commit 4c62f8b8 is the last one that has the old module.
@@ -11,27 +16,7 @@
 
 - ZX embedders can request an active guest stop from another thread, including during initialization and library calls.
 
-- ZX supports indexing typed pointers. The engine and checked native backends use the backing allocation to reject invalid indices.
-
-- Add optional bounded progress and cancellation callbacks to PNG/JPEG decoding while preserving the ordinary image readers.
-
-- The C backend and the C and Go SIMD emitters now build from Ziran source. Bootstrapping uses generated C seeds.
-
-- The Go backend, its x86-64 assembly emitter, and the checker's expression, statement, and value passes now build from Ziran source.
-
-- Function and whole-program checking, generic linking, SIMD rules, and borrow analysis now build from Ziran source.
-
-- Source parsing, module discovery, and compile-time condition selection now build from Ziran source.
-
-- Declaration parsing, compile-time evaluation, and IR cleanup now build from Ziran source.
-
-- Frontend IR, compiler contexts, source documents, diagnostics, paths, semantic IDs, SHA-256, and law checks now build from Ziran source.
-
-- The checked IR codec, module loading, locked package resolution, and executable ZX asset collection now build from Ziran source. The saved IR format and C interfaces are preserved.
-
-- Entry linking for the C, Go and native backends now builds from Ziran source.
-
-- Inline assembly checking and its C emission now build from Ziran source.
+- Hosted ZX applications can open from a read callback with a smaller instruction store when running on the portable engine.
 
 - Compile hot packed ZX integer instruction runs on Linux i386 with bounded executable storage and the interpreter's work, fuel and failure locations.
 
@@ -39,17 +24,23 @@
 
 - Check public API declarations and examples for a selected backend and platform with `ziran api`.
 
+- Pack checked ZX libraries for explicit OS and CPU targets with `ziran pkg zx pack-ir --locked`.
+
 - Reduce portable ZX integer execution overhead by reusing canonical operands and looking up edge metadata only at branches and jumps.
 
 - Allow instruction-engine hosts to borrow packed read-only scalar slices for synchronous callbacks.
 
-- Hosted ZX applications can open from a read callback with a smaller instruction store when running on the portable engine.
+- Add optional bounded progress and cancellation callbacks to PNG/JPEG decoding while preserving the ordinary image readers.
 
-- Pack checked ZX libraries for explicit OS and CPU targets with `ziran pkg zx pack-ir --locked`.
+- Add compact/reference instruction-budget parity coverage and retained i386 runtime comparisons; the unproven interpreter optimization candidate was withdrawn before installation.
 
 - The portable ZX engine reuses frame storage for large record and array snapshots with disjoint lifetimes.
 
 - Package locks preserve each dependency's own name and exports when multiple refs select the same local override.
+
+- ZX supports indexing typed pointers. The engine and checked native backends use the backing allocation to reject invalid indices.
+
+- The portable ZX engine can resize a heap block using adjacent free space on both sides, avoiding a replacement allocation when the combined space fits.
 
 - The portable ZX engine reuses storage for temporary derived addresses across branches, so loops can traverse large buffers without filling the address table.
 
@@ -58,35 +49,84 @@
 - Speed up SHA-256 verification on hosts without SHA instructions.
 
 - Package tested native Ziran toolchains in Gitea by exact source revision and Linux host profile.
+
 - Distribute checked packages as versioned `.zx` libraries for source-free imports in ZX and native builds.
 
 - Publish and fetch verified `.zx` images and checked compiler companions through Gitea. Package locks can discover and pin compatible checked dependencies for source-free ZX builds.
 
+- The engine-only ZX reader can decode directly into compact instruction storage and expand one function at a time for verification and planning.
+
+- Compact ZX execution uses half the storage for value locations when the configured limits fit a signed 32-bit encoding. Larger plans retain 64-bit locations.
+
+- C embedders can use `BundleOpenEngineReadAt` to reduce the engine’s verified instruction storage. A host allocator can release the unused storage through an optional shrink callback.
+
 - C embedders can open seekable ZX app images through `BundleOpenReadAt` without keeping a full input buffer. The callback is needed only during verification, and images with assets, module linkage, or additional attachments use the byte-based API.
 
+- Native x86-64 code copies and clears fixed-size values through 512 bytes with inline vector instructions, takes register hints from actual control-flow predecessors, creates a stackless leaf's frame only when a fuel check traps, and copies only the used members of record snapshots read through constant fields.
+
+- `zx` hosts bundles in-process and gives them files, the clock, arguments and environment, and their own embedded assets (std/guest_files, guest_clock, guest_process, guest_assets); a capability it lacks is named in the error.
+
 - `ziran api --json` exposes optional type-checked, runnable usage examples for public symbols.
+
 - Native instances release temporary frame reservations while idle, so multiple bundles fit in a 32-bit address space without reducing the active frame limit or checked pointer protection.
+
 - Embedders can route instruction-engine ZX output through a per-instance console callback, including output from global initializers.
 
 - In-process native ZX resizes large heap blocks through the allocator instead of always allocating and copying a replacement. Growth remains zero-filled and checked aliases are invalidated even when the address stays the same. The Vectors kernel on Alpha took 38.19 µs instead of 40.04 µs in 11 matched rounds, against 34.07 µs for C.
+
 - Wasm stores can copy a loaded record directly from its source when no intervening effect requires a snapshot. Copies through pointers preserve partially overlapping memory in either direction.
+
 - The shared optimizer resolves calls through known function addresses, gives calls inside loops a larger inlining budget, and restores borrowed input on resource-limited specialization. Standalone ZX tools now rebuild when the specialization module changes.
+
 - Source and saved module graphs can grow beyond 1,024 files, with bounds checked against available addressable storage.
+
 - Platform conditions in modules with file-scope enum imports no longer force an otherwise ordinary import cycle to resolve at compile time.
+
 - Executable ZX identities hash whole byte ranges through the runtime’s shared SHA-256 implementation, including CPU acceleration where supported, instead of feeding a separate hasher one byte at a time. Identity validation and resource limits are unchanged.
 
 - The native disk cache reloads ARMv7 and AArch64 machine images, including the ARMv7 runtime helper relocations. Android apps reuse compiled code across launches.
+
 - ZX lowering turns a range test with literal bounds, such as `code >= 12288 && code <= 12543`, on a stable local, record member or fixed-array element into one unsigned comparison. Kryon's TextIdeographic drops from 55 to 41 instructions, and the Text widget scenario ran faster in Wasm in 8 of 10 alternating Alpha rounds, with the paint result checked on every call.
+
 - Wasm frames hold only the record slots a procedure still uses. A large record read in place, or a zeroed record that is never built, reserves no frame space, so Shovey, whose level replay reads single fields of a 306 KB global, compiles to Wasm instead of exceeding the 8 MB frame limit.
+
 - On x86-64 and aarch64, native console prints read their arguments straight from the saved registers instead of decoding each by type. On Alpha, arrays.zi went from 1.018 to 0.490 µs per call, enums.zi from 0.353 to 0.177, below Wasm, and loops.zi from 1.560 to 0.720.
+
 - Native ZX gathers standard output in the same console buffer as the engine and hands it to stdio once per run, and before standard error, a host capability call or a trap report. On Alpha, arrays.zi went from 1.150 to 1.023 µs per call, enums.zi from 0.392 to 0.360 and loops.zi from 1.780 to 1.600.
+
 - Native host calls resolve each function's capability or platform service once per instance, keep up to eight arguments on the stack instead of allocating them, and format printed integers directly. On Alpha, arrays.zi went from 2.075 to 1.122 µs per call, enums.zi from 0.686 to 0.378 and loops.zi from 3.155 to 1.718.
+
 - `BundleInstanceOptions.unbounded` runs an instance without step metering: native code for it is built without fuel checks, like an unbounded executable, and takes no step limit. The standard and example benchmark hosts use it, as C and Wasm run unmetered. A normal native run now leaves its output to stdio buffering, as the engine does, instead of flushing stdout and stderr on every call. On Alpha, enums.zi went from 1.213 to 0.688 µs per call, arrays.zi from 2.563 to 2.059, score.zi from 0.033 to 0.022, dijkstra by 24% and fannkuch-redux by 14%.
+
 - In-process native ZX no longer makes a system call on every entry: each thread keeps its stack range, and a forked child looks it up again under its own limit. Records & calls (score.zi) went from 0.511 to 0.032 µs per call on Alpha and text_demo.zi from 0.512 to 0.033 µs; arrays, enums and loops took 13–30% less time.
+
 - Fixes: native ARMv7 and AArch64 code reads and changes members of large records and globals in place, as x86-64 code does, instead of copying the whole record into the frame for every access. Shovey's `LevelReplayPump`, whose 12 MB frame stopped it at its frame limit when Play was pressed on an ARMv7 phone, now needs 1.8 MB on every target. A record or array built from zeros is zeroed in one pass instead of one store per member, so Shovey's native code shrinks from 6.4 to 1.4 MB on ARMv7 and from 2.8 to 0.9 MB on x86-64, and its AArch64 build, where one 4.7 MB function put branches out of range, now compiles.
+
 - Native code is verified once: the encoder no longer verifies again a program register allocation just verified, which shortens a phone's on-device compile. The native disk cache now works in Android apps: a library linked without a GNU build ID, as reproducible APKs are, is identified by its code, and an app process caches in its own cache directory, so only the first launch after an install compiles a bundle.
+
 - Fixes: generated C declares a generic procedure's copy for its caller when the copy's signature names a type through the template's own import alias and the caller has a module-scoped import of that name; GCC 14 rejected the call as an implicit declaration (Kryon's text Draw called from Terminal).
+
 - ZX applications can load separately compiled libraries with verified typed imports, independent instances, export inspection and state-preserving replacement. The loader checks dependency graphs and accepts explicit module roots.
+
+- Most of the compiler builds from Ziran source, bootstrapped from generated C seeds: source parsing, module discovery, declaration parsing, compile-time evaluation and condition selection, IR cleanup, the frontend IR, compiler contexts, source documents, diagnostics, paths, semantic IDs, SHA-256 and law checks, the checker (expressions, statements, values, functions, whole programs, generic linking, SIMD rules, borrow analysis), the C and Go backends with their SIMD and x86-64 assembly emitters, the checked IR codec, module loading, locked package resolution, executable ZX asset collection, entry linking for the C, Go and native backends, inline assembly checking and its C emission, and the ZX embedding API (`include/ziran_host.h`). The saved IR format and the C interfaces are unchanged.
+
+- `ziran run app.zx` hands a bundle only to a runtime provider built by the same toolchain: a `.host` registration records `ziran version --identity` on its second line, and a provider of another build is refused with both identities.
+
+- `ziran lock` and `ziran update` refresh checked-library entries saved under another toolchain instead of refusing; builds name the package and `ziran lock`.
+
+- Generated C names a `#program_export` that two linked package revisions define, gives one type application one C type in every module that spells it, and keeps constants, globals and types off the runtime's and libc's names.
+
+- Nested array literals work at file scope and in procedures: `table: [2][2]s64 = .[.[1, 2], .[3, 4]]`.
+
+- Inside a project, `ziran api PACKAGE/MODULE` prints that package module; options may follow the input files, a module name that selects nothing is an error, and text output lists record fields and enum members.
+
+- A syntax or import error says under it that checking stopped there, and a rejected `--bind` says which side is missing or which module already binds the capability.
+
+- Go's `uintptr` is declared with `#type #foreign builtin "uintptr"`.
+
+- New standard modules for Limbo ports: `std/list`, `std/pool`, `std/tuple`, `std/rune_text`, `std/zx_conc` and `std/bundle_guest`. `std/grapheme` answers ASCII text without its tables.
+
+- Two dependencies that name one repository by different URLs share one module namespace under a local override.
 
 ## [0.7.0] - 2026-11-18
 

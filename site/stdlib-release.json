@@ -1,5 +1,5 @@
 {
-  "version": "0.7.0",
+  "version": "0.8.0",
   "modules": [
     "atomic_go",
     "audio",
@@ -21,6 +21,7 @@
     "base64",
     "binary",
     "binary_linux",
+    "bundle_guest",
     "bundle_host",
     "byte_text",
     "byte_text_linux",
@@ -49,10 +50,14 @@
     "go_types",
     "grapheme",
     "grapheme_data",
+    "guest_assets",
+    "guest_clock",
+    "guest_files",
+    "guest_process",
+    "guest_window",
     "gzip_linux",
     "hash_map",
     "hmac_sha256_go",
-    "http_get_linux",
     "http_go",
     "image",
     "io_go",
@@ -62,6 +67,7 @@
     "json_go",
     "json_quote",
     "json_scan",
+    "list",
     "map_go",
     "mapped_file",
     "mapped_file_linux",
@@ -80,6 +86,7 @@
     "parallel_linux",
     "path",
     "png_linux",
+    "pool",
     "process",
     "process_capture_linux",
     "process_channel_linux",
@@ -90,7 +97,7 @@
     "random_linux",
     "resample",
     "result",
-    "rss_scan",
+    "rune_text",
     "select_go",
     "simd",
     "socket_linux",
@@ -112,6 +119,7 @@
     "timer",
     "timer_linux",
     "toml_document",
+    "tuple",
     "unicode",
     "unicode_data",
     "unicode_normalization",
@@ -127,6 +135,8 @@
     "zip_file_linux",
     "zip_linux",
     "zlib_linux",
-    "zstd_go"
+    "zstd_go",
+    "zx_conc",
+    "zx_module"
   ]
 }

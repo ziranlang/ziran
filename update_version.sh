@@ -13,7 +13,10 @@ import json
 version = sys.argv[1]
 for name in ('index.html', 'get-started.html', 'status.html', 'api.html'):
     path = Path('site') / name
-    path.write_text(re.sub(r'v\d+\.\d+\.\d+', 'v' + version, path.read_text()))
+    page = re.sub(r'v\d+\.\d+\.\d+', 'v' + version, path.read_text())
+    page = page.replace('https://github.com/ziranlang/ziran/releases/tag/',
+                        'https://git.waozi.xyz/ziranlang/ziran/releases/tag/')
+    path.write_text(page)
 inventory = {'version': version, 'modules': sorted(path.stem for path in Path('std').glob('*.zi'))}
 Path('site/stdlib-release.json').write_text(json.dumps(inventory, indent=2) + '\n')
 PY

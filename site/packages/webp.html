@@ -30,19 +30,11 @@ released before returning; native internal threads are disabled. No color
 management/HDR or encoding capability is exposed. The bridge rejects FastColor.</p>
 <pre><code class="language-sh">sh tests/engine_contract.sh
 sh tests/riff.sh
-sh tests/legacy_compare.sh
 sh tests/dynamic_contract.sh
 sh tests/package_import.sh
 sh tests/all.sh
 </code></pre>
-<p>Tests reuse the independently pinned mandatory image-codec corpus. Only the
-optional legacy comparison reads the hash-pinned original Kryon decoder from
-its frozen baseline (or an unchanged original checkout), without changing it.
-The native tests use the existing pinned source package offline. Configure
-local <code>ziran</code> and <code>image_codec</code> overrides before locking during development;
-no bootstrap commit is needed. <code>WEBP_SOURCE</code> can select an existing source
-package with the exact declared revision. No native source is fetched during
-a build. No display is used.</p>
+<p>Tests use the pinned image-codec corpus and native source package offline. All builds run through <code>build-queue</code> without a display.</p>
 <p>The validated native artifact platform is currently Linux x86-64 GNU. Consumers
 request <code>ziran pkg artifact webp:libwebp --platform linux-x86_64-gnu</code>, add the
 returned descriptor's <code>lib</code> directory to link search paths, and link

@@ -51,6 +51,7 @@ DOCS = os.path.join(REPO, 'docs')
 PACKAGE_INVENTORY = os.path.join(SITE, 'package-inventory.json')
 ORIGIN = 'https://ziran-lang.org'
 GITHUB = 'https://github.com/ziranlang/ziran'
+RELEASES = 'https://git.waozi.xyz/ziranlang/ziran/releases/tag'
 # Guide pages start from these documents and follow their links inside docs/.
 GUIDE_ROOTS = ['USAGE.md', 'COMPILER_API.md']
 API_LIMITS = ['--max-symbols', '4096', '--max-bytes', '1048576']
@@ -333,7 +334,7 @@ def std_modules(ziran):
 
 def std_page(module, release):
     name, file = module['name'], module['file']
-    status = (f'Shipped in release <a href="{GITHUB}/releases/tag/{release}">{release}</a>.'
+    status = (f'Shipped in release <a href="{RELEASES}/{release}">{release}</a>.'
               if module['status'] == 'stable' else
               'Available on master (Unreleased).')
     intro = ((f'<p>{code(module["summary"])}</p>' if module['summary'] else '')
@@ -508,8 +509,8 @@ def read_packages(ziran, packages, *, strict_inventory):
             summary = first_sentence(summary)
         if name == 'webp':
             # The public reference covers current providers, not baseline comparisons.
-            rest = rest.replace('build-queue -- sh tests/legacy_compare.sh\n', '')
-            rest = re.sub(r'Tests reuse the independently pinned mandatory image-codec corpus\..*?no display is used\.',
+            rest = re.sub(r'(?:build-queue -- )?sh tests/legacy_compare\.sh\n', '', rest)
+            rest = re.sub(r'Tests reuse the independently pinned mandatory image-codec corpus\..*?[Nn]o display is used\.',
                           'Tests use the pinned image-codec corpus and native source package offline. '
                           'All builds run through `build-queue` without a display.', rest, flags=re.S)
         docs_dir = os.path.join(directory, 'docs')
@@ -651,7 +652,7 @@ def modules_page(std, release, packages):
              'site build. Each page shows the public declarations <code>ziran api</code> reports, with the '
              'comment written above them.</p>'
              f'<p class="module-meta">{badge("stable")} ships in the latest release'
-             + (f', <a href="{GITHUB}/releases/tag/{release}">{release}</a>' if release else '')
+             + (f', <a href="{RELEASES}/{release}">{release}</a>' if release else '')
              + f' (for a package: it has a tagged release). {badge("in-progress")} exists only on '
              '<code>master</code> or has no release yet.</p>')
     content = (

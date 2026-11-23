@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- `#caller_location` names the call site's file relative to its module root, or by its package and the path inside that package, so the same sources build the same output from any folder or package cache.
+
 - ZX embedders can request an active guest stop from another thread, including during initialization and library calls.
 
 - ZX supports indexing typed pointers. The engine and checked native backends use the backing allocation to reject invalid indices.

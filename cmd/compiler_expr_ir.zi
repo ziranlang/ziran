@@ -224,6 +224,9 @@ ExprDefaultHelperName :: (function: *IR.ZirFunction, parameter: s32, output: *u8
 ExprExit :: (status: s32) #foreign expr_libc "exit";
 ExprStrlen :: (text: *void) -> usize #foreign expr_libc "strlen";
 ExprMemchr :: (text: *void, byte: s32, bytes: usize) -> *void #foreign expr_libc "memchr";
+ExprFopen :: (path: *u8, mode: *u8) -> *void #foreign expr_libc "fopen";
+ExprFread :: (buffer: *void, size: usize, count: usize, file: *void) -> usize #foreign expr_libc "fread";
+ExprFclose :: (file: *void) -> s32 #foreign expr_libc "fclose";
 
 QueueOwner :: (owners: *s32, pending: *s32, top: *s32, count: s32, expr: s32, stmt: s32) {
     if expr >= 0 && expr < count && owners[expr] < 0 {
@@ -273,6 +276,110 @@ ExprAppend :: (output: []u8, at: *s64, text: string) -> bool {
     return true
 }
 
+// A call site's file, named the same on every machine so the same sources
+// build the same bytes from any checkout or package cache. A module root
+// inside a package, such as a dependency's src folder, names the file by the
+// package from the nearest ziran.toml and its path inside that package. A
+// file under the module's own root is named relative to it. Other files keep
+// their path.
+StableLocationPath :: (absolute: string, root: string, output: []u8) -> string {
+    slash := absolute.count - 1
+    while slash > 0 && absolute[slash] != #char "/" { slash -= 1 }
+    package_end: s64 = 0
+    if slash > 0 { package_end = CachedPackageFolder(absolute[0:slash]) }
+    under_root := root.count > 0 && absolute.count > root.count + 1 &&
+        absolute[0:root.count] == root && absolute[root.count] == #char "/"
+    package_above_root := package_end > 0 && root.count > package_end &&
+        root[0:package_end] == absolute[0:package_end] && root[package_end] == #char "/"
+    if package_end > 0 && (package_above_root || !under_root) {
+        used: s64 = 0
+        if !ExprAppend(output, *used, IR.BufferText(location_cache_package[:])) || !ExprAppend(output, *used, "/") ||
+            !ExprAppend(output, *used, absolute[package_end + 1:absolute.count]) { return absolute }
+        return TextView(output[0:used])
+    }
+    if under_root { return absolute[root.count + 1:absolute.count] }
+    return absolute
+}
+
+// The length of the package folder that holds DIRECTORY, or 0; the package
+// name is left in location_cache_package.
+CachedPackageFolder :: (directory: string) -> s64 {
+    if location_cache_directory_count == directory.count &&
+        IR.BufferText(location_cache_directory[:]) == directory {
+        return location_cache_package_end
+    }
+    location_cache_directory_count = -1
+    if directory.count >= location_cache_directory.count { return 0 }
+    unused IR.CopyText(location_cache_directory[:], directory)
+    location_cache_package_end = PackageForDirectory(directory, location_cache_package[:])
+    location_cache_directory_count = directory.count
+    return location_cache_package_end
+}
+
+// The last directory a location looked up, and the package it belongs to.
+location_cache_directory: [IR.ZIR_PATH_MAX]u8;
+location_cache_directory_count: s64 = -1;
+location_cache_package: [IR.ZIR_NAME_MAX]u8;
+location_cache_package_end: s64 = 0;
+
+// Writes the [package] name of the nearest ziran.toml at or above DIRECTORY
+// into NAME and returns the length of that package's folder, or 0.
+PackageForDirectory :: (directory: string, name: []u8) -> s64 {
+    end := directory.count
+    while end > 0 {
+        if ManifestPackageName(directory[0:end], name) { return end }
+        end -= 1
+        while end > 0 && directory[end] != #char "/" { end -= 1 }
+    }
+    return 0
+}
+
+ManifestPackageName :: (folder: string, name: []u8) -> bool {
+    path: [IR.ZIR_PATH_MAX]u8
+    used: s64 = 0
+    if !ExprAppend(path[:], *used, folder) || !ExprAppend(path[:], *used, "/ziran.toml") { return false }
+    path[used] = cast(u8)0
+    file := ExprFopen(*path[0], ExprCString("rb"))
+    if file == null { return false }
+    capacity: usize = 65536
+    data := cast(*u8)ExprMalloc(capacity + 1)
+    if data == null {
+        unused ExprFclose(file)
+        return false
+    }
+    defer ExprFree(cast(*void)data)
+    count := ExprFread(cast(*void)data, 1, capacity, file)
+    unused ExprFclose(file)
+    data[count] = cast(u8)0
+    text := IR.CText(data)
+    in_package := false
+    start: s64 = 0
+    while start < text.count {
+        finish := start
+        while finish < text.count && text[finish] != #char "\n" { finish += 1 }
+        line := text[start:finish]
+        start = finish + 1
+        while line.count > 0 && (line[0] == #char " " || line[0] == #char "\t") { line = line[1:line.count] }
+        if line.count > 0 && line[0] == #char "[" {
+            in_package = line.count >= 9 && line[0:9] == "[package]"
+            continue
+        }
+        if !in_package || line.count < 4 || line[0:4] != "name" { continue }
+        rest := line[4:line.count]
+        while rest.count > 0 && (rest[0] == #char " " || rest[0] == #char "\t") { rest = rest[1:rest.count] }
+        if rest.count < 3 || rest[0] != #char "=" { continue }
+        rest = rest[1:rest.count]
+        while rest.count > 0 && (rest[0] == #char " " || rest[0] == #char "\t") { rest = rest[1:rest.count] }
+        if rest.count < 2 || rest[0] != #char "\"" { return false }
+        close: s64 = 1
+        while close < rest.count && rest[close] != #char "\"" { close += 1 }
+        if close >= rest.count || close == 1 || close >= name.count { return false }
+        unused IR.CopyText(name, rest[1:close])
+        return true
+    }
+    return false
+}
+
 CallerLocationText :: (module: *IR.ZirModule, span: IR.ZirSourceSpan, output: []u8) -> string {
     candidate: [IR.ZIR_PATH_MAX * 2]u8
     path := Services.SpanPath(span)
@@ -286,8 +393,11 @@ CallerLocationText :: (module: *IR.ZirModule, span: IR.ZirSourceSpan, output: []
     canonical := ExprCanonicalPath(path)
     defer ExprFree(cast(*void)canonical)
     if canonical != null { path = canonical }
-    text := IR.CText(path)
-    if ExprAbsolutePath(path) == 0 || text.count >= IR.ZIR_PATH_MAX { return "" }
+    absolute := IR.CText(path)
+    if ExprAbsolutePath(path) == 0 || absolute.count >= IR.ZIR_PATH_MAX { return "" }
+    stable: [IR.ZIR_PATH_MAX]u8
+    text := StableLocationPath(absolute, root, stable[:])
+    if text.count == 0 { return "" }
     escaped: [IR.ZIR_TEXT_MAX]u8
     length := Text.EscapeCString(text, escaped[:])
     if length >= escaped.count - 1 { return "" }

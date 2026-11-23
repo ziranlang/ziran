@@ -135,7 +135,7 @@ FIXTURE_END;
 caller_location_extra :: #string FIXTURE_END
 Loaded :: () -> bool {
     if Captured().line_number != #line { return false }
-    if Captured().fully_pathed_filename != #file { return false }
+    if Captured().fully_pathed_filename != "extra.zi" { return false }
     return true
 }
 FIXTURE_END;
@@ -148,7 +148,7 @@ CompileLine :: #run Library.Captured().line_number;
 #assert CompileLine == 4;
 #assert Library.Captured().line_number == 6;
 CompileFile :: #run Library.Captured().fully_pathed_filename;
-#assert CompileFile == #file;
+#assert CompileFile == "app.zi";
 NestedLine :: #run Library.Nested();
 #assert NestedLine == 11;
 #if Library.Captured().line_number == 11 {
@@ -173,7 +173,7 @@ LocalFlag :: 0;
 #program_export
 Answer :: () -> s32 {
     if Captured().line_number != #line { return 0 }
-    if Captured().fully_pathed_filename != #file { return 0 }
+    if Captured().fully_pathed_filename != "app.zi" { return 0 }
     if Typed().line_number != #line { return 0 }
     if Library.Captured().line_number != #line { return 0 }
     value: s32 = 42
@@ -196,6 +196,26 @@ FIXTURE_END;
 
 caller_location_file_scope :: #string FIXTURE_END
 HERE :: #caller_location;
+FIXTURE_END;
+
+// A caller in another package is named by that package, not by its folder.
+caller_location_package_manifest :: #string FIXTURE_END
+[package]
+name = "located"
+FIXTURE_END;
+
+caller_location_package_where :: #string FIXTURE_END
+#import "lib"
+Where :: () -> Source_Code_Location { return Captured() }
+FIXTURE_END;
+
+caller_location_package_app :: #string FIXTURE_END
+#import "where"
+#program_export
+Answer :: () -> s32 {
+    if Where().fully_pathed_filename != "located/src/where.zi" { return 0 }
+    return 42
+}
 FIXTURE_END;
 
 caller_location_wrong_type :: #string FIXTURE_END
@@ -278,6 +298,39 @@ CheckCallCase :: (test: *NativeTest, name: string, fixtures: []CallFixture) -> b
     return true
 }
 
+// The same sources build the same bytes from any folder: a call site's
+// location names its file relative to the root or by its package.
+CheckCallerLocationPaths :: (test: *NativeTest, fixtures: []CallFixture) -> bool {
+    base := CheckPath(test.work, "caller_location_paths")
+    roots := string.[CheckPath(base, "first"), CheckPath(base, "moved/deeper/second")]
+    bundles: [2]string
+    for index: 0..1 {
+        for fixture: fixtures {
+            if fixture.diagnostic != "" { continue }
+            if !NativeWrite(test, CheckPath(roots[index], fixture.name), fixture.source) { return false }
+        }
+        bundles[index] = CheckPath(roots[index], "app.zx")
+        bundle := string.[test.ziran, "bundle", "--root", roots[index], "--entry", "app:Answer",
+            "-o", bundles[index], CheckPath(roots[index], "app.zi")]
+        unused NativeRun(test, bundle[:])
+        if test.failed { return false }
+    }
+    if !NativeAssert(test, NativeSameFile(bundles[0], bundles[1]),
+        "caller locations: the same sources in two folders built different bundles") { return false }
+    package := CheckPath(base, "package")
+    root := CheckPath(base, "consumer")
+    if !NativeWrite(test, CheckPath(package, "ziran.toml"), caller_location_package_manifest) ||
+        !NativeWrite(test, CheckPath(package, "src/where.zi"), caller_location_package_where) ||
+        !NativeWrite(test, CheckPath(root, "lib.zi"), caller_location_lib) ||
+        !NativeWrite(test, CheckPath(root, "app.zi"), caller_location_package_app) { return false }
+    bundle := CheckPath(root, "app.zx")
+    build := string.[test.ziran, "bundle", "--root", root, "--module-path", CheckPath(package, "src"),
+        "--entry", "app:Answer", "-o", bundle, CheckPath(root, "app.zi")]
+    unused NativeRun(test, build[:])
+    run := string.[test.ziran, "run", bundle]
+    return NativeExpect(test, run[:], "42\n")
+}
+
 CallCase :: struct { name: string; fixtures: []CallFixture }
 
 #program_export
@@ -320,5 +373,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         print("Checking % on source and saved IR\n", item.name)
         if !CheckCallCase(*test, item.name, item.fixtures) { return 1 }
     }
+    print("Checking caller locations from two folders and a package\n")
+    if !CheckCallerLocationPaths(*test, caller_location_fixtures[:]) { return 1 }
     return 0
 }

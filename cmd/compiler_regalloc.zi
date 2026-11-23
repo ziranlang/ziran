@@ -109,6 +109,7 @@ Alloc :: struct {
     block_start: Vec(s32)
     block_end: Vec(s32)
     block_incoming: Vec(s32)
+    block_predecessor: Vec(s32)
     param_block: Vec(s32)
     param_edges: Vec(s32)
     param_source: Vec(s32)
@@ -458,6 +459,7 @@ ResetFunction :: (state: *Alloc) -> bool {
         !VecResize(state.temps, 0) || !VecResize(state.pending, 0) || !VecResize(state.param_list, 0) ||
         !VecResizeBounded(state.block_start, blocks, bound) || !VecResizeBounded(state.block_end, blocks, bound) ||
         !VecResizeBounded(state.block_incoming, blocks, bound) ||
+        !VecResizeBounded(state.block_predecessor, blocks, bound) ||
         !VecResizeBounded(state.param_begin, blocks + 1, bound) ||
         !VecResizeBounded(state.param_block, count, bound) || !VecResizeBounded(state.param_edges, count, bound) ||
         !VecResizeBounded(state.param_source, count, bound) || !VecResizeBounded(state.param_pred, count, bound) ||
@@ -470,8 +472,9 @@ ResetFunction :: (state: *Alloc) -> bool {
         !VecResizeBounded(state.gen, blocks * state.words, bound) ||
         !VecResizeBounded(state.kill, blocks * state.words, bound) ||
         !VecResizeBounded(state.fixed_begin, 193, bound) { return Fail(state, .Allocation) }
-    if !Spend(state, count + blocks * state.words * 4 + blocks) { return false }
+    if !Spend(state, count + blocks * state.words * 4 + blocks * 2) { return false }
     for index: cast(s64)0..blocks - 1 { state.block_start[index] = MachineNoId; state.block_end[index] = MachineNoId; state.block_incoming[index] = 0 }
+    for index: cast(s64)0..blocks - 1 { state.block_predecessor[index] = MachineNoId }
     for index: cast(s64)0..count - 1 {
         state.param_block[index] = MachineNoId
         state.param_edges[index] = 0
@@ -515,6 +518,12 @@ CollectParameters :: (state: *Alloc) -> bool {
                 target := edge.target - function.block_begin
                 if edge.target == function.entry { return Fail(state, .Edge, block_id, instruction_id) }
                 state.block_incoming[target] += 1
+                // Prefer a connected predecessor whose allocation is already
+                // known, rather than an unrelated cold block beside the join.
+                predecessor := block_id - function.block_begin
+                if predecessor < target && predecessor > state.block_predecessor[target] {
+                    state.block_predecessor[target] = predecessor
+                }
                 for copy_id: edge.copy_begin..edge.copy_begin + edge.copy_count - 1 {
                     copy := program.copies[copy_id]
                     destination := Local(state, copy.destination)
@@ -1355,6 +1364,27 @@ FixedBlocked :: (state: *Alloc, bank: s32, register: s32, position: s32) -> s32 
 HintRegister :: (state: *Alloc, interval: s32) -> s32 {
     it := state.intervals[interval]
     if it.hint != MachineNoId { return it.hint }
+    if it.prev != MachineNoId && !it.internal {
+        block := state.items[it.start / 2].block
+        previous := state.intervals[it.prev]
+        if block != state.items[previous.end / 2].block {
+            predecessor := state.block_predecessor[block]
+            if predecessor != MachineNoId {
+                position := state.block_end[predecessor] * 2 + 1
+                source := it.prev
+                while source != MachineNoId {
+                    if !Spend(state, 1) { return MachineNoId }
+                    part := state.intervals[source]
+                    if position > part.end { break }
+                    if position >= part.start {
+                        if part.register != MachineNoId { return part.register }
+                        break
+                    }
+                    source = part.prev
+                }
+            }
+        }
+    }
     if it.prev != MachineNoId && state.intervals[it.prev].register != MachineNoId {
         return state.intervals[it.prev].register
     }
@@ -1454,6 +1484,7 @@ ScanBank :: (state: *Alloc, bank: s32) -> bool {
             continue
         }
         hint := HintRegister(state, current)
+        if state.diagnostic.problem != .None { return false }
         best: s32 = MachineNoId
         best_full := false
         for register: cast(s32)0..63 {
@@ -2472,6 +2503,7 @@ FreeScratch :: (state: *Alloc) {
     VecFree(state.block_start)
     VecFree(state.block_end)
     VecFree(state.block_incoming)
+    VecFree(state.block_predecessor)
     VecFree(state.param_block)
     VecFree(state.param_edges)
     VecFree(state.param_source)

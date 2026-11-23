@@ -852,6 +852,29 @@ LowerElement :: (state: *LowerState, function: *MachineFunction, source: LirInst
     return FinishInstruction(state, instruction) != MachineNoId
 }
 
+// A sparse record snapshot keeps its frame object and load position, but
+// only copies fields reached by constant extracts. Whole-value uses keep the
+// full load. Restrict this x86 form to a useful reduction in copied bytes.
+SnapshotMask :: (state: *LowerState, function: *MachineFunction, source: LirInstruction) -> u64 {
+    if state.target.arch != .X86_64 || state.checks || source.result < 0 { return 0 }
+    mask := state.fields.snapshot[source.result]
+    if mask == 0 || mask == 0xffffffffffffffff { return 0 }
+    result := GlobalVirtual(state, function, source.result)
+    type := state.owner.types[state.owner.virtuals[result].type]
+    if type.kind != .Record || type.fields_count <= 0 || type.fields_count > 64 { return 0 }
+    limit: u64 = 0xffffffffffffffff
+    if type.fields_count < 64 { limit = (cast(u64)1 << cast(u64)type.fields_count) - 1 }
+    if (mask & ~limit) != 0 || mask == limit { return 0 }
+    bytes: s64
+    for field: cast(s32)0..type.fields_count - 1 {
+        if (mask & (cast(u64)1 << cast(u64)field)) != 0 {
+            member := state.owner.type_ids[type.fields_begin + field]
+            bytes += state.owner.types[member].size
+        }
+    }
+    return ifx bytes > 0 && bytes <= type.size / 2 then mask else 0
+}
+
 LowerMemory :: (state: *LowerState, function: *MachineFunction, source: LirInstruction,
     opcode: MachineOpcode) -> bool {
     // With --checks a load, store or zero goes through the address its
@@ -901,6 +924,10 @@ LowerMemory :: (state: *LowerState, function: *MachineFunction, source: LirInstr
         if VirtualOperand(state, value, .Use) == MachineNoId { return false }
     }
     if source.op == .FieldAddress && ImmediateOperand(state, source.immediate) == MachineNoId { return false }
+    if opcode == .Load {
+        mask := SnapshotMask(state, function, source)
+        if mask != 0 && ImmediateOperand(state, mask) == MachineNoId { return false }
+    }
     return FinishInstruction(state, instruction) != MachineNoId
 }
 

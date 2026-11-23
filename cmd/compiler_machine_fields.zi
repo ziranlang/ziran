@@ -8,6 +8,10 @@ using Vectors :: #import "std/vec"
 // through nested views, must precede any possible write or call.
 MachineFieldsPlan :: struct {
     pointer: Vec(s32)
+    // For a loaded snapshot used only by constant extracts, the first-level
+    // members that must be copied at the original load point. All bits set
+    // keeps the complete snapshot; nested members are copied in full.
+    snapshot: Vec(u64)
     work: s64
     root: Vec(s32)
     home: Vec(s32)
@@ -18,6 +22,7 @@ MachineFieldsPlan :: struct {
 
 MachineFieldsPlanFree :: (plan: *MachineFieldsPlan) {
     VecFree(plan.pointer)
+    VecFree(plan.snapshot)
     VecFree(plan.root)
     VecFree(plan.home)
     VecFree(plan.stamp)
@@ -45,9 +50,14 @@ MachineFieldsPlanBuild :: (plan: *MachineFieldsPlan, function: LirFunction,
     enabled: bool, budget: s64, bytes: s64) -> MachineProblem {
     count := function.values.count
     plan.work = 0
-    if !VecResizeBounded(plan.pointer, count, bytes) { return .Allocation }
+    if !VecResizeBounded(plan.pointer, count, bytes) || !VecResizeBounded(plan.snapshot, count, bytes) {
+        return .Allocation
+    }
     if !Spend(plan, count, budget) { return .Limit }
-    for value: cast(s64)0..count - 1 { plan.pointer[value] = MachineNoId }
+    for value: cast(s64)0..count - 1 {
+        plan.pointer[value] = MachineNoId
+        plan.snapshot[value] = 0
+    }
     if !enabled { return .None }
     if !VecResizeBounded(plan.root, count, bytes) || !VecResizeBounded(plan.home, count, bytes) ||
         !VecResizeBounded(plan.stamp, count, bytes) || !VecResizeBounded(plan.valid, count, bytes) ||
@@ -83,6 +93,16 @@ MachineFieldsPlanBuild :: (plan: *MachineFieldsPlan, function: LirFunction,
             result := instruction.result
             if result >= 0 && plan.pointer[result] >= 0 { plan.stamp[result] = stamp }
             for value, operand: instruction.operands {
+                // A snapshot can survive writes, calls and block changes: its
+                // selected members are still copied now, never read later from
+                // the source. A whole-value use or a dynamic member keeps all
+                // bytes. This only follows the load itself, not nested views.
+                if plan.pointer[value] >= 0 {
+                    if instruction.op == .Extract && operand == 0 && instruction.operands.count == 1 &&
+                        instruction.immediate < 64 {
+                        plan.snapshot[value] = plan.snapshot[value] | (cast(u64)1 << instruction.immediate)
+                    } else { plan.snapshot[value] = 0xffffffffffffffff }
+                }
                 root := plan.root[value]
                 if root < 0 { continue }
                 if instruction.op != .Extract || operand != 0 || plan.home[root] != cast(s32)home ||
@@ -100,6 +120,7 @@ MachineFieldsPlanBuild :: (plan: *MachineFieldsPlan, function: LirFunction,
                 for value: edge.arguments {
                     root := plan.root[value]
                     if root >= 0 { plan.valid[root] = false }
+                    if plan.pointer[value] >= 0 { plan.snapshot[value] = 0xffffffffffffffff }
                 }
             }
             if Write(instruction.op) { stamp += 1 }

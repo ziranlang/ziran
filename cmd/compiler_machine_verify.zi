@@ -430,6 +430,25 @@ Instructions :: (state: *VerifyState, program: MachineProgram, limits: MachineLi
                         definitions[operand.id] = 1
                     }
                 }
+                // An unchecked x86 record load may name the first-level
+                // members copied into its snapshot with an immediate mask.
+                if instruction.opcode == .Load && instruction.operand_count == 3 {
+                    result := program.operands[instruction.operand_begin]
+                    address := program.operands[instruction.operand_begin + 1]
+                    mask := program.operands[instruction.operand_begin + 2]
+                    if program.target.arch != .X86_64 || program.checks || result.class != .Stack ||
+                        result.role != .Define || address.role != .Use || result.type < 0 || address.type < 0 ||
+                        result.type >= program.types.count || address.type >= program.types.count ||
+                        program.types[address.type].kind != .Pointer || program.types[address.type].element != result.type ||
+                        mask.kind != .Immediate || mask.immediate == 0 {
+                        return Fail(state, .Instruction, cast(s32)function_id, block_id, instruction_id)
+                    }
+                    type := program.types[result.type]
+                    if type.kind != .Record || type.fields_count <= 0 || type.fields_count > 64 ||
+                        type.fields_count < 64 && (mask.immediate >> cast(u64)type.fields_count) != 0 {
+                        return Fail(state, .Instruction, cast(s32)function_id, block_id, instruction_id)
+                    }
+                }
                 if instruction.opcode == .VectorLoop && !VectorLoopForm(program, instruction) {
                     return Fail(state, .Instruction, cast(s32)function_id, block_id, instruction_id)
                 }

@@ -307,6 +307,7 @@ ReturnFixture :: (owner: *Machine.MachineOwner, mode: s32, placed_out: *s32) -> 
     types := Lir.LirType.[.{kind = .Void}, .{kind = .Float, bits = 32}, .{kind = .Record, fields = quad[:]},
         .{kind = .Bool, bits = 1}, .{kind = .Record, fields = outer[:]}]
     constants := Lir.LirConstant.[.{type = 1, bits = 0x3f800000}, .{type = 3, bits = 1}]
+    if mode == 8 { types[1].bits = 64; constants[0].bits = 0x3ff0000000000000 }
     zeros := s32.[0, 0, 0, 0]
     nothing := zeros[0:0]
     condition := s32.[3]
@@ -320,7 +321,7 @@ ReturnFixture :: (owner: *Machine.MachineOwner, mode: s32, placed_out: *s32) -> 
     to_first := Lir.LirEdge.[.{block = 1}, .{block = 2}]
     entry: [6]Lir.LirInstruction
     first: [5]Lir.LirInstruction
-    second: [1]Lir.LirInstruction
+    second: [2]Lir.LirInstruction
     callee_values := s32.[1, 2]
     callee_instructions: [3]Lir.LirInstruction
     callee_return := s32.[1]
@@ -335,6 +336,7 @@ ReturnFixture :: (owner: *Machine.MachineOwner, mode: s32, placed_out: *s32) -> 
     parameters := zeros[0:0]
     at: s64 = 0
     first_count: s64 = 1
+    second_count: s64 = 1
     blocks_used: s64 = 1
     if mode == 0 || mode == 3 {
         values = s32.[1, 2, 2, 3, 0, 0]
@@ -347,6 +349,25 @@ ReturnFixture :: (owner: *Machine.MachineOwner, mode: s32, placed_out: *s32) -> 
         Put(first[:], 0, .Return, -1, return_one[:])
         Put(second[:], 0, .Return, -1, return_one[:])
         if mode == 0 { Put(second[:], 0, .Return, -1, return_two[:]) }
+        blocks_used = 3
+    } else if mode == 6 || mode == 7 || mode == 8 {
+        values = s32.[1, 2, 2, 3, 1, 0]
+        Put(entry[:], 0, .Constant, 0, nothing); entry[0].symbol = 0
+        Put(entry[:], 1, .Constant, 3, nothing); entry[1].symbol = 1
+        Put(entry[:], 2, .Branch, -1, condition[:]); entry[2].edges = to_first[:]
+        at = 3
+        Put(first[:], 0, .Aggregate, 1, zeros[:])
+        Put(first[:], 1, .Return, -1, return_one[:])
+        if mode == 7 {
+            // A class with another read keeps its own storage.
+            Put(first[:], 1, .Extract, 4, return_one[:], 0)
+            Put(first[:], 2, .Return, -1, return_one[:])
+            count = 5
+        }
+        first_count = ifx mode == 7 then 3 else 2
+        Put(second[:], 0, .Aggregate, 2, zeros[:])
+        Put(second[:], 1, .Return, -1, return_two[:])
+        second_count = 2
         blocks_used = 3
     } else if mode == 4 || mode == 5 {
         result_type = 4
@@ -393,7 +414,7 @@ ReturnFixture :: (owner: *Machine.MachineOwner, mode: s32, placed_out: *s32) -> 
     }
     callee_block := Lir.LirBlock.[.{instructions = callee_instructions[:]}]
     blocks := Lir.LirBlock.[.{parameters = entry_parameters, instructions = entry[:at]},
-        .{instructions = first[:first_count]}, .{instructions = second[:]}]
+        .{instructions = first[:first_count]}, .{instructions = second[:second_count]}]
     functions := Lir.LirFunction.[.{module = 0, name = "pick", parameters = parameters, result = result_type,
         values = values[:count], blocks = blocks[:blocks_used], entry = 0, origin = -1},
         .{module = 0, name = "make", result = 2, values = callee_values[:], blocks = callee_block[:],
@@ -615,6 +636,13 @@ MachinePlaceCases :: () -> bool {
     if ReturnFixture(*owner, 0, *inner) != 0 || ReturnFixture(*owner, 1, *inner) != 0 ||
         ReturnFixture(*owner, 2, *inner) != 0 || ReturnFixture(*owner, 3, *inner) != 1 {
         print("return placement case failed\n")
+        return false
+    }
+    // Distinct values built only in their own return blocks share the
+    // result destination. An additional class read conservatively declines.
+    if ReturnFixture(*owner, 6, *inner) != 0 || ReturnFixture(*owner, 7, *inner) != 0 ||
+        ReturnFixture(*owner, 8, *inner) != 2 {
+        print("terminal return placement case failed\n")
         return false
     }
     // A call between a member's definition and its record does not touch the

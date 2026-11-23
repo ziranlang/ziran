@@ -555,6 +555,11 @@ Accounted :: (b: *Builder, image: X64.MachineX64Image) -> bool {
         // Checks branch to traps emitted after the function's blocks: each a
         // trap sequence, optionally after its write-back of the fuel register.
         while at < record.end {
+            if record.body == record.begin {
+                if at + 4 > record.end || image.code[at] != 0x55 || image.code[at + 1] != 0x48 ||
+                    image.code[at + 2] != 0x89 || image.code[at + 3] != 0xe5 { return false }
+                at += 4
+            }
             if at + 7 <= record.end && image.code[at] == 0x4c && image.code[at + 1] == 0x89 &&
                 image.code[at + 2] == 0x3d { at += 7 }
             if at + 12 > record.end || image.code[at] != 0xbf || image.code[at + 5] != 0xe8 ||
@@ -569,7 +574,7 @@ Accounted :: (b: *Builder, image: X64.MachineX64Image) -> bool {
 TRAP_UNREACHABLE :: "bf 01 00 ff ff e8 00 00 00 00 0f 0b"
 TRAP_DIVIDE :: "bf 02 00 ff ff e8 00 00 00 00 0f 0b"
 TRAP_SHIFT :: "bf 03 00 ff ff e8 00 00 00 00 0f 0b"
-TRAP_FUEL :: "bf 04 00 ff ff e8 00 00 00 00 0f 0b"
+TRAP_FUEL :: "55 48 89 e5 bf 04 00 ff ff e8 00 00 00 00 0f 0b"
 
 Ids :: struct {
     answer: s32
@@ -872,7 +877,7 @@ Basics :: () -> bool {
         !Check(Displacement(image.code, image.instructions[ids.loop_ops[5]].end - 4) ==
             image.blocks[b.functions[ids.loop].block_begin + 1] - image.instructions[ids.loop_ops[5]].end,
             "backward jump reaches the loop head") ||
-        !Check(loop.end - loop.begin == 83, "loop function size") { return false }
+        !Check(loop.body == loop.begin, "global fuel loop has no prologue") { return false }
     if !Checked(image, ids.fuel_ops[0], "48 81 2d 00 00 00 00 e8 03 00 00", 2, TRAP_FUEL, "", "fuel imm32") ||
         !Checked(image, ids.fuel_ops[1], "49 bb 00 00 00 00 01 00 00 00 4c 29 1d 00 00 00 00", 2, TRAP_FUEL, "",
             "fuel through scratch") { return false }
@@ -908,12 +913,12 @@ Basics :: () -> bool {
         relocation := image.relocations[index]
         if relocation.kind == .FuelCounter && relocation.instruction == ids.loop_ops[1] {
             // The check's jb reaches its trap past the function's blocks:
-            // mov edi, code is 5 bytes, then call's field.
+            // The cold frame is 4 bytes, mov edi is 5, then call's field.
             stub := fuel_range.begin + 14 + Displacement(image.code, fuel_range.begin + 10)
             trapped := false
             for later: index + 1..image.relocations.count - 1 {
                 trap := image.relocations[later]
-                if trap.kind == .TrapHandler && trap.instruction == ids.loop_ops[1] { trapped = trap.offset == stub + 6 }
+                if trap.kind == .TrapHandler && trap.instruction == ids.loop_ops[1] { trapped = trap.offset == stub + 10 }
             }
             found = Check(relocation.offset == fuel_range.begin + 3 && relocation.addend == -5 && trapped,
                 "fuel counter and fuel trap relocation offsets")
@@ -986,6 +991,12 @@ Calls :: () -> bool {
     if encoded.problem != .None { Report("calls encode", encoded); return false }
     image := X64.MachineX64View(*owner)
     measured := Apply(*b, .Measure, null, limits)
+    if !Check(image.functions[callee].body == image.functions[callee].begin &&
+            image.functions[later].body == image.functions[later].begin,
+            "fuelled leaf callees have no prologue") { return false }
+    callee_block := b.blocks[b.functions[callee].entry]
+    if !Instruction(image, callee_block.instruction_begin + callee_block.instruction_count - 1,
+            "c3", "fuelled leaf return leaves the caller frame untouched") { return false }
     // Only the caller calls, so only its prologue checks the stack limit:
     // cmp rsp, [rip + limit]; jb to the stack trap after its body.
     if !Check(measured.code_bytes == 240 && image.code.count == 240 && measured.relocations == 8,
@@ -1003,7 +1014,7 @@ Calls :: () -> bool {
         !Instruction(image, explicit, "bf 09 00 00 00 e8 00 00 00 00 0f 0b", "explicit trap") { return false }
     kinds: [8]X64.MachineX64RelocationKind = .[.FuelCounter, .TrapHandler, .StackLimit, .GlobalAddress,
         .TrapHandler, .FuelCounter, .TrapHandler, .TrapHandler]
-    offsets: [8]s64 = .[7, 29, 71, 118, 130, 167, 189, 234]
+    offsets: [8]s64 = .[3, 28, 71, 118, 130, 163, 188, 234]
     addends: [8]s64 = .[-5, -4, -4, 4, -4, -5, -4, -4]
     for index: 0..7 {
         relocation := image.relocations[index]

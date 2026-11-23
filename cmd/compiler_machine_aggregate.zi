@@ -1026,15 +1026,12 @@ Place :: (context: *Context) -> bool {
     return Flatten(context)
 }
 
-// Builds the aggregate the function returns where the caller wants it, when
-// every return gives the same class: the hidden result address belongs to
-// the callee alone while it runs, so the class's frame object can be that
-// memory and the return has nothing to copy, as long as the record is big
-// enough for that to pay (MachineAggregateResultBytes). The class must have an object of
-// its own (a split record or a view has none), must not be a function
-// parameter (its incoming object is the caller's argument), and must not
-// already lie inside another class. Two classes returned on different paths
-// keep their copies, as does anything unusual about a return.
+// Builds returned aggregates in the caller's result memory. A single
+// returned class may span blocks. Several classes can share that memory
+// when each is defined and used only in its own terminal return block and
+// its sole use outside in-place updates is that return. Their lifetimes
+// cannot overlap: execution leaves the function at each class's last use.
+// Parameters, views and classes placed inside another keep their storage.
 ChooseResult :: (context: *Context) -> bool {
     plan := context.plan
     function := context.function
@@ -1042,24 +1039,41 @@ ChooseResult :: (context: *Context) -> bool {
     if result_type < 0 || result_type >= context.program.types.count ||
         context.stack_size[result_type] < MachineAggregateResultBytes { return true }
     chosen: s32 = MachineNoId
-    for block: function.blocks {
+    several := false
+    terminal := true
+    for block, home: function.blocks {
         if !Spend(context, block.instructions.count + 1) { return false }
-        for instruction: block.instructions {
+        for instruction, item: block.instructions {
             if instruction.op != .Return { continue }
             if instruction.operands.count != 1 || !Aggregate(context, instruction.operands[0]) { return true }
             value := instruction.operands[0]
             if TypeOf(context, value) != result_type || plan.split[value] ||
                 (plan.view[value] != .None && plan.view[value] != .PutBack) { return true }
             class := plan.slot[value]
-            if chosen != MachineNoId && chosen != class { return true }
+            if plan.class_fixed[class] || plan.class_into[class] != MachineNoId { return true }
+            if chosen != MachineNoId && chosen != class { several = true }
             chosen = class
+            if plan.class_block[class] != cast(s32)home || plan.class_outside[class] != 1 ||
+                plan.class_item[class] != cast(s32)item || plan.class_last[class] != cast(s32)item {
+                terminal = false
+            }
         }
     }
-    // The returned value itself is neither split nor a view (checked above),
-    // so its class takes a frame object of its own.
-    if chosen == MachineNoId || plan.class_fixed[chosen] || plan.class_into[chosen] != MachineNoId { return true }
-    plan.class_into[chosen] = MachineAggregateInResult
-    plan.class_at[chosen] = 0
+    // Several terminal values add a persistent destination register even
+    // though only one return executes. Keep two-vector copies or larger so
+    // eliminating that copy outweighs preserving the destination register.
+    if chosen == MachineNoId || several && (!terminal || context.stack_size[result_type] < 32) { return true }
+    // Publish only after every returned class has passed the proof. Placed
+    // members follow their class into the same result memory in Collapse.
+    for block: function.blocks {
+        if !Spend(context, block.instructions.count + 1) { return false }
+        for instruction: block.instructions {
+            if instruction.op != .Return { continue }
+            class := plan.slot[instruction.operands[0]]
+            plan.class_into[class] = MachineAggregateInResult
+            plan.class_at[class] = 0
+        }
+    }
     plan.result_placed = true
     return true
 }

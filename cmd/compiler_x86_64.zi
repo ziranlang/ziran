@@ -263,10 +263,10 @@ AtOffset :: (memory: X86Operand, offset: s64) -> X86Operand {
     return memory
 }
 
-// Copies and zeroing of at least LoopBytes run a loop over 16-byte chunks
-// through the float scratch xmm15, with r11 counting up to zero, then finish
-// the tail through r11; shorter ones move 8/4/2/1-byte pieces through r11.
-LoopBytes :: 64
+// Large copies and zeroing loop over 16-byte chunks. Smaller records use
+// straight-line vector moves so passing a record does not run a counted loop.
+// Both use the reserved float scratch; the final bytes use r11.
+LoopBytes :: 512
 
 Looped :: (size: s64, first: X86Operand, second: X86Operand) -> bool {
     return size >= LoopBytes && first.kind == .Base && second.kind == .Base &&
@@ -299,6 +299,14 @@ CopyMemory :: (state: *State, destination: X86Operand, source: X86Operand, size:
         X86VectorLoad(*state.writer, scratch, X86Indexed(source.register, X86R11, source.displacement + offset))
         X86VectorStore(*state.writer, X86Indexed(destination.register, X86R11, destination.displacement + offset), scratch)
         LoopEnd(state, begin)
+    } else if destination.kind == .Base && source.kind == .Base &&
+        destination.register != X86R11 && source.register != X86R11 {
+        scratch := MachineAbiScratchFloatRegister(state.program.target)
+        while offset + 16 <= size {
+            X86VectorLoad(*state.writer, scratch, AtOffset(source, offset))
+            X86VectorStore(*state.writer, AtOffset(destination, offset), scratch)
+            offset += 16
+        }
     }
     while offset < size {
         remaining := size - offset
@@ -323,8 +331,16 @@ ZeroMemory :: (state: *State, destination: X86Operand, size: s64) -> bool {
         X86VectorStore(*state.writer, X86Indexed(destination.register, X86R11, destination.displacement + offset), scratch)
         LoopEnd(state, begin)
     }
-    // The loop leaves r11 at zero.
-    if offset == 0 && size > 0 { X86MoveImmediate(*state.writer, X86R11, 0) }
+    if offset == 0 && destination.kind == .Base && destination.register != X86R11 && size >= 16 {
+        scratch := MachineAbiScratchFloatRegister(state.program.target)
+        X86VectorZero(*state.writer, scratch)
+        while offset + 16 <= size {
+            X86VectorStore(*state.writer, AtOffset(destination, offset), scratch)
+            offset += 16
+        }
+    }
+    // The loop leaves r11 at zero; straight-line vector stores do not.
+    if size > offset && offset < LoopBytes { X86MoveImmediate(*state.writer, X86R11, 0) }
     while offset < size {
         remaining := size - offset
         width: s64 = 1
@@ -494,6 +510,12 @@ FuelStore :: (state: *State) { if state.fuel_live { FuelCounter(state, true) } }
 FuelReload :: (state: *State) { if state.fuel_live { FuelCounter(state, false) } }
 
 TrapSequence :: (state: *State, code: u64) {
+    // A leaf with no stack homes creates its frame only when a check fails.
+    // This aligns the handler call and preserves the ordinary frame chain.
+    if state.frameless {
+        X86Push(*state.writer, X86Rbp)
+        X86Move(*state.writer, X86Rbp, X86Rsp)
+    }
     FuelStore(state)
     X86MoveImmediate32(*state.writer, X86Rdi, code)
     X86Byte(*state.writer, 232)
@@ -1377,8 +1399,9 @@ ElementAccess :: (state: *State, load: bool) -> bool {
 }
 
 Load :: (state: *State) -> bool {
-    if Current(state).operand_count == 4 { return ElementAccess(state, true) }
-    if !Count(state, 2) { return false }
+    count := Current(state).operand_count
+    if count == 4 { return ElementAccess(state, true) }
+    if count != 3 && !Count(state, 2) { return false }
     destination_operand := OperandAt(state, 0)
     address_operand := OperandAt(state, 1)
     if destination_operand.class == .Stack {
@@ -1387,9 +1410,30 @@ Load :: (state: *State) -> bool {
             TypeOf(state, address_operand).kind != .Pointer { return false }
         destination := StackMemory(state, destination_operand.id, OperandId(state, 0))
         if state.diagnostic.problem != .None { return false }
+        if count == 3 {
+            // Sparse snapshot: copy selected first-level members at the load,
+            // preserving the original value across later writes and calls.
+            type := TypeOf(state, destination_operand)
+            selected := OperandAt(state, 2)
+            if state.program.checks || type.kind != .Record || type.fields_count <= 0 ||
+                type.fields_count > 64 || selected.kind != .Immediate || selected.immediate == 0 ||
+                type.fields_count < 64 && (selected.immediate >> cast(u64)type.fields_count) != 0 {
+                return Fail(state, .Unsupported)
+            }
+            for field: cast(s32)0..type.fields_count - 1 {
+                if (selected.immediate & (cast(u64)1 << cast(u64)field)) == 0 { continue }
+                member: s32
+                offset: s64
+                if !Member(state, TypeIdOf(state, destination_operand), cast(u64)field, *member, *offset) ||
+                    !CopyMemory(state, AtOffset(destination, offset), X86At(address, offset),
+                        state.program.types[member].size) { return false }
+            }
+            return true
+        }
         return CopyMemory(state, destination, X86At(address, 0),
             state.program.stack_objects[destination_operand.id].size)
     }
+    if count != 2 { return Fail(state, .Unsupported) }
     address := Register(state, 1, .Use)
     if address == MachineNoId { return false }
     if TypeOf(state, OperandAt(state, 1)).kind != .Pointer { return Fail(state, .Unsupported, OperandId(state, 1)) }
@@ -2326,9 +2370,9 @@ TailCallAt :: (program: MachineProgram, block_id: s32, at: s32) -> bool {
 }
 
 // Whether FUNCTION needs no frame: nothing of it lives on the stack, it
-// checks no stack limit, keeps no step budget in a register and runs only
-// instructions that cannot trap, calling nothing except a tail call, so
-// no callee or trap handler ever sees its stack.
+// checks no stack limit, keeps no step budget in a register and calls nothing
+// except a tail call. A global fuel check creates a frame only on its cold
+// failure path, before entering the trap handler.
 Frameless :: (program: MachineProgram, function_id: s32) -> bool {
     function := program.functions[function_id]
     if function.calling != .Internal || function.stack_count != 0 || function.arena_mark != 0 ||
@@ -2338,7 +2382,7 @@ Frameless :: (program: MachineProgram, function_id: s32) -> bool {
         block := program.blocks[block_id]
         end := block.instruction_begin + block.instruction_count
         for at: block.instruction_begin..end - 1 {
-            if TailCallAt(program, block_id, at) { continue }
+            if TailCallAt(program, block_id, at) || program.instructions[at].opcode == .Fuel { continue }
             if !PlainInstruction(program, program.instructions[at]) { return false }
         }
     }

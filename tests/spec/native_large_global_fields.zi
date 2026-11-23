@@ -104,7 +104,123 @@ Fresh :: (rounds: s32) -> u64 {
     return hash
 }
 
+// Exercise exact copy/zero tails on both sides of the native vector and
+// loop cutoffs. The unaligned member has sentinels on both sides, and the
+// by-value argument must survive clearing its aliased caller storage.
+CopyBox :: struct($T: Type) { before: u8; bytes: T; after: u8 }
+
+CopyAndClear :: (value: $T, alias: *CopyBox(T)) -> T {
+    zero: CopyBox(T)
+    alias.bytes = zero.bytes
+    result := value
+    for byte, at: value { result[at] = byte ^ cast(u8)at }
+    return result
+}
+
+CopyBoundary :: (shape: $T) -> bool {
+    box: CopyBox(T)
+    box.before = 173
+    box.after = 219
+    for byte, at: shape { box.bytes[at] = cast(u8)((at * 37 + 11) % 251) }
+    saved := box.bytes
+    result := CopyAndClear(box.bytes, *box)
+    if box.before != 173 || box.after != 219 { return false }
+    for byte, at: shape {
+        expected := cast(u8)((at * 37 + 11) % 251)
+        if box.bytes[at] != 0 || saved[at] != expected ||
+            result[at] != (expected ^ cast(u8)at) { return false }
+    }
+    return true
+}
+
+CopyBoundaries :: () -> bool {
+    short7: [7]u8
+    short11: [11]u8
+    short13: [13]u8
+    short14: [14]u8
+    a: [15]u8
+    b: [16]u8
+    c: [17]u8
+    d: [63]u8
+    e: [64]u8
+    f: [65]u8
+    g: [255]u8
+    h: [256]u8
+    i: [511]u8
+    j: [512]u8
+    k: [513]u8
+    return CopyBoundary(short7) && CopyBoundary(short11) &&
+        CopyBoundary(short13) && CopyBoundary(short14) &&
+        CopyBoundary(a) && CopyBoundary(b) && CopyBoundary(c) &&
+        CopyBoundary(d) && CopyBoundary(e) && CopyBoundary(f) &&
+        CopyBoundary(g) && CopyBoundary(h) && CopyBoundary(i) &&
+        CopyBoundary(j) && CopyBoundary(k)
+}
+
+// A packed record snapshot keeps its original fields across an aliased
+// write, a call and a branch. Only the selected fields need copying, while a
+// nested field remains a complete value that can be read after the change.
+SnapshotRecord :: struct {
+    tag: u8
+    padding: [256]u8
+    count: s32
+    heat: float64
+    total: s64
+    cell: Cell
+}
+
+snapshot_record: SnapshotRecord;
+
+ClearSnapshot :: (alias: *SnapshotRecord) {
+    alias.count = 99
+    alias.heat = 13.0
+    alias.total = 17
+    for at: cast(s32)0..255 { alias.padding[at] = cast(u8)at }
+    alias.cell.weight = 23
+    alias.cell.marks[5] = 29
+}
+
+SnapshotFields :: (branch: bool) -> bool {
+    snapshot_record.count = 41
+    snapshot_record.heat = 2.5
+    snapshot_record.total = 4294967311
+    snapshot_record.cell.weight = 9000000007
+    snapshot_record.cell.marks[5] = 31
+    saved := snapshot_record
+    nested := saved.cell
+    ClearSnapshot(*snapshot_record)
+    if branch {
+        return saved.count == 41 && saved.heat == 2.5 && saved.total == 4294967311 &&
+            nested.weight == 9000000007 && nested.marks[5] == 31
+    }
+    snapshot_record.count = 0
+    return saved.count == 41 && saved.total == 4294967311 && nested.weight == 9000000007 &&
+        nested.marks[5] == 31 && snapshot_record.heat == 13.0
+}
+
+// The results of separate return blocks may share a callee destination,
+// while two calls must still produce independent values in their caller.
+TerminalRecord :: (first: bool, seed: s32) -> SnapshotRecord {
+    if first {
+        return .{tag = 7, count = seed, heat = 3.25, total = 4294967311,
+            cell = Cell.{kind = seed + 1, weight = 9000000007}}
+    }
+    return .{tag = 11, count = seed + 2, heat = 6.5, total = 4294967357,
+        cell = Cell.{kind = seed + 3, weight = 9000000037}}
+}
+
+TerminalRecords :: () -> bool {
+    first := TerminalRecord(true, 37)
+    second := TerminalRecord(false, 43)
+    return first.tag == 7 && first.count == 37 && first.heat == 3.25 &&
+        first.total == 4294967311 && first.cell.kind == 38 && first.cell.weight == 9000000007 &&
+        second.tag == 11 && second.count == 45 && second.heat == 6.5 &&
+        second.total == 4294967357 && second.cell.kind == 46 && second.cell.weight == 9000000037 &&
+        first.padding[255] == 0 && second.padding[0] == 0 && first.cell.marks[5] == 0
+}
+
 main :: () -> s32 {
+    if !CopyBoundaries() || !SnapshotFields(true) || !SnapshotFields(false) || !TerminalRecords() { return 1 }
     huge.level = 3
     huge.scale = 1.0
     huge.same = true

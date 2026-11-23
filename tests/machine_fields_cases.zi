@@ -121,10 +121,25 @@ Fixture :: (owner: *Machine.MachineOwner, target: Target.TargetDescription, mode
     if !Lowered(owner, program, target, "field") { return false }
     mir := Lower.MachineProgramView(owner)
     copies: s64
+    sparse: s64
     for instruction: mir.instructions {
         if instruction.opcode != .Load { continue }
         result := mir.operands[instruction.operand_begin]
-        if result.class == .Stack { copies += 1 }
+        if result.class == .Stack {
+            copies += 1
+            if instruction.operand_count == 3 {
+                selected := mir.operands[instruction.operand_begin + 2]
+                if selected.kind != .Immediate || selected.immediate != 2 { return false }
+                sparse += 1
+            }
+        }
+    }
+    expected_sparse: s64 = ifx target.arch == .X86_64 && !checks &&
+        (mode == 1 || mode == 2 || mode == 6) then 1 else 0
+    if sparse != expected_sparse {
+        print("field snapshot mask failed: arch % mode % checks % sparse %\n",
+            cast(s32)target.arch, mode, checks, sparse)
+        return false
     }
     preserve := checks || mode == 1 || mode == 2 || mode == 4 || mode == 5 || mode == 6
     if (copies > 0) != preserve || !preserve && mir.stack_objects.count != 0 {
@@ -210,7 +225,7 @@ MachineFieldsCases :: () -> bool {
     targets := Targets()
     for target: targets {
         for mode: cast(s32)0..6 { if !Fixture(*owner, target, mode, false) { return false } }
-        if !Fixture(*owner, target, 0, true) { return false }
+        for mode: cast(s32)0..6 { if !Fixture(*owner, target, mode, true) { return false } }
         if !ZeroFixture(*owner, target, false, false) || !ZeroFixture(*owner, target, true, false) ||
             !ZeroFixture(*owner, target, false, true) || !ZeroFixture(*owner, target, false, false, true) { return false }
     }

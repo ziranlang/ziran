@@ -44,6 +44,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     plain := CheckPath(test.work, "plain")
     encoded := CheckPath(test.work, "encoded")
     decoded := CheckPath(test.work, "decoded")
+    empty_member := ""
     for kind: cast(s64)0..4 {
         bytes: Vec(u8)
         if kind == 1 { BuilderAppend(bytes, "{}") }
@@ -67,6 +68,18 @@ main :: (argc: s32, argv: **u8) -> s32 {
         if !NativeAssert(*test, valid && actual == value, "native gzip disagrees with the independent codec") { return 1 }
         if value.count > 0 && !GzipClient(*test, executable, "decompress", encoded, decoded, value.count - 1, 2) { return 1 }
         original := independent.output
+        if value.count == 0 {
+            empty_member = original
+        }
+        members := CheckConcat(CheckConcat(original, original), empty_member)
+        if !NativeWrite(*test, encoded, members) ||
+            !GzipClient(*test, executable, "members", encoded, decoded, value.count * 2) { return 1 }
+        actual, valid = ReadEntireFile(decoded)
+        if !NativeAssert(*test, valid && actual == CheckConcat(value, value), "concatenated gzip output differs") { return 1 }
+        if value.count > 0 &&
+            !GzipClient(*test, executable, "members", encoded, decoded, value.count * 2 - 1, 2) { return 1 }
+        if !NativeWrite(*test, encoded, members[:members.count - 1]) ||
+            !GzipClient(*test, executable, "members", encoded, decoded, value.count * 2, 2) { return 1 }
         zeroes: [8]u8
         invalid: [4]string = .[original[:original.count - 1], CheckConcat(original, "x"), CheckConcat(original, original),
             CheckConcat(original[:original.count - 8], TextFromBytes(zeroes[:]))]
@@ -75,7 +88,10 @@ main :: (argc: s32, argv: **u8) -> s32 {
             if !NativeWrite(*test, encoded, damaged) || !GzipClient(*test, executable, "decompress", encoded, decoded, value.count, 2) { return 1 }
         }
     }
+    if !NativeWrite(*test, encoded, "") || !GzipClient(*test, executable, "members", encoded, decoded, 0, 2) {
+        return 1
+    }
     if test.failed { return 1 }
-    print("Native gzip: independent round trips, exact bounds, CRC, truncation and trailing-data rejection passed\n")
+    print("Native gzip: independent round trips, concatenated members, exact bounds, CRC and malformed input passed\n")
     return 0
 }

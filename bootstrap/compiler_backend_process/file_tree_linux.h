@@ -24,19 +24,43 @@ extern "C" {
 #define BASIC_STATS 2047
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
-#define zir_d_11bac2ddd8e54187 577
+#define zir_d_1804434b9f03f4fd 577
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
-#define zir_d_8ded2ea5c118fc54 1089
+#define zir_d_721727d399390bee 1089
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
-#define zir_d_ba4d3510d74f83d1 524288
+#define zir_d_1a624a62db2cbbef 524288
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
 #define EXISTS 17
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
-#define zir_d_e772df0ce0bb1f83 4
+#define zir_d_66b6aadc3ac72b85 4
+#endif
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#define OpenDirectoryFlag 65536
+#endif
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#define OpenNoFollow 131072
+#endif
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#define OpenNonBlocking 2048
+#endif
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#define OpenExclusiveWrite 193
+#endif
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#define AtEmptyPath 4096
+#endif
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#define MissingChild 2
+#endif
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#define ExistingChild 17
+#endif
+#ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
+#define InvalidChild 22
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
 typedef struct StatxRecord StatxRecord;
@@ -107,6 +131,13 @@ struct __type_c53c2d7c4913dc02 {
     int64_t capacity;
 };
 #endif
+FileHandle file_tree_linux_OpenDirectoryHandle(String path, int32_t* status);
+FileHandle file_tree_linux_OpenChildDirectory(FileHandle directory, String name, int32_t* status);
+FileHandle file_tree_linux_OpenOrCreateChildDirectory(FileHandle directory, String name, uint32_t mode);
+FileHandle file_tree_linux_OpenChildRegularFile(FileHandle directory, String name, int32_t* status);
+FileHandle file_tree_linux_OpenNewChildFile(FileHandle directory, String name, uint32_t mode);
+bool file_tree_linux_RenameChild(FileHandle directory, String source, String destination);
+bool file_tree_linux_RemoveChildFile(FileHandle directory, String name, bool allow_missing);
 PathQueryResult file_tree_linux_PathQuery(String path, bool follow_links);
 PathInfo file_tree_linux_PathStatus(String path, bool follow_links);
 PathInfo file_tree_linux_FileSnapshot(String path);

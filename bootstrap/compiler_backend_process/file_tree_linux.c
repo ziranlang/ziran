@@ -278,6 +278,54 @@ zir_f_0ee210116da2a0c9_ErrnoRaw(void)
     return zir_foreign_zir_f_0ee210116da2a0c9_ErrnoRaw();
 }
 #endif
+#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_OpenAtRaw_0e8babf5
+#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_OpenAtRaw_0e8babf5
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_0ee210116da2a0c9_OpenAtRaw(int32_t directory, uint8_t* name, int32_t flags, ...) __asm__("_openat");
+#else
+int32_t zir_foreign_zir_f_0ee210116da2a0c9_OpenAtRaw(int32_t directory, uint8_t* name, int32_t flags, ...) __asm__("openat");
+#endif
+#define zir_f_0ee210116da2a0c9_OpenAtRaw zir_foreign_zir_f_0ee210116da2a0c9_OpenAtRaw
+#endif
+#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_MakeDirectoryAtRaw_71a6739b
+#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_MakeDirectoryAtRaw_71a6739b
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_0ee210116da2a0c9_MakeDirectoryAtRaw(int32_t directory, uint8_t* name, uint32_t mode) __asm__("_mkdirat");
+#else
+int32_t zir_foreign_zir_f_0ee210116da2a0c9_MakeDirectoryAtRaw(int32_t directory, uint8_t* name, uint32_t mode) __asm__("mkdirat");
+#endif
+static int32_t
+zir_f_0ee210116da2a0c9_MakeDirectoryAtRaw(int32_t directory, uint8_t* name, uint32_t mode)
+{
+    return zir_foreign_zir_f_0ee210116da2a0c9_MakeDirectoryAtRaw(directory, name, mode);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_UnlinkAtRaw_c5598daa
+#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_UnlinkAtRaw_c5598daa
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_0ee210116da2a0c9_UnlinkAtRaw(int32_t directory, uint8_t* name, int32_t flags) __asm__("_unlinkat");
+#else
+int32_t zir_foreign_zir_f_0ee210116da2a0c9_UnlinkAtRaw(int32_t directory, uint8_t* name, int32_t flags) __asm__("unlinkat");
+#endif
+static int32_t
+zir_f_0ee210116da2a0c9_UnlinkAtRaw(int32_t directory, uint8_t* name, int32_t flags)
+{
+    return zir_foreign_zir_f_0ee210116da2a0c9_UnlinkAtRaw(directory, name, flags);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_0ee210116da2a0c9_RenameAtRaw_57868d39
+#define ZIR_FOREIGN_zir_f_0ee210116da2a0c9_RenameAtRaw_57868d39
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_0ee210116da2a0c9_RenameAtRaw(int32_t old_directory, uint8_t* old_name, int32_t new_directory, uint8_t* new_name) __asm__("_renameat");
+#else
+int32_t zir_foreign_zir_f_0ee210116da2a0c9_RenameAtRaw(int32_t old_directory, uint8_t* old_name, int32_t new_directory, uint8_t* new_name) __asm__("renameat");
+#endif
+static int32_t
+zir_f_0ee210116da2a0c9_RenameAtRaw(int32_t old_directory, uint8_t* old_name, int32_t new_directory, uint8_t* new_name)
+{
+    return zir_foreign_zir_f_0ee210116da2a0c9_RenameAtRaw(old_directory, old_name, new_directory, new_name);
+}
+#endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
 #define ZIRAN_MAYBE_UNUSED __attribute__((unused))
@@ -286,7 +334,12 @@ zir_f_0ee210116da2a0c9_ErrnoRaw(void)
 #endif
 #endif
 static PathKind file_tree_linux_PathKindOf(int32_t mode) ZIRAN_MAYBE_UNUSED;
+static bool file_tree_linux_ReadPathInfoAt(int32_t directory, uint8_t* name, int32_t flags, PathInfo* info) ZIRAN_MAYBE_UNUSED;
 static bool file_tree_linux_ReadPathInfo(uint8_t* name, int32_t flags, PathInfo* info) ZIRAN_MAYBE_UNUSED;
+static bool file_tree_linux_CopyChildName(FileHandle directory, String name, Slice encoded) ZIRAN_MAYBE_UNUSED;
+static void file_tree_linux_OpenStatus(int32_t* status, int32_t error) ZIRAN_MAYBE_UNUSED;
+static FileHandle file_tree_linux_OpenedHandle(int32_t fd, int32_t* status) ZIRAN_MAYBE_UNUSED;
+static FileHandle file_tree_linux_OpenChildHandle(FileHandle directory, String name, int32_t flags, uint32_t mode, int32_t* status) ZIRAN_MAYBE_UNUSED;
 static void file_tree_linux_ReleaseOwnedText(String text) ZIRAN_MAYBE_UNUSED;
 static Text file_tree_linux_CopyText(Slice bytes) ZIRAN_MAYBE_UNUSED;
 static void file_tree_linux_ReleaseNames(__type_c53c2d7c4913dc02* names, int64_t from) ZIRAN_MAYBE_UNUSED;
@@ -311,10 +364,10 @@ file_tree_linux_PathKindOf(int32_t mode)
 }
 
 static bool
-file_tree_linux_ReadPathInfo(uint8_t* name, int32_t flags, PathInfo* info)
+file_tree_linux_ReadPathInfoAt(int32_t directory, uint8_t* name, int32_t flags, PathInfo* info)
 {
     StatxRecord record = {0};
-    if (zir_f_0ee210116da2a0c9_StatxRaw(-100, name, flags, 2047, &(record)) != 0) {
+    if (zir_f_0ee210116da2a0c9_StatxRaw(directory, name, flags, 2047, &(record)) != 0) {
         return false;
     }
     uint32_t* value_0 = &(info->metadata_mask);
@@ -382,6 +435,206 @@ file_tree_linux_ReadPathInfo(uint8_t* name, int32_t flags, PathInfo* info)
     return true;
 }
 
+static bool
+file_tree_linux_ReadPathInfo(uint8_t* name, int32_t flags, PathInfo* info)
+{
+    return file_tree_linux_ReadPathInfoAt(-100, name, flags, info);
+}
+
+static bool
+file_tree_linux_CopyChildName(FileHandle directory, String name, Slice encoded)
+{
+    if (!directory.valid || (int64_t)(name).length == 0LL || StringEqual(name, StringLiteral(".")) || StringEqual(name, StringLiteral(".."))) {
+        return false;
+    }
+    for (int64_t it_index = 0LL; it_index < (int64_t)(name).length; it_index++) {
+        uint8_t byte = (uint8_t)name.data[it_index];
+        if (byte == 47) {
+            return false;
+        }
+    }
+    return CopyCString(name, encoded);
+}
+
+static void
+file_tree_linux_OpenStatus(int32_t* status, int32_t error)
+{
+    if (status != ((void *)0)) {
+        int32_t* value_0 = &((*(status)));
+        (*value_0) = error;
+    }
+}
+
+static FileHandle
+file_tree_linux_OpenedHandle(int32_t fd, int32_t* status)
+{
+    int32_t* value_0 = status;
+    int32_t value_1 = 0;
+    if (fd >= 0) {
+        value_1 = 0;
+    } else {
+        int32_t* value_2 = zir_f_0ee210116da2a0c9_ErrnoRaw();
+        value_1 = *(value_2);
+    }
+    {
+        int32_t* status = value_0;
+        int32_t error = value_1;
+        if (status != ((void *)0)) {
+            int32_t* value_4 = &((*(status)));
+            (*value_4) = error;
+        }
+    }
+    return (FileHandle){.fd = fd, .valid = fd >= 0};
+}
+
+static FileHandle
+file_tree_linux_OpenChildHandle(FileHandle directory, String name, int32_t flags, uint32_t mode, int32_t* status)
+{
+    uint8_t encoded[256] = {0};
+    Slice value_0 = {encoded, 256};
+    bool value_1 = file_tree_linux_CopyChildName(directory, name, value_0);
+    if (!value_1) {
+        int32_t* value_2 = status;
+        {
+            int32_t* status = value_2;
+            int32_t error = 22;
+            if (status != ((void *)0)) {
+                int32_t* value_4 = &((*(status)));
+                (*value_4) = error;
+            }
+        }
+        return (FileHandle){0};
+    }
+    int32_t fd = zir_f_0ee210116da2a0c9_OpenAtRaw(directory.fd, &(encoded[0]), (int32_t)(((uint32_t)flags | 131072u) | 524288u), mode);
+    return file_tree_linux_OpenedHandle(fd, status);
+}
+
+FileHandle
+file_tree_linux_OpenDirectoryHandle(String path, int32_t* status)
+{
+    uint8_t encoded[4096] = {0};
+    bool value_0 = (int64_t)(path).length > 4095LL;
+    if (!value_0) {
+        Slice value_1 = {encoded, 4096};
+        bool value_2 = CopyCString(path, value_1);
+        value_0 = !value_2;
+    }
+    if (value_0) {
+        int32_t* value_3 = status;
+        {
+            int32_t* status = value_3;
+            int32_t error = 22;
+            if (status != ((void *)0)) {
+                int32_t* value_5 = &((*(status)));
+                (*value_5) = error;
+            }
+        }
+        return (FileHandle){0};
+    }
+    return file_tree_linux_OpenedHandle(zir_f_0ee210116da2a0c9_OpenRaw(&(encoded[0]), 589824), status);
+}
+
+FileHandle
+file_tree_linux_OpenChildDirectory(FileHandle directory, String name, int32_t* status)
+{
+    return file_tree_linux_OpenChildHandle(directory, name, 65536, 0, status);
+}
+
+FileHandle
+file_tree_linux_OpenOrCreateChildDirectory(FileHandle directory, String name, uint32_t mode)
+{
+    uint8_t encoded[256] = {0};
+    Slice value_0 = {encoded, 256};
+    bool value_1 = file_tree_linux_CopyChildName(directory, name, value_0);
+    if (!value_1) {
+        return (FileHandle){0};
+    }
+    bool value_2 = zir_f_0ee210116da2a0c9_MakeDirectoryAtRaw(directory.fd, &(encoded[0]), mode) != 0;
+    bool value_3 = value_2;
+    if (value_3) {
+        int32_t* value_4 = zir_f_0ee210116da2a0c9_ErrnoRaw();
+        value_3 = (*(value_4) != 17);
+    }
+    if (value_3) {
+        return (FileHandle){0};
+    }
+    int32_t fd = zir_f_0ee210116da2a0c9_OpenAtRaw(directory.fd, &(encoded[0]), 720896);
+    return file_tree_linux_OpenedHandle(fd, (void *)0);
+}
+
+FileHandle
+file_tree_linux_OpenChildRegularFile(FileHandle directory, String name, int32_t* status)
+{
+    FileHandle opened = file_tree_linux_OpenChildHandle(directory, name, 2048, 0, status);
+    if (!opened.valid) {
+        return opened;
+    }
+    uint8_t empty[1] = {0};
+    PathInfo info = {0};
+    bool value_0 = file_tree_linux_ReadPathInfoAt(opened.fd, &(empty[0]), 4096, &(info));
+    if (value_0 && ((PathKind)(info.kind)) == PathKind_File) {
+        return opened;
+    }
+    CloseFile(opened);
+    int32_t* value_1 = status;
+    {
+        int32_t* status = value_1;
+        int32_t error = 22;
+        if (status != ((void *)0)) {
+            int32_t* value_3 = &((*(status)));
+            (*value_3) = error;
+        }
+    }
+    return (FileHandle){0};
+}
+
+FileHandle
+file_tree_linux_OpenNewChildFile(FileHandle directory, String name, uint32_t mode)
+{
+    return file_tree_linux_OpenChildHandle(directory, name, 193, mode, (void *)0);
+}
+
+bool
+file_tree_linux_RenameChild(FileHandle directory, String source, String destination)
+{
+    uint8_t from[256] = {0};
+    uint8_t to[256] = {0};
+    Slice value_0 = {from, 256};
+    bool value_1 = file_tree_linux_CopyChildName(directory, source, value_0);
+    bool value_2 = !value_1;
+    if (!value_2) {
+        Slice value_3 = {to, 256};
+        bool value_4 = file_tree_linux_CopyChildName(directory, destination, value_3);
+        value_2 = !value_4;
+    }
+    if (value_2) {
+        return false;
+    }
+    return zir_f_0ee210116da2a0c9_RenameAtRaw(directory.fd, &(from[0]), directory.fd, &(to[0])) == 0;
+}
+
+bool
+file_tree_linux_RemoveChildFile(FileHandle directory, String name, bool allow_missing)
+{
+    uint8_t encoded[256] = {0};
+    Slice value_0 = {encoded, 256};
+    bool value_1 = file_tree_linux_CopyChildName(directory, name, value_0);
+    if (!value_1) {
+        return false;
+    }
+    bool value_2 = zir_f_0ee210116da2a0c9_UnlinkAtRaw(directory.fd, &(encoded[0]), 0) == 0;
+    bool value_3 = value_2;
+    if (!value_3) {
+        bool value_4 = allow_missing;
+        if (value_4) {
+            int32_t* value_5 = zir_f_0ee210116da2a0c9_ErrnoRaw();
+            value_4 = (*(value_5) == 2);
+        }
+        value_3 = value_4;
+    }
+    return value_3;
+}
+
 PathQueryResult
 file_tree_linux_PathQuery(String path, bool follow_links)
 {
@@ -406,19 +659,28 @@ file_tree_linux_PathQuery(String path, bool follow_links)
     }
     int32_t flags = value_4;
     PathInfo info = {0};
-    bool value_5 = file_tree_linux_ReadPathInfo(&(name[0]), flags, &(info));
-    if (!value_5) {
-        int32_t* value_6 = &(result.error);
-        int32_t* value_7 = zir_f_0ee210116da2a0c9_ErrnoRaw();
-        (*value_6) = *(value_7);
-        bool* value_8 = &(result.missing);
-        (*value_8) = result.error == 2 || result.error == 20;
+    uint8_t* value_5 = &(name[0]);
+    int32_t value_6 = flags;
+    PathInfo* value_7 = &(info);
+    bool value_8 = false;
+    {
+        uint8_t* name = value_5;
+        int32_t flags = value_6;
+        PathInfo* info = value_7;
+        value_8 = file_tree_linux_ReadPathInfoAt(-100, name, flags, info);
+    }
+    if (!value_8) {
+        int32_t* value_10 = &(result.error);
+        int32_t* value_11 = zir_f_0ee210116da2a0c9_ErrnoRaw();
+        (*value_10) = *(value_11);
+        bool* value_12 = &(result.missing);
+        (*value_12) = result.error == 2 || result.error == 20;
         return result;
     }
-    PathInfo* value_9 = &(result.info);
-    (*value_9) = info;
-    bool* value_10 = &(result.valid);
-    (*value_10) = true;
+    PathInfo* value_13 = &(result.info);
+    (*value_13) = info;
+    bool* value_14 = &(result.valid);
+    (*value_14) = true;
     return result;
 }
 

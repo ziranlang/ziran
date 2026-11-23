@@ -12,6 +12,7 @@ DeflateEnd :: (stream: *Zip.ZStream) -> s32 #foreign zlib "deflateEnd";
 InflateInit :: (stream: *Zip.ZStream, window_bits: s32, version: *u8,
     stream_size: s32) -> s32 #foreign zlib "inflateInit2_";
 Inflate :: (stream: *Zip.ZStream, flush: s32) -> s32 #foreign zlib "inflate";
+InflateReset :: (stream: *Zip.ZStream) -> s32 #foreign zlib "inflateReset";
 InflateEnd :: (stream: *Zip.ZStream) -> s32 #foreign zlib "inflateEnd";
 
 Overlaps :: (input: []u8, output: []u8) -> bool {
@@ -78,4 +79,44 @@ GzipDecompress :: (input: []u8, output: []u8, expected_size: s64) -> bool {
         cast(s64)stream.total_out == expected_size
     if InflateEnd(*stream) != 0 { valid = false }
     return valid
+}
+
+// Returns the decoded size of complete members or -1. Output capacity bounds
+// the total expansion. Discard the output on error.
+#program_export
+GzipDecompressMembers :: (input: []u8, output: []u8) -> s64 {
+    if input.count < 1 || input.count > 4294967295 || output.count > 4294967295 || Overlaps(input, output) {
+        return -1
+    }
+    stream: Zip.ZStream
+    if InflateInit(*stream, 31, Version(), cast(s32)size_of(Zip.ZStream)) != 0 {
+        return -1
+    }
+    defer { unused InflateEnd(*stream) }
+    stream.next_in = *input[0]
+    stream.avail_in = cast(u32)input.count
+    written: s64 = 0
+    spare: u8
+    while stream.avail_in > 0 {
+        remaining := output.count - written
+        if remaining == 0 {
+            // Leave room to verify an empty member even at the output limit.
+            stream.next_out = *spare
+            stream.avail_out = 1
+        } else {
+            stream.next_out = *output[written]
+            stream.avail_out = cast(u32)remaining
+        }
+        before := stream.avail_in
+        status := Inflate(*stream, 4)
+        count := cast(s64)stream.total_out
+        if status != 1 || count > remaining || stream.avail_in >= before {
+            return -1
+        }
+        written += count
+        if stream.avail_in > 0 && InflateReset(*stream) != 0 {
+            return -1
+        }
+    }
+    return written
 }

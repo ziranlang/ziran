@@ -74,8 +74,52 @@ TemporaryLifetime :: () -> bool {
     return growth <= 8192
 }
 
+CheckRootedRead :: () -> bool {
+    root := OpenDirectoryHandle(".")
+    if !root.valid { return false }
+    defer CloseFile(root)
+    parent := OpenChildDirectory(root, "parent")
+    if !parent.valid { return false }
+    defer CloseFile(parent)
+    note := OpenChildRegularFile(parent, "note")
+    if !note.valid { return false }
+    defer CloseFile(note)
+    bytes: [8]u8
+    count := ReadAt(note, bytes[:], 0)
+    return count == 5 && !OpenChildDirectory(parent, "link").valid &&
+        !OpenChildDirectory(parent, "..").valid && !OpenChildRegularFile(parent, "note-link").valid &&
+        !OpenChildRegularFile(root, "parent/note").valid && !OpenChildRegularFile(root, "pipe").valid
+}
+
+CheckRootedWrite :: () -> bool {
+    root := OpenDirectoryHandle(".")
+    if !root.valid { return false }
+    defer CloseFile(root)
+    child := OpenOrCreateChildDirectory(root, "rooted-write")
+    if !child.valid { return false }
+    defer CloseFile(child)
+    again := OpenOrCreateChildDirectory(root, "rooted-write")
+    if !CloseFile(again) || OpenOrCreateChildDirectory(root, "parent/link").valid ||
+        OpenOrCreateChildDirectory(root, "..").valid { return false }
+    file := OpenNewChildFile(child, ".stage")
+    if !file.valid { return false }
+    if OpenNewChildFile(child, ".stage").valid { return false }
+    if WriteTextAt(file, "payload", 0) != 7 || !SyncFile(file) || !CloseFile(file) { return false }
+    if RenameChild(child, ".stage", "../escape") || !RenameChild(child, ".stage", "asset") { return false }
+    status: s32 = -1
+    missing := OpenChildRegularFile(child, ".stage", *status)
+    if missing.valid || status != 2 { return false }
+    asset := OpenChildRegularFile(child, "asset", *status)
+    if !asset.valid || status != 0 { return false }
+    valid := FileSize(asset) == 7 && CloseFile(asset)
+    return valid && !RemoveChildFile(child, "../escape", true) && RemoveChildFile(child, "asset") &&
+        !RemoveChildFile(child, "asset") && RemoveChildFile(child, "asset", true)
+}
+
 #program_export
 main :: () -> s32 {
+    if !CheckRootedWrite() { return 40 }
+    if !CheckRootedRead() { return 39 }
     uid := User()
     queried := PathQuery("parent/note")
     if !queried.valid || queried.missing || queried.error != 0 || queried.info.kind != .File ||
@@ -258,6 +302,7 @@ for form in source saved; do
     printf hello > "$run/parent/note"
     ln -s target "$run/parent/link"
     ln -s note "$run/parent/note-link"
+    mkfifo "$run/pipe"
     ln -s absent "$run/parent/broken"
     ln -s loop "$run/parent/loop"
     ln -s parent "$run/alias"

@@ -215,9 +215,9 @@ PathKindOf :: (mode: s32) -> PathKind {
         return true
     }
 } else {
-    ReadPathInfo :: (name: *u8, flags: s32, info: *PathInfo) -> bool {
+    ReadPathInfoAt :: (directory: s32, name: *u8, flags: s32, info: *PathInfo) -> bool {
         record: StatxRecord
-        if StatxRaw(CURRENT_DIRECTORY, name, flags, BASIC_STATS, *record) != 0 { return false }
+        if StatxRaw(directory, name, flags, BASIC_STATS, *record) != 0 { return false }
         info.metadata_mask = cast(u32)record.words[0]
         mode := cast(s32)((record.words[3] >> 32) & 65535)
         info.kind = PathKindOf(mode)
@@ -241,6 +241,112 @@ PathKindOf :: (mode: s32) -> PathKind {
         info.identity_valid = (info.metadata_mask & 961) == 961 && info.size >= 0 &&
             modified_fraction < 1000000000 && changed_fraction < 1000000000
         return true
+    }
+
+    ReadPathInfo :: (name: *u8, flags: s32, info: *PathInfo) -> bool {
+        return ReadPathInfoAt(CURRENT_DIRECTORY, name, flags, info)
+    }
+}
+
+#if OS == .LINUX && !#defined(__APPLE__) {
+    OpenAtRaw :: (directory: s32, name: *u8, flags: s32, mode: ..any) -> s32 #foreign libc "openat";
+    MakeDirectoryAtRaw :: (directory: s32, name: *u8, mode: u32) -> s32 #foreign libc "mkdirat";
+    UnlinkAtRaw :: (directory: s32, name: *u8, flags: s32) -> s32 #foreign libc "unlinkat";
+    RenameAtRaw :: (old_directory: s32, old_name: *u8, new_directory: s32, new_name: *u8) -> s32 #foreign libc "renameat";
+    OpenDirectoryFlag :: 65536;
+    OpenNoFollow :: 131072;
+    OpenNonBlocking :: 2048;
+    OpenExclusiveWrite :: 193; // O_WRONLY | O_CREAT | O_EXCL
+    AtEmptyPath :: 4096;
+    MissingChild :: 2; // ENOENT
+    ExistingChild :: 17; // EEXIST
+    InvalidChild :: 22; // EINVAL
+
+    CopyChildName :: (directory: FileHandle, name: string, encoded: []u8) -> bool {
+        if !directory.valid || name.count == 0 || name == "." || name == ".." { return false }
+        for byte: name {
+            if byte == #char "/" { return false }
+        }
+        return CopyCString(name, encoded)
+    }
+
+    OpenStatus :: (status: *s32, error: s32) {
+        if status != null { <<status = error }
+    }
+
+    OpenedHandle :: (fd: s32, status: *s32) -> FileHandle {
+        OpenStatus(status, ifx fd >= 0 then 0 else <<ErrnoRaw())
+        return .{fd = fd, valid = fd >= 0}
+    }
+
+    OpenChildHandle :: (directory: FileHandle, name: string, flags: s32, mode: u32, status: *s32) -> FileHandle {
+        encoded: [256]u8
+        if !CopyChildName(directory, name, encoded[:]) {
+            OpenStatus(status, InvalidChild)
+            return .{}
+        }
+        fd := OpenAtRaw(directory.fd, *encoded[0], flags | OpenNoFollow | CLOSE_ON_EXEC, mode)
+        return OpenedHandle(fd, status)
+    }
+
+    #scope_export
+    // Open a configured root. Close the returned handle with FileHandle's
+    // CloseFile. Descendant opens are relative to this handle. The optional
+    // status receives errno on failure and zero on success.
+    OpenDirectoryHandle :: (path: string, status: *s32 = null) -> FileHandle {
+        encoded: [4096]u8
+        if path.count > 4095 || !CopyCString(path, encoded[:]) {
+            OpenStatus(status, InvalidChild)
+            return .{}
+        }
+        return OpenedHandle(OpenRaw(*encoded[0], OpenDirectoryFlag | CLOSE_ON_EXEC), status)
+    }
+
+    // Open a single child directory name. Links and path components are rejected.
+    OpenChildDirectory :: (directory: FileHandle, name: string, status: *s32 = null) -> FileHandle {
+        return OpenChildHandle(directory, name, OpenDirectoryFlag, 0, status)
+    }
+
+    // Create the child when absent and open it without following links.
+    OpenOrCreateChildDirectory :: (directory: FileHandle, name: string, mode: u32 = 448) -> FileHandle {
+        encoded: [256]u8
+        if !CopyChildName(directory, name, encoded[:]) { return .{} }
+        if MakeDirectoryAtRaw(directory.fd, *encoded[0], mode) != 0 && <<ErrnoRaw() != ExistingChild { return .{} }
+        fd := OpenAtRaw(directory.fd, *encoded[0], OpenDirectoryFlag | OpenNoFollow | CLOSE_ON_EXEC)
+        return OpenedHandle(fd, null)
+    }
+
+    // Open a single regular file name without following links or waiting on FIFOs.
+    OpenChildRegularFile :: (directory: FileHandle, name: string, status: *s32 = null) -> FileHandle {
+        opened := OpenChildHandle(directory, name, OpenNonBlocking, 0, status)
+        if !opened.valid { return opened }
+        empty: [1]u8
+        info: PathInfo
+        if ReadPathInfoAt(opened.fd, *empty[0], AtEmptyPath, *info) && info.kind == .File { return opened }
+        unused CloseFile(opened)
+        OpenStatus(status, InvalidChild)
+        return .{}
+    }
+
+    // Open a new private child for writing. Existing entries are rejected.
+    OpenNewChildFile :: (directory: FileHandle, name: string, mode: u32 = 384) -> FileHandle {
+        return OpenChildHandle(directory, name, OpenExclusiveWrite, mode, null)
+    }
+
+    // Atomically rename within the directory. Replaces a destination entry
+    // if the native rename permits it. Neither name is followed as a link.
+    RenameChild :: (directory: FileHandle, source: string, destination: string) -> bool {
+        from: [256]u8
+        to: [256]u8
+        if !CopyChildName(directory, source, from[:]) || !CopyChildName(directory, destination, to[:]) { return false }
+        return RenameAtRaw(directory.fd, *from[0], directory.fd, *to[0]) == 0
+    }
+
+    // Remove a file or link by name without following it. Directories fail.
+    RemoveChildFile :: (directory: FileHandle, name: string, allow_missing: bool = false) -> bool {
+        encoded: [256]u8
+        if !CopyChildName(directory, name, encoded[:]) { return false }
+        return UnlinkAtRaw(directory.fd, *encoded[0], 0) == 0 || (allow_missing && <<ErrnoRaw() == MissingChild)
     }
 }
 

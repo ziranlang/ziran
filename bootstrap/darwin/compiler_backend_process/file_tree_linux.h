@@ -33,7 +33,7 @@ extern "C" {
 #define EXISTS 17
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
-#define zir_d_e772df0ce0bb1f83 4
+#define zir_d_66b6aadc3ac72b85 4
 #endif
 #ifdef ZIRAN_FILE_TREE_LINUX_H_PRIVATE
 typedef struct StatRecord StatRecord;

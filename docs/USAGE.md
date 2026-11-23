@@ -1911,7 +1911,10 @@ are meaningful to the application.
 `std/gzip_linux.zi` compresses and decompresses a single gzip stream into
 caller-owned, disjoint byte buffers. `GzipDecompress` requires the expected
 uncompressed length and rejects expansion beyond that length, bad checksums,
-truncation and trailing streams. Native C builds link zlib (`-lz`); Emscripten
+truncation and trailing streams. `GzipDecompressMembers` accepts one or more
+complete members and returns the decoded byte count. The output capacity
+bounds total expansion. The caller discards the output on error (`-1`).
+Native C builds link zlib (`-lz`); Emscripten
 builds use `-sUSE_ZLIB=1`. Run `make gzip-test` for independent GNU gzip
 interoperability and malformed-input tests.
 `std/image.zi` holds RGBA pictures (`Image`: width, height and straight-alpha

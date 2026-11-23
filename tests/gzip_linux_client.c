@@ -25,6 +25,13 @@ int main(int argc, char **argv)
     if (strcmp(argv[1], "compress") == 0) {
         count = GzipCompress(source, destination, 1);
         assert(count >= 0);
+    } else if (strcmp(argv[1], "members") == 0) {
+        count = GzipDecompressMembers(source, destination);
+        if (count < 0) {
+            free(input);
+            free(output);
+            return 2;
+        }
     } else {
         if (!GzipDecompress(source, destination, expected)) {free(input);free(output);return 2;}
         count = expected;

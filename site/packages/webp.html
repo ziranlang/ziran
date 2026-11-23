@@ -28,13 +28,21 @@ are false. Input/output/container limits and cooperative checks before/after
 native work remain enforced. Native opaque objects and borrowed frames are
 released before returning; native internal threads are disabled. No color
 management/HDR or encoding capability is exposed. The bridge rejects FastColor.</p>
-<pre><code class="language-sh">build-queue -- sh tests/engine_contract.sh
-build-queue -- sh tests/riff.sh
-build-queue -- sh tests/dynamic_contract.sh
-build-queue -- sh tests/package_import.sh
-build-queue -- sh tests/all.sh
+<pre><code class="language-sh">sh tests/engine_contract.sh
+sh tests/riff.sh
+sh tests/legacy_compare.sh
+sh tests/dynamic_contract.sh
+sh tests/package_import.sh
+sh tests/all.sh
 </code></pre>
-<p>Tests use the pinned image-codec corpus and native source package offline. All builds run through <code>build-queue</code> without a display.</p>
+<p>Tests reuse the independently pinned mandatory image-codec corpus. Only the
+optional legacy comparison reads the hash-pinned original Kryon decoder from
+its frozen baseline (or an unchanged original checkout), without changing it.
+The native tests use the existing pinned source package offline. Configure
+local <code>ziran</code> and <code>image_codec</code> overrides before locking during development;
+no bootstrap commit is needed. <code>WEBP_SOURCE</code> can select an existing source
+package with the exact declared revision. No native source is fetched during
+a build. No display is used.</p>
 <p>The validated native artifact platform is currently Linux x86-64 GNU. Consumers
 request <code>ziran pkg artifact webp:libwebp --platform linux-x86_64-gnu</code>, add the
 returned descriptor's <code>lib</code> directory to link search paths, and link
@@ -50,7 +58,7 @@ error. Other platforms fail explicitly until their recipes and
 actual execution are validated. The <a href="https://github.com/ziranlang/webp/blob/HEAD/docs/OWNED-DECODER.md">authored implementation status</a>
 records completed pixel work and remaining acceptance gates. The stable bridge
 is not represented as a fully authored WebP decoder.</p>
-<p><code>build-queue -- sh tests/benchmark.sh</code> builds the stable <code>build/bin/webp-bench</code>.
+<p><code>sh tests/benchmark.sh</code> builds the stable <code>build/bin/webp-bench</code>.
 It verifies exact golden pixels before timing real warm file reads and decode
 calls. It records actual samples and active workers; unavailable CPU, RSS,
 allocation and energy instruments remain null. <code>authored-vp8l</code> selects lossless

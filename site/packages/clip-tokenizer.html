@@ -58,7 +58,7 @@ whitespace uses <code>IsWhiteSpace</code> instead. The Photos integration unit c
 this boundary against the actual pinned public tokenizer.</p>
 <p>Run local tests on the locked toolchain, which <code>make check</code> fetches and builds
 on first use; <code>ZIRAN=path/to/ziran</code> runs them on another:</p>
-<pre><code class="language-sh">build-queue -- make check
+<pre><code class="language-sh">make check
 </code></pre>
 <p>The tiny public synthetic model and frozen goldens are independently encoded
 by HuggingFace <code>tokenizers</code> 0.23.2. Source and saved IR run on C, Go and both VM

@@ -620,6 +620,15 @@ No step commits before its implementation and proof are complete.
   POSIX open flags and `struct stat` fields stay in `zir_edit_host.c`, so one
   seed serves every host. `semantic_edit.sh` exercises the generated module
   through the same `--wrap` boundaries and passes; the seed matches.
+- Done 2026-11-23: `cmd/zi2zir.zi` and `cmd/zi2go.zi` replace their C
+  drivers. Both take the option tables, program loading, linking, target
+  checks and output decisions from the generated modules; `go_lower`,
+  `NativeGoFunctionName` and the generated-output recorder keep their C
+  entry points. A 133-file `tests/spec` differential against the previous
+  binaries has identical diagnostics, exit codes and emitted `.zir`/`.go`
+  bytes, including `--exe`, `--minify`, `--checks` and `--prune-stale`.
+  `compile_targets.sh`, `simd_go.sh`, `go_codegen`, `go_semantics`,
+  `go_exports`, `tool_*` and `cli_*` pass.
 - Change Makefile tool targets and editor links to Ziran drivers. The `ziran`
   package driver is already Ziran; no change beyond imports.
 - Delete `cmd/zir/zir_profile.c/.h`,

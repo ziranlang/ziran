@@ -559,7 +559,7 @@ $(PROOF_KERNEL_OBJECT): $(PROOF_KERNEL_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(PROOF_KERNEL_C)/compiler_proof_kernel.c
 
-$(call obj,cmd/zi2c/main.c cmd/zi2go/main.c cmd/zi2zir/main.c cmd/zi2zx/main.c tests/bundle_link_test.c): $(BUNDLE_READY)
+$(call obj,cmd/zi2c/main.c cmd/zi2zx/main.c tests/bundle_link_test.c): $(BUNDLE_READY)
 $(BUNDLE_MODULE_OBJECT): $(BUNDLE_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(BUNDLE_C)/compiler_bundle.c
@@ -712,9 +712,10 @@ $(BIN_DIR)/zi-edit: cmd/edit.zi cmd/transport.zi cmd/format_source.zi cmd/diagno
 	$(BIN_DIR)/zi2c --entry edit:main $(ZIRAN_DEFINES) --root cmd --module-path std -o $(EDIT_C) cmd/edit.zi
 	$(NICE) $(CC) $(CFLAGS) -I$(EDIT_C) -o $@ $(EDIT_C)/*.c $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) -lm
 
-$(BIN_DIR)/zi2zir: $(call obj,cmd/zi2zir/main.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
-	chmod 755 $@
+ZI2ZIR_C := $(BUILD_DIR)/zi2zir-c
+$(BIN_DIR)/zi2zir: cmd/zi2zir.zi cmd/compiler_cli.zi cmd/compiler_ir.zi $(BIN_DIR)/zi2c $(FRONTEND_OBJECTS) $(BUNDLE_OBJECT) | $(BIN_DIR)
+	$(BIN_DIR)/zi2c --entry zi2zir:main $(ZIRAN_DEFINES) --root cmd --module-path std -o $(ZI2ZIR_C) cmd/zi2zir.zi
+	$(NICE) $(CC) $(CFLAGS) -I$(ZI2ZIR_C) -o $@ $(ZI2ZIR_C)/zi2zir.c $(FRONTEND_OBJECTS) $(BUNDLE_OBJECT) -lm
 
 $(BIN_DIR)/zi-api: $(call obj,cmd/zir-api/main.c) $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
@@ -793,9 +794,11 @@ $(BIN_DIR)/zi2c: $(call obj,cmd/zi2c/main.c) $(C_BACKEND_OBJECT) $(C_PRUNE_OBJEC
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 	chmod 755 $@
 
-$(call obj,cmd/zi2go/main.c): $(foreach module,$(GO_PORT_MODULES),$(call compiler-port-ready,$(module)))
-$(BIN_DIR)/zi2go: $(call obj,cmd/zi2go/main.c) $(GO_PORT_OBJECTS) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+ZI2GO_C := $(BUILD_DIR)/zi2go-c
+$(BIN_DIR)/zi2go: cmd/zi2go.zi cmd/compiler_cli.zi cmd/compiler_ir.zi $(BIN_DIR)/zi2c \
+    $(GO_PORT_OBJECTS) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
+	$(BIN_DIR)/zi2c --entry zi2go:main $(ZIRAN_DEFINES) --root cmd --module-path std -o $(ZI2GO_C) cmd/zi2go.zi
+	$(NICE) $(CC) $(CFLAGS) -I$(ZI2GO_C) -o $@ $(ZI2GO_C)/zi2go.c $(GO_PORT_OBJECTS) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) -lm
 
 # zi2zx runs revision-28 executable ZX on the portable instruction engine.
 $(BIN_DIR)/zi2zx: $(call obj,cmd/zi2zx/main.c) $(BUILD_DIR)/obj/assembly-core.o \

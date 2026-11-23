@@ -1,0 +1,284 @@
+// zi2zir - checked IR writer. Parses and checks every input, optionally
+// links one entry, and writes one canonical .zir per program. The compiler
+// services are the generated modules behind the shared C entry points.
+
+IR :: #import "compiler_ir"
+CLI :: #import "compiler_cli"
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+StaticText :: struct { data: *u8; count: usize }
+
+TARGET_C :: 0
+TARGET_GO :: 1
+TARGET_ZX :: 3
+OS_WEB :: 5
+
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, arguments: ..any) #foreign compiler "Diagnostic";
+Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
+SetFormatArguments :: (argc: s32, argv: **u8) #foreign compiler "SetDiagnosticFormatFromArguments";
+SetFormat :: (format: *u8) -> s32 #foreign compiler "SetDiagnosticFormat";
+ErrorCount :: () -> s32 #foreign compiler "DiagnosticErrorCount";
+JsonEnabled :: () -> s32 #foreign compiler "DiagnosticJsonEnabled";
+TargetNameKnown :: (name: *u8) -> s32 #foreign compiler "TargetNameKnown";
+ProgramsLoad :: (set: *IR.ProgramSet, root: *u8, module_paths: **u8, module_path_count: s32,
+                 defines: **u8, define_count: s32, inputs: **u8, input_count: s32) -> s32 #foreign compiler "ProgramsLoadWithDefines";
+ProgramsFree :: (set: *IR.ProgramSet) #foreign compiler "ProgramsFree";
+CheckCanonical :: (programs: **IR.ZirProgram, count: s32, paths: **u8) -> s32 #foreign compiler "CheckCanonicalPrograms";
+Lint :: (programs: **IR.ZirProgram, count: s32) #foreign compiler "LintPrograms";
+CheckCapabilities :: (program: *IR.ZirProgram, target: *u8) -> s32 #foreign compiler "CheckTargetCapabilities";
+LinkImports :: (programs: **IR.ZirProgram, count: s32) -> s32 #foreign compiler "LinkImports";
+BindProvider :: (program: *IR.ZirProgram, binding: *u8) -> s32 #foreign compiler "BindHostProvider";
+BindModule :: (program: *IR.ZirProgram, module: *u8) -> s32 #foreign compiler "BindHostModule";
+NativeLink :: (program: *IR.ZirProgram, module: *u8, function: *u8) -> *IR.ZirProgram #foreign compiler "NativeLink";
+ProgramFree :: (program: *IR.ZirProgram) #foreign compiler "ProgramFree";
+ProgramWrite :: (program: *IR.ZirProgram, out: *void) -> s32 #foreign compiler "ProgramWrite";
+PrintLawResults :: (programs: **IR.ZirProgram, count: s32, out: *void) #foreign compiler "PrintLawResults";
+StandardError :: () -> *void #foreign compiler "CompilerStandardError";
+StandardOutput :: () -> *void #foreign compiler "CompilerStandardOutput";
+
+strlen :: (text: *u8) -> usize #foreign libc "strlen";
+strcmp :: (left: *u8, right: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (left: *u8, right: *u8, count: usize) -> s32 #foreign libc "strncmp";
+snprintf :: (output: *u8, capacity: usize, format: *u8, arguments: ..any) -> s32 #foreign libc "snprintf";
+fopen :: (path: *u8, mode: *u8) -> *void #foreign libc "fopen";
+fclose :: (file: *void) -> s32 #foreign libc "fclose";
+fputs :: (text: *u8, file: *void) -> s32 #foreign libc "fputs";
+fwrite :: (bytes: *void, size: usize, count: usize, file: *void) -> usize #foreign libc "fwrite";
+mkdir :: (path: *u8, mode: u32) -> s32 #foreign libc "mkdir";
+remove :: (path: *u8) -> s32 #foreign libc "remove";
+free :: (memory: *void) #foreign libc "free";
+
+Usage :: () {
+    span: IR.ZirSourceSpan = .{}
+    Diagnostic(span, CStr("command.arguments"), CStr("usage: zi2zir [--check-only] [--target=c|go|zx] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE] --root DIR -o DIR file.zi|file.zir ..."))
+}
+
+WriteProgram :: (program: *IR.ZirProgram, out_dir: *u8) -> s32 {
+    source := cast(*u8)*program.modules[0].source_path
+    length := strlen(source)
+    output: [IR.ZIR_PATH_MAX * 2]u8
+    if length > 3 && strcmp(cast(*u8)(cast(usize)source + length - 3), CStr(".zi")) == 0 {
+        length -= 3
+    }
+    if snprintf(*output[0], cast(usize)output.count, CStr("%s/%.*s.zir"), out_dir,
+                cast(s32)length, source) >= cast(s32)output.count {
+        Diagnostic(program.modules[0].span, CStr("zir.output"), CStr("IR output path is too long"))
+        return 0
+    }
+    cursor: usize = 1
+    while output[cursor] != 0 {
+        if output[cursor] == #char "/" {
+            output[cursor] = 0
+            unused mkdir(*output[0], 493)
+            output[cursor] = #char "/"
+        }
+        cursor += 1
+    }
+    file := fopen(*output[0], CStr("wb"))
+    if file == null {
+        Diagnostic(program.modules[0].span, CStr("zir.output"), CStr("cannot open IR output: %s"), *output[0])
+        return 0
+    }
+    if ProgramWrite(program, file) == 0 {
+        Diagnostic(program.modules[0].span, CStr("zir.output"), CStr("cannot serialize checked IR: %s"), *output[0])
+        unused fclose(file)
+        unused remove(*output[0])
+        return 0
+    }
+    if fclose(file) != 0 {
+        Diagnostic(program.modules[0].span, CStr("zir.output"), CStr("cannot finish IR output: %s"), *output[0])
+        unused remove(*output[0])
+        return 0
+    }
+    return 1
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    root: *u8 = null
+    out_dir: *u8 = null
+    entry: *u8 = null
+    target: *u8 = null
+    target_os_name: *u8 = null
+    target_cpu_name: *u8 = null
+    entry_module: [IR.ZIR_NAME_MAX]u8
+    entry_function: [IR.ZIR_NAME_MAX]u8
+    check_only: s32 = 0
+    lint: s32 = 0
+    first_file: s32 = 0
+    result: s32 = 1
+    set: IR.ProgramSet = .{}
+    defer { ProgramsFree(*set) }
+    merged: IR.ZirProgram = .{}
+    defer { free(cast(*void)merged.modules) }
+    linked: *IR.ZirProgram = null
+    defer { ProgramFree(linked) }
+    module_paths := CLI.CommandModulePaths(argc)
+    if module_paths == null { return 1 }
+    module_path_count: s32 = 0
+    defines: [64]*u8
+    define_count: s32 = 0
+    bindings: [64]*u8
+    binding_count: s32 = 0
+    host_modules: [16]*u8
+    host_module_count: s32 = 0
+
+    SetFormatArguments(argc, argv)
+    CLI.CommandLowerPriority()
+    index: s32 = 1
+    while index < argc {
+        argument := argv[cast(usize)index]
+        if strncmp(argument, CStr("--diagnostics="), 14) == 0 {
+            if SetFormat(cast(*u8)(cast(usize)argument + 14)) == 0 {
+                Usage()
+                return 1
+            }
+        } else if strncmp(argument, CStr("--target="), 9) == 0 {
+            target = cast(*u8)(cast(usize)argument + 9)
+            if TargetNameKnown(target) == 0 {
+                Diagnostic(Span(CStr("<command>"), 1, 1), CStr("zir.validation"),
+                           CStr("unknown output target: %s"), target)
+                return 1
+            }
+        } else if strcmp(argument, CStr("--target-os")) == 0 && index + 1 < argc {
+            index += 1
+            target_os_name = argv[cast(usize)index]
+        } else if strcmp(argument, CStr("--target-cpu")) == 0 && index + 1 < argc {
+            index += 1
+            target_cpu_name = argv[cast(usize)index]
+        } else if strcmp(argument, CStr("--root")) == 0 && index + 1 < argc {
+            index += 1
+            root = argv[cast(usize)index]
+        } else if strcmp(argument, CStr("--module-path")) == 0 && index + 1 < argc {
+            index += 1
+            module_paths[cast(usize)module_path_count] = argv[cast(usize)index]
+            module_path_count += 1
+        } else if strcmp(argument, CStr("--define")) == 0 && index + 1 < argc &&
+                  define_count < 64 && CLI.ValidDefine(argv[cast(usize)(index + 1)]) != 0 {
+            index += 1
+            defines[cast(usize)define_count] = argv[cast(usize)index]
+            define_count += 1
+        } else if strcmp(argument, CStr("-o")) == 0 && index + 1 < argc {
+            index += 1
+            out_dir = argv[cast(usize)index]
+        } else if strcmp(argument, CStr("--entry")) == 0 && index + 1 < argc {
+            index += 1
+            entry = argv[cast(usize)index]
+        } else if strcmp(argument, CStr("--bind")) == 0 && index + 1 < argc && binding_count < 64 {
+            index += 1
+            bindings[cast(usize)binding_count] = argv[cast(usize)index]
+            binding_count += 1
+        } else if strcmp(argument, CStr("--bind-host")) == 0 && index + 1 < argc && host_module_count < 16 {
+            index += 1
+            host_modules[cast(usize)host_module_count] = argv[cast(usize)index]
+            host_module_count += 1
+        } else if strcmp(argument, CStr("--check-only")) == 0 {
+            check_only = 1
+        } else if strcmp(argument, CStr("--lint")) == 0 {
+            lint = 1
+        } else if argument[0] == #char "-" {
+            Usage()
+            return 1
+        } else {
+            first_file = index
+            break
+        }
+        index += 1
+    }
+    if (binding_count > 0 || host_module_count > 0) && entry == null {
+        Diagnostic(Span(CStr("<command>"), 1, 1), CStr("host.bind"), CStr("--bind needs --entry"))
+        return 1
+    }
+    if root == null || (check_only == 0 && out_dir == null) || first_file == 0 ||
+       (entry != null && (check_only != 0 ||
+        CLI.SplitEntry(entry, *entry_module[0], *entry_function[0]) == 0)) {
+        Usage()
+        return 1
+    }
+    target_backend: s32 = TARGET_C
+    if target == null || strcmp(target, CStr("zx")) == 0 { target_backend = TARGET_ZX }
+    else if strcmp(target, CStr("go")) == 0 { target_backend = TARGET_GO }
+    target_os: s32 = 0
+    if CLI.CommandConfigureTarget(target_backend, target_os_name, target_cpu_name, *target_os) == 0 {
+        Usage()
+        return 1
+    }
+    posix_threads := target_backend == TARGET_C && target_os != OS_WEB
+    threads_defined: s32 = 0
+    d: s32 = 0
+    while d < define_count {
+        threads_defined |= cast(s32)(strcmp(defines[cast(usize)d], CStr("POSIX_THREADS")) == 0)
+        d += 1
+    }
+    if posix_threads && threads_defined == 0 {
+        if define_count == 64 {
+            Diagnostic(Span(CStr("<command>"), 1, 1), CStr("command.arguments"),
+                       CStr("no define slot left for native thread capability"))
+            return 1
+        }
+        defines[cast(usize)define_count] = CStr("POSIX_THREADS")
+        define_count += 1
+    }
+    inputs := cast(**u8)(cast(usize)argv + cast(usize)first_file * size_of(*u8))
+    if ProgramsLoad(*set, root, module_paths, module_path_count,
+                    cast(**u8)*defines, define_count, inputs, argc - first_file) == 0 {
+        if ErrorCount() > 0 && JsonEnabled() == 0 {
+            unused fputs(CStr("  note: checking stopped at this error; errors after it, in this file and in other files, are not listed until it is fixed\n"), StandardError())
+        }
+        return result
+    }
+    count := set.count
+    if CheckCanonical(set.programs, count, set.paths) == 0 {
+        if check_only != 0 { PrintLawResults(set.programs, count, StandardOutput()) }
+        return result
+    }
+    if lint != 0 { Lint(set.programs, count) }
+    if check_only != 0 { PrintLawResults(set.programs, count, StandardOutput()) }
+    if target != null && (check_only != 0 || entry == null) {
+        i: s32 = 0
+        while i < count {
+            if CheckCapabilities(set.programs[cast(usize)i], target) == 0 { return result }
+            i += 1
+        }
+    }
+    if check_only == 0 {
+        if entry != null {
+            if CLI.CommandMergePrograms(*set, *merged) == 0 { return result }
+            merged_ptr := *merged
+            if LinkImports(*merged_ptr, 1) == 0 { return result }
+            b: s32 = 0
+            while b < binding_count {
+                if BindProvider(*merged, bindings[cast(usize)b]) == 0 { return result }
+                b += 1
+            }
+            b = 0
+            while b < host_module_count {
+                if BindModule(*merged, host_modules[cast(usize)b]) == 0 { return result }
+                b += 1
+            }
+            linked = NativeLink(*merged, *entry_module[0], *entry_function[0])
+            if linked == null { return result }
+            if target != null && CheckCapabilities(linked, target) == 0 { return result }
+            i: s32 = 0
+            while i < linked.module_count {
+                view: IR.ZirProgram = .{}
+                view.context = linked.context
+                view.modules = *linked.modules[cast(usize)i]
+                view.module_count = 1
+                if WriteProgram(*view, out_dir) == 0 { return result }
+                i += 1
+            }
+        } else {
+            i: s32 = 0
+            while i < count {
+                if set.programs[cast(usize)i].module_count < 1 ||
+                   WriteProgram(set.programs[cast(usize)i], out_dir) == 0 { return result }
+                i += 1
+            }
+        }
+    }
+    return 0
+}

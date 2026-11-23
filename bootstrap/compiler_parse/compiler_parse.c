@@ -200,6 +200,45 @@ zir_f_1c72792874eb8388_ExprMemchr(void* text, int32_t byte, size_t bytes)
     return zir_foreign_zir_f_1c72792874eb8388_ExprMemchr(text, byte, bytes);
 }
 #endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprFopen_e9f9057d
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprFopen_e9f9057d
+#ifdef __APPLE__
+void* zir_foreign_zir_f_1c72792874eb8388_ExprFopen(uint8_t* path, uint8_t* mode) __asm__("_fopen");
+#else
+void* zir_foreign_zir_f_1c72792874eb8388_ExprFopen(uint8_t* path, uint8_t* mode) __asm__("fopen");
+#endif
+static void*
+zir_f_1c72792874eb8388_ExprFopen(uint8_t* path, uint8_t* mode)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_ExprFopen(path, mode);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprFread_9f1323cb
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprFread_9f1323cb
+#ifdef __APPLE__
+size_t zir_foreign_zir_f_1c72792874eb8388_ExprFread(void* buffer, size_t size, size_t count, void* file) __asm__("_fread");
+#else
+size_t zir_foreign_zir_f_1c72792874eb8388_ExprFread(void* buffer, size_t size, size_t count, void* file) __asm__("fread");
+#endif
+static size_t
+zir_f_1c72792874eb8388_ExprFread(void* buffer, size_t size, size_t count, void* file)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_ExprFread(buffer, size, count, file);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprFclose_2bb6893f
+#define ZIR_FOREIGN_zir_f_1c72792874eb8388_ExprFclose_2bb6893f
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_1c72792874eb8388_ExprFclose(void* file) __asm__("_fclose");
+#else
+int32_t zir_foreign_zir_f_1c72792874eb8388_ExprFclose(void* file) __asm__("fclose");
+#endif
+static int32_t
+zir_f_1c72792874eb8388_ExprFclose(void* file)
+{
+    return zir_foreign_zir_f_1c72792874eb8388_ExprFclose(file);
+}
+#endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
 #define ZIRAN_MAYBE_UNUSED __attribute__((unused))
@@ -218,6 +257,10 @@ static String compiler_parse_TrimExpression(String text) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_parse_ExprName(String text) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_parse_ParseSourceExpr(ZirFunction* fn, ZirModule* module, String text, ZirSourceSpan span, String expected, int32_t stmt_index, int32_t default_depth) ZIRAN_MAYBE_UNUSED;
 static bool compiler_parse_ExprAppend(Slice output, int64_t* at, String text) ZIRAN_MAYBE_UNUSED;
+static String compiler_parse_StableLocationPath(String absolute, String root, Slice output) ZIRAN_MAYBE_UNUSED;
+static int64_t compiler_parse_CachedPackageFolder(String directory) ZIRAN_MAYBE_UNUSED;
+static int64_t compiler_parse_PackageForDirectory(String directory, Slice name) ZIRAN_MAYBE_UNUSED;
+static bool compiler_parse_ManifestPackageName(String folder, Slice name) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_CallerLocationText(ZirModule* module, ZirSourceSpan span, Slice output) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_CallTarget(ZirFunction* fn, int32_t callee, Slice output) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_ParameterName(String declaration) ZIRAN_MAYBE_UNUSED;
@@ -255,6 +298,10 @@ static String compiler_parse_QualifiedName(Slice output, String first, String se
 static bool compiler_parse_NameStart(String text) ZIRAN_MAYBE_UNUSED;
 static String compiler_parse_Trim(String source) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_parse_FindByte(String source, uint8_t wanted) ZIRAN_MAYBE_UNUSED;
+static uint8_t location_cache_directory[1024] = {0};
+static int64_t location_cache_directory_count = -1LL;
+static uint8_t location_cache_package[128] = {0};
+static int64_t location_cache_package_end = 0LL;
 
 void
 CompilerLexerInit(ZirLexer* lexer, void* source, void* path)
@@ -1015,6 +1062,185 @@ compiler_parse_ExprAppend(Slice output, int64_t* at, String text)
 }
 
 static String
+compiler_parse_StableLocationPath(String absolute, String root, Slice output)
+{
+    int64_t slash = (int64_t)((uint64_t)((int64_t)(absolute).length) - UINT64_C(1));
+    while (slash > 0LL && (uint8_t)absolute.data[slash] != 47) {
+        slash = (int64_t)((uint64_t)slash - UINT64_C(1));
+    }
+    int64_t package_end = 0LL;
+    if (slash > 0LL) {
+        package_end = compiler_parse_CachedPackageFolder(StringRangeAt(absolute, (int64_t)0LL, (int64_t)slash));
+    }
+    bool value_0 = (int64_t)(root).length > 0LL && (int64_t)(absolute).length > (int64_t)((uint64_t)((int64_t)(root).length) + UINT64_C(1));
+    bool value_1 = value_0 && StringEqual(StringRangeAt(absolute, (int64_t)0LL, (int64_t)(int64_t)(root).length), root);
+    bool under_root = value_1 && (uint8_t)absolute.data[(int64_t)(root).length] == 47;
+    bool value_2 = package_end > 0LL && (int64_t)(root).length > package_end && StringEqual(StringRangeAt(root, (int64_t)0LL, (int64_t)package_end), StringRangeAt(absolute, (int64_t)0LL, (int64_t)package_end));
+    bool package_above_root = value_2 && (uint8_t)root.data[package_end] == 47;
+    if (package_end > 0LL && (package_above_root || !under_root)) {
+        int64_t used = 0LL;
+        Slice value_3 = output;
+        Slice value_4 = {location_cache_package, 128};
+        bool value_5 = compiler_parse_ExprAppend(value_3, &(used), compiler_ir_BufferText(value_4));
+        bool value_6 = !value_5;
+        if (!value_6) {
+            bool value_7 = compiler_parse_ExprAppend(output, &(used), StringLiteral("/"));
+            value_6 = !value_7;
+        }
+        bool value_8 = value_6;
+        if (!value_8) {
+            bool value_9 = compiler_parse_ExprAppend(output, &(used), StringRangeAt(absolute, (int64_t)((int64_t)((uint64_t)package_end + UINT64_C(1))), (int64_t)(int64_t)(absolute).length));
+            value_8 = !value_9;
+        }
+        if (value_8) {
+            return absolute;
+        }
+        Slice value_10 = output;
+        Slice value_11 = SliceRangeAt(value_10, (int64_t)0LL, (int64_t)used, sizeof(uint8_t));
+        return StringView((const char *)(value_11).data, (size_t)(value_11).length);
+    }
+    if (under_root) {
+        return StringRangeAt(absolute, (int64_t)((int64_t)((uint64_t)((int64_t)(root).length) + UINT64_C(1))), (int64_t)(int64_t)(absolute).length);
+    }
+    return absolute;
+}
+
+static int64_t
+compiler_parse_CachedPackageFolder(String directory)
+{
+    bool value_0 = location_cache_directory_count == (int64_t)(directory).length;
+    bool value_1 = value_0;
+    if (value_1) {
+        Slice value_2 = {location_cache_directory, 1024};
+        bool value_3 = StringEqual(compiler_ir_BufferText(value_2), directory);
+        value_1 = value_3;
+    }
+    if (value_1) {
+        return location_cache_package_end;
+    }
+    location_cache_directory_count = -1LL;
+    if ((int64_t)(directory).length >= 1024) {
+        return 0LL;
+    }
+    Slice value_4 = {location_cache_directory, 1024};
+    compiler_ir_CopyText(value_4, directory);
+    Slice value_5 = {location_cache_package, 128};
+    location_cache_package_end = compiler_parse_PackageForDirectory(directory, value_5);
+    location_cache_directory_count = (int64_t)(directory).length;
+    return location_cache_package_end;
+}
+
+static int64_t
+compiler_parse_PackageForDirectory(String directory, Slice name)
+{
+    int64_t end = (int64_t)(directory).length;
+    while (end > 0LL) {
+        if (compiler_parse_ManifestPackageName(StringRangeAt(directory, (int64_t)0LL, (int64_t)end), name)) {
+            return end;
+        }
+        end = (int64_t)((uint64_t)end - UINT64_C(1));
+        while (end > 0LL && (uint8_t)directory.data[end] != 47) {
+            end = (int64_t)((uint64_t)end - UINT64_C(1));
+        }
+    }
+    return 0LL;
+}
+
+static bool
+compiler_parse_ManifestPackageName(String folder, Slice name)
+{
+    uint8_t path[1024] = {0};
+    int64_t used = 0LL;
+    Slice value_0 = {path, 1024};
+    bool value_1 = compiler_parse_ExprAppend(value_0, &(used), folder);
+    bool value_2 = !value_1;
+    if (!value_2) {
+        Slice value_3 = {path, 1024};
+        bool value_4 = compiler_parse_ExprAppend(value_3, &(used), StringLiteral("/ziran.toml"));
+        value_2 = !value_4;
+    }
+    if (value_2) {
+        return false;
+    }
+    uint8_t* value_5 = &(path[used]);
+    (*value_5) = 0;
+    String value_6 = StringLiteral("rb");
+    uint8_t* value_7 = (void *)0;
+    {
+        String text = value_6;
+        value_7 = ((ExprText*)(&(text)))->data;
+    }
+    void* file = zir_f_1c72792874eb8388_ExprFopen(&(path[0]), value_7);
+    if (file == ((void *)0)) {
+        return false;
+    }
+    size_t capacity = 65536;
+    void* value_9 = zir_f_1c72792874eb8388_ExprMalloc(capacity + 1);
+    uint8_t* data = (uint8_t*)(value_9);
+    if (data == ((void *)0)) {
+        zir_f_1c72792874eb8388_ExprFclose(file);
+        return false;
+    }
+    size_t count = zir_f_1c72792874eb8388_ExprFread((void*)(data), 1, capacity, file);
+    zir_f_1c72792874eb8388_ExprFclose(file);
+    uint8_t* value_10 = &(data[count]);
+    (*value_10) = 0;
+    String text = compiler_ir_CText(data);
+    bool in_package = false;
+    int64_t start = 0LL;
+    while (start < (int64_t)(text).length) {
+        int64_t finish = start;
+        while (finish < (int64_t)(text).length && (uint8_t)text.data[finish] != 10) {
+            finish = (int64_t)((uint64_t)finish + UINT64_C(1));
+        }
+        String line = StringRangeAt(text, (int64_t)start, (int64_t)finish);
+        start = (int64_t)((uint64_t)finish + UINT64_C(1));
+        while ((int64_t)(line).length > 0LL && ((uint8_t)line.data[0] == 32 || (uint8_t)line.data[0] == 9)) {
+            line = StringRangeAt(line, (int64_t)1LL, (int64_t)(int64_t)(line).length);
+        }
+        if ((int64_t)(line).length > 0LL && (uint8_t)line.data[0] == 91) {
+            in_package = (int64_t)(line).length >= 9LL && StringEqual(StringRangeAt(line, (int64_t)0LL, (int64_t)9LL), StringLiteral("[package]"));
+            continue;
+        }
+        if (!in_package || (int64_t)(line).length < 4LL || !StringEqual(StringRangeAt(line, (int64_t)0LL, (int64_t)4LL), StringLiteral("name"))) {
+            continue;
+        }
+        String rest = StringRangeAt(line, (int64_t)4LL, (int64_t)(int64_t)(line).length);
+        while ((int64_t)(rest).length > 0LL && ((uint8_t)rest.data[0] == 32 || (uint8_t)rest.data[0] == 9)) {
+            rest = StringRangeAt(rest, (int64_t)1LL, (int64_t)(int64_t)(rest).length);
+        }
+        if ((int64_t)(rest).length < 3LL || (uint8_t)rest.data[0] != 61) {
+            continue;
+        }
+        rest = StringRangeAt(rest, (int64_t)1LL, (int64_t)(int64_t)(rest).length);
+        while ((int64_t)(rest).length > 0LL && ((uint8_t)rest.data[0] == 32 || (uint8_t)rest.data[0] == 9)) {
+            rest = StringRangeAt(rest, (int64_t)1LL, (int64_t)(int64_t)(rest).length);
+        }
+        if ((int64_t)(rest).length < 2LL || (uint8_t)rest.data[0] != 34) {
+            bool cleanup_return_0 = false;
+            zir_f_1c72792874eb8388_ExprFree((void*)(data));
+            return cleanup_return_0;
+        }
+        int64_t close = 1LL;
+        while (close < (int64_t)(rest).length && (uint8_t)rest.data[close] != 34) {
+            close = (int64_t)((uint64_t)close + UINT64_C(1));
+        }
+        if (close >= (int64_t)(rest).length || close == 1LL || close >= (int64_t)(name).length) {
+            bool cleanup_return_1 = false;
+            zir_f_1c72792874eb8388_ExprFree((void*)(data));
+            return cleanup_return_1;
+        }
+        compiler_ir_CopyText(name, StringRangeAt(rest, (int64_t)1LL, (int64_t)close));
+        bool cleanup_return_2 = true;
+        zir_f_1c72792874eb8388_ExprFree((void*)(data));
+        return cleanup_return_2;
+    }
+    bool cleanup_return_3 = false;
+    zir_f_1c72792874eb8388_ExprFree((void*)(data));
+    return cleanup_return_3;
+}
+
+static String
 compiler_parse_CallerLocationText(ZirModule* module, ZirSourceSpan span, Slice output)
 {
     uint8_t candidate[2048] = {0};
@@ -1048,20 +1274,28 @@ compiler_parse_CallerLocationText(ZirModule* module, ZirSourceSpan span, Slice o
     if (canonical != ((void *)0)) {
         path = canonical;
     }
-    String text = compiler_ir_CText(path);
+    String absolute = compiler_ir_CText(path);
     bool value_11 = zir_f_1c72792874eb8388_ExprAbsolutePath(path) == 0;
-    if (value_11 || (int64_t)(text).length >= 1024LL) {
+    if (value_11 || (int64_t)(absolute).length >= 1024LL) {
         String cleanup_return_0 = StringLiteral("");
         zir_f_1c72792874eb8388_ExprFree((void*)(canonical));
         return cleanup_return_0;
     }
-    uint8_t escaped[4096] = {0};
-    Slice value_12 = {escaped, 4096};
-    int64_t length = compiler_text_EscapeCString(text, value_12);
-    if (length >= 4095LL) {
+    uint8_t stable[1024] = {0};
+    Slice value_12 = {stable, 1024};
+    String text = compiler_parse_StableLocationPath(absolute, root, value_12);
+    if ((int64_t)(text).length == 0LL) {
         String cleanup_return_1 = StringLiteral("");
         zir_f_1c72792874eb8388_ExprFree((void*)(canonical));
         return cleanup_return_1;
+    }
+    uint8_t escaped[4096] = {0};
+    Slice value_13 = {escaped, 4096};
+    int64_t length = compiler_text_EscapeCString(text, value_13);
+    if (length >= 4095LL) {
+        String cleanup_return_2 = StringLiteral("");
+        zir_f_1c72792874eb8388_ExprFree((void*)(canonical));
+        return cleanup_return_2;
     }
     uint8_t line[12] = {0};
     int64_t i = 12LL;
@@ -1071,8 +1305,8 @@ compiler_parse_CallerLocationText(ZirModule* module, ZirSourceSpan span, Slice o
     }
     while (true) {
         i = (int64_t)((uint64_t)i - UINT64_C(1));
-        uint8_t* value_13 = &(line[i]);
-        (*value_13) = (uint8_t)(((int64_t)(UINT64_C(48) + (uint64_t)((remaining % 10LL)))));
+        uint8_t* value_14 = &(line[i]);
+        (*value_14) = (uint8_t)(((int64_t)(UINT64_C(48) + (uint64_t)((remaining % 10LL)))));
         remaining = remaining / 10LL;
         if (remaining == 0LL) {
             break;
@@ -1080,47 +1314,47 @@ compiler_parse_CallerLocationText(ZirModule* module, ZirSourceSpan span, Slice o
     }
     if (span.line < 0) {
         i = (int64_t)((uint64_t)i - UINT64_C(1));
-        uint8_t* value_14 = &(line[i]);
-        (*value_14) = 45;
+        uint8_t* value_15 = &(line[i]);
+        (*value_15) = 45;
     }
     int64_t used = 0LL;
-    bool value_15 = compiler_parse_ExprAppend(output, &(used), StringLiteral("Source_Code_Location.{.fully_pathed_filename = \""));
-    bool value_16 = !value_15;
-    if (!value_16) {
-        Slice value_17 = output;
-        Slice value_18 = {escaped, 4096};
-        Slice value_19 = SliceRangeAt(value_18, (int64_t)0LL, (int64_t)length, sizeof(uint8_t));
-        bool value_20 = compiler_parse_ExprAppend(value_17, &(used), StringView((const char *)(value_19).data, (size_t)(value_19).length));
-        value_16 = !value_20;
+    bool value_16 = compiler_parse_ExprAppend(output, &(used), StringLiteral("Source_Code_Location.{.fully_pathed_filename = \""));
+    bool value_17 = !value_16;
+    if (!value_17) {
+        Slice value_18 = output;
+        Slice value_19 = {escaped, 4096};
+        Slice value_20 = SliceRangeAt(value_19, (int64_t)0LL, (int64_t)length, sizeof(uint8_t));
+        bool value_21 = compiler_parse_ExprAppend(value_18, &(used), StringView((const char *)(value_20).data, (size_t)(value_20).length));
+        value_17 = !value_21;
     }
-    bool value_21 = value_16;
-    if (!value_21) {
-        bool value_22 = compiler_parse_ExprAppend(output, &(used), StringLiteral("\", .line_number = "));
-        value_21 = !value_22;
+    bool value_22 = value_17;
+    if (!value_22) {
+        bool value_23 = compiler_parse_ExprAppend(output, &(used), StringLiteral("\", .line_number = "));
+        value_22 = !value_23;
     }
-    bool value_23 = value_21;
-    if (!value_23) {
-        Slice value_24 = output;
-        Slice value_25 = {line, 12};
-        Slice value_26 = SliceRangeAt(value_25, (int64_t)i, (int64_t)12, sizeof(uint8_t));
-        bool value_27 = compiler_parse_ExprAppend(value_24, &(used), StringView((const char *)(value_26).data, (size_t)(value_26).length));
-        value_23 = !value_27;
+    bool value_24 = value_22;
+    if (!value_24) {
+        Slice value_25 = output;
+        Slice value_26 = {line, 12};
+        Slice value_27 = SliceRangeAt(value_26, (int64_t)i, (int64_t)12, sizeof(uint8_t));
+        bool value_28 = compiler_parse_ExprAppend(value_25, &(used), StringView((const char *)(value_27).data, (size_t)(value_27).length));
+        value_24 = !value_28;
     }
-    bool value_28 = value_23;
-    if (!value_28) {
-        bool value_29 = compiler_parse_ExprAppend(output, &(used), StringLiteral("}"));
-        value_28 = !value_29;
+    bool value_29 = value_24;
+    if (!value_29) {
+        bool value_30 = compiler_parse_ExprAppend(output, &(used), StringLiteral("}"));
+        value_29 = !value_30;
     }
-    if (value_28) {
-        String cleanup_return_2 = StringLiteral("");
+    if (value_29) {
+        String cleanup_return_3 = StringLiteral("");
         zir_f_1c72792874eb8388_ExprFree((void*)(canonical));
-        return cleanup_return_2;
+        return cleanup_return_3;
     }
-    Slice value_30 = output;
-    Slice value_31 = SliceRangeAt(value_30, (int64_t)0LL, (int64_t)used, sizeof(uint8_t));
-    String cleanup_return_3 = StringView((const char *)(value_31).data, (size_t)(value_31).length);
+    Slice value_31 = output;
+    Slice value_32 = SliceRangeAt(value_31, (int64_t)0LL, (int64_t)used, sizeof(uint8_t));
+    String cleanup_return_4 = StringView((const char *)(value_32).data, (size_t)(value_32).length);
     zir_f_1c72792874eb8388_ExprFree((void*)(canonical));
-    return cleanup_return_3;
+    return cleanup_return_4;
 }
 
 static String

@@ -1912,6 +1912,7 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                     error(c, (e).span, problem, (e).name)
                     break check_switch_243
                 }
+                declared_array: *u8 = (e).name
                 (e).name = normalized_array((c).module, (e).name)
                 ArrayElementType((e).name, cast(*u8)(*((element_storage_6[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), *(capacity))
                 if (capacity < 0) {
@@ -1924,6 +1925,14 @@ expression_type_with_buffers :: (c: *Checker, index: s32, buffers: *ExpressionTy
                         entry: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)(((c).fn).exprs) + cast(usize)(child) * size_of(IR.ZirExpr))
                         if !(strcmp(cast(*u8)(*((entry).op)), CheckCString("=")) != 0) {
                             error(c, (entry).span, CheckCString("array literals require positional elements"), (entry).name)
+                        }
+                        // An untyped `.[...]` row inside this literal was given the
+                        // declaration's whole type; its own type is the element type.
+                        if (element_storage_6[0]).items[0] == 91 && (entry).right >= 0 {
+                            row: *IR.ZirExpr = cast(*IR.ZirExpr)(cast(usize)(((c).fn).exprs) + cast(usize)((entry).right) * size_of(IR.ZirExpr))
+                            if (row).kind == IR.ZirExprKind.COMPOUND && (row).name != null && strcmp((row).name, declared_array) == 0 {
+                                (row).name = KeepName(cast(*u8)(*((element_storage_6[0]).items)))
+                            }
                         }
                         saved_expected_storage_7 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
                         defer CompilerFree(cast(*void)saved_expected_storage_7)

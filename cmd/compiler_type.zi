@@ -319,7 +319,8 @@ GoTypeTarget :: (target: string) -> bool {
     call := GoCall(target, 0)
     if call.kind != 1 { return false }
     if target.count >= 11 && target[0:11] == "go:builtin." {
-        return call.module == "builtin" && (call.symbol == "any" || call.symbol == "error")
+        return call.module == "builtin" &&
+            (call.symbol == "any" || call.symbol == "error" || call.symbol == "uintptr")
     }
     return true
 }

@@ -1924,6 +1924,11 @@ rejected. Both attributes require explicit Go package targets. ZIR
 stores their typed signatures and attributes; generation from saved IR does
 not infer them from diagnostic source text.
 
+For foreign APIs that use Go's `uintptr`, declare the native type with
+`#type #foreign builtin "uintptr"` where `builtin` is `go:builtin`. Use an
+explicit cast for conversion to a Ziran integer. This preserves Go's distinction
+between `uintptr` and `uint` in generated function calls.
+
 The standard modules `sync_go`, `time_go`, `random_go`, `text_go`, `net_go`
 and `http_go` expose mutexes, native monotonic timestamps, cryptographic random
 bytes, copied byte strings, IP primitives, HTTP request fields and headers.

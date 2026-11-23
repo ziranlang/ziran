@@ -3,10 +3,18 @@ other :: #import "other";
 time :: #system_library "go:time";
 context :: #system_library "go:context";
 ed25519 :: #system_library "go:crypto/ed25519";
+os :: #system_library "go:os";
+builtin :: #system_library "go:builtin";
 Time :: #type #foreign time;
 Context :: #type #foreign context;
 PrivateKey :: #type #foreign ed25519;
+File :: #type #foreign os;
+Uintptr :: #type #foreign builtin "uintptr";
 FromSeed :: (seed: []u8) -> PrivateKey #foreign ed25519 "NewKeyFromSeed";
+FileDescriptorRaw :: (file: *File) -> Uintptr #foreign os "(*File).Fd";
+FileDescriptor :: (file: *File) -> usize {
+    return cast(usize)FileDescriptorRaw(file)
+}
 Envelope :: struct {
     payload: json_types.Raw #go_tag "json:\"payload\""
     optional: json_types.Raw #go_tag "json:\"optional,omitempty\""

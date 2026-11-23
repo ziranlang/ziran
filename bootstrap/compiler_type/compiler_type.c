@@ -753,7 +753,12 @@ compiler_type_GoTypeTarget(String target)
         return false;
     }
     if ((int64_t)(target).length >= 11LL && StringEqual(StringRangeAt(target, (int64_t)0LL, (int64_t)11LL), StringLiteral("go:builtin."))) {
-        return StringEqual(call.module, StringLiteral("builtin")) && (StringEqual(call.symbol, StringLiteral("any")) || StringEqual(call.symbol, StringLiteral("error")));
+        bool value_0 = StringEqual(call.module, StringLiteral("builtin"));
+        if (value_0) {
+            bool value_1 = StringEqual(call.symbol, StringLiteral("any")) || StringEqual(call.symbol, StringLiteral("error"));
+            value_0 = (value_1 || StringEqual(call.symbol, StringLiteral("uintptr")));
+        }
+        return value_0;
     }
     return true;
 }

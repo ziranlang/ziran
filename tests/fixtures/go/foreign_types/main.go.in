@@ -4,6 +4,7 @@ import (
     "bytes"
     "crypto/ed25519"
     "encoding/json"
+    "os"
     "reflect"
 )
 
@@ -30,5 +31,8 @@ func main() {
     for i := range seed { seed[i] = byte(i) }
     if !bytes.Equal(Opaque_SeedKey(seed), ed25519.NewKeyFromSeed(seed)) {
         panic("direct Go foreign type result changed")
+    }
+    if fd := Opaque_FileDescriptor(os.Stdout); fd != uint(os.Stdout.Fd()) {
+        panic("native uintptr result changed")
     }
 }

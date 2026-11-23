@@ -1689,6 +1689,10 @@ discard fields. Variadic declarations and combinations with <code>#go_field</cod
 rejected. Both attributes require explicit Go package targets. ZIR
 stores their typed signatures and attributes; generation from saved IR does
 not infer them from diagnostic source text.</p>
+<p>For foreign APIs that use Go's <code>uintptr</code>, declare the native type with
+<code>#type #foreign builtin "uintptr"</code> where <code>builtin</code> is <code>go:builtin</code>. Use an
+explicit cast for conversion to a Ziran integer. This preserves Go's distinction
+between <code>uintptr</code> and <code>uint</code> in generated function calls.</p>
 <p>The standard modules <code>sync_go</code>, <code>time_go</code>, <code>random_go</code>, <code>text_go</code>, <code>net_go</code>
 and <code>http_go</code> expose mutexes, native monotonic timestamps, cryptographic random
 bytes, copied byte strings, IP primitives, HTTP request fields and headers.

@@ -1,0 +1,31 @@
+#import "go_types"
+slots :: #import "slots";
+builtin :: #system_library "go:builtin";
+Binder :: (callback: slots.Full, state: *slots.State, prefix: string) -> slots.Bound #foreign builtin "bind";
+Adder :: #type (count: *s64, amount: s64) -> s64;
+Reader :: #type () -> s64;
+BindAll :: (callback: Adder, count: *s64, amount: s64) -> Reader #foreign builtin "bind";
+Writer :: #type (count: *s64, bytes: []u8) -> void;
+Output :: #type (bytes: []u8) -> void;
+BindWriter :: (callback: Writer, count: *s64) -> Output #foreign builtin "bind";
+TextState :: struct { text: string }
+RetainText :: (value: string) -> string #foreign builtin "retain";
+RetainBytes :: (value: []u8) -> []u8 #foreign builtin "retain";
+RetainResult :: (value: slots.Result) -> slots.Result #foreign builtin "retain";
+ReadText :: (state: *TextState) -> string { return RetainText(state.text) }
+Capture :: (callback: slots.Full, state: *slots.State, prefix: string) -> slots.Bound {
+    bound := Binder(callback, state, prefix)
+    prefix = "changed"
+    return bound
+}
+Add :: (count: *s64, amount: s64) -> s64 {
+    <<count += amount
+    return <<count
+}
+#program_export
+Answer :: () -> s32 { return 42 }
+BindEntry :: () -> s32 {
+    count: s64
+    result := BindAll(Add, *count, cast(s64)42)
+    return cast(s32)result()
+}

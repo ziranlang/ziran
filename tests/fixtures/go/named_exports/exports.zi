@@ -1,0 +1,19 @@
+#import "go_types"
+builtin :: #system_library "go:builtin";
+State :: struct { count: s64 }
+Result :: struct { bytes: []u8; error: Error }
+Panic :: (value: Error) #foreign builtin "panic";
+Value: s32 = 40;
+#program_export "Value"
+GetValue :: () -> s32 { return Value + 2 }
+#program_export "NativeForward"
+Forward :: (Exports_Forward: *State, bytes: []u8, error: Error) -> Result {
+    Exports_Forward.count += 1
+    return Result.{bytes, error}
+}
+#program_export "NativeVoid"
+Raise :: (state: *State) { state.count += 1 }
+#program_export "NativePanic"
+RaisePanic :: (error: Error) { Panic(error) }
+#program_export "NativeEntry"
+Answer :: () -> s32 { return GetValue() }

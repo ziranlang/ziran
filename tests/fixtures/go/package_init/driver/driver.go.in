@@ -1,0 +1,5 @@
+package driver
+import "fixture/registry"
+type Handle struct { Value int32 }
+func init() { registry.Count++ }
+func Answer() int32 { return 42 }

@@ -1,0 +1,12 @@
+types :: #import "types";
+c :: #system_library "go:C/fixture.h";
+New :: (name: *types.Character) -> *types.Handle #foreign c "fixture_new";
+FreeAtReturn :: (handle: *types.Handle) #go_defer #foreign c "fixture_free";
+Use :: (handle: *types.Handle, bytes: *u8, length: *usize) -> s32 #foreign c "fixture_use";
+Size :: (handle: *types.Handle) -> usize #go_field #foreign c "(*fixture_handle).size";
+SetSize :: (handle: *types.Handle, size: usize) #go_field #foreign c "(*fixture_handle).size";
+Bytes :: (handle: *types.Handle) -> *u8 #go_field #foreign c "(*fixture_handle).bytes";
+SetBytes :: (handle: *types.Handle, bytes: *u8) #go_field #foreign c "(*fixture_handle).bytes";
+Success :: () -> s32 #go_field #foreign c "FIXTURE_SUCCESS";
+Name :: () -> string #go_field #foreign c "FIXTURE_NAME";
+Frees :: () -> s32 #foreign c "fixture_frees";

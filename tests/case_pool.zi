@@ -1,0 +1,107 @@
+// Runs the cases of one grouped check as parallel child processes, so one
+// check covers many fixtures without repeating its launcher for each.
+#import "native_test"
+#import "check_support"
+#import "std/environment_linux"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+CaseJob :: struct {
+    output_path: string
+    error_path: string
+    started_ms: s64
+    started: bool
+    finished: bool
+    run: ProcessRun
+}
+
+CaseWorkerCount :: (total: s64) -> s64 {
+    jobs := EnvironmentNumber("BUILD_QUEUE_JOBS", 0)
+    if jobs <= 0 {
+        command: [1]string = .["nproc"]
+        output, code := CheckCapture(command[:])
+        value, valid := TextInteger(TextTrim(output))
+        jobs = ifx code == 0 && valid && value > 0 then value else cast(s64)1
+    }
+    if jobs > 8 { jobs = 8 }
+    if jobs > total { jobs = total }
+    if jobs < 1 { jobs = 1 }
+    return jobs
+}
+
+StopCaseJobs :: (jobs: *Vec(CaseJob)) {
+    for index: cast(s64)0..jobs.count - 1 {
+        if (<<jobs)[index].started && !(<<jobs)[index].finished { NativeStop(*((<<jobs)[index].run)) }
+    }
+}
+
+// The argv of one case's child process, as RunCases takes it.
+CaseCommand :: (arguments: []string) -> string { return TextDetach(TextJoin(arguments, "\n")) }
+
+// Starts the cases in the given order, a bounded number at once; list the
+// heaviest first so shorter cases fill their shadow. commands[i] is the
+// CaseCommand of names[i]. Returns 0 after every case passed and its output
+// was printed in order, 1 after the first failure and its output, and 130
+// when interrupted.
+RunCases :: (test: *NativeTest, names: []string, commands: []string) -> s32 {
+    count := names.count
+    jobs: Vec(CaseJob)
+    if !NativeAssert(test, VecResize(jobs, count), "allocate case jobs") { return 1 }
+    workers := CaseWorkerCount(count)
+    next: s64 = 0
+    running: s64 = 0
+    remaining := count
+    while remaining > 0 {
+        if TerminationRequested() {
+            StopCaseJobs(*jobs)
+            return 130
+        }
+        while next < count && running < workers {
+            command := TextSplit(commands[next], "\n")
+            test.counter += 1
+            log_prefix := CheckPath(test.work, CheckConcat(names[next], CheckConcat("-", CheckNumber(test.counter))))
+            jobs[next].output_path = CheckConcat(log_prefix, ".stdout")
+            jobs[next].error_path = CheckConcat(log_prefix, ".stderr")
+            jobs[next].started_ms = MonotonicMilliseconds()
+            options: ProcessOptions = .{.arguments = command[:], .directory = test.repo,
+                .environment = test.environment[:], .output_path = jobs[next].output_path,
+                .error_path = jobs[next].error_path, .new_session = true}
+            if !NativeAssert(test, StartProcess(options, *jobs[next].run), "start native test child") {
+                StopCaseJobs(*jobs)
+                return 1
+            }
+            jobs[next].started = true
+            next += 1
+            running += 1
+        }
+        now := MonotonicMilliseconds()
+        for index: cast(s64)0..count - 1 {
+            if !jobs[index].started || jobs[index].finished { continue }
+            if !PollProcess(*jobs[index].run) {
+                if now - jobs[index].started_ms > 600000 {
+                    StopCaseJobs(*jobs)
+                    unused NativeAssert(test, false, CheckConcat(names[index], " timed out"))
+                    return 1
+                }
+                continue
+            }
+            jobs[index].finished = true
+            running -= 1
+            remaining -= 1
+            if jobs[index].run.code != 0 {
+                StopCaseJobs(*jobs)
+                out := NativeRead(test, jobs[index].output_path)
+                err := NativeRead(test, jobs[index].error_path)
+                unused NativeAssert(test, false, CheckConcat(names[index], CheckConcat(" failed:\n", CheckConcat(out, err))))
+                return 1
+            }
+        }
+        if remaining > 0 { unused SleepMilliseconds(5) }
+    }
+    for index: cast(s64)0..count - 1 {
+        print("%", NativeRead(test, jobs[index].output_path))
+    }
+    return 0
+}

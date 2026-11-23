@@ -1,0 +1,36 @@
+#import "go_types"
+#import "random_go"
+net :: #system_library "go:net";
+strconv :: #system_library "go:strconv";
+strings :: #system_library "go:strings";
+Reader :: #type #foreign strings "Reader";
+HostPort :: struct { host: string; port: string; error: Error }
+Integer :: struct { value: s64; error: Error }
+Split :: (address: string) -> HostPort #go_results #foreign net "SplitHostPort";
+Parse :: (value: string, base: isize, bits: isize) -> Integer #go_results #foreign strconv "ParseInt";
+NewReader :: (value: string) -> *Reader #foreign strings;
+ReadReader :: (reader: *Reader, output: []u8) -> ReadResult #go_results #foreign strings "(*Reader).Read";
+ReadText :: (value: string, output: []u8) -> ReadResult {
+    return ReadReader(NewReader(value), output)
+}
+Host :: (address: string) -> string {
+    result := Split(address)
+    if result.error != null { return address }
+    return result.host
+}
+Port :: (address: string) -> string {
+    result := Split(address)
+    return result.port
+}
+Number :: (value: string) -> Integer {
+    return Parse(value, cast(isize)10, cast(isize)64)
+}
+Random :: (output: []u8) -> bool {
+    result := Fill(output)
+    return result.error == null && result.count == cast(isize)output.count
+}
+#program_export
+Answer :: () -> s32 {
+    if Host("[::1]:443") == "::1" { return 42 }
+    return 0
+}

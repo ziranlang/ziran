@@ -1,0 +1,6 @@
+json_types :: #import "json_types";
+json :: #system_library "go:encoding/json";
+Raw :: #type #foreign json "RawMessage";
+Forward :: (value: json_types.Raw) -> Raw {
+    return value
+}

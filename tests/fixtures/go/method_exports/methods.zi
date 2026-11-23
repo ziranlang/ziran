@@ -1,0 +1,40 @@
+#import "go_types"
+io :: #import "io_go";
+go_io :: #system_library "go:io";
+go_fmt :: #system_library "go:fmt";
+builtin :: #system_library "go:builtin";
+CapturedWriter :: struct { destination: io.Writer; calls: isize }
+WriteResult :: struct { count: isize; error: Error }
+Label :: struct { value: string }
+Counter :: struct { value: s32 }
+WriteRaw :: (writer: io.Writer, bytes: []u8) -> WriteResult #go_results #foreign go_io "Writer.Write";
+Allocate :: () -> *CapturedWriter #foreign builtin "new";
+PrintNative :: (value: Any) #foreign go_fmt "Print";
+New :: (destination: io.Writer) -> io.Writer {
+    writer := Allocate()
+    writer.destination = destination
+    return cast(io.Writer)writer
+}
+Write :: (writer: *CapturedWriter, bytes: []u8) -> WriteResult #go_method "Write" #go_results {
+    writer.calls += 1
+    return WriteRaw(writer.destination, bytes)
+}
+Describe :: (label: Label) -> string #go_method "String" {
+    return label.value
+}
+Add :: (counter: *Counter, amount: s32) -> s32 #go_method "Add" {
+    counter.value += amount
+    return counter.value
+}
+Reset :: (counter: *Counter) #go_method "Reset" {
+    counter.value = 0
+}
+#program_export
+Answer :: () -> s32 {
+    counter: Counter
+    Add(*counter, cast(s32)42)
+    return counter.value
+}
+InterfaceEntry :: () {
+    PrintNative(cast(Any)Label.{"42"})
+}

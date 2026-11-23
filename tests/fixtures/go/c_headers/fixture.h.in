@@ -1,0 +1,16 @@
+#ifndef FIXTURE_H
+#define FIXTURE_H
+#include <stddef.h>
+#include <stdint.h>
+typedef struct fixture_handle {
+    uint8_t padding[19];
+    size_t size;
+    uint8_t *bytes;
+} fixture_handle;
+#define FIXTURE_SUCCESS 42
+#define FIXTURE_NAME "header-owned layout"
+fixture_handle *fixture_new(const char *name);
+void fixture_free(fixture_handle *handle);
+int32_t fixture_use(fixture_handle *handle, uint8_t *bytes, size_t *length);
+int32_t fixture_frees(void);
+#endif

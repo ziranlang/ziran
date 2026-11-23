@@ -1,0 +1,17 @@
+#import "go_types"
+text :: #import "text_go";
+builtin :: #system_library "go:builtin";
+Record :: struct { name: string; count: s64 }
+BytesNil :: (value: []u8) -> bool #foreign builtin "is_nil";
+IntegersNil :: (value: []isize) -> bool #foreign builtin "is_nil";
+RecordsNil :: (value: []Record) -> bool #foreign builtin "is_nil";
+Bytes :: (value: []u8) -> bool { return BytesNil(value) }
+StandardBytes :: (value: []u8) -> bool { return text.IsNil(value) }
+Integers :: (value: []isize) -> bool { return IntegersNil(value) }
+Records :: (value: []Record) -> bool { return RecordsNil(value) }
+LocalEmpty :: () -> bool {
+    value: [1]u8
+    return BytesNil(value[0:0])
+}
+#program_export
+Answer :: () -> s32 { return 42 }

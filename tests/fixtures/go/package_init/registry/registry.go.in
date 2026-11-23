@@ -1,0 +1,2 @@
+package registry
+var Count int

@@ -1,0 +1,36 @@
+#import "go_types"
+errors :: #import "errors_go";
+sql :: #import "sql_go";
+ctx :: #import "context_go";
+go_math :: #system_library "go:math";
+go_os :: #system_library "go:os";
+builtin :: #system_library "go:builtin";
+PiRaw :: () -> float64 #go_field #foreign go_math "Pi";
+ArgumentsRaw :: () -> []string #go_field #foreign go_os "Args";
+MessageRaw :: (error: Error) -> string #foreign builtin "error.Error";
+ObserveRaw :: (error: Error) #foreign builtin "error.Error";
+Pi :: () -> float64 {
+    return PiRaw()
+}
+Arguments :: () -> []string {
+    return ArgumentsRaw()
+}
+Message :: (error: Error) -> string {
+    return errors.Message(error)
+}
+Shadow :: (Error: Error) -> string {
+    return MessageRaw(Error)
+}
+Observe :: (error: Error) {
+    ObserveRaw(error)
+}
+Unwrap :: (error: Error) -> Error {
+    return errors.Unwrap(error)
+}
+IsNoRows :: (error: Error) -> bool {
+    return errors.Is(error, sql.NoRows())
+}
+#program_export
+Answer :: () -> s32 {
+    return 42
+}

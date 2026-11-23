@@ -1,0 +1,30 @@
+#load "native.zi";
+others :: #import "other_types";
+builtin :: #system_library "go:builtin";
+Enabled :: () -> bool #foreign builtin "cgo_enabled";
+Panic :: (message: string) #foreign builtin "panic";
+Snapshot :: struct { pointer: *types.Handle; other: *others.Handle; status: s32 }
+Run :: (name: []u8, bytes: []u8) -> s32 {
+    if !Enabled() { return -2 }
+    handle := New(cast(*types.Character)*name[0])
+    if handle == null { return -3 }
+    FreeAtReturn(handle)
+    if Size(handle) != cast(usize)43 { return -4 }
+    SetSize(handle, cast(usize)42)
+    buffer := Bytes(handle)
+    SetBytes(handle, null)
+    if Bytes(handle) != null { return -5 }
+    SetBytes(handle, buffer)
+    if Bytes(handle) != buffer { return -5 }
+    length: usize = cast(usize)bytes.count
+    if Use(handle, *bytes[0], *length) != Success() { return -6 }
+    return cast(s32)length
+}
+RunPanic :: (name: []u8) {
+    handle := New(cast(*types.Character)*name[0])
+    FreeAtReturn(handle)
+    Panic("native cleanup")
+}
+#program_export
+Answer :: () -> s32 { return 42 }
+NativeEntry :: () -> s32 { return Success() }

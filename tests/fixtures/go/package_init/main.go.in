@@ -1,0 +1,8 @@
+package main
+import "fixture/registry"
+var initializedBeforeGlobals = registry.Count == 1
+func main() {
+    if !initializedBeforeGlobals || registry.Count != 1 { panic("package startup order") }
+    if App_Run() != 42 || App_Run() != 42 || registry.Count != 1 { panic("package initialized again") }
+    if (Handle{Value: 42}).Value != 42 { panic("named type import lost") }
+}

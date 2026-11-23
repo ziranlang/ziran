@@ -1,0 +1,20 @@
+package main
+import (
+    "io"
+    "strconv"
+)
+func main() {
+    if Results_Host("[::1]:443") != "::1" || Results_Port("[::1]:443") != "443" || Results_Host("bad-address") != "bad-address" { panic("three results or error handling") }
+    for _, value := range []string{"42", "-9223372036854775808", "9223372036854775808", "oops", ""} {
+        want, err := strconv.ParseInt(value, 10, 64)
+        got := Results_Number(value)
+        if got.Value != want || (got.Error == nil) != (err == nil) { panic("integer result/error") }
+        if err != nil && got.Error.Error() != err.Error() { panic("error identity behavior") }
+    }
+    bytes := make([]byte, 32)
+    if !Results_Random(bytes) || !Results_Random(nil) { panic("secure random result") }
+    text := make([]byte, 2)
+    read := Results_ReadText("abc", text)
+    eof := Results_ReadText("", text)
+    if read.Count != 2 || read.Error != nil || string(text) != "ab" || eof.Count != 0 || eof.Error != io.EOF { panic("method result/error identity") }
+}

@@ -1,0 +1,264 @@
+// Go target exports: C header bindings, methods, named exports and package
+// initialization, each built from source and from saved IR and run by Go.
+#import "go_case_support"
+#import "native_test"
+#import "check_support"
+#import "std/environment_linux"
+
+GoCHeaders :: (go: *GoCase) {
+    GoSources(go, "fixture.h fixture.c types.zi other_types.zi native.zi policy.zi")
+    compiler := EnvironmentText("CC")
+    archiver := EnvironmentText("AR")
+    GoRun(go, CheckConcat(ifx compiler == "" then "cc" else compiler, " -c $work/fixture.c -o $work/fixture.o"))
+    GoRun(go, CheckConcat(ifx archiver == "" then "ar" else archiver, " rcs $work/libfixture.a $work/fixture.o"))
+    GoRun(go, "$ziran ir --root $work -o $work/ir $work/policy.zi")
+    GoBlank(go, "policy.zir", "go_c_headers.txt")
+    for form: go_forms {
+        GoForm(go, form, "policy")
+        GoRun(go, "'LDLIBS=-L$work -lfixture' $ziran build --target=go --no-main --pkg main --root $work -o $out $file")
+        GoHost(go)
+        GoRun(go, "CGO_ENABLED=1 GOEXPERIMENT=cgocheck2 CGO_CFLAGS=-I$work GO111MODULE=off go run -race .", "$out")
+        GoRun(go, "CGO_ENABLED=0 GO111MODULE=off go run .", "$out")
+        GoFails(go, "$ziran build --target=c --root $work --entry policy:NativeEntry -o $work/rejected $file", "reachable cgo header binding accepted by c")
+        GoFails(go, "$ziran bundle --root $work --entry policy:NativeEntry -o $work/rejected.zx $file", "reachable cgo header binding accepted by portable bundle")
+        GoRun(go, "$ziran build --target=c --exe --root $work --entry policy:Answer -o $work/$form-c $file")
+        GoRun(go, "$work/$form-c/policy", "", 42)
+        GoRun(go, "$ziran bundle --root $work --entry policy:Answer -o $work/$form.zx $file")
+        GoPrints(go, "$ziran run $work/$form.zx", "42")
+    }
+    GoSame(go, "types.go types.cgo.go types.nocgo.go other_types.go other_types.cgo.go other_types.nocgo.go policy.go policy.cgo.go policy.nocgo.go zi2go.cgo.go zi2go.nocgo.go")
+    // bad, empty and absolute header; record value, pointer record, slice
+    // value, packing, variadic and method.
+    interfaces := #string ZI
+c :: #system_library "go:C/../fixture.h";
+Handle :: #type #foreign c "fixture_handle";
+----
+c :: #system_library "go:C/";
+Handle :: #type #foreign c "fixture_handle";
+----
+c :: #system_library "go:C//fixture.h";
+Handle :: #type #foreign c "fixture_handle";
+----
+c :: #system_library "go:C/fixture.h";
+Handle :: #type #foreign c "fixture_handle";
+Use :: (handle: Handle) -> s32 #foreign c "fixture_use";
+----
+c :: #system_library "go:C/fixture.h";
+Handle :: #type #foreign c "fixture_handle";
+Result :: struct { value: s32 };
+Use :: (value: *Result) -> s32 #foreign c "fixture_use";
+----
+c :: #system_library "go:C/fixture.h";
+Handle :: #type #foreign c "fixture_handle";
+Use :: (bytes: []u8) -> s32 #foreign c "fixture_use";
+----
+c :: #system_library "go:C/fixture.h";
+Handle :: #type #foreign c "fixture_handle";
+Result :: struct { value: s32 };
+Use :: () -> Result #go_results #foreign c "fixture_use";
+----
+c :: #system_library "go:C/fixture.h";
+Handle :: #type #foreign c "fixture_handle";
+Use :: (bytes: []u8) -> s32 #go_variadic #foreign c "fixture_use";
+----
+c :: #system_library "go:C/fixture.h";
+Handle :: #type #foreign c "fixture_handle";
+Use :: (handle: *Handle) -> s32 #foreign c "(*fixture_handle).fixture_use";
+ZI
+    save := "$ziran ir --root $work -o $work/bad-ir $work/bad.zi"
+    GoRejects(go, save, "%s\n", interfaces, "invalid cgo header interface accepted", "cgo header|C-pointer ABI", true)
+    availability := #string ZI
+Enabled :: (value: bool) -> bool
+Enabled :: () -> s32
+Enabled :: () -> bool #go_field
+ZI
+    GoRejects(go, save, "builtin :: #system_library \"go:builtin\";\n%s #foreign builtin \"cgo_enabled\";\n", availability,
+        "invalid native availability signature accepted", "Go builtin requires a valid|#go_field requires")
+    GoPassed(go, "Go C header bindings: passed")
+}
+
+GoMethodExports :: (go: *GoCase) {
+    GoSources(go, "methods.zi")
+    GoRun(go, "$ziran ir --root $work --module-path std -o $work/ir $work/methods.zi")
+    // Statement text is diagnostic only; bodies and adapters use checked metadata.
+    GoBlank(go, "methods.zir", "go_method_exports.txt")
+    for form: go_forms {
+        GoForm(go, form, "methods")
+        GoRun(go, "$ziran build --target=go --no-main --pkg main --root $work --module-path std -o $out $file")
+        GoHost(go)
+        GoRun(go, "GO111MODULE=off go run -race $out/*.go")
+        GoRun(go, "$ziran build --target=go --exe --pkg main --root $work --module-path std --entry methods:InterfaceEntry -o $work/$form-entry $file")
+        GoPrints(go, "GO111MODULE=off go run -race $work/$form-entry/*.go", "42")
+        GoRun(go, "$ziran bundle --root $work --module-path std --entry methods:Answer -o $work/$form.zx $file")
+        GoPrints(go, "$ziran run $work/$form.zx", "42")
+        GoRun(go, "$ziran build --target=c --exe --root $work --module-path std --entry methods:Answer -o $work/$form-c $file")
+        GoRun(go, "$work/$form-c/methods", "", 42)
+    }
+    GoSame(go, "methods.go")
+    // Invalid checked method metadata must fail independently of source text.
+    GoRun(go, "$ziran run --target=c --root $repo/tests $repo/tests/native_inline_cases.zi -- $ziran $work method-metadata")
+    GoFails(go, "$ziran check --root $work/ir --module-path std $work/bad-results.zir", "invalid checked method accepted: bad-results.zir",
+        "invalid checked IR structure")
+    GoFails(go, "$ziran check --root $work/ir --module-path std $work/bad-name.zir", "invalid checked method accepted: bad-name.zir",
+        "non-keyword Go identifier")
+    template := #string ZI
+builtin :: #system_library "go:builtin";
+Counter :: struct { value: s32 }
+Empty :: struct { }
+Result :: struct { value: s32 }
+%s
+ZI
+    declarations := #string ZI
+Bad :: () #go_method "Reset" { }
+Bad :: (value: s32) #go_method "Reset" { }
+Bad :: (value: **Counter) #go_method "Reset" { }
+Bad :: (value: Counter) #go_method "Value" { }
+Bad :: (value: Counter) #go_method "return" { }
+Bad :: (value: Counter) #go_method "_" { }
+Bad :: (value: Counter) #go_method "bad.name" { }
+Bad :: (value: Counter) #go_method Reset { }
+Bad :: (value: Counter) #go_method "Reset" extra { }
+Bad :: (value: Counter) #go_method "Reset" #go_method "Again" { }
+Bad :: (value: Counter) #go_method "Reset" #go_results { }
+Bad :: (value: Counter) -> s32 #go_method "Reset" #go_results { return 0 }
+Bad :: (value: Counter) -> Empty #go_method "Reset" #go_results { return .{} }
+Bad :: (value: Counter) -> Result #go_method "Reset" #go_results #go_results { return .{} }
+Bad :: (value: Counter) -> Result #go_results extra #go_method "Reset" { return .{} }
+Bad :: (value: $T) #go_method "Reset" { }
+Bad :: (value: Counter) #go_method "Reset" #foreign builtin "call";
+ZI
+    GoRejects(go, "$ziran check --root $work $work/bad.zi", template, declarations, "invalid method accepted")
+    duplicate := #string ZI
+Counter :: struct { value: s32 }
+Reset :: (value: Counter) #go_method "Reset" { }
+Again :: (value: *Counter) #go_method "Reset" { }
+ZI
+    GoWrite(go, "$work/bad.zi", duplicate)
+    GoFails(go, "$ziran check --root $work $work/bad.zi", "duplicate native method accepted")
+    receivers := #string ZI
+Counter :: struct {
+#go_anonymous
+value: s32
+}; Reset :: (value: Counter) #go_method "Reset" { }
+----
+#import "io_go"; Reset :: (value: Writer) #go_method "Reset" { }
+----
+#import "vec"; Counter :: struct { values: Vec(u8) }; Reset :: (value: *Counter) #go_method "Reset" { }
+----
+Counter :: struct { value: s32 }; Result :: struct { _: s32 }; Reset :: (value: Counter) -> Result #go_method "Reset" #go_results { return .{} }
+----
+#go_method "Reset"
+ZI
+    GoRejects(go, "$ziran check --root $work --module-path std $work/bad.zi", "%s\n", receivers,
+        "invalid receiver or modifier accepted", "", true)
+    GoPassed(go, "Go method exports, native interfaces, ordinary portable calls and saved IR: passed")
+}
+
+GoNamedExports :: (go: *GoCase) {
+    GoSources(go, "exports.zi caller.zi testing_helper_test.zi checks_test.zi left/collision_test.zi right/Collision_test.zi")
+    GoRun(go, "$ziran ir --root $work --module-path std -o $work/ir $work/caller.zi $work/checks_test.zi $work/left/collision_test.zi $work/right/Collision_test.zi")
+    GoBlank(go, "exports.zir", "go_named_exports.txt")
+    tests := "'Test(NamedExportPass|TypedNamedExports|CollisionLeft|CollisionRight)$|^FuzzNamedExport$' ."
+    for form: go_forms {
+        GoForm(go, form, "exports")
+        GoRun(go, "$ziran build --target=go --no-main --pkg ziran --root $work --module-path std -o $out $root/caller$ext $root/checks_test$ext $root/left/collision_test$ext $root/right/Collision_test$ext")
+        GoHost(go, "native_test.go")
+        GoRun(go, "GO111MODULE=off go build .", "$out")
+        discovered := GoOutput(go, "GO111MODULE=off go test -list . .", "$out")
+        GoHasLine(go, discovered, "TestCollisionLeft")
+        GoHasLine(go, discovered, "TestCollisionRight")
+        GoRun(go, CheckConcat("GO111MODULE=off go test -race -run ", tests), "$out")
+        GoRun(go, CheckConcat("GO111MODULE=off CGO_ENABLED=0 go test -run ", tests), "$out")
+        GoRun(go, "GO111MODULE=off go test -run '^$' -bench '^BenchmarkNamedExport$' -benchtime=1x .", "$out")
+        GoFails(go, "GO111MODULE=off go test -run '^TestNamedExportFails$' .", "compiled Ziran test assertion did not fail",
+            "native assertion preserved", "$out")
+        GoRun(go, "$ziran build --target=go --exe --pkg main --root $work --module-path std --entry exports:Answer -o $work/$form-entry $file")
+        GoRun(go, "GO111MODULE=off go build -o $work/$form-bin $work/$form-entry/*.go")
+        GoRun(go, "$work/$form-bin", "", 42)
+    }
+    GoSame(go, "exports.go caller.go checks_test.go testing_helper_test.go")
+    build := "$ziran build --target=go --root $work -o $work/rejected $work/bad.zi"
+    GoRejects(go, build, "#program_export \"%s\"\nAnswer :: () -> s32 { return 42 }\n", "_\ninit\nmain\nstring\nlen\npanic\nunsafe\nfor\nintegerOp\n",
+        "reserved native Go export accepted", "reserved native Go export name")
+    // alias, procedure, type, import and startup collisions.
+    collisions := #string ZI
+#program_export "Duplicate"
+First :: () -> s32 { return 1 }
+#program_export "Duplicate"
+Second :: () -> s32 { return 2 }
+----
+First :: () -> s32 { return 1 }
+#program_export "Bad_First"
+Second :: () -> s32 { return 2 }
+----
+Record :: struct { value: s32 }
+#program_export "Record"
+Answer :: () -> s32 { return 42 }
+----
+native :: #system_library "go:strings";
+Upper :: (value: string) -> string #foreign native "ToUpper";
+#program_export "strings"
+Answer :: () -> string { return Upper("answer") }
+----
+count: s32;
+Read :: () -> s32 { count += 1; return count }
+value: s32 = Read();
+#program_export "Bad_ziranInit"
+Answer :: () -> s32 { return value }
+ZI
+    collision := "duplicate native Go export name|native Go export collides"
+    sources := GoEntries(collisions, true)
+    for source: sources {
+        GoWrite(go, "$work/bad.zi", CheckConcat(source, "\n"))
+        GoFails(go, build, CheckConcat("colliding native Go export accepted: ", source), collision)
+        GoRun(go, "$ziran ir --root $work --module-path std -o $work/rejected-ir $work/bad.zi")
+        GoFails(go, "$ziran build --target=go --root $work/rejected-ir --module-path std -o $work/rejected $work/rejected-ir/bad.zir",
+            CheckConcat("colliding native Go export accepted in saved IR: ", source), collision)
+    }
+    GoPassed(go, "Typed named Go exports and native Go test discovery: passed")
+}
+
+GoPackageInit :: (go: *GoCase) {
+    GoSources(go, "go.mod registry/registry.go driver/driver.go plain.zi calls.zi handles.zi app.zi")
+    GoRun(go, "$ziran ir --root $work -o $work/ir $work/app.zi")
+    GoBlank(go, "plain.zir", "go_package_init.txt")
+    for form: go_forms {
+        GoForm(go, form, "app")
+        GoRun(go, "$ziran build --target=go --no-main --pkg main --root $work -o $out $file")
+        GoHost(go)
+        GoRun(go, "GOWORK=off GOFLAGS=-buildvcs=false go run -race .", "$out")
+        GoRun(go, "GOWORK=off GOFLAGS=-buildvcs=false CGO_ENABLED=0 go run .", "$out")
+        GoRun(go, "$ziran build --target=go --exe --pkg main --root $work --entry app:Run -o $work/$form-entry $file")
+        GoHasLine(go, NativeRead(go.test, GoExpand(go, "$work/$form-entry/ziran_entry.go")), "// Code generated by zi2go from app.zi.", true)
+        GoRun(go, "GOWORK=off GOFLAGS=-buildvcs=false go build -o $work/$form-bin .", "$work/$form-entry")
+        GoRun(go, "$work/$form-bin", "", 42)
+        GoRun(go, "$ziran build --target=go --exe --prune-stale --pkg main --root $work --entry app:VoidEntry -o $work/$form-entry $file")
+        GoExists(go, "$work/$form-entry/ziran_entry.go", true)
+        GoRun(go, "$ziran build --target=go --no-main --prune-stale --pkg main --root $work -o $work/$form-entry $file")
+        GoExists(go, "$work/$form-entry/ziran_entry.go", false)
+        GoRun(go, "$ziran bundle --root $work --entry app:Portable -o $work/$form.zx $file")
+        GoPrints(go, "$ziran run $work/$form.zx", "42")
+        GoFails(go, "$ziran build --target=c --root $work --entry app:Run -o $work/rejected $file", "reachable Go initialization accepted by c")
+        GoFails(go, "$ziran bundle --root $work --entry app:Run -o $work/rejected.zx $file", "reachable Go initialization accepted by portable bundle")
+    }
+    GoSame(go, "plain.go calls.go handles.go app.go")
+    declarations := #string ZI
+Initialize :: (value: s32)
+Initialize :: () -> s32
+Initialize :: () #go_defer
+Initialize :: () #go_field
+Initialize :: () #go_results
+Initialize :: (values: []s32) #go_variadic
+ZI
+    GoRejects(go, "$ziran ir --root $work -o $work/bad-ir $work/bad.zi", "driver :: #system_library \"go:fixture/driver\";\n%s #foreign driver \"init\";\n",
+        declarations, "invalid package initialization accepted", "Go package initialization|#go_field|#go_results")
+    GoPassed(go, "Go package initialization and generated entry ownership: passed")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    // Heaviest cases launch first so shorter cases fill their shadow.
+    cases := GoCaseEntry.[.{"named_exports", GoNamedExports}, .{"c_headers", GoCHeaders},
+        .{"method_exports", GoMethodExports}, .{"package_init", GoPackageInit}]
+    return GoGroup(argc, argv, "go-exports-", cases[:])
+}

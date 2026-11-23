@@ -1,0 +1,52 @@
+package main
+import (
+    "errors"
+    "reflect"
+    "strings"
+    "unsafe"
+)
+func main() {
+    sentinel := errors.New("native error")
+    state := &State{}
+    source := []byte{0, 255, 42}
+    callback := func(captured *State, prefix string, bytes []byte) Result {
+        if captured != state || prefix != "first" { panic("capture changed") }
+        captured.Count++
+        return Result{Value: bytes, Error: sentinel}
+    }
+    bound := Binding_Capture(callback, state, "first")
+    state.Count = 41
+    result := bound(source)
+    if state.Count != 42 || result.Error != sentinel || &result.Value[0] != &source[0] {
+        panic("pointer, slice or error identity")
+    }
+    result = bound(nil)
+    if result.Value != nil || state.Count != 43 { panic("nil slice") }
+    if !reflect.DeepEqual(result, Result{Error: sentinel}) { panic("result record") }
+    var count int64
+    all := Binding_BindAll(Binding_Add, &count, 42)
+    if all() != 42 || all() != 84 { panic("all parameters bound") }
+    writer := Binding_BindWriter(func(count *int64, bytes []byte) { *count += int64(len(bytes)) }, &count)
+    writer(source)
+    if count != 87 { panic("void callback") }
+    marker := &struct{ code int }{42}
+    panicking := Binding_Binder(func(*State, string, []byte) Result { panic(marker) }, state, "first")
+    func() {
+        defer func() { if recover() != marker { panic("panic identity") } }()
+        panicking(source)
+    }()
+    nilCallback := Binding_Binder(nil, state, "first")
+    if nilCallback == nil { panic("binding must not invoke or substitute a nil callback") }
+    func() {
+        defer func() { if recover() == nil { panic("nil callback must panic at invocation") } }()
+        nilCallback(source)
+    }()
+    if Binding_BindEntry() != 42 { panic("canonical procedure callback") }
+    text := strings.Repeat("heap string", 128)
+    retained := Binding_ReadText(&TextState{Text: text})
+    if retained != text || unsafe.StringData(retained) != unsafe.StringData(text) { panic("native string storage changed") }
+    if bytes := Binding_RetainBytes(source); &bytes[0] != &source[0] { panic("native slice storage changed") }
+    if Binding_RetainBytes(nil) != nil { panic("native nil slice changed") }
+    result = Binding_RetainResult(Result{Value: source, Error: sentinel})
+    if &result.Value[0] != &source[0] || result.Error != sentinel { panic("native record storage changed") }
+}

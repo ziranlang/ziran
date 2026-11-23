@@ -1,0 +1,407 @@
+// Go target semantics: each case builds its fixture from source and from
+// saved IR, runs it under a Go host program, and rejects invalid bindings.
+#import "go_case_support"
+#import "native_test"
+#import "saved_ir"
+#import "check_support"
+
+GoBind :: (go: *GoCase) {
+    GoSources(go, "slots.zi binding.zi")
+    GoRun(go, "$ziran ir --root $work --module-path std -o $work/ir $work/binding.zi")
+    GoBlank(go, "binding.zir", "go_bind.txt")
+    for form: go_forms {
+        GoForm(go, form, "binding")
+        GoRun(go, "$ziran build --target=go --no-main --pkg main --root $work --module-path std -o $out $file")
+        GoHost(go)
+        GoRun(go, "GO111MODULE=off go run -race $out/*.go")
+        GoRun(go, "$ziran build --target=go --exe --pkg main --root $work --module-path std --entry binding:BindEntry -o $work/$form-entry $file")
+        GoRun(go, "GO111MODULE=off go build -o $work/$form-entry-bin $work/$form-entry/*.go")
+        GoRun(go, "$work/$form-entry-bin", "", 42)
+        GoRun(go, "$ziran bundle --root $work --module-path std --entry binding:Answer -o $work/$form.zx $file")
+        GoPrints(go, "$ziran run $work/$form.zx", "42")
+        GoRun(go, "$ziran build --target=c --exe --root $work --module-path std --entry binding:Answer -o $work/$form-c $file")
+        GoRun(go, "$work/$form-c/binding", "", 42)
+        GoFails(go, "$ziran build --target=c --root $work --module-path std --entry binding:BindEntry -o $work/rejected $file", "reachable Go bind accepted by c")
+        GoFails(go, "$ziran bundle --root $work --module-path std --entry binding:BindEntry -o $work/rejected.zx $file", "reachable Go bind accepted by portable bundle")
+    }
+    GoSame(go, "binding.go slots.go")
+    template := #string ZI
+builtin :: #system_library "go:builtin";
+#import "vec"
+Callback :: #type (capture: s32, value: s64) -> s64;
+Result :: #type (value: s64) -> s64;
+%s
+ZI
+    // wrong capture, tail and result; no capture, no callback, non-procedure;
+    // owned capture, tail and result; C callback; retain type, count and owned.
+    signatures := #string ZI
+Bind :: (callback: Callback, capture: s64) -> Result #foreign builtin "bind";
+----
+Other :: #type (value: s32) -> s64;
+Bind :: (callback: Callback, capture: s32) -> Other #foreign builtin "bind";
+----
+Other :: #type (value: s64) -> s32;
+Bind :: (callback: Callback, capture: s32) -> Other #foreign builtin "bind";
+----
+Bind :: (callback: Callback) -> Callback #foreign builtin "bind";
+----
+Bind :: (capture: s32) -> Result #foreign builtin "bind";
+----
+Bind :: (callback: Callback, capture: s32) -> s64 #foreign builtin "bind";
+----
+Other :: #type (capture: Vec(s32), value: s64) -> s64;
+Bind :: (callback: Other, capture: Vec(s32)) -> Result #foreign builtin "bind";
+----
+Other :: #type (capture: s32, value: Vec(s32)) -> s64;
+Tail :: #type (value: Vec(s32)) -> s64;
+Bind :: (callback: Other, capture: s32) -> Tail #foreign builtin "bind";
+----
+Owned :: struct { value: Vec(s32) };
+Other :: #type (capture: s32, value: s64) -> Owned;
+Tail :: #type (value: s64) -> Owned;
+Bind :: (callback: Other, capture: s32) -> Tail #foreign builtin "bind";
+----
+Other :: #type (capture: s32, value: s64) -> s64 #c_call;
+Bind :: (callback: Other, capture: s32) -> Result #foreign builtin "bind";
+----
+Retain :: (value: []u8) -> []s32 #foreign builtin "retain";
+----
+Retain :: (first: string, second: string) -> string #foreign builtin "retain";
+----
+Retain :: (value: Vec(s32)) -> Vec(s32) #foreign builtin "retain";
+ZI
+    GoRejects(go, "$ziran ir --root $work --module-path std -o $work/bad-ir $work/bad.zi", template, signatures,
+        "invalid bind accepted", "Go builtin requires a valid", true)
+    GoPassed(go, "Go callback binding: passed")
+}
+
+GoDefer :: (go: *GoCase) {
+    GoSources(go, "scheduled.zi")
+    GoRun(go, "$ziran ir --root $work --module-path std -o $work/ir $work/scheduled.zi")
+    GoBlank(go, "scheduled.zir", "go_defer.txt")
+    for form: go_forms {
+        GoForm(go, form, "scheduled")
+        GoRun(go, "$ziran build --target=go --no-main --pkg main --root $root --module-path std -o $out $file")
+        GoHost(go)
+        GoRun(go, "GO111MODULE=off go run -race $out/*.go")
+        GoRun(go, "$ziran bundle --entry scheduled:Answer --root $root --module-path std -o $work/$form.zx $file")
+        GoPrints(go, "$ziran run $work/$form.zx", "42")
+    }
+    GoSame(go, "scheduled.go")
+    declaration := #string ZI
+go_sync :: #system_library "go:sync";
+libc :: #system_library "libc";
+Mutex :: #type #foreign go_sync "Mutex";
+%s
+ZI
+    declarations := #string ZI
+Bad :: (value: *Mutex) -> s64 #go_defer #foreign go_sync "(*Mutex).Unlock";
+Bad :: (value: *Mutex) #go_defer #go_defer #foreign go_sync "(*Mutex).Unlock";
+Bad :: (value: *Mutex) #go_defer #go_results #foreign go_sync "(*Mutex).Unlock";
+Bad :: (value: *Mutex) #go_defer #go_field #foreign go_sync "(*Mutex).Unlock";
+Bad :: (value: *Mutex) #go_defer { }
+Bad :: (value: *Mutex) #go_defer #foreign libc "unlock";
+ZI
+    GoRejects(go, "$ziran check --root $work $work/bad.zi", declaration, declarations, "invalid Go defer declaration accepted")
+    binding := #string ZI
+http :: #import "http_go";
+go_format :: #system_library "go:fmt";
+WriteAtReturn :: (writer: http.ResponseWriter, value: string) #go_defer #foreign go_format "Fprint";
+%s
+ZI
+    bindings := #string ZI
+Main :: () { writer: http.ResponseWriter; unused := WriteAtReturn(writer, "value") }
+Main :: () { writer: http.ResponseWriter; #unused WriteAtReturn(writer, "value") }
+Slot :: #type (writer: http.ResponseWriter, value: string); Main :: () { callback: Slot = WriteAtReturn }
+ZI
+    GoRejects(go, "$ziran check --root $work --module-path std $work/bad.zi", binding, bindings,
+        "Go defer binding accepted outside a standalone call")
+    owned := #string ZI
+#import "vec"
+go_format :: #system_library "go:fmt";
+Bad :: (value: Vec(u8)) #go_defer #foreign go_format "Print";
+ZI
+    GoWrite(go, "$work/owned.zi", owned)
+    GoFails(go, "$ziran check --root $work --module-path std $work/owned.zi", "owned argument accepted by Go defer")
+    GoPassed(go, "Go deferred calls, panic cleanup, atomics, HTTP headers and saved IR: passed")
+}
+
+GoErrorValues :: (go: *GoCase) {
+    GoSources(go, "native.zi")
+    GoRun(go, "$ziran ir --root $work --module-path std -o $work/ir $work/native.zi")
+    GoBlank(go, "native.zir", "go_error_values.txt")
+    for form: go_forms {
+        GoForm(go, form, "native")
+        GoRun(go, "$ziran build --target=go --no-main --pkg main --root $root --module-path std -o $out $file")
+        GoHost(go)
+        GoRun(go, "GO111MODULE=off go run -race $out/*.go")
+        GoRun(go, "$ziran build --target=c --entry native:Answer --root $root --module-path std -o $work/$form-c $file")
+        GoRun(go, "$ziran bundle --entry native:Answer --root $root --module-path std -o $work/$form.zx $file")
+        GoPrints(go, "$ziran run $work/$form.zx", "42")
+        GoFails(go, "$ziran build --target=c --no-main --root $root --module-path std -o $work/rejected $file",
+            "reachable foreign Go package values were accepted in C")
+    }
+    GoSame(go, "native.go")
+    template := #string ZI
+#import "vec"
+go_math :: #system_library "go:math";
+libc :: #system_library "libc";
+Box :: struct { values: Vec(u8) }
+Nested :: struct { boxes: []Box }
+%s
+ZI
+    declarations := #string ZI
+Bad :: (value: s32) -> float64 #go_field #foreign go_math "Pi";
+Bad :: () #go_field #foreign go_math "Pi";
+Bad :: () -> Vec(u8) #go_field #foreign go_math "Pi";
+Bad :: () -> []Box #go_field #foreign go_math "Pi";
+Bad :: () -> Nested #go_field #foreign go_math "Pi";
+Bad :: () -> float64 #go_field #go_results #foreign go_math "Pi";
+Bad :: () -> float64 #go_field #foreign libc "Pi";
+ZI
+    GoRejects(go, "$ziran check --root $work --module-path std $work/bad.zi", template, declarations, "invalid Go package getter accepted")
+    GoPassed(go, "Go package getters, predeclared interface methods, native errors and saved IR: passed")
+}
+
+GoFields :: (go: *GoCase) {
+    GoSources(go, "fields.zi")
+    GoRun(go, "$ziran ir --root $work --module-path std -o $work/ir $work/fields.zi")
+    GoBlank(go, "fields.zir", "go_fields.txt")
+    for form: go_forms {
+        GoForm(go, form, "fields")
+        GoRun(go, "$ziran build --target=go --no-main --pkg main --root $root --module-path std -o $out $file")
+        GoHost(go)
+        GoRun(go, "GO111MODULE=off go run $out/*.go")
+        GoRun(go, "$ziran build --target=c --entry fields:Answer --root $root --module-path std -o $work/$form-c $file")
+        GoRun(go, "$ziran bundle --entry fields:Answer --root $root --module-path std -o $work/$form-zx.zx $file")
+        GoFails(go, "$ziran build --target=c --no-main --root $root --module-path std -o $work/rejected $file",
+            "reachable foreign Go fields were accepted in C")
+    }
+    GoSame(go, "fields.go")
+    template := #string ZI
+go_http :: #system_library "go:net/http";
+builtin :: #system_library "go:builtin";
+Request :: #type #foreign go_http "Request";
+%s
+ZI
+    declarations := #string ZI
+Bad :: () -> string #go_field #foreign go_http "(*Request).RemoteAddr";
+Bad :: (request: Request) -> string #go_field #foreign go_http "(*Request).RemoteAddr";
+Bad :: (request: *Request, extra: string) -> string #go_field #foreign go_http "(*Request).RemoteAddr";
+Bad :: (request: *Request) #go_field #foreign go_http "(*Request).RemoteAddr";
+Bad :: (request: *Request) -> string #go_field #foreign go_http "Read";
+Bad :: (request: *Request) -> string #go_field #go_results #foreign go_http "(*Request).RemoteAddr";
+Bad :: (request: *Request) -> string #go_field #go_field #foreign go_http "(*Request).RemoteAddr";
+Bad :: (request: *Request) -> string #go_field { return "" }
+Bad :: (value: s64) -> isize #foreign builtin "len";
+Bad :: (value: string) -> s64 #foreign builtin "len";
+ZI
+    GoRejects(go, "$ziran check --root $work $work/bad.zi", template, declarations, "invalid Go field or len binding accepted")
+    GoPassed(go, "Go foreign fields, HTTP headers, IP primitives, len and saved IR: passed")
+}
+
+GoForeignTypes :: (go: *GoCase) {
+    GoSources(go, "json_types.zi other.zi opaque.zi")
+    GoRun(go, "$ziran ir --root $work -o $work/ir $work/opaque.zi")
+    for form: go_forms {
+        GoForm(go, form, "opaque")
+        GoRun(go, "$ziran build --target=go --no-main --pkg main --root $root -o $out $file")
+        GoHost(go)
+        GoRun(go, "GO111MODULE=off go run $out/*.go")
+        GoFails(go, "$ziran build --target=c --root $root -o $work/rejected-c $file", "foreign Go type accepted by c",
+            "foreign Go types require the Go target")
+        GoFails(go, "$ziran bundle --root $root --entry opaque:GetPayload -o $work/rejected.zx $file", "foreign Go type entered a portable ABI")
+        // An unused Go type need not prevent a portable entry or native build.
+        GoRun(go, "$ziran bundle --root $root --entry opaque:Answer -o $work/$form.zx $file")
+        GoPrints(go, "$ziran run $work/$form.zx", "42")
+        GoRun(go, "$ziran build --target=c --entry opaque:Answer --root $root -o $work/$form-c $file")
+    }
+    GoSame(go, "opaque.go")
+    library := #string ZI
+json :: #system_library "%s";
+Raw :: #type #foreign json "RawMessage";
+ZI
+    GoRejects(go, "$ziran check --root $work $work/bad.zi", library, "host_api\nlibc\nencoding/json\n", "non-Go foreign type accepted")
+    declarations := #string ZI
+Raw :: #type #foreign absent;
+Raw :: #type #foreign json "Raw.Message";
+Raw :: #type #foreign json { value: u8 };
+Raw :: #type (u8) #foreign json "RawMessage";
+Raw :: #type #foreign json "RawMessage" extra;
+Raw :: #type #foreign json "RawMessage"; Raw :: #type #foreign json "RawMessage";
+ZI
+    GoRejects(go, "$ziran check --root $work $work/bad.zi", "json :: #system_library \"go:encoding/json\";\n%s\n", declarations,
+        "malformed foreign type accepted")
+    body := #string ZI
+json :: #system_library "go:encoding/json";
+Raw :: #type #foreign json "RawMessage";
+Bad :: () -> Raw { %s; }
+ZI
+    GoRejects(go, "$ziran check --root $work $work/bad.zi", body, "return Raw.{}\nreturn size_of(Raw)\n", "opaque layout operation accepted")
+    if !go.test.failed {
+        unused SavedIrReplace(go.test, CheckPath(go.test.work, "ir/json_types.zir"), CheckPath(go.test.work, "tampered.zir"),
+            "go:encoding/json.RawMessage", "go:encoding/json.RawMessa!e", true)
+    }
+    GoFails(go, "$ziran build --target=go --no-main --root $work -o $work/tampered-go $work/tampered.zir",
+        "invalid saved foreign type target accepted", "invalid|malformed")
+    GoPassed(go, "opaque Go types, JSON behavior, native rejection and saved IR: passed")
+}
+
+// Exercise the complete checked parameter list, including the former 16-argument
+// foreign-call and 32-argument procedure-signature boundaries.
+GoManyParameters :: (go: *GoCase) {
+    GoRun(go, "$ziran run --target=c --root $repo/tests $repo/tests/fixture_generation.zi -- $ziran $work go-many")
+    GoRun(go, "$ziran ir --root $work --module-path std -o $work/ir $work/many.zi")
+    for form: go_forms {
+        GoForm(go, form, "many")
+        GoRun(go, "$ziran build --target=go --no-main --pkg main --root $root --module-path std -o $out $file")
+        GoHost(go)
+        GoRun(go, "GO111MODULE=off go run -race $out/*.go")
+    }
+    GoSame(go, "many.go")
+    GoPassed(go, "Go procedure, foreign, result, deferred and scan parameter lists: passed")
+}
+
+GoMaps :: (go: *GoCase) {
+    GoSources(go, "shared.zi maps.zi")
+    GoRun(go, "$ziran ir --root $work --module-path std -o $work/ir $work/maps.zi")
+    for form: go_forms {
+        GoForm(go, form, "maps")
+        GoRun(go, "$ziran build --target=go --no-main --pkg main --root $root --module-path std -o $out $file")
+        GoHost(go)
+        GoRun(go, "GO111MODULE=off go run $out/*.go")
+        GoFails(go, "$ziran build --target=c --root $root --module-path std -o $work/rejected-c $file", "maps accepted by c",
+            "maps require the Go target|foreign Go types require the Go target")
+        GoFails(go, "$ziran bundle --root $root --module-path std --entry maps:Count -o $work/rejected.zx $file", "map entered a portable ABI")
+        GoRun(go, "$ziran bundle --root $root --module-path std --entry maps:Answer -o $work/$form.zx $file")
+        GoPrints(go, "$ziran run $work/$form.zx", "42")
+    }
+    GoSame(go, "maps.go")
+    check := "$ziran check --root $work --module-path std $work/bad.zi"
+    GoRejects(go, check, "#import \"map_go\";\n#import \"go_types\";\nBad :: Map(%s, s64)\n",
+        "[]u8\nMap(string, s64)\nAny\nvoid\n*Unknown\n", "uncomparable map key accepted")
+    owned := #string ZI
+Bad :: Map(string, Vec(u8))
+Box :: struct { value: Vec(u8) }; Bad :: Map(string, Box)
+Bad :: () { values: Map(string, Any); owned: Vec(u8); MapSet(values, "x", owned) }
+ZI
+    GoRejects(go, check, "#import \"map_go\";\n#import \"go_types\";\n#import \"vec\";\n%s\n", owned, "owned storage escaped into a map")
+    operations := #string ZI
+MapSet(values, "x", "wrong")
+MapGet(values, cast(s64)42)
+MapGet(values)
+MapSet(values, "x", cast(s64)1, cast(s64)2)
+values.key = "private"
+other := Map(string, s64).{}
+size := size_of(Map(string, s64))
+equal := values == values
+less := values < values
+ZI
+    GoRejects(go, check, "#import \"map_go\";\nBad :: () {\nvalues: Map(string, s64)\n%s\n}\n", operations, "invalid map operation accepted")
+    parallel := #string ZI
+#import "map_go"
+Bad :: () {
+    values: Map(string, s64)
+    #parallel
+    for index: 0..4 {
+        MapSet(values, "x", index)
+    }
+}
+ZI
+    GoWrite(go, "$work/parallel_bad.zi", parallel)
+    GoFails(go, "$ziran check --root $work --module-path std $work/parallel_bad.zi", "parallel map mutation accepted", "parallel")
+    GoPassed(go, "Go maps, shared storage, typed operations, nested JSON and saved IR: passed")
+}
+
+GoResults :: (go: *GoCase) {
+    GoSources(go, "results.zi")
+    GoRun(go, "$ziran ir --root $work --module-path std -o $work/ir $work/results.zi")
+    GoBlank(go, "results.zir", "go_results.txt")
+    for form: go_forms {
+        GoForm(go, form, "results")
+        GoRun(go, "$ziran build --target=go --no-main --pkg main --root $root --module-path std -o $out $file")
+        GoHost(go)
+        GoRun(go, "GO111MODULE=off go run $out/*.go")
+        GoRun(go, "$ziran build --target=go --pkg main --exe --entry results:Answer --root $root --module-path std -o $work/$form-entry $file")
+        GoRun(go, "GO111MODULE=off go build -o $work/$form-entry-app $work/$form-entry/*.go")
+        GoRun(go, "$work/$form-entry-app", "", 42)
+    }
+    GoSame(go, "results.go")
+    template := #string ZI
+#import "go_types";
+strconv :: #system_library "go:strconv";
+libc :: #system_library "libc";
+Integer :: struct { value: s64; error: Error };
+%s
+ZI
+    declarations := #string ZI
+Bad :: (value: string) -> s64 #go_results #foreign strconv "ParseInt";
+Bad :: () -> Error #go_results #foreign strconv "ParseInt";
+Empty :: struct {}; Bad :: () -> Empty #go_results #foreign strconv "ParseInt";
+Bad :: () -> Integer #go_results #go_results #foreign strconv "ParseInt";
+Bad :: () -> Integer #go_results #foreign libc "read";
+ZI
+    GoRejects(go, "$ziran check --root $work --module-path std $work/bad.zi", template, declarations, "invalid Go result adaptation accepted")
+    GoPassed(go, "Go multiple results, error interfaces, randomness and saved IR: passed")
+}
+
+GoSelect :: (go: *GoCase) {
+    GoSources(go, "channels.zi")
+    GoRun(go, "$ziran ir --root $work --module-path std -o $work/ir $work/channels.zi")
+    for form: go_forms {
+        GoForm(go, form, "channels")
+        GoRun(go, "$ziran build --target=go --no-main --pkg main --root $root --module-path std -o $out $file")
+        GoHost(go)
+        GoRun(go, "GO111MODULE=off go run -race $out/*.go")
+    }
+    GoSame(go, "channels.go")
+    GoPassed(go, "Go native channel selection, ticker delivery, cancellation, sends and saved IR: passed")
+}
+
+GoSliceNil :: (go: *GoCase) {
+    GoSources(go, "native.zi")
+    GoRun(go, "$ziran ir --root $work --module-path std -o $work/ir $work/native.zi")
+    GoBlank(go, "native.zir", "go_slice_nil.txt")
+    for form: go_forms {
+        GoForm(go, form, "native")
+        GoRun(go, "$ziran build --target=go --no-main --pkg main --root $root --module-path std -o $out $file")
+        GoHost(go)
+        GoRun(go, "GO111MODULE=off go run -race $out/*.go")
+        GoRun(go, "$ziran bundle --entry native:Answer --root $root --module-path std -o $work/$form.zx $file")
+        GoPrints(go, "$ziran run $work/$form.zx", "42")
+    }
+    GoSame(go, "native.go")
+    template := #string ZI
+#import "go_types"
+#import "vec"
+builtin :: #system_library "go:builtin";
+Box :: struct { values: Vec(u8) }
+Result :: struct { value: bool }
+%s
+ZI
+    declarations := #string ZI
+Bad :: () -> bool #foreign builtin "is_nil";
+Bad :: (value: []u8, second: []u8) -> bool #foreign builtin "is_nil";
+Bad :: (value: []u8) -> isize #foreign builtin "is_nil";
+Bad :: (value: []u8) #foreign builtin "is_nil";
+Bad :: (value: [2]u8) -> bool #foreign builtin "is_nil";
+Bad :: (value: string) -> bool #foreign builtin "is_nil";
+Bad :: (value: Any) -> bool #foreign builtin "is_nil";
+Bad :: (value: *u8) -> bool #foreign builtin "is_nil";
+Bad :: (value: Vec(u8)) -> bool #foreign builtin "is_nil";
+Bad :: (value: []Box) -> bool #foreign builtin "is_nil";
+Bad :: (value: []u8) -> Result #go_results #foreign builtin "is_nil";
+Bad :: (value: []u8) -> bool #go_defer #foreign builtin "is_nil";
+ZI
+    GoRejects(go, "$ziran check --root $work --module-path std $work/bad.zi", template, declarations, "invalid Go nil check accepted")
+    GoPassed(go, "Go slice nilness, allocated empty storage, typed signatures and saved IR: passed")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    // Heaviest cases launch first so shorter cases fill their shadow.
+    cases := GoCaseEntry.[.{"bind", GoBind}, .{"defer", GoDefer}, .{"error_values", GoErrorValues},
+        .{"fields", GoFields}, .{"many_parameters", GoManyParameters}, .{"foreign_types", GoForeignTypes},
+        .{"results", GoResults}, .{"slice_nil", GoSliceNil}, .{"select", GoSelect}, .{"maps", GoMaps}]
+    return GoGroup(argc, argv, "go-semantics-", cases[:])
+}

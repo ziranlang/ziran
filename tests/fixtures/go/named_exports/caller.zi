@@ -1,0 +1,6 @@
+exports :: #import "exports";
+Reader :: #type () -> s32;
+Read :: () -> s32 {
+    callback: Reader = exports.GetValue
+    return callback() + exports.Answer()
+}

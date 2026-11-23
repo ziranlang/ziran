@@ -1,0 +1,26 @@
+http :: #import "http_go";
+network :: #import "net_go";
+clock :: #import "time_go";
+go_http :: #system_library "go:net/http";
+go_url :: #system_library "go:net/url";
+builtin :: #system_library "go:builtin";
+URL :: #type #foreign go_url "URL";
+URLRaw :: (request: *http.Request) -> *URL #go_field #foreign go_http "(*Request).URL";
+PathRaw :: (value: *URL) -> string #go_field #foreign go_url "(*URL).Path";
+Allocate :: () -> *http.Request #foreign builtin "new";
+TextCountRaw :: (value: string) -> isize #foreign builtin "len";
+ByteCountRaw :: (value: []u8) -> isize #foreign builtin "len";
+TextCount :: (value: string) -> isize { return TextCountRaw(value) }
+ByteCount :: (value: []u8) -> isize { return ByteCountRaw(value) }
+Remote :: (request: *http.Request) -> string { return http.RemoteAddress(request) }
+Header :: (request: *http.Request, name: string) -> string { return http.HeaderValue(http.Headers(request), name) }
+Path :: (request: *http.Request) -> string { return PathRaw(URLRaw(request)) }
+NewRequest :: () -> *http.Request { return Allocate() }
+CanonicalIP :: (value: string) -> string {
+    parsed := network.ParseIP(value)
+    if !network.ValidIP(parsed) { return "" }
+    return network.FormatIP(parsed)
+}
+Loopback :: (value: string) -> bool { return network.IsLoopback(network.ParseIP(value)) }
+#program_export
+Answer :: () -> s32 { return 42 }

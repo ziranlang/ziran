@@ -1,0 +1,4 @@
+driver :: #system_library "go:fixture/driver";
+Handle :: #type #foreign driver "Handle";
+InitializeRaw :: () #foreign driver "init";
+Initialize :: () { InitializeRaw() }

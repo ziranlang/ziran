@@ -1,0 +1,21 @@
+package main
+import (
+    "net"
+    "net/http"
+    "net/url"
+)
+func main() {
+    request := &http.Request{RemoteAddr: "[::1]:443", Header: http.Header{"X-Test": {"first", "second"}}, URL: &url.URL{Path: "/health"}}
+    if Fields_Remote(request) != request.RemoteAddr || Fields_Header(request, "x-test") != request.Header.Get("x-test") || Fields_Path(request) != "/health" { panic("native request field/header access") }
+    if Fields_NewRequest() == nil || Fields_Remote(Fields_NewRequest()) != "" || Fields_Header(Fields_NewRequest(), "missing") != "" { panic("foreign allocation or zero-value headers") }
+    request.RemoteAddr = "new:123"
+    request.URL.Path = "/updated"
+    if Fields_Remote(request) != request.RemoteAddr || Fields_Path(request) != request.URL.Path { panic("field access took a stale copy") }
+    for _, value := range []string{"127.0.0.1", "127.9.8.7", "::1", "2001:DB8::1", "::ffff:192.0.2.1", "192.0.2.1", "127.0.0.01", "::1%lo", "", "invalid"} {
+        parsed := net.ParseIP(value)
+        want := ""
+        if parsed != nil { want = parsed.String() }
+        if Fields_CanonicalIP(value) != want || Fields_Loopback(value) != parsed.IsLoopback() { panic("IP parsing, nil, canonicalization or loopback changed") }
+    }
+    if Fields_TextCount("é\x00") != 3 || Fields_ByteCount(nil) != 0 || Fields_ByteCount([]byte{1, 2}) != 2 { panic("native len signature") }
+}

@@ -1,0 +1,39 @@
+package main
+import (
+    "bytes"
+    "errors"
+    "fmt"
+    "io"
+)
+var _ io.Writer = (*CapturedWriter)(nil)
+var _ fmt.Stringer = Label{}
+type failingWriter struct { err error; marker any }
+func (writer failingWriter) Write([]byte) (int, error) {
+    if writer.marker != nil { panic(writer.marker) }
+    return 7, writer.err
+}
+func main() {
+    var buffer bytes.Buffer
+    writer := Methods_New(&buffer)
+    count, err := writer.Write([]byte{0, 255, 42})
+    concrete := writer.(*CapturedWriter)
+    if count != 3 || err != nil || !bytes.Equal(buffer.Bytes(), []byte{0, 255, 42}) || concrete.Calls != 1 {
+        panic("native interface dispatch or pointer receiver identity")
+    }
+    sentinel := errors.New("sentinel")
+    concrete.Destination = failingWriter{err: sentinel}
+    count, err = writer.Write(nil)
+    if count != 7 || err != sentinel || concrete.Calls != 2 { panic("native multiple results or error identity") }
+    marker := &struct{ code int }{42}
+    concrete.Destination = failingWriter{marker: marker}
+    func() {
+        defer func() { if recover() != marker { panic("native panic identity") } }()
+        writer.Write(nil)
+    }()
+    if concrete.Calls != 3 { panic("mutation before panic") }
+    if fmt.Sprint(Label{Value: "bytes\x00\xff"}) != "bytes\x00\xff" { panic("value receiver") }
+    var counter Counter
+    if counter.Add(42) != 42 || counter.Value != 42 { panic("scalar result") }
+    counter.Reset()
+    if counter.Value != 0 || Methods_Answer() != 42 { panic("void method or ordinary calls") }
+}

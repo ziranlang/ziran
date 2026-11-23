@@ -1,0 +1,3 @@
+support :: #import "testing_helper_test";
+#program_export "TestCollisionRight"
+Pass :: (test: *support.Test) {}

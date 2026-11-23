@@ -1,0 +1,7 @@
+driver :: #system_library "go:fixture/driver";
+InitializeRaw :: () #foreign driver "init";
+AnswerRaw :: () -> s32 #foreign driver "Answer";
+Read :: () -> s32 {
+    InitializeRaw()
+    return AnswerRaw()
+}

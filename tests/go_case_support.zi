@@ -1,0 +1,241 @@
+// Shared steps of the grouped Go target checks. A case copies its fixtures
+// from tests/fixtures/go/NAME into its work folder, builds them from source
+// and from saved IR, and states each command as a shell line would: leading
+// NAME=value words set the child's environment, a word ending in /*.go lists
+// that folder's Go files, and these names expand in every word:
+//   $ziran $repo $work   the compiler, this repository, the case's work folder
+//   $form $root $ext     source or saved, that form's module root, .zi or .zir
+//   $file $out           that form's entry input and Go folder $work/$form-go
+// A failed step prints its diagnostic and turns the later steps into no-ops.
+#import "native_test"
+#import "saved_ir"
+#import "case_pool"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+GoCase :: struct {
+    test: *NativeTest
+    name: string
+    form: string
+    root: string
+    ext: string
+    file: string
+    out: string
+}
+
+GoCaseBody :: #type (go: *GoCase) -> void;
+GoCaseEntry :: struct { name: string; body: GoCaseBody }
+
+go_forms: [2]string = .["source", "saved"];
+
+GoExpand :: (go: *GoCase, text: string) -> string {
+    names := string.["$ziran", "$repo", "$work", "$form", "$root", "$ext", "$file", "$out"]
+    values := string.[go.test.ziran, go.test.repo, go.test.work, go.form, go.root, go.ext, go.file, go.out]
+    result := text
+    for index: cast(s64)0..names.count - 1 {
+        if TextContains(result, names[index]) { result = TextDetach(TextReplace(result, names[index], values[index])) }
+    }
+    return result
+}
+
+// Whether a word is NAME=value with a shell environment variable name.
+GoAssignment :: (word: string) -> bool {
+    at := TextFind(word, "=")
+    if at <= 0 { return false }
+    for index: cast(s64)0..at - 1 {
+        byte := word[index]
+        if !(byte >= 65 && byte <= 90 || byte == 95 || index > 0 && byte >= 48 && byte <= 57) { return false }
+    }
+    return true
+}
+
+GoInvoke :: (go: *GoCase, text: string, directory: string = "", merge: bool = true) -> NativeCommand {
+    test := go.test
+    result: NativeCommand
+    result.code = 127
+    if test.failed { return result }
+    words: Vec(string)
+    if !NativeAssert(test, NativeWords(text, *words), CheckConcat("unterminated quote in command: ", text)) { return result }
+    baseline := test.environment.count
+    command: Vec(string)
+    for word: words {
+        value := GoExpand(go, word)
+        if command.count == 0 && GoAssignment(value) { VecPush(test.environment, value); continue }
+        if TextHasSuffix(value, "/*.go") {
+            files := NativeFiles(value[:value.count - 5], ".go")
+            for file: files { VecPush(command, file) }
+            continue
+        }
+        VecPush(command, value)
+    }
+    result = NativeInvoke(test, command[:], GoExpand(go, directory), 600000, merge)
+    unused VecResize(test.environment, baseline)
+    return result
+}
+
+GoReport :: (go: *GoCase, message: string, text: string, result: NativeCommand) {
+    go.test.failed = true
+    print("FAIL: % (exit %): %\n", message, result.code, GoExpand(go, text))
+    if result.output != "" { print("%\n", result.output[ifx result.output.count > 6000 then result.output.count - 6000 else 0:]) }
+    if result.error != "" { print("%\n", result.error[ifx result.error.count > 6000 then result.error.count - 6000 else 0:]) }
+}
+
+// The command must exit with the expected code.
+GoRun :: (go: *GoCase, text: string, directory: string = "", expected: s32 = 0) {
+    result := GoInvoke(go, text, directory)
+    if !go.test.failed && result.code != expected { GoReport(go, "command failed", text, result) }
+}
+
+// The command must succeed; its standard output is returned.
+GoOutput :: (go: *GoCase, text: string, directory: string = "") -> string {
+    result := GoInvoke(go, text, directory, false)
+    if go.test.failed { return "" }
+    if result.code != 0 { GoReport(go, "command failed", text, result); return "" }
+    return result.output
+}
+
+// The command must succeed and print the expected text, as $(command) reads it.
+GoPrints :: (go: *GoCase, text: string, expected: string) {
+    output := GoOutput(go, text)
+    if go.test.failed { return }
+    end := output.count
+    while end > 0 && output[end - 1] == 10 { end -= 1 }
+    unused NativeAssert(go.test, output[:end] == expected, CheckConcat(GoExpand(go, text), CheckConcat(" printed: ", output)))
+}
+
+// The command must fail with a diagnostic rather than a signal or a timeout;
+// with patterns, its output must contain one of the |-separated texts.
+GoFails :: (go: *GoCase, text: string, what: string, patterns: string = "", directory: string = "") {
+    result := GoInvoke(go, text, directory)
+    if go.test.failed { return }
+    if !(result.code > 0 && result.code < 124) { GoReport(go, what, text, result); return }
+    if patterns == "" { return }
+    alternatives := TextSplit(patterns, "|")
+    for pattern: alternatives { if TextContains(result.output, pattern) { return } }
+    GoReport(go, CheckConcat(what, CheckConcat(", missing: ", patterns)), text, result)
+}
+
+GoWrite :: (go: *GoCase, path: string, contents: string) {
+    if go.test.failed { return }
+    unused NativeWrite(go.test, GoExpand(go, path), contents)
+}
+
+// Fixtures other than Ziran sources are stored with an .in suffix.
+GoCopy :: (go: *GoCase, name: string, destination: string) {
+    if go.test.failed { return }
+    stored := ifx TextHasSuffix(name, ".zi") then name else CheckConcat(name, ".in")
+    fixture := CheckPath(CheckPath(CheckPath(go.test.repo, "tests/fixtures/go"), go.name), stored)
+    unused NativeWrite(go.test, destination, NativeRead(go.test, fixture))
+}
+
+// Copies the named fixtures, separated by spaces, into the work folder.
+GoSources :: (go: *GoCase, names: string) {
+    list := TextSplit(names, " ")
+    for name: list { GoCopy(go, name, CheckPath(go.test.work, name)) }
+}
+
+// Copies the Go host program of this case beside the generated Go files.
+GoHost :: (go: *GoCase, name: string = "main.go") {
+    GoCopy(go, name, CheckPath(go.out, name))
+}
+
+// Selects the source or saved form of a module for the commands that follow.
+GoForm :: (go: *GoCase, form: string, module: string) {
+    saved := form == "saved"
+    go.form = form
+    go.root = ifx saved then CheckPath(go.test.work, "ir") else go.test.work
+    go.ext = ifx saved then ".zir" else ".zi"
+    go.file = CheckPath(go.root, CheckConcat(module, go.ext))
+    go.out = CheckPath(go.test.work, CheckConcat(form, "-go"))
+}
+
+// Checked metadata must survive removal of the source signature spelling.
+GoBlank :: (go: *GoCase, saved: string, signatures: string) {
+    if go.test.failed { return }
+    unused SavedIrBlankSignatures(go.test, CheckPath(CheckPath(go.test.work, "ir"), saved),
+        CheckPath(CheckPath(go.test.repo, "tests/fixtures/saved_signatures"), signatures))
+}
+
+// The named generated Go files, separated by spaces, must be identical when
+// built from source and from saved IR.
+GoSame :: (go: *GoCase, names: string) {
+    if go.test.failed { return }
+    list := TextSplit(names, " ")
+    for name: list {
+        unused NativeAssert(go.test, NativeSameFile(CheckPath(CheckPath(go.test.work, "source-go"), name),
+            CheckPath(CheckPath(go.test.work, "saved-go"), name)), CheckConcat("source and saved IR generate different ", name))
+    }
+}
+
+// A line of the text must equal the wanted text, or start with it.
+GoHasLine :: (go: *GoCase, text: string, wanted: string, prefix: bool = false) {
+    if go.test.failed { return }
+    lines := TextLines(text)
+    for line: lines {
+        if line == wanted || prefix && TextHasPrefix(line, wanted) { return }
+    }
+    unused NativeAssert(go.test, false, CheckConcat("missing line: ", CheckConcat(wanted, CheckConcat("\n", text))))
+}
+
+GoExists :: (go: *GoCase, path: string, expected: bool) {
+    if go.test.failed { return }
+    unused NativeAssert(go.test, IsFile(GoExpand(go, path)) == expected,
+        CheckConcat(ifx expected then "missing file: " else "stale file: ", GoExpand(go, path)))
+}
+
+// The non-empty lines of a table, or its blocks separated by ---- lines.
+GoEntries :: (table: string, blocks: bool) -> Vec(string) {
+    entries: Vec(string)
+    pieces := TextSplit(TextTrimEnd(table), ifx blocks then "\n----\n" else "\n")
+    for piece: pieces { if piece != "" { VecPush(entries, piece) } }
+    return entries
+}
+
+// Each table entry replaces %s in the template; the command must then reject
+// $work/bad.zi as GoFails describes.
+GoRejects :: (go: *GoCase, command: string, template: string, table: string, what: string, patterns: string = "", blocks: bool = false) {
+    entries := GoEntries(table, blocks)
+    for entry: entries {
+        GoWrite(go, "$work/bad.zi", TextReplace(template, "%s", entry))
+        GoFails(go, command, CheckConcat(what, CheckConcat(": ", entry)), patterns)
+    }
+}
+
+GoPassed :: (go: *GoCase, message: string) {
+    if !go.test.failed { print("%\n", message) }
+}
+
+// Given the compiler, and optionally a work folder, every case runs as a
+// parallel child of this program; a child also receives the name of its case.
+GoGroup :: (argc: s32, argv: **u8, prefix: string, cases: []GoCaseEntry) -> s32 {
+    if argc == 4 {
+        test := NativeStart(3, argv, prefix)
+        if test.failed { return 1 }
+        go: GoCase
+        go.test = *test
+        go.name = TextDetach(TextCopy(TextFromCString(argv[3])))
+        for entry: cases {
+            if entry.name != go.name { continue }
+            body := entry.body
+            body(*go)
+            return ifx test.failed then 1 else 0
+        }
+        print("unknown Go case: %\n", go.name)
+        return 2
+    }
+    test := NativeStart(argc, argv, prefix)
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    self := TextDetach(ResolvePath("/proc/self/exe"))
+    names: Vec(string)
+    commands: Vec(string)
+    for entry: cases {
+        arguments := string.[self, test.ziran, CheckPath(test.work, entry.name), entry.name]
+        VecPush(names, entry.name)
+        VecPush(commands, CaseCommand(arguments[:]))
+    }
+    return RunCases(*test, names[:], commands[:])
+}

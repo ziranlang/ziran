@@ -1,0 +1,22 @@
+support :: #import "testing_helper_test";
+exports :: #import "exports";
+#program_export "TestNamedExportPass"
+Pass :: (test: *support.Test) {
+    if exports.Answer() != 42 { support.Fatal(test, "wrong native answer") }
+}
+#program_export "TestNamedExportFails"
+Fail :: (test: *support.Test) { support.Fatal(test, "native assertion preserved") }
+FuzzCase :: (test: *support.Test, value: string) {
+    if exports.Answer() != 42 { support.Fatal(test, "fuzz callback") }
+}
+#program_export "FuzzNamedExport"
+Fuzz :: (test: *support.Fuzzer) {
+    support.Add(test, "seed")
+    support.Fuzz(test, FuzzCase)
+}
+#program_export "BenchmarkNamedExport"
+Benchmark :: (test: *support.Benchmark) {
+    for index: 0..support.Count(test) {
+        if exports.Answer() != 42 { support.BenchFatal(test, "benchmark callback") }
+    }
+}

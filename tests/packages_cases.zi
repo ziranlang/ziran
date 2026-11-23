@@ -2,43 +2,12 @@
 #import "package_proxy"
 #import "check_support"
 #import "check_cache"
+#import "case_pool"
 #import "std/byte_text_linux"
 #import "std/environment_linux"
 #import "std/file_tree_linux"
-#import "std/process_run_linux"
 #import "std/text_tools"
-#import "std/timer_linux"
 using Vectors :: #import "std/vec"
-
-PackageCaseJob :: struct {
-    name: string
-    output_path: string
-    error_path: string
-    started_ms: s64
-    started: bool
-    finished: bool
-    run: ProcessRun
-}
-
-PackageWorkerCount :: (total: s64) -> s64 {
-    jobs := EnvironmentNumber("BUILD_QUEUE_JOBS", 0)
-    if jobs <= 0 {
-        command: [1]string = .["nproc"]
-        output, code := CheckCapture(command[:])
-        value, valid := TextInteger(TextTrim(output))
-        jobs = ifx code == 0 && valid && value > 0 then value else cast(s64)1
-    }
-    if jobs > 8 { jobs = 8 }
-    if jobs > total { jobs = total }
-    if jobs < 1 { jobs = 1 }
-    return jobs
-}
-
-StopPackageJobs :: (jobs: []PackageCaseJob) {
-    for index: cast(s64)0..jobs.count - 1 {
-        if jobs[index].started && !jobs[index].finished { NativeStop(*jobs[index].run) }
-    }
-}
 
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
@@ -65,68 +34,17 @@ main :: (argc: s32, argv: **u8) -> s32 {
         "package_native_links", "package_transitive_add", "package_bridges", "package_wide_exports", "package_tooling",
         "package_generated_modules", "package_diagnostics", "package_learn_tuning", "package_learn"]
     selected := ifx local_only then local_cases[:] else full_cases[:]
-    count := selected.count
-    jobs: [18]PackageCaseJob
-    for index: cast(s64)0..count - 1 { jobs[index].name = selected[index] }
-    workers := PackageWorkerCount(count)
-    next: s64 = 0
-    running: s64 = 0
-    remaining := count
-    while remaining > 0 {
-        if TerminationRequested() {
-            StopPackageJobs(jobs[:count])
-            return 130
-        }
-        while next < count && running < workers {
-            name := jobs[next].name
-            command: Vec(string)
-            prefix := string.[test.ziran, "run", "--target=c", "--root", CheckPath(test.repo, "tests"),
-                CheckPath(test.repo, CheckConcat("tests/", CheckConcat(name, "_cases.zi"))), "--", test.ziran, CheckPath(test.work, name)]
-            for argument: prefix { VecPush(command, argument) }
-            if local_only && name == "package_pin" { VecPush(command, "--local-overrides-only") }
-            test.counter += 1
-            log_prefix := CheckPath(test.work, CheckConcat(name, CheckConcat("-", CheckNumber(test.counter))))
-            jobs[next].output_path = CheckConcat(log_prefix, ".stdout")
-            jobs[next].error_path = CheckConcat(log_prefix, ".stderr")
-            jobs[next].started_ms = MonotonicMilliseconds()
-            options: ProcessOptions = .{.arguments = command[:], .directory = test.repo,
-                .environment = test.environment[:], .output_path = jobs[next].output_path,
-                .error_path = jobs[next].error_path, .new_session = true}
-            if !NativeAssert(*test, StartProcess(options, *jobs[next].run), "start native test child") {
-                StopPackageJobs(jobs[:count])
-                return 1
-            }
-            jobs[next].started = true
-            next += 1
-            running += 1
-        }
-        now := MonotonicMilliseconds()
-        for index: cast(s64)0..count - 1 {
-            if !jobs[index].started || jobs[index].finished { continue }
-            if !PollProcess(*jobs[index].run) {
-                if now - jobs[index].started_ms > 600000 {
-                    StopPackageJobs(jobs[:count])
-                    unused NativeAssert(*test, false, CheckConcat(jobs[index].name, " timed out"))
-                    return 1
-                }
-                continue
-            }
-            jobs[index].finished = true
-            running -= 1
-            remaining -= 1
-            if jobs[index].run.code != 0 {
-                StopPackageJobs(jobs[:count])
-                out := NativeRead(*test, jobs[index].output_path)
-                err := NativeRead(*test, jobs[index].error_path)
-                unused NativeAssert(*test, false, CheckConcat(jobs[index].name, CheckConcat(" failed:\n", CheckConcat(out, err))))
-                return 1
-            }
-        }
-        if remaining > 0 { unused SleepMilliseconds(5) }
+    commands: Vec(string)
+    for name: selected {
+        command: Vec(string)
+        prefix := string.[test.ziran, "run", "--target=c", "--root", CheckPath(test.repo, "tests"),
+            CheckPath(test.repo, CheckConcat("tests/", CheckConcat(name, "_cases.zi"))), "--", test.ziran, CheckPath(test.work, name)]
+        for argument: prefix { VecPush(command, argument) }
+        if local_only && name == "package_pin" { VecPush(command, "--local-overrides-only") }
+        VecPush(commands, CaseCommand(command[:]))
     }
-    for index: cast(s64)0..count - 1 {
-        print("%", NativeRead(*test, jobs[index].output_path))
-    }
+    result := RunCases(*test, selected, commands[:])
+    if result != 0 { return result }
     if local_only { print("Local constrained package suite passed without clones, worktrees or fetching\n") }
     else { print("Local package integration suites passed\n") }
     return 0

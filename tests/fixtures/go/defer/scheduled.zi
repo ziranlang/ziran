@@ -1,0 +1,42 @@
+#import "sync_go"
+#import "map_go"
+atomic :: #import "atomic_go";
+http :: #import "http_go";
+go_sync :: #system_library "go:sync";
+go_format :: #system_library "go:fmt";
+builtin :: #system_library "go:builtin";
+Store :: struct { mutex: Mutex; count: atomic.Uint64 }
+Allocate :: () -> *Store #foreign builtin "new";
+AllocateCounts :: () -> Map(string, u64) #foreign builtin "make";
+UnlockAtReturn :: (value: *Mutex) #go_defer #foreign go_sync "(*Mutex).Unlock";
+WriteAtReturn :: (writer: http.ResponseWriter, value: string) #go_defer #foreign go_format "Fprint";
+Write :: (writer: http.ResponseWriter, value: string) #foreign go_format "Fprint";
+New :: () -> *Store { return Allocate() }
+NewCounts :: () -> Map(string, u64) {
+    counts := AllocateCounts()
+    MapSet(counts, "total", cast(u64)1)
+    return counts
+}
+Record :: (store: *Store) -> u64 { return atomic.Add(*store.count, cast(u64)1) }
+Count :: (store: *Store) -> u64 { return atomic.Load(*store.count) }
+LockedWrite :: (store: *Store, writer: http.ResponseWriter) {
+    Lock(*store.mutex)
+    UnlockAtReturn(*store.mutex)
+    http.SetHeader(http.ResponseHeaders(writer), "Content-Type", "text/plain")
+    Write(writer, "write")
+}
+ScheduledWrites :: (writer: http.ResponseWriter) {
+    value := "first"
+    WriteAtReturn(writer, value)
+    value = "second"
+    WriteAtReturn(writer, value)
+    Write(writer, "now:")
+}
+BlockSchedule :: (writer: http.ResponseWriter) {
+    {
+        WriteAtReturn(writer, "scheduled")
+    }
+    Write(writer, "body:")
+}
+#program_export
+Answer :: () -> s32 { return 42 }

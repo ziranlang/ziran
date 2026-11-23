@@ -1,0 +1,5 @@
+#import "go_types"
+State :: struct { count: s64 }
+Result :: struct { value: []u8; error: Error }
+Bound :: #type (bytes: []u8) -> Result;
+Full :: #type (state: *State, prefix: string, bytes: []u8) -> Result;

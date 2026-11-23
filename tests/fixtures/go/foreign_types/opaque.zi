@@ -1,0 +1,38 @@
+json_types :: #import "json_types";
+other :: #import "other";
+time :: #system_library "go:time";
+context :: #system_library "go:context";
+ed25519 :: #system_library "go:crypto/ed25519";
+Time :: #type #foreign time;
+Context :: #type #foreign context;
+PrivateKey :: #type #foreign ed25519;
+FromSeed :: (seed: []u8) -> PrivateKey #foreign ed25519 "NewKeyFromSeed";
+Envelope :: struct {
+    payload: json_types.Raw #go_tag "json:\"payload\""
+    optional: json_types.Raw #go_tag "json:\"optional,omitempty\""
+}
+SetPayload :: (record: *Envelope, value: json_types.Raw) {
+    record.payload = other.Forward(value)
+}
+GetPayload :: (record: Envelope) -> json_types.Raw {
+    return record.payload
+}
+ZeroRaw :: () -> json_types.Raw {
+    value: json_types.Raw
+    return value
+}
+ZeroTime :: () -> Time {
+    value: Time
+    return value
+}
+ZeroContext :: () -> Context {
+    value: Context
+    return value
+}
+SeedKey :: (seed: []u8) -> PrivateKey {
+    return FromSeed(seed)
+}
+#program_export
+Answer :: () -> s32 {
+    return 42
+}

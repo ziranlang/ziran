@@ -1,0 +1,18 @@
+#import "map_go"
+Entry :: struct { label: string }
+Entries :: Map(string, Entry)
+Counts :: Map(string, isize)
+NewCounts :: () -> Counts {
+    result: Counts
+    MapSet(result, "zero", cast(isize)0)
+    MapSet(result, "answer", cast(isize)42)
+    return result
+}
+ReadEntry :: (values: Entries) -> Entry {
+    return MapGet(values, "entry")
+}
+NewEntries :: () -> Entries {
+    result: Entries
+    MapSet(result, "entry", Entry.{label = "foreign"})
+    return result
+}

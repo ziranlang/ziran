@@ -1,0 +1,18 @@
+package main
+func main() {
+    for _, value := range [][]byte{nil, {}, make([]byte, 0, 8), {1, 2, 3}} {
+        if Native_Bytes(value) != (value == nil) || Native_StandardBytes(value) != (value == nil) {
+            panic("byte slice nilness changed")
+        }
+        if len(value) > 0 && (Native_Bytes(value[:0]) || Native_Bytes(value[len(value):])) {
+            panic("empty subslice was confused with nil")
+        }
+    }
+    for _, value := range [][]int{nil, {}, make([]int, 0, 4), {1, 2}} {
+        if Native_Integers(value) != (value == nil) { panic("integer slice nilness changed") }
+    }
+    for _, value := range [][]Record{nil, {}, make([]Record, 0, 4), {{Name: "record", Count: 42}}} {
+        if Native_Records(value) != (value == nil) { panic("record slice nilness changed") }
+    }
+    if Native_LocalEmpty() { panic("local empty view was confused with nil") }
+}

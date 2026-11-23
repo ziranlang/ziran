@@ -1,0 +1,3 @@
+c :: #system_library "go:C/fixture.h";
+Handle :: #type #foreign c "fixture_handle";
+Character :: #type #foreign c "char";

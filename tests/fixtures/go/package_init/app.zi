@@ -1,0 +1,11 @@
+plain :: #import "plain";
+calls :: #import "calls";
+handles :: #import "handles";
+Run :: () -> s32 {
+    plain.Initialize()
+    handles.Initialize()
+    return calls.Read()
+}
+#program_export
+Portable :: () -> s32 { return 42 }
+VoidEntry :: () {}

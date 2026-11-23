@@ -1,0 +1,5 @@
+driver :: #system_library "go:fixture/driver";
+#scope_file
+InitializeRaw :: () #foreign driver "init";
+#scope_export
+Initialize :: () { InitializeRaw() }

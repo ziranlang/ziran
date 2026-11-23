@@ -1,0 +1,15 @@
+native :: #system_library "go:testing";
+Test :: #type #foreign native "T";
+Fuzzer :: #type #foreign native "F";
+Benchmark :: #type #foreign native "B";
+StringCase :: #type (test: *Test, value: string) -> void;
+FatalRaw :: (test: *Test, message: string) #foreign native "(*T).Fatal";
+AddRaw :: (test: *Fuzzer, value: string) #foreign native "(*F).Add";
+FuzzRaw :: (test: *Fuzzer, callback: StringCase) #foreign native "(*F).Fuzz";
+CountRaw :: (test: *Benchmark) -> isize #go_field #foreign native "(*B).N";
+BenchFatalRaw :: (test: *Benchmark, message: string) #foreign native "(*B).Fatal";
+Fatal :: (test: *Test, message: string) { FatalRaw(test, message) }
+Add :: (test: *Fuzzer, value: string) { AddRaw(test, value) }
+Fuzz :: (test: *Fuzzer, callback: StringCase) { FuzzRaw(test, callback) }
+Count :: (test: *Benchmark) -> isize { return CountRaw(test) }
+BenchFatal :: (test: *Benchmark, message: string) { BenchFatalRaw(test, message) }

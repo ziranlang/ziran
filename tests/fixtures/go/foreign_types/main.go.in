@@ -1,0 +1,34 @@
+package main
+
+import (
+    "bytes"
+    "crypto/ed25519"
+    "encoding/json"
+    "reflect"
+)
+
+func main() {
+    raw := json.RawMessage(`{"x":[1,true,null],"text":"雪"}`)
+    record := Envelope{}
+    Opaque_SetPayload(&record, raw)
+    if !bytes.Equal(Opaque_GetPayload(record), raw) {
+        panic("opaque argument/return changed")
+    }
+    wire, err := json.Marshal(record)
+    if err != nil || string(wire) != `{"payload":{"x":[1,true,null],"text":"雪"}}` {
+        panic(string(wire))
+    }
+    var decoded Envelope
+    if err := json.Unmarshal(wire, &decoded); err != nil || !bytes.Equal(decoded.Payload, raw) {
+        panic("RawMessage JSON behavior changed")
+    }
+    field, _ := reflect.TypeOf(record).FieldByName("Payload")
+    if field.Type != reflect.TypeOf(raw) || Opaque_ZeroRaw() != nil || Opaque_ZeroContext() != nil || !Opaque_ZeroTime().IsZero() {
+        panic("foreign identity or zero value changed")
+    }
+    seed := make([]byte, ed25519.SeedSize)
+    for i := range seed { seed[i] = byte(i) }
+    if !bytes.Equal(Opaque_SeedKey(seed), ed25519.NewKeyFromSeed(seed)) {
+        panic("direct Go foreign type result changed")
+    }
+}

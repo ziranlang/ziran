@@ -1,0 +1,46 @@
+package main
+import (
+    "encoding/json"
+    "reflect"
+    "sort"
+)
+func main() {
+    response := Maps_BuildResponse()
+    data, err := json.Marshal(response)
+    if err != nil || string(data) != `{"tables":{"data":[{"label":"雪","missing":null,"number":42}]},"counts":{"answer":42,"zero":0}}` {
+        panic(string(data))
+    }
+    if Maps_Counter(response.Counts, "zero") != 0 || Maps_Counter(response.Counts, "missing") != -1 || Maps_ReadMissing() != 0 {
+        panic("presence/zero distinction changed")
+    }
+    keys := Maps_Keys(response.Counts)
+    sort.Strings(keys)
+    if !reflect.DeepEqual(keys, []string{"answer", "zero"}) || !Maps_Lookup(response.Counts, "zero") || Maps_Lookup(response.Counts, "missing") {
+        panic("key snapshot or membership changed")
+    }
+    Maps_Modify(response.Counts)
+    if response.Counts["answer"] != 43 || len(response.Counts) != 1 || Maps_Count(response.Counts) != 1 {
+        panic("map copy lost shared storage")
+    }
+    counters := Counters{}
+    Maps_Increment(&counters)
+    Maps_Increment(&counters)
+    if counters.Values["answer"] != 2 {
+        panic("in-place map field initialization")
+    }
+    entries := Shared_NewEntries()
+    if Maps_GetFromOther(entries).Label != "foreign" || Maps_LookupFromOther(entries).Label != "foreign" || Maps_RecordKey() != 6 {
+        panic("record types lost their declaring module or comparability")
+    }
+    Maps_Reset(response.Counts)
+    if len(response.Counts) != 0 || response.Counts == nil || Maps_Zero() != nil || Maps_Null() != nil || Maps_Empty() == nil || Maps_Count(nil) != 0 || !Maps_IsNull(nil) || Maps_IsNull(response.Counts) {
+        panic("nil/empty/clear semantics changed")
+    }
+    if Maps_Tree().Children["child"].Number != 7 {
+        panic("recursive map value layout changed")
+    }
+    field, _ := reflect.TypeOf(response).FieldByName("Tables")
+    if field.Type != reflect.TypeOf(map[string][]map[string]any{}) {
+        panic(field.Type.String())
+    }
+}

@@ -1,0 +1,34 @@
+// Edits of saved typed IR shared by check programs. Generated targets must
+// use the saved typed IR rather than reparsing its diagnostic source text.
+#import "native_test"
+#import "std/byte_text_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+// Replace the first or every occurrence of original and write the result.
+SavedIrReplace :: (test: *NativeTest, input: string, output: string, original: string, replacement: string, all: bool) -> bool {
+    data := NativeRead(test, input); at := TextFind(data, original)
+    if !NativeAssert(test, !test.failed && original.count > 0 && at >= 0, "saved IR mutation pattern is missing") { return false }
+    if all { return NativeWrite(test, output, TextReplace(data, original, replacement)) }
+    pieces := string.[TextDetach(TextCopy(data[:at])), replacement, TextDetach(TextCopy(data[at + original.count:]))]
+    return NativeWrite(test, output, TextJoin(pieces[:], ""))
+}
+
+// Remove diagnostic source text while preserving its byte length. Each line
+// of the signature fixture must occur exactly once in the saved IR.
+SavedIrBlankSignatures :: (test: *NativeTest, path: string, signatures: string) -> bool {
+    data := NativeRead(test, path)
+    patterns := NativeRead(test, signatures)
+    if test.failed { return false }
+    lines := TextLines(TextTrimEnd(patterns))
+    for signature: lines {
+        at := TextFind(data, signature)
+        if !NativeAssert(test, signature.count > 0 && at >= 0 && TextFind(data, signature, at + signature.count) < 0, "saved signature must occur exactly once") { return false }
+        bytes: Vec(u8)
+        if !NativeAssert(test, VecResize(bytes, signature.count), "allocate replacement source text") { return false }
+        for index: cast(s64)0..bytes.count - 1 { bytes[index] = cast(u8)63 }
+        replacement := TextDetach(TextCopy(TextFromBytes(bytes[:])))
+        data = TextDetach(TextReplace(data, signature, replacement))
+    }
+    return NativeWrite(test, path, data)
+}

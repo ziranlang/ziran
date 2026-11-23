@@ -1,0 +1,48 @@
+package main
+import (
+    "net/http"
+    "net/http/httptest"
+    "sync"
+    "time"
+)
+type panickingWriter struct { header http.Header }
+func (writer *panickingWriter) Header() http.Header { return writer.header }
+func (writer *panickingWriter) WriteHeader(int) {}
+func (writer *panickingWriter) Write([]byte) (int, error) { panic("writer failure") }
+func main() {
+    counts := Scheduled_NewCounts()
+    if counts == nil || counts["total"] != 1 { panic("generic foreign result signature") }
+    store := Scheduled_New()
+    var workers sync.WaitGroup
+    for i := 0; i < 16; i++ {
+        workers.Add(1)
+        go func() {
+            defer workers.Done()
+            for j := 0; j < 100; j++ { Scheduled_Record(store) }
+        }()
+    }
+    workers.Wait()
+    if Scheduled_Count(store) != 1600 { panic("atomic increments lost") }
+    if Scheduled_Record(store) != 1601 { panic("atomic Add result") }
+    recorder := httptest.NewRecorder()
+    Scheduled_ScheduledWrites(recorder)
+    if recorder.Body.String() != "now:secondfirst" { panic("Go argument capture or reverse cleanup order") }
+    recorder = httptest.NewRecorder()
+    Scheduled_BlockSchedule(recorder)
+    if recorder.Body.String() != "body:scheduled" { panic("Go defer ran at block exit") }
+    func() {
+        defer func() {
+            if recover() != "writer failure" { panic("panic identity changed") }
+        }()
+        Scheduled_LockedWrite(store, &panickingWriter{header: make(http.Header)})
+    }()
+    done := make(chan struct{})
+    go func() {
+        defer close(done)
+        Scheduled_LockedWrite(store, httptest.NewRecorder())
+    }()
+    select {
+    case <-done:
+    case <-time.After(time.Second): panic("mutex remained locked after panic")
+    }
+}

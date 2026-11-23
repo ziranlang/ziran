@@ -1,0 +1,25 @@
+package ziran
+import (
+    "errors"
+    "testing"
+)
+func TestTypedNamedExports(t *testing.T) {
+    sentinel := errors.New("native error")
+    bytes := []byte{0, 255, 42}
+    state := &State{Count: 41}
+    result := NativeForward(state, bytes, sentinel)
+    if state.Count != 42 || &result.Bytes[0] != &bytes[0] || result.Error != sentinel {
+        t.Fatal("native pointer, slice or error identity")
+    }
+    if result := NativeForward(state, nil, nil); result.Bytes != nil || result.Error != nil {
+        t.Fatal("native nil identity")
+    }
+    NativeVoid(state)
+    if state.Count != 44 || Value() != 42 || NativeEntry() != 42 || Caller_Read() != 84 {
+        t.Fatal("void, global collision or canonical callback")
+    }
+    defer func() {
+        if recover() != sentinel { t.Fatal("native panic identity") }
+    }()
+    NativePanic(sentinel)
+}

@@ -1,0 +1,6 @@
+#if !#defined(Raw) {
+    Missing :: UnknownValue;
+}
+zero: Raw;
+json :: #system_library "go:encoding/json";
+Raw :: #type #foreign json "RawMessage";

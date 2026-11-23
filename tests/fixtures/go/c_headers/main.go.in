@@ -1,0 +1,25 @@
+package main
+func main() {
+    if (Snapshot{Status: 42}).Status != 42 { panic("ordinary record disappeared") }
+    name := []byte("available\x00")
+    bytes := []byte{1, 2, 3}
+    if !Policy_Enabled() {
+        if Policy_Run(nil, nil) != -2 { panic("unavailable boundary") }
+        defer func() {
+            if recover() != "C ABI requires CGO_ENABLED=1" { panic("unavailable C ABI must panic") }
+        }()
+        Policy_Success()
+        return
+    }
+    if Policy_Name() != "header-owned layout" { panic("C macro string") }
+    if Policy_Run(name, bytes) != 2 || bytes[1] != 255 || Policy_Frees() != 1 {
+        panic("C layout, pointer mutation, size_t or deferred free")
+    }
+    if Policy_Run([]byte("missing\x00"), bytes) != -3 || Policy_Frees() != 1 { panic("allocation failure") }
+    if Policy_Run(name, []byte{1}) != -6 || Policy_Frees() != 2 { panic("error cleanup") }
+    func() {
+        defer func() { if recover() != "native cleanup" { panic("panic identity") } }()
+        Policy_RunPanic(name)
+    }()
+    if Policy_Frees() != 3 { panic("panic cleanup") }
+}

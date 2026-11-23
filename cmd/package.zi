@@ -219,6 +219,14 @@ PkgPaths :: (locked: *PkgLock, selectors: []string, submodules: bool,
     return 0
 }
 
+// Whether OPTION of `ziran api` takes the next argument as its value.
+ApiOptionValue :: (option: string) -> bool {
+    valued := string.["--target", "--target-os", "--target-cpu", "--module", "--symbol", "--max-symbols",
+        "--max-bytes", "--root", "--module-path", "--define"]
+    for name: valued { if option == name { return true } }
+    return false
+}
+
 PkgDispatch :: (command: string, arguments: []string, project: bool,
     root: string, locked: *PkgLock, current: *PkgManifest,
     launcher: string, extra_names: []string, extra_values: []string,
@@ -924,7 +932,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         command == "check" || command == "install") &&
         !PkgHasSource(flags[1:])
     implied: bool = false
-    if (command == "run" || command == "build" || command == "check") &&
+    if (command == "run" || command == "build" || command == "check" || command == "api") &&
         !PkgHasArgument(flags, "--project") &&
         !PkgHasArgument(flags, "--root") &&
         !PkgHasArgument(flags, "--module-path") &&
@@ -958,8 +966,10 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     locked_mode: bool = PkgHasArgument(flags, "--locked")
     offline: bool = PkgHasArgument(flags, "--offline")
     if pack_dev && locked_mode { return PkgFail("pack-dev cannot be used with --locked") }
-    filtered := PkgStrings(arguments.count)
-    if filtered.count != arguments.count { return PkgFail("cannot allocate arguments") }
+    // `ziran api kit/button` names a module the way an import does; it
+    // becomes --module, which takes one more slot than the argument.
+    filtered := PkgStrings(arguments.count * 2)
+    if filtered.count != arguments.count * 2 { return PkgFail("cannot allocate arguments") }
     count: s32 = 0
     // In a project, --module-path DIR adds a folder of the root package's
     // own modules, such as one a build step generates.
@@ -975,6 +985,11 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             generated_count += 1
             index += 2
             continue
+        }
+        if command == "api" && index < separator && part.count > 0 && part[0] != #char "-" &&
+           !PkgEndsWith(part, ".zi") && !PkgEndsWith(part, ".zir") && !ApiOptionValue(arguments[index - 1]) {
+            filtered[count] = "--module"
+            count += 1
         }
         if index >= separator ||
            (part != "--project" && part != "--locked" && part != "--offline" && part != "--current-toolchain") {
@@ -1282,6 +1297,25 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         }
         return ScriptRun(filtered[0:count], binary, root, program_root, program_file,
             search[0:searches], map, libraries, PkgCacheRoot())
+    }
+    // `ziran api kryon/button` names a dependency by its alias; the API tool
+    // knows modules by their package identity.
+    if command == "api" && project && locked != null {
+        for at: 1..count - 1 {
+            if filtered[at - 1] != "--module" { continue }
+            selector := filtered[at]
+            slash: s64 = 0
+            while slash < selector.count && selector[slash] != #char "/" { slash += 1 }
+            if slash == 0 || slash >= selector.count { continue }
+            id := PkgEdgeValue(*locked.root_edges[0], locked.root_edge_count, selector[0:slash])
+            if id == "" { continue }
+            filtered[at] = PkgJoin(id, selector[slash:])
+            // The tool's messages name the module as it was written.
+            spelling_name: [1]string = .{"ZIRAN_API_MODULE"}
+            spelling_value: [1]string = .{selector}
+            return PkgDispatch(command, filtered[0:count], project, root, locked,
+                current, launcher, spelling_name[:], spelling_value[:], current_toolchain)
+        }
     }
     return PkgDispatch(command, filtered[0:count], project, root, locked,
         current, launcher, empty[:], empty[:], current_toolchain)

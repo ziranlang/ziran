@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 /* One invocation renders to a private stream, then publishes only a complete
@@ -185,6 +186,52 @@ static int read_attachments(const ZirModule *module, const char *path, char *tex
     return 1;
 }
 
+/* --module NAME selects a module by its checked name, or by the name an
+ * import spells: a package module is checked as pHEX16_STEM and imported as
+ * PACKAGE/STEM, a standard module as std/NAME. */
+static int module_selected(const char *name)
+{
+    if(!filter_module || !strcmp(filter_module, name)) return 1;
+    const char *stem = name;
+    if(name[0] == 'p' && strlen(name) > 18 && name[17] == '_') {
+        int hex = 1;
+        for(int i = 1; i <= 16; i++) hex &= isxdigit((unsigned char)name[i]) != 0;
+        if(hex) stem = name + 18;
+    }
+    const char *wanted = strrchr(filter_module, '/');
+    /* The launcher spells a dependency by its package identity: only that
+     * package's modules match. */
+    if(wanted && stem != name && wanted - filter_module == 17 && filter_module[0] == 'p' &&
+       strncmp(filter_module, name, 17))
+        return 0;
+    /* An export is often spelled with a capital its file name lacks. */
+    return !strcasecmp(wanted ? wanted + 1 : filter_module, stem);
+}
+
+/* Options may follow the input files: move every option, with its value, in
+ * front of them so `ziran api app.zi --module NAME` reads as written. */
+static void options_first(int argc, char **argv)
+{
+    static const char *const valued[] = {"--target", "--target-os", "--target-cpu", "--module", "--symbol",
+        "--max-symbols", "--max-bytes", "--root", "--module-path", "--define"};
+    char **ordered = calloc((size_t)argc + 1, sizeof(*ordered));
+    if(ordered == NULL) return;
+    int count = 1;
+    for(int pass = 0; pass < 2; pass++)
+        for(int i = 1; i < argc; i++) {
+            int option = argv[i][0] == '-' && argv[i][1] == '-', value = 0;
+            for(size_t v = 0; option && v < sizeof(valued) / sizeof(*valued); v++)
+                value |= !strcmp(argv[i], valued[v]) && i + 1 < argc;
+            if(option == (pass == 0)) {
+                ordered[count++] = argv[i];
+                if(value) ordered[count++] = argv[i + 1];
+            }
+            i += value;
+        }
+    memcpy(argv + 1, ordered + 1, (size_t)(argc - 1) * sizeof(*argv));
+    free(ordered);
+}
+
 static int load_attachments(const ZirModule *const *modules, int count)
 {
     char *text = malloc(EXAMPLE_BYTES + 2);
@@ -192,7 +239,7 @@ static int load_attachments(const ZirModule *const *modules, int count)
     int ok = 1;
     for(int i = 0; ok && i < count; i++) {
         const ZirModule *module = modules[i];
-        if(!module->document || (filter_module && strcmp(filter_module, module->name))) continue;
+        if(!module->document || !module_selected(module->name)) continue;
         char path[ZIR_PATH_MAX + sizeof(".examples")];
         int length = snprintf(path, sizeof(path), "%s.examples", document_path(module->document));
         if(length < 0 || (size_t)length >= sizeof(path)) {
@@ -835,6 +882,24 @@ show_module(const ZirModule *module, int json)
             printf("  type %s", type->name);
             if(type->template_params[0])
                 printf("(%s)", type->template_params);
+            /* A record's fields and an enum's members on the same line: the
+             * body's lines joined with "; ", so one line names what a
+             * caller may set. */
+            if(type->body[0] && !type->is_extern) {
+                fputs(" {", api_output);
+                int field = 0, start = 1;
+                for(const char *c = type->body; *c; c++) {
+                    if(*c == '\n' || *c == '\r') { start = 1; continue; }
+                    if(start && (*c == ' ' || *c == '\t')) continue;
+                    if(start) { fputs(field++ ? "; " : " ", api_output); start = 0; }
+                    /* The source may end a field with its own semicolon. */
+                    const char *rest = c + 1;
+                    while(*rest == ' ' || *rest == '\t') rest++;
+                    if(*c == ';' && (*rest == '\n' || *rest == '\r' || *rest == '\0')) continue;
+                    putchar(*c);
+                }
+                fputs(" }", api_output);
+            }
             printf(" @ %s:%d\n", SpanPath(type->span), type->span.line);
         }
         for(int i = 0; i < module->function_count; i++)
@@ -867,7 +932,7 @@ static char *render_api(const ZirModule *const *modules, int count, int json,
     }
     int first = 1;
     for(int i = 0; i < count; i++) {
-        if(filter_module && strcmp(filter_module, modules[i]->name)) continue;
+        if(!module_selected(modules[i]->name)) continue;
         if(json && !first) putchar(','); first = 0;
         show_module(modules[i], json);
     }
@@ -925,6 +990,7 @@ main(int argc, char **argv)
         COMMAND_LIST("--module-path", module_paths, module_path_count, argc, NULL),
         COMMAND_LIST("--define", defines, define_count, 64, valid_define),
     };
+    options_first(argc, argv);
     first_file = ReadCommandOptions(argc, argv, options,
                                     sizeof(options) / sizeof(*options));
     if(first_file < 0) {
@@ -970,6 +1036,21 @@ main(int argc, char **argv)
     for(int i = 0; i < set.count; i++)
         for(int m = 0; m < set.programs[i]->module_count; m++) modules[index++] = &set.programs[i]->modules[m];
     qsort(modules, (size_t)module_count, sizeof(*modules), module_order);
+    /* A name that selects nothing is a mistake, not an empty API. */
+    int selected = 0;
+    for(int i = 0; i < module_count; i++) selected += module_selected(modules[i]->name);
+    if(selected == 0) {
+        char names[1024] = "";
+        size_t used = 0;
+        for(int i = 0; i < module_count && used + strlen(modules[i]->name) + 3 < sizeof(names); i++)
+            used += (size_t)snprintf(names + used, sizeof(names) - used, "%s%s", i ? ", " : "", modules[i]->name);
+        const char *written = getenv("ZIRAN_API_MODULE");
+        Diagnostic(Span("<command>", 1, 1), "command.arguments",
+                   "--module %s names no checked module; write the name an import uses, such as PACKAGE/MODULE. Modules: %s",
+                   written && *written ? written : filter_module, names);
+        free(modules);
+        goto done;
+    }
     examples.root = root;
     examples.target = target;
     examples.module_paths = module_paths;

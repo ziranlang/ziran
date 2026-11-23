@@ -280,7 +280,10 @@ main :: () -&gt; s32 {
 <p><code>&lt;&lt;</code> and <code>&amp;</code> between two values are still shift and bitwise and.</p>
 <h2 id="9-modules-and-imports">9. Modules and imports</h2>
 <p>A file is a module named after the file. <code>#import "name"</code> searches <code>--root</code>
-and the module paths; <code>std/...</code> names the standard library.</p>
+and the module paths; <code>std/...</code> names the standard library. Three forms:
+<code>#import "geometry"</code> brings its names in bare, <code>Geo :: #import "geometry";</code>
+only as <code>Geo.Area</code>, and <code>using Geo :: #import "geometry";</code> both ways, so a
+name that clashes can still be written <code>Geo.Area</code>.</p>
 <pre><code class="language-zi">// file: geometry.zi
 Rect :: struct { width: s64; height: s64; }
 
@@ -390,6 +393,7 @@ ziran run --target=c --root . main.zi -- ARGS   # build natively and run
 ziran build --target=c --exe --entry main:main --root . -o build main.zi
 ziran explain check.type                     # explain a diagnostic code
 ziran api --root . main.zi                   # checked signatures, Vec builtins included
+ziran api kryon/button                       # in a project: one package module, fields and signatures
 ziran std --list                             # every standard module and its purpose
 ziran new hello &amp;&amp; cd hello &amp;&amp; ziran lock &amp;&amp; ziran run   # a project
 </code></pre>
@@ -483,6 +487,10 @@ uses the portable engine, which has no <code>std/*_linux</code> modules: use
 <tr>
 <td><code>[]int{1, 2}</code>, <code>vec![1, 2]</code>, <code>[1, 2]</code></td>
 <td><code>s64.[1, 2]</code> (fixed array), or a <code>Vec(s64)</code> with <code>VecPush</code></td>
+</tr>
+<tr>
+<td><code>[[1, 2], [3, 4]]</code>, <code>{{1, 2}, {3, 4}}</code></td>
+<td><code>t: [2][2]s64 = .[.[1, 2], .[3, 4]]</code>, at file scope or in a procedure</td>
 </tr>
 <tr>
 <td><code>v.push(x)</code>, <code>append(v, x)</code>, <code>v.pop()</code></td>

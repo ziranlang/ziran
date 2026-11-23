@@ -153,6 +153,17 @@ with tempfile.TemporaryDirectory(prefix='package-zx-test-', dir=ziran.parent.par
     built = graph_run(ziran, 'build', cwd=both)
     assert built.returncode == 0, built.stderr
     assert graph_run(both / 'build/app', cwd=both).returncode == 4
+    # `ziran api PACKAGE/MODULE` in a project prints that module as an import
+    # names it, options may follow the file, and a name that selects nothing
+    # is an error that lists the modules.
+    api = graph_run(ziran, 'api', 'css/Api', cwd=both)
+    assert api.returncode == 0 and 'cssLight :: () -> s64' in api.stdout and 'themeLight' not in api.stdout, api.stdout + api.stderr
+    api = graph_run(ziran, 'api', 'kit/Kit', cwd=both)
+    assert api.returncode == 0 and 'LightPalette :: () -> s64' in api.stdout and 'cssLight' not in api.stdout, api.stdout + api.stderr
+    api = graph_run(ziran, 'api', 'src/app.zi', '--module', 'app', cwd=both)
+    assert api.returncode == 0 and 'main :: () -> s32' in api.stdout and 'cssLight ::' not in api.stdout, api.stdout + api.stderr
+    api = graph_run(ziran, 'api', 'css/Nothing', cwd=both)
+    assert api.returncode != 0 and '--module css/Nothing names no checked module' in api.stderr and 'Modules: app' in api.stderr, api.stderr
 
     key, cert = root / 'key.pem', root / 'cert.pem'
     command('openssl', 'req', '-new', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',

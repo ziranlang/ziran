@@ -316,7 +316,10 @@ main :: () -> s32 {
 ## 9. Modules and imports
 
 A file is a module named after the file. `#import "name"` searches `--root`
-and the module paths; `std/...` names the standard library.
+and the module paths; `std/...` names the standard library. Three forms:
+`#import "geometry"` brings its names in bare, `Geo :: #import "geometry";`
+only as `Geo.Area`, and `using Geo :: #import "geometry";` both ways, so a
+name that clashes can still be written `Geo.Area`.
 
 ```zi
 // file: geometry.zi
@@ -448,6 +451,7 @@ ziran run --target=c --root . main.zi -- ARGS   # build natively and run
 ziran build --target=c --exe --entry main:main --root . -o build main.zi
 ziran explain check.type                     # explain a diagnostic code
 ziran api --root . main.zi                   # checked signatures, Vec builtins included
+ziran api kryon/button                       # in a project: one package module, fields and signatures
 ziran std --list                             # every standard module and its purpose
 ziran new hello && cd hello && ziran lock && ziran run   # a project
 ```
@@ -482,6 +486,7 @@ uses the portable engine, which has no `std/*_linux` modules: use
 | `P{x: 1}`, `P { x: 1 }`, `{x: 1}` | `P.{x = 1}` or `.{x = 1}` |
 | `enum E { A, B }` | `E :: enum { A; B; }`, values `E.A` or `.A` |
 | `[]int{1, 2}`, `vec![1, 2]`, `[1, 2]` | `s64.[1, 2]` (fixed array), or a `Vec(s64)` with `VecPush` |
+| `[[1, 2], [3, 4]]`, `{{1, 2}, {3, 4}}` | `t: [2][2]s64 = .[.[1, 2], .[3, 4]]`, at file scope or in a procedure |
 | `v.push(x)`, `append(v, x)`, `v.pop()` | `VecPush(v, x)`, `VecPop(v)` |
 | `map[string]int`, `HashMap<String, i32>`, `new Map()` | `HashMap(string, s32)` from `std/hash_map` |
 | `x.method()` | `Method(x)` or `Method(*x)` |

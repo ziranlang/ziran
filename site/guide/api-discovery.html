@@ -11,8 +11,16 @@ in each loaded module. The same command accepts saved <code>.zir</code> inputs. 
 conditional source selection as <code>ziran check</code>. A project
 can use <code>ziran api --project --locked --json</code> to query its entry and imports.
 Without <code>--json</code>, the command prints concise text signatures with source
-locations. A failed load or check exits nonzero and does not print an API
+locations; a record type lists its fields and an enum its members on that
+line. A failed load or check exits nonzero and does not print an API
 object.</p>
+<p>Inside a project the command needs no <code>--project</code>, and a module is named the
+way an import names it: <code>ziran api kryon/button</code> prints that package module,
+and <code>ziran api std/text</code> a standard one the project loads. <code>--module NAME</code>
+takes the same spelling or the checked module name, options may follow the
+input files, and a name that selects no loaded module is an error listing
+the modules. A package module is matched by its file name, so an export whose
+name differs from its file is selected by the file name.</p>
 <p>Use <code>--target c</code>, <code>--target go</code>, or <code>--target zx</code> to select and check the
 API for a specific backend. <code>--target-os OS</code> and <code>--target-cpu CPU</code> set the
 same conditional source facts as <code>ziran check</code>. Without an explicit

@@ -129,7 +129,7 @@ ToolSourceExcerpts :: (test: *NativeTest) -> bool {
         .{"#import \"std/text_tools\"\nmain :: () -> s32 {\n    t := TextLins(\"a b\")\n    return 0\n}\n",
             "golden.zi:3:10: unresolved function: TextLins (did you mean TextLines?)\n        t := TextLins(\"a b\")\n             ^^^^^^^^\n  fix: replace TextLins with TextLines\n"},
         .{"main :: () -> s32 {\n    let x = 1\n    return 0\n}\n",
-            "golden.zi:2:5: let is not Ziran syntax; declare a local with name := value or name: Type = value, a constant with NAME :: value;\n        let x = 1\n        ^\n"},
+            "golden.zi:2:5: let is not Ziran syntax; declare a local with name := value or name: Type = value, a constant with NAME :: value;\n        let x = 1\n        ^\n  note: checking stopped at this error; errors after it, in this file and in other files, are not listed until it is fixed\n"},
         .{"#import \"std/text_tools\"\nmain :: () -> s32 {\n\tt := TextLins(\"a b\")\n\treturn 0\n}\n",
             "golden.zi:3:7: unresolved function: TextLins (did you mean TextLines?)\n    \tt := TextLins(\"a b\")\n    \t     ^^^^^^^^\n  fix: replace TextLins with TextLines\n"},
     ]
@@ -145,7 +145,17 @@ ToolSourceExcerpts :: (test: *NativeTest) -> bool {
         if !NativeAssert(test, !TextContains(records.error, "    ^") && !TextContains(records.error, "  fix: "),
             "JSON diagnostics gained the text-mode excerpt") { return false }
     }
-    return true
+    // A syntax error in one file ends the run before another file's errors
+    // are found; the output says so instead of looking clean for that file.
+    if !NativeWrite(test, CheckPath(test.work, "stopped_look.zi"), "Look :: () -> s32 { let x = 1; return 0 }\n") ||
+        !NativeWrite(test, CheckPath(test.work, "stopped_probe.zi"), "Probe :: () -> s32 { return Unknown.Thing() }\n") ||
+        !NativeWrite(test, CheckPath(test.work, "stopped.zi"), "#import \"stopped_look\"\n#import \"stopped_probe\"\nmain :: () -> s32 { return Look() + Probe() }\n") { return false }
+    stopped := string.[test.ziran, "check", "--root", test.work, CheckPath(test.work, "stopped.zi")]
+    early := NativeInvoke(test, stopped[:])
+    return NativeAssert(test, early.code == 1 && TextContains(early.error, "stopped_look.zi:1:") && TextContains(early.error, "let is not Ziran syntax") &&
+        !TextContains(early.error, "stopped_probe.zi") &&
+        TextContains(early.error, "  note: checking stopped at this error; errors after it, in this file and in other files, are not listed"),
+        CheckConcat("a check that stopped early did not say so:\n", early.error))
 }
 
 // A program that passes ziran check also builds as strict ISO C and runs:
@@ -168,6 +178,9 @@ ToolCheckBuildAgree :: (test: *NativeTest) -> bool {
         .{name = "module_vec", code = 10,
           source = "using Vectors :: #import \"std/vec\"\nusing Db :: #import \"module_vec_db\"\nScale :: (width: s64) -> s64 { return width * 2 }\nmain :: () -> s32 {\n    matches: Vec(Db.Match)\n    Db.Find(*matches, 1)\n    frag: Db.Frag = .{line = 3}\n    frags: Vec(*Db.Frag)\n    Db.Keep(*frags, *frag)\n    total := matches[0].line + frags[0].line + Scale(1)\n    VecFree(matches)\n    VecFree(frags)\n    return cast(s32)total\n}\n",
           module = "using Vectors :: #import \"std/vec\"\n#scope_file\nwidth :: 5;\n#scope_export\nMatch :: struct { name: string; line: s64; }\nFrag :: struct { line: s64; }\nFind :: (matches: *Vec(Match), line: s64) { VecPush(<<matches, .{name = \"m\", line = line * width}) }\nKeep :: (frags: *Vec(*Frag), frag: *Frag) { VecPush(<<frags, frag) }\n"},
+        // A row inside an array literal takes the element type, at file scope and
+        // in a procedure.
+        .{"nested_rows", "table: [3][3]string = .[.[\"a\", \"b\", \"c\"], .[\"d\", \"e\", \"f\"], .[\"g\", \"h\", \"ii\"]];\nmain :: () -> s32 {\n    local: [2][2]s64 = .[.[1, 2], .[3, 4]]\n    return cast(s32)(table[2][2].count + local[1][0])\n}\n", 5},
         // One application has one C type in every module that spells it, also
         // when a third module's own Entry gives its Vec(Entry) the same name.
         .{name = "shared_vec", code = 5,
@@ -199,6 +212,14 @@ ToolCheckBuildAgree :: (test: *NativeTest) -> bool {
 // ziran std --list names every standard module; ziran api lists the Vec
 // operations the compiler implements under std/vec.
 ToolDiscovery :: (test: *NativeTest) -> bool {
+    // The text listing names a record's fields and an enum's members.
+    shapes := CheckPath(test.work, "api_shapes.zi")
+    if !NativeWrite(test, shapes, "Props :: struct { label: string; primary: bool; }\nTone :: enum { Plain; Loud; }\nmain :: () -> s32 { return 0 }\n") { return false }
+    shape_command := string.[test.ziran, "api", "--root", test.work, shapes]
+    shape := NativeInvoke(test, shape_command[:])
+    if !NativeAssert(test, shape.code == 0 && TextContains(shape.output, "type Props { label: string; primary: bool }") &&
+        TextContains(shape.output, "type Tone { Plain = 0; Loud = 1 }"),
+        CheckConcat("ziran api text lost record fields or enum members:\n", shape.output)) { return false }
     listing := string.[test.ziran, "std", "--list", "--json"]
     result := NativeInvoke(test, listing[:])
     document: JsonDocument

@@ -16,6 +16,7 @@
 #endif
 static bool compiler_link_Fail(ZirSourceSpan span, String code, String message, String subject, String tail) ZIRAN_MAYBE_UNUSED;
 static String compiler_link_Path(ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
+static String compiler_link_ExportSymbol(ZirFunction* function) ZIRAN_MAYBE_UNUSED;
 static String compiler_link_Numbered(Slice output, String prefix, int32_t serial) ZIRAN_MAYBE_UNUSED;
 static bool compiler_link_ModuleAlias(ZirModule* module, String name, int32_t limit) ZIRAN_MAYBE_UNUSED;
 static bool compiler_link_AliasOpenImports(ZirProgram** programs, int32_t count) ZIRAN_MAYBE_UNUSED;
@@ -42,9 +43,262 @@ bool
 compiler_link_LinkImports(ZirProgram** programs, int32_t count)
 {
     bool value_0 = compiler_link_AliasOpenImports(programs, count);
-    bool ok = value_0 && compiler_link_ResolveImports(programs, count);
+    bool value_1 = value_0 && compiler_link_ResolveImports(programs, count);
+    bool ok = value_1 && compiler_link_UniqueExports(programs, count);
     compiler_services_LookupsChanged();
     return ok;
+}
+
+bool
+compiler_link_UniqueExports(ZirProgram** programs, int32_t count)
+{
+    {
+        int32_t range_first_0 = 0;
+        int32_t range_last_0 = (int32_t)((uint32_t)count - 1u);
+        int32_t p = range_first_0;
+        if (p <= range_last_0) for (;;) {
+            {
+                int32_t range_first_1 = 0;
+                int32_t range_last_1 = (int32_t)((uint32_t)((programs[p])->module_count) - 1u);
+                int32_t m = range_first_1;
+                if (m <= range_last_1) for (;;) {
+                    ZirModule* module = &(((programs[p])->modules)[m]);
+                    {
+                        int32_t range_first_3 = 0;
+                        int32_t range_last_3 = (int32_t)((uint32_t)(module->function_count) - 1u);
+                        int32_t f = range_first_3;
+                        if (f <= range_last_3) for (;;) {
+                            ZirFunction* function = &(module->functions[f]);
+                            if (function->exported == 0) {
+                                if (f == range_last_3) {
+                                    break;
+                                }
+                                f = (int32_t)((uint32_t)f + 1u);
+                                continue;
+                            }
+                            ZirModule* clash = compiler_link_EarlierExport(programs, p, m, function);
+                            if (clash == ((void *)0)) {
+                                if (f == range_last_3) {
+                                    break;
+                                }
+                                f = (int32_t)((uint32_t)f + 1u);
+                                continue;
+                            }
+                            ZirSourceSpan value_0 = function->span;
+                            String value_1 = StringView(NULL, 0);
+                            {
+                                ZirSourceSpan span = value_0;
+                                value_1 = compiler_ir_CText(compiler_services_SpanPath(span));
+                            }
+                            String path = value_1;
+                            String other = compiler_ir_CText(&(clash->source_path[0]));
+                            bool value_3 = (int64_t)(other).length > (int64_t)(path).length;
+                            if (value_3) {
+                                String value_4 = StringRangeAt(other, (int64_t)((int64_t)((uint64_t)((int64_t)(other).length) - (uint64_t)((int64_t)(path).length))), (int64_t)other.length);
+                                value_3 = (StringEqual(value_4, path));
+                            }
+                            bool revision = value_3;
+                            Text tail = {0};
+                            String value_5 = StringView(NULL, 0);
+                            if (revision) {
+                                value_5 = StringLiteral(" is also exported by another revision of ");
+                            } else {
+                                value_5 = StringLiteral(" is also exported by ");
+                            }
+                            bool value_6 = false;
+                            if ((value_5).length == 0) {
+                                value_6 = true;
+                            } else {
+                                void *value_7 = ZirVecReserve((void *)(tail.bytes).data, &(tail.bytes).capacity, (tail.bytes).count, (int64_t)(value_5).length, sizeof(*(tail.bytes).data));
+                                if (value_7 != NULL) {
+                                    (tail.bytes).data = (uint8_t *)value_7;
+                                    memcpy((tail.bytes).data + (tail.bytes).count, (value_5).data, (size_t)(value_5).length);
+                                    (tail.bytes).count += (int64_t)(value_5).length;
+                                    value_6 = true;
+                                }
+                            }
+                            bool value_8 = value_6;
+                            if (value_8) {
+                                String value_9 = StringView(NULL, 0);
+                                if (revision) {
+                                    value_9 = path;
+                                } else {
+                                    value_9 = other;
+                                }
+                                bool value_10 = false;
+                                if ((value_9).length == 0) {
+                                    value_10 = true;
+                                } else {
+                                    void *value_11 = ZirVecReserve((void *)(tail.bytes).data, &(tail.bytes).capacity, (tail.bytes).count, (int64_t)(value_9).length, sizeof(*(tail.bytes).data));
+                                    if (value_11 != NULL) {
+                                        (tail.bytes).data = (uint8_t *)value_11;
+                                        memcpy((tail.bytes).data + (tail.bytes).count, (value_9).data, (size_t)(value_9).length);
+                                        (tail.bytes).count += (int64_t)(value_9).length;
+                                        value_10 = true;
+                                    }
+                                }
+                                value_8 = value_10;
+                            }
+                            bool value_12 = value_8;
+                            if (value_12) {
+                                String value_13 = StringView(NULL, 0);
+                                if (revision) {
+                                    String value_14 = StringLiteral(" (ziran.lock pins two revisions of its package); make the dependencies that pin that package agree on one revision");
+                                    value_13 = value_14;
+                                } else {
+                                    value_13 = StringLiteral("; a program exports a symbol once");
+                                }
+                                bool value_15 = false;
+                                if ((value_13).length == 0) {
+                                    value_15 = true;
+                                } else {
+                                    void *value_16 = ZirVecReserve((void *)(tail.bytes).data, &(tail.bytes).capacity, (tail.bytes).count, (int64_t)(value_13).length, sizeof(*(tail.bytes).data));
+                                    if (value_16 != NULL) {
+                                        (tail.bytes).data = (uint8_t *)value_16;
+                                        memcpy((tail.bytes).data + (tail.bytes).count, (value_13).data, (size_t)(value_13).length);
+                                        (tail.bytes).count += (int64_t)(value_13).length;
+                                        value_15 = true;
+                                    }
+                                }
+                                value_12 = value_15;
+                            }
+                            (void)value_12;
+                            ZirSourceSpan value_17 = function->span;
+                            ZirFunction* value_18 = function;
+                            String value_19 = StringView(NULL, 0);
+                            {
+                                ZirFunction* function = value_18;
+                                if ((function->export_symbol)[0] != 0) {
+                                    value_19 = compiler_ir_CText(&(function->export_symbol[0]));
+                                    goto value_20;
+                                }
+                                value_19 = compiler_ir_CText(&(function->name[0]));
+                            value_20: ;
+                            }
+                            bool value_21 = compiler_link_Fail(value_17, StringLiteral("check.file_scope"), StringLiteral("#program_export symbol "), value_19, StringView((tail.bytes).count > 0 ? (const char *)(tail.bytes).data : "", (size_t)(tail.bytes).count));
+                            free((tail).bytes.data);
+                            (tail).bytes.data = NULL;
+                            (tail).bytes.capacity = 0;
+                            (tail).bytes.count = 0;
+                            return value_21;
+                        }
+                    }
+                    if (m == range_last_1) {
+                        break;
+                    }
+                    m = (int32_t)((uint32_t)m + 1u);
+                }
+            }
+            if (p == range_last_0) {
+                break;
+            }
+            p = (int32_t)((uint32_t)p + 1u);
+        }
+    }
+    return true;
+}
+
+ZirModule*
+compiler_link_EarlierExport(ZirProgram** programs, int32_t p, int32_t m, ZirFunction* function)
+{
+    ZirFunction* value_0 = function;
+    String value_1 = StringView(NULL, 0);
+    {
+        ZirFunction* function = value_0;
+        if ((function->export_symbol)[0] != 0) {
+            value_1 = compiler_ir_CText(&(function->export_symbol[0]));
+            goto value_2;
+        }
+        value_1 = compiler_ir_CText(&(function->name[0]));
+    value_2: ;
+    }
+    String symbol = value_1;
+    ZirSourceSpan value_3 = function->span;
+    String value_4 = StringView(NULL, 0);
+    {
+        ZirSourceSpan span = value_3;
+        value_4 = compiler_ir_CText(compiler_services_SpanPath(span));
+    }
+    String path = value_4;
+    String source = compiler_ir_CText(&(((((programs[p])->modules)[m]).source_path)[0]));
+    {
+        int32_t range_first_3 = 0;
+        int32_t range_last_3 = p;
+        int32_t q = range_first_3;
+        if (q <= range_last_3) for (;;) {
+            int32_t value_6 = 0;
+            if (q == p) {
+                value_6 = m;
+            } else {
+                value_6 = (programs[q])->module_count;
+            }
+            int32_t limit = value_6;
+            {
+                int32_t range_first_5 = 0;
+                int32_t range_last_5 = (int32_t)((uint32_t)limit - 1u);
+                int32_t n = range_first_5;
+                if (n <= range_last_5) for (;;) {
+                    ZirModule* other = &(((programs[q])->modules)[n]);
+                    {
+                        int32_t range_first_7 = 0;
+                        int32_t range_last_7 = (int32_t)((uint32_t)(other->function_count) - 1u);
+                        int32_t g = range_first_7;
+                        if (g <= range_last_7) for (;;) {
+                            ZirFunction* candidate = &(other->functions[g]);
+                            bool value_7 = candidate->exported != 0;
+                            bool value_8 = value_7;
+                            if (value_8) {
+                                String value_9 = StringView(NULL, 0);
+                                {
+                                    ZirFunction* function = candidate;
+                                    if ((function->export_symbol)[0] != 0) {
+                                        value_9 = compiler_ir_CText(&(function->export_symbol[0]));
+                                        goto value_10;
+                                    }
+                                    value_9 = compiler_ir_CText(&(function->name[0]));
+                                value_10: ;
+                                }
+                                value_8 = (StringEqual(value_9, symbol));
+                            }
+                            bool value_11 = value_8;
+                            bool value_12 = value_11;
+                            if (value_12) {
+                                ZirSourceSpan value_13 = candidate->span;
+                                String value_14 = StringView(NULL, 0);
+                                {
+                                    ZirSourceSpan span = value_13;
+                                    value_14 = compiler_ir_CText(compiler_services_SpanPath(span));
+                                }
+                                bool value_16 = !StringEqual(value_14, path);
+                                bool value_17 = value_16;
+                                if (!value_17) {
+                                    String value_18 = compiler_ir_CText(&(other->source_path[0]));
+                                    value_17 = (!StringEqual(value_18, source));
+                                }
+                                value_12 = value_17;
+                            }
+                            if (value_12) {
+                                return other;
+                            }
+                            if (g == range_last_7) {
+                                break;
+                            }
+                            g = (int32_t)((uint32_t)g + 1u);
+                        }
+                    }
+                    if (n == range_last_5) {
+                        break;
+                    }
+                    n = (int32_t)((uint32_t)n + 1u);
+                }
+            }
+            if (q == range_last_3) {
+                break;
+            }
+            q = (int32_t)((uint32_t)q + 1u);
+        }
+    }
+    return (void *)0;
 }
 
 bool
@@ -195,6 +449,15 @@ static String
 compiler_link_Path(ZirSourceSpan span)
 {
     return compiler_ir_CText(compiler_services_SpanPath(span));
+}
+
+static String
+compiler_link_ExportSymbol(ZirFunction* function)
+{
+    if ((function->export_symbol)[0] != 0) {
+        return compiler_ir_CText(&(function->export_symbol[0]));
+    }
+    return compiler_ir_CText(&(function->name[0]));
 }
 
 static String

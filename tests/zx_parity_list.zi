@@ -55,6 +55,7 @@ ParityCases :: (repo: string) -> Vec(ParityCase) {
     ParityAdd(*cases, spec_root, "zx_lowered_tables:main", CheckPath(spec_root, "zx_lowered_tables.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_records:main", CheckPath(spec_root, "zx_lowered_records.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_aggregates:main", CheckPath(spec_root, "zx_lowered_aggregates.zi"))
+    ParityAdd(*cases, spec_root, "zx_lowered_size_scalars:main", CheckPath(spec_root, "zx_lowered_size_scalars.zi"))
     for entry: spec {
         at: s64
         while entry[at] != cast(u8)58 { at += 1 }

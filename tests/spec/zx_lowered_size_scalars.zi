@@ -1,0 +1,25 @@
+// Pointer-sized scalar types isize and usize on the portable ZX target.
+AddUsize :: (a: usize, b: usize) -> usize {
+    return a + b
+}
+
+SubIsize :: (a: isize, b: isize) -> isize {
+    return a - b
+}
+
+Span :: struct {
+    offset: isize
+    length: usize
+}
+
+main :: () -> s32 {
+    total := AddUsize(cast(usize)19, cast(usize)23)
+    delta := SubIsize(cast(isize)5, cast(isize)12)
+    span := Span.{offset = delta, length = total}
+    if span.length != cast(usize)42 { return 1 }
+    if span.offset != cast(isize)-7 { return 2 }
+    if size_of(isize) != 8 || size_of(usize) != 8 { return 3 }
+    narrow := cast(s32)span.offset + cast(s32)span.length
+    print("usize=% isize=% narrow=%\n", cast(u64)span.length, cast(s64)span.offset, narrow)
+    return 0
+}

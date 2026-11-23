@@ -657,9 +657,11 @@ Origin :: (program: *AssemblyProgram, span: IR.ZirSourceSpan) -> s32 {
 #scope_file
 
 // ScalarWidth of zir_scalar.h: the width of a checked integer spelling.
+// Portable ZX lowers pointer-sized isize/usize as 64-bit integers,
+// matching size_of(isize)/size_of(usize) == 8 below.
 ScalarWidth :: (name: *u8) -> s32 {
     spelled := IR.CText(name)
-    if spelled == "int" || spelled == "integer" { return 64 }
+    if spelled == "int" || spelled == "integer" || spelled == "isize" || spelled == "usize" { return 64 }
     if spelled.count == 0 { return 0 }
     if spelled[0] != cast(u8)115 && spelled[0] != cast(u8)117 { return 0 }
     rest := spelled[1:spelled.count]

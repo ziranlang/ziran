@@ -19,7 +19,7 @@ The backend APIs remain distinct: verify portable program, describe target, buil
 
 ## Numeric and scalar semantics
 
-Current fixed integer types are `s8`, `u8`, `s16`, `u16`, `s32`, `u32`, `s64`, and `u64`. Abstract `int`/`integer` arithmetic uses the 64-bit operation policy, while pointer-sized `isize` and `usize` are outside the portable executable subset. Bit representations, rather than host signed arithmetic, define operations; [scalar helpers](../cmd/zir/zir_scalar.h) mask to the declared width and reinterpret signed payloads.
+Current fixed integer types are `s8`, `u8`, `s16`, `u16`, `s32`, `u32`, `s64`, and `u64`. Abstract `int`/`integer` and pointer-sized `isize`/`usize` arithmetic use the 64-bit signed/unsigned operation policy on the portable target (matching `size_of(isize) == size_of(usize) == 8`). Bit representations, rather than host signed arithmetic, define operations; [scalar helpers](../cmd/zir/zir_scalar.h) mask to the declared width and reinterpret signed payloads.
 
 - Addition, subtraction, multiplication, signed negation/overflow, and unsigned wraparound wrap at the operand width. Unsigned intermediates are used on all targets so C behavior is defined.
 - Signed minimum divided by `-1` wraps to itself; its remainder is zero. Integer division or remainder by zero is a failed execution/trap, not undefined behavior.

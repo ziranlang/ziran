@@ -10,6 +10,14 @@ extern "C" {
 #endif
 #define BUNDLE_STATE_MAX_BYTES 16777216
 #define STATE_DEPTH 128
+#define DISPATCH "__zx_module_dispatch"
+#define SERVICES "zx_module"
+#define MODULE_IMAGE_LIMIT 268435456
+#define MODULE_SUFFIX 5
+#define IMAGE_MISSING 0
+#define IMAGE_FOUND 1
+#define IMAGE_ERROR 2
+#define MODULE_DEPTH 64
 #define POLICY_AUTO 0
 #define POLICY_ENGINE 1
 #define POLICY_NATIVE 2
@@ -26,13 +34,29 @@ typedef struct BundleState BundleState;
 typedef struct StateBudget StateBudget;
 typedef struct BundleComponent BundleComponent;
 typedef struct BundleComponentHandle BundleComponentHandle;
+typedef int32_t BindingKind;
+typedef struct BindingPlan BindingPlan;
+typedef struct ModuleExport ModuleExport;
+typedef struct ModuleRequirement ModuleRequirement;
+typedef struct ModuleImport ModuleImport;
+typedef int32_t ImageMark;
+typedef struct ModuleImage ModuleImage;
+typedef struct ModuleService ModuleService;
+typedef struct ZxModuleImage ZxModuleImage;
+typedef struct BundleInstanceOptions BundleInstanceOptions;
+typedef struct ZxModuleLoaderConfig ZxModuleLoaderConfig;
+typedef struct ModuleFrame ModuleFrame;
+typedef struct ModuleScope ModuleScope;
+typedef struct BoundModuleHost BoundModuleHost;
+typedef struct ModuleSlot ModuleSlot;
+typedef struct ZxModuleProgram ZxModuleProgram;
+typedef struct ZxModuleLoader ZxModuleLoader;
 typedef struct ZirSourceSpan ZirSourceSpan;
 typedef struct Sha256 Sha256;
 typedef struct StaticText StaticText;
 typedef struct HostField HostField;
 typedef struct HostBinding HostBinding;
 typedef struct BundleCapabilityAbi BundleCapabilityAbi;
-typedef struct BundleInstanceOptions BundleInstanceOptions;
 typedef struct NativeBundleSlot NativeBundleSlot;
 typedef struct Bundle Bundle;
 typedef struct BundleImageOwner BundleImageOwner;
@@ -41,11 +65,13 @@ typedef struct BundleInstance BundleInstance;
 typedef struct ZxRunControl ZxRunControl;
 typedef int32_t (*BundleStateMigrate)(void*, BundleState*, BundleState*);
 typedef int32_t (*BundleComponentVerify)(void*, BundleInstance*);
-typedef int32_t (*BindingOrder)(void*, void*);
 typedef void (*BundleImageRelease)(void*, uint8_t*, size_t);
+typedef int32_t (*ZxModuleResolve)(void*, uint8_t*, ZxModuleImage*);
+typedef int32_t (*HostCall)(void*, uint8_t*, uint8_t*, HostValue*, int32_t, HostValue*);
+typedef int32_t (*BundleConsoleWrite)(void*, int32_t, void*, size_t);
+typedef int32_t (*BindingOrder)(void*, void*);
 typedef size_t (*BundleReadAt)(void*, uint64_t, void*, size_t);
 typedef void* (*BundleShrink)(void*, size_t);
-typedef int32_t (*BundleConsoleWrite)(void*, int32_t, void*, size_t);
 typedef HostBinding* (*FindBinding)(void*, uint8_t*, uint8_t*);
 
 enum {
@@ -107,6 +133,165 @@ struct BundleComponentHandle {
     uint64_t generation;
 };
 
+enum {
+    BindingKind_External = 0,
+    BindingKind_Import = 1,
+    BindingKind_Select = 2,
+    BindingKind_Argument = 3,
+    BindingKind_Result = 4,
+    BindingKind_Load = 5,
+    BindingKind_Release = 6,
+    BindingKind_ExportCount = 7,
+    BindingKind_ExportName = 8,
+    BindingKind_ParameterCount = 9,
+    BindingKind_ParameterType = 10,
+    BindingKind_ResultType = 11,
+    BindingKind_Replace = 12,
+    BindingKind_Problem = 13,
+};
+
+struct BindingPlan {
+    BindingKind kind;
+    size_t ordinal;
+    size_t parameter;
+};
+
+struct ModuleExport {
+    uint8_t* name;
+    size_t* parameters;
+    size_t count;
+    size_t result;
+};
+
+struct ModuleRequirement {
+    uint8_t* interface;
+    uint8_t* name;
+    ModuleImage* image;
+};
+
+struct ModuleImport {
+    uint8_t* module;
+    uint8_t* function;
+    uint8_t* interface;
+    uint8_t* name;
+    ModuleRequirement* require;
+    size_t capability;
+    size_t ordinal;
+};
+
+enum {
+    ImageMark_Unchecked = 0,
+    ImageMark_Visiting = 1,
+    ImageMark_Verified = 2,
+};
+
+struct ModuleImage {
+    Bundle* bundle;
+    void* exec;
+    uint8_t* text;
+    uint8_t* name;
+    ModuleExport* exports;
+    ModuleRequirement* requires;
+    ModuleImport* imports;
+    BindingPlan* plans;
+    size_t export_count;
+    size_t require_count;
+    size_t import_count;
+    size_t external_count;
+    size_t export_capacity;
+    size_t require_capacity;
+    size_t import_capacity;
+    size_t next_requirement;
+    ImageMark mark;
+    struct ModuleImage* next;
+};
+
+struct ModuleService {
+    String name;
+    BindingKind kind;
+    String result;
+    int32_t arity;
+    String first;
+    String second;
+    String third;
+};
+
+struct ZxModuleImage {
+    uint8_t* data;
+    size_t size;
+    BundleImageRelease release;
+};
+
+struct BundleInstanceOptions {
+    int32_t backend;
+    int32_t max_steps;
+    int32_t unbounded;
+};
+
+struct ZxModuleLoaderConfig {
+    uint8_t** roots;
+    size_t root_count;
+    BundleInstanceOptions options;
+    HostBinding* library_bindings;
+    size_t library_binding_count;
+    ZxModuleResolve resolve;
+    void* resolve_context;
+    BundleConsoleWrite write;
+    void* console_context;
+};
+
+struct ModuleFrame {
+    size_t ordinal;
+    size_t next_argument;
+    HostValue* args;
+    int32_t selected;
+    int32_t returned;
+};
+
+struct ModuleScope {
+    ZxModuleLoader* loader;
+    ModuleImage* image;
+    BundleInstance* instance;
+    BoundModuleHost* hosts;
+    ModuleSlot* children;
+    ModuleFrame* frame;
+    HostValue result;
+    int32_t owns_image;
+};
+
+struct BoundModuleHost {
+    ModuleScope* scope;
+    BindingPlan* plan;
+};
+
+struct ModuleSlot {
+    uint64_t handle;
+    ModuleScope* scope;
+    struct ModuleSlot* next;
+};
+
+struct ZxModuleProgram {
+    ModuleImage image;
+    ModuleScope scope;
+};
+
+struct ZxModuleLoader {
+    ModuleImage* cache;
+    ModuleScope root;
+    uint8_t** roots;
+    size_t root_count;
+    HostBinding* bindings;
+    size_t binding_count;
+    BundleInstanceOptions options;
+    ZxModuleResolve resolve;
+    void* resolve_context;
+    BundleConsoleWrite write;
+    void* console_context;
+    ZxRunControl* control;
+    uint32_t depth;
+    uint8_t error[512];
+};
+
 struct ZirSourceSpan {
     uint8_t* context;
     int32_t file;
@@ -150,12 +335,6 @@ struct BundleCapabilityAbi {
     int32_t reads_arguments;
 };
 
-struct BundleInstanceOptions {
-    int32_t backend;
-    int32_t max_steps;
-    int32_t unbounded;
-};
-
 struct NativeBundleSlot {
     void* code;
     int32_t ready;
@@ -195,6 +374,9 @@ struct BundleInstance {
 struct ZxRunControl {
     int32_t requested;
 };
+extern ModuleService module_services[9];
+extern uint8_t handle_lock;
+extern uint64_t handles_issued;
 #ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_ExecInstanceStateCount_354b423e
 #define ZIR_FOREIGN_zir_f_4e8972c89764e104_ExecInstanceStateCount_354b423e
 #ifdef __APPLE__
@@ -349,6 +531,211 @@ static size_t
 zir_f_4e8972c89764e104_NativeInstanceLiveBytes(void* instance)
 {
     return zir_foreign_zir_f_4e8972c89764e104_NativeInstanceLiveBytes(instance);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_realloc_bcfdb19b
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_realloc_bcfdb19b
+#ifdef __APPLE__
+uint8_t* zir_foreign_zir_f_4e8972c89764e104_realloc(uint8_t* memory, size_t size) __asm__("_realloc");
+#else
+uint8_t* zir_foreign_zir_f_4e8972c89764e104_realloc(uint8_t* memory, size_t size) __asm__("realloc");
+#endif
+static uint8_t*
+zir_f_4e8972c89764e104_realloc(uint8_t* memory, size_t size)
+{
+    return zir_foreign_zir_f_4e8972c89764e104_realloc(memory, size);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_strdup_6d2d56ca
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_strdup_6d2d56ca
+#ifdef __APPLE__
+uint8_t* zir_foreign_zir_f_4e8972c89764e104_strdup(uint8_t* text) __asm__("_strdup");
+#else
+uint8_t* zir_foreign_zir_f_4e8972c89764e104_strdup(uint8_t* text) __asm__("strdup");
+#endif
+static uint8_t*
+zir_f_4e8972c89764e104_strdup(uint8_t* text)
+{
+    return zir_foreign_zir_f_4e8972c89764e104_strdup(text);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_strchr_35c1c732
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_strchr_35c1c732
+#ifdef __APPLE__
+uint8_t* zir_foreign_zir_f_4e8972c89764e104_strchr(uint8_t* text, int32_t c) __asm__("_strchr");
+#else
+uint8_t* zir_foreign_zir_f_4e8972c89764e104_strchr(uint8_t* text, int32_t c) __asm__("strchr");
+#endif
+static uint8_t*
+zir_f_4e8972c89764e104_strchr(uint8_t* text, int32_t c)
+{
+    return zir_foreign_zir_f_4e8972c89764e104_strchr(text, c);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_strncmp_5281c9d0
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_strncmp_5281c9d0
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_4e8972c89764e104_strncmp(uint8_t* a, uint8_t* b, size_t count) __asm__("_strncmp");
+#else
+int32_t zir_foreign_zir_f_4e8972c89764e104_strncmp(uint8_t* a, uint8_t* b, size_t count) __asm__("strncmp");
+#endif
+static int32_t
+zir_f_4e8972c89764e104_strncmp(uint8_t* a, uint8_t* b, size_t count)
+{
+    return zir_foreign_zir_f_4e8972c89764e104_strncmp(a, b, count);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_memchr_43d3f7f1
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_memchr_43d3f7f1
+#ifdef __APPLE__
+uint8_t* zir_foreign_zir_f_4e8972c89764e104_memchr(uint8_t* data, int32_t c, size_t count) __asm__("_memchr");
+#else
+uint8_t* zir_foreign_zir_f_4e8972c89764e104_memchr(uint8_t* data, int32_t c, size_t count) __asm__("memchr");
+#endif
+static uint8_t*
+zir_f_4e8972c89764e104_memchr(uint8_t* data, int32_t c, size_t count)
+{
+    return zir_foreign_zir_f_4e8972c89764e104_memchr(data, c, count);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_snprintf_7c8971c5
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_snprintf_7c8971c5
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_4e8972c89764e104_snprintf(uint8_t* out, size_t size, uint8_t* format, ...) __asm__("_snprintf");
+#else
+int32_t zir_foreign_zir_f_4e8972c89764e104_snprintf(uint8_t* out, size_t size, uint8_t* format, ...) __asm__("snprintf");
+#endif
+#define zir_f_4e8972c89764e104_snprintf zir_foreign_zir_f_4e8972c89764e104_snprintf
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_fgetc_4abc539e
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_fgetc_4abc539e
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_4e8972c89764e104_fgetc(void* file) __asm__("_fgetc");
+#else
+int32_t zir_foreign_zir_f_4e8972c89764e104_fgetc(void* file) __asm__("fgetc");
+#endif
+static int32_t
+zir_f_4e8972c89764e104_fgetc(void* file)
+{
+    return zir_foreign_zir_f_4e8972c89764e104_fgetc(file);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_ferror_384a3a69
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_ferror_384a3a69
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_4e8972c89764e104_ferror(void* file) __asm__("_ferror");
+#else
+int32_t zir_foreign_zir_f_4e8972c89764e104_ferror(void* file) __asm__("ferror");
+#endif
+static int32_t
+zir_f_4e8972c89764e104_ferror(void* file)
+{
+    return zir_foreign_zir_f_4e8972c89764e104_ferror(file);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_ExecBundleModuleLinkage_13d97b04
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_ExecBundleModuleLinkage_13d97b04
+#ifdef __APPLE__
+uint8_t* zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleLinkage(void* exec, size_t* length) __asm__("_ExecBundleModuleLinkage");
+#else
+uint8_t* zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleLinkage(void* exec, size_t* length) __asm__("ExecBundleModuleLinkage");
+#endif
+static uint8_t*
+zir_f_4e8972c89764e104_ExecBundleModuleLinkage(void* exec, size_t* length)
+{
+    return zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleLinkage(exec, length);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_ExecBundleModuleEntry_e22d08de
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_ExecBundleModuleEntry_e22d08de
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleEntry(void* exec) __asm__("_ExecBundleModuleEntry");
+#else
+int32_t zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleEntry(void* exec) __asm__("ExecBundleModuleEntry");
+#endif
+static int32_t
+zir_f_4e8972c89764e104_ExecBundleModuleEntry(void* exec)
+{
+    return zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleEntry(exec);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_ExecBundleModuleType_1a2adb2b
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_ExecBundleModuleType_1a2adb2b
+#ifdef __APPLE__
+uint8_t* zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleType(void* exec, size_t host, int32_t parameter) __asm__("_ExecBundleModuleType");
+#else
+uint8_t* zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleType(void* exec, size_t host, int32_t parameter) __asm__("ExecBundleModuleType");
+#endif
+static uint8_t*
+zir_f_4e8972c89764e104_ExecBundleModuleType(void* exec, size_t host, int32_t parameter)
+{
+    return zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleType(exec, host, parameter);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_ExecBundleModuleTypeEqual_dcbabbdb
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_ExecBundleModuleTypeEqual_dcbabbdb
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleTypeEqual(void* left, size_t left_host, int32_t left_parameter, void* right, size_t right_host, int32_t right_parameter) __asm__("_ExecBundleModuleTypeEqual");
+#else
+int32_t zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleTypeEqual(void* left, size_t left_host, int32_t left_parameter, void* right, size_t right_host, int32_t right_parameter) __asm__("ExecBundleModuleTypeEqual");
+#endif
+static int32_t
+zir_f_4e8972c89764e104_ExecBundleModuleTypeEqual(void* left, size_t left_host, int32_t left_parameter, void* right, size_t right_host, int32_t right_parameter)
+{
+    return zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleTypeEqual(left, left_host, left_parameter, 
+right, right_host, right_parameter);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_ExecBundleModuleParameterCount_ba0542c1
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_ExecBundleModuleParameterCount_ba0542c1
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleParameterCount(void* exec, size_t host) __asm__("_ExecBundleModuleParameterCount");
+#else
+int32_t zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleParameterCount(void* exec, size_t host) __asm__("ExecBundleModuleParameterCount");
+#endif
+static int32_t
+zir_f_4e8972c89764e104_ExecBundleModuleParameterCount(void* exec, size_t host)
+{
+    return zir_foreign_zir_f_4e8972c89764e104_ExecBundleModuleParameterCount(exec, host);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_FileIdentity_ad1a6e8b
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_FileIdentity_ad1a6e8b
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_4e8972c89764e104_FileIdentity(uint8_t* path, uint64_t* device, uint64_t* inode, int32_t* regular) __asm__("_S15FileIdentity");
+#else
+int32_t zir_foreign_zir_f_4e8972c89764e104_FileIdentity(uint8_t* path, uint64_t* device, uint64_t* inode, int32_t* regular) __asm__("S15FileIdentity");
+#endif
+static int32_t
+zir_f_4e8972c89764e104_FileIdentity(uint8_t* path, uint64_t* device, uint64_t* inode, int32_t* regular)
+{
+    return zir_foreign_zir_f_4e8972c89764e104_FileIdentity(path, device, inode, regular);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_FlagTake_31d4ffc1
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_FlagTake_31d4ffc1
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_4e8972c89764e104_FlagTake(void* flag) __asm__("_S15FlagTake");
+#else
+int32_t zir_foreign_zir_f_4e8972c89764e104_FlagTake(void* flag) __asm__("S15FlagTake");
+#endif
+static int32_t
+zir_f_4e8972c89764e104_FlagTake(void* flag)
+{
+    return zir_foreign_zir_f_4e8972c89764e104_FlagTake(flag);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_FlagClear_67ee695e
+#define ZIR_FOREIGN_zir_f_4e8972c89764e104_FlagClear_67ee695e
+#ifdef __APPLE__
+void zir_foreign_zir_f_4e8972c89764e104_FlagClear(void* flag) __asm__("_S15FlagClear");
+#else
+void zir_foreign_zir_f_4e8972c89764e104_FlagClear(void* flag) __asm__("S15FlagClear");
+#endif
+static void
+zir_f_4e8972c89764e104_FlagClear(void* flag)
+{
+    zir_foreign_zir_f_4e8972c89764e104_FlagClear(flag);
 }
 #endif
 #ifndef ZIR_FOREIGN_zir_f_4e8972c89764e104_malloc_af3bc6d9
@@ -1173,6 +1560,100 @@ int32_t BundleComponentReplace(BundleComponent* component, Bundle* replacement, 
 size_t BundleComponentLiveValueBytes(BundleComponent* component);
 void BundleComponentClose(BundleComponent* component);
 void BundleComponentHandleClose(BundleComponentHandle* handle);
+String compiler_host_api_ServiceParameter(ModuleService* service, int32_t index);
+size_t compiler_host_api_NoIndex(void);
+uint8_t* compiler_host_api_Advance(uint8_t* text, size_t count);
+bool compiler_host_api_IsDigitByte(uint8_t c);
+ModuleExport* compiler_host_api_ExportAt(ModuleImage* image, size_t index);
+ModuleRequirement* compiler_host_api_RequirementAt(ModuleImage* image, size_t index);
+ModuleImport* compiler_host_api_ImportAt(ModuleImage* image, size_t index);
+BindingPlan* compiler_host_api_PlanAt(ModuleImage* image, size_t index);
+int32_t compiler_host_api_Problem(ZxModuleLoader* loader, uint8_t* format, uint8_t* a, uint8_t* b, uint8_t* c, uint8_t* d);
+int32_t compiler_host_api_MemoryProblem(ZxModuleLoader* loader);
+void* compiler_host_api_Grow(void* items, size_t* capacity, size_t size);
+bool compiler_host_api_IdentifierByte(uint8_t c);
+bool compiler_host_api_ValidName(uint8_t* name, bool logical);
+void compiler_host_api_ImageClear(ModuleImage* image);
+ModuleRequirement* compiler_host_api_FindRequirement(ModuleImage* image, uint8_t* interface);
+size_t compiler_host_api_FindExport(ModuleImage* image, uint8_t* name);
+int32_t compiler_host_api_InvalidLinkage(ZxModuleLoader* loader, size_t line_number);
+bool compiler_host_api_ReserveExport(ModuleImage* image);
+bool compiler_host_api_ReserveRequirement(ModuleImage* image);
+bool compiler_host_api_ReserveImport(ModuleImage* image);
+int32_t compiler_host_api_LinkageFields(uint8_t* line, uint8_t** field);
+int32_t compiler_host_api_ReadLinkage(ZxModuleLoader* loader, ModuleImage* image);
+ModuleService* compiler_host_api_ModuleServiceFor(uint8_t* module, uint8_t* name);
+bool compiler_host_api_HasType(ModuleImage* image, size_t cap, int32_t parameter, uint8_t* expected);
+bool compiler_host_api_OrdinalField(uint8_t** cursor, size_t* number);
+bool compiler_host_api_ReadDispatch(ModuleImage* image, size_t cap, uint8_t* name);
+size_t compiler_host_api_FindCapability(Bundle* bundle, uint8_t* module, uint8_t* function);
+int32_t compiler_host_api_ReadService(ZxModuleLoader* loader, ModuleImage* image, size_t cap, ModuleService* service, uint32_t* seen);
+int32_t compiler_host_api_ImageRead(ZxModuleLoader* loader, ModuleImage* image, Bundle* bundle);
+int32_t compiler_host_api_ResultParameter(ModuleImage* image, ModuleExport* method);
+int32_t compiler_host_api_ImportMismatch(ZxModuleLoader* loader, ModuleImport* import, ModuleImage* provider, ModuleExport* method, uint8_t* what);
+int32_t compiler_host_api_VerifyImports(ZxModuleLoader* loader, ModuleImage* image);
+bool compiler_host_api_HasResolver(ZxModuleLoader* loader);
+uint8_t* compiler_host_api_CandidatePath(ZxModuleLoader* loader, size_t index, uint8_t* name);
+uint8_t* compiler_host_api_ResolveHostPath(ZxModuleLoader* loader, uint8_t* name);
+void compiler_host_api_ReleaseImage(ZxModuleLoader* loader, ZxModuleImage* image);
+Bundle* compiler_host_api_VerifyGuestImage(ZxModuleLoader* loader, ZxModuleImage* image, uint8_t* path);
+Bundle* compiler_host_api_ResolveGuestBundle(ZxModuleLoader* loader, uint8_t* name, uint8_t** selected_path);
+void compiler_host_api_ImageClose(ModuleImage* image);
+HostBinding* compiler_host_api_LibraryBinding(ZxModuleLoader* loader, Bundle* bundle, size_t capability);
+ModuleImage* compiler_host_api_OpenImage(ZxModuleLoader* loader, Bundle* bundle, uint8_t* path, uint8_t* name);
+uint8_t* compiler_host_api_ReadModuleFile(uint8_t* path, ptrdiff_t limit, size_t* size);
+Bundle* compiler_host_api_OpenPathBundle(ZxModuleLoader* loader, uint8_t* path, uint8_t* name);
+ModuleImage* compiler_host_api_OpenLogicalImage(ZxModuleLoader* loader, uint8_t* artifact, uint8_t* name);
+ModuleImage* compiler_host_api_ResolveImage(ZxModuleLoader* loader, uint8_t* name);
+void compiler_host_api_RewindCache(ZxModuleLoader* loader, ModuleImage* previous);
+int32_t compiler_host_api_VerifyGraph(ZxModuleLoader* loader, ModuleImage* root);
+BoundModuleHost* compiler_host_api_HostAt(ModuleScope* scope, size_t index);
+HostValue* compiler_host_api_ArgumentAt(HostValue* values, size_t index);
+void compiler_host_api_BindModuleHost(ModuleScope* scope, HostBinding* binding, size_t cap);
+bool compiler_host_api_ScopeOpen(ModuleScope* scope, HostBinding* external, size_t external_count);
+void compiler_host_api_ScopeClose(ModuleScope* scope);
+void compiler_host_api_SlotClose(ModuleSlot* slot);
+ModuleSlot* compiler_host_api_FindSlot(ModuleScope* owner, uint64_t handle);
+int32_t compiler_host_api_ReleaseSlot(ModuleScope* owner, uint64_t handle);
+uint64_t compiler_host_api_NextHandle(void);
+uint64_t compiler_host_api_LoadSlot(ModuleScope* owner, ModuleImage* image);
+int32_t compiler_host_api_CallSlot(ModuleSlot* slot, size_t ordinal, HostValue* args, size_t count, HostValue* result);
+ModuleExport* compiler_host_api_SlotExport(ModuleSlot* slot, size_t ordinal);
+uint8_t* compiler_host_api_ParameterType(ModuleSlot* slot, ModuleExport* method, size_t index);
+uint8_t* compiler_host_api_ResultType(ModuleImage* image, ModuleExport* method);
+bool compiler_host_api_SameLinkage(ModuleImage* a, ModuleImage* b);
+int32_t compiler_host_api_ReplaceSlot(ModuleSlot* slot, uint8_t* artifact, bool search_roots, BundleStateMigrate migrate, void* context);
+void compiler_host_api_SetNumber(HostValue* result, uint64_t number);
+void compiler_host_api_SetText(HostValue* result, uint8_t* text);
+uint8_t* compiler_host_api_ReadText(HostValue* value);
+int32_t compiler_host_api_ServiceCall(ModuleScope* scope, BindingKind kind, HostValue* args, HostValue* result);
+int32_t compiler_host_api_BindCall(void* context, uint8_t* module, uint8_t* function, HostValue* args, int32_t count, HostValue* result);
+uint8_t* ZxModuleLoaderError(ZxModuleLoader* loader);
+ZxModuleLoader* ZxModuleLoaderOpen(uint8_t** roots, size_t count, BundleInstanceOptions* options);
+ZxModuleLoader* ZxModuleLoaderOpenWithBindings(uint8_t** roots, size_t count, BundleInstanceOptions* options, HostBinding* bindings, size_t binding_count);
+ZxModuleLoader* ZxModuleLoaderOpenConfigured(ZxModuleLoaderConfig* config);
+void ZxModuleLoaderClose(ZxModuleLoader* loader);
+int32_t ZxModuleProgramNeedsLoader(Bundle* bundle);
+int32_t ZxModuleProgramHasExternalHosts(Bundle* bundle);
+ZxModuleProgram* compiler_host_api_ProgramOpen(ZxModuleLoader* loader, Bundle* bundle, HostBinding* bindings, size_t count);
+ZxModuleProgram* ZxModuleProgramOpen(ZxModuleLoader* loader, Bundle* bundle, HostBinding* bindings, size_t count);
+ZxModuleProgram* ZxModuleProgramOpenControlled(ZxModuleLoader* loader, Bundle* bundle, HostBinding* bindings, size_t count, ZxRunControl* control, int32_t* status);
+int32_t ZxModuleProgramRun(ZxModuleProgram* program, int64_t* result, int32_t* has_result);
+int32_t ZxModuleProgramRunControlled(ZxModuleProgram* program, int64_t* result, int32_t* has_result, ZxRunControl* control);
+int32_t ZxModuleProgramBorrowHostString(ZxModuleProgram* program, uint8_t* module, uint8_t* function, size_t parameter);
+int32_t ZxModuleProgramBorrowHostSlice(ZxModuleProgram* program, uint8_t* module, uint8_t* function, size_t parameter);
+int32_t ZxModuleProgramBackend(ZxModuleProgram* program);
+void ZxModuleProgramClose(ZxModuleProgram* program);
+uint64_t ZxModuleLoad(ZxModuleLoader* loader, uint8_t* name);
+int32_t ZxModuleRelease(ZxModuleLoader* loader, uint64_t handle);
+ModuleSlot* compiler_host_api_RootSlot(ZxModuleLoader* loader, uint64_t handle);
+size_t ZxModuleExportCount(ZxModuleLoader* loader, uint64_t handle);
+uint8_t* ZxModuleExportName(ZxModuleLoader* loader, uint64_t handle, size_t ordinal);
+size_t ZxModuleParameterCount(ZxModuleLoader* loader, uint64_t handle, size_t ordinal);
+uint8_t* ZxModuleParameterType(ZxModuleLoader* loader, uint64_t handle, size_t ordinal, size_t index);
+uint8_t* ZxModuleResultType(ZxModuleLoader* loader, uint64_t handle, size_t ordinal);
+int32_t ZxModuleCall(ZxModuleLoader* loader, uint64_t handle, size_t ordinal, HostValue* args, size_t count, HostValue* result);
+int32_t ZxModuleReplace(ZxModuleLoader* loader, uint64_t handle, uint8_t* path, BundleStateMigrate migrate, void* context);
 uint8_t* compiler_host_api_CStr(String s);
 bool compiler_host_api_Same(uint8_t* a, uint8_t* b);
 size_t compiler_host_api_SizeMax(void);
@@ -1261,6 +1742,54 @@ static inline size_t compiler_host_api_StateSlot_ziran_inline(BundleInstance* in
 #define compiler_host_api_StateSlot(...) compiler_host_api_StateSlot_ziran_inline(__VA_ARGS__)
 static inline HostValue* compiler_host_api_StateValueOfKind_ziran_inline(BundleState* state, size_t index, HostKind kind);
 #define compiler_host_api_StateValueOfKind(...) compiler_host_api_StateValueOfKind_ziran_inline(__VA_ARGS__)
+static inline String compiler_host_api_ServiceParameter_ziran_inline(ModuleService* service, int32_t index);
+#define compiler_host_api_ServiceParameter(...) compiler_host_api_ServiceParameter_ziran_inline(__VA_ARGS__)
+static inline size_t compiler_host_api_NoIndex_ziran_inline(void);
+#define compiler_host_api_NoIndex(...) compiler_host_api_NoIndex_ziran_inline(__VA_ARGS__)
+static inline uint8_t* compiler_host_api_Advance_ziran_inline(uint8_t* text, size_t count);
+#define compiler_host_api_Advance(...) compiler_host_api_Advance_ziran_inline(__VA_ARGS__)
+static inline bool compiler_host_api_IsDigitByte_ziran_inline(uint8_t c);
+#define compiler_host_api_IsDigitByte(...) compiler_host_api_IsDigitByte_ziran_inline(__VA_ARGS__)
+static inline ModuleExport* compiler_host_api_ExportAt_ziran_inline(ModuleImage* image, size_t index);
+#define compiler_host_api_ExportAt(...) compiler_host_api_ExportAt_ziran_inline(__VA_ARGS__)
+static inline ModuleRequirement* compiler_host_api_RequirementAt_ziran_inline(ModuleImage* image, size_t index);
+#define compiler_host_api_RequirementAt(...) compiler_host_api_RequirementAt_ziran_inline(__VA_ARGS__)
+static inline ModuleImport* compiler_host_api_ImportAt_ziran_inline(ModuleImage* image, size_t index);
+#define compiler_host_api_ImportAt(...) compiler_host_api_ImportAt_ziran_inline(__VA_ARGS__)
+static inline BindingPlan* compiler_host_api_PlanAt_ziran_inline(ModuleImage* image, size_t index);
+#define compiler_host_api_PlanAt(...) compiler_host_api_PlanAt_ziran_inline(__VA_ARGS__)
+static inline bool compiler_host_api_IdentifierByte_ziran_inline(uint8_t c);
+#define compiler_host_api_IdentifierByte(...) compiler_host_api_IdentifierByte_ziran_inline(__VA_ARGS__)
+static inline bool compiler_host_api_ValidName_ziran_inline(uint8_t* name, bool logical);
+#define compiler_host_api_ValidName(...) compiler_host_api_ValidName_ziran_inline(__VA_ARGS__)
+static inline bool compiler_host_api_ReserveExport_ziran_inline(ModuleImage* image);
+#define compiler_host_api_ReserveExport(...) compiler_host_api_ReserveExport_ziran_inline(__VA_ARGS__)
+static inline bool compiler_host_api_ReserveRequirement_ziran_inline(ModuleImage* image);
+#define compiler_host_api_ReserveRequirement(...) compiler_host_api_ReserveRequirement_ziran_inline(__VA_ARGS__)
+static inline bool compiler_host_api_ReserveImport_ziran_inline(ModuleImage* image);
+#define compiler_host_api_ReserveImport(...) compiler_host_api_ReserveImport_ziran_inline(__VA_ARGS__)
+static inline bool compiler_host_api_OrdinalField_ziran_inline(uint8_t** cursor, size_t* number);
+#define compiler_host_api_OrdinalField(...) compiler_host_api_OrdinalField_ziran_inline(__VA_ARGS__)
+static inline size_t compiler_host_api_FindCapability_ziran_inline(Bundle* bundle, uint8_t* module, uint8_t* function);
+#define compiler_host_api_FindCapability(...) compiler_host_api_FindCapability_ziran_inline(__VA_ARGS__)
+static inline bool compiler_host_api_HasResolver_ziran_inline(ZxModuleLoader* loader);
+#define compiler_host_api_HasResolver(...) compiler_host_api_HasResolver_ziran_inline(__VA_ARGS__)
+static inline HostBinding* compiler_host_api_LibraryBinding_ziran_inline(ZxModuleLoader* loader, Bundle* bundle, size_t capability);
+#define compiler_host_api_LibraryBinding(...) compiler_host_api_LibraryBinding_ziran_inline(__VA_ARGS__)
+static inline ModuleImage* compiler_host_api_ResolveImage_ziran_inline(ZxModuleLoader* loader, uint8_t* name);
+#define compiler_host_api_ResolveImage(...) compiler_host_api_ResolveImage_ziran_inline(__VA_ARGS__)
+static inline void compiler_host_api_RewindCache_ziran_inline(ZxModuleLoader* loader, ModuleImage* previous);
+#define compiler_host_api_RewindCache(...) compiler_host_api_RewindCache_ziran_inline(__VA_ARGS__)
+static inline BoundModuleHost* compiler_host_api_HostAt_ziran_inline(ModuleScope* scope, size_t index);
+#define compiler_host_api_HostAt(...) compiler_host_api_HostAt_ziran_inline(__VA_ARGS__)
+static inline HostValue* compiler_host_api_ArgumentAt_ziran_inline(HostValue* values, size_t index);
+#define compiler_host_api_ArgumentAt(...) compiler_host_api_ArgumentAt_ziran_inline(__VA_ARGS__)
+static inline ModuleSlot* compiler_host_api_FindSlot_ziran_inline(ModuleScope* owner, uint64_t handle);
+#define compiler_host_api_FindSlot(...) compiler_host_api_FindSlot_ziran_inline(__VA_ARGS__)
+static inline ModuleExport* compiler_host_api_SlotExport_ziran_inline(ModuleSlot* slot, size_t ordinal);
+#define compiler_host_api_SlotExport(...) compiler_host_api_SlotExport_ziran_inline(__VA_ARGS__)
+static inline ModuleSlot* compiler_host_api_RootSlot_ziran_inline(ZxModuleLoader* loader, uint64_t handle);
+#define compiler_host_api_RootSlot(...) compiler_host_api_RootSlot_ziran_inline(__VA_ARGS__)
 static inline uint8_t* compiler_host_api_CStr_ziran_inline(String s);
 #define compiler_host_api_CStr(...) compiler_host_api_CStr_ziran_inline(__VA_ARGS__)
 static inline size_t compiler_host_api_SizeMax_ziran_inline(void);
@@ -1472,6 +2001,411 @@ compiler_host_api_StateValueOfKind_ziran_inline(BundleState* state, size_t index
         value_4 = (void *)0;
     }
     return value_4;
+}
+
+static inline String
+compiler_host_api_ServiceParameter_ziran_inline(ModuleService* service, int32_t index)
+{
+    if (index == 0) {
+        return service->first;
+    }
+    String value_0 = StringView(NULL, 0);
+    if (index == 1) {
+        value_0 = service->second;
+    } else {
+        value_0 = service->third;
+    }
+    return value_0;
+}
+
+static inline size_t
+compiler_host_api_NoIndex_ziran_inline(void)
+{
+    size_t value_0 = 0;
+    {
+        size_t zero = 0;
+        value_0 = zero - 1;
+    }
+    return value_0;
+}
+
+static inline uint8_t*
+compiler_host_api_Advance_ziran_inline(uint8_t* text, size_t count)
+{
+    return (uint8_t*)(((size_t)(text) + count));
+}
+
+static inline bool
+compiler_host_api_IsDigitByte_ziran_inline(uint8_t c)
+{
+    return c >= 48 && c <= 57;
+}
+
+static inline ModuleExport*
+compiler_host_api_ExportAt_ziran_inline(ModuleImage* image, size_t index)
+{
+    return &(image->exports[index]);
+}
+
+static inline ModuleRequirement*
+compiler_host_api_RequirementAt_ziran_inline(ModuleImage* image, size_t index)
+{
+    return &(image->requires[index]);
+}
+
+static inline ModuleImport*
+compiler_host_api_ImportAt_ziran_inline(ModuleImage* image, size_t index)
+{
+    return &(image->imports[index]);
+}
+
+static inline BindingPlan*
+compiler_host_api_PlanAt_ziran_inline(ModuleImage* image, size_t index)
+{
+    return &(image->plans[index]);
+}
+
+static inline bool
+compiler_host_api_IdentifierByte_ziran_inline(uint8_t c)
+{
+    bool value_0 = (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
+    if (!value_0) {
+        uint8_t value_1 = c;
+        bool value_2 = false;
+        {
+            uint8_t c = value_1;
+            value_2 = c >= 48 && c <= 57;
+        }
+        value_0 = value_2;
+    }
+    return value_0 || c == 95 || c == 45;
+}
+
+static inline bool
+compiler_host_api_ValidName_ziran_inline(uint8_t* name, bool logical)
+{
+    if (name == ((void *)0)) {
+        return false;
+    }
+    uint8_t value_0 = 0;
+    if (logical) {
+        value_0 = 47;
+    } else {
+        value_0 = 46;
+    }
+    uint8_t separator = value_0;
+    size_t segment = 0;
+    size_t at = 0;
+    while (true) {
+        uint8_t c = name[at];
+        if (c == separator || c == 0) {
+            size_t length = at - segment;
+            if (length == 0) {
+                return false;
+            }
+            if (logical && name[segment] == 46 && (length == 1 || (length == 2 && name[(segment + 1)] == 46))) {
+                return false;
+            }
+            if (c == 0) {
+                return true;
+            }
+            segment = at + 1;
+        } else {
+            uint8_t value_1 = c;
+            bool value_2 = false;
+            {
+                uint8_t c = value_1;
+                bool value_4 = (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
+                if (!value_4) {
+                    uint8_t value_5 = c;
+                    bool value_6 = false;
+                    {
+                        uint8_t c = value_5;
+                        value_6 = c >= 48 && c <= 57;
+                    }
+                    value_4 = value_6;
+                }
+                value_2 = value_4 || c == 95 || c == 45;
+            }
+            if (!value_2 && !(logical && c == 46)) {
+                return false;
+            }
+        }
+        at = at + 1;
+    }
+    return false;
+}
+
+static inline bool
+compiler_host_api_ReserveExport_ziran_inline(ModuleImage* image)
+{
+    if (image->export_count < image->export_capacity) {
+        return true;
+    }
+    void* grown = compiler_host_api_Grow((void*)(image->exports), &(image->export_capacity), sizeof(ModuleExport));
+    if (grown != ((void *)0)) {
+        ModuleExport** value_0 = &(image->exports);
+        (*value_0) = (ModuleExport*)(grown);
+    }
+    return grown != ((void *)0);
+}
+
+static inline bool
+compiler_host_api_ReserveRequirement_ziran_inline(ModuleImage* image)
+{
+    if (image->require_count < image->require_capacity) {
+        return true;
+    }
+    void* grown = compiler_host_api_Grow((void*)(image->requires), &(image->require_capacity), sizeof(ModuleRequirement));
+    if (grown != ((void *)0)) {
+        ModuleRequirement** value_0 = &(image->requires);
+        (*value_0) = (ModuleRequirement*)(grown);
+    }
+    return grown != ((void *)0);
+}
+
+static inline bool
+compiler_host_api_ReserveImport_ziran_inline(ModuleImage* image)
+{
+    if (image->import_count < image->import_capacity) {
+        return true;
+    }
+    void* grown = compiler_host_api_Grow((void*)(image->imports), &(image->import_capacity), sizeof(ModuleImport));
+    if (grown != ((void *)0)) {
+        ModuleImport** value_0 = &(image->imports);
+        (*value_0) = (ModuleImport*)(grown);
+    }
+    return grown != ((void *)0);
+}
+
+static inline bool
+compiler_host_api_OrdinalField_ziran_inline(uint8_t** cursor, size_t* number)
+{
+    uint8_t* at = *(cursor);
+    uint8_t value_0 = at[0];
+    bool value_1 = false;
+    {
+        uint8_t c = value_0;
+        value_1 = c >= 48 && c <= 57;
+    }
+    bool value_3 = !value_1;
+    if (!value_3) {
+        bool value_4 = at[0] == 48;
+        bool value_5 = value_4;
+        if (value_5) {
+            uint8_t value_6 = at[1];
+            bool value_7 = false;
+            {
+                uint8_t c = value_6;
+                value_7 = c >= 48 && c <= 57;
+            }
+            value_5 = value_7;
+        }
+        value_3 = value_5;
+    }
+    if (value_3) {
+        return false;
+    }
+    size_t n = 0;
+    while (true) {
+        uint8_t value_9 = at[0];
+        bool value_10 = false;
+        {
+            uint8_t c = value_9;
+            value_10 = c >= 48 && c <= 57;
+        }
+        if (!value_10) { break; }
+        size_t digit = (size_t)(((uint8_t)((uint32_t)(at[0]) - 48u)));
+        size_t value_12 = 0;
+        {
+            size_t zero = 0;
+            value_12 = zero - 1;
+        }
+        if (n > (value_12 - digit) / 10) {
+            return false;
+        }
+        n = (n * 10) + digit;
+        uint8_t* value_14 = (void *)0;
+        {
+            uint8_t* text = at;
+            size_t count = 1;
+            value_14 = (uint8_t*)(((size_t)(text) + count));
+        }
+        at = value_14;
+    }
+    uint8_t** value_16 = &((*(cursor)));
+    (*value_16) = at;
+    size_t* value_17 = &((*(number)));
+    (*value_17) = n;
+    return true;
+}
+
+static inline size_t
+compiler_host_api_FindCapability_ziran_inline(Bundle* bundle, uint8_t* module, uint8_t* function)
+{
+    size_t value_0 = 0;
+    {
+        size_t value_2 = 0;
+        {
+            size_t zero = 0;
+            value_2 = zero - 1;
+        }
+        value_0 = value_2;
+    }
+    size_t cap = value_0;
+    size_t i = 0;
+    while (i < BundleCapabilityCount(bundle)) {
+        bool value_4 = compiler_host_api_Same(module, BundleCapabilityModule(bundle, i));
+        if (value_4 && compiler_host_api_Same(function, BundleCapabilityFunction(bundle, i))) {
+            size_t value_5 = 0;
+            {
+                size_t value_7 = 0;
+                {
+                    size_t zero = 0;
+                    value_7 = zero - 1;
+                }
+                value_5 = value_7;
+            }
+            if (cap != value_5) {
+                size_t value_9 = 0;
+                {
+                    size_t value_11 = 0;
+                    {
+                        size_t zero = 0;
+                        value_11 = zero - 1;
+                    }
+                    value_9 = value_11;
+                }
+                return value_9;
+            }
+            cap = i;
+        }
+        i = i + 1;
+    }
+    return cap;
+}
+
+static inline bool
+compiler_host_api_HasResolver_ziran_inline(ZxModuleLoader* loader)
+{
+    return (void*)(loader->resolve) != ((void *)0);
+}
+
+static inline HostBinding*
+compiler_host_api_LibraryBinding_ziran_inline(ZxModuleLoader* loader, Bundle* bundle, size_t capability)
+{
+    uint8_t* module = BundleCapabilityModule(bundle, capability);
+    uint8_t* function = BundleCapabilityFunction(bundle, capability);
+    HostBinding* found = (void *)0;
+    size_t i = 0;
+    while (i < loader->binding_count) {
+        HostBinding* value_0 = loader->bindings;
+        HostBinding* value_1 = (void *)0;
+        {
+            HostBinding* bindings = value_0;
+            size_t index = i;
+            value_1 = (HostBinding*)(((size_t)(bindings) + (index * sizeof(HostBinding))));
+        }
+        HostBinding* binding = value_1;
+        bool value_3 = compiler_host_api_Same(module, binding->module);
+        if (value_3 && compiler_host_api_Same(function, binding->function)) {
+            if (found != ((void *)0)) {
+                return (void *)0;
+            }
+            found = binding;
+        }
+        i = i + 1;
+    }
+    return found;
+}
+
+static inline ModuleImage*
+compiler_host_api_ResolveImage_ziran_inline(ZxModuleLoader* loader, uint8_t* name)
+{
+    ModuleImage* cached = loader->cache;
+    while (cached != ((void *)0)) {
+        if (compiler_host_api_Same(name, cached->name)) {
+            return cached;
+        }
+        cached = cached->next;
+    }
+    ModuleImage* image = compiler_host_api_OpenLogicalImage(loader, name, name);
+    if (image != ((void *)0)) {
+        ModuleImage** value_0 = &(image->next);
+        (*value_0) = loader->cache;
+        ModuleImage** value_1 = &(loader->cache);
+        (*value_1) = image;
+    }
+    return image;
+}
+
+static inline void
+compiler_host_api_RewindCache_ziran_inline(ZxModuleLoader* loader, ModuleImage* previous)
+{
+    while (loader->cache != previous) {
+        ModuleImage* image = loader->cache;
+        ModuleImage** value_0 = &(loader->cache);
+        (*value_0) = image->next;
+        compiler_host_api_ImageClose(image);
+    }
+}
+
+static inline BoundModuleHost*
+compiler_host_api_HostAt_ziran_inline(ModuleScope* scope, size_t index)
+{
+    return &(scope->hosts[index]);
+}
+
+static inline HostValue*
+compiler_host_api_ArgumentAt_ziran_inline(HostValue* values, size_t index)
+{
+    return &(values[index]);
+}
+
+static inline ModuleSlot*
+compiler_host_api_FindSlot_ziran_inline(ModuleScope* owner, uint64_t handle)
+{
+    if (handle == 0ULL) {
+        return (void *)0;
+    }
+    ModuleSlot* slot = owner->children;
+    while (slot != ((void *)0)) {
+        uint64_t value_0 = slot->handle;
+        if (value_0 == handle) {
+            return slot;
+        }
+        slot = slot->next;
+    }
+    return (void *)0;
+}
+
+static inline ModuleExport*
+compiler_host_api_SlotExport_ziran_inline(ModuleSlot* slot, size_t ordinal)
+{
+    if (slot == ((void *)0) || ordinal >= slot->scope->image->export_count) {
+        return (void *)0;
+    }
+    ModuleImage* value_0 = slot->scope->image;
+    ModuleExport* value_1 = (void *)0;
+    {
+        ModuleImage* image = value_0;
+        size_t index = ordinal;
+        value_1 = &(image->exports[index]);
+    }
+    return value_1;
+}
+
+static inline ModuleSlot*
+compiler_host_api_RootSlot_ziran_inline(ZxModuleLoader* loader, uint64_t handle)
+{
+    ModuleSlot* value_0 = (void *)0;
+    if (loader != ((void *)0)) {
+        ModuleSlot* value_1 = compiler_host_api_FindSlot(&(loader->root), handle);
+        value_0 = value_1;
+    } else {
+        value_0 = (void *)0;
+    }
+    return value_0;
 }
 
 static inline uint8_t*

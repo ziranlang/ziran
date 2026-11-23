@@ -1,5 +1,6 @@
 /* Host calls used by the compiler's path and generated-output code. */
 #include <dirent.h>
+#include <errno.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -196,4 +197,16 @@ int CompilerFileSeek(FILE *file, int64_t offset, int origin)
 {
     if(offset < LONG_MIN || offset > LONG_MAX) return -1;
     return fseek(file, (long)offset, origin);
+}
+
+/* The device and inode of PATH and whether it is a regular file: 0, 1 when
+ * nothing is there, or -1 for another failure. */
+int S15FileIdentity(const char *path, uint64_t *device, uint64_t *inode, int *regular)
+{
+    struct stat info;
+    if(stat(path, &info) != 0) return errno == ENOENT || errno == ENOTDIR ? 1 : -1;
+    *device = (uint64_t)info.st_dev;
+    *inode = (uint64_t)info.st_ino;
+    *regular = S_ISREG(info.st_mode) != 0;
+    return 0;
 }

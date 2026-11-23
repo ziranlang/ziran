@@ -1,16 +1,20 @@
 // The embedding API (include/ziran_host.h) over revision-28 executable ZX:
-// bundles, instances, module state and hot-swapped components. A bundle runs
-// on the portable instruction engine (cmd/zir/zir_host_exec.c), on native
-// code (cmd/zir/zir_host_native.c), or on the host's installed wasm provider.
+// bundles, instances, module state and hot-swapped components, and the
+// hosted module runtime of include/ziran_zx_module.h. A bundle runs on the
+// portable instruction engine (cmd/zir/zir_host_exec.c), on native code
+// (cmd/zir/zir_host_native.c), or on the host's installed wasm provider.
 //
 // This file holds bundles, instances and run control;
-// compiler_host_api_state.zi holds module state and components. The records
-// below mirror include/ziran_host.h field for field, so C hosts pass them
-// unchanged.
+// compiler_host_api_state.zi holds module state and components;
+// compiler_host_api_linkage.zi and compiler_host_api_modules.zi hold the
+// module runtime. The records below mirror include/ziran_host.h field for
+// field, so C hosts pass them unchanged.
 libc :: #system_library "libc";
 compiler :: #system_library "ziran";
 
 #load "compiler_host_api_state.zi";
+#load "compiler_host_api_linkage.zi";
+#load "compiler_host_api_modules.zi";
 
 malloc :: (size: usize) -> *u8 #foreign libc "malloc";
 calloc :: (count: usize, size: usize) -> *u8 #foreign libc "calloc";

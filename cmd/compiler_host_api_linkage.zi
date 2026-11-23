@@ -1,0 +1,889 @@
+// The hosted ZX module runtime of include/ziran_zx_module.h, first half:
+// a module's linkage text and dispatch ABI, finding modules under the
+// loader roots or through its resolver, and the dependency graph check.
+// compiler_host_api_modules.zi holds the loader, instances and calls.
+
+realloc :: (memory: *u8, size: usize) -> *u8 #foreign libc "realloc";
+strdup :: (text: *u8) -> *u8 #foreign libc "strdup";
+strchr :: (text: *u8, c: s32) -> *u8 #foreign libc "strchr";
+strncmp :: (a: *u8, b: *u8, count: usize) -> s32 #foreign libc "strncmp";
+memchr :: (data: *u8, c: s32, count: usize) -> *u8 #foreign libc "memchr";
+snprintf :: (out: *u8, size: usize, format: *u8, args: ..any) -> s32 #foreign libc "snprintf";
+fgetc :: (file: *void) -> s32 #foreign libc "fgetc";
+ferror :: (file: *void) -> s32 #foreign libc "ferror";
+
+ExecBundleModuleLinkage :: (exec: *void, length: *usize) -> *u8 #foreign compiler "ExecBundleModuleLinkage";
+ExecBundleModuleEntry :: (exec: *void) -> s32 #foreign compiler "ExecBundleModuleEntry";
+// PARAMETER -1 selects the result; null means an unsupported type.
+ExecBundleModuleType :: (exec: *void, host: usize, parameter: s32) -> *u8 #foreign compiler "ExecBundleModuleType";
+ExecBundleModuleTypeEqual :: (left: *void, left_host: usize, left_parameter: s32,
+                              right: *void, right_host: usize, right_parameter: s32) -> s32 #foreign compiler "ExecBundleModuleTypeEqual";
+ExecBundleModuleParameterCount :: (exec: *void, host: usize) -> s32 #foreign compiler "ExecBundleModuleParameterCount";
+// 0 with PATH's identity, 1 when nothing is there, -1 for another failure.
+FileIdentity :: (path: *u8, device: *u64, inode: *u64, regular: *s32) -> s32 #foreign compiler "S15FileIdentity";
+
+DISPATCH :: "__zx_module_dispatch"
+SERVICES :: "zx_module"
+MODULE_IMAGE_LIMIT :: 268435456
+// strlen("/.zx") + 1, the bytes a root and a name join with.
+MODULE_SUFFIX :: 5
+
+// What a capability of a module image binds to.
+BindingKind :: enum s32 {
+    External; Import; Select; Argument; Result
+    Load; Release; ExportCount; ExportName; ParameterCount; ParameterType; ResultType
+    Replace; Problem
+}
+
+BindingPlan :: struct {
+    kind: BindingKind
+    ordinal: usize
+    parameter: usize
+}
+
+ModuleExport :: struct {
+    name: *u8
+    parameters: *usize
+    count: usize
+    result: usize
+}
+
+ModuleRequirement :: struct {
+    interface: *u8
+    name: *u8
+    image: *ModuleImage
+}
+
+ModuleImport :: struct {
+    module: *u8
+    function: *u8
+    interface: *u8
+    name: *u8
+    require: *ModuleRequirement
+    capability: usize
+    ordinal: usize
+}
+
+ImageMark :: enum s32 { Unchecked; Visiting; Verified }
+
+ModuleImage :: struct {
+    bundle: *Bundle
+    exec: *void
+    text: *u8
+    name: *u8
+    exports: *ModuleExport
+    requires: *ModuleRequirement
+    imports: *ModuleImport
+    plans: *BindingPlan
+    export_count: usize
+    require_count: usize
+    import_count: usize
+    external_count: usize
+    export_capacity: usize
+    require_capacity: usize
+    import_capacity: usize
+    next_requirement: usize
+    mark: ImageMark
+    next: *ModuleImage
+}
+
+// The runtime services a module may import from SERVICES, with their
+// result type and their ARITY parameter types.
+ModuleService :: struct {
+    name: string
+    kind: BindingKind
+    result: string
+    arity: s32
+    first: string
+    second: string
+    third: string
+}
+
+module_services: [9]ModuleService = .[
+    .{name = "HostLoad", kind = BindingKind.Load, result = "u64", arity = 1, first = "string"},
+    .{name = "HostRelease", kind = BindingKind.Release, result = "bool", arity = 1, first = "u64"},
+    .{name = "HostExportCount", kind = BindingKind.ExportCount, result = "s32", arity = 1, first = "u64"},
+    .{name = "HostExportName", kind = BindingKind.ExportName, result = "string", arity = 2, first = "u64", second = "s32"},
+    .{name = "HostParameterCount", kind = BindingKind.ParameterCount, result = "s32", arity = 2, first = "u64", second = "s32"},
+    .{name = "HostParameterType", kind = BindingKind.ParameterType, result = "string", arity = 3, first = "u64", second = "s32", third = "s32"},
+    .{name = "HostResultType", kind = BindingKind.ResultType, result = "string", arity = 2, first = "u64", second = "s32"},
+    .{name = "HostReplace", kind = BindingKind.Replace, result = "bool", arity = 2, first = "u64", second = "string"},
+    .{name = "HostProblem", kind = BindingKind.Problem, result = "string", arity = 0},
+];
+
+ServiceParameter :: (service: *ModuleService, index: s32) -> string {
+    if index == 0 { return service.first }
+    return ifx index == 1 then service.second else service.third
+}
+
+NoIndex :: () -> usize { return SizeMax() }
+Advance :: (text: *u8, count: usize) -> *u8 { return cast(*u8)(cast(usize)text + count) }
+IsDigitByte :: (c: u8) -> bool { return c >= #char "0" && c <= #char "9" }
+ExportAt :: (image: *ModuleImage, index: usize) -> *ModuleExport { return *image.exports[index] }
+RequirementAt :: (image: *ModuleImage, index: usize) -> *ModuleRequirement { return *image.requires[index] }
+ImportAt :: (image: *ModuleImage, index: usize) -> *ModuleImport { return *image.imports[index] }
+PlanAt :: (image: *ModuleImage, index: usize) -> *BindingPlan { return *image.plans[index] }
+
+// Records the loader's problem; formats take only text arguments here.
+// Returns 0, so a failing check can return it.
+Problem :: (loader: *ZxModuleLoader, format: *u8, a: *u8 = null, b: *u8 = null, c: *u8 = null, d: *u8 = null) -> s32 {
+    if loader != null { unused snprintf(*loader.error[0], 512, format, a, b, c, d) }
+    return 0
+}
+
+MemoryProblem :: (loader: *ZxModuleLoader) -> s32 {
+    return Problem(loader, CStr("out of memory in ZX module loader"))
+}
+
+// ITEMS doubled in place, or null with CAPACITY unchanged.
+Grow :: (items: *void, capacity: *usize, size: usize) -> *void {
+    next: usize = ifx <<capacity != 0 then <<capacity * 2 else 8
+    if next <= <<capacity || next > SizeMax() / size { return null }
+    grown := realloc(cast(*u8)items, next * size)
+    if grown != null { <<capacity = next }
+    return cast(*void)grown
+}
+
+IdentifierByte :: (c: u8) -> bool {
+    return (c >= #char "A" && c <= #char "Z") || (c >= #char "a" && c <= #char "z") || IsDigitByte(c) ||
+           c == #char "_" || c == #char "-"
+}
+
+// A dotted module name, or with LOGICAL a slash-separated logical name
+// without empty, "." or ".." segments.
+ValidName :: (name: *u8, logical: bool) -> bool {
+    if name == null { return false }
+    separator: u8 = ifx logical then #char "/" else #char "."
+    segment: usize = 0
+    at: usize = 0
+    while true {
+        c := name[at]
+        if c == separator || c == 0 {
+            length := at - segment
+            if length == 0 { return false }
+            if logical && name[segment] == #char "." && (length == 1 || (length == 2 && name[segment + 1] == #char ".")) { return false }
+            if c == 0 { return true }
+            segment = at + 1
+        } else if !IdentifierByte(c) && !(logical && c == #char ".") {
+            return false
+        }
+        at += 1
+    }
+    return false
+}
+
+ImageClear :: (image: *ModuleImage) {
+    i: usize = 0
+    while i < image.export_count {
+        free(cast(*u8)ExportAt(image, i).parameters)
+        i += 1
+    }
+    free(cast(*u8)image.exports)
+    free(cast(*u8)image.requires)
+    free(cast(*u8)image.imports)
+    free(cast(*u8)image.plans)
+    free(image.text)
+}
+
+FindRequirement :: (image: *ModuleImage, interface: *u8) -> *ModuleRequirement {
+    low: usize = 0
+    high := image.require_count
+    while low < high {
+        mid := low + (high - low) / 2
+        order := strcmp(interface, RequirementAt(image, mid).interface)
+        if order == 0 { return RequirementAt(image, mid) }
+        if order < 0 { high = mid } else { low = mid + 1 }
+    }
+    return null
+}
+
+FindExport :: (image: *ModuleImage, name: *u8) -> usize {
+    low: usize = 0
+    high := image.export_count
+    while low < high {
+        mid := low + (high - low) / 2
+        order := strcmp(name, ExportAt(image, mid).name)
+        if order == 0 { return mid }
+        if order < 0 { high = mid } else { low = mid + 1 }
+    }
+    return NoIndex()
+}
+
+InvalidLinkage :: (loader: *ZxModuleLoader, line_number: usize) -> s32 {
+    if loader != null {
+        unused snprintf(*loader.error[0], 512, CStr("invalid ZX module linkage at line %zu"), line_number + 1)
+    }
+    return 0
+}
+
+// Room for one more export, requirement or import.
+ReserveExport :: (image: *ModuleImage) -> bool {
+    if image.export_count < image.export_capacity { return true }
+    grown := Grow(cast(*void)image.exports, *image.export_capacity, size_of(ModuleExport))
+    if grown != null { image.exports = cast(*ModuleExport)grown }
+    return grown != null
+}
+
+ReserveRequirement :: (image: *ModuleImage) -> bool {
+    if image.require_count < image.require_capacity { return true }
+    grown := Grow(cast(*void)image.requires, *image.require_capacity, size_of(ModuleRequirement))
+    if grown != null { image.requires = cast(*ModuleRequirement)grown }
+    return grown != null
+}
+
+ReserveImport :: (image: *ModuleImage) -> bool {
+    if image.import_count < image.import_capacity { return true }
+    grown := Grow(cast(*void)image.imports, *image.import_capacity, size_of(ModuleImport))
+    if grown != null { image.imports = cast(*ModuleImport)grown }
+    return grown != null
+}
+
+// One linkage line split at tabs: its fields, or count 0 for too many.
+LinkageFields :: (line: *u8, field: **u8) -> s32 {
+    field[0] = line
+    count: s32 = 1
+    tab := strchr(line, 9)
+    while tab != null {
+        if count == 5 { return 0 }
+        tab[0] = 0
+        field[count] = Advance(tab, 1)
+        count += 1
+        tab = strchr(Advance(tab, 1), 9)
+    }
+    return count
+}
+
+// The module, export, require and import lines of the image's linkage, in
+// that order, each group sorted.
+ReadLinkage :: (loader: *ZxModuleLoader, image: *ModuleImage) -> s32 {
+    length: usize = 0
+    linkage := ExecBundleModuleLinkage(image.exec, *length)
+    if length == 0 { return 1 }
+    if memchr(linkage, 0, length) != null { return Problem(loader, CStr("invalid ZX module linkage: embedded NUL")) }
+    image.text = malloc(length + 1)
+    if image.text == null { return MemoryProblem(loader) }
+    unused memcpy(image.text, linkage, length)
+    image.text[length] = 0
+    group: u32 = 0
+    line_number: usize = 0
+    line := image.text
+    while line[0] != 0 {
+        end := strchr(line, 10)
+        if end == null { return InvalidLinkage(loader, line_number) }
+        end[0] = 0
+        field: [5]*u8
+        count := LinkageFields(line, *field[0])
+        if count == 2 && Same(field[0], CStr("module")) {
+            if line_number != 0 || !ValidName(field[1], true) { return InvalidLinkage(loader, line_number) }
+            image.name = field[1]
+        } else if count == 2 && Same(field[0], CStr("export")) {
+            i := image.export_count
+            if group > 1 || image.name == null || !ValidName(field[1], false) ||
+               (i != 0 && strcmp(ExportAt(image, i - 1).name, field[1]) >= 0) { return InvalidLinkage(loader, line_number) }
+            if !ReserveExport(image) { return MemoryProblem(loader) }
+            method := ExportAt(image, i)
+            method.name = field[1]
+            method.parameters = null
+            method.count = 0
+            method.result = NoIndex()
+            image.export_count = i + 1
+            group = 1
+        } else if count == 3 && Same(field[0], CStr("require")) {
+            i := image.require_count
+            if group > 2 || !ValidName(field[1], false) || !ValidName(field[2], true) ||
+               (i != 0 && strcmp(RequirementAt(image, i - 1).interface, field[1]) >= 0) { return InvalidLinkage(loader, line_number) }
+            if !ReserveRequirement(image) { return MemoryProblem(loader) }
+            require := RequirementAt(image, i)
+            require.interface = field[1]
+            require.name = field[2]
+            require.image = null
+            image.require_count = i + 1
+            group = 2
+        } else if count == 5 && Same(field[0], CStr("import")) {
+            i := image.import_count
+            for j: 1..4 {
+                if !ValidName(field[j], false) { return InvalidLinkage(loader, line_number) }
+            }
+            require := FindRequirement(image, field[3])
+            if require == null { return InvalidLinkage(loader, line_number) }
+            if i != 0 {
+                last := ImportAt(image, i - 1)
+                order := strcmp(last.module, field[1])
+                if order > 0 || (order == 0 && strcmp(last.function, field[2]) >= 0) { return InvalidLinkage(loader, line_number) }
+            }
+            if !ReserveImport(image) { return MemoryProblem(loader) }
+            import := ImportAt(image, i)
+            import.module = field[1]
+            import.function = field[2]
+            import.interface = field[3]
+            import.name = field[4]
+            import.require = require
+            import.capability = 0
+            import.ordinal = 0
+            image.import_count = i + 1
+            group = 3
+        } else {
+            return InvalidLinkage(loader, line_number)
+        }
+        line = Advance(end, 1)
+        line_number += 1
+    }
+    return 1
+}
+
+ModuleServiceFor :: (module: *u8, name: *u8) -> *ModuleService {
+    if !Same(module, CStr(SERVICES)) { return null }
+    for i: 0..8 {
+        if Same(CStr(module_services[i].name), name) { return *module_services[i] }
+    }
+    return null
+}
+
+HasType :: (image: *ModuleImage, cap: usize, parameter: s32, expected: *u8) -> bool {
+    type := ExecBundleModuleType(image.exec, cap, parameter)
+    return type != null && Same(type, expected)
+}
+
+// A decimal ordinal without leading zeros at CURSOR, which moves past it.
+OrdinalField :: (cursor: **u8, number: *usize) -> bool {
+    at := <<cursor
+    if !IsDigitByte(at[0]) || (at[0] == #char "0" && IsDigitByte(at[1])) { return false }
+    n: usize = 0
+    while IsDigitByte(at[0]) {
+        digit := cast(usize)(at[0] - #char "0")
+        if n > (SizeMax() - digit) / 10 { return false }
+        n = n * 10 + digit
+        at = Advance(at, 1)
+    }
+    <<cursor = at
+    <<number = n
+    return true
+}
+
+// A dispatch capability: the selector, or arg_EXPORT_PARAMETER and
+// result_EXPORT for an export's arguments and result.
+ReadDispatch :: (image: *ModuleImage, cap: usize, name: *u8) -> bool {
+    if image.name == null || ExecBundleModuleType(image.exec, cap, -1) == null { return false }
+    arity := ExecBundleModuleParameterCount(image.exec, cap)
+    if Same(name, CStr("select")) {
+        if arity != 0 || !HasType(image, cap, -1, CStr("s32")) { return false }
+        selector := PlanAt(image, cap)
+        selector.kind = .Select
+        return true
+    }
+    argument := strncmp(name, CStr("arg_"), 4) == 0
+    if !argument && strncmp(name, CStr("result_"), 7) != 0 { return false }
+    cursor := Advance(name, ifx argument then 4 else 7)
+    ordinal: usize = 0
+    parameter: usize = 0
+    if !OrdinalField(*cursor, *ordinal) || ordinal >= image.export_count { return false }
+    method := ExportAt(image, ordinal)
+    if argument {
+        if cursor[0] != #char "_" { return false }
+        cursor = Advance(cursor, 1)
+        if !OrdinalField(*cursor, *parameter) || cursor[0] != 0 || arity != 0 || HasType(image, cap, -1, CStr("void")) { return false }
+        method.count += 1
+    } else {
+        if cursor[0] != 0 || method.result != NoIndex() || (arity != 0 && arity != 1) || !HasType(image, cap, -1, CStr("void")) ||
+           (arity == 1 && ExecBundleModuleType(image.exec, cap, 0) == null) { return false }
+        method.result = cap
+    }
+    plan := PlanAt(image, cap)
+    plan.kind = ifx argument then .Argument else .Result
+    plan.ordinal = ordinal
+    plan.parameter = parameter
+    return true
+}
+
+// The one capability of BUNDLE named MODULE:FUNCTION, else NoIndex().
+FindCapability :: (bundle: *Bundle, module: *u8, function: *u8) -> usize {
+    cap := NoIndex()
+    i: usize = 0
+    while i < BundleCapabilityCount(bundle) {
+        if Same(module, BundleCapabilityModule(bundle, i)) && Same(function, BundleCapabilityFunction(bundle, i)) {
+            if cap != NoIndex() { return NoIndex() }
+            cap = i
+        }
+        i += 1
+    }
+    return cap
+}
+
+// A runtime service capability: once each, with its declared types.
+ReadService :: (loader: *ZxModuleLoader, image: *ModuleImage, cap: usize, service: *ModuleService, seen: *u32) -> s32 {
+    name := BundleCapabilityFunction(image.bundle, cap)
+    flag: u32 = cast(u32)1 << cast(u32)(cast(s32)service.kind - cast(s32)BindingKind.Load)
+    if (<<seen & flag) != 0 { return Problem(loader, CStr("duplicate ZX module runtime service: %s"), name) }
+    <<seen = <<seen | flag
+    valid := HasType(image, cap, -1, CStr(service.result)) && service.arity == ExecBundleModuleParameterCount(image.exec, cap)
+    p: s32 = 0
+    while valid && p < service.arity {
+        valid = HasType(image, cap, p, CStr(ServiceParameter(service, p)))
+        p += 1
+    }
+    if !valid { return Problem(loader, CStr("invalid ZX module runtime service ABI: %s"), name) }
+    plan := PlanAt(image, cap)
+    plan.kind = service.kind
+    return 1
+}
+
+// Reads BUNDLE's linkage and plans every capability: dispatch, runtime
+// service, module import or external host.
+ImageRead :: (loader: *ZxModuleLoader, image: *ModuleImage, bundle: *Bundle) -> s32 {
+    image.bundle = bundle
+    image.exec = BundleVerifiedExec(bundle)
+    if image.exec == null || ReadLinkage(loader, image) == 0 { return 0 }
+    if (ExecBundleModuleEntry(image.exec) != 0) != (image.name != null) || (image.name != null && image.export_count == 0) {
+        return Problem(loader, CStr("invalid ZX module dispatcher entry or missing exports"))
+    }
+    cap_count := BundleCapabilityCount(bundle)
+    image.plans = cast(*BindingPlan)calloc(ifx cap_count != 0 then cap_count else 1, size_of(BindingPlan))
+    if image.plans == null { return MemoryProblem(loader) }
+    selectors: usize = 0
+    services_seen: u32 = 0
+    i: usize = 0
+    while i < cap_count {
+        module := BundleCapabilityModule(bundle, i)
+        name := BundleCapabilityFunction(bundle, i)
+        service := ModuleServiceFor(module, name)
+        if Same(module, CStr(DISPATCH)) {
+            if !ReadDispatch(image, i, name) { return Problem(loader, CStr("invalid ZX module dispatch ABI: %s"), name) }
+            if PlanAt(image, i).kind == .Select { selectors += 1 }
+        } else if service != null {
+            if ReadService(loader, image, i, service, *services_seen) == 0 { return 0 }
+        } else {
+            image.external_count += 1
+        }
+        i += 1
+    }
+    if image.name != null && selectors != 1 { return Problem(loader, CStr("ZX module requires exactly one dispatch selector")) }
+    i = 0
+    while i < image.export_count {
+        method := ExportAt(image, i)
+        if method.result == NoIndex() { return Problem(loader, CStr("missing ZX module dispatch result for %s"), method.name) }
+        if method.count != 0 {
+            method.parameters = cast(*usize)calloc(method.count, size_of(usize))
+            if method.parameters == null { return MemoryProblem(loader) }
+            p: usize = 0
+            while p < method.count {
+                method.parameters[p] = NoIndex()
+                p += 1
+            }
+        }
+        i += 1
+    }
+    i = 0
+    while i < cap_count {
+        plan := PlanAt(image, i)
+        if plan.kind == .Argument {
+            method := ExportAt(image, plan.ordinal)
+            if plan.parameter >= method.count || method.parameters[plan.parameter] != NoIndex() {
+                return Problem(loader, CStr("invalid ZX module dispatch parameter sequence: %s"), method.name)
+            }
+            method.parameters[plan.parameter] = i
+        }
+        i += 1
+    }
+    i = 0
+    while i < image.import_count {
+        import := ImportAt(image, i)
+        cap := FindCapability(bundle, import.module, import.function)
+        if cap == NoIndex() || PlanAt(image, cap).kind != .External || ExecBundleModuleType(image.exec, cap, -1) == null ||
+           !HasType(image, cap, 0, CStr("u64")) {
+            return Problem(loader, CStr("invalid ZX module import ABI: %s:%s (expected a leading u64 handle)"), import.module, import.function)
+        }
+        import.capability = cap
+        plan := PlanAt(image, cap)
+        plan.kind = .Import
+        plan.ordinal = i
+        plan.parameter = 0
+        image.external_count -= 1
+        i += 1
+    }
+    return 1
+}
+
+// The result of METHOD as the dispatcher hands it back: its one parameter,
+// or for a void export the capability's result.
+ResultParameter :: (image: *ModuleImage, method: *ModuleExport) -> s32 {
+    return ifx ExecBundleModuleParameterCount(image.exec, method.result) != 0 then 0 else -1
+}
+
+ImportMismatch :: (loader: *ZxModuleLoader, import: *ModuleImport, provider: *ModuleImage, method: *ModuleExport, what: *u8) -> s32 {
+    if loader != null {
+        unused snprintf(*loader.error[0], 512, CStr("ZX module import signature mismatch: %s:%s -> %s:%s (%s)"),
+                        import.module, import.function, provider.name, method.name, what)
+    }
+    return 0
+}
+
+// Every import of IMAGE names an export of its required provider with the
+// same parameter and result types.
+VerifyImports :: (loader: *ZxModuleLoader, image: *ModuleImage) -> s32 {
+    i: usize = 0
+    while i < image.import_count {
+        import := ImportAt(image, i)
+        provider := import.require.image
+        ordinal := FindExport(provider, import.name)
+        if ordinal == NoIndex() { return Problem(loader, CStr("ZX module %s has no export %s"), provider.name, import.name) }
+        method := ExportAt(provider, ordinal)
+        count := ExecBundleModuleParameterCount(image.exec, import.capability)
+        if count < 1 || cast(usize)(count - 1) != method.count { return ImportMismatch(loader, import, provider, method, CStr("arity")) }
+        p: s32 = 1
+        while p < count {
+            if ExecBundleModuleTypeEqual(image.exec, import.capability, p, provider.exec, method.parameters[p - 1], -1) == 0 {
+                what: [32]u8
+                unused snprintf(*what[0], 32, CStr("parameter %d"), p)
+                return ImportMismatch(loader, import, provider, method, *what[0])
+            }
+            p += 1
+        }
+        if ExecBundleModuleTypeEqual(image.exec, import.capability, -1, provider.exec, method.result, ResultParameter(provider, method)) == 0 {
+            return ImportMismatch(loader, import, provider, method, CStr("result"))
+        }
+        import.ordinal = ordinal
+        i += 1
+    }
+    return 1
+}
+
+HasResolver :: (loader: *ZxModuleLoader) -> bool { return cast(*void)loader.resolve != null }
+
+// ROOT/NAME.zx for the loader's root INDEX. Guest roots ending in "/" join
+// without another; host roots keep their spelling, // roots included.
+CandidatePath :: (loader: *ZxModuleLoader, index: usize, name: *u8) -> *u8 {
+    root := loader.roots[index]
+    root_length := strlen(root)
+    name_length := strlen(name)
+    path: *u8 = null
+    if name_length <= SizeMax() - MODULE_SUFFIX && root_length <= SizeMax() - name_length - MODULE_SUFFIX {
+        separator := ifx HasResolver(loader) && root[root_length - 1] == #char "/" then CStr("") else CStr("/")
+        length := root_length + name_length + MODULE_SUFFIX
+        path = malloc(length)
+        if path != null { unused snprintf(path, length, CStr("%s%s%s.zx"), root, separator, name) }
+    }
+    if path == null { unused MemoryProblem(loader) }
+    return path
+}
+
+// The one regular file NAME.zx names under the host roots; roots that reach
+// the same file agree.
+ResolveHostPath :: (loader: *ZxModuleLoader, name: *u8) -> *u8 {
+    selected: *u8 = null
+    selected_device: u64 = 0
+    selected_inode: u64 = 0
+    i: usize = 0
+    while i < loader.root_count {
+        if ZxRunControlRequested(loader.control) != 0 {
+            free(selected)
+            return null
+        }
+        path := CandidatePath(loader, i, name)
+        if path == null {
+            free(selected)
+            return null
+        }
+        device: u64 = 0
+        inode: u64 = 0
+        regular: s32 = 0
+        status := FileIdentity(path, *device, *inode, *regular)
+        failed := false
+        if status < 0 {
+            unused Problem(loader, CStr("cannot resolve ZX module %s at %s"), name, path)
+            failed = true
+        } else if status == 0 && regular == 0 {
+            unused Problem(loader, CStr("ZX module candidate is not a regular file: %s"), path)
+            failed = true
+        } else if status == 0 && selected != null && (device != selected_device || inode != selected_inode) {
+            unused Problem(loader, CStr("ambiguous ZX module %s: %s and %s"), name, selected, path)
+            failed = true
+        }
+        if failed {
+            free(path)
+            free(selected)
+            return null
+        }
+        if status == 0 && selected == null {
+            selected = path
+            selected_device = device
+            selected_inode = inode
+        } else {
+            free(path)
+        }
+        i += 1
+    }
+    if selected == null { unused Problem(loader, CStr("ZX module not found: %s"), name) }
+    return selected
+}
+
+ReleaseImage :: (loader: *ZxModuleLoader, image: *ZxModuleImage) {
+    if cast(*void)image.release != null { image.release(loader.resolve_context, image.data, image.size) }
+}
+
+// Opens the bytes a resolver found; their release runs once either way.
+VerifyGuestImage :: (loader: *ZxModuleLoader, image: *ZxModuleImage, path: *u8) -> *Bundle {
+    if ZxRunControlRequested(loader.control) != 0 {
+        ReleaseImage(loader, image)
+        return null
+    }
+    bundle: *Bundle = null
+    if image.size <= MODULE_IMAGE_LIMIT {
+        if cast(*void)image.release == null {
+            bundle = BundleOpenBytes(image.data, image.size)
+        } else {
+            bundle = BundleOpenOwnedBytes(image.data, image.size, image.release, loader.resolve_context)
+        }
+    } else {
+        ReleaseImage(loader, image)
+    }
+    if bundle == null { unused Problem(loader, CStr("cannot open verified ZX module from %s"), path) }
+    return bundle
+}
+
+// The one bundle the resolver finds for NAME under the roots;
+// SELECTED_PATH receives where.
+ResolveGuestBundle :: (loader: *ZxModuleLoader, name: *u8, selected_path: **u8) -> *Bundle {
+    selected: *Bundle = null
+    i: usize = 0
+    while i < loader.root_count {
+        if ZxRunControlRequested(loader.control) != 0 {
+            BundleClose(selected)
+            return null
+        }
+        path := CandidatePath(loader, i, name)
+        if path == null {
+            BundleClose(selected)
+            return null
+        }
+        if <<selected_path != null && Same(<<selected_path, path) {
+            free(path)
+            i += 1
+            continue
+        }
+        image: ZxModuleImage
+        status := loader.resolve(loader.resolve_context, path, *image)
+        if status == IMAGE_FOUND && selected == null {
+            <<selected_path = path
+            selected = VerifyGuestImage(loader, *image, path)
+            if selected == null { return null }
+            i += 1
+            continue
+        }
+        if status != IMAGE_MISSING {
+            if status == IMAGE_FOUND {
+                ReleaseImage(loader, *image)
+                unused Problem(loader, CStr("ambiguous ZX module %s: %s and %s"), name, <<selected_path, path)
+            } else {
+                unused Problem(loader, CStr("cannot resolve ZX module %s at %s"), name, path)
+            }
+            free(path)
+            BundleClose(selected)
+            return null
+        }
+        free(path)
+        i += 1
+    }
+    if selected == null { unused Problem(loader, CStr("ZX module not found: %s"), name) }
+    return selected
+}
+
+ImageClose :: (image: *ModuleImage) {
+    if image == null { return }
+    ImageClear(image)
+    BundleClose(image.bundle)
+    free(cast(*u8)image)
+}
+
+// The one loader binding for a capability of BUNDLE, else null.
+LibraryBinding :: (loader: *ZxModuleLoader, bundle: *Bundle, capability: usize) -> *HostBinding {
+    module := BundleCapabilityModule(bundle, capability)
+    function := BundleCapabilityFunction(bundle, capability)
+    found: *HostBinding = null
+    i: usize = 0
+    while i < loader.binding_count {
+        binding := BindingAt(loader.bindings, i)
+        if Same(module, binding.module) && Same(function, binding.function) {
+            if found != null { return null }
+            found = binding
+        }
+        i += 1
+    }
+    return found
+}
+
+// The library NAME from BUNDLE: its linkage must name it, and the loader
+// must bind each external host it calls.
+OpenImage :: (loader: *ZxModuleLoader, bundle: *Bundle, path: *u8, name: *u8) -> *ModuleImage {
+    if bundle == null { return null }
+    image := cast(*ModuleImage)calloc(1, size_of(ModuleImage))
+    if image == null {
+        unused MemoryProblem(loader)
+        BundleClose(bundle)
+        return null
+    }
+    if ImageRead(loader, image, bundle) == 0 {
+        ImageClose(image)
+        return null
+    }
+    if image.name == null || !Same(image.name, name) {
+        unused Problem(loader, CStr("ZX module name mismatch at %s: expected %s, found %s"), path, name,
+                       ifx image.name != null then image.name else CStr("an application"))
+        ImageClose(image)
+        return null
+    }
+    cap: usize = 0
+    while image.external_count != 0 && cap < BundleCapabilityCount(bundle) {
+        if PlanAt(image, cap).kind == .External && LibraryBinding(loader, bundle, cap) == null {
+            unused Problem(loader, CStr("ZX module %s needs one loader host binding for %s:%s"), name,
+                           BundleCapabilityModule(bundle, cap), BundleCapabilityFunction(bundle, cap))
+            ImageClose(image)
+            return null
+        }
+        cap += 1
+    }
+    return image
+}
+
+// The file at PATH, at most LIMIT bytes; null when it cannot be read whole.
+ReadModuleFile :: (path: *u8, limit: isize, size: *usize) -> *u8 {
+    stream := fopen(path, CStr("rb"))
+    if stream == null { return null }
+    bytes: *u8 = null
+    ok := false
+    if fseek(stream, 0, 2) == 0 {
+        length := ftell(stream)
+        if length >= 0 && length <= limit && fseek(stream, 0, 0) == 0 {
+            bytes = malloc(cast(usize)length + 1)
+            if bytes != null && fread(bytes, 1, cast(usize)length, stream) == cast(usize)length && fgetc(stream) < 0 && ferror(stream) == 0 {
+                bytes[length] = 0
+                <<size = cast(usize)length
+                ok = true
+            }
+        }
+    }
+    if fclose(stream) != 0 { ok = false }
+    if !ok {
+        free(bytes)
+        return null
+    }
+    return bytes
+}
+
+OpenPathBundle :: (loader: *ZxModuleLoader, path: *u8, name: *u8) -> *Bundle {
+    if HasResolver(loader) {
+        image: ZxModuleImage
+        status := loader.resolve(loader.resolve_context, path, *image)
+        if status == IMAGE_FOUND { return VerifyGuestImage(loader, *image, path) }
+        if status == IMAGE_MISSING {
+            unused Problem(loader, CStr("ZX module not found: %s at %s"), name, path)
+        } else {
+            unused Problem(loader, CStr("cannot resolve ZX module %s at %s"), name, path)
+        }
+        return null
+    }
+    size: usize = 0
+    bytes := ReadModuleFile(path, MODULE_IMAGE_LIMIT, *size)
+    bundle := BundleOpenBytes(bytes, size)
+    free(bytes)
+    if bundle == null { unused Problem(loader, CStr("cannot open verified ZX module %s from %s"), name, path) }
+    return bundle
+}
+
+// The library ARTIFACT, a logical name under the roots, checked to be NAME.
+OpenLogicalImage :: (loader: *ZxModuleLoader, artifact: *u8, name: *u8) -> *ModuleImage {
+    if !ValidName(artifact, true) {
+        unused Problem(loader, CStr("invalid ZX module logical name"))
+        return null
+    }
+    path: *u8 = null
+    bundle: *Bundle = null
+    if HasResolver(loader) {
+        bundle = ResolveGuestBundle(loader, artifact, *path)
+    } else {
+        path = ResolveHostPath(loader, artifact)
+        if path != null { bundle = OpenPathBundle(loader, path, name) }
+    }
+    image := OpenImage(loader, bundle, path, name)
+    free(path)
+    return image
+}
+
+// The cached library NAME, opened on first use.
+ResolveImage :: (loader: *ZxModuleLoader, name: *u8) -> *ModuleImage {
+    cached := loader.cache
+    while cached != null {
+        if Same(name, cached.name) { return cached }
+        cached = cached.next
+    }
+    image := OpenLogicalImage(loader, name, name)
+    if image != null {
+        image.next = loader.cache
+        loader.cache = image
+    }
+    return image
+}
+
+// Closes the libraries cached after PREVIOUS.
+RewindCache :: (loader: *ZxModuleLoader, previous: *ModuleImage) {
+    while loader.cache != previous {
+        image := loader.cache
+        loader.cache = image.next
+        ImageClose(image)
+    }
+}
+
+// Resolves and checks every declared dependency of ROOT, even ones an
+// application never loads, with an explicit stack rather than recursion.
+VerifyGraph :: (loader: *ZxModuleLoader, root: *ModuleImage) -> s32 {
+    if root.mark == .Verified { return 1 }
+    stack: **ModuleImage = null
+    count: usize = 0
+    capacity: usize = 0
+    grown := Grow(cast(*void)stack, *capacity, size_of(*ModuleImage))
+    if grown == null { return MemoryProblem(loader) }
+    stack = cast(**ModuleImage)grown
+    stack[0] = root
+    count = 1
+    root.mark = .Visiting
+    while count != 0 {
+        if ZxRunControlRequested(loader.control) != 0 { break }
+        image := stack[count - 1]
+        if image.next_requirement == image.require_count {
+            if VerifyImports(loader, image) == 0 { break }
+            image.mark = .Verified
+            count -= 1
+            continue
+        }
+        edge := RequirementAt(image, image.next_requirement)
+        image.next_requirement += 1
+        dependency := ResolveImage(loader, edge.name)
+        if dependency == null { break }
+        if dependency.mark == .Visiting {
+            unused Problem(loader, CStr("ZX module dependency cycle: %s -> %s"),
+                           ifx image.name != null then image.name else CStr("<application>"), edge.name)
+            break
+        }
+        edge.image = dependency
+        if dependency.mark == .Verified { continue }
+        if count >= capacity {
+            more := Grow(cast(*void)stack, *capacity, size_of(*ModuleImage))
+            if more == null {
+                unused MemoryProblem(loader)
+                break
+            }
+            stack = cast(**ModuleImage)more
+        }
+        stack[count] = dependency
+        count += 1
+        dependency.mark = .Visiting
+    }
+    valid: s32 = ifx count == 0 then 1 else 0
+    while count != 0 {
+        count -= 1
+        image := stack[count]
+        image.mark = .Unchecked
+        image.next_requirement = 0
+    }
+    free(cast(*u8)stack)
+    return valid
+}

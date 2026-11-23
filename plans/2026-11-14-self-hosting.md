@@ -58,7 +58,8 @@ checking and C emission, `compiler_inline_asm`, replaces `zir_asm.c` and
 with the same C interface; only the platform backend probe stays in C beside
 the native loader. The ZX command runner, `compiler_zx_run`, replaces
 `cmd/zi2zx/zx_exec_run.c`; `zx_exec_run.h` keeps its declarations for the C
-drivers.
+drivers. The hosted module runtime of `include/ziran_zx_module.h` is part of
+`compiler_host_api` and replaces `zir_zx_module.c`.
 
 S16–S18 remain open for the remaining portable ZX and host interfaces, inline
 assembly and tool drivers, and the stage-0 through stage-2 fixed-point proof.
@@ -280,7 +281,7 @@ C ABI/storage boundary:
 | `zir_thread.h` | thread/context scope API `:28-54` | `compiler_context_types` and the TLS backing in `zir_memory.c` | S15 |
 | `zir_token.c` / `.h` | lexer state over generated scanner `LexerInit:22`, `LexerNext:53` | existing `compiler_token` and `compiler_scan` | S15 |
 | `zir_type.c` | cached type queries from `:12`, generated calls `:278`, `:363`, `:395` | `compiler_frontend_ir` | S15 |
-| `zir_zx_module.c` | hosted ZX module runtime: module state, components and the `include/ziran_zx_module.h` API | `compiler_zx_module` | S16 |
+| `compiler_host_api_linkage.zi` / `compiler_host_api_modules.zi` | hosted ZX module runtime of `include/ziran_zx_module.h`: linkage and dispatch ABI, module lookup, graph check, instances, calls, replacement and services | `compiler_host_api` | S16 |
 | `zir_zx_wasm.c` / `.h` | Wasm runtime provider/platform `ZxWasmInstallBundledPlatform:50`, host memory `:83`; lowering calls `:320`, `:443`, `:474` | `compiler_zx_wasm_host` | S16 |
 | `zir_zx_wasm_platform.h` | provider ABI `:47`, set/active `:54`, `:55` | `compiler_zx_wasm_host` | S16 |
 | `zir_zx_wasm_web.c` | Emscripten/JS bridge `EM_JS` entries from `:35`, `:85`, `:93` | `compiler_zx_wasm_web` behind provider ABI | S16 |
@@ -564,10 +565,16 @@ No step commits before its implementation and proof are complete.
   portable entry check, and the lowering, optimization and executable ZX
   writing behind zi2zx's views. It is generated with the assembly set for the
   native tools and compiled from its seed in the web playground.
-- Port the engine execution facade, the hosted module runtime, and the Wasm
-  provider and web bridges. Preserve the public embedding and executable APIs
-  and add their modules to bootstrap.
-- Retire the replaced `zir_host_exec.c`, `zir_zx_module.c`,
+- The hosted module runtime loads into `compiler_host_api` as
+  `compiler_host_api_linkage.zi` (linkage text, dispatch and service ABI,
+  module lookup under roots or a resolver, dependency graph check) and
+  `compiler_host_api_modules.zi` (loader, programs, handles, export calls,
+  hot replacement, runtime services), replacing `zir_zx_module.c`. The
+  `stat` identity probe `S15FileIdentity` stays in `zir_files_host.c`.
+- Port the engine execution facade and the Wasm provider and web bridges.
+  Preserve the public embedding and executable APIs and add their modules to
+  bootstrap.
+- Retire the replaced `zir_host_exec.c`, `zir_zx_module_internal.h`,
   `zir_zx_wasm.c`, `zir_zx_wasm_web.c` and `zir_exec_console.h` as those
   ports land.
 - Verify saved bytes and diagnostics against the previous compiler, then run

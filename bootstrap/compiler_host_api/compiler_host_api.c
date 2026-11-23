@@ -2,7 +2,22 @@
 #define ZIRAN_COMPILER_HOST_API_H_SOURCE 1
 #include <stdbool.h>
 #include "zir_string_types.h"
+#include <stdlib.h>
 #include "compiler_host_api.h"
+#ifndef ZIRAN_HELPER_ZiShl32
+#define ZIRAN_HELPER_ZiShl32
+#if (defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__)
+#define ZiShl32(a, s, w) __extension__ ({ uint32_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); (uint32_t)(__zi_a << __zi_s); })
+#else
+static inline uint32_t ZiShl32(uint32_t a, uint64_t s, int w) {
+    if(s >= (uint64_t)w) abort();
+    return (uint32_t)(a << s);
+}
+#endif
+#endif
+ModuleService module_services[9] = {{.name = {"HostLoad", sizeof("HostLoad") - 1}, .kind = BindingKind_Load, .result = {"u64", sizeof("u64") - 1}, .arity = 1, .first = {"string", sizeof("string") - 1}}, {.name = {"HostRelease", sizeof("HostRelease") - 1}, .kind = BindingKind_Release, .result = {"bool", sizeof("bool") - 1}, .arity = 1, .first = {"u64", sizeof("u64") - 1}}, {.name = {"HostExportCount", sizeof("HostExportCount") - 1}, .kind = BindingKind_ExportCount, .result = {"s32", sizeof("s32") - 1}, .arity = 1, .first = {"u64", sizeof("u64") - 1}}, {.name = {"HostExportName", sizeof("HostExportName") - 1}, .kind = BindingKind_ExportName, .result = {"string", sizeof("string") - 1}, .arity = 2, .first = {"u64", sizeof("u64") - 1}, .second = {"s32", sizeof("s32") - 1}}, {.name = {"HostParameterCount", sizeof("HostParameterCount") - 1}, .kind = BindingKind_ParameterCount, .result = {"s32", sizeof("s32") - 1}, .arity = 2, .first = {"u64", sizeof("u64") - 1}, .second = {"s32", sizeof("s32") - 1}}, {.name = {"HostParameterType", sizeof("HostParameterType") - 1}, .kind = BindingKind_ParameterType, .result = {"string", sizeof("string") - 1}, .arity = 3, .first = {"u64", sizeof("u64") - 1}, .second = {"s32", sizeof("s32") - 1}, .third = {"s32", sizeof("s32") - 1}}, {.name = {"HostResultType", sizeof("HostResultType") - 1}, .kind = BindingKind_ResultType, .result = {"string", sizeof("string") - 1}, .arity = 2, .first = {"u64", sizeof("u64") - 1}, .second = {"s32", sizeof("s32") - 1}}, {.name = {"HostReplace", sizeof("HostReplace") - 1}, .kind = BindingKind_Replace, .result = {"bool", sizeof("bool") - 1}, .arity = 2, .first = {"u64", sizeof("u64") - 1}, .second = {"string", sizeof("string") - 1}}, {.name = {"HostProblem", sizeof("HostProblem") - 1}, .kind = BindingKind_Problem, .result = {"string", sizeof("string") - 1}, .arity = 0}};
+uint8_t handle_lock = {0};
+uint64_t handles_issued = {0};
 
 void
 compiler_host_api_StateBudgetAdd(StateBudget* budget, size_t bytes)
@@ -1440,6 +1455,4272 @@ BundleComponentHandleClose(BundleComponentHandle* handle)
     }
     compiler_host_api_ComponentRelease(handle->component);
     zir_f_4e8972c89764e104_free((uint8_t*)(handle));
+}
+
+String
+compiler_host_api_ServiceParameter(ModuleService* service, int32_t index)
+{
+    if (index == 0) {
+        return service->first;
+    }
+    String value_0 = StringView(NULL, 0);
+    if (index == 1) {
+        value_0 = service->second;
+    } else {
+        value_0 = service->third;
+    }
+    return value_0;
+}
+
+size_t
+compiler_host_api_NoIndex(void)
+{
+    size_t value_0 = 0;
+    {
+        size_t zero = 0;
+        value_0 = zero - 1;
+    }
+    return value_0;
+}
+
+uint8_t*
+compiler_host_api_Advance(uint8_t* text, size_t count)
+{
+    return (uint8_t*)(((size_t)(text) + count));
+}
+
+bool
+compiler_host_api_IsDigitByte(uint8_t c)
+{
+    return c >= 48 && c <= 57;
+}
+
+ModuleExport*
+compiler_host_api_ExportAt(ModuleImage* image, size_t index)
+{
+    return &(image->exports[index]);
+}
+
+ModuleRequirement*
+compiler_host_api_RequirementAt(ModuleImage* image, size_t index)
+{
+    return &(image->requires[index]);
+}
+
+ModuleImport*
+compiler_host_api_ImportAt(ModuleImage* image, size_t index)
+{
+    return &(image->imports[index]);
+}
+
+BindingPlan*
+compiler_host_api_PlanAt(ModuleImage* image, size_t index)
+{
+    return &(image->plans[index]);
+}
+
+int32_t
+compiler_host_api_Problem(ZxModuleLoader* loader, uint8_t* format, uint8_t* a, uint8_t* b, uint8_t* c, uint8_t* d)
+{
+    if (loader != ((void *)0)) {
+        zir_f_4e8972c89764e104_snprintf(&(loader->error[0]), 512, format, a, b, c, d);
+    }
+    return 0;
+}
+
+int32_t
+compiler_host_api_MemoryProblem(ZxModuleLoader* loader)
+{
+    String value_0 = StringLiteral("out of memory in ZX module loader");
+    uint8_t* value_1 = (void *)0;
+    {
+        String s = value_0;
+        value_1 = ((StaticText*)(&(s)))->data;
+    }
+    return compiler_host_api_Problem(loader, value_1, (void *)0, (void *)0, (void *)0, (void *)0);
+}
+
+void*
+compiler_host_api_Grow(void* items, size_t* capacity, size_t size)
+{
+    size_t value_0 = 0;
+    if (*(capacity) != 0) {
+        value_0 = *(capacity) * 2;
+    } else {
+        value_0 = 8;
+    }
+    size_t next = value_0;
+    bool value_1 = next <= *(capacity);
+    bool value_2 = value_1;
+    if (!value_2) {
+        size_t value_3 = 0;
+        {
+            size_t zero = 0;
+            value_3 = zero - 1;
+        }
+        value_2 = (next > value_3 / size);
+    }
+    if (value_2) {
+        return (void *)0;
+    }
+    uint8_t* grown = zir_f_4e8972c89764e104_realloc((uint8_t*)(items), next * size);
+    if (grown != ((void *)0)) {
+        size_t* value_5 = &((*(capacity)));
+        (*value_5) = next;
+    }
+    return (void*)(grown);
+}
+
+bool
+compiler_host_api_IdentifierByte(uint8_t c)
+{
+    bool value_0 = (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
+    if (!value_0) {
+        uint8_t value_1 = c;
+        bool value_2 = false;
+        {
+            uint8_t c = value_1;
+            value_2 = c >= 48 && c <= 57;
+        }
+        value_0 = value_2;
+    }
+    return value_0 || c == 95 || c == 45;
+}
+
+bool
+compiler_host_api_ValidName(uint8_t* name, bool logical)
+{
+    if (name == ((void *)0)) {
+        return false;
+    }
+    uint8_t value_0 = 0;
+    if (logical) {
+        value_0 = 47;
+    } else {
+        value_0 = 46;
+    }
+    uint8_t separator = value_0;
+    size_t segment = 0;
+    size_t at = 0;
+    while (true) {
+        uint8_t c = name[at];
+        if (c == separator || c == 0) {
+            size_t length = at - segment;
+            if (length == 0) {
+                return false;
+            }
+            if (logical && name[segment] == 46 && (length == 1 || (length == 2 && name[(segment + 1)] == 46))) {
+                return false;
+            }
+            if (c == 0) {
+                return true;
+            }
+            segment = at + 1;
+        } else {
+            uint8_t value_1 = c;
+            bool value_2 = false;
+            {
+                uint8_t c = value_1;
+                bool value_4 = (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
+                if (!value_4) {
+                    uint8_t value_5 = c;
+                    bool value_6 = false;
+                    {
+                        uint8_t c = value_5;
+                        value_6 = c >= 48 && c <= 57;
+                    }
+                    value_4 = value_6;
+                }
+                value_2 = value_4 || c == 95 || c == 45;
+            }
+            if (!value_2 && !(logical && c == 46)) {
+                return false;
+            }
+        }
+        at = at + 1;
+    }
+    return false;
+}
+
+void
+compiler_host_api_ImageClear(ModuleImage* image)
+{
+    size_t i = 0;
+    while (i < image->export_count) {
+        ModuleImage* value_0 = image;
+        ModuleExport* value_1 = (void *)0;
+        {
+            ModuleImage* image = value_0;
+            size_t index = i;
+            value_1 = &(image->exports[index]);
+        }
+        zir_f_4e8972c89764e104_free((uint8_t*)(value_1->parameters));
+        i = i + 1;
+    }
+    zir_f_4e8972c89764e104_free((uint8_t*)(image->exports));
+    zir_f_4e8972c89764e104_free((uint8_t*)(image->requires));
+    zir_f_4e8972c89764e104_free((uint8_t*)(image->imports));
+    zir_f_4e8972c89764e104_free((uint8_t*)(image->plans));
+    zir_f_4e8972c89764e104_free(image->text);
+}
+
+ModuleRequirement*
+compiler_host_api_FindRequirement(ModuleImage* image, uint8_t* interface)
+{
+    size_t low = 0;
+    size_t high = image->require_count;
+    while (low < high) {
+        size_t mid = low + ((high - low) / 2);
+        ModuleImage* value_0 = image;
+        ModuleRequirement* value_1 = (void *)0;
+        {
+            ModuleImage* image = value_0;
+            size_t index = mid;
+            value_1 = &(image->requires[index]);
+        }
+        int32_t order = zir_f_4e8972c89764e104_strcmp(interface, value_1->interface);
+        if (order == 0) {
+            ModuleImage* value_3 = image;
+            ModuleRequirement* value_4 = (void *)0;
+            {
+                ModuleImage* image = value_3;
+                size_t index = mid;
+                value_4 = &(image->requires[index]);
+            }
+            return value_4;
+        }
+        if (order < 0) {
+            high = mid;
+        } else {
+            low = mid + 1;
+        }
+    }
+    return (void *)0;
+}
+
+size_t
+compiler_host_api_FindExport(ModuleImage* image, uint8_t* name)
+{
+    size_t low = 0;
+    size_t high = image->export_count;
+    while (low < high) {
+        size_t mid = low + ((high - low) / 2);
+        ModuleImage* value_0 = image;
+        ModuleExport* value_1 = (void *)0;
+        {
+            ModuleImage* image = value_0;
+            size_t index = mid;
+            value_1 = &(image->exports[index]);
+        }
+        int32_t order = zir_f_4e8972c89764e104_strcmp(name, value_1->name);
+        if (order == 0) {
+            return mid;
+        }
+        if (order < 0) {
+            high = mid;
+        } else {
+            low = mid + 1;
+        }
+    }
+    size_t value_3 = 0;
+    {
+        size_t value_5 = 0;
+        {
+            size_t zero = 0;
+            value_5 = zero - 1;
+        }
+        value_3 = value_5;
+    }
+    return value_3;
+}
+
+int32_t
+compiler_host_api_InvalidLinkage(ZxModuleLoader* loader, size_t line_number)
+{
+    if (loader != ((void *)0)) {
+        String value_0 = StringLiteral("invalid ZX module linkage at line %zu");
+        uint8_t* value_1 = (void *)0;
+        {
+            String s = value_0;
+            value_1 = ((StaticText*)(&(s)))->data;
+        }
+        zir_f_4e8972c89764e104_snprintf(&(loader->error[0]), 512, value_1, line_number + 1);
+    }
+    return 0;
+}
+
+bool
+compiler_host_api_ReserveExport(ModuleImage* image)
+{
+    if (image->export_count < image->export_capacity) {
+        return true;
+    }
+    void* grown = compiler_host_api_Grow((void*)(image->exports), &(image->export_capacity), sizeof(ModuleExport));
+    if (grown != ((void *)0)) {
+        ModuleExport** value_0 = &(image->exports);
+        (*value_0) = (ModuleExport*)(grown);
+    }
+    return grown != ((void *)0);
+}
+
+bool
+compiler_host_api_ReserveRequirement(ModuleImage* image)
+{
+    if (image->require_count < image->require_capacity) {
+        return true;
+    }
+    void* grown = compiler_host_api_Grow((void*)(image->requires), &(image->require_capacity), sizeof(ModuleRequirement));
+    if (grown != ((void *)0)) {
+        ModuleRequirement** value_0 = &(image->requires);
+        (*value_0) = (ModuleRequirement*)(grown);
+    }
+    return grown != ((void *)0);
+}
+
+bool
+compiler_host_api_ReserveImport(ModuleImage* image)
+{
+    if (image->import_count < image->import_capacity) {
+        return true;
+    }
+    void* grown = compiler_host_api_Grow((void*)(image->imports), &(image->import_capacity), sizeof(ModuleImport));
+    if (grown != ((void *)0)) {
+        ModuleImport** value_0 = &(image->imports);
+        (*value_0) = (ModuleImport*)(grown);
+    }
+    return grown != ((void *)0);
+}
+
+int32_t
+compiler_host_api_LinkageFields(uint8_t* line, uint8_t** field)
+{
+    uint8_t** value_0 = &(field[0]);
+    (*value_0) = line;
+    int32_t count = 1;
+    uint8_t* tab = zir_f_4e8972c89764e104_strchr(line, 9);
+    while (tab != ((void *)0)) {
+        if (count == 5) {
+            return 0;
+        }
+        uint8_t* value_1 = &(tab[0]);
+        (*value_1) = 0;
+        uint8_t** value_2 = &(field[count]);
+        uint8_t* value_3 = (void *)0;
+        {
+            uint8_t* text = tab;
+            size_t count = 1;
+            value_3 = (uint8_t*)(((size_t)(text) + count));
+        }
+        (*value_2) = value_3;
+        count = (int32_t)((uint32_t)count + 1u);
+        uint8_t* value_5 = (void *)0;
+        {
+            uint8_t* text = tab;
+            size_t count = 1;
+            value_5 = (uint8_t*)(((size_t)(text) + count));
+        }
+        tab = zir_f_4e8972c89764e104_strchr(value_5, 9);
+    }
+    return count;
+}
+
+int32_t
+compiler_host_api_ReadLinkage(ZxModuleLoader* loader, ModuleImage* image)
+{
+    size_t length = 0;
+    uint8_t* linkage = zir_f_4e8972c89764e104_ExecBundleModuleLinkage(image->exec, &(length));
+    if (length == 0) {
+        return 1;
+    }
+    uint8_t* value_0 = zir_f_4e8972c89764e104_memchr(linkage, 0, length);
+    if (value_0 != ((void *)0)) {
+        String value_1 = StringLiteral("invalid ZX module linkage: embedded NUL");
+        uint8_t* value_2 = (void *)0;
+        {
+            String s = value_1;
+            value_2 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(loader, value_2, (void *)0, (void *)0, (void *)0, (void *)0);
+    }
+    uint8_t** value_4 = &(image->text);
+    uint8_t* value_5 = zir_f_4e8972c89764e104_malloc(length + 1);
+    (*value_4) = value_5;
+    if (image->text == ((void *)0)) {
+        ZxModuleLoader* value_6 = loader;
+        int32_t value_7 = 0;
+        {
+            ZxModuleLoader* loader = value_6;
+            String value_9 = StringLiteral("out of memory in ZX module loader");
+            uint8_t* value_10 = (void *)0;
+            {
+                String s = value_9;
+                value_10 = ((StaticText*)(&(s)))->data;
+            }
+            value_7 = compiler_host_api_Problem(loader, value_10, (void *)0, (void *)0, (void *)0, (void *)0);
+        }
+        return value_7;
+    }
+    zir_f_4e8972c89764e104_memcpy(image->text, linkage, length);
+    uint8_t* value_12 = &(image->text[length]);
+    (*value_12) = 0;
+    uint32_t group = 0;
+    size_t line_number = 0;
+    uint8_t* line = image->text;
+    while (line[0] != 0) {
+        uint8_t* end = zir_f_4e8972c89764e104_strchr(line, 10);
+        if (end == ((void *)0)) {
+            return compiler_host_api_InvalidLinkage(loader, line_number);
+        }
+        uint8_t* value_13 = &(end[0]);
+        (*value_13) = 0;
+        uint8_t* field[5] = {0};
+        int32_t count = compiler_host_api_LinkageFields(line, &(field[0]));
+        bool value_14 = count == 2;
+        if (value_14) {
+            uint8_t* value_15 = (field)[0];
+            String value_16 = StringLiteral("module");
+            uint8_t* value_17 = (void *)0;
+            {
+                String s = value_16;
+                value_17 = ((StaticText*)(&(s)))->data;
+            }
+            bool value_19 = compiler_host_api_Same(value_15, value_17);
+            value_14 = value_19;
+        }
+        if (value_14) {
+            bool value_20 = line_number != 0;
+            if (!value_20) {
+                bool value_21 = compiler_host_api_ValidName((field)[1], true);
+                value_20 = !value_21;
+            }
+            if (value_20) {
+                return compiler_host_api_InvalidLinkage(loader, line_number);
+            }
+            uint8_t** value_22 = &(image->name);
+            (*value_22) = (field)[1];
+        } else {
+            bool value_23 = count == 2;
+            if (value_23) {
+                uint8_t* value_24 = (field)[0];
+                String value_25 = StringLiteral("export");
+                uint8_t* value_26 = (void *)0;
+                {
+                    String s = value_25;
+                    value_26 = ((StaticText*)(&(s)))->data;
+                }
+                bool value_28 = compiler_host_api_Same(value_24, value_26);
+                value_23 = value_28;
+            }
+            if (value_23) {
+                size_t i = image->export_count;
+                bool value_29 = group > 1 || image->name == ((void *)0);
+                bool value_30 = value_29;
+                if (!value_30) {
+                    bool value_31 = compiler_host_api_ValidName((field)[1], false);
+                    value_30 = !value_31;
+                }
+                bool value_32 = value_30;
+                bool value_33 = value_32;
+                if (!value_33) {
+                    bool value_34 = i != 0;
+                    if (value_34) {
+                        ModuleImage* value_35 = image;
+                        size_t value_36 = i - 1;
+                        ModuleExport* value_37 = (void *)0;
+                        {
+                            ModuleImage* image = value_35;
+                            size_t index = value_36;
+                            value_37 = &(image->exports[index]);
+                        }
+                        bool value_39 = zir_f_4e8972c89764e104_strcmp(value_37->name, (field)[1]) >= 0;
+                        value_34 = value_39;
+                    }
+                    value_33 = value_34;
+                }
+                if (value_33) {
+                    return compiler_host_api_InvalidLinkage(loader, line_number);
+                }
+                ModuleImage* value_40 = image;
+                bool value_41 = false;
+                {
+                    ModuleImage* image = value_40;
+                    if (image->export_count < image->export_capacity) {
+                        value_41 = true;
+                        goto value_42;
+                    }
+                    void* grown = compiler_host_api_Grow((void*)(image->exports), &(image->export_capacity), sizeof(ModuleExport));
+                    if (grown != ((void *)0)) {
+                        ModuleExport** value_43 = &(image->exports);
+                        (*value_43) = (ModuleExport*)(grown);
+                    }
+                    value_41 = grown != ((void *)0);
+                value_42: ;
+                }
+                if (!value_41) {
+                    ZxModuleLoader* value_44 = loader;
+                    int32_t value_45 = 0;
+                    {
+                        ZxModuleLoader* loader = value_44;
+                        String value_47 = StringLiteral("out of memory in ZX module loader");
+                        uint8_t* value_48 = (void *)0;
+                        {
+                            String s = value_47;
+                            value_48 = ((StaticText*)(&(s)))->data;
+                        }
+                        value_45 = compiler_host_api_Problem(loader, value_48, (void *)0, (void *)0, (void *)0, (void *)0);
+                    }
+                    return value_45;
+                }
+                ModuleImage* value_50 = image;
+                ModuleExport* value_51 = (void *)0;
+                {
+                    ModuleImage* image = value_50;
+                    size_t index = i;
+                    value_51 = &(image->exports[index]);
+                }
+                ModuleExport* method = value_51;
+                uint8_t** value_53 = &(method->name);
+                (*value_53) = (field)[1];
+                size_t** value_54 = &(method->parameters);
+                (*value_54) = (void *)0;
+                size_t* value_55 = &(method->count);
+                (*value_55) = 0;
+                size_t* value_56 = &(method->result);
+                size_t value_57 = 0;
+                {
+                    size_t value_59 = 0;
+                    {
+                        size_t zero = 0;
+                        value_59 = zero - 1;
+                    }
+                    value_57 = value_59;
+                }
+                (*value_56) = value_57;
+                size_t* value_61 = &(image->export_count);
+                (*value_61) = i + 1;
+                group = 1;
+            } else {
+                bool value_62 = count == 3;
+                if (value_62) {
+                    uint8_t* value_63 = (field)[0];
+                    String value_64 = StringLiteral("require");
+                    uint8_t* value_65 = (void *)0;
+                    {
+                        String s = value_64;
+                        value_65 = ((StaticText*)(&(s)))->data;
+                    }
+                    bool value_67 = compiler_host_api_Same(value_63, value_65);
+                    value_62 = value_67;
+                }
+                if (value_62) {
+                    size_t i = image->require_count;
+                    bool value_68 = group > 2;
+                    if (!value_68) {
+                        bool value_69 = compiler_host_api_ValidName((field)[1], false);
+                        value_68 = !value_69;
+                    }
+                    bool value_70 = value_68;
+                    if (!value_70) {
+                        bool value_71 = compiler_host_api_ValidName((field)[2], true);
+                        value_70 = !value_71;
+                    }
+                    bool value_72 = value_70;
+                    if (!value_72) {
+                        bool value_73 = i != 0;
+                        if (value_73) {
+                            ModuleImage* value_74 = image;
+                            size_t value_75 = i - 1;
+                            ModuleRequirement* value_76 = (void *)0;
+                            {
+                                ModuleImage* image = value_74;
+                                size_t index = value_75;
+                                value_76 = &(image->requires[index]);
+                            }
+                            bool value_78 = zir_f_4e8972c89764e104_strcmp(value_76->interface, (field)[1]) >= 0;
+                            value_73 = value_78;
+                        }
+                        value_72 = value_73;
+                    }
+                    if (value_72) {
+                        return compiler_host_api_InvalidLinkage(loader, line_number);
+                    }
+                    ModuleImage* value_79 = image;
+                    bool value_80 = false;
+                    {
+                        ModuleImage* image = value_79;
+                        if (image->require_count < image->require_capacity) {
+                            value_80 = true;
+                            goto value_81;
+                        }
+                        void* grown = compiler_host_api_Grow((void*)(image->requires), &(image->require_capacity), sizeof(ModuleRequirement));
+                        if (grown != ((void *)0)) {
+                            ModuleRequirement** value_82 = &(image->requires);
+                            (*value_82) = (ModuleRequirement*)(grown);
+                        }
+                        value_80 = grown != ((void *)0);
+                    value_81: ;
+                    }
+                    if (!value_80) {
+                        ZxModuleLoader* value_83 = loader;
+                        int32_t value_84 = 0;
+                        {
+                            ZxModuleLoader* loader = value_83;
+                            String value_86 = StringLiteral("out of memory in ZX module loader");
+                            uint8_t* value_87 = (void *)0;
+                            {
+                                String s = value_86;
+                                value_87 = ((StaticText*)(&(s)))->data;
+                            }
+                            value_84 = compiler_host_api_Problem(loader, value_87, (void *)0, (void *)0, (void *)0, (void *)0);
+                        }
+                        return value_84;
+                    }
+                    ModuleImage* value_89 = image;
+                    ModuleRequirement* value_90 = (void *)0;
+                    {
+                        ModuleImage* image = value_89;
+                        size_t index = i;
+                        value_90 = &(image->requires[index]);
+                    }
+                    ModuleRequirement* require = value_90;
+                    uint8_t** value_92 = &(require->interface);
+                    (*value_92) = (field)[1];
+                    uint8_t** value_93 = &(require->name);
+                    (*value_93) = (field)[2];
+                    ModuleImage** value_94 = &(require->image);
+                    (*value_94) = (void *)0;
+                    size_t* value_95 = &(image->require_count);
+                    (*value_95) = i + 1;
+                    group = 2;
+                } else {
+                    bool value_96 = count == 5;
+                    if (value_96) {
+                        uint8_t* value_97 = (field)[0];
+                        String value_98 = StringLiteral("import");
+                        uint8_t* value_99 = (void *)0;
+                        {
+                            String s = value_98;
+                            value_99 = ((StaticText*)(&(s)))->data;
+                        }
+                        bool value_101 = compiler_host_api_Same(value_97, value_99);
+                        value_96 = value_101;
+                    }
+                    if (value_96) {
+                        size_t i = image->import_count;
+                        for (int64_t j = 1LL; j <= 4LL; j++) {
+                            bool value_102 = compiler_host_api_ValidName((field)[j], false);
+                            if (!value_102) {
+                                return compiler_host_api_InvalidLinkage(loader, line_number);
+                            }
+                        }
+                        ModuleRequirement* require = compiler_host_api_FindRequirement(image, (field)[3]);
+                        if (require == ((void *)0)) {
+                            return compiler_host_api_InvalidLinkage(loader, line_number);
+                        }
+                        if (i != 0) {
+                            ModuleImage* value_103 = image;
+                            size_t value_104 = i - 1;
+                            ModuleImport* value_105 = (void *)0;
+                            {
+                                ModuleImage* image = value_103;
+                                size_t index = value_104;
+                                value_105 = &(image->imports[index]);
+                            }
+                            ModuleImport* last = value_105;
+                            int32_t order = zir_f_4e8972c89764e104_strcmp(last->module, (field)[1]);
+                            if (order > 0 || (order == 0 && zir_f_4e8972c89764e104_strcmp(last->function, (field)[2]) >= 0)) {
+                                return compiler_host_api_InvalidLinkage(loader, line_number);
+                            }
+                        }
+                        ModuleImage* value_107 = image;
+                        bool value_108 = false;
+                        {
+                            ModuleImage* image = value_107;
+                            if (image->import_count < image->import_capacity) {
+                                value_108 = true;
+                                goto value_109;
+                            }
+                            void* grown = compiler_host_api_Grow((void*)(image->imports), &(image->import_capacity), sizeof(ModuleImport));
+                            if (grown != ((void *)0)) {
+                                ModuleImport** value_110 = &(image->imports);
+                                (*value_110) = (ModuleImport*)(grown);
+                            }
+                            value_108 = grown != ((void *)0);
+                        value_109: ;
+                        }
+                        if (!value_108) {
+                            ZxModuleLoader* value_111 = loader;
+                            int32_t value_112 = 0;
+                            {
+                                ZxModuleLoader* loader = value_111;
+                                String value_114 = StringLiteral("out of memory in ZX module loader");
+                                uint8_t* value_115 = (void *)0;
+                                {
+                                    String s = value_114;
+                                    value_115 = ((StaticText*)(&(s)))->data;
+                                }
+                                value_112 = compiler_host_api_Problem(loader, value_115, (void *)0, (void *)0, (void *)0, (void *)0);
+                            }
+                            return value_112;
+                        }
+                        ModuleImage* value_117 = image;
+                        ModuleImport* value_118 = (void *)0;
+                        {
+                            ModuleImage* image = value_117;
+                            size_t index = i;
+                            value_118 = &(image->imports[index]);
+                        }
+                        ModuleImport* import = value_118;
+                        uint8_t** value_120 = &(import->module);
+                        (*value_120) = (field)[1];
+                        uint8_t** value_121 = &(import->function);
+                        (*value_121) = (field)[2];
+                        uint8_t** value_122 = &(import->interface);
+                        (*value_122) = (field)[3];
+                        uint8_t** value_123 = &(import->name);
+                        (*value_123) = (field)[4];
+                        ModuleRequirement** value_124 = &(import->require);
+                        (*value_124) = require;
+                        size_t* value_125 = &(import->capability);
+                        (*value_125) = 0;
+                        size_t* value_126 = &(import->ordinal);
+                        (*value_126) = 0;
+                        size_t* value_127 = &(image->import_count);
+                        (*value_127) = i + 1;
+                        group = 3;
+                    } else {
+                        return compiler_host_api_InvalidLinkage(loader, line_number);
+                    }
+                }
+            }
+        }
+        uint8_t* value_128 = (void *)0;
+        {
+            uint8_t* text = end;
+            size_t count = 1;
+            value_128 = (uint8_t*)(((size_t)(text) + count));
+        }
+        line = value_128;
+        line_number = line_number + 1;
+    }
+    return 1;
+}
+
+ModuleService*
+compiler_host_api_ModuleServiceFor(uint8_t* module, uint8_t* name)
+{
+    String value_0 = StringLiteral("zx_module");
+    uint8_t* value_1 = (void *)0;
+    {
+        String s = value_0;
+        value_1 = ((StaticText*)(&(s)))->data;
+    }
+    bool value_3 = compiler_host_api_Same(module, value_1);
+    if (!value_3) {
+        return (void *)0;
+    }
+    for (int64_t i = 0LL; i <= 8LL; i++) {
+        String value_4 = (module_services[i]).name;
+        uint8_t* value_5 = (void *)0;
+        {
+            String s = value_4;
+            value_5 = ((StaticText*)(&(s)))->data;
+        }
+        if (compiler_host_api_Same(value_5, name)) {
+            return &(module_services[i]);
+        }
+    }
+    return (void *)0;
+}
+
+bool
+compiler_host_api_HasType(ModuleImage* image, size_t cap, int32_t parameter, uint8_t* expected)
+{
+    uint8_t* type = zir_f_4e8972c89764e104_ExecBundleModuleType(image->exec, cap, parameter);
+    bool value_0 = type != ((void *)0);
+    return value_0 && compiler_host_api_Same(type, expected);
+}
+
+bool
+compiler_host_api_OrdinalField(uint8_t** cursor, size_t* number)
+{
+    uint8_t* at = *(cursor);
+    uint8_t value_0 = at[0];
+    bool value_1 = false;
+    {
+        uint8_t c = value_0;
+        value_1 = c >= 48 && c <= 57;
+    }
+    bool value_3 = !value_1;
+    if (!value_3) {
+        bool value_4 = at[0] == 48;
+        bool value_5 = value_4;
+        if (value_5) {
+            uint8_t value_6 = at[1];
+            bool value_7 = false;
+            {
+                uint8_t c = value_6;
+                value_7 = c >= 48 && c <= 57;
+            }
+            value_5 = value_7;
+        }
+        value_3 = value_5;
+    }
+    if (value_3) {
+        return false;
+    }
+    size_t n = 0;
+    while (true) {
+        uint8_t value_9 = at[0];
+        bool value_10 = false;
+        {
+            uint8_t c = value_9;
+            value_10 = c >= 48 && c <= 57;
+        }
+        if (!value_10) { break; }
+        size_t digit = (size_t)(((uint8_t)((uint32_t)(at[0]) - 48u)));
+        size_t value_12 = 0;
+        {
+            size_t zero = 0;
+            value_12 = zero - 1;
+        }
+        if (n > (value_12 - digit) / 10) {
+            return false;
+        }
+        n = (n * 10) + digit;
+        uint8_t* value_14 = (void *)0;
+        {
+            uint8_t* text = at;
+            size_t count = 1;
+            value_14 = (uint8_t*)(((size_t)(text) + count));
+        }
+        at = value_14;
+    }
+    uint8_t** value_16 = &((*(cursor)));
+    (*value_16) = at;
+    size_t* value_17 = &((*(number)));
+    (*value_17) = n;
+    return true;
+}
+
+bool
+compiler_host_api_ReadDispatch(ModuleImage* image, size_t cap, uint8_t* name)
+{
+    bool value_0 = image->name == ((void *)0);
+    bool value_1 = value_0;
+    if (!value_1) {
+        uint8_t* value_2 = zir_f_4e8972c89764e104_ExecBundleModuleType(image->exec, cap, -1);
+        value_1 = (value_2 == ((void *)0));
+    }
+    if (value_1) {
+        return false;
+    }
+    int32_t arity = zir_f_4e8972c89764e104_ExecBundleModuleParameterCount(image->exec, cap);
+    String value_3 = StringLiteral("select");
+    uint8_t* value_4 = (void *)0;
+    {
+        String s = value_3;
+        value_4 = ((StaticText*)(&(s)))->data;
+    }
+    if (compiler_host_api_Same(name, value_4)) {
+        bool value_6 = arity != 0;
+        if (!value_6) {
+            String value_7 = StringLiteral("s32");
+            uint8_t* value_8 = (void *)0;
+            {
+                String s = value_7;
+                value_8 = ((StaticText*)(&(s)))->data;
+            }
+            bool value_10 = compiler_host_api_HasType(image, cap, -1, value_8);
+            value_6 = !value_10;
+        }
+        if (value_6) {
+            return false;
+        }
+        ModuleImage* value_11 = image;
+        BindingPlan* value_12 = (void *)0;
+        {
+            ModuleImage* image = value_11;
+            size_t index = cap;
+            value_12 = &(image->plans[index]);
+        }
+        BindingPlan* selector = value_12;
+        BindingKind* value_14 = &(selector->kind);
+        (*value_14) = BindingKind_Select;
+        return true;
+    }
+    String value_15 = StringLiteral("arg_");
+    uint8_t* value_16 = (void *)0;
+    {
+        String s = value_15;
+        value_16 = ((StaticText*)(&(s)))->data;
+    }
+    bool argument = zir_f_4e8972c89764e104_strncmp(name, value_16, 4) == 0;
+    bool value_18 = !argument;
+    if (value_18) {
+        String value_19 = StringLiteral("result_");
+        uint8_t* value_20 = (void *)0;
+        {
+            String s = value_19;
+            value_20 = ((StaticText*)(&(s)))->data;
+        }
+        bool value_22 = zir_f_4e8972c89764e104_strncmp(name, value_20, 7) != 0;
+        value_18 = value_22;
+    }
+    if (value_18) {
+        return false;
+    }
+    size_t value_23 = 0;
+    if (argument) {
+        value_23 = 4;
+    } else {
+        value_23 = 7;
+    }
+    uint8_t* value_24 = (void *)0;
+    {
+        uint8_t* text = name;
+        size_t count = value_23;
+        value_24 = (uint8_t*)(((size_t)(text) + count));
+    }
+    uint8_t* cursor = value_24;
+    size_t ordinal = 0;
+    size_t parameter = 0;
+    bool value_26 = compiler_host_api_OrdinalField(&(cursor), &(ordinal));
+    if (!value_26 || ordinal >= image->export_count) {
+        return false;
+    }
+    ModuleImage* value_27 = image;
+    ModuleExport* value_28 = (void *)0;
+    {
+        ModuleImage* image = value_27;
+        size_t index = ordinal;
+        value_28 = &(image->exports[index]);
+    }
+    ModuleExport* method = value_28;
+    if (argument) {
+        if (cursor[0] != 95) {
+            return false;
+        }
+        uint8_t* value_30 = (void *)0;
+        {
+            uint8_t* text = cursor;
+            size_t count = 1;
+            value_30 = (uint8_t*)(((size_t)(text) + count));
+        }
+        cursor = value_30;
+        bool value_32 = compiler_host_api_OrdinalField(&(cursor), &(parameter));
+        bool value_33 = !value_32 || cursor[0] != 0 || arity != 0;
+        bool value_34 = value_33;
+        if (!value_34) {
+            String value_35 = StringLiteral("void");
+            uint8_t* value_36 = (void *)0;
+            {
+                String s = value_35;
+                value_36 = ((StaticText*)(&(s)))->data;
+            }
+            bool value_38 = compiler_host_api_HasType(image, cap, -1, value_36);
+            value_34 = value_38;
+        }
+        if (value_34) {
+            return false;
+        }
+        size_t* value_39 = &(method->count);
+        (*value_39) = (*value_39) + 1;
+    } else {
+        bool value_40 = cursor[0] != 0;
+        bool value_41 = value_40;
+        if (!value_41) {
+            size_t value_42 = method->result;
+            size_t value_43 = 0;
+            {
+                size_t value_45 = 0;
+                {
+                    size_t zero = 0;
+                    value_45 = zero - 1;
+                }
+                value_43 = value_45;
+            }
+            value_41 = (value_42 != value_43);
+        }
+        bool value_47 = value_41 || (arity != 0 && arity != 1);
+        bool value_48 = value_47;
+        if (!value_48) {
+            String value_49 = StringLiteral("void");
+            uint8_t* value_50 = (void *)0;
+            {
+                String s = value_49;
+                value_50 = ((StaticText*)(&(s)))->data;
+            }
+            bool value_52 = compiler_host_api_HasType(image, cap, -1, value_50);
+            value_48 = !value_52;
+        }
+        bool value_53 = value_48;
+        bool value_54 = value_53;
+        if (!value_54) {
+            bool value_55 = arity == 1;
+            if (value_55) {
+                uint8_t* value_56 = zir_f_4e8972c89764e104_ExecBundleModuleType(image->exec, cap, 0);
+                value_55 = (value_56 == ((void *)0));
+            }
+            value_54 = value_55;
+        }
+        if (value_54) {
+            return false;
+        }
+        size_t* value_57 = &(method->result);
+        (*value_57) = cap;
+    }
+    ModuleImage* value_58 = image;
+    BindingPlan* value_59 = (void *)0;
+    {
+        ModuleImage* image = value_58;
+        size_t index = cap;
+        value_59 = &(image->plans[index]);
+    }
+    BindingPlan* plan = value_59;
+    BindingKind* value_61 = &(plan->kind);
+    BindingKind value_62 = (BindingKind)(0);
+    if (argument) {
+        value_62 = BindingKind_Argument;
+    } else {
+        value_62 = BindingKind_Result;
+    }
+    (*value_61) = value_62;
+    size_t* value_63 = &(plan->ordinal);
+    (*value_63) = ordinal;
+    size_t* value_64 = &(plan->parameter);
+    (*value_64) = parameter;
+    return true;
+}
+
+size_t
+compiler_host_api_FindCapability(Bundle* bundle, uint8_t* module, uint8_t* function)
+{
+    size_t value_0 = 0;
+    {
+        size_t value_2 = 0;
+        {
+            size_t zero = 0;
+            value_2 = zero - 1;
+        }
+        value_0 = value_2;
+    }
+    size_t cap = value_0;
+    size_t i = 0;
+    while (i < BundleCapabilityCount(bundle)) {
+        bool value_4 = compiler_host_api_Same(module, BundleCapabilityModule(bundle, i));
+        if (value_4 && compiler_host_api_Same(function, BundleCapabilityFunction(bundle, i))) {
+            size_t value_5 = 0;
+            {
+                size_t value_7 = 0;
+                {
+                    size_t zero = 0;
+                    value_7 = zero - 1;
+                }
+                value_5 = value_7;
+            }
+            if (cap != value_5) {
+                size_t value_9 = 0;
+                {
+                    size_t value_11 = 0;
+                    {
+                        size_t zero = 0;
+                        value_11 = zero - 1;
+                    }
+                    value_9 = value_11;
+                }
+                return value_9;
+            }
+            cap = i;
+        }
+        i = i + 1;
+    }
+    return cap;
+}
+
+int32_t
+compiler_host_api_ReadService(ZxModuleLoader* loader, ModuleImage* image, size_t cap, ModuleService* service, uint32_t* seen)
+{
+    uint8_t* name = BundleCapabilityFunction(image->bundle, cap);
+    uint32_t flag = ZiShl32(1, (uint64_t)((uint32_t)(((int32_t)((uint32_t)(((BindingKind)(service->kind))) - (uint32_t)(BindingKind_Load))))), 32);
+    if (((uint32_t)((uint32_t)(*(seen)) & (uint32_t)flag)) != 0) {
+        String value_0 = StringLiteral("duplicate ZX module runtime service: %s");
+        uint8_t* value_1 = (void *)0;
+        {
+            String s = value_0;
+            value_1 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(loader, value_1, name, (void *)0, (void *)0, (void *)0);
+    }
+    uint32_t* value_3 = &((*(seen)));
+    (*value_3) = (uint32_t)((uint32_t)(*(seen)) | (uint32_t)flag);
+    String value_4 = service->result;
+    uint8_t* value_5 = (void *)0;
+    {
+        String s = value_4;
+        value_5 = ((StaticText*)(&(s)))->data;
+    }
+    bool value_7 = compiler_host_api_HasType(image, cap, -1, value_5);
+    bool value_8 = value_7;
+    if (value_8) {
+        int32_t value_9 = service->arity;
+        bool value_10 = value_9 == zir_f_4e8972c89764e104_ExecBundleModuleParameterCount(image->exec, cap);
+        value_8 = value_10;
+    }
+    bool valid = value_8;
+    int32_t p = 0;
+    while (valid && p < service->arity) {
+        ModuleService* value_11 = service;
+        String value_12 = StringView(NULL, 0);
+        {
+            ModuleService* service = value_11;
+            int32_t index = p;
+            if (index == 0) {
+                value_12 = service->first;
+                goto value_13;
+            }
+            String value_14 = StringView(NULL, 0);
+            if (index == 1) {
+                value_14 = service->second;
+            } else {
+                value_14 = service->third;
+            }
+            value_12 = value_14;
+        value_13: ;
+        }
+        uint8_t* value_15 = (void *)0;
+        {
+            String s = value_12;
+            value_15 = ((StaticText*)(&(s)))->data;
+        }
+        valid = compiler_host_api_HasType(image, cap, p, value_15);
+        p = (int32_t)((uint32_t)p + 1u);
+    }
+    if (!valid) {
+        String value_17 = StringLiteral("invalid ZX module runtime service ABI: %s");
+        uint8_t* value_18 = (void *)0;
+        {
+            String s = value_17;
+            value_18 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(loader, value_18, name, (void *)0, (void *)0, (void *)0);
+    }
+    ModuleImage* value_20 = image;
+    BindingPlan* value_21 = (void *)0;
+    {
+        ModuleImage* image = value_20;
+        size_t index = cap;
+        value_21 = &(image->plans[index]);
+    }
+    BindingPlan* plan = value_21;
+    BindingKind* value_23 = &(plan->kind);
+    (*value_23) = (BindingKind)(service->kind);
+    return 1;
+}
+
+int32_t
+compiler_host_api_ImageRead(ZxModuleLoader* loader, ModuleImage* image, Bundle* bundle)
+{
+    Bundle** value_0 = &(image->bundle);
+    (*value_0) = bundle;
+    void** value_1 = &(image->exec);
+    void* value_2 = BundleVerifiedExec(bundle);
+    (*value_1) = value_2;
+    bool value_3 = image->exec == ((void *)0);
+    if (value_3 || compiler_host_api_ReadLinkage(loader, image) == 0) {
+        return 0;
+    }
+    bool value_4 = zir_f_4e8972c89764e104_ExecBundleModuleEntry(image->exec) != 0;
+    if (value_4 != (image->name != ((void *)0)) || (image->name != ((void *)0) && image->export_count == 0)) {
+        String value_5 = StringLiteral("invalid ZX module dispatcher entry or missing exports");
+        uint8_t* value_6 = (void *)0;
+        {
+            String s = value_5;
+            value_6 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(loader, value_6, (void *)0, (void *)0, (void *)0, (void *)0);
+    }
+    size_t cap_count = BundleCapabilityCount(bundle);
+    BindingPlan** value_8 = &(image->plans);
+    size_t value_9 = 0;
+    if (cap_count != 0) {
+        value_9 = cap_count;
+    } else {
+        value_9 = 1;
+    }
+    uint8_t* value_10 = zir_f_4e8972c89764e104_calloc(value_9, sizeof(BindingPlan));
+    (*value_8) = (BindingPlan*)(value_10);
+    if (image->plans == ((void *)0)) {
+        ZxModuleLoader* value_11 = loader;
+        int32_t value_12 = 0;
+        {
+            ZxModuleLoader* loader = value_11;
+            String value_14 = StringLiteral("out of memory in ZX module loader");
+            uint8_t* value_15 = (void *)0;
+            {
+                String s = value_14;
+                value_15 = ((StaticText*)(&(s)))->data;
+            }
+            value_12 = compiler_host_api_Problem(loader, value_15, (void *)0, (void *)0, (void *)0, (void *)0);
+        }
+        return value_12;
+    }
+    size_t selectors = 0;
+    uint32_t services_seen = 0;
+    size_t i = 0;
+    while (i < cap_count) {
+        uint8_t* module = BundleCapabilityModule(bundle, i);
+        uint8_t* name = BundleCapabilityFunction(bundle, i);
+        ModuleService* service = compiler_host_api_ModuleServiceFor(module, name);
+        String value_17 = StringLiteral("__zx_module_dispatch");
+        uint8_t* value_18 = (void *)0;
+        {
+            String s = value_17;
+            value_18 = ((StaticText*)(&(s)))->data;
+        }
+        if (compiler_host_api_Same(module, value_18)) {
+            bool value_20 = compiler_host_api_ReadDispatch(image, i, name);
+            if (!value_20) {
+                String value_21 = StringLiteral("invalid ZX module dispatch ABI: %s");
+                uint8_t* value_22 = (void *)0;
+                {
+                    String s = value_21;
+                    value_22 = ((StaticText*)(&(s)))->data;
+                }
+                return compiler_host_api_Problem(loader, value_22, name, (void *)0, (void *)0, (void *)0);
+            }
+            ModuleImage* value_24 = image;
+            BindingPlan* value_25 = (void *)0;
+            {
+                ModuleImage* image = value_24;
+                size_t index = i;
+                value_25 = &(image->plans[index]);
+            }
+            if (((BindingKind)(value_25->kind)) == BindingKind_Select) {
+                selectors = selectors + 1;
+            }
+        } else if (service != ((void *)0)) {
+            if (compiler_host_api_ReadService(loader, image, i, service, &(services_seen)) == 0) {
+                return 0;
+            }
+        } else {
+            size_t* value_27 = &(image->external_count);
+            (*value_27) = (*value_27) + 1;
+        }
+        i = i + 1;
+    }
+    if (image->name != ((void *)0) && selectors != 1) {
+        String value_28 = StringLiteral("ZX module requires exactly one dispatch selector");
+        uint8_t* value_29 = (void *)0;
+        {
+            String s = value_28;
+            value_29 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(loader, value_29, (void *)0, (void *)0, (void *)0, (void *)0);
+    }
+    i = 0;
+    while (i < image->export_count) {
+        ModuleImage* value_31 = image;
+        ModuleExport* value_32 = (void *)0;
+        {
+            ModuleImage* image = value_31;
+            size_t index = i;
+            value_32 = &(image->exports[index]);
+        }
+        ModuleExport* method = value_32;
+        size_t value_34 = method->result;
+        size_t value_35 = 0;
+        {
+            size_t value_37 = 0;
+            {
+                size_t zero = 0;
+                value_37 = zero - 1;
+            }
+            value_35 = value_37;
+        }
+        if (value_34 == value_35) {
+            String value_39 = StringLiteral("missing ZX module dispatch result for %s");
+            uint8_t* value_40 = (void *)0;
+            {
+                String s = value_39;
+                value_40 = ((StaticText*)(&(s)))->data;
+            }
+            return compiler_host_api_Problem(loader, value_40, method->name, (void *)0, (void *)0, (void *)0);
+        }
+        if (method->count != 0) {
+            size_t** value_42 = &(method->parameters);
+            uint8_t* value_43 = zir_f_4e8972c89764e104_calloc(method->count, sizeof(size_t));
+            (*value_42) = (size_t*)(value_43);
+            if (method->parameters == ((void *)0)) {
+                ZxModuleLoader* value_44 = loader;
+                int32_t value_45 = 0;
+                {
+                    ZxModuleLoader* loader = value_44;
+                    String value_47 = StringLiteral("out of memory in ZX module loader");
+                    uint8_t* value_48 = (void *)0;
+                    {
+                        String s = value_47;
+                        value_48 = ((StaticText*)(&(s)))->data;
+                    }
+                    value_45 = compiler_host_api_Problem(loader, value_48, (void *)0, (void *)0, (void *)0, (void *)0);
+                }
+                return value_45;
+            }
+            size_t p = 0;
+            while (p < method->count) {
+                size_t* value_50 = &(method->parameters[p]);
+                size_t value_51 = 0;
+                {
+                    size_t value_53 = 0;
+                    {
+                        size_t zero = 0;
+                        value_53 = zero - 1;
+                    }
+                    value_51 = value_53;
+                }
+                (*value_50) = value_51;
+                p = p + 1;
+            }
+        }
+        i = i + 1;
+    }
+    i = 0;
+    while (i < cap_count) {
+        ModuleImage* value_55 = image;
+        BindingPlan* value_56 = (void *)0;
+        {
+            ModuleImage* image = value_55;
+            size_t index = i;
+            value_56 = &(image->plans[index]);
+        }
+        BindingPlan* plan = value_56;
+        if (((BindingKind)(plan->kind)) == BindingKind_Argument) {
+            ModuleImage* value_58 = image;
+            size_t value_59 = plan->ordinal;
+            ModuleExport* value_60 = (void *)0;
+            {
+                ModuleImage* image = value_58;
+                size_t index = value_59;
+                value_60 = &(image->exports[index]);
+            }
+            ModuleExport* method = value_60;
+            bool value_62 = plan->parameter >= method->count;
+            bool value_63 = value_62;
+            if (!value_63) {
+                size_t value_64 = method->parameters[plan->parameter];
+                size_t value_65 = 0;
+                {
+                    size_t value_67 = 0;
+                    {
+                        size_t zero = 0;
+                        value_67 = zero - 1;
+                    }
+                    value_65 = value_67;
+                }
+                value_63 = (value_64 != value_65);
+            }
+            if (value_63) {
+                String value_69 = StringLiteral("invalid ZX module dispatch parameter sequence: %s");
+                uint8_t* value_70 = (void *)0;
+                {
+                    String s = value_69;
+                    value_70 = ((StaticText*)(&(s)))->data;
+                }
+                return compiler_host_api_Problem(loader, value_70, method->name, (void *)0, (void *)0, (void *)0);
+            }
+            size_t* value_72 = &(method->parameters[plan->parameter]);
+            (*value_72) = i;
+        }
+        i = i + 1;
+    }
+    i = 0;
+    while (i < image->import_count) {
+        ModuleImage* value_73 = image;
+        ModuleImport* value_74 = (void *)0;
+        {
+            ModuleImage* image = value_73;
+            size_t index = i;
+            value_74 = &(image->imports[index]);
+        }
+        ModuleImport* import = value_74;
+        size_t cap = compiler_host_api_FindCapability(bundle, import->module, import->function);
+        size_t value_76 = 0;
+        {
+            size_t value_78 = 0;
+            {
+                size_t zero = 0;
+                value_78 = zero - 1;
+            }
+            value_76 = value_78;
+        }
+        bool value_80 = cap == value_76;
+        if (!value_80) {
+            ModuleImage* value_81 = image;
+            BindingPlan* value_82 = (void *)0;
+            {
+                ModuleImage* image = value_81;
+                size_t index = cap;
+                value_82 = &(image->plans[index]);
+            }
+            value_80 = (((BindingKind)(value_82->kind)) != BindingKind_External);
+        }
+        bool value_84 = value_80;
+        bool value_85 = value_84;
+        if (!value_85) {
+            uint8_t* value_86 = zir_f_4e8972c89764e104_ExecBundleModuleType(image->exec, cap, -1);
+            value_85 = (value_86 == ((void *)0));
+        }
+        bool value_87 = value_85;
+        bool value_88 = value_87;
+        if (!value_88) {
+            String value_89 = StringLiteral("u64");
+            uint8_t* value_90 = (void *)0;
+            {
+                String s = value_89;
+                value_90 = ((StaticText*)(&(s)))->data;
+            }
+            bool value_92 = compiler_host_api_HasType(image, cap, 0, value_90);
+            value_88 = !value_92;
+        }
+        if (value_88) {
+            String value_93 = StringLiteral("invalid ZX module import ABI: %s:%s (expected a leading u64 handle)");
+            uint8_t* value_94 = (void *)0;
+            {
+                String s = value_93;
+                value_94 = ((StaticText*)(&(s)))->data;
+            }
+            return compiler_host_api_Problem(loader, value_94, import->module, import->function, (void *)0, (void *)0);
+        }
+        size_t* value_96 = &(import->capability);
+        (*value_96) = cap;
+        ModuleImage* value_97 = image;
+        BindingPlan* value_98 = (void *)0;
+        {
+            ModuleImage* image = value_97;
+            size_t index = cap;
+            value_98 = &(image->plans[index]);
+        }
+        BindingPlan* plan = value_98;
+        BindingKind* value_100 = &(plan->kind);
+        (*value_100) = BindingKind_Import;
+        size_t* value_101 = &(plan->ordinal);
+        (*value_101) = i;
+        size_t* value_102 = &(plan->parameter);
+        (*value_102) = 0;
+        size_t* value_103 = &(image->external_count);
+        (*value_103) = (*value_103) - 1;
+        i = i + 1;
+    }
+    return 1;
+}
+
+int32_t
+compiler_host_api_ResultParameter(ModuleImage* image, ModuleExport* method)
+{
+    bool value_0 = zir_f_4e8972c89764e104_ExecBundleModuleParameterCount(image->exec, method->result) != 0;
+    int32_t value_1 = 0;
+    if (value_0) {
+        value_1 = 0;
+    } else {
+        value_1 = -1;
+    }
+    return value_1;
+}
+
+int32_t
+compiler_host_api_ImportMismatch(ZxModuleLoader* loader, ModuleImport* import, ModuleImage* provider, ModuleExport* method, uint8_t* what)
+{
+    if (loader != ((void *)0)) {
+        String value_0 = StringLiteral("ZX module import signature mismatch: %s:%s -> %s:%s (%s)");
+        uint8_t* value_1 = (void *)0;
+        {
+            String s = value_0;
+            value_1 = ((StaticText*)(&(s)))->data;
+        }
+        zir_f_4e8972c89764e104_snprintf(&(loader->error[0]), 512, value_1, import->module, import->function, provider->name, method->name, what);
+    }
+    return 0;
+}
+
+int32_t
+compiler_host_api_VerifyImports(ZxModuleLoader* loader, ModuleImage* image)
+{
+    size_t i = 0;
+    while (i < image->import_count) {
+        ModuleImage* value_0 = image;
+        ModuleImport* value_1 = (void *)0;
+        {
+            ModuleImage* image = value_0;
+            size_t index = i;
+            value_1 = &(image->imports[index]);
+        }
+        ModuleImport* import = value_1;
+        ModuleImage* provider = import->require->image;
+        size_t ordinal = compiler_host_api_FindExport(provider, import->name);
+        size_t value_3 = 0;
+        {
+            size_t value_5 = 0;
+            {
+                size_t zero = 0;
+                value_5 = zero - 1;
+            }
+            value_3 = value_5;
+        }
+        if (ordinal == value_3) {
+            String value_7 = StringLiteral("ZX module %s has no export %s");
+            uint8_t* value_8 = (void *)0;
+            {
+                String s = value_7;
+                value_8 = ((StaticText*)(&(s)))->data;
+            }
+            return compiler_host_api_Problem(loader, value_8, provider->name, import->name, (void *)0, (void *)0);
+        }
+        ModuleExport* value_10 = (void *)0;
+        {
+            ModuleImage* image = provider;
+            size_t index = ordinal;
+            value_10 = &(image->exports[index]);
+        }
+        ModuleExport* method = value_10;
+        int32_t count = zir_f_4e8972c89764e104_ExecBundleModuleParameterCount(image->exec, import->capability);
+        if (count < 1 || (size_t)(((int32_t)((uint32_t)count - 1u))) != method->count) {
+            String value_12 = StringLiteral("arity");
+            uint8_t* value_13 = (void *)0;
+            {
+                String s = value_12;
+                value_13 = ((StaticText*)(&(s)))->data;
+            }
+            return compiler_host_api_ImportMismatch(loader, import, provider, method, value_13);
+        }
+        int32_t p = 1;
+        while (p < count) {
+            if (zir_f_4e8972c89764e104_ExecBundleModuleTypeEqual(image->exec, import->capability, p, provider->exec, method->parameters[((int32_t)((uint32_t)p - 1u))], -1) == 0) {
+                uint8_t what[32] = {0};
+                String value_15 = StringLiteral("parameter %d");
+                uint8_t* value_16 = (void *)0;
+                {
+                    String s = value_15;
+                    value_16 = ((StaticText*)(&(s)))->data;
+                }
+                zir_f_4e8972c89764e104_snprintf(&(what[0]), 32, value_16, p);
+                return compiler_host_api_ImportMismatch(loader, import, provider, method, &(what[0]));
+            }
+            p = (int32_t)((uint32_t)p + 1u);
+        }
+        void* value_18 = image->exec;
+        size_t value_19 = import->capability;
+        void* value_20 = provider->exec;
+        size_t value_21 = method->result;
+        if (zir_f_4e8972c89764e104_ExecBundleModuleTypeEqual(value_18, value_19, -1, value_20, value_21, compiler_host_api_ResultParameter(provider, method)) == 0) {
+            String value_22 = StringLiteral("result");
+            uint8_t* value_23 = (void *)0;
+            {
+                String s = value_22;
+                value_23 = ((StaticText*)(&(s)))->data;
+            }
+            return compiler_host_api_ImportMismatch(loader, import, provider, method, value_23);
+        }
+        size_t* value_25 = &(import->ordinal);
+        (*value_25) = ordinal;
+        i = i + 1;
+    }
+    return 1;
+}
+
+bool
+compiler_host_api_HasResolver(ZxModuleLoader* loader)
+{
+    return (void*)(loader->resolve) != ((void *)0);
+}
+
+uint8_t*
+compiler_host_api_CandidatePath(ZxModuleLoader* loader, size_t index, uint8_t* name)
+{
+    uint8_t* root = loader->roots[index];
+    size_t root_length = zir_f_4e8972c89764e104_strlen(root);
+    size_t name_length = zir_f_4e8972c89764e104_strlen(name);
+    uint8_t* path = (void *)0;
+    size_t value_0 = 0;
+    {
+        size_t zero = 0;
+        value_0 = zero - 1;
+    }
+    bool value_2 = name_length <= value_0 - 5;
+    if (value_2) {
+        size_t value_3 = 0;
+        {
+            size_t zero = 0;
+            value_3 = zero - 1;
+        }
+        value_2 = (root_length <= (value_3 - name_length) - 5);
+    }
+    if (value_2) {
+        ZxModuleLoader* value_5 = loader;
+        bool value_6 = false;
+        {
+            ZxModuleLoader* loader = value_5;
+            value_6 = (void*)(loader->resolve) != ((void *)0);
+        }
+        uint8_t* value_8 = (void *)0;
+        if (value_6 && root[(root_length - 1)] == 47) {
+            String value_9 = StringLiteral("");
+            uint8_t* value_10 = (void *)0;
+            {
+                String s = value_9;
+                value_10 = ((StaticText*)(&(s)))->data;
+            }
+            value_8 = value_10;
+        } else {
+            String value_12 = StringLiteral("/");
+            uint8_t* value_13 = (void *)0;
+            {
+                String s = value_12;
+                value_13 = ((StaticText*)(&(s)))->data;
+            }
+            value_8 = value_13;
+        }
+        uint8_t* separator = value_8;
+        size_t length = (root_length + name_length) + 5;
+        path = zir_f_4e8972c89764e104_malloc(length);
+        if (path != ((void *)0)) {
+            String value_15 = StringLiteral("%s%s%s.zx");
+            uint8_t* value_16 = (void *)0;
+            {
+                String s = value_15;
+                value_16 = ((StaticText*)(&(s)))->data;
+            }
+            zir_f_4e8972c89764e104_snprintf(path, length, value_16, root, separator, name);
+        }
+    }
+    if (path == ((void *)0)) {
+        ZxModuleLoader* value_18 = loader;
+        int32_t value_19 = 0;
+        {
+            ZxModuleLoader* loader = value_18;
+            String value_21 = StringLiteral("out of memory in ZX module loader");
+            uint8_t* value_22 = (void *)0;
+            {
+                String s = value_21;
+                value_22 = ((StaticText*)(&(s)))->data;
+            }
+            value_19 = compiler_host_api_Problem(loader, value_22, (void *)0, (void *)0, (void *)0, (void *)0);
+        }
+        (void)value_19;
+    }
+    return path;
+}
+
+uint8_t*
+compiler_host_api_ResolveHostPath(ZxModuleLoader* loader, uint8_t* name)
+{
+    uint8_t* selected = (void *)0;
+    uint64_t selected_device = 0ULL;
+    uint64_t selected_inode = 0ULL;
+    size_t i = 0;
+    while (i < loader->root_count) {
+        if (ZxRunControlRequested(loader->control) != 0) {
+            zir_f_4e8972c89764e104_free(selected);
+            return (void *)0;
+        }
+        uint8_t* path = compiler_host_api_CandidatePath(loader, i, name);
+        if (path == ((void *)0)) {
+            zir_f_4e8972c89764e104_free(selected);
+            return (void *)0;
+        }
+        uint64_t device = 0ULL;
+        uint64_t inode = 0ULL;
+        int32_t regular = 0;
+        int32_t status = zir_f_4e8972c89764e104_FileIdentity(path, &(device), &(inode), &(regular));
+        bool failed = false;
+        if (status < 0) {
+            String value_0 = StringLiteral("cannot resolve ZX module %s at %s");
+            uint8_t* value_1 = (void *)0;
+            {
+                String s = value_0;
+                value_1 = ((StaticText*)(&(s)))->data;
+            }
+            compiler_host_api_Problem(loader, value_1, name, path, (void *)0, (void *)0);
+            failed = true;
+        } else if (status == 0 && regular == 0) {
+            String value_3 = StringLiteral("ZX module candidate is not a regular file: %s");
+            uint8_t* value_4 = (void *)0;
+            {
+                String s = value_3;
+                value_4 = ((StaticText*)(&(s)))->data;
+            }
+            compiler_host_api_Problem(loader, value_4, path, (void *)0, (void *)0, (void *)0);
+            failed = true;
+        } else if (status == 0 && selected != ((void *)0) && (device != selected_device || inode != selected_inode)) {
+            String value_6 = StringLiteral("ambiguous ZX module %s: %s and %s");
+            uint8_t* value_7 = (void *)0;
+            {
+                String s = value_6;
+                value_7 = ((StaticText*)(&(s)))->data;
+            }
+            compiler_host_api_Problem(loader, value_7, name, selected, path, (void *)0);
+            failed = true;
+        }
+        if (failed) {
+            zir_f_4e8972c89764e104_free(path);
+            zir_f_4e8972c89764e104_free(selected);
+            return (void *)0;
+        }
+        if (status == 0 && selected == ((void *)0)) {
+            selected = path;
+            selected_device = device;
+            selected_inode = inode;
+        } else {
+            zir_f_4e8972c89764e104_free(path);
+        }
+        i = i + 1;
+    }
+    if (selected == ((void *)0)) {
+        String value_9 = StringLiteral("ZX module not found: %s");
+        uint8_t* value_10 = (void *)0;
+        {
+            String s = value_9;
+            value_10 = ((StaticText*)(&(s)))->data;
+        }
+        compiler_host_api_Problem(loader, value_10, name, (void *)0, (void *)0, (void *)0);
+    }
+    return selected;
+}
+
+void
+compiler_host_api_ReleaseImage(ZxModuleLoader* loader, ZxModuleImage* image)
+{
+    if ((void*)(image->release) != ((void *)0)) {
+        BundleImageRelease value_0 = image->release;
+        value_0(loader->resolve_context, image->data, image->size);
+    }
+}
+
+Bundle*
+compiler_host_api_VerifyGuestImage(ZxModuleLoader* loader, ZxModuleImage* image, uint8_t* path)
+{
+    if (ZxRunControlRequested(loader->control) != 0) {
+        compiler_host_api_ReleaseImage(loader, image);
+        return (void *)0;
+    }
+    Bundle* bundle = (void *)0;
+    if (image->size <= 268435456) {
+        if ((void*)(image->release) == ((void *)0)) {
+            bundle = BundleOpenBytes(image->data, image->size);
+        } else {
+            bundle = BundleOpenOwnedBytes(image->data, image->size, image->release, loader->resolve_context);
+        }
+    } else {
+        compiler_host_api_ReleaseImage(loader, image);
+    }
+    if (bundle == ((void *)0)) {
+        String value_0 = StringLiteral("cannot open verified ZX module from %s");
+        uint8_t* value_1 = (void *)0;
+        {
+            String s = value_0;
+            value_1 = ((StaticText*)(&(s)))->data;
+        }
+        compiler_host_api_Problem(loader, value_1, path, (void *)0, (void *)0, (void *)0);
+    }
+    return bundle;
+}
+
+Bundle*
+compiler_host_api_ResolveGuestBundle(ZxModuleLoader* loader, uint8_t* name, uint8_t** selected_path)
+{
+    Bundle* selected = (void *)0;
+    size_t i = 0;
+    while (i < loader->root_count) {
+        if (ZxRunControlRequested(loader->control) != 0) {
+            BundleClose(selected);
+            return (void *)0;
+        }
+        uint8_t* path = compiler_host_api_CandidatePath(loader, i, name);
+        if (path == ((void *)0)) {
+            BundleClose(selected);
+            return (void *)0;
+        }
+        bool value_0 = *(selected_path) != ((void *)0);
+        if (value_0 && compiler_host_api_Same(*(selected_path), path)) {
+            zir_f_4e8972c89764e104_free(path);
+            i = i + 1;
+            continue;
+        }
+        ZxModuleImage image = {0};
+        ZxModuleResolve value_1 = loader->resolve;
+        int32_t status = value_1(loader->resolve_context, path, &(image));
+        if (status == 1 && selected == ((void *)0)) {
+            uint8_t** value_2 = &((*(selected_path)));
+            (*value_2) = path;
+            selected = compiler_host_api_VerifyGuestImage(loader, &(image), path);
+            if (selected == ((void *)0)) {
+                return (void *)0;
+            }
+            i = i + 1;
+            continue;
+        }
+        if (status != 0) {
+            if (status == 1) {
+                compiler_host_api_ReleaseImage(loader, &(image));
+                String value_3 = StringLiteral("ambiguous ZX module %s: %s and %s");
+                uint8_t* value_4 = (void *)0;
+                {
+                    String s = value_3;
+                    value_4 = ((StaticText*)(&(s)))->data;
+                }
+                compiler_host_api_Problem(loader, value_4, name, *(selected_path), path, (void *)0);
+            } else {
+                String value_6 = StringLiteral("cannot resolve ZX module %s at %s");
+                uint8_t* value_7 = (void *)0;
+                {
+                    String s = value_6;
+                    value_7 = ((StaticText*)(&(s)))->data;
+                }
+                compiler_host_api_Problem(loader, value_7, name, path, (void *)0, (void *)0);
+            }
+            zir_f_4e8972c89764e104_free(path);
+            BundleClose(selected);
+            return (void *)0;
+        }
+        zir_f_4e8972c89764e104_free(path);
+        i = i + 1;
+    }
+    if (selected == ((void *)0)) {
+        String value_9 = StringLiteral("ZX module not found: %s");
+        uint8_t* value_10 = (void *)0;
+        {
+            String s = value_9;
+            value_10 = ((StaticText*)(&(s)))->data;
+        }
+        compiler_host_api_Problem(loader, value_10, name, (void *)0, (void *)0, (void *)0);
+    }
+    return selected;
+}
+
+void
+compiler_host_api_ImageClose(ModuleImage* image)
+{
+    if (image == ((void *)0)) {
+        return;
+    }
+    compiler_host_api_ImageClear(image);
+    BundleClose(image->bundle);
+    zir_f_4e8972c89764e104_free((uint8_t*)(image));
+}
+
+HostBinding*
+compiler_host_api_LibraryBinding(ZxModuleLoader* loader, Bundle* bundle, size_t capability)
+{
+    uint8_t* module = BundleCapabilityModule(bundle, capability);
+    uint8_t* function = BundleCapabilityFunction(bundle, capability);
+    HostBinding* found = (void *)0;
+    size_t i = 0;
+    while (i < loader->binding_count) {
+        HostBinding* value_0 = loader->bindings;
+        HostBinding* value_1 = (void *)0;
+        {
+            HostBinding* bindings = value_0;
+            size_t index = i;
+            value_1 = (HostBinding*)(((size_t)(bindings) + (index * sizeof(HostBinding))));
+        }
+        HostBinding* binding = value_1;
+        bool value_3 = compiler_host_api_Same(module, binding->module);
+        if (value_3 && compiler_host_api_Same(function, binding->function)) {
+            if (found != ((void *)0)) {
+                return (void *)0;
+            }
+            found = binding;
+        }
+        i = i + 1;
+    }
+    return found;
+}
+
+ModuleImage*
+compiler_host_api_OpenImage(ZxModuleLoader* loader, Bundle* bundle, uint8_t* path, uint8_t* name)
+{
+    if (bundle == ((void *)0)) {
+        return (void *)0;
+    }
+    uint8_t* value_0 = zir_f_4e8972c89764e104_calloc(1, sizeof(ModuleImage));
+    ModuleImage* image = (ModuleImage*)(value_0);
+    if (image == ((void *)0)) {
+        ZxModuleLoader* value_1 = loader;
+        int32_t value_2 = 0;
+        {
+            ZxModuleLoader* loader = value_1;
+            String value_4 = StringLiteral("out of memory in ZX module loader");
+            uint8_t* value_5 = (void *)0;
+            {
+                String s = value_4;
+                value_5 = ((StaticText*)(&(s)))->data;
+            }
+            value_2 = compiler_host_api_Problem(loader, value_5, (void *)0, (void *)0, (void *)0, (void *)0);
+        }
+        (void)value_2;
+        BundleClose(bundle);
+        return (void *)0;
+    }
+    if (compiler_host_api_ImageRead(loader, image, bundle) == 0) {
+        compiler_host_api_ImageClose(image);
+        return (void *)0;
+    }
+    bool value_7 = image->name == ((void *)0);
+    bool value_8 = value_7;
+    if (!value_8) {
+        bool value_9 = compiler_host_api_Same(image->name, name);
+        value_8 = !value_9;
+    }
+    if (value_8) {
+        String value_10 = StringLiteral("ZX module name mismatch at %s: expected %s, found %s");
+        uint8_t* value_11 = (void *)0;
+        {
+            String s = value_10;
+            value_11 = ((StaticText*)(&(s)))->data;
+        }
+        uint8_t* value_13 = (void *)0;
+        if (image->name != ((void *)0)) {
+            value_13 = image->name;
+        } else {
+            String value_14 = StringLiteral("an application");
+            uint8_t* value_15 = (void *)0;
+            {
+                String s = value_14;
+                value_15 = ((StaticText*)(&(s)))->data;
+            }
+            value_13 = value_15;
+        }
+        compiler_host_api_Problem(loader, value_11, path, name, value_13, (void *)0);
+        compiler_host_api_ImageClose(image);
+        return (void *)0;
+    }
+    size_t cap = 0;
+    while (true) {
+        bool value_17 = image->external_count != 0;
+        if (!(value_17 && cap < BundleCapabilityCount(bundle))) { break; }
+        ModuleImage* value_18 = image;
+        BindingPlan* value_19 = (void *)0;
+        {
+            ModuleImage* image = value_18;
+            size_t index = cap;
+            value_19 = &(image->plans[index]);
+        }
+        bool value_21 = ((BindingKind)(value_19->kind)) == BindingKind_External;
+        bool value_22 = value_21;
+        if (value_22) {
+            HostBinding* value_23 = compiler_host_api_LibraryBinding(loader, bundle, cap);
+            value_22 = (value_23 == ((void *)0));
+        }
+        if (value_22) {
+            String value_24 = StringLiteral("ZX module %s needs one loader host binding for %s:%s");
+            uint8_t* value_25 = (void *)0;
+            {
+                String s = value_24;
+                value_25 = ((StaticText*)(&(s)))->data;
+            }
+            uint8_t* value_27 = BundleCapabilityModule(bundle, cap);
+            uint8_t* value_28 = BundleCapabilityFunction(bundle, cap);
+            compiler_host_api_Problem(loader, value_25, name, value_27, value_28, (void *)0);
+            compiler_host_api_ImageClose(image);
+            return (void *)0;
+        }
+        cap = cap + 1;
+    }
+    return image;
+}
+
+uint8_t*
+compiler_host_api_ReadModuleFile(uint8_t* path, ptrdiff_t limit, size_t* size)
+{
+    String value_0 = StringLiteral("rb");
+    uint8_t* value_1 = (void *)0;
+    {
+        String s = value_0;
+        value_1 = ((StaticText*)(&(s)))->data;
+    }
+    void* stream = zir_f_4e8972c89764e104_fopen(path, value_1);
+    if (stream == ((void *)0)) {
+        return (void *)0;
+    }
+    uint8_t* bytes = (void *)0;
+    bool ok = false;
+    if (zir_f_4e8972c89764e104_fseek(stream, 0, 2) == 0) {
+        ptrdiff_t length = zir_f_4e8972c89764e104_ftell(stream);
+        if (length >= 0 && length <= limit && zir_f_4e8972c89764e104_fseek(stream, 0, 0) == 0) {
+            bytes = zir_f_4e8972c89764e104_malloc((size_t)(length) + 1);
+            bool value_3 = bytes != ((void *)0);
+            bool value_4 = value_3 && zir_f_4e8972c89764e104_fread(bytes, 1, (size_t)(length), stream) == (size_t)(length);
+            bool value_5 = value_4;
+            bool value_6 = value_5 && zir_f_4e8972c89764e104_fgetc(stream) < 0;
+            bool value_7 = value_6;
+            if (value_7 && zir_f_4e8972c89764e104_ferror(stream) == 0) {
+                uint8_t* value_8 = &(bytes[length]);
+                (*value_8) = 0;
+                size_t* value_9 = &((*(size)));
+                (*value_9) = (size_t)(length);
+                ok = true;
+            }
+        }
+    }
+    if (zir_f_4e8972c89764e104_fclose(stream) != 0) {
+        ok = false;
+    }
+    if (!ok) {
+        zir_f_4e8972c89764e104_free(bytes);
+        return (void *)0;
+    }
+    return bytes;
+}
+
+Bundle*
+compiler_host_api_OpenPathBundle(ZxModuleLoader* loader, uint8_t* path, uint8_t* name)
+{
+    ZxModuleLoader* value_0 = loader;
+    bool value_1 = false;
+    {
+        ZxModuleLoader* loader = value_0;
+        value_1 = (void*)(loader->resolve) != ((void *)0);
+    }
+    if (value_1) {
+        ZxModuleImage image = {0};
+        ZxModuleResolve value_3 = loader->resolve;
+        int32_t status = value_3(loader->resolve_context, path, &(image));
+        if (status == 1) {
+            return compiler_host_api_VerifyGuestImage(loader, &(image), path);
+        }
+        if (status == 0) {
+            String value_4 = StringLiteral("ZX module not found: %s at %s");
+            uint8_t* value_5 = (void *)0;
+            {
+                String s = value_4;
+                value_5 = ((StaticText*)(&(s)))->data;
+            }
+            compiler_host_api_Problem(loader, value_5, name, path, (void *)0, (void *)0);
+        } else {
+            String value_7 = StringLiteral("cannot resolve ZX module %s at %s");
+            uint8_t* value_8 = (void *)0;
+            {
+                String s = value_7;
+                value_8 = ((StaticText*)(&(s)))->data;
+            }
+            compiler_host_api_Problem(loader, value_8, name, path, (void *)0, (void *)0);
+        }
+        return (void *)0;
+    }
+    size_t size = 0;
+    uint8_t* bytes = compiler_host_api_ReadModuleFile(path, 268435456, &(size));
+    Bundle* bundle = BundleOpenBytes(bytes, size);
+    zir_f_4e8972c89764e104_free(bytes);
+    if (bundle == ((void *)0)) {
+        String value_10 = StringLiteral("cannot open verified ZX module %s from %s");
+        uint8_t* value_11 = (void *)0;
+        {
+            String s = value_10;
+            value_11 = ((StaticText*)(&(s)))->data;
+        }
+        compiler_host_api_Problem(loader, value_11, name, path, (void *)0, (void *)0);
+    }
+    return bundle;
+}
+
+ModuleImage*
+compiler_host_api_OpenLogicalImage(ZxModuleLoader* loader, uint8_t* artifact, uint8_t* name)
+{
+    bool value_0 = compiler_host_api_ValidName(artifact, true);
+    if (!value_0) {
+        String value_1 = StringLiteral("invalid ZX module logical name");
+        uint8_t* value_2 = (void *)0;
+        {
+            String s = value_1;
+            value_2 = ((StaticText*)(&(s)))->data;
+        }
+        compiler_host_api_Problem(loader, value_2, (void *)0, (void *)0, (void *)0, (void *)0);
+        return (void *)0;
+    }
+    uint8_t* path = (void *)0;
+    Bundle* bundle = (void *)0;
+    ZxModuleLoader* value_4 = loader;
+    bool value_5 = false;
+    {
+        ZxModuleLoader* loader = value_4;
+        value_5 = (void*)(loader->resolve) != ((void *)0);
+    }
+    if (value_5) {
+        bundle = compiler_host_api_ResolveGuestBundle(loader, artifact, &(path));
+    } else {
+        path = compiler_host_api_ResolveHostPath(loader, artifact);
+        if (path != ((void *)0)) {
+            bundle = compiler_host_api_OpenPathBundle(loader, path, name);
+        }
+    }
+    ModuleImage* image = compiler_host_api_OpenImage(loader, bundle, path, name);
+    zir_f_4e8972c89764e104_free(path);
+    return image;
+}
+
+ModuleImage*
+compiler_host_api_ResolveImage(ZxModuleLoader* loader, uint8_t* name)
+{
+    ModuleImage* cached = loader->cache;
+    while (cached != ((void *)0)) {
+        if (compiler_host_api_Same(name, cached->name)) {
+            return cached;
+        }
+        cached = cached->next;
+    }
+    ModuleImage* image = compiler_host_api_OpenLogicalImage(loader, name, name);
+    if (image != ((void *)0)) {
+        ModuleImage** value_0 = &(image->next);
+        (*value_0) = loader->cache;
+        ModuleImage** value_1 = &(loader->cache);
+        (*value_1) = image;
+    }
+    return image;
+}
+
+void
+compiler_host_api_RewindCache(ZxModuleLoader* loader, ModuleImage* previous)
+{
+    while (loader->cache != previous) {
+        ModuleImage* image = loader->cache;
+        ModuleImage** value_0 = &(loader->cache);
+        (*value_0) = image->next;
+        compiler_host_api_ImageClose(image);
+    }
+}
+
+int32_t
+compiler_host_api_VerifyGraph(ZxModuleLoader* loader, ModuleImage* root)
+{
+    if (((ImageMark)(root->mark)) == ImageMark_Verified) {
+        return 1;
+    }
+    ModuleImage** stack = (void *)0;
+    size_t count = 0;
+    size_t capacity = 0;
+    void* grown = compiler_host_api_Grow((void*)(stack), &(capacity), sizeof(void *));
+    if (grown == ((void *)0)) {
+        ZxModuleLoader* value_0 = loader;
+        int32_t value_1 = 0;
+        {
+            ZxModuleLoader* loader = value_0;
+            String value_3 = StringLiteral("out of memory in ZX module loader");
+            uint8_t* value_4 = (void *)0;
+            {
+                String s = value_3;
+                value_4 = ((StaticText*)(&(s)))->data;
+            }
+            value_1 = compiler_host_api_Problem(loader, value_4, (void *)0, (void *)0, (void *)0, (void *)0);
+        }
+        return value_1;
+    }
+    stack = (ModuleImage**)(grown);
+    ModuleImage** value_6 = &(stack[0]);
+    (*value_6) = root;
+    count = 1;
+    ImageMark* value_7 = &(root->mark);
+    (*value_7) = ImageMark_Visiting;
+    while (count != 0) {
+        if (ZxRunControlRequested(loader->control) != 0) {
+            break;
+        }
+        ModuleImage* image = stack[(count - 1)];
+        if (image->next_requirement == image->require_count) {
+            if (compiler_host_api_VerifyImports(loader, image) == 0) {
+                break;
+            }
+            ImageMark* value_8 = &(image->mark);
+            (*value_8) = ImageMark_Verified;
+            count = count - 1;
+            continue;
+        }
+        ModuleImage* value_9 = image;
+        size_t value_10 = image->next_requirement;
+        ModuleRequirement* value_11 = (void *)0;
+        {
+            ModuleImage* image = value_9;
+            size_t index = value_10;
+            value_11 = &(image->requires[index]);
+        }
+        ModuleRequirement* edge = value_11;
+        size_t* value_13 = &(image->next_requirement);
+        (*value_13) = (*value_13) + 1;
+        ModuleImage* dependency = compiler_host_api_ResolveImage(loader, edge->name);
+        if (dependency == ((void *)0)) {
+            break;
+        }
+        if (((ImageMark)(dependency->mark)) == ImageMark_Visiting) {
+            String value_14 = StringLiteral("ZX module dependency cycle: %s -> %s");
+            uint8_t* value_15 = (void *)0;
+            {
+                String s = value_14;
+                value_15 = ((StaticText*)(&(s)))->data;
+            }
+            uint8_t* value_17 = (void *)0;
+            if (image->name != ((void *)0)) {
+                value_17 = image->name;
+            } else {
+                String value_18 = StringLiteral("<application>");
+                uint8_t* value_19 = (void *)0;
+                {
+                    String s = value_18;
+                    value_19 = ((StaticText*)(&(s)))->data;
+                }
+                value_17 = value_19;
+            }
+            compiler_host_api_Problem(loader, value_15, value_17, edge->name, (void *)0, (void *)0);
+            break;
+        }
+        ModuleImage** value_21 = &(edge->image);
+        (*value_21) = dependency;
+        if (((ImageMark)(dependency->mark)) == ImageMark_Verified) {
+            continue;
+        }
+        if (count >= capacity) {
+            void* more = compiler_host_api_Grow((void*)(stack), &(capacity), sizeof(void *));
+            if (more == ((void *)0)) {
+                ZxModuleLoader* value_22 = loader;
+                int32_t value_23 = 0;
+                {
+                    ZxModuleLoader* loader = value_22;
+                    String value_25 = StringLiteral("out of memory in ZX module loader");
+                    uint8_t* value_26 = (void *)0;
+                    {
+                        String s = value_25;
+                        value_26 = ((StaticText*)(&(s)))->data;
+                    }
+                    value_23 = compiler_host_api_Problem(loader, value_26, (void *)0, (void *)0, (void *)0, (void *)0);
+                }
+                (void)value_23;
+                break;
+            }
+            stack = (ModuleImage**)(more);
+        }
+        ModuleImage** value_28 = &(stack[count]);
+        (*value_28) = dependency;
+        count = count + 1;
+        ImageMark* value_29 = &(dependency->mark);
+        (*value_29) = ImageMark_Visiting;
+    }
+    int32_t value_30 = 0;
+    if (count == 0) {
+        value_30 = 1;
+    } else {
+        value_30 = 0;
+    }
+    int32_t valid = value_30;
+    while (count != 0) {
+        count = count - 1;
+        ModuleImage* image = stack[count];
+        ImageMark* value_31 = &(image->mark);
+        (*value_31) = ImageMark_Unchecked;
+        size_t* value_32 = &(image->next_requirement);
+        (*value_32) = 0;
+    }
+    zir_f_4e8972c89764e104_free((uint8_t*)(stack));
+    return valid;
+}
+
+BoundModuleHost*
+compiler_host_api_HostAt(ModuleScope* scope, size_t index)
+{
+    return &(scope->hosts[index]);
+}
+
+HostValue*
+compiler_host_api_ArgumentAt(HostValue* values, size_t index)
+{
+    return &(values[index]);
+}
+
+void
+compiler_host_api_BindModuleHost(ModuleScope* scope, HostBinding* binding, size_t cap)
+{
+    ModuleScope* value_0 = scope;
+    BoundModuleHost* value_1 = (void *)0;
+    {
+        ModuleScope* scope = value_0;
+        size_t index = cap;
+        value_1 = &(scope->hosts[index]);
+    }
+    BoundModuleHost* host = value_1;
+    ModuleScope** value_3 = &(host->scope);
+    (*value_3) = scope;
+    BindingPlan** value_4 = &(host->plan);
+    ModuleImage* value_5 = scope->image;
+    BindingPlan* value_6 = (void *)0;
+    {
+        ModuleImage* image = value_5;
+        size_t index = cap;
+        value_6 = &(image->plans[index]);
+    }
+    (*value_4) = value_6;
+    HostCall call = compiler_host_api_BindCall;
+    uint8_t** value_8 = &(binding->module);
+    uint8_t* value_9 = BundleCapabilityModule(scope->image->bundle, cap);
+    (*value_8) = value_9;
+    uint8_t** value_10 = &(binding->function);
+    uint8_t* value_11 = BundleCapabilityFunction(scope->image->bundle, cap);
+    (*value_10) = value_11;
+    void** value_12 = &(binding->call);
+    (*value_12) = (void*)(call);
+    void** value_13 = &(binding->context);
+    (*value_13) = (void*)(host);
+}
+
+bool
+compiler_host_api_ScopeOpen(ModuleScope* scope, HostBinding* external, size_t external_count)
+{
+    ModuleImage* image = scope->image;
+    ZxModuleLoader* loader = scope->loader;
+    size_t count = BundleCapabilityCount(image->bundle);
+    if (external_count != 0 && external == ((void *)0)) {
+        ZxModuleLoader* value_0 = loader;
+        String value_1 = StringLiteral("missing ZX application host binding array");
+        uint8_t* value_2 = (void *)0;
+        {
+            String s = value_1;
+            value_2 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(value_0, value_2, (void *)0, (void *)0, (void *)0, (void *)0) != 0;
+    }
+    size_t value_4 = count;
+    size_t value_5 = 0;
+    {
+        size_t zero = 0;
+        value_5 = zero - 1;
+    }
+    if (value_4 > value_5 - external_count) {
+        ZxModuleLoader* value_7 = loader;
+        int32_t value_8 = 0;
+        {
+            ZxModuleLoader* loader = value_7;
+            String value_10 = StringLiteral("out of memory in ZX module loader");
+            uint8_t* value_11 = (void *)0;
+            {
+                String s = value_10;
+                value_11 = ((StaticText*)(&(s)))->data;
+            }
+            value_8 = compiler_host_api_Problem(loader, value_11, (void *)0, (void *)0, (void *)0, (void *)0);
+        }
+        return value_8 != 0;
+    }
+    size_t capacity = count + external_count;
+    size_t value_13 = 0;
+    if (capacity != 0) {
+        value_13 = capacity;
+    } else {
+        value_13 = 1;
+    }
+    uint8_t* value_14 = zir_f_4e8972c89764e104_calloc(value_13, sizeof(HostBinding));
+    HostBinding* bindings = (HostBinding*)(value_14);
+    BoundModuleHost** value_15 = &(scope->hosts);
+    BoundModuleHost* value_16 = (void *)0;
+    if (count != 0) {
+        uint8_t* value_17 = zir_f_4e8972c89764e104_calloc(count, sizeof(BoundModuleHost));
+        value_16 = (BoundModuleHost*)(value_17);
+    } else {
+        value_16 = (void *)0;
+    }
+    (*value_15) = value_16;
+    if (bindings == ((void *)0) || (count != 0 && scope->hosts == ((void *)0))) {
+        zir_f_4e8972c89764e104_free((uint8_t*)(bindings));
+        ZxModuleLoader* value_18 = loader;
+        int32_t value_19 = 0;
+        {
+            ZxModuleLoader* loader = value_18;
+            String value_21 = StringLiteral("out of memory in ZX module loader");
+            uint8_t* value_22 = (void *)0;
+            {
+                String s = value_21;
+                value_22 = ((StaticText*)(&(s)))->data;
+            }
+            value_19 = compiler_host_api_Problem(loader, value_22, (void *)0, (void *)0, (void *)0, (void *)0);
+        }
+        return value_19 != 0;
+    }
+    if (external_count != 0) {
+        zir_f_4e8972c89764e104_memcpy((uint8_t*)(bindings), (uint8_t*)(external), external_count * sizeof(HostBinding));
+    }
+    size_t used = external_count;
+    size_t i = 0;
+    while (i < count) {
+        ModuleImage* value_24 = image;
+        BindingPlan* value_25 = (void *)0;
+        {
+            ModuleImage* image = value_24;
+            size_t index = i;
+            value_25 = &(image->plans[index]);
+        }
+        if (((BindingKind)(value_25->kind)) != BindingKind_External) {
+            ModuleScope* value_27 = scope;
+            HostBinding* value_28 = bindings;
+            HostBinding* value_29 = (void *)0;
+            {
+                HostBinding* bindings = value_28;
+                size_t index = used;
+                value_29 = (HostBinding*)(((size_t)(bindings) + (index * sizeof(HostBinding))));
+            }
+            compiler_host_api_BindModuleHost(value_27, value_29, i);
+            used = used + 1;
+        } else if (image->name != ((void *)0)) {
+            HostBinding* library = compiler_host_api_LibraryBinding(loader, image->bundle, i);
+            HostBinding* value_31 = bindings;
+            HostBinding* value_32 = (void *)0;
+            {
+                HostBinding* bindings = value_31;
+                size_t index = used;
+                value_32 = (HostBinding*)(((size_t)(bindings) + (index * sizeof(HostBinding))));
+            }
+            HostBinding* target = value_32;
+            HostBinding* value_34 = &((*(target)));
+            (*value_34) = *(library);
+            used = used + 1;
+        }
+        i = i + 1;
+    }
+    int32_t status = 0;
+    BundleInstance** value_35 = &(scope->instance);
+    BundleInstance* value_36 = BundleInstantiateControlled(image->bundle, bindings, used, &(loader->options), loader->write, loader->console_context, loader->control, &(status));
+    (*value_35) = value_36;
+    zir_f_4e8972c89764e104_free((uint8_t*)(bindings));
+    if (status == 0 && (loader->error)[0] == 0) {
+        ZxModuleLoader* value_37 = loader;
+        String value_38 = StringLiteral("ZX module initialization failed: %s");
+        uint8_t* value_39 = (void *)0;
+        {
+            String s = value_38;
+            value_39 = ((StaticText*)(&(s)))->data;
+        }
+        uint8_t* value_41 = (void *)0;
+        if (image->name != ((void *)0)) {
+            value_41 = image->name;
+        } else {
+            uint8_t* value_42 = BundleEntryModuleName(image->bundle);
+            value_41 = value_42;
+        }
+        compiler_host_api_Problem(value_37, value_39, value_41, (void *)0, (void *)0, (void *)0);
+    }
+    return scope->instance != ((void *)0);
+}
+
+void
+compiler_host_api_ScopeClose(ModuleScope* scope)
+{
+    BundleInstanceClose(scope->instance);
+    BundleFreeHostValue(&(scope->result));
+    zir_f_4e8972c89764e104_free((uint8_t*)(scope->hosts));
+    while (scope->children != ((void *)0)) {
+        ModuleSlot* slot = scope->children;
+        ModuleSlot** value_0 = &(scope->children);
+        (*value_0) = slot->next;
+        compiler_host_api_SlotClose(slot);
+    }
+}
+
+void
+compiler_host_api_SlotClose(ModuleSlot* slot)
+{
+    ModuleScope* scope = slot->scope;
+    compiler_host_api_ScopeClose(scope);
+    if (scope->owns_image != 0) {
+        compiler_host_api_ImageClose(scope->image);
+    }
+    zir_f_4e8972c89764e104_free((uint8_t*)(scope));
+    zir_f_4e8972c89764e104_free((uint8_t*)(slot));
+}
+
+ModuleSlot*
+compiler_host_api_FindSlot(ModuleScope* owner, uint64_t handle)
+{
+    if (handle == 0ULL) {
+        return (void *)0;
+    }
+    ModuleSlot* slot = owner->children;
+    while (slot != ((void *)0)) {
+        uint64_t value_0 = slot->handle;
+        if (value_0 == handle) {
+            return slot;
+        }
+        slot = slot->next;
+    }
+    return (void *)0;
+}
+
+int32_t
+compiler_host_api_ReleaseSlot(ModuleScope* owner, uint64_t handle)
+{
+    ModuleSlot* previous = (void *)0;
+    ModuleSlot* slot = owner->children;
+    while (true) {
+        bool value_0 = slot != ((void *)0);
+        if (value_0) {
+            uint64_t value_1 = slot->handle;
+            value_0 = (value_1 != handle);
+        }
+        if (!value_0) { break; }
+        previous = slot;
+        slot = slot->next;
+    }
+    if (slot == ((void *)0) || slot->scope->frame != ((void *)0)) {
+        ZxModuleLoader* value_2 = owner->loader;
+        String value_3 = StringLiteral("invalid, released, or active ZX module handle");
+        uint8_t* value_4 = (void *)0;
+        {
+            String s = value_3;
+            value_4 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(value_2, value_4, (void *)0, (void *)0, (void *)0, (void *)0);
+    }
+    if (previous == ((void *)0)) {
+        ModuleSlot** value_6 = &(owner->children);
+        (*value_6) = slot->next;
+    } else {
+        ModuleSlot** value_7 = &(previous->next);
+        (*value_7) = slot->next;
+    }
+    compiler_host_api_SlotClose(slot);
+    return 1;
+}
+
+uint64_t
+compiler_host_api_NextHandle(void)
+{
+    while (zir_f_4e8972c89764e104_FlagTake((void*)(&(handle_lock))) != 0) {
+    }
+    uint64_t handle = 0ULL;
+    uint64_t last = 0ULL;
+    if (handles_issued != (uint64_t)((uint64_t)last - UINT64_C(1))) {
+        handles_issued = (uint64_t)((uint64_t)handles_issued + UINT64_C(1));
+        handle = handles_issued;
+    }
+    zir_f_4e8972c89764e104_FlagClear((void*)(&(handle_lock)));
+    return handle;
+}
+
+uint64_t
+compiler_host_api_LoadSlot(ModuleScope* owner, ModuleImage* image)
+{
+    if (image == ((void *)0)) {
+        return 0ULL;
+    }
+    ZxModuleLoader* loader = owner->loader;
+    if (loader->depth >= 64) {
+        String value_0 = StringLiteral("ZX module call or initialization depth exceeded");
+        uint8_t* value_1 = (void *)0;
+        {
+            String s = value_0;
+            value_1 = ((StaticText*)(&(s)))->data;
+        }
+        compiler_host_api_Problem(loader, value_1, (void *)0, (void *)0, (void *)0, (void *)0);
+        return 0ULL;
+    }
+    uint8_t* value_3 = zir_f_4e8972c89764e104_calloc(1, sizeof(ModuleSlot));
+    ModuleSlot* slot = (ModuleSlot*)(value_3);
+    uint8_t* value_4 = zir_f_4e8972c89764e104_calloc(1, sizeof(ModuleScope));
+    ModuleScope* scope = (ModuleScope*)(value_4);
+    if (slot == ((void *)0) || scope == ((void *)0)) {
+        zir_f_4e8972c89764e104_free((uint8_t*)(scope));
+        zir_f_4e8972c89764e104_free((uint8_t*)(slot));
+        ZxModuleLoader* value_5 = loader;
+        int32_t value_6 = 0;
+        {
+            ZxModuleLoader* loader = value_5;
+            String value_8 = StringLiteral("out of memory in ZX module loader");
+            uint8_t* value_9 = (void *)0;
+            {
+                String s = value_8;
+                value_9 = ((StaticText*)(&(s)))->data;
+            }
+            value_6 = compiler_host_api_Problem(loader, value_9, (void *)0, (void *)0, (void *)0, (void *)0);
+        }
+        (void)value_6;
+        return 0ULL;
+    }
+    ZxModuleLoader** value_11 = &(scope->loader);
+    (*value_11) = loader;
+    ModuleImage** value_12 = &(scope->image);
+    (*value_12) = image;
+    uint64_t* value_13 = &(slot->handle);
+    uint64_t value_14 = compiler_host_api_NextHandle();
+    (*value_13) = value_14;
+    ModuleScope** value_15 = &(slot->scope);
+    (*value_15) = scope;
+    uint64_t value_16 = slot->handle;
+    if (value_16 == 0ULL) {
+        String value_17 = StringLiteral("ZX module handle space exhausted");
+        uint8_t* value_18 = (void *)0;
+        {
+            String s = value_17;
+            value_18 = ((StaticText*)(&(s)))->data;
+        }
+        compiler_host_api_Problem(loader, value_18, (void *)0, (void *)0, (void *)0, (void *)0);
+        compiler_host_api_SlotClose(slot);
+        return 0ULL;
+    }
+    uint32_t* value_20 = &(loader->depth);
+    (*value_20) = (uint32_t)((uint32_t)((*value_20)) + 1u);
+    bool ok = compiler_host_api_ScopeOpen(scope, (void *)0, 0);
+    uint32_t* value_21 = &(loader->depth);
+    (*value_21) = (uint32_t)((uint32_t)((*value_21)) - 1u);
+    if (!ok) {
+        compiler_host_api_SlotClose(slot);
+        return 0ULL;
+    }
+    ModuleSlot** value_22 = &(slot->next);
+    (*value_22) = owner->children;
+    ModuleSlot** value_23 = &(owner->children);
+    (*value_23) = slot;
+    return slot->handle;
+}
+
+int32_t
+compiler_host_api_CallSlot(ModuleSlot* slot, size_t ordinal, HostValue* args, size_t count, HostValue* result)
+{
+    ModuleScope* scope = slot->scope;
+    ZxModuleLoader* loader = scope->loader;
+    bool value_0 = ordinal >= scope->image->export_count;
+    bool value_1 = value_0;
+    if (!value_1) {
+        size_t value_2 = count;
+        ModuleImage* value_3 = scope->image;
+        ModuleExport* value_4 = (void *)0;
+        {
+            ModuleImage* image = value_3;
+            size_t index = ordinal;
+            value_4 = &(image->exports[index]);
+        }
+        value_1 = (value_2 != value_4->count);
+    }
+    if (value_1 || (count != 0 && args == ((void *)0)) || result == ((void *)0)) {
+        ZxModuleLoader* value_6 = loader;
+        String value_7 = StringLiteral("invalid ZX module export ordinal or argument count");
+        uint8_t* value_8 = (void *)0;
+        {
+            String s = value_7;
+            value_8 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(value_6, value_8, (void *)0, (void *)0, (void *)0, (void *)0);
+    }
+    if (scope->frame != ((void *)0) || loader->depth >= 64) {
+        ZxModuleLoader* value_10 = loader;
+        String value_11 = StringLiteral("ZX module reentry or call depth exceeded");
+        uint8_t* value_12 = (void *)0;
+        {
+            String s = value_11;
+            value_12 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(value_10, value_12, (void *)0, (void *)0, (void *)0, (void *)0);
+    }
+    ModuleFrame frame = {0};
+    size_t* value_14 = &(frame.ordinal);
+    (*value_14) = ordinal;
+    HostValue** value_15 = &(frame.args);
+    (*value_15) = args;
+    HostValue previous = scope->result;
+    zir_f_4e8972c89764e104_memset((uint8_t*)(&(scope->result)), 0, sizeof(HostValue));
+    ModuleFrame** value_16 = &(scope->frame);
+    (*value_16) = &(frame);
+    uint32_t* value_17 = &(loader->depth);
+    (*value_17) = (uint32_t)((uint32_t)((*value_17)) + 1u);
+    int64_t ignored = 0LL;
+    int32_t has_result = 0;
+    int32_t status = BundleInstanceRunControlled(scope->instance, &(ignored), &(has_result), loader->control);
+    uint32_t* value_18 = &(loader->depth);
+    (*value_18) = (uint32_t)((uint32_t)((*value_18)) - 1u);
+    ModuleFrame** value_19 = &(scope->frame);
+    (*value_19) = (void *)0;
+    BundleFreeHostValue(&(previous));
+    if (status != 1 || has_result != 0 || frame.returned == 0) {
+        if (status != 2 && (loader->error)[0] == 0) {
+            ZxModuleLoader* value_20 = loader;
+            String value_21 = StringLiteral("ZX module call failed: %s:%s");
+            uint8_t* value_22 = (void *)0;
+            {
+                String s = value_21;
+                value_22 = ((StaticText*)(&(s)))->data;
+            }
+            uint8_t* value_24 = scope->image->name;
+            ModuleImage* value_25 = scope->image;
+            ModuleExport* value_26 = (void *)0;
+            {
+                ModuleImage* image = value_25;
+                size_t index = ordinal;
+                value_26 = &(image->exports[index]);
+            }
+            uint8_t* value_28 = value_26->name;
+            compiler_host_api_Problem(value_20, value_22, value_24, value_28, (void *)0, (void *)0);
+        }
+        return 0;
+    }
+    HostValue* value_29 = &((*(result)));
+    (*value_29) = scope->result;
+    return 1;
+}
+
+ModuleExport*
+compiler_host_api_SlotExport(ModuleSlot* slot, size_t ordinal)
+{
+    if (slot == ((void *)0) || ordinal >= slot->scope->image->export_count) {
+        return (void *)0;
+    }
+    ModuleImage* value_0 = slot->scope->image;
+    ModuleExport* value_1 = (void *)0;
+    {
+        ModuleImage* image = value_0;
+        size_t index = ordinal;
+        value_1 = &(image->exports[index]);
+    }
+    return value_1;
+}
+
+uint8_t*
+compiler_host_api_ParameterType(ModuleSlot* slot, ModuleExport* method, size_t index)
+{
+    if (method == ((void *)0) || index >= method->count) {
+        return (void *)0;
+    }
+    return zir_f_4e8972c89764e104_ExecBundleModuleType(slot->scope->image->exec, method->parameters[index], -1);
+}
+
+uint8_t*
+compiler_host_api_ResultType(ModuleImage* image, ModuleExport* method)
+{
+    void* value_0 = image->exec;
+    size_t value_1 = method->result;
+    return zir_f_4e8972c89764e104_ExecBundleModuleType(value_0, value_1, compiler_host_api_ResultParameter(image, method));
+}
+
+bool
+compiler_host_api_SameLinkage(ModuleImage* a, ModuleImage* b)
+{
+    if (a->require_count != b->require_count || a->import_count != b->import_count || a->export_count != b->export_count) {
+        return false;
+    }
+    size_t i = 0;
+    while (i < a->require_count) {
+        ModuleRequirement* value_0 = (void *)0;
+        {
+            ModuleImage* image = a;
+            size_t index = i;
+            value_0 = &(image->requires[index]);
+        }
+        ModuleRequirement* left = value_0;
+        ModuleRequirement* value_2 = (void *)0;
+        {
+            ModuleImage* image = b;
+            size_t index = i;
+            value_2 = &(image->requires[index]);
+        }
+        ModuleRequirement* right = value_2;
+        bool value_4 = compiler_host_api_Same(left->interface, right->interface);
+        bool value_5 = !value_4;
+        if (!value_5) {
+            bool value_6 = compiler_host_api_Same(left->name, right->name);
+            value_5 = !value_6;
+        }
+        if (value_5) {
+            return false;
+        }
+        i = i + 1;
+    }
+    i = 0;
+    while (i < a->import_count) {
+        ModuleImport* value_7 = (void *)0;
+        {
+            ModuleImage* image = a;
+            size_t index = i;
+            value_7 = &(image->imports[index]);
+        }
+        ModuleImport* left = value_7;
+        ModuleImport* value_9 = (void *)0;
+        {
+            ModuleImage* image = b;
+            size_t index = i;
+            value_9 = &(image->imports[index]);
+        }
+        ModuleImport* right = value_9;
+        bool value_11 = compiler_host_api_Same(left->module, right->module);
+        bool value_12 = !value_11;
+        if (!value_12) {
+            bool value_13 = compiler_host_api_Same(left->function, right->function);
+            value_12 = !value_13;
+        }
+        bool value_14 = value_12;
+        if (!value_14) {
+            bool value_15 = compiler_host_api_Same(left->interface, right->interface);
+            value_14 = !value_15;
+        }
+        bool value_16 = value_14;
+        if (!value_16) {
+            bool value_17 = compiler_host_api_Same(left->name, right->name);
+            value_16 = !value_17;
+        }
+        if (value_16) {
+            return false;
+        }
+        i = i + 1;
+    }
+    i = 0;
+    while (i < a->export_count) {
+        ModuleExport* value_18 = (void *)0;
+        {
+            ModuleImage* image = a;
+            size_t index = i;
+            value_18 = &(image->exports[index]);
+        }
+        ModuleExport* left = value_18;
+        ModuleExport* value_20 = (void *)0;
+        {
+            ModuleImage* image = b;
+            size_t index = i;
+            value_20 = &(image->exports[index]);
+        }
+        ModuleExport* right = value_20;
+        bool value_22 = compiler_host_api_Same(left->name, right->name);
+        if (!value_22 || left->count != right->count) {
+            return false;
+        }
+        size_t p = 0;
+        while (p < left->count) {
+            if (zir_f_4e8972c89764e104_ExecBundleModuleTypeEqual(a->exec, left->parameters[p], -1, b->exec, right->parameters[p], -1) == 0) {
+                return false;
+            }
+            p = p + 1;
+        }
+        void* value_23 = a->exec;
+        size_t value_24 = left->result;
+        int32_t value_25 = compiler_host_api_ResultParameter(a, left);
+        void* value_26 = b->exec;
+        size_t value_27 = right->result;
+        if (zir_f_4e8972c89764e104_ExecBundleModuleTypeEqual(value_23, value_24, value_25, value_26, value_27, compiler_host_api_ResultParameter(b, right)) == 0) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+int32_t
+compiler_host_api_ReplaceSlot(ModuleSlot* slot, uint8_t* artifact, bool search_roots, BundleStateMigrate migrate, void* context)
+{
+    ModuleScope* old = slot->scope;
+    ZxModuleLoader* loader = old->loader;
+    if (artifact == ((void *)0) || artifact[0] == 0) {
+        String value_0 = StringLiteral("ZX module replacement requires an artifact path");
+        uint8_t* value_1 = (void *)0;
+        {
+            String s = value_0;
+            value_1 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(loader, value_1, (void *)0, (void *)0, (void *)0, (void *)0);
+    }
+    if (old->frame != ((void *)0) || old->children != ((void *)0) || loader->depth >= 64) {
+        String value_3 = StringLiteral("ZX module replacement requires an idle instance without live child handles");
+        uint8_t* value_4 = (void *)0;
+        {
+            String s = value_3;
+            value_4 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(loader, value_4, (void *)0, (void *)0, (void *)0, (void *)0);
+    }
+    uint8_t* name = old->image->name;
+    ModuleImage* image = (void *)0;
+    if (search_roots) {
+        image = compiler_host_api_OpenLogicalImage(loader, artifact, name);
+    } else {
+        image = compiler_host_api_OpenImage(loader, compiler_host_api_OpenPathBundle(loader, artifact, name), artifact, name);
+    }
+    if (image == ((void *)0)) {
+        return 0;
+    }
+    bool value_6 = compiler_host_api_SameLinkage(old->image, image);
+    bool value_7 = !value_6;
+    if (!value_7) {
+        bool value_8 = old->image->external_count != 0 || image->external_count != 0;
+        bool value_9 = value_8 && BundleAbiCompatible(old->image->bundle, image->bundle) == 0;
+        value_7 = value_9;
+    }
+    if (value_7) {
+        compiler_host_api_ImageClose(image);
+        String value_10 = StringLiteral("ZX module replacement has incompatible linkage or export types");
+        uint8_t* value_11 = (void *)0;
+        {
+            String s = value_10;
+            value_11 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(loader, value_11, (void *)0, (void *)0, (void *)0, (void *)0);
+    }
+    ModuleImage* previous = loader->cache;
+    if (compiler_host_api_VerifyGraph(loader, image) == 0) {
+        compiler_host_api_RewindCache(loader, previous);
+        compiler_host_api_ImageClose(image);
+        return 0;
+    }
+    uint8_t* value_13 = zir_f_4e8972c89764e104_calloc(1, sizeof(ModuleScope));
+    ModuleScope* candidate = (ModuleScope*)(value_13);
+    if (candidate == ((void *)0)) {
+        compiler_host_api_ImageClose(image);
+        ZxModuleLoader* value_14 = loader;
+        int32_t value_15 = 0;
+        {
+            ZxModuleLoader* loader = value_14;
+            String value_17 = StringLiteral("out of memory in ZX module loader");
+            uint8_t* value_18 = (void *)0;
+            {
+                String s = value_17;
+                value_18 = ((StaticText*)(&(s)))->data;
+            }
+            value_15 = compiler_host_api_Problem(loader, value_18, (void *)0, (void *)0, (void *)0, (void *)0);
+        }
+        return value_15;
+    }
+    ZxModuleLoader** value_20 = &(candidate->loader);
+    (*value_20) = loader;
+    ModuleImage** value_21 = &(candidate->image);
+    (*value_21) = image;
+    int32_t* value_22 = &(candidate->owns_image);
+    (*value_22) = 1;
+    BundleState* before = (void *)0;
+    BundleState* after = (void *)0;
+    uint8_t* failure = (void *)0;
+    uint32_t* value_23 = &(loader->depth);
+    (*value_23) = (uint32_t)((uint32_t)((*value_23)) + 1u);
+    if (BundleInstanceExportState(old->instance, &(before)) == 0) {
+        String value_24 = StringLiteral("live state is not portable");
+        uint8_t* value_25 = (void *)0;
+        {
+            String s = value_24;
+            value_25 = ((StaticText*)(&(s)))->data;
+        }
+        failure = value_25;
+    } else {
+        bool value_27 = compiler_host_api_ScopeOpen(candidate, (void *)0, 0);
+        if (!value_27) {
+            String value_28 = StringLiteral("candidate initialization failed");
+            uint8_t* value_29 = (void *)0;
+            {
+                String s = value_28;
+                value_29 = ((StaticText*)(&(s)))->data;
+            }
+            failure = value_29;
+        } else if (candidate->children != ((void *)0)) {
+            String value_31 = StringLiteral("candidate initialization left live child handles");
+            uint8_t* value_32 = (void *)0;
+            {
+                String s = value_31;
+                value_32 = ((StaticText*)(&(s)))->data;
+            }
+            failure = value_32;
+        } else if ((void*)(migrate) == ((void *)0)) {
+            if (BundleInstanceImportState(candidate->instance, before) == 0) {
+                String value_34 = StringLiteral("existing state has no compatible replacement storage");
+                uint8_t* value_35 = (void *)0;
+                {
+                    String s = value_34;
+                    value_35 = ((StaticText*)(&(s)))->data;
+                }
+                failure = value_35;
+            }
+        } else {
+            bool value_37 = BundleInstanceExportState(candidate->instance, &(after)) == 0;
+            bool value_38 = value_37;
+            if (!value_38) {
+                BundleStateMigrate value_39 = migrate;
+                bool value_40 = value_39(context, before, after) == 0;
+                value_38 = value_40;
+            }
+            if (value_38 || BundleInstanceImportState(candidate->instance, after) == 0) {
+                String value_41 = StringLiteral("state migration failed");
+                uint8_t* value_42 = (void *)0;
+                {
+                    String s = value_41;
+                    value_42 = ((StaticText*)(&(s)))->data;
+                }
+                failure = value_42;
+            }
+        }
+    }
+    uint32_t* value_44 = &(loader->depth);
+    (*value_44) = (uint32_t)((uint32_t)((*value_44)) - 1u);
+    BundleStateClose(before);
+    BundleStateClose(after);
+    if (failure != ((void *)0)) {
+        compiler_host_api_ScopeClose(candidate);
+        compiler_host_api_ImageClose(image);
+        zir_f_4e8972c89764e104_free((uint8_t*)(candidate));
+        String value_45 = StringLiteral("ZX module replacement refused: %s");
+        uint8_t* value_46 = (void *)0;
+        {
+            String s = value_45;
+            value_46 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(loader, value_46, failure, (void *)0, (void *)0, (void *)0);
+    }
+    ModuleScope** value_48 = &(slot->scope);
+    (*value_48) = candidate;
+    compiler_host_api_ScopeClose(old);
+    if (old->owns_image != 0) {
+        compiler_host_api_ImageClose(old->image);
+    }
+    zir_f_4e8972c89764e104_free((uint8_t*)(old));
+    return 1;
+}
+
+void
+compiler_host_api_SetNumber(HostValue* result, uint64_t number)
+{
+    HostKind* value_0 = &(result->kind);
+    uint8_t* value_1 = result->type;
+    String value_2 = StringLiteral("u64");
+    uint8_t* value_3 = (void *)0;
+    {
+        String s = value_2;
+        value_3 = ((StaticText*)(&(s)))->data;
+    }
+    bool value_5 = compiler_host_api_Same(value_1, value_3);
+    HostKind value_6 = (HostKind)(0);
+    if (value_5) {
+        value_6 = HostKind_Unsigned;
+    } else {
+        value_6 = HostKind_Integer;
+    }
+    (*value_0) = value_6;
+    uint64_t* value_7 = &(result->bits);
+    (*value_7) = number;
+    int64_t* value_8 = &(result->integer);
+    (*value_8) = (int64_t)(number);
+}
+
+void
+compiler_host_api_SetText(HostValue* result, uint8_t* text)
+{
+    HostKind* value_0 = &(result->kind);
+    (*value_0) = HostKind_String;
+    uint8_t** value_1 = &(result->data);
+    (*value_1) = text;
+    size_t* value_2 = &(result->length);
+    size_t value_3 = 0;
+    if (text != ((void *)0)) {
+        size_t value_4 = zir_f_4e8972c89764e104_strlen(text);
+        value_3 = value_4;
+    } else {
+        value_3 = 0;
+    }
+    (*value_2) = value_3;
+}
+
+uint8_t*
+compiler_host_api_ReadText(HostValue* value)
+{
+    bool value_0 = value->length == 0;
+    bool value_1 = value_0;
+    if (!value_1) {
+        size_t value_2 = value->length;
+        size_t value_3 = 0;
+        {
+            size_t zero = 0;
+            value_3 = zero - 1;
+        }
+        value_1 = (value_2 == value_3);
+    }
+    bool value_5 = value_1;
+    bool value_6 = value_5;
+    if (!value_6) {
+        uint8_t* value_7 = zir_f_4e8972c89764e104_memchr(value->data, 0, value->length);
+        value_6 = (value_7 != ((void *)0));
+    }
+    if (value_6) {
+        return (void *)0;
+    }
+    uint8_t* text = zir_f_4e8972c89764e104_malloc(value->length + 1);
+    if (text != ((void *)0)) {
+        zir_f_4e8972c89764e104_memcpy(text, value->data, value->length);
+        uint8_t* value_8 = &(text[value->length]);
+        (*value_8) = 0;
+    }
+    return text;
+}
+
+int32_t
+compiler_host_api_ServiceCall(ModuleScope* scope, BindingKind kind, HostValue* args, HostValue* result)
+{
+    ZxModuleLoader* loader = scope->loader;
+    if (kind == BindingKind_Problem) {
+        compiler_host_api_SetText(result, &(loader->error[0]));
+        return 1;
+    }
+    if (kind == BindingKind_Load) {
+        uint8_t* name = compiler_host_api_ReadText(args);
+        ModuleRequirement* value_0 = (void *)0;
+        if (name != ((void *)0)) {
+            ModuleRequirement* value_1 = compiler_host_api_FindRequirement(scope->image, name);
+            value_0 = value_1;
+        } else {
+            value_0 = (void *)0;
+        }
+        ModuleRequirement* require = value_0;
+        if (require == ((void *)0)) {
+            ZxModuleLoader* value_2 = loader;
+            String value_3 = StringLiteral("undeclared ZX module interface: %s");
+            uint8_t* value_4 = (void *)0;
+            {
+                String s = value_3;
+                value_4 = ((StaticText*)(&(s)))->data;
+            }
+            uint8_t* value_6 = (void *)0;
+            if (name != ((void *)0)) {
+                value_6 = name;
+            } else {
+                String value_7 = StringLiteral("<invalid>");
+                uint8_t* value_8 = (void *)0;
+                {
+                    String s = value_7;
+                    value_8 = ((StaticText*)(&(s)))->data;
+                }
+                value_6 = value_8;
+            }
+            compiler_host_api_Problem(value_2, value_4, value_6, (void *)0, (void *)0, (void *)0);
+        }
+        uint64_t value_10 = 0;
+        if (require != ((void *)0)) {
+            uint64_t value_11 = compiler_host_api_LoadSlot(scope, require->image);
+            value_10 = value_11;
+        } else {
+            value_10 = 0ULL;
+        }
+        uint64_t handle = value_10;
+        zir_f_4e8972c89764e104_free(name);
+        HostValue* value_12 = result;
+        {
+            HostValue* result = value_12;
+            uint64_t number = handle;
+            HostKind* value_14 = &(result->kind);
+            uint8_t* value_15 = result->type;
+            String value_16 = StringLiteral("u64");
+            uint8_t* value_17 = (void *)0;
+            {
+                String s = value_16;
+                value_17 = ((StaticText*)(&(s)))->data;
+            }
+            bool value_19 = compiler_host_api_Same(value_15, value_17);
+            HostKind value_20 = (HostKind)(0);
+            if (value_19) {
+                value_20 = HostKind_Unsigned;
+            } else {
+                value_20 = HostKind_Integer;
+            }
+            (*value_14) = value_20;
+            uint64_t* value_21 = &(result->bits);
+            (*value_21) = number;
+            int64_t* value_22 = &(result->integer);
+            (*value_22) = (int64_t)(number);
+        }
+        return 1;
+    }
+    uint64_t handle = (args[0]).bits;
+    if (kind == BindingKind_Release) {
+        HostValue* value_23 = result;
+        int32_t value_24 = compiler_host_api_ReleaseSlot(scope, handle);
+        uint64_t value_25 = (uint64_t)(value_24);
+        {
+            HostValue* result = value_23;
+            uint64_t number = value_25;
+            HostKind* value_27 = &(result->kind);
+            uint8_t* value_28 = result->type;
+            String value_29 = StringLiteral("u64");
+            uint8_t* value_30 = (void *)0;
+            {
+                String s = value_29;
+                value_30 = ((StaticText*)(&(s)))->data;
+            }
+            bool value_32 = compiler_host_api_Same(value_28, value_30);
+            HostKind value_33 = (HostKind)(0);
+            if (value_32) {
+                value_33 = HostKind_Unsigned;
+            } else {
+                value_33 = HostKind_Integer;
+            }
+            (*value_27) = value_33;
+            uint64_t* value_34 = &(result->bits);
+            (*value_34) = number;
+            int64_t* value_35 = &(result->integer);
+            (*value_35) = (int64_t)(number);
+        }
+        return 1;
+    }
+    ModuleSlot* slot = compiler_host_api_FindSlot(scope, handle);
+    if (slot == ((void *)0)) {
+        ZxModuleLoader* value_36 = loader;
+        String value_37 = StringLiteral("invalid or released ZX module handle");
+        uint8_t* value_38 = (void *)0;
+        {
+            String s = value_37;
+            value_38 = ((StaticText*)(&(s)))->data;
+        }
+        compiler_host_api_Problem(value_36, value_38, (void *)0, (void *)0, (void *)0, (void *)0);
+    }
+    if (kind == BindingKind_Replace) {
+        HostValue* value_40 = (void *)0;
+        {
+            HostValue* values = args;
+            size_t index = 1;
+            value_40 = &(values[index]);
+        }
+        uint8_t* name = compiler_host_api_ReadText(value_40);
+        BundleStateMigrate none = (BundleStateMigrate)(((void *)0));
+        bool value_42 = slot != ((void *)0);
+        bool ok = value_42 && compiler_host_api_ReplaceSlot(slot, name, true, none, (void *)0) != 0;
+        HostValue* value_43 = result;
+        uint64_t value_44 = 0;
+        if (ok) {
+            value_44 = 1ULL;
+        } else {
+            value_44 = 0ULL;
+        }
+        {
+            HostValue* result = value_43;
+            uint64_t number = value_44;
+            HostKind* value_46 = &(result->kind);
+            uint8_t* value_47 = result->type;
+            String value_48 = StringLiteral("u64");
+            uint8_t* value_49 = (void *)0;
+            {
+                String s = value_48;
+                value_49 = ((StaticText*)(&(s)))->data;
+            }
+            bool value_51 = compiler_host_api_Same(value_47, value_49);
+            HostKind value_52 = (HostKind)(0);
+            if (value_51) {
+                value_52 = HostKind_Unsigned;
+            } else {
+                value_52 = HostKind_Integer;
+            }
+            (*value_46) = value_52;
+            uint64_t* value_53 = &(result->bits);
+            (*value_53) = number;
+            int64_t* value_54 = &(result->integer);
+            (*value_54) = (int64_t)(number);
+        }
+        zir_f_4e8972c89764e104_free(name);
+    } else if (kind == BindingKind_ExportCount) {
+        HostValue* value_55 = result;
+        uint64_t value_56 = 0;
+        if (slot != ((void *)0)) {
+            value_56 = (uint64_t)(slot->scope->image->export_count);
+        } else {
+            value_56 = 0ULL;
+        }
+        {
+            HostValue* result = value_55;
+            uint64_t number = value_56;
+            HostKind* value_58 = &(result->kind);
+            uint8_t* value_59 = result->type;
+            String value_60 = StringLiteral("u64");
+            uint8_t* value_61 = (void *)0;
+            {
+                String s = value_60;
+                value_61 = ((StaticText*)(&(s)))->data;
+            }
+            bool value_63 = compiler_host_api_Same(value_59, value_61);
+            HostKind value_64 = (HostKind)(0);
+            if (value_63) {
+                value_64 = HostKind_Unsigned;
+            } else {
+                value_64 = HostKind_Integer;
+            }
+            (*value_58) = value_64;
+            uint64_t* value_65 = &(result->bits);
+            (*value_65) = number;
+            int64_t* value_66 = &(result->integer);
+            (*value_66) = (int64_t)(number);
+        }
+    } else {
+        ModuleSlot* value_67 = slot;
+        size_t value_68 = (size_t)((args[1]).integer);
+        ModuleExport* value_69 = (void *)0;
+        {
+            ModuleSlot* slot = value_67;
+            size_t ordinal = value_68;
+            if (slot == ((void *)0) || ordinal >= slot->scope->image->export_count) {
+                value_69 = (void *)0;
+                goto value_70;
+            }
+            ModuleImage* value_71 = slot->scope->image;
+            ModuleExport* value_72 = (void *)0;
+            {
+                ModuleImage* image = value_71;
+                size_t index = ordinal;
+                value_72 = &(image->exports[index]);
+            }
+            value_69 = value_72;
+        value_70: ;
+        }
+        ModuleExport* method = value_69;
+        if (kind == BindingKind_ExportName) {
+            uint8_t* value_74 = (void *)0;
+            if (method != ((void *)0)) {
+                value_74 = method->name;
+            } else {
+                value_74 = (void *)0;
+            }
+            compiler_host_api_SetText(result, value_74);
+        }
+        if (kind == BindingKind_ParameterCount) {
+            HostValue* value_75 = result;
+            uint64_t value_76 = 0;
+            if (method != ((void *)0)) {
+                value_76 = (uint64_t)(method->count);
+            } else {
+                value_76 = 0ULL;
+            }
+            {
+                HostValue* result = value_75;
+                uint64_t number = value_76;
+                HostKind* value_78 = &(result->kind);
+                uint8_t* value_79 = result->type;
+                String value_80 = StringLiteral("u64");
+                uint8_t* value_81 = (void *)0;
+                {
+                    String s = value_80;
+                    value_81 = ((StaticText*)(&(s)))->data;
+                }
+                bool value_83 = compiler_host_api_Same(value_79, value_81);
+                HostKind value_84 = (HostKind)(0);
+                if (value_83) {
+                    value_84 = HostKind_Unsigned;
+                } else {
+                    value_84 = HostKind_Integer;
+                }
+                (*value_78) = value_84;
+                uint64_t* value_85 = &(result->bits);
+                (*value_85) = number;
+                int64_t* value_86 = &(result->integer);
+                (*value_86) = (int64_t)(number);
+            }
+        }
+        if (kind == BindingKind_ParameterType) {
+            HostValue* value_87 = result;
+            compiler_host_api_SetText(value_87, compiler_host_api_ParameterType(slot, method, (size_t)((args[2]).integer)));
+        }
+        if (kind == BindingKind_ResultType) {
+            HostValue* value_88 = result;
+            uint8_t* value_89 = (void *)0;
+            if (method != ((void *)0)) {
+                uint8_t* value_90 = compiler_host_api_ResultType(slot->scope->image, method);
+                value_89 = value_90;
+            } else {
+                value_89 = (void *)0;
+            }
+            compiler_host_api_SetText(value_88, value_89);
+        }
+    }
+    return 1;
+}
+
+int32_t
+compiler_host_api_BindCall(void* context, uint8_t* module, uint8_t* function, HostValue* args, int32_t count, HostValue* result)
+{
+    BoundModuleHost* host = (BoundModuleHost*)(context);
+    ModuleScope* scope = host->scope;
+    BindingPlan* plan = host->plan;
+    if (((BindingKind)(plan->kind)) == BindingKind_Import) {
+        ModuleImage* value_0 = scope->image;
+        size_t value_1 = plan->ordinal;
+        ModuleImport* value_2 = (void *)0;
+        {
+            ModuleImage* image = value_0;
+            size_t index = value_1;
+            value_2 = &(image->imports[index]);
+        }
+        ModuleImport* import = value_2;
+        ModuleSlot* slot = compiler_host_api_FindSlot(scope, (args[0]).bits);
+        bool value_4 = slot == ((void *)0);
+        bool value_5 = value_4;
+        if (!value_5) {
+            bool value_6 = compiler_host_api_Same(slot->scope->image->name, import->require->name);
+            value_5 = !value_6;
+        }
+        if (value_5) {
+            ZxModuleLoader* value_7 = scope->loader;
+            String value_8 = StringLiteral("invalid ZX module handle for %s:%s (expected %s)");
+            uint8_t* value_9 = (void *)0;
+            {
+                String s = value_8;
+                value_9 = ((StaticText*)(&(s)))->data;
+            }
+            return compiler_host_api_Problem(value_7, value_9, module, function, import->require->name, (void *)0);
+        }
+        ModuleSlot* value_11 = slot;
+        size_t value_12 = import->ordinal;
+        HostValue* value_13 = (void *)0;
+        {
+            HostValue* values = args;
+            size_t index = 1;
+            value_13 = &(values[index]);
+        }
+        return compiler_host_api_CallSlot(value_11, value_12, value_13, (size_t)(count) - 1, result);
+    }
+    if ((int32_t)(((BindingKind)(plan->kind))) >= (int32_t)(BindingKind_Load)) {
+        return compiler_host_api_ServiceCall(scope, (BindingKind)(plan->kind), args, result);
+    }
+    ModuleFrame* frame = scope->frame;
+    if (frame != ((void *)0) && frame->returned == 0) {
+        if (((BindingKind)(plan->kind)) == BindingKind_Select && frame->selected == 0) {
+            int32_t* value_15 = &(frame->selected);
+            (*value_15) = 1;
+            HostValue* value_16 = result;
+            uint64_t value_17 = (uint64_t)(frame->ordinal);
+            {
+                HostValue* result = value_16;
+                uint64_t number = value_17;
+                HostKind* value_19 = &(result->kind);
+                uint8_t* value_20 = result->type;
+                String value_21 = StringLiteral("u64");
+                uint8_t* value_22 = (void *)0;
+                {
+                    String s = value_21;
+                    value_22 = ((StaticText*)(&(s)))->data;
+                }
+                bool value_24 = compiler_host_api_Same(value_20, value_22);
+                HostKind value_25 = (HostKind)(0);
+                if (value_24) {
+                    value_25 = HostKind_Unsigned;
+                } else {
+                    value_25 = HostKind_Integer;
+                }
+                (*value_19) = value_25;
+                uint64_t* value_26 = &(result->bits);
+                (*value_26) = number;
+                int64_t* value_27 = &(result->integer);
+                (*value_27) = (int64_t)(number);
+            }
+            return 1;
+        }
+        if (frame->selected != 0 && frame->ordinal == plan->ordinal) {
+            if (((BindingKind)(plan->kind)) == BindingKind_Argument && frame->next_argument == plan->parameter) {
+                HostValue* value_28 = frame->args;
+                size_t value_29 = frame->next_argument;
+                HostValue* value_30 = (void *)0;
+                {
+                    HostValue* values = value_28;
+                    size_t index = value_29;
+                    value_30 = &(values[index]);
+                }
+                HostValue* argument = value_30;
+                HostValue* value_32 = &((*(result)));
+                (*value_32) = *(argument);
+                size_t* value_33 = &(frame->next_argument);
+                (*value_33) = (*value_33) + 1;
+                return 1;
+            }
+            bool value_34 = ((BindingKind)(plan->kind)) == BindingKind_Result;
+            bool value_35 = value_34;
+            if (value_35) {
+                size_t value_36 = frame->next_argument;
+                ModuleImage* value_37 = scope->image;
+                size_t value_38 = frame->ordinal;
+                ModuleExport* value_39 = (void *)0;
+                {
+                    ModuleImage* image = value_37;
+                    size_t index = value_38;
+                    value_39 = &(image->exports[index]);
+                }
+                value_35 = (value_36 == value_39->count);
+            }
+            if (value_35) {
+                HostValue empty = {0};
+                HostKind* value_41 = &(empty.kind);
+                (*value_41) = HostKind_Void;
+                uint8_t** value_42 = &(empty.type);
+                String value_43 = StringLiteral("void");
+                uint8_t* value_44 = (void *)0;
+                {
+                    String s = value_43;
+                    value_44 = ((StaticText*)(&(s)))->data;
+                }
+                (*value_42) = value_44;
+                int32_t* value_46 = &(frame->returned);
+                HostValue* value_47 = (void *)0;
+                if (count == 0) {
+                    value_47 = &(empty);
+                } else {
+                    value_47 = args;
+                }
+                int32_t value_48 = BundleCopyHostValue(value_47, &(scope->result));
+                (*value_46) = value_48;
+                if (frame->returned != 0) {
+                    return 1;
+                }
+                ZxModuleLoader* value_49 = scope->loader;
+                String value_50 = StringLiteral("cannot copy ZX module result");
+                uint8_t* value_51 = (void *)0;
+                {
+                    String s = value_50;
+                    value_51 = ((StaticText*)(&(s)))->data;
+                }
+                return compiler_host_api_Problem(value_49, value_51, (void *)0, (void *)0, (void *)0, (void *)0);
+            }
+        }
+    }
+    ZxModuleLoader* value_53 = scope->loader;
+    String value_54 = StringLiteral("ZX module called dispatch service out of sequence: %s");
+    uint8_t* value_55 = (void *)0;
+    {
+        String s = value_54;
+        value_55 = ((StaticText*)(&(s)))->data;
+    }
+    return compiler_host_api_Problem(value_53, value_55, function, (void *)0, (void *)0, (void *)0);
+}
+
+uint8_t*
+ZxModuleLoaderError(ZxModuleLoader* loader)
+{
+    uint8_t* value_0 = (void *)0;
+    if (loader != ((void *)0)) {
+        value_0 = &(loader->error[0]);
+    } else {
+        String value_1 = StringLiteral("ZX module loader unavailable");
+        uint8_t* value_2 = (void *)0;
+        {
+            String s = value_1;
+            value_2 = ((StaticText*)(&(s)))->data;
+        }
+        value_0 = value_2;
+    }
+    return value_0;
+}
+
+ZxModuleLoader*
+ZxModuleLoaderOpen(uint8_t** roots, size_t count, BundleInstanceOptions* options)
+{
+    return ZxModuleLoaderOpenWithBindings(roots, count, options, (void *)0, 0);
+}
+
+ZxModuleLoader*
+ZxModuleLoaderOpenWithBindings(uint8_t** roots, size_t count, BundleInstanceOptions* options, HostBinding* bindings, size_t binding_count)
+{
+    ZxModuleLoaderConfig config = {0};
+    uint8_t*** value_0 = &(config.roots);
+    (*value_0) = roots;
+    size_t* value_1 = &(config.root_count);
+    (*value_1) = count;
+    if (options != ((void *)0)) {
+        BundleInstanceOptions* value_2 = &(config.options);
+        (*value_2) = *(options);
+    }
+    HostBinding** value_3 = &(config.library_bindings);
+    (*value_3) = bindings;
+    size_t* value_4 = &(config.library_binding_count);
+    (*value_4) = binding_count;
+    return ZxModuleLoaderOpenConfigured(&(config));
+}
+
+ZxModuleLoader*
+ZxModuleLoaderOpenConfigured(ZxModuleLoaderConfig* config)
+{
+    if (config == ((void *)0)) {
+        return (void *)0;
+    }
+    size_t count = config->root_count;
+    size_t binding_count = config->library_binding_count;
+    uint8_t** roots = config->roots;
+    HostBinding* bindings = config->library_bindings;
+    if ((count != 0 && roots == ((void *)0)) || (binding_count != 0 && bindings == ((void *)0))) {
+        return (void *)0;
+    }
+    size_t i = 0;
+    while (i < binding_count) {
+        HostBinding* value_0 = bindings;
+        HostBinding* value_1 = (void *)0;
+        {
+            HostBinding* bindings = value_0;
+            size_t index = i;
+            value_1 = (HostBinding*)(((size_t)(bindings) + (index * sizeof(HostBinding))));
+        }
+        HostBinding* binding = value_1;
+        if (binding->module == ((void *)0) || binding->function == ((void *)0) || binding->call == ((void *)0)) {
+            return (void *)0;
+        }
+        i = i + 1;
+    }
+    uint8_t* value_3 = zir_f_4e8972c89764e104_calloc(1, sizeof(ZxModuleLoader));
+    ZxModuleLoader* loader = (ZxModuleLoader*)(value_3);
+    if (loader == ((void *)0)) {
+        return (void *)0;
+    }
+    ZxModuleLoader** value_4 = &(loader->root.loader);
+    (*value_4) = loader;
+    HostBinding** value_5 = &(loader->bindings);
+    (*value_5) = bindings;
+    size_t* value_6 = &(loader->binding_count);
+    (*value_6) = binding_count;
+    BundleInstanceOptions* value_7 = &(loader->options);
+    (*value_7) = config->options;
+    ZxModuleResolve* value_8 = &(loader->resolve);
+    (*value_8) = config->resolve;
+    void** value_9 = &(loader->resolve_context);
+    (*value_9) = config->resolve_context;
+    BundleConsoleWrite* value_10 = &(loader->write);
+    (*value_10) = config->write;
+    void** value_11 = &(loader->console_context);
+    (*value_11) = config->console_context;
+    if (count != 0) {
+        uint8_t*** value_12 = &(loader->roots);
+        uint8_t* value_13 = zir_f_4e8972c89764e104_calloc(count, sizeof(void *));
+        (*value_12) = (uint8_t**)(value_13);
+        if (loader->roots == ((void *)0)) {
+            ZxModuleLoaderClose(loader);
+            return (void *)0;
+        }
+    }
+    while (loader->root_count < count) {
+        uint8_t* root = roots[loader->root_count];
+        uint8_t* value_14 = (void *)0;
+        if (root != ((void *)0) && root[0] != 0) {
+            uint8_t* value_15 = zir_f_4e8972c89764e104_strdup(root);
+            value_14 = value_15;
+        } else {
+            value_14 = (void *)0;
+        }
+        uint8_t* copy = value_14;
+        if (copy == ((void *)0)) {
+            ZxModuleLoaderClose(loader);
+            return (void *)0;
+        }
+        uint8_t** value_16 = &(loader->roots[loader->root_count]);
+        (*value_16) = copy;
+        size_t* value_17 = &(loader->root_count);
+        (*value_17) = (*value_17) + 1;
+    }
+    return loader;
+}
+
+void
+ZxModuleLoaderClose(ZxModuleLoader* loader)
+{
+    if (loader == ((void *)0)) {
+        return;
+    }
+    compiler_host_api_ScopeClose(&(loader->root));
+    compiler_host_api_RewindCache(loader, (void *)0);
+    size_t i = 0;
+    while (i < loader->root_count) {
+        zir_f_4e8972c89764e104_free(loader->roots[i]);
+        i = i + 1;
+    }
+    zir_f_4e8972c89764e104_free((uint8_t*)(loader->roots));
+    zir_f_4e8972c89764e104_free((uint8_t*)(loader));
+}
+
+int32_t
+ZxModuleProgramNeedsLoader(Bundle* bundle)
+{
+    void* exec = BundleVerifiedExec(bundle);
+    if (exec == ((void *)0)) {
+        return 0;
+    }
+    size_t length = 0;
+    zir_f_4e8972c89764e104_ExecBundleModuleLinkage(exec, &(length));
+    bool value_0 = length != 0;
+    if (value_0 || zir_f_4e8972c89764e104_ExecBundleModuleEntry(exec) != 0) {
+        return 1;
+    }
+    size_t i = 0;
+    while (i < BundleCapabilityCount(bundle)) {
+        uint8_t* module = BundleCapabilityModule(bundle, i);
+        String value_1 = StringLiteral("__zx_module_dispatch");
+        uint8_t* value_2 = (void *)0;
+        {
+            String s = value_1;
+            value_2 = ((StaticText*)(&(s)))->data;
+        }
+        bool value_4 = compiler_host_api_Same(module, value_2);
+        bool value_5 = value_4;
+        if (!value_5) {
+            ModuleService* value_6 = compiler_host_api_ModuleServiceFor(module, BundleCapabilityFunction(bundle, i));
+            value_5 = (value_6 != ((void *)0));
+        }
+        if (value_5) {
+            return 1;
+        }
+        i = i + 1;
+    }
+    return 0;
+}
+
+int32_t
+ZxModuleProgramHasExternalHosts(Bundle* bundle)
+{
+    if (ZxModuleProgramNeedsLoader(bundle) == 0) {
+        bool value_0 = BundleCapabilityCount(bundle) != 0;
+        int32_t value_1 = 0;
+        if (value_0) {
+            value_1 = 1;
+        } else {
+            value_1 = 0;
+        }
+        return value_1;
+    }
+    ModuleImage image = {0};
+    bool value_2 = compiler_host_api_ImageRead((void *)0, &(image), bundle) != 0;
+    bool external = value_2 && image.external_count != 0;
+    compiler_host_api_ImageClear(&(image));
+    int32_t value_3 = 0;
+    if (external) {
+        value_3 = 1;
+    } else {
+        value_3 = 0;
+    }
+    return value_3;
+}
+
+ZxModuleProgram*
+compiler_host_api_ProgramOpen(ZxModuleLoader* loader, Bundle* bundle, HostBinding* bindings, size_t count)
+{
+    uint8_t* value_0 = zir_f_4e8972c89764e104_calloc(1, sizeof(ZxModuleProgram));
+    ZxModuleProgram* program = (ZxModuleProgram*)(value_0);
+    if (program == ((void *)0)) {
+        ZxModuleLoader* value_1 = loader;
+        int32_t value_2 = 0;
+        {
+            ZxModuleLoader* loader = value_1;
+            String value_4 = StringLiteral("out of memory in ZX module loader");
+            uint8_t* value_5 = (void *)0;
+            {
+                String s = value_4;
+                value_5 = ((StaticText*)(&(s)))->data;
+            }
+            value_2 = compiler_host_api_Problem(loader, value_5, (void *)0, (void *)0, (void *)0, (void *)0);
+        }
+        (void)value_2;
+        return (void *)0;
+    }
+    ZxModuleLoader** value_7 = &(program->scope.loader);
+    (*value_7) = loader;
+    ModuleImage** value_8 = &(program->scope.image);
+    (*value_8) = &(program->image);
+    bool ok = compiler_host_api_ImageRead(loader, &(program->image), bundle) != 0;
+    if (ok && program->image.name != ((void *)0)) {
+        ZxModuleLoader* value_9 = loader;
+        String value_10 = StringLiteral("cannot run ZX library %s as an application");
+        uint8_t* value_11 = (void *)0;
+        {
+            String s = value_10;
+            value_11 = ((StaticText*)(&(s)))->data;
+        }
+        compiler_host_api_Problem(value_9, value_11, program->image.name, (void *)0, (void *)0, (void *)0);
+        ok = false;
+    }
+    if (ok) {
+        ModuleImage* previous = loader->cache;
+        bool value_13 = compiler_host_api_VerifyGraph(loader, &(program->image)) == 0;
+        if (value_13 || ZxRunControlRequested(loader->control) != 0) {
+            compiler_host_api_RewindCache(loader, previous);
+            ok = false;
+        }
+    }
+    if (ok) {
+        ok = compiler_host_api_ScopeOpen(&(program->scope), bindings, count);
+    }
+    if (!ok) {
+        ZxModuleProgramClose(program);
+        return (void *)0;
+    }
+    return program;
+}
+
+ZxModuleProgram*
+ZxModuleProgramOpen(ZxModuleLoader* loader, Bundle* bundle, HostBinding* bindings, size_t count)
+{
+    return ZxModuleProgramOpenControlled(loader, bundle, bindings, count, (void *)0, (void *)0);
+}
+
+ZxModuleProgram*
+ZxModuleProgramOpenControlled(ZxModuleLoader* loader, Bundle* bundle, HostBinding* bindings, size_t count, ZxRunControl* control, int32_t* status)
+{
+    if (status != ((void *)0)) {
+        int32_t* value_0 = &((*(status)));
+        (*value_0) = 0;
+    }
+    if (loader == ((void *)0) || bundle == ((void *)0)) {
+        return (void *)0;
+    }
+    uint8_t* value_1 = &(loader->error[0]);
+    (*value_1) = 0;
+    ZxRunControl* previous = loader->control;
+    ZxRunControl* value_2 = (void *)0;
+    if (control != ((void *)0)) {
+        value_2 = control;
+    } else {
+        value_2 = previous;
+    }
+    ZxRunControl* chosen = value_2;
+    if (chosen != ((void *)0) && loader->options.backend != 1) {
+        String value_3 = StringLiteral("ZX run cancellation requires the instruction engine");
+        uint8_t* value_4 = (void *)0;
+        {
+            String s = value_3;
+            value_4 = ((StaticText*)(&(s)))->data;
+        }
+        compiler_host_api_Problem(loader, value_4, (void *)0, (void *)0, (void *)0, (void *)0);
+        return (void *)0;
+    }
+    ZxRunControl** value_6 = &(loader->control);
+    (*value_6) = chosen;
+    ZxModuleProgram* program = (void *)0;
+    if (ZxRunControlRequested(chosen) == 0) {
+        program = compiler_host_api_ProgramOpen(loader, bundle, bindings, count);
+    }
+    if (ZxRunControlRequested(chosen) != 0) {
+        ZxModuleProgramClose(program);
+        program = (void *)0;
+        uint8_t* value_7 = &(loader->error[0]);
+        (*value_7) = 0;
+        if (status != ((void *)0)) {
+            int32_t* value_8 = &((*(status)));
+            (*value_8) = 2;
+        }
+    } else if (program != ((void *)0) && status != ((void *)0)) {
+        int32_t* value_9 = &((*(status)));
+        (*value_9) = 1;
+    }
+    ZxRunControl** value_10 = &(loader->control);
+    (*value_10) = previous;
+    return program;
+}
+
+int32_t
+ZxModuleProgramRun(ZxModuleProgram* program, int64_t* result, int32_t* has_result)
+{
+    bool value_0 = ZxModuleProgramRunControlled(program, result, has_result, (void *)0) == 1;
+    int32_t value_1 = 0;
+    if (value_0) {
+        value_1 = 1;
+    } else {
+        value_1 = 0;
+    }
+    return value_1;
+}
+
+int32_t
+ZxModuleProgramRunControlled(ZxModuleProgram* program, int64_t* result, int32_t* has_result, ZxRunControl* control)
+{
+    if (program == ((void *)0)) {
+        return 0;
+    }
+    ZxModuleLoader* loader = program->scope.loader;
+    uint8_t* value_0 = &(loader->error[0]);
+    (*value_0) = 0;
+    ZxRunControl* previous = loader->control;
+    ZxRunControl* value_1 = (void *)0;
+    if (control != ((void *)0)) {
+        value_1 = control;
+    } else {
+        value_1 = previous;
+    }
+    ZxRunControl* chosen = value_1;
+    if (chosen != ((void *)0) && loader->options.backend != 1) {
+        String value_2 = StringLiteral("ZX run cancellation requires the instruction engine");
+        uint8_t* value_3 = (void *)0;
+        {
+            String s = value_2;
+            value_3 = ((StaticText*)(&(s)))->data;
+        }
+        compiler_host_api_Problem(loader, value_3, (void *)0, (void *)0, (void *)0, (void *)0);
+        return 0;
+    }
+    ZxRunControl** value_5 = &(loader->control);
+    (*value_5) = chosen;
+    int64_t ignored_result = 0LL;
+    int32_t ignored_has_result = 0;
+    int64_t* value_6 = (void *)0;
+    if (result != ((void *)0)) {
+        value_6 = result;
+    } else {
+        value_6 = &(ignored_result);
+    }
+    int32_t* value_7 = (void *)0;
+    if (has_result != ((void *)0)) {
+        value_7 = has_result;
+    } else {
+        value_7 = &(ignored_has_result);
+    }
+    int32_t status = BundleInstanceRunControlled(program->scope.instance, value_6, value_7, chosen);
+    ZxRunControl** value_8 = &(loader->control);
+    (*value_8) = previous;
+    if (status == 2) {
+        uint8_t* value_9 = &(loader->error[0]);
+        (*value_9) = 0;
+    }
+    return status;
+}
+
+int32_t
+ZxModuleProgramBorrowHostString(ZxModuleProgram* program, uint8_t* module, uint8_t* function, size_t parameter)
+{
+    if (program == ((void *)0)) {
+        return 0;
+    }
+    bool value_0 = BundleInstanceBorrowHostString(program->scope.instance, module, function, parameter) != 0;
+    int32_t value_1 = 0;
+    if (value_0) {
+        value_1 = 1;
+    } else {
+        value_1 = 0;
+    }
+    return value_1;
+}
+
+int32_t
+ZxModuleProgramBorrowHostSlice(ZxModuleProgram* program, uint8_t* module, uint8_t* function, size_t parameter)
+{
+    if (program == ((void *)0)) {
+        return 0;
+    }
+    bool value_0 = BundleInstanceBorrowHostSlice(program->scope.instance, module, function, parameter) != 0;
+    int32_t value_1 = 0;
+    if (value_0) {
+        value_1 = 1;
+    } else {
+        value_1 = 0;
+    }
+    return value_1;
+}
+
+int32_t
+ZxModuleProgramBackend(ZxModuleProgram* program)
+{
+    int32_t value_0 = 0;
+    if (program != ((void *)0)) {
+        int32_t value_1 = BundleInstanceBackend(program->scope.instance);
+        value_0 = value_1;
+    } else {
+        value_0 = 0;
+    }
+    return value_0;
+}
+
+void
+ZxModuleProgramClose(ZxModuleProgram* program)
+{
+    if (program == ((void *)0)) {
+        return;
+    }
+    compiler_host_api_ScopeClose(&(program->scope));
+    compiler_host_api_ImageClear(&(program->image));
+    zir_f_4e8972c89764e104_free((uint8_t*)(program));
+}
+
+uint64_t
+ZxModuleLoad(ZxModuleLoader* loader, uint8_t* name)
+{
+    if (loader == ((void *)0)) {
+        return 0ULL;
+    }
+    uint8_t* value_0 = &(loader->error[0]);
+    (*value_0) = 0;
+    bool value_1 = compiler_host_api_ValidName(name, true);
+    if (!value_1) {
+        ZxModuleLoader* value_2 = loader;
+        String value_3 = StringLiteral("invalid ZX module logical name");
+        uint8_t* value_4 = (void *)0;
+        {
+            String s = value_3;
+            value_4 = ((StaticText*)(&(s)))->data;
+        }
+        int32_t value_6 = compiler_host_api_Problem(value_2, value_4, (void *)0, (void *)0, (void *)0, (void *)0);
+        return (uint64_t)(value_6);
+    }
+    ModuleImage* previous = loader->cache;
+    ModuleImage* image = compiler_host_api_ResolveImage(loader, name);
+    bool value_7 = image == ((void *)0);
+    if (value_7 || compiler_host_api_VerifyGraph(loader, image) == 0) {
+        compiler_host_api_RewindCache(loader, previous);
+        return 0ULL;
+    }
+    return compiler_host_api_LoadSlot(&(loader->root), image);
+}
+
+int32_t
+ZxModuleRelease(ZxModuleLoader* loader, uint64_t handle)
+{
+    if (loader == ((void *)0)) {
+        return 0;
+    }
+    uint8_t* value_0 = &(loader->error[0]);
+    (*value_0) = 0;
+    return compiler_host_api_ReleaseSlot(&(loader->root), handle);
+}
+
+ModuleSlot*
+compiler_host_api_RootSlot(ZxModuleLoader* loader, uint64_t handle)
+{
+    ModuleSlot* value_0 = (void *)0;
+    if (loader != ((void *)0)) {
+        ModuleSlot* value_1 = compiler_host_api_FindSlot(&(loader->root), handle);
+        value_0 = value_1;
+    } else {
+        value_0 = (void *)0;
+    }
+    return value_0;
+}
+
+size_t
+ZxModuleExportCount(ZxModuleLoader* loader, uint64_t handle)
+{
+    ZxModuleLoader* value_0 = loader;
+    uint64_t value_1 = handle;
+    ModuleSlot* value_2 = (void *)0;
+    {
+        ZxModuleLoader* loader = value_0;
+        uint64_t handle = value_1;
+        ModuleSlot* value_4 = (void *)0;
+        if (loader != ((void *)0)) {
+            ModuleSlot* value_5 = compiler_host_api_FindSlot(&(loader->root), handle);
+            value_4 = value_5;
+        } else {
+            value_4 = (void *)0;
+        }
+        value_2 = value_4;
+    }
+    ModuleSlot* slot = value_2;
+    size_t value_6 = 0;
+    if (slot != ((void *)0)) {
+        value_6 = slot->scope->image->export_count;
+    } else {
+        value_6 = 0;
+    }
+    return value_6;
+}
+
+uint8_t*
+ZxModuleExportName(ZxModuleLoader* loader, uint64_t handle, size_t ordinal)
+{
+    ZxModuleLoader* value_0 = loader;
+    uint64_t value_1 = handle;
+    ModuleSlot* value_2 = (void *)0;
+    {
+        ZxModuleLoader* loader = value_0;
+        uint64_t handle = value_1;
+        ModuleSlot* value_4 = (void *)0;
+        if (loader != ((void *)0)) {
+            ModuleSlot* value_5 = compiler_host_api_FindSlot(&(loader->root), handle);
+            value_4 = value_5;
+        } else {
+            value_4 = (void *)0;
+        }
+        value_2 = value_4;
+    }
+    size_t value_6 = ordinal;
+    ModuleExport* value_7 = (void *)0;
+    {
+        ModuleSlot* slot = value_2;
+        size_t ordinal = value_6;
+        if (slot == ((void *)0) || ordinal >= slot->scope->image->export_count) {
+            value_7 = (void *)0;
+            goto value_8;
+        }
+        ModuleImage* value_9 = slot->scope->image;
+        ModuleExport* value_10 = (void *)0;
+        {
+            ModuleImage* image = value_9;
+            size_t index = ordinal;
+            value_10 = &(image->exports[index]);
+        }
+        value_7 = value_10;
+    value_8: ;
+    }
+    ModuleExport* method = value_7;
+    uint8_t* value_12 = (void *)0;
+    if (method != ((void *)0)) {
+        value_12 = method->name;
+    } else {
+        value_12 = (void *)0;
+    }
+    return value_12;
+}
+
+size_t
+ZxModuleParameterCount(ZxModuleLoader* loader, uint64_t handle, size_t ordinal)
+{
+    ZxModuleLoader* value_0 = loader;
+    uint64_t value_1 = handle;
+    ModuleSlot* value_2 = (void *)0;
+    {
+        ZxModuleLoader* loader = value_0;
+        uint64_t handle = value_1;
+        ModuleSlot* value_4 = (void *)0;
+        if (loader != ((void *)0)) {
+            ModuleSlot* value_5 = compiler_host_api_FindSlot(&(loader->root), handle);
+            value_4 = value_5;
+        } else {
+            value_4 = (void *)0;
+        }
+        value_2 = value_4;
+    }
+    size_t value_6 = ordinal;
+    ModuleExport* value_7 = (void *)0;
+    {
+        ModuleSlot* slot = value_2;
+        size_t ordinal = value_6;
+        if (slot == ((void *)0) || ordinal >= slot->scope->image->export_count) {
+            value_7 = (void *)0;
+            goto value_8;
+        }
+        ModuleImage* value_9 = slot->scope->image;
+        ModuleExport* value_10 = (void *)0;
+        {
+            ModuleImage* image = value_9;
+            size_t index = ordinal;
+            value_10 = &(image->exports[index]);
+        }
+        value_7 = value_10;
+    value_8: ;
+    }
+    ModuleExport* method = value_7;
+    size_t value_12 = 0;
+    if (method != ((void *)0)) {
+        value_12 = method->count;
+    } else {
+        value_12 = 0;
+    }
+    return value_12;
+}
+
+uint8_t*
+ZxModuleParameterType(ZxModuleLoader* loader, uint64_t handle, size_t ordinal, size_t index)
+{
+    ZxModuleLoader* value_0 = loader;
+    uint64_t value_1 = handle;
+    ModuleSlot* value_2 = (void *)0;
+    {
+        ZxModuleLoader* loader = value_0;
+        uint64_t handle = value_1;
+        ModuleSlot* value_4 = (void *)0;
+        if (loader != ((void *)0)) {
+            ModuleSlot* value_5 = compiler_host_api_FindSlot(&(loader->root), handle);
+            value_4 = value_5;
+        } else {
+            value_4 = (void *)0;
+        }
+        value_2 = value_4;
+    }
+    ModuleSlot* slot = value_2;
+    ModuleSlot* value_6 = slot;
+    size_t value_7 = ordinal;
+    ModuleExport* value_8 = (void *)0;
+    {
+        ModuleSlot* slot = value_6;
+        size_t ordinal = value_7;
+        if (slot == ((void *)0) || ordinal >= slot->scope->image->export_count) {
+            value_8 = (void *)0;
+            goto value_9;
+        }
+        ModuleImage* value_10 = slot->scope->image;
+        ModuleExport* value_11 = (void *)0;
+        {
+            ModuleImage* image = value_10;
+            size_t index = ordinal;
+            value_11 = &(image->exports[index]);
+        }
+        value_8 = value_11;
+    value_9: ;
+    }
+    return compiler_host_api_ParameterType(slot, value_8, index);
+}
+
+uint8_t*
+ZxModuleResultType(ZxModuleLoader* loader, uint64_t handle, size_t ordinal)
+{
+    ZxModuleLoader* value_0 = loader;
+    uint64_t value_1 = handle;
+    ModuleSlot* value_2 = (void *)0;
+    {
+        ZxModuleLoader* loader = value_0;
+        uint64_t handle = value_1;
+        ModuleSlot* value_4 = (void *)0;
+        if (loader != ((void *)0)) {
+            ModuleSlot* value_5 = compiler_host_api_FindSlot(&(loader->root), handle);
+            value_4 = value_5;
+        } else {
+            value_4 = (void *)0;
+        }
+        value_2 = value_4;
+    }
+    ModuleSlot* slot = value_2;
+    ModuleSlot* value_6 = slot;
+    size_t value_7 = ordinal;
+    ModuleExport* value_8 = (void *)0;
+    {
+        ModuleSlot* slot = value_6;
+        size_t ordinal = value_7;
+        if (slot == ((void *)0) || ordinal >= slot->scope->image->export_count) {
+            value_8 = (void *)0;
+            goto value_9;
+        }
+        ModuleImage* value_10 = slot->scope->image;
+        ModuleExport* value_11 = (void *)0;
+        {
+            ModuleImage* image = value_10;
+            size_t index = ordinal;
+            value_11 = &(image->exports[index]);
+        }
+        value_8 = value_11;
+    value_9: ;
+    }
+    ModuleExport* method = value_8;
+    uint8_t* value_13 = (void *)0;
+    if (method != ((void *)0)) {
+        uint8_t* value_14 = compiler_host_api_ResultType(slot->scope->image, method);
+        value_13 = value_14;
+    } else {
+        value_13 = (void *)0;
+    }
+    return value_13;
+}
+
+int32_t
+ZxModuleCall(ZxModuleLoader* loader, uint64_t handle, size_t ordinal, HostValue* args, size_t count, HostValue* result)
+{
+    if (loader == ((void *)0)) {
+        return 0;
+    }
+    uint8_t* value_0 = &(loader->error[0]);
+    (*value_0) = 0;
+    ModuleSlot* slot = compiler_host_api_FindSlot(&(loader->root), handle);
+    if (slot == ((void *)0)) {
+        ZxModuleLoader* value_1 = loader;
+        String value_2 = StringLiteral("invalid or released ZX module handle");
+        uint8_t* value_3 = (void *)0;
+        {
+            String s = value_2;
+            value_3 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(value_1, value_3, (void *)0, (void *)0, (void *)0, (void *)0);
+    }
+    return compiler_host_api_CallSlot(slot, ordinal, args, count, result);
+}
+
+int32_t
+ZxModuleReplace(ZxModuleLoader* loader, uint64_t handle, uint8_t* path, BundleStateMigrate migrate, void* context)
+{
+    if (loader == ((void *)0)) {
+        return 0;
+    }
+    uint8_t* value_0 = &(loader->error[0]);
+    (*value_0) = 0;
+    ModuleSlot* slot = compiler_host_api_FindSlot(&(loader->root), handle);
+    if (slot == ((void *)0)) {
+        ZxModuleLoader* value_1 = loader;
+        String value_2 = StringLiteral("invalid or released ZX module handle");
+        uint8_t* value_3 = (void *)0;
+        {
+            String s = value_2;
+            value_3 = ((StaticText*)(&(s)))->data;
+        }
+        return compiler_host_api_Problem(value_1, value_3, (void *)0, (void *)0, (void *)0, (void *)0);
+    }
+    return compiler_host_api_ReplaceSlot(slot, path, false, migrate, context);
 }
 
 uint8_t*

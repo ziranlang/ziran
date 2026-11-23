@@ -324,7 +324,7 @@ SIMD_DIR ?= $(BUILD_DIR)/simd
 SIMD_HEADERS := $(SIMD_DIR)/ziran_simd_ops.h $(SIMD_DIR)/ziran_simd_types.h $(SIMD_DIR)/zir_simd_go_bodies.h
 HEADERS += $(SIMD_HEADERS)
 override CFLAGS += -I$(SIMD_DIR)
-LIB_SOURCES := $(FRONTEND) cmd/zir/zir_native_memory.c cmd/zir/zir_zx_module.c
+LIB_SOURCES := $(FRONTEND) cmd/zir/zir_native_memory.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
@@ -915,7 +915,7 @@ $(call obj,cmd/zir/zir_memory.c): $(FRONTEND_SUPPORT_HEADERS) $(call compiler-po
 
 # The embedding API (include/ziran_host.h): one module read from two files,
 # linked into libziran beside the engine, native and wasm layers it calls.
-$(eval $(call compiler-port-rules,host_api,,cmd/compiler_host_api_state.zi))
+$(eval $(call compiler-port-rules,host_api,,cmd/compiler_host_api_state.zi cmd/compiler_host_api_linkage.zi cmd/compiler_host_api_modules.zi))
 
 # Inline assembly: one module read from three source files.
 $(eval $(call compiler-port-rules,inline_asm,$(IR_READY) $(NATIVE_NAMES_READY),$(GO_PORT_IMPORTS) \

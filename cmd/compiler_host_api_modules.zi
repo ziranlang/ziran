@@ -1,0 +1,793 @@
+// The hosted ZX module runtime of include/ziran_zx_module.h, second half:
+// the loader, application programs, library instances behind handles,
+// export calls through the dispatcher, hot replacement and the runtime
+// services a module imports. compiler_host_api_linkage.zi reads images.
+
+FlagTake :: (flag: *void) -> s32 #foreign compiler "S15FlagTake";
+FlagClear :: (flag: *void) #foreign compiler "S15FlagClear";
+
+// include/ziran_zx_module.h's ZxModuleResolveResult.
+IMAGE_MISSING :: 0
+IMAGE_FOUND :: 1
+IMAGE_ERROR :: 2
+
+ZxModuleImage :: struct {
+    data: *u8
+    size: usize
+    release: BundleImageRelease
+}
+ZxModuleResolve :: #type (context: *void, path: *u8, image: *ZxModuleImage) -> s32 #c_call;
+HostCall :: #type (context: *void, module: *u8, function: *u8, args: *HostValue, count: s32, result: *HostValue) -> s32 #c_call;
+
+ZxModuleLoaderConfig :: struct {
+    roots: **u8
+    root_count: usize
+    options: BundleInstanceOptions
+    library_bindings: *HostBinding
+    library_binding_count: usize
+    resolve: ZxModuleResolve
+    resolve_context: *void
+    write: BundleConsoleWrite
+    console_context: *void
+}
+
+// The call of an export in progress: the dispatcher selects it, reads its
+// arguments in order and returns its result.
+ModuleFrame :: struct {
+    ordinal: usize
+    next_argument: usize
+    args: *HostValue
+    selected: s32
+    returned: s32
+}
+
+// One running image: an application or a library instance.
+ModuleScope :: struct {
+    loader: *ZxModuleLoader
+    image: *ModuleImage
+    instance: *BundleInstance
+    hosts: *BoundModuleHost
+    children: *ModuleSlot
+    frame: *ModuleFrame
+    result: HostValue
+    owns_image: s32
+}
+
+BoundModuleHost :: struct {
+    scope: *ModuleScope
+    plan: *BindingPlan
+}
+
+ModuleSlot :: struct {
+    handle: u64
+    scope: *ModuleScope
+    next: *ModuleSlot
+}
+
+ZxModuleProgram :: struct {
+    image: ModuleImage
+    scope: ModuleScope
+}
+
+ZxModuleLoader :: struct {
+    cache: *ModuleImage
+    root: ModuleScope
+    roots: **u8
+    root_count: usize
+    bindings: *HostBinding
+    binding_count: usize
+    options: BundleInstanceOptions
+    resolve: ZxModuleResolve
+    resolve_context: *void
+    write: BundleConsoleWrite
+    console_context: *void
+    // Installed only on the calling thread, for a synchronous operation.
+    control: *ZxRunControl
+    depth: u32
+    error: [512]u8
+}
+
+// Instance nesting a call or an initialization may reach.
+MODULE_DEPTH :: 64
+
+// Handles are unique across loaders and threads.
+handle_lock: u8;
+handles_issued: u64;
+
+HostAt :: (scope: *ModuleScope, index: usize) -> *BoundModuleHost { return *scope.hosts[index] }
+ArgumentAt :: (values: *HostValue, index: usize) -> *HostValue { return *values[index] }
+
+// Binds a capability of IMAGE to this runtime unless the plan leaves it to
+// a loader or application binding.
+BindModuleHost :: (scope: *ModuleScope, binding: *HostBinding, cap: usize) {
+    host := HostAt(scope, cap)
+    host.scope = scope
+    host.plan = PlanAt(scope.image, cap)
+    call: HostCall = BindCall
+    binding.module = BundleCapabilityModule(scope.image.bundle, cap)
+    binding.function = BundleCapabilityFunction(scope.image.bundle, cap)
+    binding.call = cast(*void)call
+    binding.context = cast(*void)host
+}
+
+// Instantiates SCOPE's image: EXTERNAL application bindings first, then
+// loader bindings for a library's external hosts, then this runtime.
+ScopeOpen :: (scope: *ModuleScope, external: *HostBinding, external_count: usize) -> bool {
+    image := scope.image
+    loader := scope.loader
+    count := BundleCapabilityCount(image.bundle)
+    if external_count != 0 && external == null { return Problem(loader, CStr("missing ZX application host binding array")) != 0 }
+    if count > SizeMax() - external_count { return MemoryProblem(loader) != 0 }
+    capacity := count + external_count
+    bindings := cast(*HostBinding)calloc(ifx capacity != 0 then capacity else 1, size_of(HostBinding))
+    scope.hosts = ifx count != 0 then cast(*BoundModuleHost)calloc(count, size_of(BoundModuleHost)) else null
+    if bindings == null || (count != 0 && scope.hosts == null) {
+        free(cast(*u8)bindings)
+        return MemoryProblem(loader) != 0
+    }
+    if external_count != 0 { unused memcpy(cast(*u8)bindings, cast(*u8)external, external_count * size_of(HostBinding)) }
+    used := external_count
+    i: usize = 0
+    while i < count {
+        if PlanAt(image, i).kind != .External {
+            BindModuleHost(scope, BindingAt(bindings, used), i)
+            used += 1
+        } else if image.name != null {
+            library := LibraryBinding(loader, image.bundle, i)
+            target := BindingAt(bindings, used)
+            <<target = <<library
+            used += 1
+        }
+        i += 1
+    }
+    status: s32 = RUN_ERROR
+    scope.instance = BundleInstantiateControlled(image.bundle, bindings, used, *loader.options, loader.write,
+                                                 loader.console_context, loader.control, *status)
+    free(cast(*u8)bindings)
+    if status == RUN_ERROR && loader.error[0] == 0 {
+        unused Problem(loader, CStr("ZX module initialization failed: %s"),
+                       ifx image.name != null then image.name else BundleEntryModuleName(image.bundle))
+    }
+    return scope.instance != null
+}
+
+ScopeClose :: (scope: *ModuleScope) {
+    BundleInstanceClose(scope.instance)
+    BundleFreeHostValue(*scope.result)
+    free(cast(*u8)scope.hosts)
+    while scope.children != null {
+        slot := scope.children
+        scope.children = slot.next
+        SlotClose(slot)
+    }
+}
+
+SlotClose :: (slot: *ModuleSlot) {
+    scope := slot.scope
+    ScopeClose(scope)
+    if scope.owns_image != 0 { ImageClose(scope.image) }
+    free(cast(*u8)scope)
+    free(cast(*u8)slot)
+}
+
+FindSlot :: (owner: *ModuleScope, handle: u64) -> *ModuleSlot {
+    if handle == 0 { return null }
+    slot := owner.children
+    while slot != null {
+        if slot.handle == handle { return slot }
+        slot = slot.next
+    }
+    return null
+}
+
+ReleaseSlot :: (owner: *ModuleScope, handle: u64) -> s32 {
+    previous: *ModuleSlot = null
+    slot := owner.children
+    while slot != null && slot.handle != handle {
+        previous = slot
+        slot = slot.next
+    }
+    if slot == null || slot.scope.frame != null { return Problem(owner.loader, CStr("invalid, released, or active ZX module handle")) }
+    if previous == null { owner.children = slot.next } else { previous.next = slot.next }
+    SlotClose(slot)
+    return 1
+}
+
+// A fresh nonzero handle, or 0 once they run out.
+NextHandle :: () -> u64 {
+    while FlagTake(cast(*void)*handle_lock) != 0 {}
+    handle: u64 = 0
+    last: u64 = 0
+    if handles_issued != last - 1 {
+        handles_issued += 1
+        handle = handles_issued
+    }
+    FlagClear(cast(*void)*handle_lock)
+    return handle
+}
+
+// A new instance of IMAGE owned by OWNER: its handle, or 0.
+LoadSlot :: (owner: *ModuleScope, image: *ModuleImage) -> u64 {
+    if image == null { return 0 }
+    loader := owner.loader
+    if loader.depth >= MODULE_DEPTH {
+        unused Problem(loader, CStr("ZX module call or initialization depth exceeded"))
+        return 0
+    }
+    slot := cast(*ModuleSlot)calloc(1, size_of(ModuleSlot))
+    scope := cast(*ModuleScope)calloc(1, size_of(ModuleScope))
+    if slot == null || scope == null {
+        free(cast(*u8)scope)
+        free(cast(*u8)slot)
+        unused MemoryProblem(loader)
+        return 0
+    }
+    scope.loader = loader
+    scope.image = image
+    slot.handle = NextHandle()
+    slot.scope = scope
+    if slot.handle == 0 {
+        unused Problem(loader, CStr("ZX module handle space exhausted"))
+        SlotClose(slot)
+        return 0
+    }
+    loader.depth += 1
+    ok := ScopeOpen(scope, null, 0)
+    loader.depth -= 1
+    if !ok {
+        SlotClose(slot)
+        return 0
+    }
+    slot.next = owner.children
+    owner.children = slot
+    return slot.handle
+}
+
+// Runs export ORDINAL of SLOT's instance with ARGS.
+CallSlot :: (slot: *ModuleSlot, ordinal: usize, args: *HostValue, count: usize, result: *HostValue) -> s32 {
+    scope := slot.scope
+    loader := scope.loader
+    if ordinal >= scope.image.export_count || count != ExportAt(scope.image, ordinal).count || (count != 0 && args == null) || result == null {
+        return Problem(loader, CStr("invalid ZX module export ordinal or argument count"))
+    }
+    if scope.frame != null || loader.depth >= MODULE_DEPTH { return Problem(loader, CStr("ZX module reentry or call depth exceeded")) }
+    frame: ModuleFrame
+    frame.ordinal = ordinal
+    frame.args = args
+    // A caller may pass the previous result back to the same instance.
+    previous := scope.result
+    unused memset(cast(*u8)*scope.result, 0, size_of(HostValue))
+    scope.frame = *frame
+    loader.depth += 1
+    ignored: s64 = 0
+    has_result: s32 = 0
+    status := BundleInstanceRunControlled(scope.instance, *ignored, *has_result, loader.control)
+    loader.depth -= 1
+    scope.frame = null
+    BundleFreeHostValue(*previous)
+    if status != RUN_OK || has_result != 0 || frame.returned == 0 {
+        if status != RUN_CANCELLED && loader.error[0] == 0 {
+            unused Problem(loader, CStr("ZX module call failed: %s:%s"), scope.image.name, ExportAt(scope.image, ordinal).name)
+        }
+        return 0
+    }
+    <<result = scope.result
+    return 1
+}
+
+SlotExport :: (slot: *ModuleSlot, ordinal: usize) -> *ModuleExport {
+    if slot == null || ordinal >= slot.scope.image.export_count { return null }
+    return ExportAt(slot.scope.image, ordinal)
+}
+
+ParameterType :: (slot: *ModuleSlot, method: *ModuleExport, index: usize) -> *u8 {
+    if method == null || index >= method.count { return null }
+    return ExecBundleModuleType(slot.scope.image.exec, method.parameters[index], -1)
+}
+
+ResultType :: (image: *ModuleImage, method: *ModuleExport) -> *u8 {
+    return ExecBundleModuleType(image.exec, method.result, ResultParameter(image, method))
+}
+
+// A and B declare the same requirements, imports and export types.
+SameLinkage :: (a: *ModuleImage, b: *ModuleImage) -> bool {
+    if a.require_count != b.require_count || a.import_count != b.import_count || a.export_count != b.export_count { return false }
+    i: usize = 0
+    while i < a.require_count {
+        left := RequirementAt(a, i)
+        right := RequirementAt(b, i)
+        if !Same(left.interface, right.interface) || !Same(left.name, right.name) { return false }
+        i += 1
+    }
+    i = 0
+    while i < a.import_count {
+        left := ImportAt(a, i)
+        right := ImportAt(b, i)
+        if !Same(left.module, right.module) || !Same(left.function, right.function) ||
+           !Same(left.interface, right.interface) || !Same(left.name, right.name) { return false }
+        i += 1
+    }
+    i = 0
+    while i < a.export_count {
+        left := ExportAt(a, i)
+        right := ExportAt(b, i)
+        if !Same(left.name, right.name) || left.count != right.count { return false }
+        p: usize = 0
+        while p < left.count {
+            if ExecBundleModuleTypeEqual(a.exec, left.parameters[p], -1, b.exec, right.parameters[p], -1) == 0 { return false }
+            p += 1
+        }
+        if ExecBundleModuleTypeEqual(a.exec, left.result, ResultParameter(a, left), b.exec, right.result, ResultParameter(b, right)) == 0 { return false }
+        i += 1
+    }
+    return true
+}
+
+// Replaces SLOT's idle instance with ARTIFACT's, moving its live state
+// across, through MIGRATE when given.
+ReplaceSlot :: (slot: *ModuleSlot, artifact: *u8, search_roots: bool, migrate: BundleStateMigrate, context: *void) -> s32 {
+    old := slot.scope
+    loader := old.loader
+    if artifact == null || artifact[0] == 0 { return Problem(loader, CStr("ZX module replacement requires an artifact path")) }
+    if old.frame != null || old.children != null || loader.depth >= MODULE_DEPTH {
+        return Problem(loader, CStr("ZX module replacement requires an idle instance without live child handles"))
+    }
+    name := old.image.name
+    image: *ModuleImage = null
+    if search_roots {
+        image = OpenLogicalImage(loader, artifact, name)
+    } else {
+        image = OpenImage(loader, OpenPathBundle(loader, artifact, name), artifact, name)
+    }
+    if image == null { return 0 }
+    if !SameLinkage(old.image, image) ||
+       ((old.image.external_count != 0 || image.external_count != 0) && BundleAbiCompatible(old.image.bundle, image.bundle) == 0) {
+        ImageClose(image)
+        return Problem(loader, CStr("ZX module replacement has incompatible linkage or export types"))
+    }
+    previous := loader.cache
+    if VerifyGraph(loader, image) == 0 {
+        RewindCache(loader, previous)
+        ImageClose(image)
+        return 0
+    }
+    candidate := cast(*ModuleScope)calloc(1, size_of(ModuleScope))
+    if candidate == null {
+        ImageClose(image)
+        return MemoryProblem(loader)
+    }
+    candidate.loader = loader
+    candidate.image = image
+    candidate.owns_image = 1
+    before: *BundleState = null
+    after: *BundleState = null
+    failure: *u8 = null
+    loader.depth += 1
+    if BundleInstanceExportState(old.instance, *before) == 0 {
+        failure = CStr("live state is not portable")
+    } else if !ScopeOpen(candidate, null, 0) {
+        failure = CStr("candidate initialization failed")
+    } else if candidate.children != null {
+        failure = CStr("candidate initialization left live child handles")
+    } else if cast(*void)migrate == null {
+        if BundleInstanceImportState(candidate.instance, before) == 0 { failure = CStr("existing state has no compatible replacement storage") }
+    } else if BundleInstanceExportState(candidate.instance, *after) == 0 || migrate(context, before, after) == 0 ||
+              BundleInstanceImportState(candidate.instance, after) == 0 {
+        failure = CStr("state migration failed")
+    }
+    loader.depth -= 1
+    BundleStateClose(before)
+    BundleStateClose(after)
+    if failure != null {
+        ScopeClose(candidate)
+        ImageClose(image)
+        free(cast(*u8)candidate)
+        return Problem(loader, CStr("ZX module replacement refused: %s"), failure)
+    }
+    slot.scope = candidate
+    ScopeClose(old)
+    if old.owns_image != 0 { ImageClose(old.image) }
+    free(cast(*u8)old)
+    return 1
+}
+
+SetNumber :: (result: *HostValue, number: u64) {
+    result.kind = ifx Same(result.type, CStr("u64")) then .Unsigned else .Integer
+    result.bits = number
+    result.integer = cast(s64)number
+}
+
+SetText :: (result: *HostValue, text: *u8) {
+    result.kind = .String
+    result.data = text
+    result.length = ifx text != null then strlen(text) else 0
+}
+
+// A copy of a text argument without NUL bytes, or null.
+ReadText :: (value: *HostValue) -> *u8 {
+    if value.length == 0 || value.length == SizeMax() || memchr(value.data, 0, value.length) != null { return null }
+    text := malloc(value.length + 1)
+    if text != null {
+        unused memcpy(text, value.data, value.length)
+        text[value.length] = 0
+    }
+    return text
+}
+
+// The zx_module runtime services: load a declared interface, release a
+// handle, describe its exports, hot-replace it, read the last problem.
+ServiceCall :: (scope: *ModuleScope, kind: BindingKind, args: *HostValue, result: *HostValue) -> s32 {
+    loader := scope.loader
+    if kind == .Problem {
+        SetText(result, *loader.error[0])
+        return 1
+    }
+    if kind == .Load {
+        name := ReadText(args)
+        require: *ModuleRequirement = ifx name != null then FindRequirement(scope.image, name) else null
+        if require == null {
+            unused Problem(loader, CStr("undeclared ZX module interface: %s"), ifx name != null then name else CStr("<invalid>"))
+        }
+        handle: u64 = ifx require != null then LoadSlot(scope, require.image) else 0
+        free(name)
+        SetNumber(result, handle)
+        return 1
+    }
+    handle := args[0].bits
+    if kind == .Release {
+        SetNumber(result, cast(u64)ReleaseSlot(scope, handle))
+        return 1
+    }
+    slot := FindSlot(scope, handle)
+    if slot == null { unused Problem(loader, CStr("invalid or released ZX module handle")) }
+    if kind == .Replace {
+        name := ReadText(ArgumentAt(args, 1))
+        none := cast(BundleStateMigrate)null
+        ok := slot != null && ReplaceSlot(slot, name, true, none, null) != 0
+        SetNumber(result, ifx ok then 1 else 0)
+        free(name)
+    } else if kind == .ExportCount {
+        SetNumber(result, ifx slot != null then cast(u64)slot.scope.image.export_count else 0)
+    } else {
+        method := SlotExport(slot, cast(usize)args[1].integer)
+        if kind == .ExportName { SetText(result, ifx method != null then method.name else null) }
+        if kind == .ParameterCount { SetNumber(result, ifx method != null then cast(u64)method.count else 0) }
+        if kind == .ParameterType { SetText(result, ParameterType(slot, method, cast(usize)args[2].integer)) }
+        if kind == .ResultType { SetText(result, ifx method != null then ResultType(slot.scope.image, method) else null) }
+    }
+    return 1
+}
+
+// Every capability this runtime binds calls here: an import of another
+// module's export, a runtime service, or the dispatcher's select, argument
+// and result calls during an export call.
+BindCall :: (context: *void, module: *u8, function: *u8, args: *HostValue, count: s32, result: *HostValue) -> s32 {
+    host := cast(*BoundModuleHost)context
+    scope := host.scope
+    plan := host.plan
+    if plan.kind == .Import {
+        import := ImportAt(scope.image, plan.ordinal)
+        slot := FindSlot(scope, args[0].bits)
+        if slot == null || !Same(slot.scope.image.name, import.require.name) {
+            return Problem(scope.loader, CStr("invalid ZX module handle for %s:%s (expected %s)"), module, function, import.require.name)
+        }
+        return CallSlot(slot, import.ordinal, ArgumentAt(args, 1), cast(usize)count - 1, result)
+    }
+    if cast(s32)plan.kind >= cast(s32)BindingKind.Load { return ServiceCall(scope, plan.kind, args, result) }
+    frame := scope.frame
+    if frame != null && frame.returned == 0 {
+        if plan.kind == .Select && frame.selected == 0 {
+            frame.selected = 1
+            SetNumber(result, cast(u64)frame.ordinal)
+            return 1
+        }
+        if frame.selected != 0 && frame.ordinal == plan.ordinal {
+            if plan.kind == .Argument && frame.next_argument == plan.parameter {
+                argument := ArgumentAt(frame.args, frame.next_argument)
+                <<result = <<argument
+                frame.next_argument += 1
+                return 1
+            }
+            if plan.kind == .Result && frame.next_argument == ExportAt(scope.image, frame.ordinal).count {
+                empty: HostValue
+                empty.kind = .Void
+                empty.type = CStr("void")
+                frame.returned = BundleCopyHostValue(ifx count == 0 then *empty else args, *scope.result)
+                if frame.returned != 0 { return 1 }
+                return Problem(scope.loader, CStr("cannot copy ZX module result"))
+            }
+        }
+    }
+    return Problem(scope.loader, CStr("ZX module called dispatch service out of sequence: %s"), function)
+}
+
+#program_export
+ZxModuleLoaderError :: (loader: *ZxModuleLoader) -> *u8 {
+    return ifx loader != null then *loader.error[0] else CStr("ZX module loader unavailable")
+}
+
+#program_export
+ZxModuleLoaderOpen :: (roots: **u8, count: usize, options: *BundleInstanceOptions) -> *ZxModuleLoader {
+    return ZxModuleLoaderOpenWithBindings(roots, count, options, null, 0)
+}
+
+#program_export
+ZxModuleLoaderOpenWithBindings :: (roots: **u8, count: usize, options: *BundleInstanceOptions,
+                                   bindings: *HostBinding, binding_count: usize) -> *ZxModuleLoader {
+    config: ZxModuleLoaderConfig
+    config.roots = roots
+    config.root_count = count
+    if options != null { config.options = <<options }
+    config.library_bindings = bindings
+    config.library_binding_count = binding_count
+    return ZxModuleLoaderOpenConfigured(*config)
+}
+
+#program_export
+ZxModuleLoaderOpenConfigured :: (config: *ZxModuleLoaderConfig) -> *ZxModuleLoader {
+    if config == null { return null }
+    count := config.root_count
+    binding_count := config.library_binding_count
+    roots := config.roots
+    bindings := config.library_bindings
+    if (count != 0 && roots == null) || (binding_count != 0 && bindings == null) { return null }
+    i: usize = 0
+    while i < binding_count {
+        binding := BindingAt(bindings, i)
+        if binding.module == null || binding.function == null || binding.call == null { return null }
+        i += 1
+    }
+    loader := cast(*ZxModuleLoader)calloc(1, size_of(ZxModuleLoader))
+    if loader == null { return null }
+    loader.root.loader = loader
+    loader.bindings = bindings
+    loader.binding_count = binding_count
+    loader.options = config.options
+    loader.resolve = config.resolve
+    loader.resolve_context = config.resolve_context
+    loader.write = config.write
+    loader.console_context = config.console_context
+    if count != 0 {
+        loader.roots = cast(**u8)calloc(count, size_of(*u8))
+        if loader.roots == null {
+            ZxModuleLoaderClose(loader)
+            return null
+        }
+    }
+    while loader.root_count < count {
+        root := roots[loader.root_count]
+        copy: *u8 = ifx root != null && root[0] != 0 then strdup(root) else null
+        if copy == null {
+            ZxModuleLoaderClose(loader)
+            return null
+        }
+        loader.roots[loader.root_count] = copy
+        loader.root_count += 1
+    }
+    return loader
+}
+
+#program_export
+ZxModuleLoaderClose :: (loader: *ZxModuleLoader) {
+    if loader == null { return }
+    ScopeClose(*loader.root)
+    RewindCache(loader, null)
+    i: usize = 0
+    while i < loader.root_count {
+        free(loader.roots[i])
+        i += 1
+    }
+    free(cast(*u8)loader.roots)
+    free(cast(*u8)loader)
+}
+
+#program_export
+ZxModuleProgramNeedsLoader :: (bundle: *Bundle) -> s32 {
+    exec := BundleVerifiedExec(bundle)
+    if exec == null { return 0 }
+    length: usize = 0
+    unused ExecBundleModuleLinkage(exec, *length)
+    if length != 0 || ExecBundleModuleEntry(exec) != 0 { return 1 }
+    i: usize = 0
+    while i < BundleCapabilityCount(bundle) {
+        module := BundleCapabilityModule(bundle, i)
+        if Same(module, CStr(DISPATCH)) || ModuleServiceFor(module, BundleCapabilityFunction(bundle, i)) != null { return 1 }
+        i += 1
+    }
+    return 0
+}
+
+#program_export
+ZxModuleProgramHasExternalHosts :: (bundle: *Bundle) -> s32 {
+    if ZxModuleProgramNeedsLoader(bundle) == 0 { return ifx BundleCapabilityCount(bundle) != 0 then 1 else 0 }
+    image: ModuleImage
+    // Invalid linkage goes to ZxModuleProgramOpen for its own diagnostic.
+    external := ImageRead(null, *image, bundle) != 0 && image.external_count != 0
+    ImageClear(*image)
+    return ifx external then 1 else 0
+}
+
+ProgramOpen :: (loader: *ZxModuleLoader, bundle: *Bundle, bindings: *HostBinding, count: usize) -> *ZxModuleProgram {
+    program := cast(*ZxModuleProgram)calloc(1, size_of(ZxModuleProgram))
+    if program == null {
+        unused MemoryProblem(loader)
+        return null
+    }
+    program.scope.loader = loader
+    program.scope.image = *program.image
+    ok := ImageRead(loader, *program.image, bundle) != 0
+    if ok && program.image.name != null {
+        unused Problem(loader, CStr("cannot run ZX library %s as an application"), program.image.name)
+        ok = false
+    }
+    if ok {
+        previous := loader.cache
+        if VerifyGraph(loader, *program.image) == 0 || ZxRunControlRequested(loader.control) != 0 {
+            RewindCache(loader, previous)
+            ok = false
+        }
+    }
+    if ok { ok = ScopeOpen(*program.scope, bindings, count) }
+    if !ok {
+        ZxModuleProgramClose(program)
+        return null
+    }
+    return program
+}
+
+#program_export
+ZxModuleProgramOpen :: (loader: *ZxModuleLoader, bundle: *Bundle, bindings: *HostBinding, count: usize) -> *ZxModuleProgram {
+    return ZxModuleProgramOpenControlled(loader, bundle, bindings, count, null, null)
+}
+
+#program_export
+ZxModuleProgramOpenControlled :: (loader: *ZxModuleLoader, bundle: *Bundle, bindings: *HostBinding, count: usize,
+                                  control: *ZxRunControl, status: *s32) -> *ZxModuleProgram {
+    if status != null { <<status = RUN_ERROR }
+    if loader == null || bundle == null { return null }
+    loader.error[0] = 0
+    previous := loader.control
+    chosen := ifx control != null then control else previous
+    if chosen != null && loader.options.backend != POLICY_ENGINE {
+        unused Problem(loader, CStr("ZX run cancellation requires the instruction engine"))
+        return null
+    }
+    loader.control = chosen
+    program: *ZxModuleProgram = null
+    if ZxRunControlRequested(chosen) == 0 { program = ProgramOpen(loader, bundle, bindings, count) }
+    if ZxRunControlRequested(chosen) != 0 {
+        ZxModuleProgramClose(program)
+        program = null
+        loader.error[0] = 0
+        if status != null { <<status = RUN_CANCELLED }
+    } else if program != null && status != null {
+        <<status = RUN_OK
+    }
+    loader.control = previous
+    return program
+}
+
+#program_export
+ZxModuleProgramRun :: (program: *ZxModuleProgram, result: *s64, has_result: *s32) -> s32 {
+    return ifx ZxModuleProgramRunControlled(program, result, has_result, null) == RUN_OK then 1 else 0
+}
+
+#program_export
+ZxModuleProgramRunControlled :: (program: *ZxModuleProgram, result: *s64, has_result: *s32, control: *ZxRunControl) -> s32 {
+    if program == null { return RUN_ERROR }
+    loader := program.scope.loader
+    loader.error[0] = 0
+    previous := loader.control
+    chosen := ifx control != null then control else previous
+    if chosen != null && loader.options.backend != POLICY_ENGINE {
+        unused Problem(loader, CStr("ZX run cancellation requires the instruction engine"))
+        return RUN_ERROR
+    }
+    loader.control = chosen
+    ignored_result: s64 = 0
+    ignored_has_result: s32 = 0
+    status := BundleInstanceRunControlled(program.scope.instance, ifx result != null then result else *ignored_result,
+                                          ifx has_result != null then has_result else *ignored_has_result, chosen)
+    loader.control = previous
+    if status == RUN_CANCELLED { loader.error[0] = 0 }
+    return status
+}
+
+#program_export
+ZxModuleProgramBorrowHostString :: (program: *ZxModuleProgram, module: *u8, function: *u8, parameter: usize) -> s32 {
+    if program == null { return 0 }
+    return ifx BundleInstanceBorrowHostString(program.scope.instance, module, function, parameter) != 0 then 1 else 0
+}
+
+#program_export
+ZxModuleProgramBorrowHostSlice :: (program: *ZxModuleProgram, module: *u8, function: *u8, parameter: usize) -> s32 {
+    if program == null { return 0 }
+    return ifx BundleInstanceBorrowHostSlice(program.scope.instance, module, function, parameter) != 0 then 1 else 0
+}
+
+#program_export
+ZxModuleProgramBackend :: (program: *ZxModuleProgram) -> s32 {
+    return ifx program != null then BundleInstanceBackend(program.scope.instance) else EXECUTION_NONE
+}
+
+#program_export
+ZxModuleProgramClose :: (program: *ZxModuleProgram) {
+    if program == null { return }
+    ScopeClose(*program.scope)
+    ImageClear(*program.image)
+    free(cast(*u8)program)
+}
+
+#program_export
+ZxModuleLoad :: (loader: *ZxModuleLoader, name: *u8) -> u64 {
+    if loader == null { return 0 }
+    loader.error[0] = 0
+    if !ValidName(name, true) { return cast(u64)Problem(loader, CStr("invalid ZX module logical name")) }
+    previous := loader.cache
+    image := ResolveImage(loader, name)
+    if image == null || VerifyGraph(loader, image) == 0 {
+        RewindCache(loader, previous)
+        return 0
+    }
+    return LoadSlot(*loader.root, image)
+}
+
+#program_export
+ZxModuleRelease :: (loader: *ZxModuleLoader, handle: u64) -> s32 {
+    if loader == null { return 0 }
+    loader.error[0] = 0
+    return ReleaseSlot(*loader.root, handle)
+}
+
+RootSlot :: (loader: *ZxModuleLoader, handle: u64) -> *ModuleSlot {
+    return ifx loader != null then FindSlot(*loader.root, handle) else null
+}
+
+#program_export
+ZxModuleExportCount :: (loader: *ZxModuleLoader, handle: u64) -> usize {
+    slot := RootSlot(loader, handle)
+    return ifx slot != null then slot.scope.image.export_count else 0
+}
+
+#program_export
+ZxModuleExportName :: (loader: *ZxModuleLoader, handle: u64, ordinal: usize) -> *u8 {
+    method := SlotExport(RootSlot(loader, handle), ordinal)
+    return ifx method != null then method.name else null
+}
+
+#program_export
+ZxModuleParameterCount :: (loader: *ZxModuleLoader, handle: u64, ordinal: usize) -> usize {
+    method := SlotExport(RootSlot(loader, handle), ordinal)
+    return ifx method != null then method.count else 0
+}
+
+#program_export
+ZxModuleParameterType :: (loader: *ZxModuleLoader, handle: u64, ordinal: usize, index: usize) -> *u8 {
+    slot := RootSlot(loader, handle)
+    return ParameterType(slot, SlotExport(slot, ordinal), index)
+}
+
+#program_export
+ZxModuleResultType :: (loader: *ZxModuleLoader, handle: u64, ordinal: usize) -> *u8 {
+    slot := RootSlot(loader, handle)
+    method := SlotExport(slot, ordinal)
+    return ifx method != null then ResultType(slot.scope.image, method) else null
+}
+
+#program_export
+ZxModuleCall :: (loader: *ZxModuleLoader, handle: u64, ordinal: usize, args: *HostValue, count: usize, result: *HostValue) -> s32 {
+    if loader == null { return 0 }
+    loader.error[0] = 0
+    slot := FindSlot(*loader.root, handle)
+    if slot == null { return Problem(loader, CStr("invalid or released ZX module handle")) }
+    return CallSlot(slot, ordinal, args, count, result)
+}
+
+#program_export
+ZxModuleReplace :: (loader: *ZxModuleLoader, handle: u64, path: *u8, migrate: BundleStateMigrate, context: *void) -> s32 {
+    if loader == null { return 0 }
+    loader.error[0] = 0
+    slot := FindSlot(*loader.root, handle)
+    if slot == null { return Problem(loader, CStr("invalid or released ZX module handle")) }
+    return ReplaceSlot(slot, path, false, migrate, context)
+}

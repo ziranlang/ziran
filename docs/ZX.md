@@ -99,8 +99,34 @@ guest paths that both return an image are ambiguous. The loader verifies
 each selected bundle and its logical name, dependency graph and typed imports
 before running any initializer.
 
-Supply ordinary library host grants in `library_bindings` and grant app
-bindings separately in `ZxModuleProgramOpen`. Supply `write` to route the
+Supply ordinary library host grants in `library_bindings` (shared across all
+libraries) or per-library in `library_grants` (`ZxModuleLibraryGrant`, keyed by
+logical library name), and grant app bindings separately in
+`ZxModuleProgramOpen`. A library may call only capabilities explicitly granted
+to it or globally; any other external capability is refused before
+initialization with `ZX module <name> needs one loader host binding for
+<module>:<function>`, and duplicate grants for the same capability are refused
+the same way. For example, granting `host:Read` only to `demo/reader` allows
+`demo/reader` to call `host:Read` while refusing `host:Write` (or another
+library calling `host:Read`):
+
+```c
+HostBinding reader_bindings[] = {
+    { "host", "Read", HostReadCallback, &ctx },
+};
+ZxModuleLibraryGrant grants[] = {
+    { "demo/reader", reader_bindings, 1 },
+};
+ZxModuleLoaderConfig config = {
+    .roots = roots,
+    .root_count = 1,
+    .library_grants = grants,
+    .library_grant_count = 1,
+};
+ZxModuleLoader *loader = ZxModuleLoaderOpenConfigured(&config);
+```
+
+Supply `write` to route the
 app's and libraries' platform writes, including initializers, to a common
 descriptor callback. Select `BUNDLE_BACKEND_ENGINE` for an explicit engine
 policy. With a console callback, a native or Wasm backend selection fails

@@ -84,8 +84,31 @@ uses only the resolver for library reads when one is configured. Distinct
 guest paths that both return an image are ambiguous. The loader verifies
 each selected bundle and its logical name, dependency graph and typed imports
 before running any initializer.</p>
-<p>Supply ordinary library host grants in <code>library_bindings</code> and grant app
-bindings separately in <code>ZxModuleProgramOpen</code>. Supply <code>write</code> to route the
+<p>Supply ordinary library host grants in <code>library_bindings</code> (shared across all
+libraries) or per-library in <code>library_grants</code> (<code>ZxModuleLibraryGrant</code>, keyed by
+logical library name), and grant app bindings separately in
+<code>ZxModuleProgramOpen</code>. A library may call only capabilities explicitly granted
+to it or globally; any other external capability is refused before
+initialization with <code>ZX module &lt;name&gt; needs one loader host binding for
+&lt;module&gt;:&lt;function&gt;</code>, and duplicate grants for the same capability are refused
+the same way. For example, granting <code>host:Read</code> only to <code>demo/reader</code> allows
+<code>demo/reader</code> to call <code>host:Read</code> while refusing <code>host:Write</code> (or another
+library calling <code>host:Read</code>):</p>
+<pre><code class="language-c">HostBinding reader_bindings[] = {
+    { &quot;host&quot;, &quot;Read&quot;, HostReadCallback, &amp;ctx },
+};
+ZxModuleLibraryGrant grants[] = {
+    { &quot;demo/reader&quot;, reader_bindings, 1 },
+};
+ZxModuleLoaderConfig config = {
+    .roots = roots,
+    .root_count = 1,
+    .library_grants = grants,
+    .library_grant_count = 1,
+};
+ZxModuleLoader *loader = ZxModuleLoaderOpenConfigured(&amp;config);
+</code></pre>
+<p>Supply <code>write</code> to route the
 app's and libraries' platform writes, including initializers, to a common
 descriptor callback. Select <code>BUNDLE_BACKEND_ENGINE</code> for an explicit engine
 policy. With a console callback, a native or Wasm backend selection fails

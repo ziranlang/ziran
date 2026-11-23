@@ -43,6 +43,11 @@ AssetSize :: (bundle: *void, index: usize) -> usize #foreign hosting "BundleAsse
 Image :: struct { data: *u8; size: usize; release: ReleaseImage }
 ResolveImage :: #type (context: *void, path: *u8, image: *Image) -> s32 #c_call;
 ConsoleWrite :: #type (context: *void, descriptor: s32, data: *u8, size: usize) -> s32 #c_call;
+LibraryGrant :: struct {
+    library: *u8
+    bindings: *Host.HostBinding
+    binding_count: usize
+}
 LoaderConfig :: struct {
     roots: **u8
     root_count: usize
@@ -53,6 +58,8 @@ LoaderConfig :: struct {
     resolve_context: *void
     write: ConsoleWrite
     console_context: *void
+    library_grants: *LibraryGrant
+    library_grant_count: usize
 }
 OpenLoader :: (config: *LoaderConfig) -> *void #foreign hosting "ZxModuleLoaderOpenConfigured";
 CloseLoader :: (loader: *void) #foreign hosting "ZxModuleLoaderClose";
@@ -277,8 +284,30 @@ HostedCases :: (test: *NativeTest, compiler: string, std: string, bridge: string
     if !NativeAssert(test, hosted.console.count == 0 && entry_grant.calls == 0 && library_grant.calls == 0,
         "failed preflight never invokes grants or console") { return false }
     if !CheckHostedProgram(test, *config, bundle, *app_binding) { return false }
-    return NativeAssert(test, entry_grant.calls == 1 && library_grant.calls == 1 &&
-        TextView(hosted.console[:]) == "app init\napp run\nlib init\nlib run\n", "entry and library use separate typed grants and one console")
+    if !NativeAssert(test, entry_grant.calls == 1 && library_grant.calls == 1 &&
+        TextView(hosted.console[:]) == "app init\napp run\nlib init\nlib run\n", "entry and library use separate typed grants and one console") { return false }
+    // Per-library host grants: allow only the named library's declared capability
+    // and refuse ungranted capabilities or grants scoped to a different library.
+    other_binding := Host.HostBinding.{HostedBytes("hosted_counter"), HostedBytes("Other"), HostedGrant, cast(*void)*library_grant}
+    wrong_library := LibraryGrant.{library = HostedBytes("demo/other"), bindings = *lib_binding, binding_count = 1}
+    wrong_capability := LibraryGrant.{library = HostedBytes("demo/counter"), bindings = *other_binding, binding_count = 1}
+    scoped_grant := LibraryGrant.{library = HostedBytes("demo/counter"), bindings = *lib_binding, binding_count = 1}
+    duplicate_grants: [2]LibraryGrant = .[scoped_grant, scoped_grant]
+    config.library_bindings = null
+    config.library_binding_count = 0
+    config.library_grants = *wrong_library
+    config.library_grant_count = 1
+    if !CheckHostedProgram(test, *config, bundle, *app_binding, "ZX module demo/counter needs one loader host binding for hosted_counter:Grant") { return false }
+    config.library_grants = *wrong_capability
+    if !CheckHostedProgram(test, *config, bundle, *app_binding, "ZX module demo/counter needs one loader host binding for hosted_counter:Grant") { return false }
+    config.library_grants = *duplicate_grants[0]
+    config.library_grant_count = 2
+    if !CheckHostedProgram(test, *config, bundle, *app_binding, "ZX module demo/counter needs one loader host binding for hosted_counter:Grant") { return false }
+    config.library_grants = *scoped_grant
+    config.library_grant_count = 1
+    if !CheckHostedProgram(test, *config, bundle, *app_binding) { return false }
+    return NativeAssert(test, entry_grant.calls == 2 && library_grant.calls == 2,
+        "per-library grant allows only the named library's capability")
 }
 
 FuelApp :: #string ZI

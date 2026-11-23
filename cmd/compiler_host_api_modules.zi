@@ -19,6 +19,12 @@ ZxModuleImage :: struct {
 ZxModuleResolve :: #type (context: *void, path: *u8, image: *ZxModuleImage) -> s32 #c_call;
 HostCall :: #type (context: *void, module: *u8, function: *u8, args: *HostValue, count: s32, result: *HostValue) -> s32 #c_call;
 
+ZxModuleLibraryGrant :: struct {
+    library: *u8
+    bindings: *HostBinding
+    binding_count: usize
+}
+
 ZxModuleLoaderConfig :: struct {
     roots: **u8
     root_count: usize
@@ -29,6 +35,8 @@ ZxModuleLoaderConfig :: struct {
     resolve_context: *void
     write: BundleConsoleWrite
     console_context: *void
+    library_grants: *ZxModuleLibraryGrant
+    library_grant_count: usize
 }
 
 // The call of an export in progress: the dispatcher selects it, reads its
@@ -76,6 +84,8 @@ ZxModuleLoader :: struct {
     root_count: usize
     bindings: *HostBinding
     binding_count: usize
+    library_grants: *ZxModuleLibraryGrant
+    library_grant_count: usize
     options: BundleInstanceOptions
     resolve: ZxModuleResolve
     resolve_context: *void
@@ -133,7 +143,7 @@ ScopeOpen :: (scope: *ModuleScope, external: *HostBinding, external_count: usize
             BindModuleHost(scope, BindingAt(bindings, used), i)
             used += 1
         } else if image.name != null {
-            library := LibraryBinding(loader, image.bundle, i)
+            library := LibraryBinding(loader, image.bundle, i, image.name)
             target := BindingAt(bindings, used)
             <<target = <<library
             used += 1
@@ -530,18 +540,36 @@ ZxModuleLoaderOpenConfigured :: (config: *ZxModuleLoaderConfig) -> *ZxModuleLoad
     binding_count := config.library_binding_count
     roots := config.roots
     bindings := config.library_bindings
-    if (count != 0 && roots == null) || (binding_count != 0 && bindings == null) { return null }
+    grants := config.library_grants
+    grant_count := config.library_grant_count
+    if (count != 0 && roots == null) || (binding_count != 0 && bindings == null) ||
+       (grant_count != 0 && grants == null) { return null }
     i: usize = 0
     while i < binding_count {
         binding := BindingAt(bindings, i)
         if binding.module == null || binding.function == null || binding.call == null { return null }
         i += 1
     }
+    g: usize = 0
+    while g < grant_count {
+        grant := *grants[g]
+        if grant.library == null || grant.library[0] == 0 ||
+           (grant.binding_count != 0 && grant.bindings == null) { return null }
+        b: usize = 0
+        while b < grant.binding_count {
+            binding := BindingAt(grant.bindings, b)
+            if binding.module == null || binding.function == null || binding.call == null { return null }
+            b += 1
+        }
+        g += 1
+    }
     loader := cast(*ZxModuleLoader)calloc(1, size_of(ZxModuleLoader))
     if loader == null { return null }
     loader.root.loader = loader
     loader.bindings = bindings
     loader.binding_count = binding_count
+    loader.library_grants = grants
+    loader.library_grant_count = grant_count
     loader.options = config.options
     loader.resolve = config.resolve
     loader.resolve_context = config.resolve_context

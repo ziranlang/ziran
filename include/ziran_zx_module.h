@@ -43,6 +43,12 @@ typedef struct ZxModuleImage {
 typedef ZxModuleResolveResult (*ZxModuleResolve)(void *context, const char *path,
                                                 ZxModuleImage *image);
 
+typedef struct ZxModuleLibraryGrant {
+    const char *library;
+    const HostBinding *bindings;
+    size_t binding_count;
+} ZxModuleLibraryGrant;
+
 typedef struct ZxModuleLoaderConfig {
     const char *const *roots;
     size_t root_count;
@@ -53,6 +59,8 @@ typedef struct ZxModuleLoaderConfig {
     void *resolve_context;
     BundleConsoleWrite write;
     void *console_context;
+    const ZxModuleLibraryGrant *library_grants;
+    size_t library_grant_count;
 } ZxModuleLoaderConfig;
 
 /* With a resolver, all library reads, including replacement, go through it.
@@ -61,7 +69,10 @@ typedef struct ZxModuleLoaderConfig {
  * libraries, including initializers, and needs an instruction-engine backend.
  * Callback contexts must outlive the loader. Resolver, release and console
  * callbacks must not reenter the loader. Roots, options and callback pointers
- * are copied. Library grants are borrowed as with OpenWithBindings. */
+ * are copied. Library grants (global library_bindings and per-library
+ * library_grants) are borrowed as with OpenWithBindings. A library may call
+ * only capabilities explicitly granted to it or globally; any other external
+ * capability is refused before initialization. */
 ZxModuleLoader *ZxModuleLoaderOpenConfigured(const ZxModuleLoaderConfig *config);
 void ZxModuleLoaderClose(ZxModuleLoader *loader);
 const char *ZxModuleLoaderError(const ZxModuleLoader *loader);

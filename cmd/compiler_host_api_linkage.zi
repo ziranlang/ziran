@@ -694,8 +694,8 @@ ImageClose :: (image: *ModuleImage) {
     free(cast(*u8)image)
 }
 
-// The one loader binding for a capability of BUNDLE, else null.
-LibraryBinding :: (loader: *ZxModuleLoader, bundle: *Bundle, capability: usize) -> *HostBinding {
+// The one loader binding for a capability of BUNDLE for library NAME, else null.
+LibraryBinding :: (loader: *ZxModuleLoader, bundle: *Bundle, capability: usize, name: *u8) -> *HostBinding {
     module := BundleCapabilityModule(bundle, capability)
     function := BundleCapabilityFunction(bundle, capability)
     found: *HostBinding = null
@@ -707,6 +707,22 @@ LibraryBinding :: (loader: *ZxModuleLoader, bundle: *Bundle, capability: usize) 
             found = binding
         }
         i += 1
+    }
+    g: usize = 0
+    while g < loader.library_grant_count {
+        grant := *loader.library_grants[g]
+        if Same(grant.library, name) {
+            b: usize = 0
+            while b < grant.binding_count {
+                binding := BindingAt(grant.bindings, b)
+                if Same(module, binding.module) && Same(function, binding.function) {
+                    if found != null { return null }
+                    found = binding
+                }
+                b += 1
+            }
+        }
+        g += 1
     }
     return found
 }
@@ -733,7 +749,7 @@ OpenImage :: (loader: *ZxModuleLoader, bundle: *Bundle, path: *u8, name: *u8) ->
     }
     cap: usize = 0
     while image.external_count != 0 && cap < BundleCapabilityCount(bundle) {
-        if PlanAt(image, cap).kind == .External && LibraryBinding(loader, bundle, cap) == null {
+        if PlanAt(image, cap).kind == .External && LibraryBinding(loader, bundle, cap, name) == null {
             unused Problem(loader, CStr("ZX module %s needs one loader host binding for %s:%s"), name,
                            BundleCapabilityModule(bundle, cap), BundleCapabilityFunction(bundle, cap))
             ImageClose(image)

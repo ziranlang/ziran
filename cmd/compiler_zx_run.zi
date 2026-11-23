@@ -103,6 +103,8 @@ ZxModuleLoaderConfig :: struct {
     resolve_context: *void
     write: *void
     console_context: *void
+    library_grants: *void
+    library_grant_count: usize
 }
 ZxModuleProgramNeedsLoader :: (bundle: *void) -> s32 #foreign compiler "ZxModuleProgramNeedsLoader";
 ZxModuleLoaderOpenConfigured :: (config: *ZxModuleLoaderConfig) -> *void #foreign compiler "ZxModuleLoaderOpenConfigured";

@@ -64,6 +64,9 @@ HOST_OBJCOPY ?= $(if $(findstring darwin,$(shell $(HOST_CC) -dumpmachine 2>/dev/
 # with CFLAGS; spending optimizer time on this short-lived seed delays them.
 BOOTSTRAP_CFLAGS ?= -O0
 BOOTSTRAP ?= 0
+# The checked-in generated module root; the fixed-point proof points a stage
+# build at its own generated directory.
+BOOTSTRAP_ROOT ?= bootstrap
 SCANNER_OBJECT := $(BUILD_DIR)/obj/compiler-scan.o
 TEXT_OBJECT := $(BUILD_DIR)/obj/compiler-text.o
 SOURCE_OBJECT := $(BUILD_DIR)/obj/compiler-source.o
@@ -81,37 +84,37 @@ SERVICES_OBJECT := $(BUILD_DIR)/obj/compiler-services.o
 LINK_OBJECT := $(BUILD_DIR)/obj/compiler-link.o
 BUNDLE_MODULE_OBJECT := $(BUILD_DIR)/obj/compiler-bundle.o
 ifeq ($(BOOTSTRAP),1)
-SCANNER_C := bootstrap/compiler_scan
+SCANNER_C := $(BOOTSTRAP_ROOT)/compiler_scan
 SCANNER_READY := $(SCANNER_C)/compiler_scan.c $(SCANNER_C)/compiler_scan.h
-TEXT_C := bootstrap/compiler_text
+TEXT_C := $(BOOTSTRAP_ROOT)/compiler_text
 TEXT_READY := $(TEXT_C)/compiler_text.c $(TEXT_C)/compiler_text.h
-SOURCE_C := bootstrap/compiler_source
+SOURCE_C := $(BOOTSTRAP_ROOT)/compiler_source
 SOURCE_READY := $(SOURCE_C)/compiler_source.c $(SOURCE_C)/compiler_source.h
-DECLARATION_C := bootstrap/compiler_declaration
+DECLARATION_C := $(BOOTSTRAP_ROOT)/compiler_declaration
 DECLARATION_READY := $(DECLARATION_C)/compiler_declaration.c $(DECLARATION_C)/compiler_declaration.h
-ENUM_C := bootstrap/compiler_enum
+ENUM_C := $(BOOTSTRAP_ROOT)/compiler_enum
 ENUM_READY := $(ENUM_C)/compiler_enum.c $(ENUM_C)/compiler_enum.h
-TYPE_C := bootstrap/compiler_type
+TYPE_C := $(BOOTSTRAP_ROOT)/compiler_type
 TYPE_READY := $(TYPE_C)/compiler_type.c $(TYPE_C)/compiler_type.h
-EXPRESSION_C := bootstrap/compiler_expression
+EXPRESSION_C := $(BOOTSTRAP_ROOT)/compiler_expression
 EXPRESSION_READY := $(EXPRESSION_C)/compiler_expression.c $(EXPRESSION_C)/compiler_expression.h
-PARSE_C := bootstrap/compiler_parse
+PARSE_C := $(BOOTSTRAP_ROOT)/compiler_parse
 PARSE_READY := $(PARSE_C)/compiler_parse.c $(PARSE_C)/compiler_parse.h
-STATEMENT_C := bootstrap/compiler_statement
+STATEMENT_C := $(BOOTSTRAP_ROOT)/compiler_statement
 STATEMENT_READY := $(STATEMENT_C)/compiler_statement.c $(STATEMENT_C)/compiler_statement.h
-PROOF_KERNEL_C := bootstrap/compiler_proof_kernel
+PROOF_KERNEL_C := $(BOOTSTRAP_ROOT)/compiler_proof_kernel
 PROOF_KERNEL_READY := $(PROOF_KERNEL_C)/compiler_proof_kernel.c $(PROOF_KERNEL_C)/compiler_proof_kernel.h $(PROOF_KERNEL_C)/vec.h
-PROOF_C := bootstrap/compiler_proof
+PROOF_C := $(BOOTSTRAP_ROOT)/compiler_proof
 PROOF_READY := $(PROOF_C)/compiler_proof.c $(PROOF_C)/compiler_proof.h $(PROOF_C)/vec.h
-BUNDLE_C := bootstrap/compiler_bundle
+BUNDLE_C := $(BOOTSTRAP_ROOT)/compiler_bundle
 BUNDLE_READY := $(BUNDLE_C)/compiler_bundle.c $(BUNDLE_C)/compiler_bundle.h
-IR_C := bootstrap/compiler_ir
+IR_C := $(BOOTSTRAP_ROOT)/compiler_ir
 IR_READY := $(IR_C)/compiler_ir.c $(IR_C)/compiler_ir.h
-LAW_C := bootstrap/compiler_law
+LAW_C := $(BOOTSTRAP_ROOT)/compiler_law
 LAW_READY := $(LAW_C)/compiler_law.c $(LAW_C)/compiler_law.h
-SERVICES_C := bootstrap/compiler_services
+SERVICES_C := $(BOOTSTRAP_ROOT)/compiler_services
 SERVICES_READY := $(SERVICES_C)/compiler_services.c $(SERVICES_C)/compiler_services.h
-LINK_C := bootstrap/compiler_link
+LINK_C := $(BOOTSTRAP_ROOT)/compiler_link
 LINK_READY := $(LINK_C)/compiler_link.c $(LINK_C)/compiler_link.h $(LINK_C)/vec.h
 else
 SCANNER_C := $(BUILD_DIR)/compiler-scan
@@ -149,7 +152,7 @@ LINK_READY := $(LINK_C)/.generated
 endif
 # The seed's file, process and timer modules are generated per platform:
 # Darwin's copies come from the same sources with the Darwin defines.
-BOOTSTRAP_PLATFORM := $(if $(DARWIN_TARGET),bootstrap/darwin,bootstrap)
+BOOTSTRAP_PLATFORM := $(if $(DARWIN_TARGET),$(BOOTSTRAP_ROOT)/darwin,$(BOOTSTRAP_ROOT))
 ifeq ($(BOOTSTRAP),1)
 RUNTIME_EMIT_C := $(BOOTSTRAP_PLATFORM)/compiler_runtime_emit
 RUNTIME_EMIT_READY := $(RUNTIME_EMIT_C)/compiler_runtime_emit.c $(RUNTIME_EMIT_C)/compiler_runtime_emit.h \
@@ -189,7 +192,7 @@ BACKEND_BOOTSTRAP_FILES := $(filter %.c %.h,$(wildcard $(BOOTSTRAP_PLATFORM)/com
     $(filter %.c %.h,$(wildcard $(BOOTSTRAP_PLATFORM)/compiler_backend_process/*)) \
     $(filter %.c %.h,$(wildcard $(BOOTSTRAP_PLATFORM)/compiler_runtime_emit/*))
 ifeq ($(BOOTSTRAP),1)
-NATIVE_NAMES_C := bootstrap/compiler_native_names
+NATIVE_NAMES_C := $(BOOTSTRAP_ROOT)/compiler_native_names
 NATIVE_NAMES_READY := $(NATIVE_NAMES_C)/compiler_native_names.c $(NATIVE_NAMES_C)/compiler_native_names.h
 else
 NATIVE_NAMES_C := $(BUILD_DIR)/native-names
@@ -204,7 +207,7 @@ override CFLAGS += -I$(BACKEND_CACHE_C) -I$(BACKEND_PROCESS_C)
 override CFLAGS += -I$(NATIVE_NAMES_C)
 # Eligibility rules shared by the C and Go typed-body emitters.
 ifeq ($(BOOTSTRAP),1)
-BODY_C := bootstrap/compiler_portable_body
+BODY_C := $(BOOTSTRAP_ROOT)/compiler_portable_body
 BODY_READY := $(BODY_C)/compiler_portable_body.c $(BODY_C)/compiler_portable_body.h
 else
 BODY_C := $(BUILD_DIR)/compiler-portable-body
@@ -213,25 +216,25 @@ endif
 BODY_OBJECT := $(BUILD_DIR)/obj/compiler-portable-body.o
 override CFLAGS += -I$(BODY_C)
 ifeq ($(BOOTSTRAP),1)
-SCALAR_C := bootstrap/compiler_scalar
+SCALAR_C := $(BOOTSTRAP_ROOT)/compiler_scalar
 SCALAR_READY := $(SCALAR_C)/compiler_scalar.c $(SCALAR_C)/compiler_scalar.h
-C_EMIT_C := bootstrap/compiler_c_emit
+C_EMIT_C := $(BOOTSTRAP_ROOT)/compiler_c_emit
 C_EMIT_READY := $(C_EMIT_C)/compiler_c_emit.c $(C_EMIT_C)/compiler_c_emit.h
-C_EMIT_VALUE_C := bootstrap/compiler_c_emit_value
+C_EMIT_VALUE_C := $(BOOTSTRAP_ROOT)/compiler_c_emit_value
 C_EMIT_VALUE_READY := $(C_EMIT_VALUE_C)/compiler_c_emit_value.c $(C_EMIT_VALUE_C)/compiler_c_emit_value.h
-C_EMIT_STATEMENT_C := bootstrap/compiler_c_emit_statement
+C_EMIT_STATEMENT_C := $(BOOTSTRAP_ROOT)/compiler_c_emit_statement
 C_EMIT_STATEMENT_READY := $(C_EMIT_STATEMENT_C)/compiler_c_emit_statement.c $(C_EMIT_STATEMENT_C)/compiler_c_emit_statement.h
-C_EMIT_CALL_C := bootstrap/compiler_c_emit_call
+C_EMIT_CALL_C := $(BOOTSTRAP_ROOT)/compiler_c_emit_call
 C_EMIT_CALL_READY := $(C_EMIT_CALL_C)/compiler_c_emit_call.c $(C_EMIT_CALL_C)/compiler_c_emit_call.h
-C_EMIT_EXPR_C := bootstrap/compiler_c_emit_expr
+C_EMIT_EXPR_C := $(BOOTSTRAP_ROOT)/compiler_c_emit_expr
 C_EMIT_EXPR_READY := $(C_EMIT_EXPR_C)/compiler_c_emit_expr.c $(C_EMIT_EXPR_C)/compiler_c_emit_expr.h
-SIMD_METADATA_C := bootstrap/compiler_simd_metadata
+SIMD_METADATA_C := $(BOOTSTRAP_ROOT)/compiler_simd_metadata
 SIMD_METADATA_READY := $(SIMD_METADATA_C)/compiler_simd_metadata.c $(SIMD_METADATA_C)/compiler_simd_metadata.h
-C_EMIT_SIMD_C := bootstrap/compiler_c_emit_simd
+C_EMIT_SIMD_C := $(BOOTSTRAP_ROOT)/compiler_c_emit_simd
 C_EMIT_SIMD_READY := $(C_EMIT_SIMD_C)/compiler_c_emit_simd.c $(C_EMIT_SIMD_C)/compiler_c_emit_simd.h
-GO_SIMD_C := bootstrap/compiler_go_simd
+GO_SIMD_C := $(BOOTSTRAP_ROOT)/compiler_go_simd
 GO_SIMD_READY := $(GO_SIMD_C)/compiler_go_simd.c $(GO_SIMD_C)/compiler_go_simd.h
-C_BACKEND_C := bootstrap/compiler_c_backend
+C_BACKEND_C := $(BOOTSTRAP_ROOT)/compiler_c_backend
 C_BACKEND_READY := $(C_BACKEND_C)/compiler_c_backend.c $(C_BACKEND_C)/compiler_c_backend.h
 else
 SCALAR_C := $(BUILD_DIR)/compiler-scalar
@@ -277,8 +280,8 @@ PARSE_PORT_MODULES := parse_types parse_condition parse_discover parse_source \
 SUPPORT_PORT_MODULES := context document diagnostic files source_store overlay semantic sha256 profile
 PERSISTENCE_PORT_MODULES := zir_serial load package_resolve zx_assets
 FRONTEND_PORT_MODULES := cli edit context_types $(SUPPORT_PORT_MODULES) frontend_ir law_runtime target_bridge $(PERSISTENCE_PORT_MODULES) zx_link inline_asm
-compiler-port-dir = $(if $(filter 1,$(BOOTSTRAP)),bootstrap/compiler_$(1),$(BUILD_DIR)/compiler-$(subst _,-,$(1)))
-compiler-port-seed = $(addprefix bootstrap/compiler_$(1)/compiler_$(1).,c h)
+compiler-port-dir = $(if $(filter 1,$(BOOTSTRAP)),$(BOOTSTRAP_ROOT)/compiler_$(1),$(BUILD_DIR)/compiler-$(subst _,-,$(1)))
+compiler-port-seed = $(addprefix $(BOOTSTRAP_ROOT)/compiler_$(1)/compiler_$(1).,c h)
 compiler-port-ready = $(if $(filter 1,$(BOOTSTRAP)),$(call compiler-port-seed,$(1)),$(call compiler-port-dir,$(1))/.generated)
 compiler-port-object = $(BUILD_DIR)/obj/compiler-$(subst _,-,$(1)).o
 GO_PORT_OBJECTS := $(foreach module,$(GO_PORT_MODULES),$(call compiler-port-object,$(module)))
@@ -289,7 +292,7 @@ override CFLAGS += $(foreach module,$(GO_PORT_MODULES) $(CHECK_PORT_MODULES) $(P
 # zi2c's pruning of a closed program's C (cmd/compiler_c_prune.zi). Its std
 # text_tools and vec code is already linked through the backend modules.
 ifeq ($(BOOTSTRAP),1)
-C_PRUNE_C := bootstrap/compiler_c_prune
+C_PRUNE_C := $(BOOTSTRAP_ROOT)/compiler_c_prune
 C_PRUNE_READY := $(filter %.c %.h,$(wildcard $(C_PRUNE_C)/*))
 else
 C_PRUNE_C := $(BUILD_DIR)/c-prune
@@ -300,7 +303,7 @@ endif
 C_PRUNE_OBJECTS := $(addprefix $(BUILD_DIR)/obj/c-prune/,compiler_c_prune.o hash_map.o)
 # The C emitter's index range proofs (cmd/compiler_c_range*.zi).
 ifeq ($(BOOTSTRAP),1)
-RANGE_C := bootstrap/compiler_c_range
+RANGE_C := $(BOOTSTRAP_ROOT)/compiler_c_range
 RANGE_READY := $(filter %.c %.h,$(wildcard $(RANGE_C)/*))
 else
 RANGE_C := $(BUILD_DIR)/c-range
@@ -319,7 +322,7 @@ PERSISTENCE_HOST := cmd/zir/zir_persistence_host.c
 HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
 # std/simd's C helpers, vector types and typed Go helpers are generated at
 # build time by scripts/simd/header.zi, compiled from its seed in
-# bootstrap/simd; update-bootstrap refreshes the seed, check-bootstrap checks it.
+# $(BOOTSTRAP_ROOT)/simd; update-bootstrap refreshes the seed, check-bootstrap checks it.
 SIMD_DIR ?= $(BUILD_DIR)/simd
 SIMD_HEADERS := $(SIMD_DIR)/ziran_simd_ops.h $(SIMD_DIR)/ziran_simd_types.h $(SIMD_DIR)/zir_simd_go_bodies.h
 HEADERS += $(SIMD_HEADERS)
@@ -736,7 +739,7 @@ RUNTIME_HEADERS := include/zir_bounds.h include/zir_string_types.h include/zir_s
     include/zir_vec.h include/ziran_parallel.h include/ziran_simd.h \
     $(SIMD_DIR)/ziran_simd_types.h $(SIMD_DIR)/ziran_simd_ops.h
 
-$(SIMD_DIR)/simd-header: $(wildcard bootstrap/simd/*.c bootstrap/simd/*.h)
+$(SIMD_DIR)/simd-header: $(wildcard $(BOOTSTRAP_ROOT)/simd/*.c $(BOOTSTRAP_ROOT)/simd/*.h)
 	@mkdir -p $(dir $@)
 	$(HOST_CC) $(BOOTSTRAP_CFLAGS) -std=c11 -Iinclude -o $@ $(filter %.c,$^) -lm
 
@@ -799,7 +802,7 @@ $(RANGE_C)/.generated: $(patsubst %,cmd/%.zi,$(RANGE_MODULES)) cmd/compiler_ir.z
 # with the bootstrap compiler; BOOTSTRAP=1 links the checked-in seed.
 ZI2C_C := $(BUILD_DIR)/zi2c-c
 ifeq ($(BOOTSTRAP),1)
-ZI2C_DRIVER := bootstrap/zi2c/zi2c.c
+ZI2C_DRIVER := $(BOOTSTRAP_ROOT)/zi2c/zi2c.c
 ZI2C_INCLUDE :=
 else
 ZI2C_DRIVER := $(ZI2C_C)/zi2c.c
@@ -857,61 +860,61 @@ $(BOOTSTRAP_BIN): $(BUILD_DIR)/runtime_headers.c
 $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(PERSISTENCE_HOST) \
     $(foreach module,$(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES) $(FRONTEND_PORT_MODULES),$(call compiler-port-seed,$(module))) \
     cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi std/c_string.zi std/result.zi std/vec.zi \
-    bootstrap/zi2c/zi2c.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
+    $(BOOTSTRAP_ROOT)/zi2c/zi2c.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
     $(BACKEND_BOOTSTRAP_FILES) cmd/compiler_backend_cache.zi cmd/compiler_backend_process.zi \
     cmd/compiler_native_names.zi cmd/compiler_portable_body.zi \
-    bootstrap/compiler_portable_body/compiler_portable_body.c \
-    bootstrap/compiler_portable_body/compiler_portable_body.h \
-    bootstrap/compiler_scalar/compiler_scalar.c \
-    bootstrap/compiler_scalar/compiler_scalar.h \
-    bootstrap/compiler_c_emit/compiler_c_emit.c \
-    bootstrap/compiler_c_emit/compiler_c_emit.h \
-    bootstrap/compiler_c_emit_value/compiler_c_emit_value.c \
-    bootstrap/compiler_c_emit_value/compiler_c_emit_value.h \
-    bootstrap/compiler_c_emit_statement/compiler_c_emit_statement.c \
-    bootstrap/compiler_c_emit_statement/compiler_c_emit_statement.h \
-    bootstrap/compiler_c_emit_call/compiler_c_emit_call.c \
-    bootstrap/compiler_c_emit_call/compiler_c_emit_call.h \
-    bootstrap/compiler_c_emit_expr/compiler_c_emit_expr.c \
-    bootstrap/compiler_c_emit_expr/compiler_c_emit_expr.h \
-    bootstrap/compiler_simd_metadata/compiler_simd_metadata.c \
-    bootstrap/compiler_simd_metadata/compiler_simd_metadata.h \
-    bootstrap/compiler_c_emit_simd/compiler_c_emit_simd.c \
-    bootstrap/compiler_c_emit_simd/compiler_c_emit_simd.h \
-    bootstrap/compiler_go_simd/compiler_go_simd.c \
-    bootstrap/compiler_go_simd/compiler_go_simd.h \
-    bootstrap/compiler_c_backend/compiler_c_backend.c \
-    bootstrap/compiler_c_backend/compiler_c_backend.h \
-    bootstrap/compiler_scan/compiler_scan.c bootstrap/compiler_scan/compiler_scan.h \
-    bootstrap/compiler_text/compiler_text.c bootstrap/compiler_text/compiler_text.h \
-    bootstrap/compiler_source/compiler_source.c bootstrap/compiler_source/compiler_source.h \
-    bootstrap/compiler_declaration/compiler_declaration.c bootstrap/compiler_declaration/compiler_declaration.h \
-    bootstrap/compiler_enum/compiler_enum.c bootstrap/compiler_enum/compiler_enum.h \
-    bootstrap/compiler_type/compiler_type.c bootstrap/compiler_type/compiler_type.h \
-    bootstrap/compiler_expression/compiler_expression.c bootstrap/compiler_expression/compiler_expression.h \
-    bootstrap/compiler_parse/compiler_parse.c bootstrap/compiler_parse/compiler_parse.h \
-    bootstrap/compiler_statement/compiler_statement.c bootstrap/compiler_statement/compiler_statement.h \
-    bootstrap/compiler_proof_kernel/compiler_proof_kernel.c bootstrap/compiler_proof_kernel/compiler_proof_kernel.h \
-    bootstrap/compiler_proof_kernel/vec.h \
-    bootstrap/compiler_proof/compiler_proof.c bootstrap/compiler_proof/compiler_proof.h \
-    bootstrap/compiler_proof/vec.h \
-    bootstrap/compiler_bundle/compiler_bundle.c bootstrap/compiler_bundle/compiler_bundle.h \
-    bootstrap/compiler_ir/compiler_ir.c bootstrap/compiler_ir/compiler_ir.h \
-    bootstrap/compiler_law/compiler_law.c bootstrap/compiler_law/compiler_law.h \
-    bootstrap/compiler_services/compiler_services.c bootstrap/compiler_services/compiler_services.h \
-    bootstrap/compiler_link/compiler_link.c bootstrap/compiler_link/compiler_link.h \
-    bootstrap/compiler_link/vec.h bootstrap/compiler_runtime_emit/compiler_runtime_emit.c \
-    bootstrap/compiler_runtime_emit/compiler_runtime_emit.h bootstrap/compiler_runtime_emit/file.c \
-    bootstrap/compiler_runtime_emit/file.h bootstrap/compiler_runtime_emit/file_linux.c \
-    bootstrap/compiler_runtime_emit/file_linux.h bootstrap/compiler_runtime_emit/c_string.c \
-    bootstrap/compiler_runtime_emit/c_string.h bootstrap/compiler_runtime_emit/result.h bootstrap/compiler_runtime_emit/vec.c \
-    bootstrap/compiler_runtime_emit/vec.h Makefile \
-    bootstrap/compiler_native_names/compiler_native_names.c \
-    bootstrap/compiler_native_names/compiler_native_names.h \
-    bootstrap/compiler_lowered_ir/compiler_lowered_ir.c bootstrap/compiler_lowered_ir/compiler_lowered_ir.h \
-    bootstrap/compiler_zir_lower/compiler_zir_lower.c bootstrap/compiler_zir_lower/compiler_zir_lower.h \
-    $(wildcard bootstrap/compiler_c_prune/*.c bootstrap/compiler_c_prune/*.h) \
-    $(wildcard bootstrap/compiler_c_range/*.c bootstrap/compiler_c_range/*.h)
+    $(BOOTSTRAP_ROOT)/compiler_portable_body/compiler_portable_body.c \
+    $(BOOTSTRAP_ROOT)/compiler_portable_body/compiler_portable_body.h \
+    $(BOOTSTRAP_ROOT)/compiler_scalar/compiler_scalar.c \
+    $(BOOTSTRAP_ROOT)/compiler_scalar/compiler_scalar.h \
+    $(BOOTSTRAP_ROOT)/compiler_c_emit/compiler_c_emit.c \
+    $(BOOTSTRAP_ROOT)/compiler_c_emit/compiler_c_emit.h \
+    $(BOOTSTRAP_ROOT)/compiler_c_emit_value/compiler_c_emit_value.c \
+    $(BOOTSTRAP_ROOT)/compiler_c_emit_value/compiler_c_emit_value.h \
+    $(BOOTSTRAP_ROOT)/compiler_c_emit_statement/compiler_c_emit_statement.c \
+    $(BOOTSTRAP_ROOT)/compiler_c_emit_statement/compiler_c_emit_statement.h \
+    $(BOOTSTRAP_ROOT)/compiler_c_emit_call/compiler_c_emit_call.c \
+    $(BOOTSTRAP_ROOT)/compiler_c_emit_call/compiler_c_emit_call.h \
+    $(BOOTSTRAP_ROOT)/compiler_c_emit_expr/compiler_c_emit_expr.c \
+    $(BOOTSTRAP_ROOT)/compiler_c_emit_expr/compiler_c_emit_expr.h \
+    $(BOOTSTRAP_ROOT)/compiler_simd_metadata/compiler_simd_metadata.c \
+    $(BOOTSTRAP_ROOT)/compiler_simd_metadata/compiler_simd_metadata.h \
+    $(BOOTSTRAP_ROOT)/compiler_c_emit_simd/compiler_c_emit_simd.c \
+    $(BOOTSTRAP_ROOT)/compiler_c_emit_simd/compiler_c_emit_simd.h \
+    $(BOOTSTRAP_ROOT)/compiler_go_simd/compiler_go_simd.c \
+    $(BOOTSTRAP_ROOT)/compiler_go_simd/compiler_go_simd.h \
+    $(BOOTSTRAP_ROOT)/compiler_c_backend/compiler_c_backend.c \
+    $(BOOTSTRAP_ROOT)/compiler_c_backend/compiler_c_backend.h \
+    $(BOOTSTRAP_ROOT)/compiler_scan/compiler_scan.c $(BOOTSTRAP_ROOT)/compiler_scan/compiler_scan.h \
+    $(BOOTSTRAP_ROOT)/compiler_text/compiler_text.c $(BOOTSTRAP_ROOT)/compiler_text/compiler_text.h \
+    $(BOOTSTRAP_ROOT)/compiler_source/compiler_source.c $(BOOTSTRAP_ROOT)/compiler_source/compiler_source.h \
+    $(BOOTSTRAP_ROOT)/compiler_declaration/compiler_declaration.c $(BOOTSTRAP_ROOT)/compiler_declaration/compiler_declaration.h \
+    $(BOOTSTRAP_ROOT)/compiler_enum/compiler_enum.c $(BOOTSTRAP_ROOT)/compiler_enum/compiler_enum.h \
+    $(BOOTSTRAP_ROOT)/compiler_type/compiler_type.c $(BOOTSTRAP_ROOT)/compiler_type/compiler_type.h \
+    $(BOOTSTRAP_ROOT)/compiler_expression/compiler_expression.c $(BOOTSTRAP_ROOT)/compiler_expression/compiler_expression.h \
+    $(BOOTSTRAP_ROOT)/compiler_parse/compiler_parse.c $(BOOTSTRAP_ROOT)/compiler_parse/compiler_parse.h \
+    $(BOOTSTRAP_ROOT)/compiler_statement/compiler_statement.c $(BOOTSTRAP_ROOT)/compiler_statement/compiler_statement.h \
+    $(BOOTSTRAP_ROOT)/compiler_proof_kernel/compiler_proof_kernel.c $(BOOTSTRAP_ROOT)/compiler_proof_kernel/compiler_proof_kernel.h \
+    $(BOOTSTRAP_ROOT)/compiler_proof_kernel/vec.h \
+    $(BOOTSTRAP_ROOT)/compiler_proof/compiler_proof.c $(BOOTSTRAP_ROOT)/compiler_proof/compiler_proof.h \
+    $(BOOTSTRAP_ROOT)/compiler_proof/vec.h \
+    $(BOOTSTRAP_ROOT)/compiler_bundle/compiler_bundle.c $(BOOTSTRAP_ROOT)/compiler_bundle/compiler_bundle.h \
+    $(BOOTSTRAP_ROOT)/compiler_ir/compiler_ir.c $(BOOTSTRAP_ROOT)/compiler_ir/compiler_ir.h \
+    $(BOOTSTRAP_ROOT)/compiler_law/compiler_law.c $(BOOTSTRAP_ROOT)/compiler_law/compiler_law.h \
+    $(BOOTSTRAP_ROOT)/compiler_services/compiler_services.c $(BOOTSTRAP_ROOT)/compiler_services/compiler_services.h \
+    $(BOOTSTRAP_ROOT)/compiler_link/compiler_link.c $(BOOTSTRAP_ROOT)/compiler_link/compiler_link.h \
+    $(BOOTSTRAP_ROOT)/compiler_link/vec.h $(BOOTSTRAP_ROOT)/compiler_runtime_emit/compiler_runtime_emit.c \
+    $(BOOTSTRAP_ROOT)/compiler_runtime_emit/compiler_runtime_emit.h $(BOOTSTRAP_ROOT)/compiler_runtime_emit/file.c \
+    $(BOOTSTRAP_ROOT)/compiler_runtime_emit/file.h $(BOOTSTRAP_ROOT)/compiler_runtime_emit/file_linux.c \
+    $(BOOTSTRAP_ROOT)/compiler_runtime_emit/file_linux.h $(BOOTSTRAP_ROOT)/compiler_runtime_emit/c_string.c \
+    $(BOOTSTRAP_ROOT)/compiler_runtime_emit/c_string.h $(BOOTSTRAP_ROOT)/compiler_runtime_emit/result.h $(BOOTSTRAP_ROOT)/compiler_runtime_emit/vec.c \
+    $(BOOTSTRAP_ROOT)/compiler_runtime_emit/vec.h Makefile \
+    $(BOOTSTRAP_ROOT)/compiler_native_names/compiler_native_names.c \
+    $(BOOTSTRAP_ROOT)/compiler_native_names/compiler_native_names.h \
+    $(BOOTSTRAP_ROOT)/compiler_lowered_ir/compiler_lowered_ir.c $(BOOTSTRAP_ROOT)/compiler_lowered_ir/compiler_lowered_ir.h \
+    $(BOOTSTRAP_ROOT)/compiler_zir_lower/compiler_zir_lower.c $(BOOTSTRAP_ROOT)/compiler_zir_lower/compiler_zir_lower.h \
+    $(wildcard $(BOOTSTRAP_ROOT)/compiler_c_prune/*.c $(BOOTSTRAP_ROOT)/compiler_c_prune/*.h) \
+    $(wildcard $(BOOTSTRAP_ROOT)/compiler_c_range/*.c $(BOOTSTRAP_ROOT)/compiler_c_range/*.h)
 	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap SIMD_DIR=$(SIMD_DIR) \
 	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=$(call quote,$(HOST_OBJCOPY)) CFLAGS=$(call quote,$(BOOTSTRAP_CFLAGS)) \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
@@ -1162,82 +1165,21 @@ $(LINK_C)/.generated: cmd/compiler_link.zi cmd/compiler_services.zi cmd/compiler
 	touch $@
 
 .PHONY: check-bootstrap update-bootstrap
-# The checked-in bootstrap C must match what the current compiler generates
-# from cmd/compiler_*.zi; update-bootstrap refreshes it. A seed also keeps the
-# generated headers of standard modules it uses, such as vec.h.
-BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel proof bundle ir law services link runtime_emit backend_cache backend_process native_names lowered_ir zir_lower c_prune c_range
-GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
-BOOTSTRAP_MODULES += parse portable_body scalar c_emit c_emit_value c_emit_statement c_emit_call c_emit_expr simd_metadata c_emit_simd go_simd c_backend
-BOOTSTRAP_MODULES += $(GO_PORT_MODULES) $(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES) $(FRONTEND_PORT_MODULES) host_api zx_run
-# Darwin's seed copies of the platform modules, generated with the defines a
-# Darwin host passes; one copy serves Apple Silicon and Intel.
-DARWIN_BOOTSTRAP_MODULES := runtime_emit backend_cache backend_process
-GENERATE_DARWIN_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main \
-    --target-os macos --define __APPLE__ --define __aarch64__ --root cmd \
-    -o $(BUILD_DIR)/bootstrap-check-darwin cmd/compiler_$$module.zi
-# The SIMD header generator's seed serves every platform; it compiles against
-# include/'s runtime headers, so it keeps none of zi2c's copies of them.
-GENERATE_SIMD_BOOTSTRAP = rm -rf $(BUILD_DIR)/bootstrap-check-simd && env -u DISPLAY -u WAYLAND_DISPLAY \
-    $(BIN_DIR)/zi2c --root scripts/simd -o $(BUILD_DIR)/bootstrap-check-simd scripts/simd/header.zi
+# bootstrap/manifest.txt lists every generated compiler root in dependency
+# order. The fixed-point script regenerates them, compares the checked-in
+# seeds, builds the next compiler and proves it reproduces the same C.
+# BOOTSTRAP_ONLY gates named roots while another lane's seed is stale;
+# update-bootstrap also requires its own full make check before publishing.
+BOOTSTRAP_FIXED_POINT := python3 scripts/bootstrap_fixed_point.py
 check-bootstrap: $(BIN_DIR)/zi2c
-	@set -e; for module in $(BOOTSTRAP_MODULES); do \
-	    $(GENERATE_BOOTSTRAP); \
-	    for file in $$(find bootstrap/compiler_$$module -maxdepth 1 -type f ! -name '*.o' ! -name '*.d' ! -name '.build.lock' -printf '%f\n' | sort); do \
-	        cmp bootstrap/compiler_$$module/$$file $(BUILD_DIR)/bootstrap-check/$$file; \
-	    done; \
-	done; \
-	for module in $(DARWIN_BOOTSTRAP_MODULES); do \
-	    $(GENERATE_DARWIN_BOOTSTRAP); \
-	    for file in $$(find bootstrap/compiler_$$module -maxdepth 1 -type f ! -name '*.o' ! -name '*.d' ! -name '.build.lock' -printf '%f\n' | sort); do \
-	        cmp bootstrap/darwin/compiler_$$module/$$file $(BUILD_DIR)/bootstrap-check-darwin/$$file; \
-	    done; \
-	done; \
-	$(GENERATE_SIMD_BOOTSTRAP); \
-	diff -rq -x 'zir_*.h' -x .build.lock bootstrap/simd $(BUILD_DIR)/bootstrap-check-simd; \
-	rm -rf $(BUILD_DIR)/bootstrap-check-zi2c; \
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --entry zi2c:main --root cmd --module-path std \
-	    -o $(BUILD_DIR)/bootstrap-check-zi2c cmd/zi2c.zi; \
-	cmp bootstrap/zi2c/zi2c.c $(BUILD_DIR)/bootstrap-check-zi2c/zi2c.c; \
-	echo "bootstrap matches: $(BOOTSTRAP_MODULES); darwin: $(DARWIN_BOOTSTRAP_MODULES); simd; zi2c driver"
+	$(BOOTSTRAP_FIXED_POINT) check --zi2c $(BIN_DIR)/zi2c \
+	    --scratch $(BUILD_DIR)/bootstrap-fixed --jobs $(JOBS) \
+	    $(if $(BOOTSTRAP_ONLY),--only $(BOOTSTRAP_ONLY))
 
 update-bootstrap: $(BIN_DIR)/zi2c
-	@set -e; for module in $(BOOTSTRAP_MODULES); do \
-	    $(GENERATE_BOOTSTRAP); \
-	    files="compiler_$$module.c compiler_$$module.h"; \
-	    case "$$module" in \
-	        proof_kernel|proof|link) files="$$files vec.h";; \
-	        c_range) files="$(foreach m,$(RANGE_MODULES),$(m).c $(m).h)";; \
-	        runtime_emit) files="compiler_runtime_emit.c compiler_runtime_emit.h \
-	            file.c file.h file_linux.c file_linux.h \
-	            c_string.c c_string.h result.h vec.c vec.h";; \
-	        backend_process) files="compiler_backend_process.c compiler_backend_process.h \
-	            byte_text_linux.c byte_text_linux.h environment.h environment_linux.c environment_linux.h \
-	            file_tree_linux.c file_tree_linux.h number_text.c number_text.h \
-	            text_buffer.c text_buffer.h \
-	            process_run_linux.c process_run_linux.h \
-	            sort.c sort.h text_tools.c text_tools.h timer_linux.c timer_linux.h";; \
-	    esac; \
-	    for file in $$files; do \
-	        cp $(BUILD_DIR)/bootstrap-check/$$file bootstrap/compiler_$$module/; \
-	    done; \
-	done; \
-	for module in $(DARWIN_BOOTSTRAP_MODULES); do \
-	    $(GENERATE_DARWIN_BOOTSTRAP); \
-	    mkdir -p bootstrap/darwin/compiler_$$module; \
-	    for file in $$(find bootstrap/compiler_$$module -maxdepth 1 -type f ! -name '*.o' ! -name '*.d' ! -name '.build.lock' -printf '%f\n'); do \
-	        cp $(BUILD_DIR)/bootstrap-check-darwin/$$file bootstrap/darwin/compiler_$$module/; \
-	    done; \
-	done; \
-	$(GENERATE_SIMD_BOOTSTRAP); \
-	rm -rf bootstrap/simd; mkdir bootstrap/simd; \
-	cp $(BUILD_DIR)/bootstrap-check-simd/*.c $(BUILD_DIR)/bootstrap-check-simd/*.h bootstrap/simd/; \
-	rm -f bootstrap/simd/zir_*.h; \
-	rm -rf $(BUILD_DIR)/bootstrap-check-zi2c; \
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --entry zi2c:main --root cmd --module-path std \
-	    -o $(BUILD_DIR)/bootstrap-check-zi2c cmd/zi2c.zi; \
-	mkdir -p bootstrap/zi2c; \
-	cp $(BUILD_DIR)/bootstrap-check-zi2c/zi2c.c bootstrap/zi2c/
+	$(BOOTSTRAP_FIXED_POINT) update --zi2c $(BIN_DIR)/zi2c \
+	    --scratch $(BUILD_DIR)/bootstrap-fixed --jobs $(JOBS) \
+	    --check-command '$(MAKE) check'
 
 endif
 

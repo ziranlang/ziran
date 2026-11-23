@@ -1,0 +1,93 @@
+# Ziran bootstrap manifest: every generated compiler root, in dependency order.
+# name<TAB>kind<TAB>source<TAB>generated files
+# kinds: compiler (--no-main --root cmd), platform (adds --module-path std),
+#        darwin (macOS defines), simd (scripts/simd), driver (zi2c entry),
+#        engine (generated, not linked into the bootstrap compiler).
+scan	compiler	cmd/compiler_scan.zi	compiler_scan.c compiler_scan.h
+text	compiler	cmd/compiler_text.zi	compiler_text.c compiler_text.h
+source	compiler	cmd/compiler_source.zi	compiler_source.c compiler_source.h
+declaration	compiler	cmd/compiler_declaration.zi	compiler_declaration.c compiler_declaration.h
+enum	compiler	cmd/compiler_enum.zi	compiler_enum.c compiler_enum.h
+type	compiler	cmd/compiler_type.zi	compiler_type.c compiler_type.h
+expression	compiler	cmd/compiler_expression.zi	compiler_expression.c compiler_expression.h
+statement	compiler	cmd/compiler_statement.zi	compiler_statement.c compiler_statement.h
+proof_kernel	compiler	cmd/compiler_proof_kernel.zi	compiler_proof_kernel.c compiler_proof_kernel.h vec.h
+bundle	compiler	cmd/compiler_bundle.zi	compiler_bundle.c compiler_bundle.h
+ir	compiler	cmd/compiler_ir.zi	compiler_ir.c compiler_ir.h
+services	compiler	cmd/compiler_services.zi	compiler_services.c compiler_services.h
+link	compiler	cmd/compiler_link.zi	compiler_link.c compiler_link.h vec.h
+runtime_emit	platform	cmd/compiler_runtime_emit.zi	c_string.c c_string.h compiler_runtime_emit.c compiler_runtime_emit.h file.c file.h file_linux.c file_linux.h result.h vec.c vec.h
+backend_cache	platform	cmd/compiler_backend_cache.zi	compiler_backend_cache.c compiler_backend_cache.h
+backend_process	platform	cmd/compiler_backend_process.zi	byte_text_linux.c byte_text_linux.h compiler_backend_process.c compiler_backend_process.h environment.h environment_linux.c environment_linux.h file_tree_linux.c file_tree_linux.h number_text.c number_text.h process_run_linux.c process_run_linux.h sort.c sort.h text_buffer.c text_buffer.h text_tools.c text_tools.h timer_linux.c timer_linux.h
+native_names	compiler	cmd/compiler_native_names.zi	compiler_native_names.c compiler_native_names.h
+lowered_ir	compiler	cmd/compiler_lowered_ir.zi	compiler_lowered_ir.c compiler_lowered_ir.h
+zir_lower	compiler	cmd/compiler_zir_lower.zi	compiler_zir_lower.c compiler_zir_lower.h
+c_prune	compiler	cmd/compiler_c_prune.zi	compiler_c_prune.c compiler_c_prune.h hash_map.c hash_map.h text_tools.h vec.h
+c_range	compiler	cmd/compiler_c_range.zi	compiler_c_range.c compiler_c_range.h compiler_c_range_callers.c compiler_c_range_callers.h compiler_c_range_facts.c compiler_c_range_facts.h compiler_c_range_fill.c compiler_c_range_fill.h compiler_c_range_poly.c compiler_c_range_poly.h compiler_c_range_values.c compiler_c_range_values.h
+parse	compiler	cmd/compiler_parse.zi	compiler_parse.c compiler_parse.h
+portable_body	compiler	cmd/compiler_portable_body.zi	compiler_portable_body.c compiler_portable_body.h
+scalar	compiler	cmd/compiler_scalar.zi	compiler_scalar.c compiler_scalar.h
+c_emit	compiler	cmd/compiler_c_emit.zi	compiler_c_emit.c compiler_c_emit.h
+c_emit_value	compiler	cmd/compiler_c_emit_value.zi	compiler_c_emit_value.c compiler_c_emit_value.h
+c_emit_statement	compiler	cmd/compiler_c_emit_statement.zi	compiler_c_emit_statement.c compiler_c_emit_statement.h
+c_emit_call	compiler	cmd/compiler_c_emit_call.zi	compiler_c_emit_call.c compiler_c_emit_call.h
+c_emit_expr	compiler	cmd/compiler_c_emit_expr.zi	compiler_c_emit_expr.c compiler_c_emit_expr.h
+simd_metadata	compiler	cmd/compiler_simd_metadata.zi	compiler_simd_metadata.c compiler_simd_metadata.h
+c_emit_simd	compiler	cmd/compiler_c_emit_simd.zi	compiler_c_emit_simd.c compiler_c_emit_simd.h
+go_simd	compiler	cmd/compiler_go_simd.zi	compiler_go_simd.c compiler_go_simd.h
+c_backend	compiler	cmd/compiler_c_backend.zi	compiler_c_backend.c compiler_c_backend.h
+go_asm_x64	compiler	cmd/compiler_go_asm_x64.zi	compiler_go_asm_x64.c compiler_go_asm_x64.h
+check_types	compiler	cmd/compiler_check_types.zi	compiler_check_types.c compiler_check_types.h
+check	compiler	cmd/compiler_check.zi	compiler_check.c compiler_check.h
+check_value	compiler	cmd/compiler_check_value.zi	compiler_check_value.c compiler_check_value.h
+check_statement	compiler	cmd/compiler_check_statement.zi	compiler_check_statement.c compiler_check_statement.h
+check_expr	compiler	cmd/compiler_check_expr.zi	compiler_check_expr.c compiler_check_expr.h
+check_text	compiler	cmd/compiler_check_text.zi	compiler_check_text.c compiler_check_text.h
+check_s12_types	compiler	cmd/compiler_check_s12_types.zi	compiler_check_s12_types.c compiler_check_s12_types.h
+check_function	compiler	cmd/compiler_check_function.zi	compiler_check_function.c compiler_check_function.h
+check_program	compiler	cmd/compiler_check_program.zi	compiler_check_program.c compiler_check_program.h
+check_link	compiler	cmd/compiler_check_link.zi	compiler_check_link.c compiler_check_link.h
+check_simd	compiler	cmd/compiler_check_simd.zi	compiler_check_simd.c compiler_check_simd.h
+borrow	compiler	cmd/compiler_borrow.zi	compiler_borrow.c compiler_borrow.h
+parse_types	compiler	cmd/compiler_parse_types.zi	compiler_parse_types.c compiler_parse_types.h
+parse_condition	compiler	cmd/compiler_parse_condition.zi	compiler_parse_condition.c compiler_parse_condition.h
+parse_discover	compiler	cmd/compiler_parse_discover.zi	compiler_parse_discover.c compiler_parse_discover.h
+parse_source	compiler	cmd/compiler_parse_source.zi	compiler_parse_source.c compiler_parse_source.h
+frontend_parse	compiler	cmd/compiler_frontend_parse.zi	compiler_frontend_parse.c compiler_frontend_parse.h
+parse_s14_types	compiler	cmd/compiler_parse_s14_types.zi	compiler_parse_s14_types.c compiler_parse_s14_types.h
+parse_declaration	compiler	cmd/compiler_parse_declaration.zi	compiler_parse_declaration.c compiler_parse_declaration.h
+parse_eval	compiler	cmd/compiler_parse_eval.zi	compiler_parse_eval.c compiler_parse_eval.h
+parse_typed	compiler	cmd/compiler_parse_typed.zi	compiler_parse_typed.c compiler_parse_typed.h
+ir_cleanup	compiler	cmd/compiler_ir_cleanup.zi	compiler_ir_cleanup.c compiler_ir_cleanup.h
+cli	compiler	cmd/compiler_cli.zi	compiler_cli.c compiler_cli.h
+edit	compiler	cmd/compiler_edit.zi	compiler_edit.c compiler_edit.h
+context_types	compiler	cmd/compiler_context_types.zi	compiler_context_types.c compiler_context_types.h
+context	compiler	cmd/compiler_context.zi	compiler_context.c compiler_context.h
+document	compiler	cmd/compiler_document.zi	compiler_document.c compiler_document.h
+diagnostic	compiler	cmd/compiler_diagnostic.zi	compiler_diagnostic.c compiler_diagnostic.h
+files	compiler	cmd/compiler_files.zi	compiler_files.c compiler_files.h
+source_store	compiler	cmd/compiler_source_store.zi	compiler_source_store.c compiler_source_store.h
+overlay	compiler	cmd/compiler_overlay.zi	compiler_overlay.c compiler_overlay.h
+semantic	compiler	cmd/compiler_semantic.zi	compiler_semantic.c compiler_semantic.h
+sha256	compiler	cmd/compiler_sha256.zi	compiler_sha256.c compiler_sha256.h
+profile	compiler	cmd/compiler_profile.zi	compiler_profile.c compiler_profile.h
+frontend_ir	compiler	cmd/compiler_frontend_ir.zi	compiler_frontend_ir.c compiler_frontend_ir.h
+law_runtime	compiler	cmd/compiler_law_runtime.zi	compiler_law_runtime.c compiler_law_runtime.h
+target_bridge	compiler	cmd/compiler_target_bridge.zi	compiler_target_bridge.c compiler_target_bridge.h
+zir_serial	compiler	cmd/compiler_zir_serial.zi	compiler_zir_serial.c compiler_zir_serial.h
+package_resolve	compiler	cmd/compiler_package_resolve.zi	compiler_package_resolve.c compiler_package_resolve.h
+zx_assets	compiler	cmd/compiler_zx_assets.zi	compiler_zx_assets.c compiler_zx_assets.h
+zx_link	compiler	cmd/compiler_zx_link.zi	compiler_zx_link.c compiler_zx_link.h
+inline_asm	compiler	cmd/compiler_inline_asm.zi	compiler_inline_asm.c compiler_inline_asm.h
+host_api	compiler	cmd/compiler_host_api.zi	compiler_host_api.c compiler_host_api.h
+zx_run	engine	cmd/compiler_zx_run.zi	compiler_zx_run.c compiler_zx_run.h
+proof	compiler	cmd/compiler_proof.zi	compiler_proof.c compiler_proof.h vec.h
+law	compiler	cmd/compiler_law.zi	compiler_law.c compiler_law.h
+go_asm	compiler	cmd/compiler_go_asm.zi	compiler_go_asm.c compiler_go_asm.h
+load	compiler	cmd/compiler_load.zi	compiler_load.c compiler_load.h
+go_backend	compiler	cmd/compiler_go_backend.zi	compiler_go_backend.c compiler_go_backend.h
+runtime_emit	darwin	cmd/compiler_runtime_emit.zi	c_string.c c_string.h compiler_runtime_emit.c compiler_runtime_emit.h file.c file.h file_linux.c file_linux.h result.h vec.c vec.h
+backend_cache	darwin	cmd/compiler_backend_cache.zi	compiler_backend_cache.c compiler_backend_cache.h
+backend_process	darwin	cmd/compiler_backend_process.zi	byte_text_linux.c byte_text_linux.h compiler_backend_process.c compiler_backend_process.h environment.h environment_linux.c environment_linux.h file_tree_linux.c file_tree_linux.h number_text.c number_text.h process_run_linux.c process_run_linux.h sort.c sort.h text_buffer.c text_buffer.h text_tools.c text_tools.h timer_linux.c timer_linux.h
+simd	simd	scripts/simd/header.zi	arithmetic.c arithmetic.h common.c common.h control.c control.h convert.c convert.h emit.c emit.h entries.c entries.h go_helpers.c go_helpers.h header.c header.h model.c model.h narrow.c narrow.h native.c native.h number_text.c number_text.h operations.c operations.h pairs.c pairs.h plan.c plan.h reduce.c reduce.h scalar.c scalar.h sort.c sort.h text_buffer.c text_buffer.h text_tools.c text_tools.h vec.c vec.h widen.c widen.h
+zi2c	driver	cmd/zi2c.zi	zi2c.c

@@ -646,9 +646,19 @@ No step commits before its implementation and proof are complete.
   `local_owned_fields` pass; a differential on source builds (zx/lir/opt
   report), runs (native/engine), source runs and `.zx` inspection is
   byte-identical.
+- Done 2026-11-23: `cmd/zi_api.zi` replaces its C driver
+  (`cmd/zir-api/main.c` deleted). Option reordering, checked program loading,
+  module selection by checked or imported name, the bounded JSON and text
+  surfaces, semantic identities, document spans, ownership and laws, the
+  std/vec builtin table and the example sidecars are Ziran; the regular-file
+  sidecar read with O_NOFOLLOW stays in `zir_files_host.c`. A 33-case
+  reference-driver differential has identical stdout/stderr bytes and exit
+  status; `tests/zir_api.sh` and `tests/api_discovery.sh` pass.
 - Remaining S17 drivers: `zx2native` (host-library discovery, map/report,
-  PE/ELF layout) and `zi-api` (host API JSON surface); then delete
-  `zir_command.h`/`zir_edit.h` and the tool C, and run S18.
+  PE/ELF layout); then delete `zir_command.h`/`zir_edit.h` and the tool C, and
+  run S18. `cmd/zx2native/main.c` currently carries another lane's
+  uncommitted built-in files/clock provider change, so the port waits for
+  that edit to be committed or withdrawn instead of deleting it.
 - Change Makefile tool targets and editor links to Ziran drivers. The `ziran`
   package driver is already Ziran; no change beyond imports.
 - Delete `cmd/zir/zir_profile.c/.h`,
@@ -663,6 +673,24 @@ No step commits before its implementation and proof are complete.
   `scripts/bootstrap_fixed_point.py` with `read_manifest`, `generate_stage`,
   `compile_stage`, `compare_stage`, `validate_runtime_boundary`, and
   `atomic_update`.
+- Done 2026-11-23 (mechanism): `bootstrap/manifest.txt` lists 88 generated
+  roots in dependency order with their expected files, including the Darwin
+  and SIMD copies and the zi2c driver. `scripts/bootstrap_fixed_point.py`
+  provides `read_manifest` (order and import closure), `generate_stage`,
+  `compile_stage` (a compiler built from a generated stage root via
+  `BOOTSTRAP_ROOT`), `compare_stage` (seed bytes plus stale seed files),
+  `validate_runtime_boundary` (non-static runtime functions must be declared
+  by `ziran_bootstrap_runtime.h`) and `atomic_update` (fsynced per-file
+  replace from a `.next` tree, stale generated files removed).
+  `tests/bootstrap_fixed_point.sh` covers a clean match, a stage-2 mismatch,
+  a stale seed, a forbidden runtime function, update refusal, a failed proof
+  stage and recovery from a leftover pending tree. `check-bootstrap` and
+  `update-bootstrap` now call the script; `BOOTSTRAP_ONLY=root,...` gates
+  named roots while another lane's seed is stale. Still open for S18: the
+  runtime C has not moved to `bootstrap/runtime` (the parser recovery C is
+  another lane's in-flight port), `cmd/zir` still holds that C, and several
+  seeds are stale from other lanes' commits, so the full proof cannot pass
+  yet.
 - Add `bootstrap/runtime/README.md`,
   `bootstrap/runtime/ziran_bootstrap_runtime.c/.h`, and
   `bootstrap/runtime/ziran_bootstrap_entry.c`. The only permitted functions are

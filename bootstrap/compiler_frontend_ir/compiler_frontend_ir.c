@@ -824,6 +824,7 @@ static GeneratedOutputs* compiler_frontend_ir_context_outputs(void) ZIRAN_MAYBE_
 static uint8_t* compiler_frontend_ir_path_base_name(uint8_t* path) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_frontend_ir_same_file_bytes_with_buffers(uint8_t* left, uint8_t* right, SameFileBytesBuffers* buffers) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_frontend_ir_starts_with_marker(uint8_t* path, uint8_t* marker) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_frontend_ir_same_type_argument(ZirModule* target_owner, uint8_t* target, ZirModule* source_owner, uint8_t* source, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_frontend_ir_same_type_application_at_depth(ZirModule* target_owner, ZirType* target, ZirModule* source_owner, ZirType* source, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_frontend_ir_copy_part(uint8_t* output, size_t capacity, String part) ZIRAN_MAYBE_UNUSED;
 static FieldSnapshots* compiler_frontend_ir_context_fields(CompilerThread* thread) ZIRAN_MAYBE_UNUSED;
@@ -7009,15 +7010,65 @@ GeneratedOutputPrune(uint8_t* out_dir, uint8_t* marker)
 }
 
 static int32_t
+compiler_frontend_ir_same_type_argument(ZirModule* target_owner, uint8_t* target, ZirModule* source_owner, uint8_t* source, int32_t depth)
+{
+    while (zir_f_c9f352eed87788d1_isspace((int32_t)(target[0])) != 0) {
+        target = (uint8_t*)(((size_t)(target) + 1));
+    }
+    while (zir_f_c9f352eed87788d1_isspace((int32_t)(source[0])) != 0) {
+        source = (uint8_t*)(((size_t)(source) + 1));
+    }
+    if (target[0] == 42 || source[0] == 42) {
+        if (target[0] != source[0]) {
+            return 0;
+        }
+        return compiler_frontend_ir_same_type_argument(target_owner, (uint8_t*)(((size_t)(target) + 1)), source_owner, (uint8_t*)(((size_t)(source) + 1)), depth);
+    }
+    if (target[0] == 91 || source[0] == 91) {
+        uint8_t* target_close = zir_f_c9f352eed87788d1_strchr(target, 93);
+        uint8_t* source_close = zir_f_c9f352eed87788d1_strchr(source, 93);
+        if (target_close == ((void *)0) || source_close == ((void *)0)) {
+            return 0;
+        }
+        size_t length = (size_t)(target_close) - (size_t)(target);
+        if (length != (size_t)(source_close) - (size_t)(source) || zir_f_c9f352eed87788d1_strncmp(target, source, length) != 0) {
+            return 0;
+        }
+        return compiler_frontend_ir_same_type_argument(target_owner, (uint8_t*)(((size_t)(target_close) + 1)), source_owner, (uint8_t*)(((size_t)(source_close) + 1)), depth);
+    }
+    uint8_t* target_scalar = zir_f_c9f352eed87788d1_ScalarType(target);
+    uint8_t* source_scalar = zir_f_c9f352eed87788d1_ScalarType(source);
+    if (target_scalar[0] != 0 || source_scalar[0] != 0) {
+        bool value_0 = zir_f_c9f352eed87788d1_strcmp(target_scalar, source_scalar) == 0;
+        int32_t value_1 = 0;
+        if (value_0) {
+            value_1 = 1;
+        }
+        return value_1;
+    }
+    ZirModule* a_owner = (void *)0;
+    ZirModule* b_owner = (void *)0;
+    ZirType* a = FindType(target_owner, target, &(a_owner));
+    ZirType* b = FindType(source_owner, source, &(b_owner));
+    if (a == ((void *)0) || b == ((void *)0)) {
+        return 0;
+    }
+    bool value_2 = a == b || compiler_frontend_ir_same_type_application_at_depth(a_owner, a, b_owner, b, (int32_t)((uint32_t)depth + 1u)) != 0;
+    int32_t value_3 = 0;
+    if (value_2) {
+        value_3 = 1;
+    }
+    return value_3;
+}
+
+static int32_t
 compiler_frontend_ir_same_type_application_at_depth(ZirModule* target_owner, ZirType* target, ZirModule* source_owner, ZirType* source, int32_t depth)
 {
     if (depth > 16) {
         return 0;
     }
     bool value_0 = target != (ZirType*)(((void *)0)) && source != (ZirType*)(((void *)0)) && target_owner != (ZirModule*)(((void *)0));
-    bool value_1 = value_0 && source_owner != (ZirModule*)(((void *)0)) && target->is_synthetic_application != 0 && source->is_synthetic_application != 0;
-    bool value_2 = value_1;
-    if (value_2 && zir_f_c9f352eed87788d1_strcmp((uint8_t*)(&(target->body)), (uint8_t*)(&(source->body))) == 0) {
+    if (value_0 && source_owner != (ZirModule*)(((void *)0)) && target->is_synthetic_application != 0 && source->is_synthetic_application != 0) {
         ZirType* target_template = FindType(target_owner, (uint8_t*)(&(target->template_name)), (void *)0);
         ZirType* source_template = FindType(source_owner, (uint8_t*)(&(source->template_name)), (void *)0);
         if (target_template != (ZirType*)(((void *)0)) && target_template == source_template) {
@@ -7025,11 +7076,11 @@ compiler_frontend_ir_same_type_application_at_depth(ZirModule* target_owner, Zir
             CoreArray16_CoreArray128_u8 source_args = {0};
             int32_t target_count = zir_f_c9f352eed87788d1_split_top_level((uint8_t*)(&(target->template_args)), (uint8_t*)(&(((target_args.items[0]).items)[0])), 16, (size_t)(128LL));
             int32_t source_count = zir_f_c9f352eed87788d1_split_top_level((uint8_t*)(&(source->template_args)), (uint8_t*)(&(((source_args.items[0]).items)[0])), 16, (size_t)(128LL));
-            int32_t value_3 = 0;
+            int32_t value_1 = 0;
             if (target_count > 0 && target_count < 16 && target_count == source_count) {
-                value_3 = 1;
+                value_1 = 1;
             }
-            int32_t same = value_3;
+            int32_t same = value_1;
             {
                 int32_t i = 0;
                 while (true) {
@@ -7037,43 +7088,17 @@ compiler_frontend_ir_same_type_application_at_depth(ZirModule* target_owner, Zir
                     if (!check_loop_68) {
                         break;
                     }
-                    uint8_t* target_scalar = zir_f_c9f352eed87788d1_ScalarType((uint8_t*)(&(((target_args.items[i]).items)[0])));
-                    uint8_t* source_scalar = zir_f_c9f352eed87788d1_ScalarType((uint8_t*)(&(((source_args.items[i]).items)[0])));
-                    if (target_scalar[0] != 0 || source_scalar[0] != 0) {
-                        bool value_4 = zir_f_c9f352eed87788d1_strcmp(target_scalar, source_scalar) == 0;
-                        int32_t value_5 = 0;
-                        if (value_4) {
-                            value_5 = 1;
-                        }
-                        same = value_5;
-                    } else {
-                        ZirModule* a_owner = (void *)0;
-                        ZirModule* b_owner = (void *)0;
-                        ZirType* a = FindType(target_owner, (uint8_t*)(&(((target_args.items[i]).items)[0])), &(a_owner));
-                        ZirType* b = FindType(source_owner, (uint8_t*)(&(((source_args.items[i]).items)[0])), &(b_owner));
-                        bool value_6 = a != (ZirType*)(((void *)0)) && b != (ZirType*)(((void *)0));
-                        bool value_7 = value_6;
-                        if (value_7) {
-                            bool value_8 = a == b;
-                            bool value_9 = value_8 || compiler_frontend_ir_same_type_application_at_depth(a_owner, a, b_owner, b, (int32_t)((uint32_t)depth + 1u)) != 0;
-                            value_7 = value_9;
-                        }
-                        int32_t value_10 = 0;
-                        if (value_7) {
-                            value_10 = 1;
-                        }
-                        same = value_10;
-                    }
-                    int32_t* value_11 = &(i);
-                    int32_t value_12 = 0;
+                    same = compiler_frontend_ir_same_type_argument(target_owner, (uint8_t*)(&(((target_args.items[i]).items)[0])), source_owner, (uint8_t*)(&(((source_args.items[i]).items)[0])), depth);
+                    int32_t* value_2 = &(i);
+                    int32_t value_3 = 0;
                     {
-                        int32_t* p = value_11;
+                        int32_t* p = value_2;
                         int32_t old = p[0];
-                        int32_t* value_14 = &(p[0]);
-                        (*value_14) = (int32_t)((uint32_t)(p[0]) + 1u);
-                        value_12 = old;
+                        int32_t* value_5 = &(p[0]);
+                        (*value_5) = (int32_t)((uint32_t)(p[0]) + 1u);
+                        value_3 = old;
                     }
-                    (void)value_12;
+                    (void)value_3;
                 }
             }
             if (same != 0) {

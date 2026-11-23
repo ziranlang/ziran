@@ -2868,11 +2868,41 @@ GeneratedOutputPrune :: (out_dir: *u8, marker: *u8) -> s32 {
 
 
 #scope_file
+// Two argument texts of a type application name one type: the same scalar,
+// declared type or application under the same pointer, slice and array
+// shapes. Each text resolves in its own module, so Db.Match in one module
+// and Match in Db are one argument.
+same_type_argument :: (target_owner: *IR.ZirModule, target: *u8, source_owner: *IR.ZirModule, source: *u8, depth: s32) -> s32 {
+    while isspace(cast(s32)target[0]) != 0 { target = cast(*u8)(cast(usize)target + 1) }
+    while isspace(cast(s32)source[0]) != 0 { source = cast(*u8)(cast(usize)source + 1) }
+    if target[0] == #char "*" || source[0] == #char "*" {
+        if target[0] != source[0] { return 0 }
+        return same_type_argument(target_owner, cast(*u8)(cast(usize)target + 1), source_owner, cast(*u8)(cast(usize)source + 1), depth)
+    }
+    if target[0] == #char "[" || source[0] == #char "[" {
+        target_close := strchr(target, #char "]")
+        source_close := strchr(source, #char "]")
+        if target_close == null || source_close == null { return 0 }
+        length := cast(usize)target_close - cast(usize)target
+        if length != cast(usize)source_close - cast(usize)source || strncmp(target, source, length) != 0 { return 0 }
+        return same_type_argument(target_owner, cast(*u8)(cast(usize)target_close + 1), source_owner, cast(*u8)(cast(usize)source_close + 1), depth)
+    }
+    target_scalar := ScalarType(target)
+    source_scalar := ScalarType(source)
+    if target_scalar[0] != 0 || source_scalar[0] != 0 { return cast(s32)(strcmp(target_scalar, source_scalar) == 0) }
+    a_owner: *IR.ZirModule = null
+    b_owner: *IR.ZirModule = null
+    a := FindType(target_owner, target, *a_owner)
+    b := FindType(source_owner, source, *b_owner)
+    if a == null || b == null { return 0 }
+    return cast(s32)(a == b || same_type_application_at_depth(a_owner, a, b_owner, b, depth + 1) != 0)
+}
+
 same_type_application_at_depth :: (target_owner: *IR.ZirModule, target: *IR.ZirType, source_owner: *IR.ZirModule, source: *IR.ZirType, depth: s32) -> s32 {
     if (depth > 16) {
         return 0
     }
-    if (((((((target != cast(*IR.ZirType)((null))) && (source != cast(*IR.ZirType)((null)))) && (target_owner != cast(*IR.ZirModule)((null)))) && (source_owner != cast(*IR.ZirModule)((null)))) && ((target).is_synthetic_application != 0)) && ((source).is_synthetic_application != 0)) && (strcmp(cast(*u8)(*((target).body)), cast(*u8)(*((source).body))) == 0)) {
+    if ((((((target != cast(*IR.ZirType)((null))) && (source != cast(*IR.ZirType)((null)))) && (target_owner != cast(*IR.ZirModule)((null)))) && (source_owner != cast(*IR.ZirModule)((null)))) && ((target).is_synthetic_application != 0)) && ((source).is_synthetic_application != 0)) {
         target_template: *IR.ZirType = FindType(target_owner, cast(*u8)(*((target).template_name)), null)
         source_template: *IR.ZirType = FindType(source_owner, cast(*u8)(*((source).template_name)), null)
         if ((target_template != cast(*IR.ZirType)((null))) && (target_template == source_template)) {
@@ -2884,17 +2914,7 @@ same_type_application_at_depth :: (target_owner: *IR.ZirModule, target: *IR.ZirT
             {
                 i: s32 = 0
                 while check_loop_68 := ((i < target_count) && (same != 0)) {
-                    target_scalar: *u8 = ScalarType(cast(*u8)(*((target_args).items[i]).items[0]))
-                    source_scalar: *u8 = ScalarType(cast(*u8)(*((source_args).items[i]).items[0]))
-                    if (((target_scalar)[0] != 0) || ((source_scalar)[0] != 0)) {
-                        same = cast(s32)(strcmp(target_scalar, source_scalar) == 0)
-                    } else {
-                        a_owner: *IR.ZirModule = null
-                        b_owner: *IR.ZirModule = null
-                        a: *IR.ZirType = FindType(target_owner, cast(*u8)(*((target_args).items[i]).items[0]), *(a_owner))
-                        b: *IR.ZirType = FindType(source_owner, cast(*u8)(*((source_args).items[i]).items[0]), *(b_owner))
-                        same = cast(s32)(((a != cast(*IR.ZirType)((null))) && (b != cast(*IR.ZirType)((null)))) && ((a == b) || (same_type_application_at_depth(a_owner, a, b_owner, b, (depth + 1)) != 0)))
-                    }
+                    same = same_type_argument(target_owner, cast(*u8)(*((target_args).items[i]).items[0]), source_owner, cast(*u8)(*((source_args).items[i]).items[0]), depth)
                     ParserPost2(*(i))
                 }
             }

@@ -626,15 +626,15 @@ static void* compiler_zir_lower_Allocate(AssemblyProgram* program, size_t count,
 static bool compiler_zir_lower_Push(AssemblyProgram* program, RawVector* vector, size_t width, void* value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_zir_lower_PushS32(AssemblyProgram* program, __type_0c8c2c2a7dfdc73a* vector, int32_t value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_zir_lower_PushString(AssemblyProgram* program, __type_5a6f11963c9bea0f* vector, String value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushLirType(AssemblyProgram* program, __type_54c6b18f653132c8* vector, LirType value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushLirConstant(AssemblyProgram* program, __type_02b39c93b9b3b114* vector, LirConstant value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushLirOrigin(AssemblyProgram* program, __type_fd7fa0ce6aa22182* vector, LirOrigin value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushLirType(AssemblyProgram* program, __type_ddeffb4af1d2a905* vector, LirType value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushLirConstant(AssemblyProgram* program, __type_df30cb38159eb83d* vector, LirConstant value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushLirOrigin(AssemblyProgram* program, __type_37ce17372029b897* vector, LirOrigin value) ZIRAN_MAYBE_UNUSED;
 static Slice compiler_zir_lower_SliceOf__overload_1(__type_a179548355995a8b vector) ZIRAN_MAYBE_UNUSED;
 static Slice compiler_zir_lower_SliceOf__overload_2(__type_0c8c2c2a7dfdc73a vector) ZIRAN_MAYBE_UNUSED;
 static Slice compiler_zir_lower_SliceOf__overload_3(__type_5a6f11963c9bea0f vector) ZIRAN_MAYBE_UNUSED;
-static Slice compiler_zir_lower_SliceOf__overload_4(__type_54c6b18f653132c8 vector) ZIRAN_MAYBE_UNUSED;
-static Slice compiler_zir_lower_SliceOf__overload_5(__type_02b39c93b9b3b114 vector) ZIRAN_MAYBE_UNUSED;
-static Slice compiler_zir_lower_SliceOf__overload_6(__type_fd7fa0ce6aa22182 vector) ZIRAN_MAYBE_UNUSED;
+static Slice compiler_zir_lower_SliceOf__overload_4(__type_ddeffb4af1d2a905 vector) ZIRAN_MAYBE_UNUSED;
+static Slice compiler_zir_lower_SliceOf__overload_5(__type_df30cb38159eb83d vector) ZIRAN_MAYBE_UNUSED;
+static Slice compiler_zir_lower_SliceOf__overload_6(__type_37ce17372029b897 vector) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_zir_lower_Text(AssemblyProgram* program, uint8_t* text) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_Name(AssemblyProgram* program, __type_5a6f11963c9bea0f* names, uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_zir_lower_Origin(AssemblyProgram* program, ZirSourceSpan span) ZIRAN_MAYBE_UNUSED;
@@ -645,8 +645,8 @@ static bool compiler_zir_lower_PushFunctionPtr(AssemblyProgram* program, __type_
 static bool compiler_zir_lower_PushBlock(AssemblyProgram* program, __type_67ee5567ed548753* vector, AssemblyBlock value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_zir_lower_PushBinding(AssemblyProgram* program, __type_dd536e055506338b* vector, AssemblyBinding value) ZIRAN_MAYBE_UNUSED;
 static bool compiler_zir_lower_PushZeroSlot(AssemblyProgram* program, __type_745e0b4796abfa08* vector, AssemblyZeroSlot value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushProbe(AssemblyProgram* program, __type_9059301564cb61cc* vector, ZirFunction* value) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_PushInstruction(AssemblyProgram* program, __type_ace813280a8878e0* vector, LirInstruction value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushProbe(AssemblyProgram* program, __type_f12db627436ed32d* vector, ZirFunction* value) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_PushInstruction(AssemblyProgram* program, __type_64f69ff50dc44167* vector, LirInstruction value) ZIRAN_MAYBE_UNUSED;
 static Slice compiler_zir_lower_LirEdgeItems(LirEdge* data, int64_t count) ZIRAN_MAYBE_UNUSED;
 static Slice compiler_zir_lower_LirInstructionItems(LirInstruction* data, int64_t count) ZIRAN_MAYBE_UNUSED;
 static LirType* compiler_zir_lower_TypeAt(AssemblyProgram* program, int32_t identity) ZIRAN_MAYBE_UNUSED;
@@ -1300,19 +1300,19 @@ compiler_zir_lower_PushString(AssemblyProgram* program, __type_5a6f11963c9bea0f*
 }
 
 static bool
-compiler_zir_lower_PushLirType(AssemblyProgram* program, __type_54c6b18f653132c8* vector, LirType value)
+compiler_zir_lower_PushLirType(AssemblyProgram* program, __type_ddeffb4af1d2a905* vector, LirType value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(LirType), (void*)(&(value)));
 }
 
 static bool
-compiler_zir_lower_PushLirConstant(AssemblyProgram* program, __type_02b39c93b9b3b114* vector, LirConstant value)
+compiler_zir_lower_PushLirConstant(AssemblyProgram* program, __type_df30cb38159eb83d* vector, LirConstant value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(LirConstant), (void*)(&(value)));
 }
 
 static bool
-compiler_zir_lower_PushLirOrigin(AssemblyProgram* program, __type_fd7fa0ce6aa22182* vector, LirOrigin value)
+compiler_zir_lower_PushLirOrigin(AssemblyProgram* program, __type_37ce17372029b897* vector, LirOrigin value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(LirOrigin), (void*)(&(value)));
 }
@@ -1336,19 +1336,19 @@ compiler_zir_lower_SliceOf__overload_3(__type_5a6f11963c9bea0f vector)
 }
 
 static Slice
-compiler_zir_lower_SliceOf__overload_4(__type_54c6b18f653132c8 vector)
+compiler_zir_lower_SliceOf__overload_4(__type_ddeffb4af1d2a905 vector)
 {
     return compiler_zir_lower_LirTypeItems(vector.data, (int64_t)(vector.count));
 }
 
 static Slice
-compiler_zir_lower_SliceOf__overload_5(__type_02b39c93b9b3b114 vector)
+compiler_zir_lower_SliceOf__overload_5(__type_df30cb38159eb83d vector)
 {
     return compiler_zir_lower_LirConstantItems(vector.data, (int64_t)(vector.count));
 }
 
 static Slice
-compiler_zir_lower_SliceOf__overload_6(__type_fd7fa0ce6aa22182 vector)
+compiler_zir_lower_SliceOf__overload_6(__type_37ce17372029b897 vector)
 {
     return compiler_zir_lower_LirOriginItems(vector.data, (int64_t)(vector.count));
 }
@@ -1445,11 +1445,11 @@ compiler_zir_lower_Origin(AssemblyProgram* program, ZirSourceSpan span)
     }
     int32_t index = program->origins.count;
     AssemblyProgram* value_5 = program;
-    __type_fd7fa0ce6aa22182* value_6 = &(program->origins);
+    __type_37ce17372029b897* value_6 = &(program->origins);
     bool value_7 = false;
     {
         AssemblyProgram* program = value_5;
-        __type_fd7fa0ce6aa22182* vector = value_6;
+        __type_37ce17372029b897* vector = value_6;
         LirOrigin value = origin;
         value_7 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(LirOrigin), (void*)(&(value)));
     }
@@ -1525,13 +1525,13 @@ compiler_zir_lower_PushZeroSlot(AssemblyProgram* program, __type_745e0b4796abfa0
 }
 
 static bool
-compiler_zir_lower_PushProbe(AssemblyProgram* program, __type_9059301564cb61cc* vector, ZirFunction* value)
+compiler_zir_lower_PushProbe(AssemblyProgram* program, __type_f12db627436ed32d* vector, ZirFunction* value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(void *), (void*)(&(value)));
 }
 
 static bool
-compiler_zir_lower_PushInstruction(AssemblyProgram* program, __type_ace813280a8878e0* vector, LirInstruction value)
+compiler_zir_lower_PushInstruction(AssemblyProgram* program, __type_64f69ff50dc44167* vector, LirInstruction value)
 {
     return compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(LirInstruction), (void*)(&(value)));
 }
@@ -3023,11 +3023,11 @@ compiler_zir_lower_ConstantInitializer(AssemblyProgram* program, ZirModule* owne
     }
     int32_t root = zir_f_0fe5ce4064831140_ParseExprTyped(probe, owner, (void*)(((uint8_t*)source->init)), source->span, (void*)(&(source->type[0])));
     AssemblyProgram* value_2 = program;
-    __type_9059301564cb61cc* value_3 = &(program->probes);
+    __type_f12db627436ed32d* value_3 = &(program->probes);
     bool value_4 = false;
     {
         AssemblyProgram* program = value_2;
-        __type_9059301564cb61cc* vector = value_3;
+        __type_f12db627436ed32d* vector = value_3;
         ZirFunction* value = probe;
         value_4 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(void *), (void*)(&(value)));
     }

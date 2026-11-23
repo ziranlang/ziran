@@ -675,6 +675,7 @@ static bool compiler_c_emit_IsCMacroName(String name) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_IsCppKeyword(String name) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_IsGoKeyword(String name) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_IsCRuntimeName(String name) ZIRAN_MAYBE_UNUSED;
+static bool compiler_c_emit_IsCRuntimeHeaderName(String name) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_IsGoRuntimeName(String name) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_IsCReservedName(ZirTarget target, uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_TargetTopName(ZirModule* module, ZirTarget target, uint8_t* name, bool is_global, uint8_t* out, size_t size) ZIRAN_MAYBE_UNUSED;
@@ -685,6 +686,7 @@ static void compiler_c_emit_NativeNamesMark(NativeValueNames* names, uint8_t* na
 static void compiler_c_emit_NativeNamesFree(NativeValueNames* names) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_NativeNamesMarkShared(NativeValueNames* names) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_NativeNamesMarkTypeValues(NativeValueNames* names) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_c_emit_MarkNativeMacroCollisions(ZirProgram** programs, int32_t count) ZIRAN_MAYBE_UNUSED;
 static uint64_t compiler_c_emit_NativeTopHash(ZirModule* module, ZirSourceSpan span, uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_ReadableModuleName(uint8_t* name, uint8_t* out, size_t size, bool upper) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_c_emit_ModuleNeedsStartupWalk(ZirModule* module, ModuleVisits* visits) ZIRAN_MAYBE_UNUSED;
@@ -1555,6 +1557,19 @@ compiler_c_emit_IsCRuntimeName(String name)
 }
 
 static bool
+compiler_c_emit_IsCRuntimeHeaderName(String name)
+{
+    String words[18] = {StringLiteral("String"), StringLiteral("Source_Code_Location"), StringLiteral("StringView"), StringLiteral("StringLiteral"), StringLiteral("StringRange"), StringLiteral("StringRangeAt"), StringLiteral("StringEqual"), StringLiteral("print_float"), StringLiteral("Slice"), StringLiteral("SliceIndex"), StringLiteral("SliceRange"), StringLiteral("SliceRangeAt"), StringLiteral("BoundsCheck"), StringLiteral("EmptyArrayIndex"), StringLiteral("ZirVecGrow"), StringLiteral("ZirVecIndex"), StringLiteral("ZirVecReserve"), StringLiteral("ZirVecReserveBounded")};
+    for (int64_t it_index = 0LL; it_index < 18; it_index++) {
+        String w = (words)[it_index];
+        if (StringEqual(name, w)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool
 compiler_c_emit_IsGoRuntimeName(String name)
 {
     String words[41] = {StringLiteral("any"), StringLiteral("append"), StringLiteral("bool"), StringLiteral("byte"), StringLiteral("cap"), StringLiteral("clear"), StringLiteral("close"), StringLiteral("complex"), StringLiteral("copy"), StringLiteral("delete"), StringLiteral("error"), StringLiteral("false"), StringLiteral("float32"), StringLiteral("float64"), StringLiteral("imag"), StringLiteral("int"), StringLiteral("int8"), StringLiteral("int16"), StringLiteral("int32"), StringLiteral("int64"), StringLiteral("iota"), StringLiteral("len"), StringLiteral("make"), StringLiteral("max"), StringLiteral("min"), StringLiteral("new"), StringLiteral("nil"), StringLiteral("panic"), StringLiteral("print"), StringLiteral("println"), StringLiteral("real"), StringLiteral("recover"), StringLiteral("rune"), StringLiteral("string"), StringLiteral("true"), StringLiteral("uint"), StringLiteral("uint8"), StringLiteral("uint16"), StringLiteral("uint32"), StringLiteral("uint64"), StringLiteral("uintptr")};
@@ -1985,6 +2000,219 @@ compiler_c_emit_NativeNamesMarkTypeValues(NativeValueNames* names)
     }
 }
 
+static int32_t
+compiler_c_emit_MarkNativeMacroCollisions(ZirProgram** programs, int32_t count)
+{
+    NativeValueNames defines = {0};
+    int32_t total = 0;
+    {
+        int32_t range_first_2 = 0;
+        int32_t range_last_2 = (int32_t)((uint32_t)count - 1u);
+        int32_t p = range_first_2;
+        if (p <= range_last_2) for (;;) {
+            {
+                int32_t range_first_3 = 0;
+                int32_t range_last_3 = (int32_t)((uint32_t)((programs[p])->module_count) - 1u);
+                int32_t m = range_first_3;
+                if (m <= range_last_3) for (;;) {
+                    total = (int32_t)((uint32_t)total + (uint32_t)((((programs[p])->modules)[m]).define_count));
+                    if (m == range_last_3) {
+                        break;
+                    }
+                    m = (int32_t)((uint32_t)m + 1u);
+                }
+            }
+            if (p == range_last_2) {
+                break;
+            }
+            p = (int32_t)((uint32_t)p + 1u);
+        }
+    }
+    if (total == 0) {
+        return 1;
+    }
+    int32_t* value_0 = &(defines.bucket_count);
+    (*value_0) = (int32_t)(((uint32_t)total * 2u) + 1u);
+    int32_t** value_1 = &(defines.buckets);
+    void* value_2 = zir_f_88c96d1f737973e0_malloc((size_t)(defines.bucket_count) * sizeof(int32_t));
+    (*value_1) = (int32_t*)(value_2);
+    if (defines.buckets == ((void *)0)) {
+        return 0;
+    }
+    zir_f_88c96d1f737973e0_memset((void*)(defines.buckets), 255, (size_t)(defines.bucket_count) * sizeof(int32_t));
+    int32_t ok = 1;
+    {
+        int32_t range_first_17 = 0;
+        int32_t range_last_17 = (int32_t)((uint32_t)count - 1u);
+        int32_t p = range_first_17;
+        if (p <= range_last_17) for (;;) {
+            {
+                int32_t range_first_18 = 0;
+                int32_t range_last_18 = (int32_t)((uint32_t)((programs[p])->module_count) - 1u);
+                int32_t m = range_first_18;
+                if (m <= range_last_18) for (;;) {
+                    ZirModule* module = &(((programs[p])->modules)[m]);
+                    {
+                        int32_t range_first_20 = 0;
+                        int32_t range_last_20 = (int32_t)((uint32_t)(module->define_count) - 1u);
+                        int32_t d = range_first_20;
+                        if (d <= range_last_20) for (;;) {
+                            if (ok == 0) {
+                                break;
+                            }
+                            uint8_t native[256] = {0};
+                            compiler_c_emit_TargetTopName(module, (ZirTarget)(0), &(((module->defines[d]).name)[0]), false, &(native[0]), 128 * 2);
+                            ok = compiler_c_emit_NativeNamesAdd(&(defines), &(native[0]), &((module->defines[d]).native_name_collision), 0);
+                            if (d == range_last_20) {
+                                break;
+                            }
+                            d = (int32_t)((uint32_t)d + 1u);
+                        }
+                    }
+                    if (m == range_last_18) {
+                        break;
+                    }
+                    m = (int32_t)((uint32_t)m + 1u);
+                }
+            }
+            if (p == range_last_17) {
+                break;
+            }
+            p = (int32_t)((uint32_t)p + 1u);
+        }
+    }
+    if (ok != 0) {
+        String members[4] = {StringLiteral("data"), StringLiteral("length"), StringLiteral("fully_pathed_filename"), StringLiteral("line_number")};
+        for (int64_t it_index = 0LL; it_index < 4; it_index++) {
+            String member = (members)[it_index];
+            uint8_t* value_3 = (void *)0;
+            {
+                String s = member;
+                value_3 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
+            }
+            compiler_c_emit_NativeNamesMark(&(defines), value_3);
+        }
+        {
+            int32_t range_first_35 = 0;
+            int32_t range_last_35 = (int32_t)((uint32_t)count - 1u);
+            int32_t p = range_first_35;
+            if (p <= range_last_35) for (;;) {
+                {
+                    int32_t range_first_36 = 0;
+                    int32_t range_last_36 = (int32_t)((uint32_t)((programs[p])->module_count) - 1u);
+                    int32_t m = range_first_36;
+                    if (m <= range_last_36) for (;;) {
+                        ZirModule* module = &(((programs[p])->modules)[m]);
+                        {
+                            int32_t range_first_38 = 0;
+                            int32_t range_last_38 = (int32_t)((uint32_t)(module->type_count) - 1u);
+                            int32_t t = range_first_38;
+                            if (t <= range_last_38) for (;;) {
+                                ZirType* type = &(module->types[t]);
+                                if (type->is_record_template != 0 || type->is_enum != 0) {
+                                    if (t == range_last_38) {
+                                        break;
+                                    }
+                                    t = (int32_t)((uint32_t)t + 1u);
+                                    continue;
+                                }
+                                size_t offset = 0;
+                                ZirTypeField field = {0};
+                                while (zir_f_88c96d1f737973e0_CTypeNextField(type, &(offset), &(field)) == 1) {
+                                    compiler_c_emit_NativeNamesMark(&(defines), &(field.name[0]));
+                                }
+                                if (t == range_last_38) {
+                                    break;
+                                }
+                                t = (int32_t)((uint32_t)t + 1u);
+                            }
+                        }
+                        {
+                            int32_t range_first_49 = 0;
+                            int32_t range_last_49 = (int32_t)((uint32_t)(module->function_count) - 1u);
+                            int32_t f = range_first_49;
+                            if (f <= range_last_49) for (;;) {
+                                ZirFunction* function = &(module->functions[f]);
+                                if (function->is_template != 0) {
+                                    if (f == range_last_49) {
+                                        break;
+                                    }
+                                    f = (int32_t)((uint32_t)f + 1u);
+                                    continue;
+                                }
+                                uint8_t* value_5 = (void *)0;
+                                {
+                                    ZirFunction* fn = function;
+                                    if (fn != ((void *)0) && ((uint8_t*)fn->args_text) != ((void *)0)) {
+                                        value_5 = (uint8_t*)fn->args_text;
+                                        goto value_6;
+                                    }
+                                    String value_7 = StringLiteral("");
+                                    uint8_t* value_8 = (void *)0;
+                                    {
+                                        String s = value_7;
+                                        value_8 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
+                                    }
+                                    value_5 = value_8;
+                                value_6: ;
+                                }
+                                uint8_t* args = value_5;
+                                if (args[0] != 0) {
+                                    CParameters* parameters = zir_f_88c96d1f737973e0_ParametersOf(args);
+                                    CParameter* items = (CParameter*)(&(parameters->items[0]));
+                                    {
+                                        int32_t range_first_58 = 0;
+                                        int32_t range_last_58 = (int32_t)((uint32_t)(parameters->count) - 1u);
+                                        int32_t i = range_first_58;
+                                        if (i <= range_last_58) for (;;) {
+                                            if ((items[i]).name != ((void *)0)) {
+                                                compiler_c_emit_NativeNamesMark(&(defines), (items[i]).name);
+                                            }
+                                            if (i == range_last_58) {
+                                                break;
+                                            }
+                                            i = (int32_t)((uint32_t)i + 1u);
+                                        }
+                                    }
+                                }
+                                {
+                                    int32_t range_first_64 = 0;
+                                    int32_t range_last_64 = (int32_t)((uint32_t)(function->stmt_count) - 1u);
+                                    int32_t s = range_first_64;
+                                    if (s <= range_last_64) for (;;) {
+                                        ZirStmt* st = &(function->stmts[s]);
+                                        if (((ZirStmtKind)(st->kind)) == ((ZirStmtKind)(3)) && ((uint8_t*)st->names.name) != ((void *)0) && st->names.name[0] != 0) {
+                                            compiler_c_emit_NativeNamesMark(&(defines), (uint8_t*)st->names.name);
+                                        }
+                                        if (s == range_last_64) {
+                                            break;
+                                        }
+                                        s = (int32_t)((uint32_t)s + 1u);
+                                    }
+                                }
+                                if (f == range_last_49) {
+                                    break;
+                                }
+                                f = (int32_t)((uint32_t)f + 1u);
+                            }
+                        }
+                        if (m == range_last_36) {
+                            break;
+                        }
+                        m = (int32_t)((uint32_t)m + 1u);
+                    }
+                }
+                if (p == range_last_35) {
+                    break;
+                }
+                p = (int32_t)((uint32_t)p + 1u);
+            }
+        }
+    }
+    compiler_c_emit_NativeNamesFree(&(defines));
+    return ok;
+}
+
 int32_t
 MarkNativeNameCollisions(ZirProgram** programs, int32_t count)
 {
@@ -2084,6 +2312,11 @@ MarkNativeNameCollisions(ZirProgram** programs, int32_t count)
                                 compiler_c_emit_TargetTopName(module, value_7, name, is_global, &(native[0]), 128 * 2);
                                 ok = compiler_c_emit_NativeNamesAdd(&(names[t]), &(native[0]), collision, 0);
                             }
+                            bool value_8 = compiler_c_emit_IsCRuntimeHeaderName(compiler_ir_CText(name));
+                            if (value_8 || compiler_c_emit_IsCRuntimeName(compiler_ir_CText(name))) {
+                                int32_t* value_9 = &((*(collision)));
+                                (*value_9) = 1;
+                            }
                             if (v == range_last_29) {
                                 break;
                             }
@@ -2107,33 +2340,33 @@ MarkNativeNameCollisions(ZirProgram** programs, int32_t count)
         compiler_c_emit_NativeNamesMarkShared(&(names[1]));
     }
     {
-        int32_t range_first_51 = 0;
-        int32_t range_last_51 = (int32_t)((uint32_t)count - 1u);
-        int32_t p = range_first_51;
-        if (p <= range_last_51) for (;;) {
+        int32_t range_first_54 = 0;
+        int32_t range_last_54 = (int32_t)((uint32_t)count - 1u);
+        int32_t p = range_first_54;
+        if (p <= range_last_54) for (;;) {
             if (ok == 0) {
                 break;
             }
             {
-                int32_t range_first_55 = 0;
-                int32_t range_last_55 = (int32_t)((uint32_t)((programs[p])->module_count) - 1u);
-                int32_t m = range_first_55;
-                if (m <= range_last_55) for (;;) {
+                int32_t range_first_58 = 0;
+                int32_t range_last_58 = (int32_t)((uint32_t)((programs[p])->module_count) - 1u);
+                int32_t m = range_first_58;
+                if (m <= range_last_58) for (;;) {
                     if (ok == 0) {
                         break;
                     }
                     ZirModule* module = &(((programs[p])->modules)[m]);
                     {
-                        int32_t range_first_60 = 0;
-                        int32_t range_last_60 = (int32_t)((uint32_t)(module->type_count) - 1u);
-                        int32_t t = range_first_60;
-                        if (t <= range_last_60) for (;;) {
+                        int32_t range_first_63 = 0;
+                        int32_t range_last_63 = (int32_t)((uint32_t)(module->type_count) - 1u);
+                        int32_t t = range_first_63;
+                        if (t <= range_last_63) for (;;) {
                             if (ok == 0) {
                                 break;
                             }
                             ZirType* type = &(module->types[t]);
                             if (type->is_record_template != 0 || (type->is_extern != 0 && (type->foreign_target)[0] == 0)) {
-                                if (t == range_last_60) {
+                                if (t == range_last_63) {
                                     break;
                                 }
                                 t = (int32_t)((uint32_t)t + 1u);
@@ -2142,19 +2375,24 @@ MarkNativeNameCollisions(ZirProgram** programs, int32_t count)
                             uint8_t native[256] = {0};
                             NativeTypeName(module, type, &(native[0]), 128 * 2);
                             ok = compiler_c_emit_NativeNamesAdd(&(names[0]), &(native[0]), &(type->native_name_mangled), 1);
-                            if (t == range_last_60) {
+                            bool value_10 = type->is_extern == 0;
+                            if (value_10 && compiler_c_emit_IsCRuntimeHeaderName(compiler_ir_CText(&(native[0])))) {
+                                int32_t* value_11 = &(type->native_name_mangled);
+                                (*value_11) = 1;
+                            }
+                            if (t == range_last_63) {
                                 break;
                             }
                             t = (int32_t)((uint32_t)t + 1u);
                         }
                     }
-                    if (m == range_last_55) {
+                    if (m == range_last_58) {
                         break;
                     }
                     m = (int32_t)((uint32_t)m + 1u);
                 }
             }
-            if (p == range_last_51) {
+            if (p == range_last_54) {
                 break;
             }
             p = (int32_t)((uint32_t)p + 1u);
@@ -2162,24 +2400,24 @@ MarkNativeNameCollisions(ZirProgram** programs, int32_t count)
     }
     if (ok != 0) {
         {
-            int32_t range_first_75 = 0;
-            int32_t range_last_75 = (int32_t)((uint32_t)count - 1u);
-            int32_t p = range_first_75;
-            if (p <= range_last_75) for (;;) {
+            int32_t range_first_81 = 0;
+            int32_t range_last_81 = (int32_t)((uint32_t)count - 1u);
+            int32_t p = range_first_81;
+            if (p <= range_last_81) for (;;) {
                 {
-                    int32_t range_first_76 = 0;
-                    int32_t range_last_76 = (int32_t)((uint32_t)((programs[p])->module_count) - 1u);
-                    int32_t m = range_first_76;
-                    if (m <= range_last_76) for (;;) {
+                    int32_t range_first_82 = 0;
+                    int32_t range_last_82 = (int32_t)((uint32_t)((programs[p])->module_count) - 1u);
+                    int32_t m = range_first_82;
+                    if (m <= range_last_82) for (;;) {
                         ZirModule* module = &(((programs[p])->modules)[m]);
                         {
-                            int32_t range_first_78 = 0;
-                            int32_t range_last_78 = (int32_t)((uint32_t)(module->function_count) - 1u);
-                            int32_t f = range_first_78;
-                            if (f <= range_last_78) for (;;) {
+                            int32_t range_first_84 = 0;
+                            int32_t range_last_84 = (int32_t)((uint32_t)(module->function_count) - 1u);
+                            int32_t f = range_first_84;
+                            if (f <= range_last_84) for (;;) {
                                 ZirFunction* function = &(module->functions[f]);
                                 if (function->is_template != 0) {
-                                    if (f == range_last_78) {
+                                    if (f == range_last_84) {
                                         break;
                                     }
                                     f = (int32_t)((uint32_t)f + 1u);
@@ -2189,45 +2427,45 @@ MarkNativeNameCollisions(ZirProgram** programs, int32_t count)
                                 NativeCFunctionName(module, function, &(native[0]), 128 * 2);
                                 compiler_c_emit_NativeNamesMark(&(names[0]), &(native[0]));
                                 if (NativeProgramMain(module, function) != 0) {
-                                    String value_8 = StringLiteral("main");
-                                    uint8_t* value_9 = (void *)0;
+                                    String value_12 = StringLiteral("main");
+                                    uint8_t* value_13 = (void *)0;
                                     {
-                                        String s = value_8;
-                                        value_9 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
+                                        String s = value_12;
+                                        value_13 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
                                     }
-                                    compiler_c_emit_NativeNamesMark(&(names[0]), value_9);
+                                    compiler_c_emit_NativeNamesMark(&(names[0]), value_13);
                                 }
                                 NativeGoFunctionName(programs, count, module, function, &(native[0]), 128 * 2);
                                 compiler_c_emit_NativeNamesMark(&(names[1]), &(native[0]));
                                 if ((function->export_symbol)[0] != 0) {
                                     compiler_c_emit_NativeNamesMark(&(names[1]), &(function->export_symbol[0]));
                                 }
-                                if (f == range_last_78) {
+                                if (f == range_last_84) {
                                     break;
                                 }
                                 f = (int32_t)((uint32_t)f + 1u);
                             }
                         }
                         {
-                            int32_t range_first_95 = 0;
-                            int32_t range_last_95 = (int32_t)((uint32_t)(module->import_count) - 1u);
-                            int32_t i = range_first_95;
-                            if (i <= range_last_95) for (;;) {
+                            int32_t range_first_101 = 0;
+                            int32_t range_last_101 = (int32_t)((uint32_t)(module->import_count) - 1u);
+                            int32_t i = range_first_101;
+                            if (i <= range_last_101) for (;;) {
                                 ZirImport* foreign = &(module->imports[i]);
-                                bool value_11 = ((ZirImportKind)(foreign->kind)) != ((ZirImportKind)(3));
-                                bool value_12 = value_11;
-                                if (!value_12) {
-                                    String value_13 = StringLiteral("c.");
-                                    uint8_t* value_14 = (void *)0;
+                                bool value_15 = ((ZirImportKind)(foreign->kind)) != ((ZirImportKind)(3));
+                                bool value_16 = value_15;
+                                if (!value_16) {
+                                    String value_17 = StringLiteral("c.");
+                                    uint8_t* value_18 = (void *)0;
                                     {
-                                        String s = value_13;
-                                        value_14 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
+                                        String s = value_17;
+                                        value_18 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
                                     }
-                                    bool value_16 = zir_f_88c96d1f737973e0_strncmp(&(foreign->target[0]), value_14, 2) != 0;
-                                    value_12 = value_16;
+                                    bool value_20 = zir_f_88c96d1f737973e0_strncmp(&(foreign->target[0]), value_18, 2) != 0;
+                                    value_16 = value_20;
                                 }
-                                if (value_12) {
-                                    if (i == range_last_95) {
+                                if (value_16) {
+                                    if (i == range_last_101) {
                                         break;
                                     }
                                     i = (int32_t)((uint32_t)i + 1u);
@@ -2237,25 +2475,26 @@ MarkNativeNameCollisions(ZirProgram** programs, int32_t count)
                                 NativeCForeignName(module, foreign, &(native[0]), 128 * 2);
                                 compiler_c_emit_NativeNamesMark(&(names[0]), &(native[0]));
                                 compiler_c_emit_NativeNamesMark(&(names[0]), &(foreign->target[2]));
-                                if (i == range_last_95) {
+                                if (i == range_last_101) {
                                     break;
                                 }
                                 i = (int32_t)((uint32_t)i + 1u);
                             }
                         }
-                        if (m == range_last_76) {
+                        if (m == range_last_82) {
                             break;
                         }
                         m = (int32_t)((uint32_t)m + 1u);
                     }
                 }
-                if (p == range_last_75) {
+                if (p == range_last_81) {
                     break;
                 }
                 p = (int32_t)((uint32_t)p + 1u);
             }
         }
         compiler_c_emit_NativeNamesMarkTypeValues(&(names[0]));
+        ok = compiler_c_emit_MarkNativeMacroCollisions(programs, count);
     }
     compiler_c_emit_NativeNamesFree(&(names[0]));
     compiler_c_emit_NativeNamesFree(&(names[1]));

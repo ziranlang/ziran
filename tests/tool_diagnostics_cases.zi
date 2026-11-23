@@ -149,9 +149,11 @@ ToolSourceExcerpts :: (test: *NativeTest) -> bool {
 }
 
 // A program that passes ziran check also builds as strict ISO C and runs:
-// empty literals, named constant array lengths, and fields or locals named
-// like C keywords or predefined macros.
-BuildCase :: struct { name: string; source: string; code: s32; }
+// empty literals, named constant array lengths, fields or locals named like
+// C keywords, predefined macros or the runtime's own names, and Vecs of
+// another module's records passed to that module. A case with a module
+// writes it as NAME_db.zi.
+BuildCase :: struct { name: string; source: string; code: s32; module: string; }
 
 ToolCheckBuildAgree :: (test: *NativeTest) -> bool {
     cases := BuildCase.[
@@ -160,12 +162,17 @@ ToolCheckBuildAgree :: (test: *NativeTest) -> bool {
         .{"for_call", "#import \"std/text_tools\"\nmain :: () -> s32 {\n    total: s64 = 0\n    for line: TextLines(\"ab\\ncde\") { total += line.count }\n    for < TextSplit(\"x,yz\", \",\") { total += it.count + it_index }\n    return cast(s32)total\n}\n", 9},
         .{"cast_constant", "LIMIT :: cast(s64)9223372036854775807;\nSMALL :: cast(u8)200;\nmain :: () -> s32 {\n    big: s64 = LIMIT\n    small: u8 = SMALL\n    return ifx big > 0 then cast(s32)small - 190 else 1\n}\n", 10},
         .{"owned_view", "Name :: () -> Text { return TextCopy(\"ada\") }\nmain :: () -> s32 {\n    name := Name()\n    view := TextView(name)\n    return cast(s32)view.count\n}\n", 3},
-        .{"colon_text", "Pair :: struct { name: string; text: string; }\npairs: [2]Pair = .[\n    .{name = \"a\", text = \"NAME :: value;\"},\n    .{name = \"bc\", text = \"x\"},\n];\nmain :: () -> s32 { return cast(s32)(pairs[0].text.count + pairs[1].name.count) }\n", 16},
+        .{"colon_text", "Pair :: struct { name: string; text: string; }\npairs: [2]Pair = Pair.[\n    .{name = \"a\", text = \"NAME :: value;\"},\n    .{name = \"bc\", text = \"x ::1 y\"},\n];\nmain :: () -> s32 { return cast(s32)(pairs[0].text.count + pairs[1].name.count) }\n", 16},
         .{"c_names", "Flags :: struct { bool: s32; signed: s32; unsigned: s32; true: s32; }\nmain :: () -> s32 {\n    f: Flags\n    f.bool = 1\n    f.unsigned = 2\n    linux := 3\n    unix := 4\n    return f.bool + f.signed + f.unsigned + cast(s32)(linux + unix)\n}\n", 10},
+        .{"runtime_names", "String :: 2;\nlength :: 3;\nSlice :: struct { a: s64; }\nPair :: struct { length: s64; }\nmain :: () -> s32 {\n    text := \"ab\"\n    pair: Pair\n    pair.length = length\n    view: Slice\n    view.a = String\n    values: [2]s64\n    part := values[:]\n    return cast(s32)(text.count + pair.length + view.a + part.count)\n}\n", 9},
+        .{name = "module_vec", code = 10,
+          source = "using Vectors :: #import \"std/vec\"\nusing Db :: #import \"module_vec_db\"\nScale :: (width: s64) -> s64 { return width * 2 }\nmain :: () -> s32 {\n    matches: Vec(Db.Match)\n    Db.Find(*matches, 1)\n    frag: Db.Frag = .{line = 3}\n    frags: Vec(*Db.Frag)\n    Db.Keep(*frags, *frag)\n    total := matches[0].line + frags[0].line + Scale(1)\n    VecFree(matches)\n    VecFree(frags)\n    return cast(s32)total\n}\n",
+          module = "using Vectors :: #import \"std/vec\"\n#scope_file\nwidth :: 5;\n#scope_export\nMatch :: struct { name: string; line: s64; }\nFrag :: struct { line: s64; }\nFind :: (matches: *Vec(Match), line: s64) { VecPush(<<matches, .{name = \"m\", line = line * width}) }\nKeep :: (frags: *Vec(*Frag), frag: *Frag) { VecPush(<<frags, frag) }\n"},
     ]
     for build: cases {
         source := CheckPath(test.work, CheckConcat(build.name, ".zi"))
         output := CheckPath(test.work, CheckConcat(build.name, "-c"))
+        if build.module.count != 0 && !NativeWrite(test, CheckPath(test.work, CheckConcat(build.name, "_db.zi")), build.module) { return false }
         if !NativeWrite(test, source, build.source) { return false }
         check := string.[test.ziran, "check", "--root", test.work, source]
         unused NativeRun(test, check[:])

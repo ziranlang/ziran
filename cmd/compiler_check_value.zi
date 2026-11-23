@@ -35,6 +35,7 @@ TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) 
 VecElementType :: (module: *IR.ZirModule, type: *u8, element: *u8, element_size: usize) -> s32 #foreign compiler "VecElementType";
 ZirIntegerLiteral :: (text: *u8, value: *u64) -> s32 #foreign compiler "ZirIntegerLiteral";
 canonical_type_arguments :: (source: *u8, output: *u8, capacity: usize) -> s32 #foreign compiler "private_check_canonical_type_arguments";
+type_application_identity :: (module: *IR.ZirModule, canonical: *u8, output: *u8, capacity: usize) -> s32 #foreign compiler "private_check_type_application_identity";
 contains_vec :: (module: *IR.ZirModule, type: *u8, depth: s32) -> s32 #foreign compiler "private_check_contains_vec";
 copy_text :: (dst: *u8, dst_size: usize, src: *u8) #foreign compiler "copy_text";
 error :: (c: *Checker, span: IR.ZirSourceSpan, message: *u8, detail: *u8) #foreign compiler "private_check_error";
@@ -1451,7 +1452,9 @@ same_declared_type :: (module: *IR.ZirModule, to: *u8, from: *u8, depth: s32) ->
     if (SameMapType((ifx (target_owner != null) then target_owner else module), target, (ifx (source_owner != null) then source_owner else module), source) != 0) {
         return 1
     }
-    if (((target != cast(*IR.ZirType)((null))) && (source != cast(*IR.ZirType)((null)))) && (same_type_application((ifx (target_owner != null) then target_owner else module), target, (ifx (source_owner != null) then source_owner else module), source) != 0)) {
+    // One application under one name is one native type; type_application_identity
+    // gives Vec(Db.Match) and Db's Vec(Match) that name.
+    if (((target != cast(*IR.ZirType)((null))) && (source != cast(*IR.ZirType)((null)))) && (strcmp(cast(*u8)(*((target).name)), cast(*u8)(*((source).name))) == 0) && (same_type_application((ifx (target_owner != null) then target_owner else module), target, (ifx (source_owner != null) then source_owner else module), source) != 0)) {
         return 1
     }
     to_element_storage_0 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
@@ -1813,8 +1816,14 @@ vec_option_result_type :: (c: *Checker, element: *u8, span: IR.ZirSourceSpan, ou
         }
     }
     hash = (((hash ^ cast(u64)(40))) * 1099511628211)
+    identity_storage := cast(*CheckArray4096_u8)AllocateOrExit(size_of(CheckArray4096_u8))
+    defer CompilerFree(cast(*void)identity_storage)
+    if !(type_application_identity((c).module, cast(*u8)(*((canonical_storage_0[0]).items)), cast(*u8)(*((identity_storage[0]).items)), cast(usize)(cast(u64)size_of(CheckArray4096_u8))) != 0) {
+        error(c, span, CheckCString("Vec result element type is too long"), element)
+        return 0
+    }
     {
-        p: *u8 = cast(*u8)(cast(*u8)(*((canonical_storage_0[0]).items)))
+        p: *u8 = cast(*u8)(cast(*u8)(*((identity_storage[0]).items)))
         while check_loop_104 := ((p)[0] != 0) {
             hash = (((hash ^ cast(u64)((p)[0]))) * 1099511628211)
             CheckPost6(*(p))

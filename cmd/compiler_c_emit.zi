@@ -481,6 +481,18 @@ IsCRuntimeName :: (name: string) -> bool {
     return false
 }
 
+// File-scope names of the runtime headers the generated C includes
+// (zir_string_types.h, zir_string.h, zir_slice.h, zir_bounds.h, zir_vec.h).
+// A top-level constant, global or type with one of these names is renamed.
+IsCRuntimeHeaderName :: (name: string) -> bool {
+    words := string.["String", "Source_Code_Location", "StringView", "StringLiteral",
+        "StringRange", "StringRangeAt", "StringEqual", "print_float", "Slice", "SliceIndex",
+        "SliceRange", "SliceRangeAt", "BoundsCheck", "EmptyArrayIndex", "ZirVecGrow",
+        "ZirVecIndex", "ZirVecReserve", "ZirVecReserveBounded"]
+    for w: words { if name == w { return true } }
+    return false
+}
+
 IsGoRuntimeName :: (name: string) -> bool {
     words: [41]string = .{
         "any", "append", "bool", "byte", "cap", "clear", "close", "complex",
@@ -684,6 +696,69 @@ NativeNamesMarkTypeValues :: (names: *NativeValueNames) {
     }
 }
 
+// A constant is an object-like C macro, which rewrites its spelling in all
+// C that follows: the runtime's String and Slice members and any record
+// field, parameter or local of another module. A constant spelled like one
+// of them takes a mangled name.
+MarkNativeMacroCollisions :: (programs: **IR.ZirProgram, count: s32) -> s32 {
+    defines: NativeValueNames
+    total: s32 = 0
+    for p: cast(s32)0..count - 1 {
+        for m: cast(s32)0..programs[p].module_count - 1 { total += programs[p].modules[m].define_count }
+    }
+    if total == 0 { return 1 }
+    defines.bucket_count = total * 2 + 1
+    defines.buckets = cast(*s32)malloc(cast(usize)defines.bucket_count * size_of(s32))
+    if defines.buckets == null { return 0 }
+    memset(cast(*void)defines.buckets, 0xff, cast(usize)defines.bucket_count * size_of(s32))
+    ok: s32 = 1
+    for p: cast(s32)0..count - 1 {
+        for m: cast(s32)0..programs[p].module_count - 1 {
+            module := *programs[p].modules[m]
+            for d: cast(s32)0..module.define_count - 1 {
+                if ok == 0 { break }
+                native: [IR.ZIR_NAME_MAX * 2]u8
+                TargetTopName(module, .ZIR_C, *module.defines[d].name[0], false, *native[0], IR.ZIR_NAME_MAX * 2)
+                ok = NativeNamesAdd(*defines, *native[0], *module.defines[d].native_name_collision, 0)
+            }
+        }
+    }
+    if ok != 0 {
+        members := string.["data", "length", "fully_pathed_filename", "line_number"]
+        for member: members { NativeNamesMark(*defines, CStr(member)) }
+        for p: cast(s32)0..count - 1 {
+            for m: cast(s32)0..programs[p].module_count - 1 {
+                module := *programs[p].modules[m]
+                for t: cast(s32)0..module.type_count - 1 {
+                    type := *module.types[t]
+                    if type.is_record_template != 0 || type.is_enum != 0 { continue }
+                    offset: usize = 0
+                    field: IR.ZirTypeField
+                    while CTypeNextField(type, *offset, *field) == 1 { NativeNamesMark(*defines, *field.name[0]) }
+                }
+                for f: cast(s32)0..module.function_count - 1 {
+                    function := *module.functions[f]
+                    if function.is_template != 0 { continue }
+                    args := FunctionArgs(function)
+                    if args[0] != 0 {
+                        parameters := ParametersOf(args)
+                        items := cast(*CParameter)(*parameters.items[0])
+                        for i: cast(s32)0..parameters.count - 1 {
+                            if items[i].name != null { NativeNamesMark(*defines, items[i].name) }
+                        }
+                    }
+                    for s: cast(s32)0..function.stmt_count - 1 {
+                        st := *function.stmts[s]
+                        if st.kind == .DECL && st.name != null && st.name[0] != 0 { NativeNamesMark(*defines, st.name) }
+                    }
+                }
+            }
+        }
+    }
+    NativeNamesFree(*defines)
+    return ok
+}
+
 #scope_export
 
 #program_export
@@ -721,6 +796,7 @@ MarkNativeNameCollisions :: (programs: **IR.ZirProgram, count: s32) -> s32 {
                                   name, is_global, *native[0], IR.ZIR_NAME_MAX * 2)
                     ok = NativeNamesAdd(*names[t], *native[0], collision, 0)
                 }
+                if IsCRuntimeHeaderName(IR.CText(name)) || IsCRuntimeName(IR.CText(name)) { <<collision = 1 }
             }
         }
     }
@@ -740,6 +816,7 @@ MarkNativeNameCollisions :: (programs: **IR.ZirProgram, count: s32) -> s32 {
                 native: [IR.ZIR_NAME_MAX * 2]u8
                 NativeTypeName(module, type, *native[0], IR.ZIR_NAME_MAX * 2)
                 ok = NativeNamesAdd(*names[0], *native[0], *type.native_name_mangled, 1)
+                if type.is_extern == 0 && IsCRuntimeHeaderName(IR.CText(*native[0])) { type.native_name_mangled = 1 }
             }
         }
     }
@@ -773,6 +850,7 @@ MarkNativeNameCollisions :: (programs: **IR.ZirProgram, count: s32) -> s32 {
             }
         }
         NativeNamesMarkTypeValues(*names[0])
+        ok = MarkNativeMacroCollisions(programs, count)
     }
     NativeNamesFree(*names[0])
     NativeNamesFree(*names[1])

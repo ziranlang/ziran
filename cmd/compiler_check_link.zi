@@ -141,6 +141,67 @@ canonical_type_arguments :: (source: *u8, output: *u8, capacity: usize) -> s32 {
     return 1
 }
 
+// The spelling that names a type application: canonical arguments with each
+// qualified type, such as Db.Match, spelled as its own module declares it
+// (Match). An application then has one name in every module that spells it,
+// and so one type. A qualified type keeps its spelling when the bare name
+// means another type here.
+#scope_export
+#program_export "private_check_type_application_identity"
+type_application_identity :: (module: *IR.ZirModule, canonical: *u8, output: *u8, capacity: usize) -> s32 {
+    used: usize = 0
+    at: usize = 0
+    quote: u8 = 0
+    while canonical[at] != 0 {
+        byte := canonical[at]
+        if quote == 0 && (isalpha(cast(s32)byte) != 0 || byte == #char "_") {
+            start := at
+            dotted := false
+            while isalnum(cast(s32)canonical[at]) != 0 || canonical[at] == #char "_" ||
+                  (canonical[at] == #char "." && (isalpha(cast(s32)canonical[at + 1]) != 0 || canonical[at + 1] == #char "_")) {
+                if canonical[at] == #char "." { dotted = true }
+                at += 1
+            }
+            token := cast(*u8)(cast(usize)canonical + start)
+            length := at - start
+            if dotted && length < 256 {
+                path: [256]u8
+                memcpy(cast(*void)*path[0], cast(*void)token, length)
+                path[length] = 0
+                owner: *IR.ZirModule = null
+                type := FindType(module, *path[0], *owner)
+                if type != null && owner != null && owner != module {
+                    local := FindType(module, *type.name[0], null)
+                    if local == null || local == type {
+                        token = *type.name[0]
+                        length = strlen(token)
+                    }
+                }
+            }
+            if used + length >= capacity { return 0 }
+            memcpy(cast(*void)(cast(usize)output + used), cast(*void)token, length)
+            used += length
+            continue
+        }
+        if used + 1 >= capacity { return 0 }
+        output[used] = byte
+        used += 1
+        if quote != 0 && byte == #char "\\" && canonical[at + 1] != 0 {
+            at += 1
+            if used + 1 >= capacity { return 0 }
+            output[used] = canonical[at]
+            used += 1
+        } else if quote != 0 && byte == quote {
+            quote = 0
+        } else if quote == 0 && (byte == #char "\"" || byte == #char "'") {
+            quote = byte
+        }
+        at += 1
+    }
+    output[used] = 0
+    return 1
+}
+
 #scope_export
 #program_export "TypeApplicationScope"
 TypeApplicationScope :: (module: *IR.ZirModule, arguments: *u8, template_public: s32, template_file_private: s32, instance: *IR.ZirType) {
@@ -258,6 +319,12 @@ rewrite_type_applications_with_buffers :: (module: *IR.ZirModule, source: *u8, o
                         Diagnostic(span, CheckCString("check.type_application"), CheckCString("type application arguments are too long: %s"), cast(*u8)(*((base_storage_0[0]).items)))
                         return 0
                     }
+                    identity_storage := cast(*S12Array4096_u8)AllocateOrExit(size_of(S12Array4096_u8))
+                    defer CompilerFree(cast(*void)identity_storage)
+                    if !(type_application_identity(module, cast(*u8)(*(((buffers).canonical).items)), cast(*u8)(*((identity_storage[0]).items)), cast(usize)(cast(u64)size_of(S12Array4096_u8))) != 0) {
+                        Diagnostic(span, CheckCString("check.type_application"), CheckCString("type application arguments are too long: %s"), cast(*u8)(*((base_storage_0[0]).items)))
+                        return 0
+                    }
                     hash: u64 = 14695981039346656037
                     {
                         p: *u8 = cast(*u8)(cast(*u8)(*((generic).name)))
@@ -268,7 +335,7 @@ rewrite_type_applications_with_buffers :: (module: *IR.ZirModule, source: *u8, o
                     }
                     hash = (((hash ^ cast(u64)(40))) * 1099511628211)
                     {
-                        p: *u8 = cast(*u8)(cast(*u8)(*(((buffers).canonical).items)))
+                        p: *u8 = cast(*u8)(cast(*u8)(*((identity_storage[0]).items)))
                         while check_loop_153 := ((p)[0] != 0) {
                             hash = (((hash ^ cast(u64)((p)[0]))) * 1099511628211)
                             S12Post1(*(p))
@@ -289,7 +356,12 @@ rewrite_type_applications_with_buffers :: (module: *IR.ZirModule, source: *u8, o
                             S12Post2(*(t))
                         }
                     }
-                    if ((instance != cast(*IR.ZirType)((null))) && (!((instance).is_synthetic_application != 0) || (((instance).is_type_instance != 0) && ((FindType(module, cast(*u8)(*((instance).template_name)), null) != generic) || (strcmp(cast(*u8)(*((instance).template_args)), cast(*u8)(*(((buffers).canonical).items))) != 0))))) {
+                    existing_storage := cast(*S12Array4096_u8)AllocateOrExit(size_of(S12Array4096_u8))
+                    defer CompilerFree(cast(*void)existing_storage)
+                    if instance != null && type_application_identity(module, cast(*u8)(*((instance).template_args)), cast(*u8)(*((existing_storage[0]).items)), cast(usize)(cast(u64)size_of(S12Array4096_u8))) == 0 {
+                        (existing_storage[0]).items[0] = 0
+                    }
+                    if ((instance != cast(*IR.ZirType)((null))) && (!((instance).is_synthetic_application != 0) || (((instance).is_type_instance != 0) && ((FindType(module, cast(*u8)(*((instance).template_name)), null) != generic) || (strcmp(cast(*u8)(*((existing_storage[0]).items)), cast(*u8)(*((identity_storage[0]).items))) != 0))))) {
                         Diagnostic(span, CheckCString("check.type_application"), CheckCString("type application name collision: %s"), cast(*u8)(*((base_storage_0[0]).items)))
                         return 0
                     }

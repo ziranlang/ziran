@@ -1,0 +1,14 @@
+// Time for a portable bundle, supplied by the program that runs it, such as
+// ZX Runner (`zx`). A runner that lacks a capability refuses the bundle.
+host_api :: #system_library "host_api";
+
+MonotonicNanosecondsHost :: () -> s64 #foreign host_api;
+WallMillisecondsHost :: () -> s64 #foreign host_api;
+
+// Nanoseconds from an arbitrary start; never goes backwards.
+#program_export
+MonotonicNanoseconds :: () -> s64 { return MonotonicNanosecondsHost() }
+
+// Milliseconds since 1970-01-01 UTC.
+#program_export
+WallMilliseconds :: () -> s64 { return WallMillisecondsHost() }

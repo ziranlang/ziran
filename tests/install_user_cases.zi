@@ -57,7 +57,17 @@ CheckZxRunner :: (test: *NativeTest, share: string, data: string) -> bool {
     unused NativeRun(test, gap_build[:])
     gap := string.[runner, window]
     missing := NativeRun(test, gap[:], "", 1)
-    return NativeAssert(test, !test.failed && TextContains(missing.error, "window_gap.zx needs platform capabilities"), "zx did not report a capability it lacks")
+    if !NativeAssert(test, !test.failed && TextContains(missing.error, "window_gap.zx needs capabilities this ZX Runner does not provide: window_gap:OpenWindowHost"), "zx did not name a capability it lacks") { return false }
+    // The base capabilities: arguments, files and the bundle's own assets.
+    assets := CheckPath(test.work, "zx-assets")
+    if !CreateDirectory(assets) || !NativeWrite(test, CheckPath(assets, "greeting.txt"), "from the bundle\n") { return false }
+    base_source := CheckPath(test.work, "base_zx.zi")
+    if !NativeWrite(test, base_source, "Process :: #import \"std/guest_process\";\nFiles :: #import \"std/guest_files\";\nAssets :: #import \"std/guest_assets\";\nmain :: () -> s32 {\n    path := Process.Argument(1)\n    greeting, found := Assets.AssetFind(\"zx-assets/greeting.txt\")\n    if !found || !Files.FileWrite(path, greeting) { return 2 }\n    copy, ok := Files.FileRead(path)\n    print(\"% % %\", Process.ArgumentCount(), ok, copy)\n    return 0\n}\n") { return false }
+    base := CheckPath(test.work, "base_zx.zx")
+    base_build := string.[test.ziran, "bundle", "--root", test.work, "--asset-dir", CheckConcat("zx-assets=", assets), "--entry", "base_zx:main", "-o", base, base_source]
+    unused NativeRun(test, base_build[:])
+    copied := string.[runner, base, CheckPath(test.work, "base-copy.txt")]
+    return NativeExpect(test, copied[:], "2 true from the bundle\n")
 }
 
 #program_export

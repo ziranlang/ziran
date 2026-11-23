@@ -1,10 +1,15 @@
 // The first check ZX Runner makes: is this a .zx program this toolchain
 // reads? The header layout is ASSEMBLY/zx-executable-format.md; the full
 // container is verified again when the program loads.
-#import "compiler_bundle"
 #import "std/file_linux"
 #import "std/text_tools"
 using Vectors :: #import "std/vec"
+
+// The ZX revision the linked runtime reads (ASSEMBLY/zx-executable-format.md,
+// ExecutableVersion in compiler_bundle.zi). The runtime is linked into the
+// runner, so it cannot also import that module; the install_user check runs
+// a bundle the toolchain just wrote and fails when the two differ.
+ZX_FORMAT_REVISION :: 28;
 
 ZxHeaderKind :: enum s32 { Runnable; Missing; NotZx; Older; Newer }
 ZxHeader :: struct { kind: ZxHeaderKind; revision: u32 }
@@ -19,7 +24,7 @@ ReadZxHeader :: (path: string) -> ZxHeader {
         return .{kind = .NotZx}
     }
     revision := cast(u32)bytes[4] | (cast(u32)bytes[5] << 8) | (cast(u32)bytes[6] << 16) | (cast(u32)bytes[7] << 24)
-    current := ExecutableVersionNumber()
+    current: u32 = ZX_FORMAT_REVISION
     if revision > current { return .{kind = .Newer, revision = revision} }
     if revision < current { return .{kind = .Older, revision = revision} }
     return .{kind = .Runnable, revision = revision}
@@ -27,7 +32,7 @@ ReadZxHeader :: (path: string) -> ZxHeader {
 
 ZxHeaderMessage :: (path: string, header: ZxHeader) -> Text {
     message: Vec(u8)
-    current := ExecutableVersionNumber()
+    current: u32 = ZX_FORMAT_REVISION
     if header.kind == .Missing {
         BuilderPrint(*message, "cannot open %: there is no readable file there", path)
     } else if header.kind == .NotZx {

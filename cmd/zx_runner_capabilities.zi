@@ -1,0 +1,175 @@
+// The capabilities ZX Runner gives every bundle: its own assets, the clock,
+// the process arguments and environment, and files. A bundle reaches them
+// through std/guest_assets, guest_clock, guest_process and guest_files. Each
+// call answers in a host value; a string result stays valid until the
+// runner's next call.
+#import "std/bundle_host"
+#import "std/byte_text_linux"
+#import "std/c_string"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_linux"
+#import "std/file_tree_linux"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+RunnerState :: struct {
+    bundle: *void
+    // The bundle's arguments are argv[1] to argv[argc]: argv[0] is the runner.
+    argc: s32
+    argv: **u8
+    // The bytes the latest string result borrows.
+    answer: Vec(u8)
+}
+
+// Whether this runner answers module:function.
+RunnerProvides :: (module: string, function: string) -> bool {
+    if module == "guest_assets" {
+        return function == "AssetCountHost" || function == "AssetNameHost" || function == "AssetDataHost"
+    }
+    if module == "guest_clock" { return function == "MonotonicNanosecondsHost" || function == "WallMillisecondsHost" }
+    if module == "guest_process" {
+        return function == "ArgumentCountHost" || function == "ArgumentHost" || function == "EnvironmentHost"
+    }
+    if module == "guest_files" {
+        return function == "FileStatusHost" || function == "FileReadHost" || function == "FileWriteHost" ||
+            function == "FileRemoveHost" || function == "FileRenameHost" ||
+            function == "DirectoryMakeHost" || function == "DirectoryListHost"
+    }
+    return false
+}
+
+#scope_file
+using HostValueKind;
+libc :: #system_library "libc";
+WallClock :: struct { seconds: s64; nanoseconds: s64 }
+ClockGetTime :: (clock: s32, value: *WallClock) -> s32 #foreign libc "clock_gettime";
+REALTIME_CLOCK :: 0;
+
+Text :: (value: HostValue) -> string {
+    if value.kind != cast(s32)HostString || value.length == 0 { return "" }
+    return TextFromBytes(BytesFromPointer(cast(*u8)value.data, cast(u64)value.length))
+}
+
+Whole :: (value: HostValue) -> s64 {
+    if value.kind == cast(s32)HostUnsigned { return cast(s64)value.bits }
+    return value.integer
+}
+
+Integer :: (result: *HostValue, value: s64) -> s32 {
+    result.kind = cast(s32)HostInteger; result.integer = value
+    return 1
+}
+
+Unsigned :: (result: *HostValue, value: u64) -> s32 {
+    result.kind = cast(s32)HostUnsigned; result.bits = value
+    return 1
+}
+
+Borrowed :: (result: *HostValue, data: *u8, length: u64) -> s32 {
+    result.kind = cast(s32)HostString; result.data = data; result.length = cast(usize)length
+    return 1
+}
+
+// Copies text into the runner's answer storage and returns it.
+Answer :: (state: *RunnerState, result: *HostValue, text: string) -> s32 {
+    VecClear(state.answer)
+    for byte: text { VecPush(state.answer, byte) }
+    if state.answer.count == 0 { return Borrowed(result, null, 0) }
+    return Borrowed(result, *state.answer[0], cast(u64)state.answer.count)
+}
+
+AssetCall :: (state: *RunnerState, function: string, arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
+    if function == "AssetCountHost" && count == 0 { return Unsigned(result, BundleAssets(state.bundle)) }
+    if count != 1 { return 0 }
+    index := cast(u64)Whole(arguments[0])
+    if index >= BundleAssets(state.bundle) { return Borrowed(result, null, 0) }
+    if function == "AssetNameHost" {
+        name := TextFromCString(BundleAssetPath(state.bundle, index))
+        return Answer(state, result, name)
+    }
+    if function == "AssetDataHost" {
+        return Borrowed(result, BundleAssetBytes(state.bundle, index), BundleAssetLength(state.bundle, index))
+    }
+    return 0
+}
+
+ClockCall :: (function: string, count: s32, result: *HostValue) -> s32 {
+    if count != 0 { return 0 }
+    if function == "MonotonicNanosecondsHost" { return Integer(result, MonotonicNanoseconds()) }
+    if function == "WallMillisecondsHost" {
+        now: WallClock
+        if ClockGetTime(REALTIME_CLOCK, *now) != 0 { return 0 }
+        return Integer(result, now.seconds * 1000 + now.nanoseconds / 1000000)
+    }
+    return 0
+}
+
+ProcessCall :: (state: *RunnerState, function: string, arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
+    if function == "ArgumentCountHost" && count == 0 { return Integer(result, cast(s64)state.argc) }
+    if count != 1 { return 0 }
+    if function == "ArgumentHost" {
+        index := Whole(arguments[0])
+        if index < 0 || index >= cast(s64)state.argc { return Borrowed(result, null, 0) }
+        return Answer(state, result, TextFromCString(state.argv[index + 1]))
+    }
+    if function == "EnvironmentHost" { return Answer(state, result, EnvironmentText(Text(arguments[0]))) }
+    return 0
+}
+
+FileCall :: (state: *RunnerState, function: string, arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
+    if count < 1 { return 0 }
+    path := Text(arguments[0])
+    if function == "FileStatusHost" && count == 1 {
+        info := PathStatus(path)
+        if info.kind == .Missing { return Integer(result, -1) }
+        if info.kind == .Directory { return Integer(result, -2) }
+        return Integer(result, info.size)
+    }
+    if function == "FileReadHost" && count == 1 {
+        text, ok := ReadEntireFile(path)
+        if !ok { return Borrowed(result, null, 0) }
+        return Answer(state, result, text)
+    }
+    if function == "FileWriteHost" && count == 2 {
+        return Integer(result, ifx WriteEntireFile(path, Text(arguments[1])) then 1 else 0)
+    }
+    if function == "FileRemoveHost" && count == 1 { return Integer(result, ifx RemoveFile(path) then 1 else 0) }
+    if function == "FileRenameHost" && count == 2 {
+        return Integer(result, ifx RenamePath(path, Text(arguments[1])) then 1 else 0)
+    }
+    if function == "DirectoryMakeHost" && count == 1 { return Integer(result, ifx CreateDirectory(path) then 1 else 0) }
+    if function == "DirectoryListHost" && count == 1 {
+        listing: Vec(u8)
+        cursor := OpenDirectory(path)
+        if cursor.valid {
+            while true {
+                entry := NextDirectoryEntry(*cursor)
+                if !entry.valid { break }
+                name := TextFromBytes(entry.name[0:entry.name_count])
+                if name == "." || name == ".." { continue }
+                if listing.count > 0 { VecPush(listing, #char "\n") }
+                for byte: name { VecPush(listing, byte) }
+            }
+            unused CloseDirectory(*cursor)
+        }
+        return Answer(state, result, TextFromBytes(VecSlice(listing, 0, listing.count)))
+    }
+    return 0
+}
+
+#scope_export
+// The one host callback the runner binds for every capability it provides.
+RunnerCall :: (context: *void, module_name: *u8, function_name: *u8,
+    arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
+    state := cast(*RunnerState)context
+    module := TextFromCString(module_name)
+    function := TextFromCString(function_name)
+    if !RunnerProvides(module, function) { return 0 }
+    result.kind = cast(s32)HostVoid
+    if module == "guest_assets" { return AssetCall(state, function, arguments, count, result) }
+    if module == "guest_clock" { return ClockCall(function, count, result) }
+    if module == "guest_process" { return ProcessCall(state, function, arguments, count, result) }
+    if module == "guest_files" { return FileCall(state, function, arguments, count, result) }
+    return 0
+}

@@ -1,44 +1,38 @@
 // zx, the ZX Runner: runs any portable .zx program, as Linux runs an ELF
-// file, with the runtime of the toolchain installed beside it.
-// `zx FILE.zx [ARGUMENT...]`.
+// file. `zx FILE.zx [ARGUMENT...]`.
 //
 // The runner knows no library: a bundle carries all of its own code and
-// imports only the runner's host capabilities. A capability this runner
-// lacks is an error, never a hand-off to another program. The header is
-// checked first, so a wrong file, or one made by an older or newer Ziran,
-// gets a plain explanation. Started without a terminal, as from a file
-// manager, the runner shows any failure in a dialog as well.
+// imports only host capabilities, which the runner answers itself
+// (zx_runner_capabilities). A capability it lacks is an error naming it,
+// never a hand-off to another program. The header is checked first, so a
+// wrong file, or one made by an older or newer Ziran, gets a plain
+// explanation. Started without a terminal, as from a file manager, the
+// runner shows any failure in a dialog as well.
+#import "std/bundle_host"
 #import "std/byte_text_linux"
 #import "std/c_string"
 #import "std/environment_linux"
 #import "std/file"
 #import "std/file_linux"
-#import "std/process_run_linux"
 #import "std/stdio_linux"
 #import "std/text_tools"
+#import "zx_runner_capabilities"
 #import "zx_runner_dialog"
 #import "zx_runner_header"
 using Vectors :: #import "std/vec"
 
 #scope_file
-// The engine's status for a bundle that needs a capability it lacks.
-GAP :: 3
 libc :: #system_library "libc";
 TerminalRaw :: (fd: s32) -> s32 #foreign libc "isatty";
-ReadLinkRaw :: (path: *u8, output: *u8, capacity: usize) -> isize #foreign libc "readlink";
 ProcessIdRaw :: () -> s32 #foreign libc "getpid";
-
-// The directory holding this executable, where its toolchain lives.
-ToolDirectory :: (storage: []u8) -> string {
-    link: [32]u8
-    if !CopyCString("/proc/self/exe", link[:]) { return "" }
-    length := cast(s64)ReadLinkRaw(*link[0], *storage[0], cast(usize)(storage.count - 1))
-    if length <= 0 || length >= storage.count - 1 { return "" }
-    slash := length - 1
-    while slash > 0 && storage[slash] != #char "/" { slash -= 1 }
-    if slash <= 0 { return "" }
-    return TextFromBytes(storage[0:slash])
-}
+DuplicateRaw :: (fd: s32) -> s32 #foreign libc "dup";
+ReplaceRaw :: (source: s32, destination: s32) -> s32 #foreign libc "dup2";
+OpenRaw :: (path: *u8, flags: s32, mode: ..any) -> s32 #foreign libc "open";
+CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
+WRITE_TRUNCATE_CREATE :: 577;
+STANDARD_ERROR :: 2;
+// More missing capabilities than this are counted, not listed.
+LISTED_GAPS :: 6;
 
 // Says what went wrong on standard error and, when nobody is watching a
 // terminal, in a dialog.
@@ -51,7 +45,7 @@ Fail :: (message: string, attended: bool, code: s32) -> s32 {
     return code
 }
 
-// A private file for the program's standard error while unattended.
+// A private file that holds the engine's standard error while unattended.
 ErrorLogPath :: () -> Text {
     directory := EnvironmentText("XDG_RUNTIME_DIR")
     if directory == "" || directory[0] != #char "/" { directory = "/tmp" }
@@ -69,10 +63,66 @@ Tail :: (text: string, limit: s64) -> string {
     return text[start + 1:]
 }
 
+// Binds every capability the bundle imports and returns how many this
+// runner lacks, listing them in missing.
+Bind :: (bundle: *void, state: *RunnerState, bindings: *Vec(HostBinding), missing: *Vec(u8)) -> s64 {
+    gaps: s64 = 0
+    count := BundleCapabilities(bundle)
+    index: u64 = 0
+    while index < count {
+        module := BundleCapabilityModuleName(bundle, index)
+        function := BundleCapabilityFunctionName(bundle, index)
+        if RunnerProvides(TextFromCString(module), TextFromCString(function)) {
+            VecPush(<<bindings, HostBinding.{module = module, function = function, call = RunnerCall, context = cast(*void)state})
+        } else {
+            gaps += 1
+            if gaps <= LISTED_GAPS {
+                BuilderPrint(missing, "%", ifx gaps == 1 then " " else ", ")
+                BuilderPrint(missing, "%:%", TextFromCString(module), TextFromCString(function))
+            }
+        }
+        index += 1
+    }
+    if gaps > LISTED_GAPS { BuilderPrint(missing, " and % more", gaps - LISTED_GAPS) }
+    return gaps
+}
+
+// Runs the bound bundle natively and returns its exit status, or -1 when it
+// could not start or stopped with an error.
+Run :: (bundle: *void, bindings: []HostBinding) -> s32 {
+    first: *HostBinding
+    if bindings.count > 0 { first = *bindings[0] }
+    options := BundleInstanceOptions.{backend = .Native, max_steps = 0}
+    instance := InstantiateBundleWithOptions(bundle, first, cast(u64)bindings.count, *options)
+    if instance == null { return -1 }
+    value: s64
+    has_value: s32
+    finished := RunBundleInstance(instance, *value, *has_value)
+    CloseBundleInstance(instance)
+    if finished == 0 { return -1 }
+    if has_value == 0 { return 0 }
+    return cast(s32)(value & 255)
+}
+
+// What the dialog says about a run that failed while unattended.
+Report :: (path: string, status: s32, detail: string) -> Text {
+    report: Vec(u8)
+    if status < 0 && detail == "" {
+        BuilderPrint(*report, "% stopped with an error.", path)
+    } else if status < 0 {
+        BuilderPrint(*report, "% stopped with an error:\n\n%", path, detail)
+    } else if detail == "" {
+        BuilderPrint(*report, "% stopped with exit status %.", path, status)
+    } else {
+        BuilderPrint(*report, "% stopped with exit status %:\n\n%", path, status, detail)
+    }
+    return BuilderFinish(report)
+}
+
 #scope_export
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
-    attended := TerminalRaw(2) == 1
+    attended := TerminalRaw(STANDARD_ERROR) == 1
     if argc < 2 {
         return Fail("usage: zx FILE.zx [ARGUMENT...]: open a .zx program with ZX Runner", attended, 2)
     }
@@ -82,49 +132,57 @@ main :: (argc: s32, argv: **u8) -> s32 {
         problem: Text = ZxHeaderMessage(path, header)
         return Fail(TextView(problem), attended, 1)
     }
-
-    directory_storage: [4096]u8
-    directory := ToolDirectory(directory_storage[:])
-    if directory == "" { return Fail("cannot find the Ziran toolchain beside this runner", attended, 1) }
-    engine: Vec(u8)
-    BuilderPrint(*engine, "%/zi2zx", directory)
-    engine_path: Text = BuilderFinish(engine)
-    // --host-dispatch makes the engine stop with GAP before running anything
-    // when the bundle imports a capability it does not provide.
-    arguments: Vec(string)
-    VecPush(arguments, TextView(engine_path))
-    VecPush(arguments, "run")
-    VecPush(arguments, "--host-dispatch")
-    for index: 1..argc - 1 { VecPush(arguments, TextFromCString(argv[index])) }
-
-    options: ProcessOptions = .{.arguments = VecSlice(arguments, 0, arguments.count)}
-    log: Text = ErrorLogPath()
-    if !attended { options.error_path = TextView(log) }
-    run: ProcessRun
-    started := RunProcess(options, *run)
-    errors := ""
-    if !attended {
-        text, ok := ReadEntireFile(TextView(log))
-        if ok { errors = text; unused PrintError(text) }
-        unused RemoveFile(TextView(log))
+    bundle := OpenBundle(argv[1])
+    if bundle == null {
+        damaged: Vec(u8)
+        BuilderPrint(*damaged, "% is damaged: it has a ZX header but its program cannot be read", path)
+        message: Text = BuilderFinish(damaged)
+        return Fail(TextView(message), attended, 1)
     }
-    if !started { return Fail("cannot start the Ziran toolchain beside this runner", attended, 1) }
-    if run.code == GAP {
+    defer CloseBundle(bundle)
+    // The bundle sees its own path as argument 0, then the arguments after it.
+    state := RunnerState.{bundle = bundle, argc = argc - 1, argv = argv}
+    bindings: Vec(HostBinding)
+    defer VecFree(bindings)
+    missing: Vec(u8)
+    if Bind(bundle, *state, *bindings, *missing) > 0 {
         gap: Vec(u8)
-        BuilderPrint(*gap, "% needs platform capabilities, such as a window, that this ZX Runner does not provide", path)
-        missing: Text = BuilderFinish(gap)
-        return Fail(TextView(missing), attended, 1)
+        BuilderPrint(*gap, "% needs capabilities this ZX Runner does not provide:%", path, TextFromBytes(VecSlice(missing, 0, missing.count)))
+        message: Text = BuilderFinish(gap)
+        return Fail(TextView(message), attended, 1)
     }
-    if run.code != 0 && !attended {
-        message: Vec(u8)
-        detail := Tail(errors, 1500)
-        if detail == "" {
-            BuilderPrint(*message, "% stopped with exit status %.", path, run.code)
-        } else {
-            BuilderPrint(*message, "% stopped with exit status %:\n\n%", path, run.code, detail)
+    native := GetBundleNativeProblem(bundle)
+    if native != "" {
+        unsupported: Vec(u8)
+        BuilderPrint(*unsupported, "% cannot run on this computer: %", path, native)
+        message: Text = BuilderFinish(unsupported)
+        return Fail(TextView(message), attended, 1)
+    }
+    // Unattended, the engine's own diagnostics go to a file for the dialog.
+    log: Text = ErrorLogPath()
+    saved: s32 = -1
+    if !attended {
+        name: [4096]u8
+        if CopyCString(TextView(log), name[:]) {
+            capture := OpenRaw(*name[0], WRITE_TRUNCATE_CREATE, 384)
+            if capture >= 0 {
+                saved = DuplicateRaw(STANDARD_ERROR)
+                unused ReplaceRaw(capture, STANDARD_ERROR)
+                unused CloseRaw(capture)
+            }
         }
-        shown: Text = BuilderFinish(message)
-        ShowError(TextView(shown))
     }
-    return run.code
+    status := Run(bundle, VecSlice(bindings, 0, bindings.count))
+    if saved >= 0 {
+        unused ReplaceRaw(saved, STANDARD_ERROR)
+        unused CloseRaw(saved)
+        errors, ok := ReadEntireFile(TextView(log))
+        unused RemoveFile(TextView(log))
+        if ok { unused PrintError(errors) }
+        if status != 0 {
+            shown: Text = Report(path, status, ifx ok then Tail(errors, 1500) else "")
+            ShowError(TextView(shown))
+        }
+    }
+    return ifx status < 0 then 1 else status
 }

@@ -1,0 +1,29 @@
+// The files embedded in the running bundle (`ziran bundle --asset-dir`),
+// read through its runner. Names are canonical relative paths; the bytes
+// stay valid while the bundle runs.
+host_api :: #system_library "host_api";
+
+AssetCountHost :: () -> u64 #foreign host_api;
+AssetNameHost :: (index: u64) -> string #foreign host_api;
+AssetDataHost :: (index: u64) -> string #foreign host_api;
+
+#program_export
+AssetCount :: () -> u64 { return AssetCountHost() }
+
+#program_export
+AssetName :: (index: u64) -> string { return AssetNameHost(index) }
+
+#program_export
+AssetData :: (index: u64) -> string { return AssetDataHost(index) }
+
+// The bytes of the asset called name, or ok false when there is none.
+#program_export
+AssetFind :: (name: string) -> (data: string, ok: bool) {
+    count := AssetCountHost()
+    index: u64 = 0
+    while index < count {
+        if AssetNameHost(index) == name { return AssetDataHost(index), true }
+        index += 1
+    }
+    return "", false
+}

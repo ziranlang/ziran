@@ -32,13 +32,33 @@ modular arcihetcuer".
    (`packaging/linux`, `make install-user`), checked by `install_user`.
    Open: generated app and file-type icons, exported to hicolor 16-512 and
    Android adaptive layers.
-2. Window capabilities: their versioned interface in Ziran with docs and
-   tests, the desktop host behind it linked into `zx`, and Kryon's desktop
-   backend ported onto it, so a Kryon example `.zx` runs through plain `zx`
-   on a private Xvfb. The surface to cover is what Kryon's player answers
-   today (`kryon/src/backend/desktop_zx.zi` `Supported`): raster shapes, text,
-   triangles and images, glyph metrics, bitmaps, cursor, window state, input
-   and text entry, clipboard, media and video, clock, theme colour.
+2. Capabilities through the runner, with no compiler change. A capability is
+   a `#foreign host_api` function in a Ziran std module; a bundle lists the
+   ones it imports (`module:function`), and `zx` binds each from its own table
+   through `std/bundle_host` or names the ones it lacks and stops. Today a
+   bundle has only `print`: `std/file_linux` has no portable lowering, so a
+   `.zx` cannot even read a file.
+   a. Done: `zx` hosts the bundle in-process (`std/bundle_host`, native
+      backend) and binds imports from its table (cmd/zx_runner_capabilities.zi).
+   b. Done: the base set in `std/guest_assets`, `guest_clock`, `guest_files`
+      and `guest_process` (docs/ZX.md "ZX Runner"). Open: `std/file` and its
+      neighbours use them when `TARGET == .ZX`, so ordinary code runs in a
+      bundle unchanged.
+   c. Window set: open a window (title, size, flags), size and scale,
+      present a premultiplied RGBA frame with its damage rectangle, input
+      events (pointer, wheel, touch, keys with modifiers, text, resize,
+      focus, close), cursor shape or picture, clipboard text, text input on
+      and off, frame pacing; audio output follows. The runner calls the
+      bundle's frame entry once per frame. Drawing, text and images run in
+      the bundle. Desktop host: SDL2 inside `zx`.
+   d. Proof: a plain Ziran example that draws and reacts to input runs
+      through `zx` on a private Xvfb.
+   e. Kryon's zx backend: its pixmap rasterizer and font decoder compiled
+      into the bundle, presenting through the window set, so a Kryon example
+      runs through plain `zx`. Kryon's player answers 62 capabilities on
+      desktop and 46 on Android today (`kryon/src/backend/desktop_zx.zi` and
+      `bundle_player.zi` `Supported`); video and system theme become
+      optional capabilities.
 3. Every Kryon app (Breeze, Werk, Jungle and the rest) builds for that runner;
    Kryon's players (desktop_zx, app_player, window_player, zx_window_*,
    bundle_player*, android_bundle_run) and the player copies

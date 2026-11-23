@@ -96,6 +96,10 @@
   <url><loc>https://ziran-lang.org/std/go_types</loc></url>
   <url><loc>https://ziran-lang.org/std/grapheme</loc></url>
   <url><loc>https://ziran-lang.org/std/grapheme_data</loc></url>
+  <url><loc>https://ziran-lang.org/std/guest_assets</loc></url>
+  <url><loc>https://ziran-lang.org/std/guest_clock</loc></url>
+  <url><loc>https://ziran-lang.org/std/guest_files</loc></url>
+  <url><loc>https://ziran-lang.org/std/guest_process</loc></url>
   <url><loc>https://ziran-lang.org/std/gzip_linux</loc></url>
   <url><loc>https://ziran-lang.org/std/hash_map</loc></url>
   <url><loc>https://ziran-lang.org/std/hmac_sha256_go</loc></url>

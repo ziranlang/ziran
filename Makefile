@@ -348,9 +348,12 @@ HOST_EXEC_SOURCES := cmd/zir/zir_host_exec.c cmd/zir/zir_host_native.c cmd/zir/z
 ENGINE_NAMES := $(ENGINE_C)/engine_names.h
 ifeq ($(BOOTSTRAP),1)
 ENGINE_OBJECTS :=
+ENGINE_FACADE_OBJECT :=
 $(call obj,$(HOST_EXEC_SOURCES)): CFLAGS += -DZIRAN_NO_ENGINE
 else
 ENGINE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/engine/%.o,$(ENGINE_MODULES))
+# The facade over the engine (cmd/compiler_zx_exec*.zi), generated with it.
+ENGINE_FACADE_OBJECT := $(BUILD_DIR)/obj/compiler-zx-exec.o
 # Per-object flags, not a target-specific CFLAGS: that would also reach the
 # prerequisites make builds for these objects (zi2c, through zir_host_native's
 # generated assembly headers), and engine_names.h does not exist yet there.
@@ -359,7 +362,7 @@ $(call obj,$(HOST_EXEC_SOURCES)): $(ENGINE_NAMES)
 $(call obj,cmd/zx2wasm/main.c)_CFLAGS += -iquote $(ENGINE_C) -include $(ENGINE_NAMES)
 $(call obj,cmd/zx2wasm/main.c): $(ENGINE_NAMES)
 endif
-LIB_OBJECTS := $(call obj,$(LIB_SOURCES) $(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS) $(call compiler-port-object,host_api) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(CHECK_PORT_OBJECTS) \
+LIB_OBJECTS := $(call obj,$(LIB_SOURCES) $(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS) $(ENGINE_FACADE_OBJECT) $(call compiler-port-object,host_api) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(CHECK_PORT_OBJECTS) \
     $(BUILD_DIR)/obj/parse.o $(RANGE_OBJECTS) $(NATIVE_NAMES_OBJECT) \
     $(call obj,cmd/zir/zir_zx_wasm_web.c)
 NATIVE_HOST_ENABLED := 1
@@ -687,16 +690,17 @@ $(BIN_DIR)/zi-fmt: $(FORMAT_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/.compiler-flag
 	    -o $(FORMAT_C) cmd/format.zi
 	$(NICE) $(CC) $(CFLAGS) -I$(FORMAT_C) -o $@ $(FORMAT_C)/*.c -lm
 
-# ZX Runner, the `zx` command: runs any .zx program with this toolchain.
+# ZX Runner, the `zx` command: hosts any .zx program in-process with the
+# runtime and answers its capabilities (cmd/zx_runner_capabilities.zi).
 ZX_RUNNER_C := $(BUILD_DIR)/zx-runner-c
-ZX_RUNNER_SOURCES := cmd/zx_runner.zi cmd/zx_runner_header.zi cmd/zx_runner_dialog.zi cmd/compiler_bundle.zi \
-    std/byte_text_linux.zi std/c_string.zi std/environment_linux.zi std/file.zi std/file_linux.zi \
-    std/process_run_linux.zi std/stdio_linux.zi std/text_tools.zi std/vec.zi
-$(BIN_DIR)/zx: $(ZX_RUNNER_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/.compiler-flags | $(BIN_DIR)
+ZX_RUNNER_SOURCES := $(wildcard cmd/zx_runner*.zi) std/bundle_host.zi std/byte_text_linux.zi \
+    std/c_string.zi std/environment_linux.zi std/file.zi std/file_linux.zi std/file_tree_linux.zi \
+    std/process_run_linux.zi std/stdio_linux.zi std/text_tools.zi std/timer_linux.zi std/vec.zi
+$(BIN_DIR)/zx: $(ZX_RUNNER_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/libziran.a $(BUILD_DIR)/.compiler-flags | $(BIN_DIR)
 	rm -rf $(ZX_RUNNER_C)
 	$(BIN_DIR)/zi2c --entry zx_runner:main $(ZIRAN_DEFINES) --root cmd --module-path std \
 	    -o $(ZX_RUNNER_C) cmd/zx_runner.zi
-	$(NICE) $(CC) $(CFLAGS) -I$(ZX_RUNNER_C) -o $@ $(ZX_RUNNER_C)/*.c -lm
+	$(NICE) $(CC) $(CFLAGS) -I$(ZX_RUNNER_C) -o $@ $(ZX_RUNNER_C)/*.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 EDIT_C := $(BUILD_DIR)/edit-c
 $(BIN_DIR)/zi-edit: cmd/edit.zi cmd/transport.zi cmd/format_source.zi cmd/diagnostics.zi std/json_document.zi cmd/zir/zir_edit.c cmd/zir/zir_edit.h $(BIN_DIR)/zi2c $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) | $(BIN_DIR)
@@ -1057,10 +1061,10 @@ $(PROOF_C)/.generated: cmd/compiler_proof.zi cmd/compiler_ir.zi cmd/compiler_ser
 
 $(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/compiler_exec_debug.zi cmd/compiler_exec.zi cmd/compiler_opt.zi cmd/compiler_opt_ssa.zi cmd/compiler_opt_rotate.zi cmd/compiler_opt_loop.zi cmd/compiler_opt_licm.zi cmd/compiler_opt_induction.zi cmd/compiler_opt_layout.zi cmd/compiler_opt_inline.zi cmd/compiler_opt_specialize.zi cmd/compiler_opt_thread.zi cmd/compiler_opt_accumulate.zi cmd/compiler_opt_dom.zi cmd/compiler_learning.zi cmd/compiler_learning_policy.zi cmd/compiler_learning_table.zi \
     cmd/compiler_exec_serial.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_proven.zi cmd/compiler_lowered_ir.zi \
-    cmd/compiler_bundle.zi std/math.zi std/finite.zi std/text_buffer.zi std/number_text.zi $(wildcard cmd/compiler_zx_wasm*.zi) $(BOOTSTRAP_BIN)
+    cmd/compiler_bundle.zi std/math.zi std/finite.zi std/text_buffer.zi std/number_text.zi $(wildcard cmd/compiler_zx_wasm*.zi) $(wildcard cmd/compiler_zx_exec*.zi) $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
 	    --define ZIRAN_EXEC_NATIVE_PLAN_INDEXES --define ZIRAN_EXEC_PACKED_INSTRUCTIONS \
-	    -o $(ENGINE_C) cmd/compiler_runtime.zi
+	    -o $(ENGINE_C) cmd/compiler_runtime.zi cmd/compiler_zx_exec.zi
 	touch $@
 
 $(ENGINE_NAMES): $(ENGINE_C)/.generated scripts/engine-names.sh
@@ -1070,6 +1074,13 @@ $(BUILD_DIR)/obj/engine/%.o: Makefile $(ENGINE_NAMES) $(BUILD_DIR)/.compiler-fla
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) -fno-math-errno -fvisibility=hidden -iquote $(ENGINE_C) -include $(ENGINE_NAMES) \
 	    -DZIRAN_ENGINE_SOURCE_$* -c -o $@ $(ENGINE_C)/$*.c
+
+# The facade reaches the engine under its private names; its own C entry
+# points, outside ENGINE_MODULES, keep theirs.
+$(BUILD_DIR)/obj/compiler-zx-exec.o: $(ENGINE_NAMES) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) -iquote $(ENGINE_C) -include $(ENGINE_NAMES) \
+	    -c -o $@ $(ENGINE_C)/compiler_zx_exec.c
 
 
 $(BUNDLE_C)/.generated: cmd/compiler_bundle.zi $(BOOTSTRAP_BIN)

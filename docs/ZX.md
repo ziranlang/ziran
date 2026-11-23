@@ -281,12 +281,26 @@ UI code and embedded assets; the installed provider bridges the local OS.
 ### ZX Runner
 
 `make install-user` installs `zx`, ZX Runner, beside the toolchain. `zx
-app.zx [ARGUMENT...]` runs any bundle with that toolchain's runtime, as Linux
-runs an ELF file; a console program and a window program are opened the same
-way. The bundle carries all of its code, including the libraries it imports,
-and imports only the host capabilities the runner provides. A capability the
-runner lacks is an error naming the bundle; unlike `ziran run`, the runner
-hands a bundle to no installed provider. It reads the header first, so a file
+app.zx [ARGUMENT...]` runs any bundle in-process with the linked runtime, as
+Linux runs an ELF file; a console program and a window program are opened the
+same way. The bundle carries all of its code, including the libraries it
+imports, and imports only host capabilities (`module:function`), which the
+runner answers itself. It names every capability it lacks and runs nothing;
+unlike `ziran run`, it hands a bundle to no installed provider.
+
+The capabilities every bundle may use are declared in standard modules:
+
+| Module | Capabilities |
+| --- | --- |
+| `std/guest_assets` | `AssetCount`, `AssetName`, `AssetData`, `AssetFind`: the bundle's own embedded files |
+| `std/guest_clock` | `MonotonicNanoseconds`, `WallMilliseconds` (since 1970 UTC) |
+| `std/guest_files` | `FileStatus` (size, `FILE_MISSING`, `FILE_DIRECTORY`), `FileRead`, `FileWrite`, `FileRemove`, `FileRename`, `DirectoryMake`, `DirectoryList`, with a native program's reach |
+| `std/guest_process` | `ArgumentCount`, `Argument` (0 is the bundle's path), `Environment` |
+
+Capabilities are only added: a runner never changes what an existing name
+means, and a different meaning gets a new name.
+
+`zx` reads the header first, so a file
 that is not a ZX program, or one written in an older or newer ZX format
 revision, gets a plain explanation naming both revisions. Started without a
 terminal on standard error, as a file manager starts it, ZX Runner also shows

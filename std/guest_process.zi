@@ -1,0 +1,18 @@
+// The arguments and environment a runner passes a portable bundle. Argument 0
+// is the bundle's path; `zx app.zx a b` gives the bundle three arguments.
+host_api :: #system_library "host_api";
+
+ArgumentCountHost :: () -> s32 #foreign host_api;
+ArgumentHost :: (index: s32) -> string #foreign host_api;
+EnvironmentHost :: (name: string) -> string #foreign host_api;
+
+#program_export
+ArgumentCount :: () -> s32 { return ArgumentCountHost() }
+
+// The argument at index, or "" outside 0..ArgumentCount() - 1.
+#program_export
+Argument :: (index: s32) -> string { return ArgumentHost(index) }
+
+// The variable's value, or "" when it is unset.
+#program_export
+Environment :: (name: string) -> string { return EnvironmentHost(name) }

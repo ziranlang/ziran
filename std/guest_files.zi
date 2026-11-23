@@ -1,0 +1,44 @@
+// Files for a portable bundle, read and written by the program that runs it,
+// such as ZX Runner, with the same reach as a native program.
+host_api :: #system_library "host_api";
+
+// The size in bytes, -1 when nothing is there, -2 for a directory.
+FileStatusHost :: (path: string) -> s64 #foreign host_api;
+FileReadHost :: (path: string) -> string #foreign host_api;
+FileWriteHost :: (path: string, data: string) -> bool #foreign host_api;
+FileRemoveHost :: (path: string) -> bool #foreign host_api;
+FileRenameHost :: (source: string, destination: string) -> bool #foreign host_api;
+DirectoryMakeHost :: (path: string) -> bool #foreign host_api;
+// Entry names separated by "\n", without "." and "..".
+DirectoryListHost :: (path: string) -> string #foreign host_api;
+
+FILE_MISSING :: -1;
+FILE_DIRECTORY :: -2;
+
+#program_export
+FileStatus :: (path: string) -> s64 { return FileStatusHost(path) }
+
+// The whole file, or ok false when it is missing, a directory or unreadable.
+#program_export
+FileRead :: (path: string) -> (data: string, ok: bool) {
+    if FileStatusHost(path) < 0 { return "", false }
+    return FileReadHost(path), true
+}
+
+// Replaces the file with data; false when it could not be written.
+#program_export
+FileWrite :: (path: string, data: string) -> bool { return FileWriteHost(path, data) }
+
+#program_export
+FileRemove :: (path: string) -> bool { return FileRemoveHost(path) }
+
+#program_export
+FileRename :: (source: string, destination: string) -> bool {
+    return FileRenameHost(source, destination)
+}
+
+#program_export
+DirectoryMake :: (path: string) -> bool { return DirectoryMakeHost(path) }
+
+#program_export
+DirectoryList :: (path: string) -> string { return DirectoryListHost(path) }

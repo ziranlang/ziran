@@ -835,7 +835,9 @@ main(int argc, char **argv)
     CommandLowerPriority();
     // `zi2zx run` returns the program's own status; the other commands fail
     // only with a diagnostic.
-    if(is_zx(argv[argc - 1]))
+    // `zi2zx -o FILE.zx` writes an input; only a trailing .zx that is not
+    // -o's value asks to inspect one.
+    if(is_zx(argv[argc - 1]) && (argc < 3 || strcmp(argv[argc - 2], "-o")))
         return DiagnosticEnsureFailureReported(inspect_zx(argc - 1, argv + 1), "zi2zx");
     return DiagnosticEnsureFailureReported(build_to(argc - 1, argv + 1, NULL), "zi2zx");
 }

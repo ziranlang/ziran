@@ -100,6 +100,29 @@ to that dependency's project tool instead (see below). Naming a file, as in
 `ziran check --project src/cell.zi`, or passing `--target`, keeps the command
 on that file or target.
 
+## Building a ZX library
+
+A project can write a portable library instead of an application:
+
+```sh
+ziran bundle --project --library demo/geometry --export geometry:Area \
+    -o modules/demo/geometry.zx
+```
+
+The manifest's `[exports]` source files are the module inputs, as they are for
+`ziran check` on a library. `--export module:function` names the roots, and
+`--require-module` and `--import` pass through to `zi2zx` unchanged. `[exports]`
+supplies the modules, not the roots: name each exported procedure with
+`--export`, and pass a file argument for a root that lives in a module the
+table does not list. A bundle that names both `--library` and `--entry` is
+refused with one diagnostic naming both flags.
+
+Save the image as `LOGICAL_NAME.zx` under a module root; a consumer loads it
+with `ziran run --module-root DIR`, and its build maps the interface with
+`--require-module`/`--import`. [Loading libraries](ZX.md#loading-libraries)
+shows the consumer declarations and the mapping. To publish the image and pin
+it for consumers, see [Prebuilt portable images](#prebuilt-portable-images).
+
 ## Adding a dependency
 
 Pass any spelling of the repository to `ziran add`:

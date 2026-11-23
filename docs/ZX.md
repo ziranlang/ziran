@@ -20,6 +20,20 @@ zi2zx --library demo/counter --export counter:Add \
     -o modules/demo/counter.zx counter.zi
 ```
 
+A project with a `ziran.toml` builds the same library through `ziran bundle`,
+with no hand-written `zi2zx` line. The manifest's `[exports]` source files are
+the module inputs, and `--require-module`/`--import` pass through unchanged:
+
+```sh
+ziran bundle --project --library demo/counter --export counter:Add \
+    -o modules/demo/counter.zx
+```
+
+`[exports]` supplies the modules, not the roots: name every exported procedure
+with `--export`, and pass a file argument for a root that lives in a module the
+table does not list. A bundle that names both `--library` and `--entry` is
+refused with one diagnostic naming both flags.
+
 In `app.zi`, declare the import with a `u64` instance handle followed by the
 provider's parameter types. Load the declared interface before calling it.
 
@@ -44,6 +58,10 @@ zi2zx --require-module Counter.v1=demo/counter \
 ziran run --module-root modules app.zx
 ziran inspect --emit linkage modules/demo/counter.zx
 ```
+
+In a project, `ziran bundle` forwards the same mapping:
+`ziran bundle --project --require-module Counter.v1=demo/counter
+--import app:AddExternal=Counter.v1:Add --entry app:main -o app.zx`.
 
 Repeat `--module-root` to search several folders. With no explicit root, a
 saved bundle uses its own directory and a source run uses the current

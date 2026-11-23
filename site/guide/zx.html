@@ -19,6 +19,16 @@ which takes an <code>s32</code> and returns an <code>s32</code>.</p>
 zi2zx --library demo/counter --export counter:Add \
     -o modules/demo/counter.zx counter.zi
 </code></pre>
+<p>A project with a <code>ziran.toml</code> builds the same library through <code>ziran bundle</code>,
+with no hand-written <code>zi2zx</code> line. The manifest's <code>[exports]</code> source files are
+the module inputs, and <code>--require-module</code>/<code>--import</code> pass through unchanged:</p>
+<pre><code class="language-sh">ziran bundle --project --library demo/counter --export counter:Add \
+    -o modules/demo/counter.zx
+</code></pre>
+<p><code>[exports]</code> supplies the modules, not the roots: name every exported procedure
+with <code>--export</code>, and pass a file argument for a root that lives in a module the
+table does not list. A bundle that names both <code>--library</code> and <code>--entry</code> is
+refused with one diagnostic naming both flags.</p>
 <p>In <code>app.zi</code>, declare the import with a <code>u64</code> instance handle followed by the
 provider's parameter types. Load the declared interface before calling it.</p>
 <pre><code class="language-ziran">using Modules :: #import &quot;std/zx_module&quot;
@@ -39,6 +49,9 @@ main :: () -&gt; s32 {
 ziran run --module-root modules app.zx
 ziran inspect --emit linkage modules/demo/counter.zx
 </code></pre>
+<p>In a project, <code>ziran bundle</code> forwards the same mapping:
+<code>ziran bundle --project --require-module Counter.v1=demo/counter
+--import app:AddExternal=Counter.v1:Add --entry app:main -o app.zx</code>.</p>
 <p>Repeat <code>--module-root</code> to search several folders. With no explicit root, a
 saved bundle uses its own directory and a source run uses the current
 directory. The loader checks dependency graphs and import signatures before

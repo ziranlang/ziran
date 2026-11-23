@@ -234,6 +234,9 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     executable: string = ""
     check: bool = command == "check"
     bundle: bool = command == "bundle" || command == "run"
+    // `ziran bundle --library` is zi2zx's library conversion; it takes the
+    // project's exported modules instead of the app entry.
+    library: bool = command == "bundle" && PkgHasArgument(arguments, "--library")
     transport: bool = command == "compact" || command == "expand"
     build: bool = command == "build"
     zx_inspect: bool = command == "inspect" && PkgHasBundle(arguments)
@@ -391,9 +394,13 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     if project && !has_source &&
        (check || command == "ir" || command == "api" || build || command == "bundle") {
         entry: string = PkgJoin3(root, "/", current.entry)
-        // A library has no app entry; checking it checks what it exports.
-        if !PathExists(entry) && current.export_count > 0 &&
-           (check || command == "ir" || command == "api") {
+        // A library has no app entry; checking it checks what it exports. A
+        // ZX library build loads those same exported modules, while zi2zx
+        // names the roots from --export.
+        library_inputs: bool = library && !PkgHasArgument(arguments, "--entry")
+        load_exports: bool = current.export_count > 0 &&
+            (library_inputs || (!PathExists(entry) && (check || command == "ir" || command == "api")))
+        if load_exports {
             index = 0
             while index < current.export_count {
                 child[count] = PkgJoin3(root, "/", current.exports[index].value)
@@ -408,7 +415,15 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
                 if !seen { count += 1 }
                 index += 1
             }
-        } else {
+        } else if library_inputs {
+            if !PathExists(entry) {
+                return PkgFail("a ZX library build needs [exports] sources or file arguments")
+            }
+            child[count] = entry
+            count += 1
+        } else if !library {
+            // zi2zx refuses --library together with --entry, and adding the
+            // app entry here would put a second error in front of that one.
             child[count] = entry
             count += 1
         }
@@ -814,7 +829,7 @@ PkgUsage :: (command: string) -> string {
         return "usage: ziran build [--target=c|go|wasm|zx] [--exe --entry module:function] [--root DIR] [--module-path DIR] [-o FILE|DIR] [file.zi ...]; in a project: ziran build\n"
     }
     if command == "bundle" {
-        return "usage: ziran bundle --entry module:function [--zx-lock FILE] [--root DIR] [--module-path DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [-o FILE] [file.zi ...]\n"
+        return "usage: ziran bundle --entry module:function [--zx-lock FILE] [--root DIR] [--module-path DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [-o FILE] [file.zi ...]\n       ziran bundle --library NAME --export module:function [--require-module IFACE=NAME] [--import CALLER:FUNCTION=IFACE:EXPORT] [--root DIR] [--module-path DIR] [-o FILE] [file.zi ...]\n"
     }
     if command == "run" {
         return "usage: ziran run [--zx-lock FILE] [--offline] FILE.zx | ziran run [--target=c [--no-cache]] [--root DIR] [--entry module:function] [FILE.zi [-- ARGS]]; in a project: ziran run [-- ARGS]\n"

@@ -753,6 +753,8 @@ DecodeCore :: (decoder: *Decoder) {
         }
         if decoder.cursor.problem != .None { return }
         function_start := ifx decoder.mode == ModeShape then decoder.shape.instructions else decoder.instruction_at
+        // Only the packed-instruction build reads this start.
+        unused function_start
         #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
             if decoder.mode == ModeFill && decoder.owner.compact_instructions.count != 0 {
                 if block_count > decoder.owner.function_blocks.count { DecodeFail(decoder, .Count); return }
@@ -926,6 +928,8 @@ DecodePass :: (input: string, source: *LirReadSource, layout: Layout, owner: *Li
 
 Allocate :: (owner: *LirReadOwner, shape: Shape, compact: bool) -> bool {
     packed: bool
+    // Only the packed-instruction build reads this choice.
+    unused packed
     #if #defined(ZIRAN_EXEC_PACKED_INSTRUCTIONS) {
         // Choose compact decoding only when its scratch fits in the saved
         // bytes and the same allocation can hold the final engine records.

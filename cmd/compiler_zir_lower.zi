@@ -28,7 +28,6 @@ snprintf :: (buffer: *u8, size: usize, format: *u8, args: ..any) -> s32 #foreign
 memcmp :: (left: *void, right: *void, count: usize) -> s32 #foreign libc "memcmp";
 strrchr :: (text: *u8, character: s32) -> *u8 #foreign libc "strrchr";
 strchr :: (text: *u8, character: s32) -> *u8 #foreign libc "strchr";
-malloc :: (size: usize) -> *void #foreign libc "malloc";
 fwrite_raw :: (data: *void, size: usize, count: usize, stream: *void) -> usize #foreign libc "fwrite";
 fputc_raw :: (character: s32, stream: *void) -> s32 #foreign libc "fputc";
 ferror_raw :: (stream: *void) -> s32 #foreign libc "ferror";
@@ -6030,7 +6029,6 @@ ExpressionValue :: (program: *AssemblyProgram, function: *AssemblyFunction,
                       expression.third, 0, depth + 1)
     }
     if expression.kind == ZirExprKind.BINARY {
-        left_null := false
         if expression.left >= 0 && expression.left < function.source.expr_count {
             left_source := *function.source.exprs[expression.left]
             if left_source.kind == ZirExprKind.IDENT &&

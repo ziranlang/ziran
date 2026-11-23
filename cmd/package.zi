@@ -789,6 +789,78 @@ PkgGeneratedRoots :: (root: string, locked: *PkgLock, current: *PkgManifest, fol
     return true
 }
 
+// `ziran test [options] FILE.zi ...` runs every test program the way
+// `ziran run --target=c` does and prints one PASS or FAIL line per file. A
+// program passes when its entry returns 0; a compile error fails its file.
+// The options go to every run, so one root or entry serves a whole folder.
+// The status is 1 when any file fails, which stops make and CI on a red
+// test, and every file runs even after a failure.
+Test :: (launcher: string, arguments: []string) -> s32 {
+    usage := "usage: ziran test [--project] [--locked] [--offline] [--root DIR] [--module-path DIR] [--entry module:function] [--define NAME[=VALUE]] [--checks] [--no-cache] [--diagnostics=text|json] FILE.zi ...\n"
+    shared := PkgStrings(cast(s64)arguments.count)
+    files := PkgStrings(cast(s64)arguments.count)
+    if shared.count != cast(s64)arguments.count || files.count != cast(s64)arguments.count {
+        return PkgFail("cannot allocate arguments")
+    }
+    shared_count: s64 = 0
+    file_count: s64 = 0
+    index: s64 = 0
+    while index < cast(s64)arguments.count {
+        part: string = arguments[index]
+        if PkgEndsWith(part, ".zi") || PkgEndsWith(part, ".zir") {
+            files[file_count] = part
+            file_count += 1
+        } else if part == "--root" || part == "--module-path" || part == "--entry" || part == "--define" {
+            if index + 1 >= cast(s64)arguments.count { return PkgFail(PkgJoin(part, " needs a value")) }
+            shared[shared_count] = part
+            shared[shared_count + 1] = arguments[index + 1]
+            shared_count += 2
+            index += 1
+        } else if part == "--project" || part == "--locked" || part == "--offline" || part == "--checks" ||
+            part == "--no-cache" || part == "--target=c" || part == "--diagnostics=text" || part == "--diagnostics=json" {
+            shared[shared_count] = part
+            shared_count += 1
+        } else if part == "--help" || part == "-h" {
+            PkgPrint(usage, false)
+            return 0
+        } else {
+            return PkgFail(PkgJoin3("unknown test argument: ", part, PkgJoin("\n", usage)))
+        }
+        index += 1
+    }
+    if file_count == 0 { return PkgFail(usage) }
+    run := PkgStrings(shared_count + 3)
+    if run.count != shared_count + 3 { return PkgFail("cannot allocate arguments") }
+    run[0] = "run"
+    run[1] = "--target=c"
+    at: s64 = 0
+    while at < shared_count {
+        run[2 + at] = shared[at]
+        at += 1
+    }
+    failed: s64 = 0
+    at = 0
+    while at < file_count {
+        file: string = files[at]
+        run[2 + shared_count] = file
+        // A failure reported for an earlier file must not silence this one's.
+        pkg_failure_reported = false
+        code := PackageMain(launcher, run[0:shared_count + 3])
+        if code == 0 {
+            PkgPrint(PkgJoin("PASS ", PkgJoin(file, "\n")), false)
+        } else {
+            failed += 1
+            PkgPrint(PkgJoin3("FAIL ", file, PkgJoin3(" (exit ", PkgDecimal(code), ")\n")), false)
+        }
+        at += 1
+    }
+    summary := PkgJoin3("ziran test: ", PkgDecimal(cast(s32)(file_count - failed)),
+        PkgJoin3(" passed, ", PkgDecimal(cast(s32)failed), " failed\n"))
+    PkgPrint(summary, false)
+    if failed > 0 { return 1 }
+    return 0
+}
+
 // One usage line per command. `ziran COMMAND --help` prints it and does
 // nothing else; "" means the command is unknown.
 PkgUsage :: (command: string) -> string {
@@ -835,6 +907,9 @@ PkgUsage :: (command: string) -> string {
         return "usage: ziran run [--zx-lock FILE] [--offline] FILE.zx | ziran run [--target=c [--no-cache]] [--root DIR] [--entry module:function] [FILE.zi [-- ARGS]]; in a project: ziran run [-- ARGS]\n"
     }
     if command == "fmt" { return "usage: ziran fmt [--check] FILE.zi ...\n" }
+    if command == "test" {
+        return "usage: ziran test [--project] [--locked] [--offline] [--root DIR] [--module-path DIR] [--entry module:function] [--define NAME[=VALUE]] [--checks] [--no-cache] [--diagnostics=text|json] FILE.zi ...\n"
+    }
     if command == "inspect" {
         return "usage: ziran inspect [--hex] FILE.zir | ziran inspect [--emit lir|linkage] FILE.zx\n"
     }
@@ -879,7 +954,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     PkgSetDiagnosticFormat(arguments)
     if arguments.count == 0 || arguments[0] == "help" ||
        arguments[0] == "--help" || arguments[0] == "-h" {
-        PkgPrint("usage: ziran version|guide|std|features|capabilities|explain|learn|api|new|init|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
+        PkgPrint("usage: ziran version|guide|std|features|capabilities|explain|learn|api|new|init|lock|update|fetch|add|pkg|tool|install|check|test|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
         PkgPrint("project commands: --project [--locked] [--offline]\n", false)
         PkgPrint("in a project, run, build, check, and install without a file work on its program\n", false)
         PkgPrint("scripts: ziran FILE.zi [ARGS] | ziran run --target=c [--no-cache] FILE.zi -- ARGS\n", false)
@@ -930,6 +1005,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if command == "features" { return Features(arguments[1:]) }
     if command == "capabilities" { return Capabilities(arguments[1:]) }
     if command == "explain" { return Explain(arguments[1:]) }
+    if command == "test" { return Test(launcher, arguments[1:]) }
     if command == "learn" { return Learn(arguments[1:], launcher) }
     if command == "add" { return Add(launcher, arguments[1:]) }
     separator: s32 = PkgAfterSeparator(arguments)

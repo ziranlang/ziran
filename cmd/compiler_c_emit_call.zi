@@ -29,8 +29,6 @@ strchr :: (s: *u8, c: s32) -> *u8 #foreign libc "strchr";
 snprintf :: (out: *u8, size: usize, fmt: *u8, args: ..any) -> s32 #foreign libc "snprintf";
 fprintf :: (stream: *void, fmt: *u8, args: ..any) -> s32 #foreign libc "fprintf";
 fputs :: (s: *u8, stream: *void) -> s32 #foreign libc "fputs";
-fputc :: (c: s32, stream: *void) -> s32 #foreign libc "fputc";
-
 CTypeHasZeroArray :: (module: *IR.ZirModule, type: *u8) -> s32 #foreign compiler "TypeHasZeroArray";
 AllocateOrExit :: (size: usize) -> *void #foreign compiler "AllocateOrExit";
 Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, fmt: *u8, args: ..any) #foreign compiler "Diagnostic";

@@ -438,7 +438,7 @@ CheckPost0 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] + 1; return old }
 CheckSet1 :: (p: *s64, value: s64) -> s64 { p[0] = value; return value }
 CheckPost2 :: (p: ***u8) -> **u8 { old := p[0]; p[0] = cast(**u8)(cast(usize)p[0] + size_of(*u8)); return old }
 CheckSet3 :: (p: *usize, value: usize) -> usize { p[0] = value; return value }
-CheckPre4 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] - 1; return p[0] }
+CheckPre4 :: (p: *s32) -> s32 { p[0] = p[0] - 1; return p[0] }
 CheckPost5 :: (p: *usize) -> usize { old := p[0]; p[0] = p[0] + 1; return old }
 CheckPost6 :: (p: **u8) -> *u8 { old := p[0]; p[0] = cast(*u8)(cast(usize)p[0] + size_of(u8)); return old }
 CheckSet7 :: (p: *s32, value: s32) -> s32 { p[0] = value; return value }
@@ -448,7 +448,7 @@ CheckSet10 :: (p: **IR.ZirModule, value: *IR.ZirModule) -> *IR.ZirModule { p[0] 
 CheckSet11 :: (p: **IR.ZirType, value: *IR.ZirType) -> *IR.ZirType { p[0] = value; return value }
 CheckSet12 :: (p: **u8, value: *u8) -> *u8 { p[0] = value; return value }
 CheckSet13 :: (p: *u8, value: u8) -> u8 { p[0] = value; return value }
-CheckPre14 :: (p: *s32) -> s32 { old := p[0]; p[0] = p[0] + 1; return p[0] }
+CheckPre14 :: (p: *s32) -> s32 { p[0] = p[0] + 1; return p[0] }
 CheckPost15 :: (p: *usize) -> usize { old := p[0]; p[0] = p[0] - 1; return old }
 CheckSet16 :: (p: *IR.ZirExpr, value: IR.ZirExpr) -> IR.ZirExpr { p[0] = value; return value }
 CheckSet17 :: (p: *IR.ZirSourceSpan, value: IR.ZirSourceSpan) -> IR.ZirSourceSpan { p[0] = value; return value }

@@ -1,6 +1,5 @@
 // SIMD vector operations: names, signatures, constants, and helper-name tables.
 using IR :: #import "compiler_ir"
-Scalar :: #import "compiler_scalar"
 using Runtime :: #import "compiler_runtime_emit"
 
 #scope_export

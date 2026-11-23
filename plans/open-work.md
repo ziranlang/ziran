@@ -37,10 +37,6 @@ line when the work lands. Keep detail in the referenced plan.
   only at module/declaration boundaries; precedents
   `cmd/compiler_backend_cache.zi` and `cmd/compiler_native_cache.zi`;
   validate identical diagnostics and IR with and without the cache.
-- `ziran test` driver plus unused-name lints (locals and imports,
-  warnings-only): dispatch in `cmd/package.zi`, checks in
-  `cmd/zir/zir_check_program.c`; validate with formatter-style cases and run
-  the lints over `cmd/` before enabling.
 - Vec growth reuses storage when nothing borrows it: clear stale-alias host
   twins and keep the Vectors checksum 94905000 green; measure Vectors on
   Alpha before and after.

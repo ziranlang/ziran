@@ -68,7 +68,6 @@ compiler :: #system_library "ziran";
 
 free :: (memory: *void) #foreign libc "free";
 exit :: (status: s32) #foreign libc "exit";
-memcpy :: (dst: *void, src: *void, count: usize) -> *void #foreign libc "memcpy";
 memmove :: (dst: *void, src: *void, count: usize) -> *void #foreign libc "memmove";
 memset :: (dst: *void, value: s32, count: usize) -> *void #foreign libc "memset";
 strlen :: (s: *u8) -> usize #foreign libc "strlen";
@@ -105,7 +104,6 @@ CFunctionMentions :: (fn: *IR.ZirFunction, name: *u8) -> s32 #foreign compiler "
 CCanonical :: (type: *u8) -> *u8 #foreign compiler "zir_emit_canonical";
 CSlotTypeAtUse :: (source: *u8, target: Native.ZirTarget, resolve_type: CEmit.ZirResolveTarget,
                    context: *void, out: *u8, size: usize) #foreign compiler "zir_emit_slot_type_at_use";
-CResolveTypeAtUse :: (context: *void, source: *u8, out: *u8, size: usize) #foreign compiler "zir_emit_resolve_type_at_use";
 CWidth :: (type: *u8) -> s32 #foreign compiler "zir_emit_width";
 CSignedType :: (type: *u8) -> s32 #foreign compiler "zir_emit_signed_type";
 CEnumType :: (module: *IR.ZirModule, type: *u8) -> s32 #foreign compiler "zir_emit_enum_type";

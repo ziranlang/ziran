@@ -2,7 +2,6 @@
 using IR :: #import "compiler_ir"
 using Native :: #import "compiler_native_names"
 CEmit :: #import "compiler_c_emit"
-Val :: #import "compiler_c_emit_value"
 CallMod :: #import "compiler_c_emit_call"
 Simd :: #import "compiler_simd_metadata"
 Runtime :: #import "compiler_runtime_emit"

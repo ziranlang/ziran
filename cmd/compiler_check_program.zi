@@ -1542,6 +1542,125 @@ lint_flags :: (fn: *IR.ZirFunction) -> s32 {
     return warnings
 }
 
+#scope_file
+// Names the compiler lowers into declarations: loops, switches and its own
+// generated helpers. A warning about one would describe the compiler's work.
+lint_generated_name :: (name: *u8) -> bool {
+    if name == null || name[0] == 0 || name[0] == 95 { return true }
+    prefixes := string.["zi_", "loop_", "range_", "case_value_"]
+    for prefix: prefixes {
+        if strncmp(name, CheckCString(prefix), cast(usize)prefix.count) == 0 { return true }
+    }
+    return false
+}
+
+#scope_file
+lint_identifier_byte :: (byte: s32) -> bool {
+    return isalnum(byte) != 0 || byte == 95
+}
+
+#scope_file
+// True when text spells name as a whole word, as in `NAME`, `NAME.member`
+// or `NAME(...)`; `OtherNAME` and `NAME_suffix` do not count.
+lint_names :: (text: *u8, name: *u8, length: usize) -> bool {
+    if text == null || (text)[0] == 0 || length == 0 { return false }
+    at: *u8 = strstr(text, name)
+    while at != null {
+        before: bool = at == text || !lint_identifier_byte(cast(s32)(cast(u8)((at)[(-1)])))
+        after: bool = !lint_identifier_byte(cast(s32)(cast(u8)((at)[length])))
+        if before && after { return true }
+        at = strstr(cast(*u8)(cast(usize)(at) + cast(usize)(1) * size_of(u8)), name)
+    }
+    return false
+}
+
+#scope_file
+// Whether the module spells an import alias anywhere: signatures, declared
+// types, expression names and types, global and constant values, type bodies,
+// and the foreign library a procedure names.
+lint_import_used :: (module: *IR.ZirModule, name: *u8, length: usize) -> bool {
+    for f: 0..module.function_count - 1 {
+        fn := module.functions[f]
+        if lint_names(cast(*u8)(*fn.return_type[0]), name, length) || lint_names(fn.args_text, name, length) ||
+            lint_names(cast(*u8)(*fn.extern_target[0]), name, length) || lint_names(fn.assembly_text, name, length) {
+            return true
+        }
+        for s: 0..fn.stmt_count - 1 {
+            if lint_names(fn.stmts[s].type, name, length) { return true }
+        }
+        for e: 0..fn.expr_count - 1 {
+            x := fn.exprs[e]
+            if lint_names(x.name, name, length) || lint_names(x.type, name, length) || lint_names(x.text, name, length) {
+                return true
+            }
+        }
+    }
+    for g: 0..module.global_count - 1 {
+        global := module.globals[g]
+        if lint_names(cast(*u8)(*global.type[0]), name, length) || lint_names(global.init, name, length) { return true }
+    }
+    for d: 0..module.define_count - 1 {
+        if lint_names(module.defines[d].value, name, length) { return true }
+    }
+    for t: 0..module.type_count - 1 {
+        ty := module.types[t]
+        if lint_names(cast(*u8)(*ty.body[0]), name, length) ||
+            lint_names(cast(*u8)(*ty.procedure_return_type[0]), name, length) ||
+            lint_names(cast(*u8)(*ty.template_args[0]), name, length) {
+            return true
+        }
+    }
+    return false
+}
+
+#scope_file
+// A named import the module never spells is unused. Only the module itself can
+// write `Alias.name`: other modules see its named imports only through a
+// `using` one. An open import spells its names unqualified and a `using`
+// import re-exports them, so text cannot judge either.
+lint_unused_imports :: (module: *IR.ZirModule) -> s32 {
+    warnings: s32 = 0
+    for i: 0..module.import_count - 1 {
+        imp := *module.imports[i]
+        if imp.kind == .OPEN || imp.is_using != 0 { continue }
+        name := cast(*u8)(*imp.name[0])
+        if lint_generated_name(name) { continue }
+        if !lint_import_used(module, name, strlen(name)) {
+            if imp.kind == .EXTERN {
+                Warning(imp.span, CheckCString("lint.unused_import"), CheckCString("foreign declaration %s is never used; remove it"), name)
+            } else {
+                Warning(imp.span, CheckCString("lint.unused_import"), CheckCString("import %s is never used; remove it"), name)
+            }
+            warnings += 1
+        }
+    }
+    return warnings
+}
+
+#scope_file
+// A declaration no identifier in the procedure spells is never read.
+// `unused name` writes such an identifier, so a deliberate one stays quiet.
+lint_unused_locals :: (fn: *IR.ZirFunction) -> s32 {
+    warnings: s32 = 0
+    for d: 0..fn.stmt_count - 1 {
+        decl := *fn.stmts[d]
+        if decl.kind != .DECL || lint_generated_name(decl.name) { continue }
+        used := false
+        for e: 0..fn.expr_count - 1 {
+            x := fn.exprs[e]
+            if x.kind == .IDENT && x.name != null && strcmp(x.name, decl.name) == 0 {
+                used = true
+                break
+            }
+        }
+        if !used {
+            Warning(decl.span, CheckCString("lint.unused_local"), CheckCString("%s is never used; remove it or add unused %s below it"), decl.name, decl.name)
+            warnings += 1
+        }
+    }
+    return warnings
+}
+
 #scope_export
 #program_export "LintPrograms"
 LintPrograms :: (programs: **IR.ZirProgram, count: s32) -> s32 {
@@ -1558,6 +1677,7 @@ LintPrograms :: (programs: **IR.ZirProgram, count: s32) -> s32 {
                         S12Post2(*(m))
                         continue check_loop_135
                     }
+                    warnings += lint_unused_imports(module)
                     {
                         f: s32 = 0
                         while check_loop_136 := (f < (module).function_count) {
@@ -1610,6 +1730,7 @@ LintPrograms :: (programs: **IR.ZirProgram, count: s32) -> s32 {
                                 }
                             }
                             warnings += lint_flags(fn)
+                            warnings += lint_unused_locals(fn)
                             CompilerFree(cast(*void)(whole))
                             S12Post2(*(f))
                         }

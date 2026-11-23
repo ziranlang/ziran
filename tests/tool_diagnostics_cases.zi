@@ -126,6 +126,65 @@ ToolAuthoringHints :: (test: *NativeTest) -> bool {
         TextContains(linted.error, "% -1 is always 0"), CheckConcat("--lint missed a -1 divisor:\n", linted.error))
 }
 
+// --lint names an unused local and an unused alias import without failing
+// the check; `unused` keeps a deliberate local quiet and an open import is
+// never judged by spelling.
+ToolUnusedNames :: (test: *NativeTest) -> bool {
+    helper := CheckPath(test.work, "unused_helper.zi")
+    source := CheckPath(test.work, "unused_names.zi")
+    text := "#import \"unused_helper\"\nUnusedTools :: #import \"std/text_tools\"\nmain :: () -> s32 {\n    dead := 1\n    kept := 2\n    unused kept\n    return Helper()\n}\n"
+    if !NativeWrite(test, helper, "Helper :: () -> s32 { return 1 }\n") || !NativeWrite(test, source, text) { return false }
+    command := string.[test.ziran, "check", "--lint", "--root", test.work, source]
+    linted := NativeInvoke(test, command[:])
+    if !NativeAssert(test, linted.code == 0 && TextContains(linted.error, "dead is never used") &&
+        TextContains(linted.error, "import UnusedTools is never used") && !TextContains(linted.error, "kept") &&
+        !TextContains(linted.error, "unused_helper"),
+        CheckConcat("--lint missed an unused name or reported a used one:\n", linted.error)) { return false }
+    // The JSON form carries both codes as warnings.
+    json := string.[test.ziran, "check", "--lint", "--diagnostics=json", "--root", test.work, source]
+    recorded := NativeInvoke(test, json[:])
+    codes := string.["lint.unused_local", "lint.unused_import"]
+    for code: codes {
+        found := false
+        for line: TextLines(recorded.error) {
+            item: JsonDocument
+            if JsonRead(*item, line) && CheckField(*item, item.root, "code") == code &&
+                CheckField(*item, item.root, "severity") == "warning" { found = true }
+        }
+        if !NativeAssert(test, found, CheckConcat(CheckConcat("missing JSON lint record ", code), CheckConcat("\n", recorded.error))) { return false }
+    }
+    return true
+}
+
+// `ziran test` runs every file even after a failure, reports each one and
+// exits 1 when any failed; a missing file list or an unknown option is a
+// usage error.
+ToolTestDriver :: (test: *NativeTest) -> bool {
+    folder := CheckPath(test.work, "tests")
+    pass := CheckPath(folder, "pass.zi"); failing := CheckPath(folder, "fail.zi"); broken := CheckPath(folder, "broken.zi")
+    if !NativeWrite(test, pass, "main :: () -> s32 { return 0 }\n") ||
+        !NativeWrite(test, failing, "main :: () -> s32 { return 3 }\n") ||
+        !NativeWrite(test, broken, "main :: () -> s32 {\n    x := 1 +\n    return 0\n}\n") { return false }
+    all := string.[test.ziran, "test", "--root", folder, pass, failing, broken]
+    result := NativeInvoke(test, all[:])
+    if !NativeAssert(test, result.code == 1 && TextContains(result.output, CheckConcat("PASS ", pass)) &&
+        TextContains(result.output, CheckConcat(CheckConcat("FAIL ", failing), " (exit 3)")) &&
+        TextContains(result.output, CheckConcat(CheckConcat("FAIL ", broken), " (exit 1)")) &&
+        TextContains(result.output, "ziran test: 1 passed, 2 failed"),
+        CheckConcat("ziran test did not report every file:\n", CheckConcat(result.output, result.error))) { return false }
+    one := string.[test.ziran, "test", "--root", folder, pass]
+    single := NativeInvoke(test, one[:])
+    if !NativeAssert(test, single.code == 0 && TextContains(single.output, "ziran test: 1 passed, 0 failed"),
+        CheckConcat("a passing test did not pass:\n", CheckConcat(single.output, single.error))) { return false }
+    none := string.[test.ziran, "test", "--root", folder]
+    empty := NativeInvoke(test, none[:])
+    bad := string.[test.ziran, "test", "--bogus", pass]
+    unknown := NativeInvoke(test, bad[:])
+    return NativeAssert(test, empty.code == 2 && TextContains(empty.error, "usage: ziran test") &&
+        unknown.code == 2 && TextContains(unknown.error, "unknown test argument: --bogus"),
+        "ziran test accepted a missing file list or an unknown argument")
+}
+
 // Text mode shows the source line, a caret under the span and the fix; JSON
 // keeps only its fields.
 SourceGolden :: struct { source: string; text: string; }
@@ -266,6 +325,7 @@ ToolDiscovery :: (test: *NativeTest) -> bool {
 ToolCases :: (test: *NativeTest) -> bool {
     if !ToolDeclarationNames(test) { return false }
     if !ToolAuthoringHints(test) || !ToolSourceExcerpts(test) || !ToolDiscovery(test) || !ToolCheckBuildAgree(test) { return false }
+    if !ToolUnusedNames(test) || !ToolTestDriver(test) { return false }
     binary := PathParent(test.ziran); tools := string.["zi2c", "zi2go", "zi2zir", "zi2zx", "zi-api", "zi-inspect", "zi-fmt", "zi-edit"]
     for tool: tools { command := string.[CheckPath(binary, tool), "--unknown", "--diagnostics=json"]; unused ToolDiagnostics(test, command[:], "command.arguments"); if test.failed { return false } }
     unknown := string.[test.ziran, "build", "--target=unknown", "--diagnostics=json"]; unused ToolDiagnostics(test, unknown[:], "package.command")

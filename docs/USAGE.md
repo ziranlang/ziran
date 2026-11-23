@@ -30,8 +30,17 @@ It also warns when a byte is compared with a printable character's code
 written as a number, as C ports do: `text[i] == 65` reads better as
 `text[i] == #char "A"`. And it warns about an integer local that only ever
 holds 0 or 1 and is only compared with them, which reads better as a `bool`.
+It also names a local that is never read and a named import
+(`Alias :: #import "module"`) or foreign declaration the module never spells;
+write `unused NAME` on the line below it to keep a deliberate local quiet.
+Open and `using` imports cannot be judged by spelling and are never reported.
 Warnings do not fail the check (`"severity":"warning"` in JSON).
-`ziran check|ir|api|inspect|build|bundle|run|fmt` is a convenience dispatcher
+`ziran test FILE.zi ...` runs every test program the way `ziran run --target=c`
+does, prints one `PASS` or `FAIL` line per file followed by
+`ziran test: N passed, M failed`, and exits 1 when any file fails; every file
+runs even after a failure. It takes the same `--root`, `--module-path`,
+`--entry` and `--define` options as `ziran run`.
+`ziran check|test|ir|api|inspect|build|bundle|run|fmt` is a convenience dispatcher
 for the same tools. [Cross-target benchmarks](../bench/README.md) measure the
 compiler, downstream toolchains, and validated runtime cases separately.
 

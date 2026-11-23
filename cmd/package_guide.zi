@@ -16,6 +16,7 @@ Guide :: (arguments: []string) -> s32 {
     PkgPrint("Edit loop: format, check, run tests, then build each target you ship.\n", false)
     PkgPrint("  ziran fmt src/main.zi\n", false)
     PkgPrint("  ziran check --diagnostics=json --root src src/main.zi\n", false)
+    PkgPrint("  ziran test --root tests tests/main_cases.zi runs test programs; exit 0 passes.\n", false)
     PkgPrint("  ziran ir --root src -o build/ir src/main.zi\n", false)
     PkgPrint("  ziran build --target=c --root src -o build/out src/main.zi\n", false)
     PkgPrint("  Replace c with go for the Go target.\n", false)

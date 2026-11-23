@@ -81,11 +81,18 @@ $(BUILD_DIR)/obj/native-core.o: assembly.mk $(ASSEMBLY_C)/.generated $(ENGINE_NA
 	    objects="$$objects $$object"; \
 	done; $(CC) -r -nostdlib -o $@ $$objects
 
-$(call obj,cmd/zx2native/main.c): $(BUILD_DIR)/obj/%.o: %.c $(ASSEMBLY_C)/.generated $(BUILD_DIR)/.compiler-flags $(IR_READY)
-	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -I$(ASSEMBLY_C) -Icmd/zi2zx -c -o $@ $<
+# zx2native's driver is Ziran (cmd/zx2native.zi); the generated copy uses the
+# assembly set's own headers and links its unprefixed entry points.
+ZX2NATIVE_C := $(BUILD_DIR)/zx2native-c
+$(ZX2NATIVE_C)/.generated: cmd/zx2native.zi cmd/compiler_cli.zi cmd/compiler_ir.zi \
+    $(BUILD_DIR)/compiler-assembly/.generated $(BIN_DIR)/zi2c
+	$(BIN_DIR)/zi2c --entry zx2native:main --root cmd --module-path std -o $(ZX2NATIVE_C) cmd/zx2native.zi
+	touch $@
+$(ZX2NATIVE_C)/%.c: $(ZX2NATIVE_C)/.generated
+	@test -f $@
 
-$(BIN_DIR)/zx2native: $(call obj,cmd/zx2native/main.c) \
+$(BIN_DIR)/zx2native: $(ZX2NATIVE_C)/zx2native.c \
     $(BUILD_DIR)/obj/assembly-core.o $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
+	$(NICE) $(CC) $(CFLAGS) -I$(ZX2NATIVE_C) -I$(BUILD_DIR)/compiler-assembly -o $@ \
+	    $(ZX2NATIVE_C)/zx2native.c $(BUILD_DIR)/obj/assembly-core.o $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 	chmod 755 $@

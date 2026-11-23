@@ -654,11 +654,23 @@ No step commits before its implementation and proof are complete.
   sidecar read with O_NOFOLLOW stays in `zir_files_host.c`. A 33-case
   reference-driver differential has identical stdout/stderr bytes and exit
   status; `tests/zir_api.sh` and `tests/api_discovery.sh` pass.
-- Remaining S17 drivers: `zx2native` (host-library discovery, map/report,
-  PE/ELF layout); then delete `zir_command.h`/`zir_edit.h` and the tool C, and
-  run S18. `cmd/zx2native/main.c` currently carries another lane's
-  uncommitted built-in files/clock provider change, so the port waits for
-  that edit to be committed or withdrawn instead of deleting it.
+- Done 2026-11-23: `cmd/zx2native.zi` replaces its C driver
+  (`cmd/zx2native/main.c` deleted); the generated copy links the assembly
+  set's unprefixed entry points like `zi2zx`. Option validation, target-row
+  checks, host library discovery and registration ordering, built-in files
+  and clock providers, machine host linkage, the text-relative map JSON, the
+  output parent/temporary/chmod path and the diagnostic texts are Ziran.
+  A 104-case differential against the reference driver (six programs,
+  ELF/PE/map across x86_64/aarch64/armv7, fuel, selectors, JSON diagnostics,
+  host gaps, preserved outputs, produced executables' exit status) has
+  identical stdout/stderr bytes, exit status and output files;
+  `tests/machine_elf.sh` and `tests/print.sh` pass. `zir_command.h` loses its
+  last C user and is deleted with the driver; `zir_edit.h` was deleted with
+  the editor test's switch to the generated headers.
+- Remaining S17 C: the host boundary files under `cmd/zir` (memory, services,
+  atomics, diagnostics, command/editor/file/sha256 hosts, native loaders,
+  i386 blocks, persistence, Wasm install/web, and the parser recovery
+  bridge). They are S18's runtime boundary move.
 - Change Makefile tool targets and editor links to Ziran drivers. The `ziran`
   package driver is already Ziran; no change beyond imports.
 - Delete `cmd/zir/zir_profile.c/.h`,

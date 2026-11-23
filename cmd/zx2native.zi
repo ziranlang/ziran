@@ -1,0 +1,1121 @@
+// zx2native - a verified .zx program as the platform's executable: an ELF on
+// Linux, a PE32+ .exe on Windows, or the text-relative native map. The machine
+// pipeline, executable codecs and host discovery keep their generated entry
+// points; this file holds the command decisions, host library selection and
+// the map JSON.
+
+IR :: #import "compiler_ir"
+CLI :: #import "compiler_cli"
+Target :: #import "compiler_target"
+Lowered :: #import "compiler_lowered_ir"
+Verify :: #import "compiler_lowered_verify"
+Link :: #import "compiler_exec_link"
+Debug :: #import "compiler_exec_debug"
+Machine :: #import "compiler_machine_ir"
+Pipeline :: #import "compiler_machine_pipeline"
+Elf :: #import "compiler_machine_elf"
+Pe :: #import "compiler_machine_pe"
+X64 :: #import "compiler_x86_64"
+Bundle :: #import "compiler_bundle"
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+StaticText :: struct { data: *u8; count: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+
+BUILTIN_HOST :: -2
+UNBOUNDED_FUEL :: 9223372036854775807
+READ_LIMIT :: 268435456
+REGISTRATION_LIMIT :: 16384
+
+Sha256 :: struct {
+    state: [8]u32
+    length: u64
+    block: [64]u8
+    used: usize
+}
+
+RawSlice :: struct {
+    data: *u8
+    length: s64
+}
+
+TextDescriptor :: struct { data: *u8; length: usize }
+
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, arguments: ..any) #foreign compiler "Diagnostic";
+DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+SetFormatArguments :: (argc: s32, argv: **u8) #foreign compiler "SetDiagnosticFormatFromArguments";
+HostOS :: () -> s32 #foreign compiler "CompilerHostOS";
+StandardError :: () -> *void #foreign compiler "CompilerStandardError";
+StandardOutput :: () -> *void #foreign compiler "CompilerStandardOutput";
+GeneratedOutputOpen :: (path: *u8, temporary: *u8, size: usize) -> *void #foreign compiler "GeneratedOutputOpen";
+GeneratedOutputReplace :: (temporary: *u8, path: *u8) -> s32 #foreign compiler "GeneratedOutputReplace";
+DirectoryOpen :: (path: *u8) -> *void #foreign compiler "CompilerDirectoryOpen";
+DirectoryNext :: (directory: *void) -> *u8 #foreign compiler "CompilerDirectoryNext";
+DirectoryCloseStatus :: (directory: *void) -> s32 #foreign compiler "CompilerDirectoryCloseStatus";
+PlatformService :: (program: *Lowered.LirProgram, function: s64) -> s32 #foreign compiler "ZxPlatformService";
+Sha256Begin :: (hash: *Sha256) #foreign compiler "Sha256Begin";
+Sha256Add :: (hash: *Sha256, data: *void, size: usize) #foreign compiler "Sha256Add";
+Sha256End :: (hash: *Sha256, digest: *u8) #foreign compiler "Sha256End";
+
+strlen :: (text: *u8) -> usize #foreign libc "strlen";
+strcmp :: (left: *u8, right: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (left: *u8, right: *u8, count: usize) -> s32 #foreign libc "strncmp";
+strchr :: (text: *u8, byte: s32) -> *u8 #foreign libc "strchr";
+strrchr :: (text: *u8, byte: s32) -> *u8 #foreign libc "strrchr";
+strdup :: (text: *u8) -> *u8 #foreign libc "strdup";
+snprintf :: (output: *u8, capacity: usize, format: *u8, arguments: ..any) -> s32 #foreign libc "snprintf";
+fprintf :: (file: *void, format: *u8, arguments: ..any) -> s32 #foreign libc "fprintf";
+fputc :: (byte: s32, file: *void) -> s32 #foreign libc "fputc";
+fputs :: (text: *u8, file: *void) -> s32 #foreign libc "fputs";
+fwrite :: (bytes: *void, size: usize, count: usize, file: *void) -> usize #foreign libc "fwrite";
+ferror :: (file: *void) -> s32 #foreign libc "ferror";
+fflush :: (file: *void) -> s32 #foreign libc "fflush";
+fclose :: (file: *void) -> s32 #foreign libc "fclose";
+fileno :: (file: *void) -> s32 #foreign libc "fileno";
+fchmod :: (descriptor: s32, mode: u32) -> s32 #foreign libc "fchmod";
+chmod :: (path: *u8, mode: u32) -> s32 #foreign libc "chmod";
+mkdir :: (path: *u8, mode: u32) -> s32 #foreign libc "mkdir";
+remove :: (path: *u8) -> s32 #foreign libc "remove";
+getenv :: (name: *u8) -> *u8 #foreign libc "getenv";
+malloc :: (size: usize) -> *void #foreign libc "malloc";
+calloc :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+free :: (memory: *void) #foreign libc "free";
+memcpy :: (output: *void, input: *void, count: usize) -> *void #foreign libc "memcpy";
+memmove :: (output: *void, input: *void, count: usize) -> *void #foreign libc "memmove";
+
+Order :: #type (left: *void, right: *void) -> s32 #c_call;
+qsort :: (base: *u8, count: usize, size: usize, order: Order) #foreign libc "qsort";
+
+AssemblyHostLibrary :: struct {
+    path: *u8
+    bytes: *u8
+    size: usize
+    linked: s32
+}
+
+AssemblyHosts :: struct {
+    libraries: Vec(AssemblyHostLibrary)
+    paths: *string
+    providers: *s32
+    links: Pipeline.MachineHostLinks
+}
+
+AssemblyMapSelection :: struct {
+    function: s64
+    block: s64
+    begin: s64
+    end: s64
+}
+
+AssemblyFunctionExtent :: struct {
+    begin: s64
+    end: s64
+    seen: s32
+    selected: s32
+}
+
+AssemblyNativeRange :: struct {
+    function: s32
+    block: s32
+    instruction: s32
+    origin: s32
+    begin: s64
+    end: s64
+}
+
+AssemblyImageFacts :: struct {
+    target: string
+    kind: string
+    address_space: string
+    scope: string
+    startup: s64
+    size: s64
+    text_offset: s64
+    text_address: u64
+    text_size: s64
+    data_offset: s64
+    data_address: u64
+    data_size: s64
+    problem: Machine.MachineProblem
+}
+
+TextPointer :: (value: string) -> *u8 {
+    view := cast(*TextDescriptor)(*value)
+    return view.data
+}
+
+TextOf :: (data: *u8, length: usize) -> string {
+    result: string
+    view := cast(*TextDescriptor)(*result)
+    view.data = data
+    view.length = length
+    return result
+}
+
+BytesOf :: (data: *u8, length: s64) -> []u8 {
+    result: []u8
+    view := cast(*RawSlice)(*result)
+    view.data = data
+    view.length = length
+    return result
+}
+
+StringsOf :: (data: *u8, length: s64) -> []string {
+    result: []string
+    view := cast(*RawSlice)(*result)
+    view.data = data
+    view.length = length
+    return result
+}
+
+S32sOf :: (data: *u8, length: s64) -> []s32 {
+    result: []s32
+    view := cast(*RawSlice)(*result)
+    view.data = data
+    view.length = length
+    return result
+}
+
+NoSpan :: () -> IR.ZirSourceSpan {
+    span: IR.ZirSourceSpan = .{}
+    return span
+}
+
+Usage :: () -> s32 {
+    unused fputs(CStr("usage: zx2native [--target x86_64|aarch64|armv7] [--platform linux|android|windows] [--emit elf|map|image] [--fuel N] -o FILE INPUT.zx\n"), StandardError())
+    unused fputs(CStr("elf writes the platform's executable: an ELF on Linux, a PE32+ .exe on Windows\n"), StandardError())
+    unused fputs(CStr("x86-64 Linux ELF and Windows PE carry the files and clock services themselves and link other capabilities from registered host libraries\n"), StandardError())
+    unused fputs(CStr("map selection: [--function-id N [--block-id N]] [--address-begin N --address-end N]\n"), StandardError())
+    unused fputs(CStr("--fuel sets an executable's starting fuel; it is unbounded by default, as for a bundle run\n"), StandardError())
+    unused fputs(CStr("zx2native reads only decoded and verified ZX and uses only the no-fallback machine-IR path\n"), StandardError())
+    unused fputs(CStr("image is reserved for the relocatable in-memory image and is a named gap until that loader lands\n"), StandardError())
+    return 2
+}
+
+// Validate the stable ARCH-OS row before reading input or opening output. Only
+// a row whose registry entry names an executable container (an ELF for
+// x86_64-linux, a PE for x86_64-windows) has the process-entry, console and
+// exit runtime; accepting a described row must never imply a fallback.
+TargetSupported :: (name: *u8, native_target: *Target.TargetDescription) -> s32 {
+    dash := strchr(name, #char "-")
+    if dash == null || dash == name || dash[1] == 0 || strchr(cast(*u8)(cast(usize)dash + 1), #char "-") != null {
+        Diagnostic(NoSpan(), CStr("command.arguments"),
+                   CStr("unknown zx2native target row %s; use ARCH and OS IDs from ziran capabilities --json"), name)
+        return 0
+    }
+    arch := Target.TargetArchFromName(TextOf(name, cast(usize)dash - cast(usize)name))
+    os := Target.TargetOSFromName(TextOf(cast(*u8)(cast(usize)dash + 1), strlen(cast(*u8)(cast(usize)dash + 1))))
+    described := Target.TargetDescribe(arch, os)
+    if arch == .Invalid || os == .Invalid || described.problem != .None {
+        Diagnostic(NoSpan(), CStr("command.arguments"),
+                   CStr("unknown zx2native target row %s; use ARCH and OS IDs from ziran capabilities --json"), name)
+        return 0
+    }
+    if !Target.TargetExecutableNativeSupported(described.target) {
+        Diagnostic(NoSpan(), CStr("assembly.gap.machine-platform-service-unavailable"),
+                   CStr("assembly.gap.machine-platform-service-unavailable: selected target %s has no executable writer or process-entry/write_all/exit runtime; no libc, host binding or alternate engine was selected"),
+                   name)
+        return 0
+    }
+    native_target[0] = described.target
+    return 1
+}
+
+Limit :: (text: *u8, value: *s64) -> s32 {
+    if text == null { return 1 }
+    if text[0] == 0 { return 0 }
+    amount: s64 = 0
+    cursor := text
+    while cursor[0] != 0 {
+        if cursor[0] < #char "0" || cursor[0] > #char "9" { return 0 }
+        digit := cast(s64)(cursor[0] - #char "0")
+        if amount > (UNBOUNDED_FUEL - digit) / 10 { return 0 }
+        amount = amount * 10 + digit
+        cursor = cast(*u8)(cast(usize)cursor + 1)
+    }
+    value[0] = amount
+    return 1
+}
+
+ReadInput :: (path: *u8, size: *usize) -> *u8 {
+    bytes := CLI.CommandReadBounded(path, READ_LIMIT, size)
+    if bytes == null {
+        Diagnostic(NoSpan(), CStr("assembly.codec"), CStr("cannot read bounded instruction input: %s"), path)
+    }
+    return bytes
+}
+
+// Host libraries. A `NAME.library` registration beside the `.host` ones that
+// `ziran run` dispatches to holds one absolute path to a shared library that
+// defines host capabilities by name, with the C ABI the C target declares
+// for them. Registrations are read where `ziran run` finds providers:
+// ZIRAN_HOST_PATH's absolute directories, or $XDG_DATA_HOME/ziran/hosts
+// (~/.local/share/ziran/hosts) and then $XDG_DATA_DIRS (/usr/local/share and
+// /usr/share) with /ziran/hosts, each directory's in name order. A Linux
+// x86-64 ELF or Windows PE links each capability the image does not carry
+// itself from the first library that defines it; a capability none defines
+// is a gap.
+HostsFree :: (hosts: *AssemblyHosts) {
+    i: usize = 0
+    while cast(s64)i < hosts.libraries.count {
+        free(cast(*void)hosts.libraries[i].path)
+        free(cast(*void)hosts.libraries[i].bytes)
+        i += 1
+    }
+    VecFree(hosts.libraries)
+    free(cast(*void)hosts.paths)
+    free(cast(*void)hosts.providers)
+    hosts.paths = null
+    hosts.providers = null
+    hosts.links = .{}
+}
+
+NameOrder :: (left: *void, right: *void) -> s32 {
+    a := cast(**u8)left
+    b := cast(**u8)right
+    return strcmp(a[0], b[0])
+}
+
+// A registration's library: its trimmed text, one absolute path without
+// control bytes. An unreadable or invalid registration is skipped.
+HostsRegister :: (hosts: *AssemblyHosts, registration: *u8) -> s32 {
+    size: usize = 0
+    text := CLI.CommandReadBounded(registration, REGISTRATION_LIMIT, *(size))
+    if text == null { return 1 }
+    begin: usize = 0
+    end := size
+    while begin < end && (text[begin] == #char " " || text[begin] == #char "\t" ||
+                          text[begin] == #char "\n" || text[begin] == #char "\r") { begin += 1 }
+    while end > begin && (text[end - 1] == #char " " || text[end - 1] == #char "\t" ||
+                          text[end - 1] == #char "\n" || text[end - 1] == #char "\r") { end -= 1 }
+    valid: s32 = 0
+    if end > begin && text[begin] == #char "/" { valid = 1 }
+    at := begin
+    while valid != 0 && at < end {
+        if text[at] < 32 || text[at] == 127 { valid = 0 }
+        at += 1
+    }
+    if valid == 0 {
+        free(cast(*void)text)
+        return 1
+    }
+    memmove(cast(*void)text, cast(*void)(cast(usize)text + begin), end - begin)
+    text[end - begin] = 0
+    library: AssemblyHostLibrary = .{}
+    library.path = text
+    library.linked = -1
+    library.bytes = CLI.CommandReadBounded(text, READ_LIMIT, *(library.size))
+    if library.bytes == null {
+        free(cast(*void)text)
+        return 1
+    }
+    if !VecPush(hosts.libraries, library) {
+        free(cast(*void)library.bytes)
+        free(cast(*void)text)
+        DiagnosticOutOfMemory()
+        return 0
+    }
+    return 1
+}
+
+HostsDirectory :: (hosts: *AssemblyHosts, directory: *u8, length: usize, suffix: *u8) -> s32 {
+    path: [IR.ZIR_PATH_MAX]u8
+    if length == 0 || directory[0] != #char "/" ||
+       snprintf(*path[0], IR.ZIR_PATH_MAX, CStr("%.*s%s"), cast(s32)length, directory, suffix) >= IR.ZIR_PATH_MAX {
+        return 1
+    }
+    cursor := DirectoryOpen(*path[0])
+    if cursor == null { return 1 }
+    names: Vec(*u8)
+    ok: s32 = 1
+    while true {
+        entry := DirectoryNext(cursor)
+        if entry == null { break }
+        name := strlen(entry)
+        if name <= 8 || strcmp(cast(*u8)(cast(usize)entry + name - 8), CStr(".library")) != 0 { continue }
+        copy := strdup(entry)
+        if copy == null {
+            ok = 0
+            break
+        }
+        if !VecPush(names, copy) {
+            free(cast(*void)copy)
+            ok = 0
+            break
+        }
+    }
+    unused DirectoryCloseStatus(cursor)
+    if ok != 0 && names.count > 1 {
+        qsort(cast(*u8)(*(names[0])), cast(usize)names.count, size_of(*u8), NameOrder)
+    }
+    i: usize = 0
+    while ok != 0 && cast(s64)i < names.count {
+        registration: [IR.ZIR_PATH_MAX]u8
+        if snprintf(*registration[0], IR.ZIR_PATH_MAX, CStr("%s/%s"), *path[0], names[i]) < IR.ZIR_PATH_MAX {
+            ok = HostsRegister(hosts, *registration[0])
+        }
+        i += 1
+    }
+    i = 0
+    while cast(s64)i < names.count {
+        free(cast(*void)names[i])
+        i += 1
+    }
+    VecFree(names)
+    if ok == 0 { DiagnosticOutOfMemory() }
+    return ok
+}
+
+HostsDirectories :: (hosts: *AssemblyHosts, list: *u8, suffix: *u8) -> s32 {
+    start := list
+    while true {
+        end := strchr(start, #char ":")
+        length: usize = strlen(start)
+        if end != null { length = cast(usize)end - cast(usize)start }
+        if HostsDirectory(hosts, start, length, suffix) == 0 { return 0 }
+        if end == null { return 1 }
+        start = cast(*u8)(cast(usize)end + 1)
+    }
+    return 1
+}
+
+HostsLoad :: (hosts: *AssemblyHosts) -> s32 {
+    if HostOS() == 2 { return 1 }
+    paths := getenv(CStr("ZIRAN_HOST_PATH"))
+    if paths != null && paths[0] != 0 { return HostsDirectories(hosts, paths, CStr("")) }
+    data := getenv(CStr("XDG_DATA_HOME"))
+    home: [IR.ZIR_PATH_MAX]u8
+    if data == null || data[0] == 0 {
+        user := getenv(CStr("HOME"))
+        if user != null && user[0] != 0 &&
+           snprintf(*home[0], IR.ZIR_PATH_MAX, CStr("%s/.local/share"), user) < IR.ZIR_PATH_MAX {
+            data = *home[0]
+        }
+    }
+    if data != null && HostsDirectory(hosts, data, strlen(data), CStr("/ziran/hosts")) == 0 { return 0 }
+    shared := getenv(CStr("XDG_DATA_DIRS"))
+    if shared == null || shared[0] == 0 { shared = CStr("/usr/local/share:/usr/share") }
+    return HostsDirectories(hosts, shared, CStr("/ziran/hosts"))
+}
+
+LibraryDefines :: (target: Target.TargetDescription, library: *AssemblyHostLibrary, name: string) -> s32 {
+    bytes := BytesOf(library.bytes, cast(s64)library.size)
+    if target.os == .Windows {
+        return ifx Pe.MachinePeLibraryDefines(bytes, name) then 1 else 0
+    }
+    return ifx Elf.MachineElfLibraryDefines(bytes, name) then 1 else 0
+}
+
+// Every host capability of PROGRAM needs a provider. Linux ELF and Windows PE
+// on x86-64 carry the ZX Runner's files and clock services themselves (a -2
+// provider, MachineX64HostBuiltin) and link every other capability from a
+// library that defines it; other rows are gaps. Platform services are lowered
+// by the machine pipeline itself. Fills HOSTS->links.
+MachineHosts :: (program: *Lowered.LirProgram, target: Target.TargetDescription, hosts: *AssemblyHosts) -> s32 {
+    linking := target.arch == .X86_64 && (target.os == .Linux || target.os == .Windows)
+    allocated: s32 = 0
+    loaded: s32 = 0
+    index: s64 = 0
+    while index < program.functions.count {
+        fn := program.functions[index]
+        if !fn.external || PlatformService(program, index) != 0 {
+            index += 1
+            continue
+        }
+        name := fn.name
+        builtin: s32 = 0
+        if linking && fn.module >= 0 && cast(s64)fn.module < program.modules.count &&
+           Target.TargetBuiltinHost(program.modules[fn.module], name) != .Invalid {
+            builtin = 1
+        }
+        if linking && allocated == 0 {
+            allocated = 1
+            hosts.providers = cast(*s32)malloc(cast(usize)program.functions.count * size_of(s32))
+            if hosts.providers == null {
+                DiagnosticOutOfMemory()
+                return 1
+            }
+            at: s64 = 0
+            while at < program.functions.count {
+                hosts.providers[at] = -1
+                at += 1
+            }
+            // Every host function has its provider entry from here on, so a
+            // program whose capabilities are all built in loads no library.
+            hosts.links.providers = S32sOf(cast(*u8)hosts.providers, program.functions.count)
+        }
+        if builtin != 0 {
+            hosts.providers[index] = BUILTIN_HOST
+            index += 1
+            continue
+        }
+        // The libraries are read once, when the first capability needs one.
+        if linking && loaded == 0 {
+            loaded = 1
+            if HostsLoad(hosts) == 0 { return 1 }
+            count := hosts.libraries.count
+            if count < 1 { count = 1 }
+            hosts.paths = cast(*string)calloc(cast(usize)count, size_of(string))
+            if hosts.paths == null {
+                DiagnosticOutOfMemory()
+                return 1
+            }
+        }
+        provider: usize = 0
+        while linking && cast(s64)provider < hosts.libraries.count &&
+              LibraryDefines(target, *(hosts.libraries[provider]), name) == 0 {
+            provider += 1
+        }
+        if !linking || cast(s64)provider == hosts.libraries.count {
+            machine_kind := "ELF"
+            if target.os == .Windows { machine_kind = "PE" }
+            if linking {
+                Diagnostic(NoSpan(), CStr("assembly.gap.machine-host"),
+                    CStr("assembly.gap.machine-host: machine %s does not implement host capability %.*s: no registered host library defines it; no alternate engine was selected"),
+                    CStr(machine_kind), cast(s32)name.count, TextPointer(name))
+            } else {
+                Diagnostic(NoSpan(), CStr("assembly.gap.machine-host"),
+                    CStr("assembly.gap.machine-host: machine %s does not implement host capability %.*s; no alternate engine was selected"),
+                    CStr(machine_kind), cast(s32)name.count, TextPointer(name))
+            }
+            return 1
+        }
+        library := *(hosts.libraries[provider])
+        if library.linked < 0 {
+            library.linked = cast(s32)hosts.links.libraries.count
+            path := library.path
+            if target.os == .Windows {
+                slash := strrchr(path, #char "/")
+                if slash != null { path = cast(*u8)(cast(usize)slash + 1) }
+            }
+            hosts.paths[cast(usize)library.linked] = TextOf(path, strlen(path))
+            hosts.links.libraries = StringsOf(cast(*u8)hosts.paths,
+                                             hosts.links.libraries.count + 1)
+        }
+        hosts.providers[index] = library.linked
+        index += 1
+    }
+    return 0
+}
+
+// A host capability whose parameters or result the C ABI veneer cannot carry.
+HostAbiGap :: (program: *Lowered.LirProgram, function: s32, target: Target.TargetDescription) {
+    name := TextOf(CStr("?"), 1)
+    if function >= 0 && cast(s64)function < program.functions.count {
+        name = program.functions[function].name
+    }
+    machine_kind := "ELF"
+    if target.os == .Windows { machine_kind = "PE" }
+    Diagnostic(NoSpan(), CStr("assembly.gap.machine-host-abi"),
+        CStr("assembly.gap.machine-host-abi: machine %s cannot pass host capability %.*s's parameters or result through the C ABI: only bool, integer, pointer and float values and records of one or two 8-byte integers or pointers cross it; no alternate engine was selected"),
+        CStr(machine_kind), cast(s32)name.count, TextPointer(name))
+}
+
+Json :: (stream: *void, value: string) {
+    unused fputc(#char "\"", stream)
+    i: usize = 0
+    while cast(s64)i < value.count {
+        byte := value[i]
+        if byte == #char "\"" || byte == #char "\\" {
+            unused fputc(#char "\\", stream)
+            unused fputc(cast(s32)byte, stream)
+        } else if byte < 32 {
+            unused fprintf(stream, CStr("\\u%04x"), cast(s32)byte)
+        } else {
+            unused fputc(cast(s32)byte, stream)
+        }
+        i += 1
+    }
+    unused fputc(#char "\"", stream)
+}
+
+MapSelected :: (range: AssemblyNativeRange, selection: *AssemblyMapSelection) -> s32 {
+    if selection.function >= 0 && cast(s64)range.function != selection.function { return 0 }
+    if selection.block >= 0 && cast(s64)range.block != selection.block { return 0 }
+    if selection.begin < 0 { return 1 }
+    if range.begin == range.end {
+        return ifx range.begin >= selection.begin && range.begin < selection.end then 1 else 0
+    }
+    return ifx range.begin < selection.end && range.end > selection.begin then 1 else 0
+}
+
+SelectOrigin :: (program: *Lowered.LirProgram, origin_in: s32, selected: *u8) {
+    origin := origin_in
+    while origin >= 0 && selected[origin] == 0 {
+        selected[origin] = 1
+        origin = program.origins[origin].parent
+    }
+}
+
+MapRange :: (ranges: *AssemblyNativeRange, capacity: s64, count: *s64, function: s32, block: s32,
+             instruction: s32, origin: s32, begin: s64, end: s64) -> s32 {
+    if count[0] >= capacity || begin < 0 || end < begin { return 0 }
+    range: AssemblyNativeRange = .{}
+    range.function = function
+    range.block = block
+    range.instruction = instruction
+    range.origin = origin
+    range.begin = begin
+    range.end = end
+    ranges[count[0]] = range
+    count[0] += 1
+    return 1
+}
+
+// Where the executable container put the text and data: a PE on Windows, an
+// ELF on Linux. Virtual addresses are the preferred ones; 0 without data.
+ImageFacts :: (program: *Lowered.LirProgram, owner: *Pipeline.MachineNativeOwner,
+               links: Pipeline.MachineHostLinks) -> AssemblyImageFacts {
+    machine := owner.machine.program
+    facts: AssemblyImageFacts = .{}
+    if machine.target.os == .Windows {
+        pe := Pipeline.MachineNativePeLayout(program[0], owner, links)
+        facts.target = "x86_64-windows"
+        facts.kind = "aot-pe"
+        facts.address_space = "pe-virtual"
+        facts.scope = "complete-pe"
+        facts.startup = pe.startup_size
+        facts.size = pe.size
+        facts.text_offset = pe.text_offset
+        facts.text_address = cast(u64)Pe.MachinePeImageBase + cast(u64)pe.text_rva
+        facts.text_size = pe.text_size
+        facts.data_offset = pe.data_offset
+        facts.data_address = 0
+        if pe.data_rva != 0 { facts.data_address = cast(u64)Pe.MachinePeImageBase + cast(u64)pe.data_rva }
+        facts.data_size = pe.data_size
+        facts.problem = pe.diagnostic.problem
+        return facts
+    }
+    elf := Pipeline.MachineNativeElfLayout(program[0], owner, links)
+    facts.target = "x86_64-linux"
+    facts.kind = "aot-elf"
+    facts.address_space = "elf-virtual"
+    facts.scope = "complete-elf"
+    facts.startup = elf.startup_size
+    facts.size = elf.size
+    facts.text_offset = elf.text_offset
+    facts.text_address = cast(u64)Elf.MachineElfBase + cast(u64)elf.text_offset
+    facts.text_size = elf.text_size
+    facts.data_offset = elf.data_offset
+    facts.data_address = 0
+    if elf.data_address != 0 { facts.data_address = cast(u64)Elf.MachineElfBase + cast(u64)elf.data_address }
+    facts.data_size = elf.data_size
+    facts.problem = elf.diagnostic.problem
+    return facts
+}
+
+MapRanges :: (program: *Lowered.LirProgram, machine: *Machine.MachineProgram,
+              encoded: *X64.MachineX64Image, startup: s64,
+              ranges: *AssemblyNativeRange, capacity: s64, mapped: *s64,
+              extents: *AssemblyFunctionExtent) -> s32 {
+    cursor: s64 = 0
+    if MapRange(ranges, capacity, mapped, -1, -1, -1, -1, cursor, startup) == 0 { return 0 }
+    cursor = startup
+    function_id: s64 = 0
+    while function_id < machine.functions.count {
+        function := machine.functions[function_id]
+        encoded_function := encoded.functions[function_id]
+        lir_function := function.lir_function
+        function_begin := startup + encoded_function.begin
+        function_body := startup + encoded_function.body
+        function_end := startup + encoded_function.end
+        if lir_function < -1 || cast(s64)lir_function >= program.functions.count ||
+           function.origin < -1 || cast(s64)function.origin >= program.origins.count ||
+           function_begin < cursor || function_body < function_begin || function_end < function_body ||
+           function.block_begin < 0 || function.block_count < 0 ||
+           cast(s64)function.block_begin + cast(s64)function.block_count > machine.blocks.count {
+            return 0
+        }
+        if cursor < function_begin &&
+           MapRange(ranges, capacity, mapped, -1, -1, -1, -1, cursor, function_begin) == 0 { return 0 }
+        if function_begin < function_body &&
+           MapRange(ranges, capacity, mapped, lir_function, -1, -1, function.origin,
+                    function_begin, function_body) == 0 { return 0 }
+        cursor = function_body
+        block_id := cast(s64)function.block_begin
+        while block_id < cast(s64)function.block_begin + cast(s64)function.block_count {
+            block := machine.blocks[block_id]
+            block_begin := startup + encoded.blocks[block_id]
+            if block.function != function_id || block.lir_block < -1 ||
+               (block.lir_block >= 0 &&
+                cast(s64)block.lir_block >= program.functions[lir_function].blocks.count) ||
+               block.instruction_begin < 0 || block.instruction_count < 0 ||
+               cast(s64)block.instruction_begin + cast(s64)block.instruction_count > machine.instructions.count ||
+               block_begin < cursor || block_begin > function_end {
+                return 0
+            }
+            if cursor < block_begin &&
+               MapRange(ranges, capacity, mapped, lir_function, -1, -1, function.origin,
+                        cursor, block_begin) == 0 { return 0 }
+            cursor = block_begin
+            instruction_id := cast(s64)block.instruction_begin
+            while instruction_id < cast(s64)block.instruction_begin + cast(s64)block.instruction_count {
+                instruction := machine.instructions[instruction_id]
+                encoded_instruction := encoded.instructions[instruction_id]
+                begin := startup + encoded_instruction.begin
+                end := startup + encoded_instruction.end
+                if instruction.origin < -1 || cast(s64)instruction.origin >= program.origins.count ||
+                   begin < cursor || end < begin || end > function_end { return 0 }
+                if cursor < begin &&
+                   MapRange(ranges, capacity, mapped, lir_function, block.lir_block, -1,
+                            instruction.origin, cursor, begin) == 0 { return 0 }
+                if MapRange(ranges, capacity, mapped, lir_function, block.lir_block,
+                            cast(s32)instruction_id, instruction.origin, begin, end) == 0 { return 0 }
+                cursor = end
+                instruction_id += 1
+            }
+            block_id += 1
+        }
+        if cursor < function_end &&
+           MapRange(ranges, capacity, mapped, lir_function, -1, -1, function.origin,
+                    cursor, function_end) == 0 { return 0 }
+        cursor = function_end
+        if lir_function >= 0 {
+            extents[lir_function].begin = function_begin
+            extents[lir_function].end = function_end
+            extents[lir_function].seen = 1
+        }
+        function_id += 1
+    }
+    if cursor < startup + encoded.code.count &&
+       MapRange(ranges, capacity, mapped, -1, -1, -1, -1, cursor,
+                startup + encoded.code.count) == 0 { return 0 }
+    cursor = startup + encoded.code.count
+    return 1
+}
+
+MachineMap :: (program: *Lowered.LirProgram, stream: *void, selection: *AssemblyMapSelection,
+               owner: *Pipeline.MachineNativeOwner, links: Pipeline.MachineHostLinks,
+               bytes: *u8, size: s64, optimize: s32) -> s32 {
+    if selection.function >= program.functions.count ||
+       (selection.block >= 0 && selection.block >= program.functions[selection.function].blocks.count) {
+        Diagnostic(NoSpan(), CStr("assembly.inspect"), CStr("native map function or block selector is outside the program"))
+        return 0
+    }
+    filtered := ifx selection.function >= 0 || selection.begin >= 0 then 1 else 0
+    if owner.valid == false || owner.machine.valid == false || owner.encoded.valid == false {
+        Diagnostic(NoSpan(), CStr("assembly.encode"), CStr("native map has no published machine image"))
+        return 0
+    }
+    machine := owner.machine.program
+    encoded := owner.encoded.image
+    image := ImageFacts(program, owner, links)
+    if image.problem != .None {
+        Diagnostic(NoSpan(), CStr("assembly.encode"), CStr("cannot measure native machine image layout: problem=%d"),
+                   cast(s32)image.problem)
+        return 0
+    }
+    // Text-relative coordinates start after the process entry stub.
+    startup := image.startup
+    if bytes == null || size != image.size || machine.functions.count != encoded.functions.count ||
+       machine.blocks.count != encoded.blocks.count ||
+       machine.instructions.count != encoded.instructions.count {
+        Diagnostic(NoSpan(), CStr("assembly.encode"), CStr("native map image does not match the encoded file size"))
+        return 0
+    }
+    hash: Sha256
+    digest: [32]u8
+    identity: [65]u8
+    hex := CStr("0123456789abcdef")
+    Sha256Begin(*(hash))
+    Sha256Add(*(hash), cast(*void)bytes, cast(usize)size)
+    Sha256End(*(hash), *digest[0])
+    i: usize = 0
+    while i < 32 {
+        identity[i * 2] = hex[digest[i] >> 4]
+        identity[i * 2 + 1] = hex[digest[i] & 15]
+        i += 1
+    }
+    identity[64] = 0
+    if machine.instructions.count < 0 || machine.blocks.count < 0 || machine.functions.count < 0 ||
+       machine.instructions.count > (UNBOUNDED_FUEL - 4) / 2 - machine.blocks.count - machine.functions.count {
+        Diagnostic(NoSpan(), CStr("assembly.encode"), CStr("native map range count is outside supported bounds"))
+        return 0
+    }
+    capacity := (machine.instructions.count + machine.blocks.count + machine.functions.count) * 2 + 4
+    if capacity <= 0 || cast(u64)capacity > 18446744073709551615 / cast(u64)size_of(AssemblyNativeRange) {
+        Diagnostic(NoSpan(), CStr("assembly.encode"), CStr("native map range allocation is outside supported bounds"))
+        return 0
+    }
+    ranges := cast(*AssemblyNativeRange)malloc(cast(usize)capacity * size_of(AssemblyNativeRange))
+    if ranges == null {
+        DiagnosticOutOfMemory()
+        return 0
+    }
+    defer free(cast(*void)ranges)
+    extents := cast(*AssemblyFunctionExtent)calloc(cast(usize)program.functions.count,
+                                                  size_of(AssemblyFunctionExtent))
+    if extents == null {
+        DiagnosticOutOfMemory()
+        return 0
+    }
+    defer free(cast(*void)extents)
+    mapped: s64 = 0
+    if MapRanges(program, *(machine), *(encoded), startup, ranges, capacity, *(mapped), extents) == 0 {
+        Diagnostic(NoSpan(), CStr("assembly.encode"), CStr("machine metadata does not describe a complete native map"))
+        return 0
+    }
+    cursor := startup + encoded.code.count
+    if cursor > image.text_size ||
+       MapRange(ranges, capacity, *(mapped), -1, -1, -1, -1, cursor, image.text_size) == 0 {
+        Diagnostic(NoSpan(), CStr("assembly.encode"), CStr("machine metadata does not describe a complete native map"))
+        return 0
+    }
+    cursor = image.text_size
+    if mapped <= 0 || cursor != image.text_size {
+        Diagnostic(NoSpan(), CStr("assembly.encode"), CStr("machine metadata does not describe a complete native map"))
+        return 0
+    }
+    selected_origins: *u8 = null
+    if filtered != 0 && program.origins.count > 0 {
+        selected_origins = cast(*u8)calloc(cast(usize)program.origins.count, 1)
+        if selected_origins == null {
+            DiagnosticOutOfMemory()
+            return 0
+        }
+    }
+    defer free(cast(*void)selected_origins)
+    selected_ranges: s64 = 0
+    index: s64 = 0
+    while index < mapped {
+        range := ranges[index]
+        if MapSelected(range, selection) != 0 {
+            selected_ranges += 1
+            if range.function >= 0 { extents[range.function].selected = 1 }
+            if filtered != 0 { SelectOrigin(program, range.origin, selected_origins) }
+        }
+        index += 1
+    }
+    index = 0
+    while filtered != 0 && index < program.functions.count {
+        if index == selection.function { extents[index].selected = 1 }
+        if extents[index].selected != 0 {
+            SelectOrigin(program, program.functions[index].origin, selected_origins)
+        }
+        index += 1
+    }
+    unused fprintf(stream, CStr("{\"format\":\"ziran-native-map\",\"version\":1,\"target\":\"%s\","), CStr(image.target))
+    unused fputs(CStr("\"coordinate\":\"text-relative\",\"variant\":\"x86-64-baseline\",\"abi\":\"ziran-internal\","), stream)
+    unused fprintf(stream, CStr("\"optimization_request\":\"%s\",\"identity\":{\"algorithm\":\"sha256\",\"scope\":\"%s\",\"digest\":\"%s\"},"),
+                   ifx optimize != 0 then CStr("verified-basic") else CStr("none"), CStr(image.scope), *identity[0])
+    unused fprintf(stream, CStr("\"image\":{\"kind\":\"%s\",\"address_space\":\"%s\","), CStr(image.kind), CStr(image.address_space))
+    unused fprintf(stream, CStr("\"file_size\":%lld,\"text_file_offset\":%lld,\"text_virtual_address\":%llu,\"text_size\":%lld,"),
+                   image.size, image.text_offset, image.text_address, image.text_size)
+    unused fprintf(stream, CStr("\"data_file_offset\":%lld,\"data_virtual_address\":%llu,\"data_size\":%lld},\"selection\":"),
+                   image.data_offset, image.data_address, image.data_size)
+    if filtered != 0 {
+        unused fprintf(stream, CStr("{\"function_id\":%lld,\"block_id\":%lld,\"begin\":%lld,\"end\":%lld}"),
+                       selection.function, selection.block, selection.begin, selection.end)
+    } else {
+        unused fputs(CStr("null"), stream)
+    }
+    unused fprintf(stream, CStr(",\"total_ranges\":%lld,\"selected_ranges\":%lld,\"ranges\":["), mapped, selected_ranges)
+    separator: s32 = 0
+    index = 0
+    while index < mapped {
+        range := ranges[index]
+        if MapSelected(range, selection) != 0 {
+            if separator != 0 { unused fputc(#char ",", stream) }
+            separator += 1
+            unused fprintf(stream, CStr("{\"begin\":%lld,\"end\":%lld,\"function_id\":%d,\"block\":%d,\"instruction\":%d,\"origin\":%d"),
+                           range.begin, range.end, range.function, range.block, range.instruction, range.origin)
+            if range.function >= 0 {
+                function := program.functions[range.function]
+                unused fputs(CStr(",\"module\":"), stream)
+                Json(stream, program.modules[function.module])
+                unused fputs(CStr(",\"function\":"), stream)
+                Json(stream, function.name)
+            }
+            if range.origin >= 0 {
+                origin := program.origins[range.origin]
+                unused fputs(CStr(",\"file\":"), stream)
+                Json(stream, program.sources[origin.file])
+                unused fprintf(stream, CStr(",\"line\":%d,\"column\":%d,\"end_line\":%d,\"end_column\":%d"),
+                               origin.line, origin.column, origin.end_line, origin.end_column)
+            }
+            unused fputc(#char "}", stream)
+        }
+        index += 1
+    }
+    unused fprintf(stream, CStr("],\"text_size\":%lld,\"functions\":["), image.text_size)
+    separator = 0
+    index = 0
+    while index < program.functions.count {
+        function := program.functions[index]
+        if filtered != 0 && extents[index].selected == 0 {
+            index += 1
+            continue
+        }
+        if separator != 0 { unused fputc(#char ",", stream) }
+        separator += 1
+        unused fprintf(stream, CStr("{\"id\":%lld,\"module_id\":%d,\"module\":"), index, function.module)
+        Json(stream, program.modules[function.module])
+        unused fputs(CStr(",\"name\":"), stream)
+        Json(stream, function.name)
+        emitted := "false"
+        if extents[index].seen != 0 { emitted = "true" }
+        unused fprintf(stream, CStr(",\"entry\":%d,\"origin\":%d,\"emitted\":%s"), function.entry,
+                       function.origin, CStr(emitted))
+        if extents[index].seen != 0 {
+            unused fprintf(stream, CStr(",\"begin\":%lld,\"end\":%lld}"), extents[index].begin,
+                           extents[index].end)
+        } else {
+            unused fputs(CStr(",\"begin\":null,\"end\":null}"), stream)
+        }
+        index += 1
+    }
+    unused fputs(CStr("],\"origins\":["), stream)
+    separator = 0
+    index = 0
+    while index < program.origins.count {
+        origin := program.origins[index]
+        if filtered != 0 && selected_origins[cast(usize)index] == 0 {
+            index += 1
+            continue
+        }
+        if separator != 0 { unused fputc(#char ",", stream) }
+        separator += 1
+        unused fprintf(stream, CStr("{\"id\":%lld,\"file_id\":%d,\"file\":"), index, origin.file)
+        Json(stream, program.sources[origin.file])
+        unused fprintf(stream, CStr(",\"line\":%d,\"column\":%d,\"end_line\":%d,\"end_column\":%d,\"begin\":%lld,\"end\":%lld,\"parent\":%d}"),
+                       origin.line, origin.column, origin.end_line, origin.end_column,
+                       origin.begin, origin.end, origin.parent)
+        index += 1
+    }
+    unused fputs(CStr("]}\n"), stream)
+    return ifx ferror(stream) == 0 then 1 else 0
+}
+
+WriteExecutable :: (output: *u8, bytes: *u8, size: s64, executable: s32) -> s32 {
+    // The output's directory is made as needed.
+    parent: [IR.ZIR_PATH_MAX]u8
+    length := strlen(output)
+    if length < IR.ZIR_PATH_MAX {
+        memcpy(cast(*void)(*parent[0]), cast(*void)output, length + 1)
+        at := cast(*u8)(cast(usize)(*parent[0]) + 1)
+        while at[0] != 0 {
+            if at[0] == #char "/" {
+                at[0] = 0
+                unused mkdir(*parent[0], 493)
+                at[0] = #char "/"
+            }
+            at = cast(*u8)(cast(usize)at + 1)
+        }
+    }
+    temporary: [IR.ZIR_PATH_MAX]u8
+    stream := GeneratedOutputOpen(output, *temporary[0], IR.ZIR_PATH_MAX)
+    if stream == null {
+        Diagnostic(NoSpan(), CStr("assembly.output"), CStr("cannot create output: %s"), output)
+        return 0
+    }
+    written: s32 = 0
+    if fwrite(cast(*void)bytes, 1, cast(usize)size, stream) == cast(usize)size { written = 1 }
+    if executable != 0 && HostOS() != 2 && fchmod(fileno(stream), 493) != 0 { written = 0 }
+    if fclose(stream) != 0 { written = 0 }
+    if written == 0 || GeneratedOutputReplace(*temporary[0], output) != 0 {
+        unused remove(*temporary[0])
+        Diagnostic(NoSpan(), CStr("assembly.output"), CStr("cannot finish output: %s"), output)
+        return 0
+    }
+    temporary[0] = 0
+    if executable != 0 && HostOS() != 2 && chmod(output, 493) != 0 {
+        Diagnostic(NoSpan(), CStr("assembly.output"), CStr("cannot make output executable: %s"), output)
+        return 0
+    }
+    return 1
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    output: *u8 = null
+    emit: *u8 = CStr("elf")
+    target_name: *u8 = CStr("x86_64")
+    platform: *u8 = CStr("linux")
+    function_id: *u8 = null
+    block_id: *u8 = null
+    address_begin: *u8 = null
+    address_end: *u8 = null
+    fuel_text: *u8 = null
+    elf_fuel: s64 = UNBOUNDED_FUEL
+    selection: AssemblyMapSelection = .{}
+    selection.function = -1
+    selection.block = -1
+    selection.begin = -1
+    selection.end = -1
+    SetFormatArguments(argc, argv)
+    CLI.CommandLowerPriority()
+    options: [9]CLI.CommandOption = .{
+        .{name = CStr("-o"), value = *(output)},
+        .{name = CStr("--emit"), value = *(emit)},
+        .{name = CStr("--target"), value = *(target_name)},
+        .{name = CStr("--platform"), value = *(platform)},
+        .{name = CStr("--function-id"), value = *(function_id)},
+        .{name = CStr("--block-id"), value = *(block_id)},
+        .{name = CStr("--address-begin"), value = *(address_begin)},
+        .{name = CStr("--address-end"), value = *(address_end)},
+        .{name = CStr("--fuel"), value = *(fuel_text)},
+    }
+    input := CLI.ReadCommandOptions(argc, argv, *(options[0]), cast(usize)options.count)
+    input_length: usize = 0
+    if input > 0 { input_length = strlen(argv[cast(usize)input]) }
+    if input <= 0 || output == null || argc - input != 1 ||
+       input_length <= 3 || strcmp(cast(*u8)(cast(usize)argv[cast(usize)input] + input_length - 3), CStr(".zx")) != 0 ||
+       Limit(function_id, *(selection.function)) == 0 || Limit(block_id, *(selection.block)) == 0 ||
+       Limit(address_begin, *(selection.begin)) == 0 || Limit(address_end, *(selection.end)) == 0 ||
+       Limit(fuel_text, *(elf_fuel)) == 0 ||
+       (fuel_text != null && strcmp(emit, CStr("elf")) != 0) ||
+       selection.function > 2147483647 || selection.block > 2147483647 ||
+       (selection.block >= 0 && selection.function < 0) ||
+       ((selection.begin < 0) != (selection.end < 0)) ||
+       (selection.begin >= 0 && selection.end <= selection.begin) ||
+       ((function_id != null || block_id != null || address_begin != null || address_end != null) &&
+        strcmp(emit, CStr("map")) != 0) ||
+       (strcmp(target_name, CStr("x86_64")) != 0 && strcmp(target_name, CStr("aarch64")) != 0 &&
+        strcmp(target_name, CStr("armv7")) != 0) ||
+       (strcmp(platform, CStr("linux")) != 0 && strcmp(platform, CStr("android")) != 0 &&
+        strcmp(platform, CStr("windows")) != 0) ||
+       (strcmp(emit, CStr("elf")) != 0 && strcmp(emit, CStr("map")) != 0 && strcmp(emit, CStr("image")) != 0) {
+        return Usage()
+    }
+    target_row: [64]u8
+    native_target: Target.TargetDescription = .{}
+    if snprintf(*target_row[0], 64, CStr("%s-%s"), target_name, platform) < 0 ||
+       TargetSupported(*target_row[0], *(native_target)) == 0 { return 1 }
+    if strcmp(emit, CStr("image")) == 0 {
+        Diagnostic(NoSpan(), CStr("assembly.gap.target-unimplemented"),
+            CStr("relocatable in-memory machine images are not implemented for %s; no alternate output was selected"),
+            *target_row[0])
+        return 1
+    }
+    status: s32 = 1
+    zx_owner: Link.ZxExecOwner = .{}
+    defer Link.ZxExecReadFree(*(zx_owner))
+    debug_owner: Debug.ZxDebugOwner = .{}
+    defer Debug.ZxDebugFree(*(debug_owner))
+    machine_owner: Pipeline.MachineNativeOwner = .{}
+    defer Pipeline.MachineNativeFree(*(machine_owner))
+    hosts: AssemblyHosts = .{}
+    defer HostsFree(*(hosts))
+    bytes: *u8 = null
+    defer free(cast(*void)bytes)
+    input_size: usize = 0
+    zx_bytes := ReadInput(argv[cast(usize)input], *(input_size))
+    if zx_bytes == null { return status }
+    defer free(cast(*void)zx_bytes)
+    read := Link.ZxExecRead(*(zx_owner), TextOf(zx_bytes, input_size), Lowered.LirDefaultLimits())
+    if read.problem != .None {
+        problem := Link.ZxExecProblemName(read.problem)
+        container := Bundle.ExecutableMessage(read.container)
+        Diagnostic(NoSpan(), CStr("assembly.container"),
+            CStr("executable ZX rejected: problem=%.*s container=%.*s codec=%d offset=%lld verifier=%d"),
+            cast(s32)problem.count, TextPointer(problem), cast(s32)container.count, TextPointer(container),
+            cast(s32)read.codec, read.offset, cast(s32)read.diagnostic.problem)
+        return status
+    }
+    decoded := Link.ZxExecReadProgram(*(zx_owner))
+    view := *(decoded)
+    verify := Verify.LirVerify(decoded, Lowered.LirDefaultLimits())
+    if verify.problem != .None {
+        Diagnostic(NoSpan(), CStr("assembly.verify"),
+            CStr("lowered IR rejected: problem=%d function=%d block=%d instruction=%d value=%d origin=%d"),
+            cast(s32)verify.problem, verify.function, verify.block, verify.instruction,
+            verify.value, verify.origin)
+        return status
+    }
+    mapping := strcmp(emit, CStr("map")) == 0
+    executable := strcmp(emit, CStr("elf")) == 0
+    // A map lowers the same verified program with the attachment's checked
+    // origins restored, so machine instructions carry them; the encoded
+    // bytes are the same either way.
+    if mapping {
+        restored := Link.ZxExecReadDebug(*(zx_owner), *(debug_owner), Lowered.LirDefaultLimits())
+        if restored == .None {
+            decoded = Debug.ZxDebugProgram(*(debug_owner))
+            view = *(decoded)
+        } else if restored != .Absent {
+            problem := Debug.ZxDebugProblemName(restored)
+            Diagnostic(NoSpan(), CStr("zx.debug"),
+                CStr("the ZX debug attachment does not belong to this program: %.*s"),
+                cast(s32)problem.count, TextPointer(problem))
+            return status
+        }
+    }
+    if MachineHosts(view, native_target, *(hosts)) != 0 { return status }
+    diagnostic := Pipeline.MachineNativeBuild(view[0], native_target,
+        Machine.MachineDefaultLimits(), *(machine_owner), elf_fuel, hosts.links)
+    if diagnostic.problem == .HostAbi {
+        HostAbiGap(view, diagnostic.function, native_target)
+        return status
+    }
+    if diagnostic.problem == .UnsupportedTarget {
+        Diagnostic(NoSpan(), CStr("assembly.gap.machine-platform-service-unavailable"),
+            CStr("assembly.gap.machine-platform-service-unavailable: selected target %s has no formatter, host binding or executable runtime for what this program calls; no alternate engine was selected"),
+            *target_row[0])
+        return status
+    }
+    if diagnostic.problem != .None {
+        Diagnostic(NoSpan(), CStr("assembly.machine"),
+            CStr("machine pipeline rejected the program: problem=%d function=%d block=%d instruction=%d operand=%d virtual=%d; no alternate engine was selected"),
+            cast(s32)diagnostic.problem, diagnostic.function, diagnostic.block,
+            diagnostic.instruction, diagnostic.operand, diagnostic.virtual)
+        return status
+    }
+    native := Pipeline.MachineNativeView(*(machine_owner))
+    if native.count <= 0 || native.count > READ_LIMIT {
+        Diagnostic(NoSpan(), CStr("assembly.machine"),
+            CStr("machine pipeline produced an invalid ELF extent; no alternate engine was selected"))
+        return status
+    }
+    size := native.count
+    bytes = cast(*u8)malloc(cast(usize)size)
+    if bytes == null {
+        DiagnosticOutOfMemory()
+        return status
+    }
+    memcpy(cast(*void)bytes, cast(*void)(*(native[0])), cast(usize)size)
+    if strcmp(output, CStr("-")) == 0 && !executable {
+        written := MachineMap(view, StandardOutput(), *(selection), *(machine_owner),
+                              hosts.links, bytes, size, 1)
+        if written != 0 && fflush(StandardOutput()) == 0 { status = 0 }
+        return status
+    }
+    if strcmp(output, CStr("-")) == 0 {
+        Diagnostic(NoSpan(), CStr("assembly.output"), CStr("executable output requires a file path"))
+        return status
+    }
+    if mapping {
+        temporary: [IR.ZIR_PATH_MAX]u8
+        length := strlen(output)
+        if length < IR.ZIR_PATH_MAX {
+            memcpy(cast(*void)(*temporary[0]), cast(*void)output, length + 1)
+            at := cast(*u8)(cast(usize)(*temporary[0]) + 1)
+            while at[0] != 0 {
+                if at[0] == #char "/" {
+                    at[0] = 0
+                    unused mkdir(*temporary[0], 493)
+                    at[0] = #char "/"
+                }
+                at = cast(*u8)(cast(usize)at + 1)
+            }
+        }
+        stream := GeneratedOutputOpen(output, *temporary[0], IR.ZIR_PATH_MAX)
+        if stream == null {
+            Diagnostic(NoSpan(), CStr("assembly.output"), CStr("cannot create output: %s"), output)
+            return status
+        }
+        written := MachineMap(view, stream, *(selection), *(machine_owner), hosts.links,
+                              bytes, size, 1)
+        if fclose(stream) != 0 { written = 0 }
+        if written == 0 || GeneratedOutputReplace(*temporary[0], output) != 0 {
+            unused remove(*temporary[0])
+            Diagnostic(NoSpan(), CStr("assembly.output"), CStr("cannot finish output: %s"), output)
+            return status
+        }
+        status = 0
+        return status
+    }
+    if WriteExecutable(output, bytes, size, ifx executable then 1 else 0) != 0 { status = 0 }
+    return status
+}

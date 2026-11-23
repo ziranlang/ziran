@@ -17,7 +17,7 @@ concurrency:
 jobs:
   check:
     name: check
-    runs-on: alpha-ziran
+    runs-on: build-native-primary
     timeout-minutes: 90
     env:
       JOBS: 2

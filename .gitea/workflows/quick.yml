@@ -7,7 +7,7 @@ permissions:
 
 jobs:
   quick:
-    runs-on: build-ziran
+    runs-on: build-native-primary
     timeout-minutes: 15
     steps:
       - uses: https://github.com/actions/checkout@v4

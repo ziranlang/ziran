@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Removed `std/rss_scan` (feed item and tag scanning: `FeedNextItem`, `FeedTag`, `FeedCopyText`). The standard library has no replacement; a program that needs it copies `std/rss_scan.zi` from commit c3ef9fb2, the last one that has it, into its own module root.
+
+- Removed `std/http_get_linux` (`GetHttps`, `GetHttpsCapped`). Use `std/net_http`: `SendCapped` with an `HttpRequest` whose `method` is `"GET"`. Commit 4c62f8b8 is the last one that has the old module.
+
 - `#caller_location` names the call site's file relative to its module root, or by its package and the path inside that package, so the same sources build the same output from any folder or package cache.
 
 - ZX embedders can request an active guest stop from another thread, including during initialization and library calls.

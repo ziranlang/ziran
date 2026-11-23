@@ -1,0 +1,579 @@
+// Dead statement and record field pruning for entry links. Loaded by
+// compiler_zx_link.zi.
+
+// Dead-code pruning follows statements and conditions as deep as the VM
+// runs them; deeper code is reported, never dropped silently.
+LIVE_NESTING_MAX :: 128
+
+// 1 or 0 for an expression whose value is known, -1 otherwise. A known
+// result here also means evaluating the expression has no effect. In
+// particular, `false && Call()` is known; `Call() && false` is not.
+ConstantBool :: (fn: *IR.ZirFunction, index: s32, depth: s32) -> s32 {
+    if index < 0 || index >= fn.expr_count || depth > LIVE_NESTING_MAX { return -1 }
+    expr := ExprAt(fn, index)
+    if expr.kind == .IDENT {
+        if Same(expr.name, CStr("true")) { return 1 }
+        if Same(expr.name, CStr("false")) { return 0 }
+    }
+    op := *expr.op[0]
+    if expr.kind == .UNARY && Same(op, CStr("!")) {
+        value := ConstantBool(fn, expr.right, depth + 1)
+        if value < 0 { return -1 }
+        return ifx value == 0 then 1 else 0
+    }
+    if expr.kind == .BINARY && (Same(op, CStr("&&")) || Same(op, CStr("||"))) {
+        left := ConstantBool(fn, expr.left, depth + 1)
+        if left < 0 { return -1 }
+        if Same(op, CStr("&&")) && left == 0 { return 0 }
+        if Same(op, CStr("||")) && left != 0 { return 1 }
+        return ConstantBool(fn, expr.right, depth + 1)
+    }
+    if expr.kind == .CONDITIONAL {
+        condition := ConstantBool(fn, expr.left, depth + 1)
+        if condition >= 0 { return ConstantBool(fn, ifx condition != 0 then expr.right else expr.third, depth + 1) }
+    }
+    return -1
+}
+
+// The index of the statement that closes the block opened at BEGIN, or -1.
+StatementClose :: (fn: *IR.ZirFunction, begin: s32, end: s32) -> s32 {
+    depth: s32 = 1
+    for i: begin + 1..end - 1 {
+        statement := StatementAt(fn, i)
+        kind := statement.kind
+        if kind == .IF || kind == .WHILE || kind == .BLOCK_OPEN {
+            depth += 1
+        } else if kind == .BLOCK_CLOSE {
+            depth -= 1
+            if depth == 0 { return i }
+        }
+    }
+    return -1
+}
+
+AppendStatement :: (to: *IR.ZirFunction, statement: *IR.ZirStmt) -> bool {
+    if to.stmt_count >= to.stmt_cap { return false }
+    slot := StatementAt(to, to.stmt_count)
+    <<slot = <<statement
+    to.stmt_count += 1
+    return true
+}
+
+// Whether control never reaches the statement after STATEMENT.
+StopsControl :: (kind: IR.ZirStmtKind) -> bool {
+    return kind == .RETURN || kind == .UNREACHABLE || kind == .BREAK || kind == .CONTINUE
+}
+
+// Copies the live branches of the if-chain at BEGIN into TO. NEXT is set to
+// the statement after the chain, STOPS when control never leaves it.
+CopyLiveBranches :: (from: *IR.ZirFunction, to: *IR.ZirFunction, begin: s32, end: s32, depth: s32,
+                     next: *s32, stops: *bool) -> bool {
+    branch := begin
+    unknown := false
+    chosen := false
+    all_branches_stop := true
+    while true {
+        head := StatementAt(from, branch)
+        close := StatementClose(from, branch, end)
+        if close < 0 { return false }
+        known: s32 = 1
+        if head.expr_root >= 0 { known = ConstantBool(from, head.expr_root, 0) }
+        if !chosen && known != 0 {
+            branch_stops := false
+            live := <<head
+            if known == 1 && !unknown {
+                live.kind = .BLOCK_OPEN
+                live.expr_root = -1
+                live.is_else = 0
+            } else {
+                live.is_else = ifx unknown then 1 else 0
+                if known == 1 { live.expr_root = -1 }
+            }
+            if !AppendStatement(to, *live) || !CopyLiveSequence(from, to, branch + 1, close, depth + 1, *branch_stops) ||
+               !AppendStatement(to, StatementAt(from, close)) { return false }
+            all_branches_stop = all_branches_stop && branch_stops
+            if known == 1 {
+                chosen = true
+            } else {
+                unknown = true
+            }
+        }
+        branch = close + 1
+        if branch >= end { break }
+        following := StatementAt(from, branch)
+        if following.kind != .IF || following.is_else == 0 { break }
+    }
+    <<next = branch
+    <<stops = chosen && all_branches_stop
+    return true
+}
+
+CopyLiveSequence :: (from: *IR.ZirFunction, to: *IR.ZirFunction, begin: s32, end: s32, depth: s32, stops: *bool) -> bool {
+    if depth > LIVE_NESTING_MAX {
+        Diagnostic(from.span, CStr("zx.statement"), CStr("%s nests blocks deeper than %d levels"), *from.name[0], LIVE_NESTING_MAX)
+        return false
+    }
+    <<stops = false
+    i := begin
+    while i < end {
+        statement := StatementAt(from, i)
+        if statement.kind == .IF && statement.is_else == 0 {
+            next: s32 = 0
+            chain_stops := false
+            if !CopyLiveBranches(from, to, i, end, depth, *next, *chain_stops) { return false }
+            i = next
+            if chain_stops {
+                <<stops = true
+                break
+            }
+            continue
+        }
+        if statement.kind == .WHILE || statement.kind == .BLOCK_OPEN {
+            close := StatementClose(from, i, end)
+            if close < 0 { return false }
+            if statement.kind != .WHILE || ConstantBool(from, statement.expr_root, 0) != 0 {
+                body_stops := false
+                if !AppendStatement(to, statement) || !CopyLiveSequence(from, to, i + 1, close, depth + 1, *body_stops) ||
+                   !AppendStatement(to, StatementAt(from, close)) { return false }
+                if statement.kind == .BLOCK_OPEN && body_stops {
+                    <<stops = true
+                    break
+                }
+            }
+            i = close + 1
+            continue
+        }
+        if !AppendStatement(to, statement) { return false }
+        if StopsControl(statement.kind) {
+            <<stops = true
+            break
+        }
+        i += 1
+    }
+    return true
+}
+
+// The copy in TO of the live expression SOURCE of FROM: -1 for none, -2 on
+// failure. MAPPING remembers copies already made.
+CopyLiveExpression :: (from: *IR.ZirFunction, to: *IR.ZirFunction, mapping: *s32, source: s32, depth: s32) -> s32 {
+    if source < 0 { return -1 }
+    if source >= from.expr_count || depth > 128 { return -2 }
+    if mapping[source] >= 0 { return mapping[source] }
+    expr := ExprAt(from, source)
+    if expr.kind == .CONDITIONAL {
+        known := ConstantBool(from, expr.left, 0)
+        if known >= 0 {
+            selected := ifx known != 0 then expr.right else expr.third
+            result := CopyLiveExpression(from, to, mapping, selected, depth + 1)
+            if result >= 0 {
+                // A conditional can be a named or positional call argument.
+                // The selected arm inherits that call-site binding when the
+                // enclosing expression disappears during pruning.
+                arm := ExprAt(to, result)
+                arm.argument_index = expr.argument_index
+                arm.argument_name = expr.argument_name
+                arm_numeric := Same(arm.type, CStr("integer")) || Same(arm.type, CStr("real"))
+                own_numeric := Same(expr.type, CStr("integer")) || Same(expr.type, CStr("real"))
+                if expr.argument_index >= 0 && arm_numeric && !own_numeric { arm.type = KeepName(expr.type) }
+            }
+            mapping[source] = result
+            return result
+        }
+    }
+    op := *expr.op[0]
+    if expr.kind == .BINARY && (Same(op, CStr("&&")) || Same(op, CStr("||"))) {
+        left := ConstantBool(from, expr.left, 0)
+        if left >= 0 {
+            if (Same(op, CStr("&&")) && left != 0) || (Same(op, CStr("||")) && left == 0) {
+                result := CopyLiveExpression(from, to, mapping, expr.right, depth + 1)
+                if result >= 0 {
+                    kept := ExprAt(to, result)
+                    kept.argument_index = expr.argument_index
+                    kept.argument_name = expr.argument_name
+                }
+                mapping[source] = result
+                return result
+            }
+            // A short circuit has no run-time evaluation.
+            result := to.expr_count
+            to.expr_count += 1
+            if result >= to.expr_cap { return -2 }
+            constant := ExprAt(to, result)
+            <<constant = <<expr
+            constant.kind = .IDENT
+            constant.name = KeepName(ifx left != 0 then CStr("true") else CStr("false"))
+            constant.left = -1
+            constant.right = -1
+            constant.third = -1
+            constant.first_child = -1
+            constant.next_sibling = -1
+            mapping[source] = result
+            return result
+        }
+    }
+    copied_left := CopyLiveExpression(from, to, mapping, expr.left, depth + 1)
+    if copied_left < -1 { return -2 }
+    copied_right := CopyLiveExpression(from, to, mapping, expr.right, depth + 1)
+    if copied_right < -1 { return -2 }
+    copied_third := CopyLiveExpression(from, to, mapping, expr.third, depth + 1)
+    if copied_third < -1 { return -2 }
+    first_child: s32 = -1
+    last_child: s32 = -1
+    child := expr.first_child
+    while child >= 0 {
+        copied := CopyLiveExpression(from, to, mapping, child, depth + 1)
+        if copied < 0 { return -2 }
+        if first_child < 0 { first_child = copied }
+        if last_child >= 0 {
+            previous := ExprAt(to, last_child)
+            previous.next_sibling = copied
+        }
+        current := ExprAt(to, copied)
+        current.next_sibling = -1
+        last_child = copied
+        sibling := ExprAt(from, child)
+        child = sibling.next_sibling
+    }
+    result := to.expr_count
+    to.expr_count += 1
+    if result >= to.expr_cap { return -2 }
+    copy := ExprAt(to, result)
+    <<copy = <<expr
+    mapping[source] = result
+    copy.left = copied_left
+    copy.right = copied_right
+    copy.third = copied_third
+    copy.first_child = first_child
+    copy.next_sibling = -1
+    return result
+}
+
+// Replaces FN's statements and expressions with the ones that can run.
+PruneFunction :: (fn: *IR.ZirFunction) -> bool {
+    original := cast(*IR.ZirFunction)AllocateOrExit(size_of(IR.ZirFunction))
+    output := cast(*IR.ZirFunction)AllocateOrExit(size_of(IR.ZirFunction))
+    defer {
+        free(cast(*u8)original)
+        free(cast(*u8)output)
+    }
+    <<original = <<fn
+    <<output = <<original
+    output.stmts = cast(*IR.ZirStmt)calloc(AtLeastOne(original.stmt_count), size_of(IR.ZirStmt))
+    output.exprs = cast(*IR.ZirExpr)calloc(AtLeastOne(original.expr_count), size_of(IR.ZirExpr))
+    mapping := cast(*s32)malloc(AtLeastOne(original.expr_count) * size_of(s32))
+    if output.stmts == null || output.exprs == null || mapping == null {
+        free(cast(*u8)output.stmts)
+        free(cast(*u8)output.exprs)
+        free(cast(*u8)mapping)
+        return false
+    }
+    output.stmt_count = 0
+    output.expr_count = 0
+    output.stmt_cap = original.stmt_count
+    output.expr_cap = original.expr_count
+    for i: 0..original.expr_count - 1 { mapping[i] = -1 }
+    stops := false
+    ok := CopyLiveSequence(original, output, 0, original.stmt_count, 0, *stops)
+    for s: 0..output.stmt_count - 1 {
+        if !ok { break }
+        statement := StatementAt(output, s)
+        statement.expr_root = CopyLiveExpression(original, output, mapping, statement.expr_root, 0)
+        statement.lhs_root = CopyLiveExpression(original, output, mapping, statement.lhs_root, 0)
+        ok = statement.expr_root >= -1 && statement.lhs_root >= -1
+    }
+    free(cast(*u8)mapping)
+    if !ok {
+        free(cast(*u8)output.stmts)
+        free(cast(*u8)output.exprs)
+        return false
+    }
+    free(cast(*u8)original.stmts)
+    free(cast(*u8)original.exprs)
+    <<fn = <<output
+    return true
+}
+
+FieldUse :: struct {
+    type: *IR.ZirType
+    fields: *u8
+    count: s32
+    shared: s32  // fields belong to an earlier copy of the same application
+    complete: s32  // every field is kept, and so are the records they reach
+}
+
+FieldUses :: struct {
+    items: *FieldUse
+    count: s32
+}
+
+FindFieldUse :: (uses: *FieldUses, type: *IR.ZirType) -> *FieldUse {
+    if type == null { return null }
+    for i: 0..uses.count - 1 {
+        use := *uses.items[i]
+        if use.type == type { return use }
+    }
+    return null
+}
+
+// The checker and portable runner use the same union policy.
+LawNamesImport :: (module: *IR.ZirModule, imported: *IR.ZirImport) -> bool {
+    for l: 0..module.law_count - 1 {
+        law := LawAt(module, l)
+        kind := *law.kind[0]
+        if (Same(kind, CStr("effect")) || Same(kind, CStr("abi"))) && Same(*law.payload[0], *imported.name[0]) { return true }
+    }
+    return false
+}
+
+BUILTIN_CALL_COUNT :: 18
+builtin_calls: [18]*u8 = .{CStr("TextView"), CStr("VecPush"), CStr("VecReserve"), CStr("VecResize"), CStr("VecResizeBounded"),
+    CStr("VecClear"), CStr("VecFree"), CStr("VecSwap"), CStr("VecPop"), CStr("VecGet"), CStr("VecClone"), CStr("VecSlice"),
+    CStr("BuilderAppend"), CStr("BuilderFinish"), CStr("print"), CStr("zi_new"), CStr("zi_free"), CStr("zi_sqrt")};
+
+BuiltinCall :: (name: *u8) -> bool {
+    if MapPrimitiveName(name) != 0 { return true }
+    for i: 0..BUILTIN_CALL_COUNT - 1 {
+        if Same(name, builtin_calls[i]) { return true }
+    }
+    return BitBuiltin(name) != 0 || SimdOpChecked(name) != null
+}
+
+RecordName :: (type: *u8) -> *u8 {
+    at := type
+    while at[0] == #char "*" || at[0] == #char " " { at = PtrAdd(at, 1) }
+    return at
+}
+
+MarkAllFields :: (module: *IR.ZirModule, name: *u8, uses: *FieldUses) {
+    element: [IR.ZIR_NAME_MAX]u8
+    if ArrayElementType(name, *element[0], IR.ZIR_NAME_MAX, null) != 0 || SliceElementType(name, *element[0], IR.ZIR_NAME_MAX) != 0 {
+        MarkAllFields(module, *element[0], uses)
+        return
+    }
+    owner: *IR.ZirModule = null
+    type := FindType(module, RecordName(name), *owner)
+    use := FindFieldUse(uses, type)
+    if use == null || use.complete != 0 { return }
+    // A member access may already keep a field without the record behind
+    // it, such as env.functions before a C callback names the whole table.
+    // A complete layout still keeps that record whole.
+    use.complete = 1
+    offset: usize = 0
+    field: IR.ZirTypeField
+    index: s32 = 0
+    while index < use.count && TypeNextField(type, *offset, *field) == 1 {
+        use.fields[index] = 1
+        MarkAllFields(owner, *field.type[0], uses)
+        index += 1
+    }
+}
+
+MarkMemberField :: (module: *IR.ZirModule, record_type: *u8, field_name: *u8, uses: *FieldUses) {
+    owner: *IR.ZirModule = null
+    type := FindType(module, RecordName(record_type), *owner)
+    use := FindFieldUse(uses, type)
+    if use == null { return }
+    dot := strchr(field_name, #char ".")
+    name_length := ifx dot == null then strlen(field_name) else Distance(field_name, dot)
+    offset: usize = 0
+    field: IR.ZirTypeField
+    index: s32 = 0
+    while index < use.count && TypeNextField(type, *offset, *field) == 1 {
+        if strlen(*field.name[0]) == name_length && strncmp(*field.name[0], field_name, name_length) == 0 {
+            use.fields[index] = 1
+            if dot != null && field.is_using != 0 { MarkMemberField(owner, *field.type[0], PtrAdd(dot, 1), uses) }
+            return
+        }
+        index += 1
+    }
+}
+
+MarkSignatureFields :: (module: *IR.ZirModule, args: *u8, result: *u8, uses: *FieldUses) {
+    MarkAllFields(module, result, uses)
+    if args == null || args[0] == 0 { return }
+    parts := calloc(64, IR.ZIR_TEXT_MAX)
+    if parts == null { return }
+    count := split_top_level(args, parts, 64, IR.ZIR_TEXT_MAX)
+    for i: 0..count - 1 {
+        part := PtrAdd(parts, cast(usize)i * IR.ZIR_TEXT_MAX)
+        colon := strchr(part, #char ":")
+        if colon != null { MarkAllFields(module, PtrAdd(colon, 1), uses) }
+    }
+    free(parts)
+}
+
+// The record name before a size or type law's comparison, trimmed, in NAME.
+LawSubject :: (law: *IR.ZirLaw, name: *u8) -> bool {
+    payload := *law.payload[0]
+    op := strstr(payload, CStr("=="))
+    if op == null { op = strstr(payload, CStr(">=")) }
+    if op == null { op = strstr(payload, CStr("<=")) }
+    length := ifx op != null then Distance(payload, op) else strlen(payload)
+    if length == 0 || length >= IR.ZIR_NAME_MAX { return false }
+    memcpy(name, payload, length)
+    name[length] = 0
+    trim_in_place(name)
+    return true
+}
+
+// Sets up one use per record type of PROGRAM; false when memory runs out.
+StartFieldUses :: (program: *IR.ZirProgram, uses: *FieldUses, owners: **IR.ZirModule) -> bool {
+    next: s32 = 0
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        for t: 0..module.type_count - 1 {
+            type := TypeAt(module, t)
+            use := *uses.items[next]
+            owners[next] = module
+            next += 1
+            if type.is_enum != 0 || type.is_union != 0 || type.is_procedure_type != 0 || type.is_extern != 0 ||
+               type.is_record_template != 0 || type.is_map != 0 { continue }
+            use.type = type
+            offset: usize = 0
+            field: IR.ZirTypeField
+            while TypeNextField(type, *offset, *field) == 1 { use.count += 1 }
+            // Each module that spells Table(string, s32) holds its own copy
+            // of that one type; every copy keeps the fields any of them use.
+            if type.is_synthetic_application != 0 {
+                for earlier: 0..next - 2 {
+                    previous := *uses.items[earlier]
+                    if previous.type != null && previous.shared == 0 &&
+                       same_type_application(owners[earlier], previous.type, module, type) != 0 {
+                        use.fields = previous.fields
+                        use.shared = 1
+                        break
+                    }
+                }
+            }
+            if use.count > 0 && use.shared == 0 {
+                use.fields = calloc(cast(usize)use.count, 1)
+                if use.fields == null { return false }
+            }
+        }
+    }
+    return true
+}
+
+// Marks the fields one module's declarations and retained code use.
+MarkModuleFields :: (module: *IR.ZirModule, entry_module: *u8, entry_function: *u8, uses: *FieldUses) {
+    for t: 0..module.type_count - 1 {
+        type := TypeAt(module, t)
+        if VecElementType(module, *type.name[0], null, 0) != 0 { MarkAllFields(module, *type.name[0], uses) }
+    }
+    // A native callback's records cross the foreign ABI even when the only
+    // ordinary extern parameter is the callback or its containing record.
+    // Preserve their complete layout, including unused fields.
+    for t: 0..module.type_count - 1 {
+        type := TypeAt(module, t)
+        if type.is_procedure_type != 0 && type.is_c_call != 0 {
+            MarkSignatureFields(module, *type.body[0], *type.procedure_return_type[0], uses)
+        }
+    }
+    for i: 0..module.import_count - 1 {
+        imported := ImportAt(module, i)
+        if imported.kind == .EXTERN { MarkSignatureFields(module, *imported.args[0], *imported.return_type[0], uses) }
+    }
+    // Global initializers are kept as source text and checked again after
+    // linking. Their layout is used even without member reads.
+    for g: 0..module.global_count - 1 {
+        global := GlobalAt(module, g)
+        if global.init[0] != 0 { MarkAllFields(module, *global.type[0], uses) }
+    }
+    for l: 0..module.law_count - 1 {
+        law := LawAt(module, l)
+        kind := *law.kind[0]
+        name: [IR.ZIR_NAME_MAX]u8
+        if (Same(kind, CStr("size")) || Same(kind, CStr("type"))) && LawSubject(law, *name[0]) { MarkAllFields(module, *name[0], uses) }
+    }
+    for f: 0..module.function_count - 1 {
+        fn := FunctionAt(module, f)
+        if Same(*module.name[0], entry_module) && Same(*fn.name[0], entry_function) {
+            MarkSignatureFields(module, FunctionArgs(fn), *fn.return_type[0], uses)
+        }
+        for e: 0..fn.expr_count - 1 {
+            expr := ExprAt(fn, e)
+            if (expr.kind == .MEMBER || expr.kind == .POINTER_MEMBER) && expr.left >= 0 && expr.left < fn.expr_count {
+                record := ExprAt(fn, expr.left)
+                MarkMemberField(module, record.type, expr.name, uses)
+            } else if expr.kind == .COMPOUND {
+                MarkAllFields(module, expr.name, uses)
+            } else if expr.kind == .CALL && (Same(expr.name, CStr("VecPop")) || Same(expr.name, CStr("VecGet"))) {
+                MarkAllFields(module, expr.type, uses)
+            } else if expr.kind == .SIZE_OF && expr.name[0] != 0 {
+                MarkAllFields(module, expr.name, uses)
+            } else if expr.kind == .CAST && expr.right >= 0 && expr.right < fn.expr_count {
+                // A pointer cast exposes storage through another view,
+                // including native memory returned as void*. Neither view
+                // may lose fields or change nested record strides.
+                operand := ExprAt(fn, expr.right)
+                if expr.type[0] == #char "*" || operand.type[0] == #char "*" {
+                    MarkAllFields(module, expr.type, uses)
+                    MarkAllFields(module, operand.type, uses)
+                }
+            }
+        }
+    }
+}
+
+// Rewrites USE's record body to its kept fields; false when it overflows.
+RewriteRecordBody :: (use: *FieldUse, body: *u8, size: usize) -> bool {
+    body[0] = 0
+    length: usize = 0
+    offset: usize = 0
+    field: IR.ZirTypeField
+    index: s32 = 0
+    while TypeNextField(use.type, *offset, *field) == 1 {
+        if use.fields[index] != 0 {
+            prefix := ifx field.is_using != 0 then CStr("using ") else CStr("")
+            written := snprintf(PtrAdd(body, length), size - length, CStr("%s%s: %s\n"), prefix, *field.name[0], *field.type[0])
+            if written < 0 || cast(usize)written >= size - length { return false }
+            length += cast(usize)written
+        }
+        index += 1
+    }
+    if length == 0 { strcpy(body, CStr("_unused: u8\n")) }
+    strcpy(*use.type.body[0], body)
+    return true
+}
+
+FreeFieldUses :: (uses: *FieldUses) {
+    for i: 0..uses.count - 1 {
+        use := *uses.items[i]
+        if use.shared == 0 { free(use.fields) }
+    }
+}
+
+// Entry links are closed programs. A field unused by their checked graph
+// need not occupy every element of a large retained array. Host signatures
+// and the entry ABI keep their complete layouts.
+PruneRecordFields :: (program: *IR.ZirProgram, entry_module: *u8, entry_function: *u8) -> bool {
+    uses: FieldUses
+    uses.count = 0
+    for m: 0..program.module_count - 1 { uses.count += ModuleAt(program, m).type_count }
+    uses.items = cast(*FieldUse)calloc(AtLeastOne(uses.count), size_of(FieldUse))
+    if uses.items == null { return false }
+    owners := cast(**IR.ZirModule)calloc(AtLeastOne(uses.count), size_of(*IR.ZirModule))
+    if owners == null {
+        free(cast(*u8)uses.items)
+        return false
+    }
+    body_size: usize = IR.ZIR_TEXT_MAX * 2
+    body := cast(*u8)AllocateOrExit(body_size)
+    ok := StartFieldUses(program, *uses, owners)
+    if ok {
+        for m: 0..program.module_count - 1 { MarkModuleFields(ModuleAt(program, m), entry_module, entry_function, *uses) }
+        for i: 0..uses.count - 1 {
+            use := *uses.items[i]
+            if use.type == null || use.count == 0 { continue }
+            if !RewriteRecordBody(use, body, body_size) {
+                ok = false
+                break
+            }
+        }
+    }
+    free(body)
+    FreeFieldUses(*uses)
+    free(cast(*u8)owners)
+    free(cast(*u8)uses.items)
+    return ok
+}

@@ -276,7 +276,7 @@ PARSE_PORT_MODULES := parse_types parse_condition parse_discover parse_source \
     frontend_parse parse_s14_types $(S14_PARSE_MODULES)
 SUPPORT_PORT_MODULES := context document diagnostic files source_store overlay semantic sha256
 PERSISTENCE_PORT_MODULES := zir_serial load package_resolve zx_assets
-FRONTEND_PORT_MODULES := context_types $(SUPPORT_PORT_MODULES) frontend_ir law_runtime target_bridge $(PERSISTENCE_PORT_MODULES)
+FRONTEND_PORT_MODULES := context_types $(SUPPORT_PORT_MODULES) frontend_ir law_runtime target_bridge $(PERSISTENCE_PORT_MODULES) zx_link
 compiler-port-dir = $(if $(filter 1,$(BOOTSTRAP)),bootstrap/compiler_$(1),$(BUILD_DIR)/compiler-$(subst _,-,$(1)))
 compiler-port-seed = $(addprefix bootstrap/compiler_$(1)/compiler_$(1).,c h)
 compiler-port-ready = $(if $(filter 1,$(BOOTSTRAP)),$(call compiler-port-seed,$(1)),$(call compiler-port-dir,$(1))/.generated)
@@ -316,7 +316,6 @@ FRONTEND := cmd/zir/zir_memory.c cmd/zir/zir_asm.c cmd/zir/zir_profile.c cmd/zir
     cmd/zir/zir_atomics.c cmd/zir/zir_diagnostic_host.c \
     cmd/zir/zir_files_host.c cmd/zir/zir_sha256_host.c
 PERSISTENCE_HOST := cmd/zir/zir_persistence_host.c
-PORTABLE := cmd/zir/zir_link.c
 HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
 # std/simd's C helpers, vector types and typed Go helpers are generated at
 # build time by scripts/simd/header.zi, compiled from its seed in
@@ -325,7 +324,7 @@ SIMD_DIR ?= $(BUILD_DIR)/simd
 SIMD_HEADERS := $(SIMD_DIR)/ziran_simd_ops.h $(SIMD_DIR)/ziran_simd_types.h $(SIMD_DIR)/zir_simd_go_bodies.h
 HEADERS += $(SIMD_HEADERS)
 override CFLAGS += -I$(SIMD_DIR)
-LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c cmd/zir/zir_native_memory.c cmd/zir/zir_zx_module.c
+LIB_SOURCES := $(FRONTEND) cmd/zir/zir_host.c cmd/zir/zir_native_memory.c cmd/zir/zir_zx_module.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
@@ -378,7 +377,7 @@ FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(S
 override CFLAGS += -I$(PARSE_C)
 LIB_OBJECTS += $(PARSE_OBJECT) $(BODY_OBJECT) $(SCALAR_OBJECT) $(C_EMIT_OBJECT) $(C_EMIT_VALUE_OBJECT) $(C_EMIT_STATEMENT_OBJECT) $(C_EMIT_CALL_OBJECT) $(C_EMIT_EXPR_OBJECT) $(SIMD_METADATA_OBJECT) $(C_EMIT_SIMD_OBJECT) $(GO_SIMD_OBJECT)
 FRONTEND_OBJECTS += $(PARSE_OBJECT) $(BODY_OBJECT) $(SCALAR_OBJECT) $(C_EMIT_OBJECT) $(C_EMIT_VALUE_OBJECT) $(C_EMIT_STATEMENT_OBJECT) $(C_EMIT_CALL_OBJECT) $(C_EMIT_EXPR_OBJECT) $(SIMD_METADATA_OBJECT) $(C_EMIT_SIMD_OBJECT) $(GO_SIMD_OBJECT)
-BUNDLE_OBJECT := $(call obj,$(PORTABLE)) $(BUNDLE_MODULE_OBJECT)
+BUNDLE_OBJECT := $(BUNDLE_MODULE_OBJECT)
 RUNTIME_EMIT_OBJECTS := $(addprefix $(BUILD_DIR)/obj/runtime-emit/,compiler_runtime_emit.o file.o file_linux.o c_string.o vec.o)
 BACKEND_PROCESS_SOURCES := compiler_backend_process.c byte_text_linux.c environment_linux.c \
     file_tree_linux.c number_text.c process_run_linux.c sort.c text_buffer.c text_tools.c timer_linux.c
@@ -529,7 +528,6 @@ $(C_BACKEND_OBJECT): $(C_BACKEND_READY) $(IR_READY) $(NATIVE_NAMES_READY) $(RANG
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(C_BACKEND_C)/compiler_c_backend.c
 $(call obj,cmd/zir/zir_services.c): $(SIMD_DIR)/zir_simd_go_bodies.h
-$(call obj,cmd/zir/zir_link.c): $(SIMD_METADATA_READY)
 $(SERVICES_OBJECT): $(SERVICES_READY) $(IR_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SERVICES_C)/compiler_services.c
@@ -540,7 +538,7 @@ $(PROOF_KERNEL_OBJECT): $(PROOF_KERNEL_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(PROOF_KERNEL_C)/compiler_proof_kernel.c
 
-$(call obj,$(PORTABLE) cmd/zi2c/main.c cmd/zi2go/main.c cmd/zi2zir/main.c cmd/zi2zx/main.c tests/bundle_link_test.c): $(BUNDLE_READY)
+$(call obj,cmd/zi2c/main.c cmd/zi2go/main.c cmd/zi2zir/main.c cmd/zi2zx/main.c tests/bundle_link_test.c): $(BUNDLE_READY)
 $(BUNDLE_MODULE_OBJECT): $(BUNDLE_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(BUNDLE_C)/compiler_bundle.c
@@ -585,7 +583,7 @@ WASM_PRIVATE_HEADERS ?= $(BUILD_DIR)/wasm-private
 else
 PARSE_LOCALIZE := --wildcard --localize-symbol='private_parse_*' --localize-symbol='compiler_parse_*' \
     --localize-symbol='compiler_frontend_parse_*' --localize-symbol='compiler_ir_cleanup_*' \
-    $(foreach module,$(PERSISTENCE_PORT_MODULES),--localize-symbol='compiler_$(module)_*')
+    $(foreach module,$(PERSISTENCE_PORT_MODULES) zx_link,--localize-symbol='compiler_$(module)_*')
 endif
 PARSE_PRIVATE_HEADERS := $(or $(WASM_PRIVATE_HEADERS),$(BUILD_DIR)/private-symbols)
 $(PARSE_PRIVATE_HEADERS)/%.h: cmd/zir/zir_%_internal.h scripts/private-symbols.py
@@ -779,7 +777,7 @@ ifneq ($(BOOTSTRAP),1)
 $(BOOTSTRAP_BIN): $(BUILD_DIR)/runtime_headers.c
 $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(PERSISTENCE_HOST) \
     $(foreach module,$(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES) $(FRONTEND_PORT_MODULES),$(call compiler-port-seed,$(module))) \
-    $(PORTABLE) cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi std/c_string.zi std/result.zi std/vec.zi \
+    cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi std/c_string.zi std/result.zi std/vec.zi \
     cmd/zi2c/main.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
     $(BACKEND_BOOTSTRAP_FILES) cmd/compiler_backend_cache.zi cmd/compiler_backend_process.zi \
     cmd/compiler_native_names.zi cmd/compiler_portable_body.zi \
@@ -887,6 +885,9 @@ $(eval $(call compiler-port-rules,frontend_ir,$(FRONTEND_SUPPORT_HEADERS) $(call
 $(eval $(call compiler-port-rules,law_runtime,$(PARSE_PORT_HEADERS) $(CHECK_PORT_HEADERS),$(PARSE_PORT_IMPORTS) cmd/compiler_check_types.zi))
 $(eval $(call compiler-port-rules,target_bridge,$(PARSE_PORT_HEADERS) $(CHECK_PORT_HEADERS) $(TYPE_READY),$(PARSE_PORT_IMPORTS) cmd/compiler_check_types.zi cmd/compiler_type.zi))
 $(call obj,cmd/zir/zir_memory.c): $(FRONTEND_SUPPORT_HEADERS) $(call compiler-port-ready,context_types)
+
+# Entry linking: one module read from three source files.
+$(eval $(call compiler-port-rules,zx_link,$(IR_READY),cmd/compiler_ir.zi cmd/compiler_zx_link_prune.zi cmd/compiler_zx_link_reach.zi))
 
 PARSE_COMPILER_SOURCES := cmd/compiler_parse.zi cmd/compiler_token.zi cmd/compiler_expr_ir.zi cmd/compiler_expression.zi \
     cmd/compiler_ir.zi cmd/compiler_services.zi cmd/compiler_scan.zi cmd/compiler_source.zi cmd/compiler_text.zi cmd/compiler_type.zi

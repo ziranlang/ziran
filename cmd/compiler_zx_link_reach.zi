@@ -1,0 +1,1264 @@
+// What an entry link keeps: functions, types, constants, globals, imports
+// and modules reachable from the entry and the program's verification roots.
+// Loaded by compiler_zx_link.zi.
+
+// Sets FLAG, and CHANGED when it was clear.
+Mark :: (flag: *u8, changed: *s32) {
+    if flag[0] == 0 {
+        flag[0] = 1
+        <<changed = 1
+    }
+}
+
+// The index of MODULE in PROGRAM, or -1.
+ModuleIndex :: (program: *IR.ZirProgram, module: *IR.ZirModule) -> s32 {
+    for m: 0..program.module_count - 1 {
+        if module == ModuleAt(program, m) { return m }
+    }
+    return -1
+}
+
+// Whether any of the COUNT flags is set.
+AnySet :: (flags: *u8, count: s32) -> bool {
+    return count > 0 && memchr(flags, 1, cast(usize)count) != null
+}
+
+// Keeps FUNCTION of OWNER; false when it is outside PROGRAM.
+KeepFunction :: (program: *IR.ZirProgram, owner: *IR.ZirModule, function: *IR.ZirFunction, keep: **u8, changed: *s32) -> bool {
+    m := ModuleIndex(program, owner)
+    if m < 0 { return false }
+    for f: 0..owner.function_count - 1 {
+        if function == FunctionAt(owner, f) {
+            Mark(*keep[m][f], changed)
+            return true
+        }
+    }
+    return false
+}
+
+// Keeps the exported Ziran implementations of IMPORTED, a host capability
+// bound to `ziran:MODULE`, and counts them.
+KeepHostProvider :: (program: *IR.ZirProgram, imported: *IR.ZirImport, keep: **u8, changed: *s32) -> s32 {
+    found: s32 = 0
+    provider_name := PtrAdd(*imported.target[0], 6)
+    for m: 0..program.module_count - 1 {
+        provider := ModuleAt(program, m)
+        if !Same(*provider.name[0], provider_name) { continue }
+        for f: 0..provider.function_count - 1 {
+            implementation := FunctionAt(provider, f)
+            if Same(*implementation.name[0], *imported.extern_symbol[0]) && implementation.exported != 0 && implementation.is_extern == 0 {
+                found += 1
+                Mark(*keep[m][f], changed)
+            }
+        }
+    }
+    return found
+}
+
+MarkTypePointer :: (program: *IR.ZirProgram, owner: *IR.ZirModule, type: *IR.ZirType, keep_types: **u8, changed: *s32) -> bool {
+    m := ModuleIndex(program, owner)
+    if m < 0 { return false }
+    for t: 0..owner.type_count - 1 {
+        if type == TypeAt(owner, t) {
+            Mark(*keep_types[m][t], changed)
+            return true
+        }
+    }
+    return false
+}
+
+MarkType :: (program: *IR.ZirProgram, scope: *IR.ZirModule, name: *u8, keep_types: **u8, changed: *s32) -> bool {
+    element: [IR.ZIR_NAME_MAX]u8
+    spelled := name
+    while spelled[0] == #char "*" { spelled = PtrAdd(spelled, 1) }
+    if SliceElementType(spelled, *element[0], IR.ZIR_NAME_MAX) != 0 { return MarkType(program, scope, *element[0], keep_types, changed) }
+    if ArrayElementType(spelled, *element[0], IR.ZIR_NAME_MAX, null) != 0 { return MarkType(program, scope, *element[0], keep_types, changed) }
+    owner: *IR.ZirModule = null
+    type := FindType(scope, spelled, *owner)
+    if type != null && type == BuiltinType(spelled) { return true }
+    return type == null || MarkTypePointer(program, owner, type, keep_types, changed)
+}
+
+// Whether NAME, written in SCOPE, is a procedure type the Go target rejects,
+// such as a #c_call callback, directly or behind pointers, slices or arrays.
+GoRejectsType :: (scope: *IR.ZirModule, name: *u8) -> bool {
+    element: [IR.ZIR_NAME_MAX]u8
+    spelled := name
+    while spelled[0] == #char " " || spelled[0] == #char "*" { spelled = PtrAdd(spelled, 1) }
+    if SliceElementType(spelled, *element[0], IR.ZIR_NAME_MAX) != 0 || ArrayElementType(spelled, *element[0], IR.ZIR_NAME_MAX, null) != 0 {
+        return GoRejectsType(scope, *element[0])
+    }
+    type := FindType(scope, spelled, null)
+    return type != null && type.is_procedure_type != 0 && TargetProcedureTypeSupported(CStr("go"), type.is_c_call) == 0
+}
+
+// A Go package exposes every #program_export function it can express, so
+// each is a root whether or not --entry reaches it. One whose signature
+// needs a #c_call callback stays out; if --entry calls it, the target check
+// says so.
+GoExportRoot :: (module: *IR.ZirModule, function: *IR.ZirFunction) -> bool {
+    if function.exported == 0 || function.is_extern != 0 { return false }
+    parameters := ParametersOf(FunctionArgs(function))
+    for p: 0..parameters.count - 1 {
+        parameter := ParameterAt(parameters, p)
+        if GoRejectsType(module, parameter.type) { return false }
+    }
+    return !GoRejectsType(module, *function.return_type[0])
+}
+
+// Marks the type of every parameter of FUNCTION; false for a malformed list.
+MarkParameters :: (program: *IR.ZirProgram, module: *IR.ZirModule, function: *IR.ZirFunction, keep_types: **u8, changed: *s32) -> bool {
+    cursor := FunctionArgs(function)
+    while cursor[0] != 0 {
+        colon := strchr(cursor, #char ":")
+        if colon == null { return false }
+        cursor = PtrAdd(colon, 1)
+        while IsSpace(cursor[0]) { cursor = PtrAdd(cursor, 1) }
+        type: [IR.ZIR_NAME_MAX]u8
+        length: usize = 0
+        while cursor[0] == #char "*" && length + 1 < IR.ZIR_NAME_MAX {
+            type[length] = cursor[0]
+            length += 1
+            cursor = PtrAdd(cursor, 1)
+        }
+        if cursor[0] == #char "[" {
+            while true {
+                if length + 1 >= IR.ZIR_NAME_MAX { return false }
+                type[length] = cursor[0]
+                length += 1
+                cursor = PtrAdd(cursor, 1)
+                if cursor[0] == 0 || type[length - 1] == #char "]" { break }
+            }
+            if type[length - 1] != #char "]" { return false }
+        }
+        while (IsAlnum(cursor[0]) || cursor[0] == #char "_" || cursor[0] == #char ".") && length + 1 < IR.ZIR_NAME_MAX {
+            type[length] = cursor[0]
+            length += 1
+            cursor = PtrAdd(cursor, 1)
+        }
+        type[length] = 0
+        if length == 0 || !MarkType(program, module, *type[0], keep_types, changed) { return false }
+        cursor = strchr(cursor, #char ",")
+        if cursor == null { break }
+        cursor = PtrAdd(cursor, 1)
+    }
+    return true
+}
+
+MarkProofFunction :: (program: *IR.ZirProgram, scope: *IR.ZirModule, name: *u8, keep: **u8) {
+    owner: *IR.ZirModule = null
+    fn: *IR.ZirFunction = null
+    changed: s32 = 0
+    if ResolveFunction(scope, name, *owner, *fn) == 1 { KeepFunction(program, owner, fn, keep, *changed) }
+}
+
+MarkProofGraph :: (program: *IR.ZirProgram, scope: *IR.ZirModule, graph: *IR.ZirFunction, keep: **u8, keep_types: **u8) -> bool {
+    changed: s32 = 0
+    if !MarkParameters(program, scope, graph, keep_types, *changed) { return false }
+    for e: 0..graph.expr_count - 1 {
+        expr := ExprAt(graph, e)
+        if expr.kind == .CAST && !MarkType(program, scope, expr.name, keep_types, *changed) { return false }
+        if expr.kind != .CALL { continue }
+        name: [IR.ZIR_NAME_MAX]u8
+        copy_text(*name[0], IR.ZIR_NAME_MAX, expr.name)
+        if name[0] == 0 && expr.left >= 0 && expr.left < graph.expr_count {
+            member := ExprAt(graph, expr.left)
+            if member.kind != .MEMBER || member.left < 0 || member.left >= graph.expr_count { continue }
+            base := ExprAt(graph, member.left)
+            if base.kind != .IDENT { continue }
+            if snprintf(*name[0], IR.ZIR_NAME_MAX, CStr("%s.%s"), base.name, member.name) >= cast(s32)IR.ZIR_NAME_MAX { continue }
+        }
+        MarkProofFunction(program, scope, *name[0], keep)
+    }
+    return true
+}
+
+IsWordByte :: (c: u8) -> bool { return IsAlnum(c) || c == #char "_" }
+
+MentionsIdentifier :: (text: *u8, name: *u8) -> bool {
+    length := strlen(name)
+    match := strstr(text, name)
+    while match != null {
+        before: u8 = 0
+        if match != text {
+            previous := PtrSub(match, 1)
+            before = previous[0]
+        }
+        after := match[length]
+        if (before == 0 || !IsWordByte(before)) && (after == 0 || !IsWordByte(after)) { return true }
+        match = strstr(PtrAdd(match, 1), name)
+    }
+    return false
+}
+
+// The globals that retained functions name. A link only ever adds retained
+// functions, so each one is read once, the first time a question finds it
+// kept, instead of every retained expression being read again for every
+// global that is asked about.
+GlobalUses :: struct {
+    program: *IR.ZirProgram
+    keep: **u8
+    read: **u8
+    used: **u8
+    names: **u8
+    name_count: s32
+}
+
+CompareNames :: (left: *void, right: *void) -> s32 {
+    a := cast(**u8)left
+    b := cast(**u8)right
+    return strcmp(a[0], b[0])
+}
+
+FreeFlagTable :: (table: **u8, count: s32) {
+    if table == null { return }
+    for m: 0..count - 1 { free(table[m]) }
+    free(cast(*u8)table)
+}
+
+GlobalUsesFree :: (uses: *GlobalUses) {
+    if uses.program == null { return }
+    FreeFlagTable(uses.read, uses.program.module_count)
+    FreeFlagTable(uses.used, uses.program.module_count)
+    free(cast(*u8)uses.names)
+}
+
+GlobalUsesStart :: (uses: *GlobalUses, program: *IR.ZirProgram, keep: **u8) -> bool {
+    memset(cast(*u8)uses, 0, size_of(GlobalUses))
+    uses.program = program
+    uses.keep = keep
+    uses.read = cast(**u8)calloc(cast(usize)program.module_count, size_of(*u8))
+    uses.used = cast(**u8)calloc(cast(usize)program.module_count, size_of(*u8))
+    if uses.read == null || uses.used == null { return false }
+    globals: s32 = 0
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        uses.read[m] = calloc(AtLeastOne(module.function_count), 1)
+        uses.used[m] = calloc(AtLeastOne(module.global_count), 1)
+        if uses.read[m] == null || uses.used[m] == null { return false }
+        globals += module.global_count
+    }
+    uses.names = cast(**u8)calloc(AtLeastOne(globals), size_of(*u8))
+    if uses.names == null { return false }
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        for g: 0..module.global_count - 1 {
+            global := GlobalAt(module, g)
+            uses.names[uses.name_count] = *global.name[0]
+            uses.name_count += 1
+        }
+    }
+    qsort(cast(*u8)uses.names, cast(usize)uses.name_count, size_of(*u8), CompareNames)
+    return true
+}
+
+// Whether OWNER is a module of PROGRAM and GLOBAL one of its globals.
+GlobalIndexIn :: (program: *IR.ZirProgram, owner: *IR.ZirModule, global: *IR.ZirGlobal, module_index: *s32, global_index: *s32) -> bool {
+    m := ModuleIndex(program, owner)
+    if m < 0 { return false }
+    for g: 0..owner.global_count - 1 {
+        if global == GlobalAt(owner, g) {
+            <<module_index = m
+            <<global_index = g
+            return true
+        }
+    }
+    return false
+}
+
+// Records the globals one retained function names.
+ReadFunctionGlobals :: (uses: *GlobalUses, module: *IR.ZirModule, function: *IR.ZirFunction) {
+    program := uses.program
+    for e: 0..function.expr_count - 1 {
+        expression := ExprAt(function, e)
+        named_call := expression.kind == .CALL && expression.slot_type[0] != 0 && expression.name[0] != 0
+        if expression.kind != .IDENT && !named_call { continue }
+        // A global can only be named by its identifier or an import-qualified
+        // identifier. Most retained expressions name locals: resolve only
+        // names that some global has.
+        symbol := strrchr(expression.name, #char ".")
+        if symbol == null {
+            symbol = expression.name
+        } else {
+            symbol = PtrAdd(symbol, 1)
+        }
+        if bsearch(cast(*u8)*symbol, cast(*u8)uses.names, cast(usize)uses.name_count, size_of(*u8), CompareNames) == null { continue }
+        // Only this program's globals are asked about; a name can also
+        // resolve into a module that the program does not hold.
+        owner: *IR.ZirModule = null
+        global: *IR.ZirGlobal = null
+        m: s32 = 0
+        g: s32 = 0
+        if ResolveGlobalAt(module, expression.name, SpanPath(expression.span), *owner, *global) == 1 &&
+           GlobalIndexIn(program, owner, global, *m, *g) {
+            uses.used[m][g] = 1
+        }
+    }
+}
+
+GlobalUsesRead :: (uses: *GlobalUses) {
+    program := uses.program
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        for f: 0..module.function_count - 1 {
+            if uses.keep[m][f] == 0 || uses.read[m][f] != 0 { continue }
+            uses.read[m][f] = 1
+            ReadFunctionGlobals(uses, module, FunctionAt(module, f))
+        }
+    }
+}
+
+GlobalIsUsed :: (uses: *GlobalUses, owner: *IR.ZirModule, global: *IR.ZirGlobal) -> bool {
+    GlobalUsesRead(uses)
+    m: s32 = 0
+    g: s32 = 0
+    if !GlobalIndexIn(uses.program, owner, global, *m, *g) { return false }
+    return uses.used[m][g] != 0
+}
+
+// Whether a used global of MODULE spells NAME in its type or initializer.
+UsedGlobalMentions :: (uses: *GlobalUses, module: *IR.ZirModule, name: *u8) -> bool {
+    for g: 0..module.global_count - 1 {
+        global := GlobalAt(module, g)
+        if GlobalIsUsed(uses, module, global) && (MentionsIdentifier(*global.type[0], name) ||
+           (global.init != null && MentionsIdentifier(global.init, name))) { return true }
+    }
+    return false
+}
+
+// Whether a kept type body or kept constant of MODULE spells NAME.
+KeptDeclarationsMention :: (module: *IR.ZirModule, keep_types: *u8, keep_defines: *u8, name: *u8) -> bool {
+    for t: 0..module.type_count - 1 {
+        type := TypeAt(module, t)
+        if keep_types[t] != 0 && MentionsIdentifier(*type.body[0], name) { return true }
+    }
+    for d: 0..module.define_count - 1 {
+        constant := DefineAt(module, d)
+        if keep_defines[d] != 0 && MentionsIdentifier(constant.value, name) { return true }
+    }
+    return false
+}
+
+UsesConstantName :: (program: *IR.ZirProgram, keep: **u8, uses: *GlobalUses, module: *IR.ZirModule, keep_types: *u8,
+                     keep_defines: *u8, name: *u8) -> bool {
+    retained := keep[ModuleIndex(program, module)]
+    for f: 0..module.function_count - 1 {
+        if retained[f] == 0 { continue }
+        function := FunctionAt(module, f)
+        for s: 0..function.stmt_count - 1 {
+            if MentionsIdentifier(StatementAt(function, s).text, name) { return true }
+        }
+        for e: 0..function.expr_count - 1 {
+            if MentionsIdentifier(ExprAt(function, e).text, name) { return true }
+        }
+    }
+    for t: 0..module.type_count - 1 {
+        type := TypeAt(module, t)
+        if keep_types[t] != 0 && MentionsIdentifier(*type.body[0], name) { return true }
+    }
+    if UsedGlobalMentions(uses, module, name) { return true }
+    for d: 0..module.define_count - 1 {
+        constant := DefineAt(module, d)
+        if keep_defines[d] != 0 && MentionsIdentifier(constant.value, name) { return true }
+    }
+    return false
+}
+
+UsesImportedConstant :: (uses: *GlobalUses, module: *IR.ZirModule, keep: *u8, keep_types: *u8, keep_defines: *u8,
+                         dependency_defines: *u8, dependency: *IR.ZirModule) -> bool {
+    for d: 0..dependency.define_count - 1 {
+        constant := DefineAt(dependency, d)
+        if dependency_defines[d] == 0 || constant.is_public == 0 { continue }
+        name := *constant.name[0]
+        for f: 0..module.function_count - 1 {
+            if keep[f] == 0 { continue }
+            function := FunctionAt(module, f)
+            for s: 0..function.stmt_count - 1 {
+                if MentionsIdentifier(StatementAt(function, s).text, name) { return true }
+            }
+        }
+        for t: 0..module.type_count - 1 {
+            type := TypeAt(module, t)
+            if keep_types[t] != 0 && MentionsIdentifier(*type.body[0], name) { return true }
+        }
+        if UsedGlobalMentions(uses, module, name) { return true }
+        for local: 0..module.define_count - 1 {
+            kept := DefineAt(module, local)
+            if keep_defines[local] != 0 && MentionsIdentifier(kept.value, name) { return true }
+        }
+    }
+    return false
+}
+
+// True when VIA is TARGET or reaches it through `using` imports, the way a
+// public module entry re-exports the modules it names. Shared paths visit
+// each module once, including unsuccessful reachability queries.
+ReexportsModule :: (via: *IR.ZirModule, target: *IR.ZirModule) -> bool {
+    if via == null { return false }
+    if via == target { return true }
+    capacity: usize = 16
+    count: usize = 1
+    seen := cast(**IR.ZirModule)AllocateOrExit(capacity * size_of(*IR.ZirModule))
+    seen[0] = via
+    at: usize = 0
+    while at < count {
+        module := seen[at]
+        for i: 0..module.import_count - 1 {
+            imported := ImportAt(module, i)
+            next := imported.resolved_module
+            if imported.is_using == 0 || next == null { continue }
+            if next == target {
+                free(cast(*u8)seen)
+                return true
+            }
+            found: usize = 0
+            while found < count && seen[found] != next { found += 1 }
+            if found < count { continue }
+            if count == capacity {
+                grown := cast(**IR.ZirModule)realloc(cast(*u8)seen, capacity * 2 * size_of(*IR.ZirModule))
+                if grown == null {
+                    free(cast(*u8)seen)
+                    DiagnosticOutOfMemory()
+                    exit(1)
+                }
+                seen = grown
+                capacity = capacity * 2
+            }
+            seen[count] = next
+            count += 1
+        }
+        at += 1
+    }
+    free(cast(*u8)seen)
+    return false
+}
+
+// True when a module reached through VIA (itself or a re-export) keeps a
+// declaration, so an importer can still resolve it through VIA.
+ReexportsKept :: (program: *IR.ZirProgram, via: *IR.ZirModule, keep_all: **u8, keep_types: **u8) -> bool {
+    for m: 0..program.module_count - 1 {
+        candidate := ModuleAt(program, m)
+        if candidate == via || !ReexportsModule(via, candidate) { continue }
+        if AnySet(keep_all[m], candidate.function_count) || AnySet(keep_types[m], candidate.type_count) { return true }
+    }
+    return false
+}
+
+// Literal global initializers store function values outside function IR.
+// This keeps each one, or with IMPORTED tells whether one comes through
+// that import, or with WANTED tells whether WANTED is one of them. -1 when
+// memory runs out.
+MarkGlobalFunctions :: (program: *IR.ZirProgram, module: *IR.ZirModule, global: *IR.ZirGlobal, keep: **u8, changed: *s32,
+                        imported: *IR.ZirModule, wanted: *IR.ZirFunction) -> s32 {
+    if global.init == null || global.init[0] == 0 { return 0 }
+    probe := cast(*IR.ZirFunction)calloc(1, size_of(IR.ZirFunction))
+    if probe == null { return -1 }
+    root := ParseExprTyped(probe, module, global.init, global.span, *global.type[0])
+    used := false
+    if root >= 0 {
+        for e: 0..probe.expr_count - 1 {
+            expression := ExprAt(probe, e)
+            owner: *IR.ZirModule = null
+            function: *IR.ZirFunction = null
+            if (expression.kind != .IDENT && expression.kind != .MEMBER) ||
+               ResolveFunction(module, expression.text, *owner, *function) != 1 || owner == null || function == null { continue }
+            if imported != null {
+                if ReexportsModule(imported, owner) { used = true }
+                continue
+            }
+            if wanted != null {
+                if function == wanted { used = true }
+                continue
+            }
+            KeepFunction(program, owner, function, keep, changed)
+        }
+    }
+    free(cast(*u8)probe.exprs)
+    free(cast(*u8)probe)
+    return ifx used then 1 else 0
+}
+
+// Whether a retained function of MODULE calls, or takes as a value, a
+// function of TARGET.
+CallsInto :: (module: *IR.ZirModule, keep: *u8, target: *IR.ZirModule) -> bool {
+    for f: 0..module.function_count - 1 {
+        if keep[f] == 0 { continue }
+        function := FunctionAt(module, f)
+        for e: 0..function.expr_count - 1 {
+            expression := ExprAt(function, e)
+            direct_call := expression.kind == .CALL && expression.slot_type[0] == 0
+            if !direct_call && expression.is_function_value == 0 { continue }
+            owner: *IR.ZirModule = null
+            callee: *IR.ZirFunction = null
+            if ResolveFunction(module, expression.name, *owner, *callee) == 1 && owner == target && callee != null { return true }
+        }
+    }
+    return false
+}
+
+// Whether a retained function of MODULE names a global of TARGET.
+NamesGlobalOf :: (module: *IR.ZirModule, keep: *u8, target: *IR.ZirModule) -> bool {
+    for f: 0..module.function_count - 1 {
+        if keep[f] == 0 { continue }
+        function := FunctionAt(module, f)
+        for e: 0..function.expr_count - 1 {
+            expression := ExprAt(function, e)
+            owner: *IR.ZirModule = null
+            global: *IR.ZirGlobal = null
+            if expression.kind == .IDENT && ResolveGlobalAt(module, expression.name, SpanPath(expression.span), *owner, *global) == 1 &&
+               owner == target && global != null { return true }
+        }
+    }
+    return false
+}
+
+ImportIsUsed :: (program: *IR.ZirProgram, module: *IR.ZirModule, keep: *u8, keep_all: **u8, uses: *GlobalUses,
+                 keep_types: **u8, keep_defines: **u8, imported: *IR.ZirImport) -> bool {
+    if imported.kind == .EXTERN {
+        for f: 0..module.function_count - 1 {
+            if keep[f] == 0 { continue }
+            function := FunctionAt(module, f)
+            for e: 0..function.expr_count - 1 {
+                expression := ExprAt(function, e)
+                if expression.kind == .CALL && Same(expression.name, *imported.name[0]) { return true }
+            }
+        }
+        return false
+    }
+    dependency := imported.resolved_module
+    if (imported.kind != .OPEN && imported.kind != .MODULE) || dependency == null { return false }
+    no_keep: **u8 = null
+    nowhere: s32 = 0
+    for g: 0..module.global_count - 1 {
+        global := GlobalAt(module, g)
+        if GlobalIsUsed(uses, module, global) && MarkGlobalFunctions(program, module, global, no_keep, *nowhere, dependency, null) != 0 { return true }
+    }
+    if ReexportsKept(program, dependency, keep_all, keep_types) { return true }
+    // A module kept only for a program export that a foreign call binds to
+    // is still reached through this import when output is reloaded.
+    r := ModuleIndex(program, dependency)
+    if r >= 0 {
+        reached := ModuleAt(program, r)
+        for f: 0..reached.function_count - 1 {
+            function := FunctionAt(reached, f)
+            if keep_all[r][f] != 0 && function.exported != 0 && function.is_extern == 0 { return true }
+        }
+        m := ModuleIndex(program, module)
+        if UsesImportedConstant(uses, module, keep, keep_types[m], keep_defines[m], keep_defines[r], dependency) { return true }
+    }
+    if CallsInto(module, keep, dependency) { return true }
+    if NamesGlobalOf(module, keep, dependency) { return true }
+    if r >= 0 && AnySet(keep_types[r], ModuleAt(program, r).type_count) { return true }
+    return false
+}
+
+// Everything one entry link decides, freed together.
+LinkState :: struct {
+    program: *IR.ZirProgram
+    native: s32
+    keep: **u8
+    keep_types: **u8
+    keep_defines: **u8
+    keep_modules: *u8
+    startup_path: *u8
+    uses: GlobalUses
+    signature: *IR.ZirFunction
+    linked: *IR.ZirProgram
+    entry_module: s32
+    entry_function: s32
+}
+
+LinkStateFree :: (state: *LinkState) {
+    count := state.program.module_count
+    FreeFlagTable(state.keep, count)
+    FreeFlagTable(state.keep_types, count)
+    FreeFlagTable(state.keep_defines, count)
+    free(state.keep_modules)
+    free(state.startup_path)
+    GlobalUsesFree(*state.uses)
+    free(cast(*u8)state.signature)
+}
+
+// Allocates the flag tables and finds the one entry; false after a
+// diagnostic or when memory runs out.
+LinkStart :: (state: *LinkState, entry_module: *u8, entry_function: *u8) -> bool {
+    program := state.program
+    count := cast(usize)program.module_count
+    state.keep = cast(**u8)calloc(count, size_of(*u8))
+    state.keep_types = cast(**u8)calloc(count, size_of(*u8))
+    state.keep_defines = cast(**u8)calloc(count, size_of(*u8))
+    state.keep_modules = calloc(count, 1)
+    state.startup_path = calloc(count, 1)
+    state.signature = cast(*IR.ZirFunction)calloc(1, size_of(IR.ZirFunction))
+    if state.keep == null || state.keep_types == null || state.keep_defines == null || state.keep_modules == null ||
+       state.startup_path == null || state.signature == null || !GlobalUsesStart(*state.uses, program, state.keep) { return false }
+    state.entry_module = -1
+    state.entry_function = -1
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        for other: 0..m - 1 {
+            if Same(*ModuleAt(program, other).name[0], *module.name[0]) {
+                Diagnostic(module.span, CStr("zx.module"), CStr("duplicate module identity: %s"), *module.name[0])
+                return false
+            }
+        }
+        state.keep[m] = calloc(AtLeastOne(module.function_count), 1)
+        state.keep_types[m] = calloc(AtLeastOne(module.type_count), 1)
+        state.keep_defines[m] = calloc(AtLeastOne(module.define_count), 1)
+        if state.keep[m] == null || state.keep_types[m] == null || state.keep_defines[m] == null { return false }
+        if !Same(*module.name[0], entry_module) { continue }
+        for f: 0..module.function_count - 1 {
+            function := FunctionAt(module, f)
+            if !Same(*function.name[0], entry_function) { continue }
+            if state.entry_function >= 0 {
+                Diagnostic(function.span, CStr("zx.entry"), CStr("ambiguous bundle entry: %s"), entry_function)
+                return false
+            }
+            state.entry_module = m
+            state.entry_function = f
+        }
+    }
+    if state.entry_module < 0 {
+        Diagnostic(Span(CStr("<bundle>"), 1, 1), CStr("zx.entry"), CStr("bundle entry was not found: %s:%s"), entry_module, entry_function)
+        return false
+    }
+    state.keep[state.entry_module][state.entry_function] = 1
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        for f: 0..module.function_count - 1 {
+            function := FunctionAt(module, f)
+            if function.retained_root != 0 || (state.native == 2 && GoExportRoot(module, function)) { state.keep[m][f] = 1 }
+        }
+    }
+    return true
+}
+
+// Keeps the functions a law or proof names in its source text.
+MarkNamedFunctions :: (program: *IR.ZirProgram, module: *IR.ZirModule, text: *u8, keep: **u8) {
+    p := text
+    while p[0] != 0 {
+        if !IsAlpha(p[0]) && p[0] != #char "_" {
+            p = PtrAdd(p, 1)
+            continue
+        }
+        start := p
+        while IsAlnum(p[0]) || p[0] == #char "_" || p[0] == #char "." { p = PtrAdd(p, 1) }
+        length := Distance(start, p)
+        if length >= IR.ZIR_NAME_MAX { continue }
+        name: [IR.ZIR_NAME_MAX]u8
+        memcpy(*name[0], start, length)
+        name[length] = 0
+        owner: *IR.ZirModule = null
+        fn: *IR.ZirFunction = null
+        changed: s32 = 0
+        if ResolveFunction(module, *name[0], *owner, *fn) == 1 { KeepFunction(program, owner, fn, keep, *changed) }
+    }
+}
+
+// Verification roots retain the code and enum domains named by their
+// obligations even when the executable entry does not call that code.
+MarkVerificationRoots :: (state: *LinkState) -> bool {
+    program := state.program
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        if module.law_count == 0 && module.proof_count == 0 { continue }
+        state.keep_modules[m] = 1
+        for d: 0..module.define_count - 1 { state.keep_defines[m][d] = 1 }
+        for t: 0..module.type_count - 1 {
+            if TypeAt(module, t).is_enum != 0 { state.keep_types[m][t] = 1 }
+        }
+        for l: 0..module.law_count - 1 {
+            law := LawAt(module, l)
+            if law.claim != null && !MarkProofGraph(program, module, law.claim, state.keep, state.keep_types) { return false }
+        }
+        for p: 0..module.proof_count - 1 {
+            proof := ProofAt(module, p)
+            scope := module
+            law_owner: *IR.ZirModule = null
+            if FindVisibleLaw(module, *proof.name[0], *law_owner) != null { scope = law_owner }
+            if !MarkProofGraph(program, scope, *proof.terms, state.keep, state.keep_types) { return false }
+            for s: 0..proof.step_count - 1 {
+                step := *proof.steps[s]
+                if step.kind == .UNFOLD && step.target[0] != 0 {
+                    MarkProofFunction(program, scope, *step.target[0], state.keep)
+                    MarkProofFunction(program, module, *step.target[0], state.keep)
+                }
+            }
+        }
+        for l: 0..module.law_count - 1 {
+            law := LawAt(module, l)
+            if law.claim == null { MarkNamedFunctions(program, module, *law.payload[0], state.keep) }
+        }
+    }
+    return true
+}
+
+// Keeps what one retained call needs: its callee, a bound host provider,
+// or with a native link the program export a foreign call binds to. False
+// after a diagnostic.
+FollowCall :: (state: *LinkState, module: *IR.ZirModule, expression: *IR.ZirExpr, changed: *s32) -> bool {
+    program := state.program
+    keep := state.keep
+    // A module's bound host capability keeps its program export even where
+    // an imported module's function of the same name takes the call: the
+    // binding is still verified. Without this such a bundle failed
+    // verification, so no bundle that was valid changes.
+    external: *IR.ZirImport = null
+    unbound: *IR.ZirImport = null
+    for i: 0..module.import_count - 1 {
+        imported := ImportAt(module, i)
+        if imported.kind != .EXTERN || !Same(*imported.name[0], expression.name) { continue }
+        external = imported
+        if imported.extern_kind == .HOST && BoundToZiran(*imported.target[0]) &&
+           KeepHostProvider(program, imported, keep, changed) != 1 && unbound == null { unbound = imported }
+    }
+    owner: *IR.ZirModule = null
+    callee: *IR.ZirFunction = null
+    if ResolveFunction(module, expression.name, *owner, *callee) == 1 && owner != null && callee != null {
+        if KeepFunction(program, owner, callee, keep, changed) { return true }
+        Diagnostic(expression.span, CStr("zx.call"), CStr("call is outside the linked program: %s"), expression.name)
+        return false
+    }
+    if unbound != null {
+        Diagnostic(unbound.span, CStr("zx.bind"), CStr("bound Ziran host provider is missing or ambiguous: %s"), *unbound.name[0])
+        return false
+    }
+    if external == null {
+        Diagnostic(expression.span, CStr("zx.call"), CStr("unresolved portable call: %s"), expression.name)
+        return false
+    }
+    if state.native == 0 { return true }
+    // A native link resolves a foreign call to the program export with the
+    // same linker symbol. Host-library imports carry no stripped C symbol;
+    // their symbol is the declared name.
+    symbol := ifx external.extern_symbol[0] != 0 then *external.extern_symbol[0] else *external.name[0]
+    for candidate: 0..program.module_count - 1 {
+        provider := ModuleAt(program, candidate)
+        for exported: 0..provider.function_count - 1 {
+            implementation := FunctionAt(provider, exported)
+            provided := ifx implementation.export_symbol[0] != 0 then *implementation.export_symbol[0] else *implementation.name[0]
+            if implementation.exported != 0 && implementation.is_extern == 0 && Same(provided, symbol) {
+                Mark(*keep[candidate][exported], changed)
+            }
+        }
+    }
+    return true
+}
+
+// One pass over the functions, globals and startup modules a module keeps.
+ReachModule :: (state: *LinkState, m: s32, changed: *s32) -> bool {
+    program := state.program
+    keep := state.keep
+    module := ModuleAt(program, m)
+    uses := *state.uses
+    active := m == state.entry_module || state.startup_path[m] != 0 || AnySet(keep[m], module.function_count)
+    if !active {
+        for g: 0..module.global_count - 1 {
+            if GlobalIsUsed(uses, module, GlobalAt(module, g)) {
+                active = true
+                break
+            }
+        }
+    }
+    for g: 0..module.global_count - 1 {
+        global := GlobalAt(module, g)
+        if GlobalIsUsed(uses, module, global) && MarkGlobalFunctions(program, module, global, keep, changed, null, null) < 0 { return false }
+    }
+    if active {
+        for f: 0..module.function_count - 1 {
+            if FunctionAt(module, f).is_global_initializer != 0 { Mark(*keep[m][f], changed) }
+        }
+        for i: 0..module.import_count - 1 {
+            dependency := ImportAt(module, i).resolved_module
+            d := ModuleIndex(program, dependency)
+            if d >= 0 && ModuleNeedsStartup(dependency) != 0 { Mark(*state.startup_path[d], changed) }
+        }
+    }
+    for f: 0..module.function_count - 1 {
+        if keep[m][f] == 0 { continue }
+        function := FunctionAt(module, f)
+        for e: 0..function.expr_count - 1 {
+            expression := ExprAt(function, e)
+            if expression.kind != .CALL && expression.is_function_value == 0 { continue }
+            if expression.kind == .CALL && (expression.slot_type[0] != 0 || BuiltinCall(expression.name)) { continue }
+            if !FollowCall(state, module, expression, changed) { return false }
+        }
+    }
+    return true
+}
+
+// Marks the types of one retained foreign import's signature.
+MarkImportSignature :: (state: *LinkState, module: *IR.ZirModule, imported: *IR.ZirImport, changed: *s32) -> bool {
+    memset(cast(*u8)state.signature, 0, size_of(IR.ZirFunction))
+    state.signature.args_text = KeepParameters(*imported.args[0])
+    return MarkType(state.program, module, *imported.return_type[0], state.keep_types, changed) &&
+           MarkParameters(state.program, module, state.signature, state.keep_types, changed)
+}
+
+// Whether a link copies IMPORTED of MODULE into the linked program.
+KeepsImport :: (state: *LinkState, module: *IR.ZirModule, m: s32, imported: *IR.ZirImport) -> bool {
+    return module.law_count != 0 || module.proof_count != 0 || imported.is_using != 0 ||
+           ImportIsUsed(state.program, module, state.keep[m], state.keep, *state.uses, state.keep_types, state.keep_defines, imported) ||
+           LawNamesImport(module, imported)
+}
+
+// Marks the types one retained function's signature, statements and
+// expressions name.
+MarkFunctionTypes :: (state: *LinkState, module: *IR.ZirModule, function: *IR.ZirFunction, changed: *s32) -> bool {
+    program := state.program
+    keep_types := state.keep_types
+    if !MarkType(program, module, *function.return_type[0], keep_types, changed) ||
+       !MarkParameters(program, module, function, keep_types, changed) { return false }
+    for s: 0..function.stmt_count - 1 {
+        if !MarkType(program, module, StatementAt(function, s).type, keep_types, changed) { return false }
+    }
+    for e: 0..function.expr_count - 1 {
+        expression := ExprAt(function, e)
+        if !MarkType(program, module, expression.type, keep_types, changed) { return false }
+        if (expression.kind == .CAST || expression.kind == .COMPOUND || expression.kind == .SIZE_OF) &&
+           !MarkType(program, module, expression.name, keep_types, changed) { return false }
+    }
+    return true
+}
+
+// Marks the types one kept type depends on.
+MarkTypeDependencies :: (state: *LinkState, module: *IR.ZirModule, type: *IR.ZirType, changed: *s32) -> bool {
+    program := state.program
+    keep_types := state.keep_types
+    if type.is_synthetic_application != 0 && !MarkType(program, module, *type.template_name[0], keep_types, changed) { return false }
+    if type.is_record_template != 0 { return true }
+    if type.is_procedure_type != 0 {
+        // A retained callback may never be invoked. Its result still belongs
+        // to the linked signature, even when no reachable expression
+        // otherwise names that type.
+        if !MarkType(program, module, *type.procedure_return_type[0], keep_types, changed) { return false }
+        memset(cast(*u8)state.signature, 0, size_of(IR.ZirFunction))
+        if strlen(*type.body[0]) >= IR.ZIR_TEXT_MAX { return false }
+        state.signature.args_text = KeepParameters(*type.body[0])
+        return MarkParameters(program, module, state.signature, keep_types, changed)
+    }
+    if type.is_enum != 0 { return true }
+    offset: usize = 0
+    field: IR.ZirTypeField
+    status: s32 = 0
+    while true {
+        status = TypeNextField(type, *offset, *field)
+        if status != 1 { break }
+        if !MarkType(program, module, *field.type[0], keep_types, changed) { return false }
+    }
+    return status >= 0
+}
+
+// One pass over the types one module's kept declarations need.
+MarkModuleTypes :: (state: *LinkState, m: s32, changed: *s32) -> bool {
+    program := state.program
+    module := ModuleAt(program, m)
+    // Foreign declarations live in imports, not the function graph. Every
+    // retained signature needs its types even if a caller only passes null,
+    // or discards the result. Use the same retention rule as the import copy
+    // below; unused signatures stay pruned.
+    for i: 0..module.import_count - 1 {
+        imported := ImportAt(module, i)
+        if imported.kind != .EXTERN || !KeepsImport(state, module, m, imported) { continue }
+        if !MarkImportSignature(state, module, imported, changed) { return false }
+    }
+    for f: 0..module.function_count - 1 {
+        if state.keep[m][f] != 0 && !MarkFunctionTypes(state, module, FunctionAt(module, f), changed) { return false }
+    }
+    for g: 0..module.global_count - 1 {
+        global := GlobalAt(module, g)
+        if GlobalIsUsed(*state.uses, module, global) && !MarkType(program, module, *global.type[0], state.keep_types, changed) { return false }
+    }
+    for t: 0..module.type_count - 1 {
+        if state.keep_types[m][t] != 0 && !MarkTypeDependencies(state, module, TypeAt(module, t), changed) { return false }
+    }
+    return true
+}
+
+// Go interfaces dispatch through the receiver's method set, outside the
+// explicit Ziran call graph. Keeps methods of every retained record; true
+// when one was added.
+KeepGoMethods :: (state: *LinkState) -> bool {
+    program := state.program
+    added := false
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        for f: 0..module.function_count - 1 {
+            function := FunctionAt(module, f)
+            if state.keep[m][f] != 0 || function.go_method[0] == 0 { continue }
+            parameters := ParametersOf(FunctionArgs(function))
+            receiver := ParameterAt(parameters, 0).type
+            if receiver[0] == #char "*" { receiver = PtrAdd(receiver, 1) }
+            record := FindType(module, receiver, null)
+            for t: 0..module.type_count - 1 {
+                if record == TypeAt(module, t) && state.keep_types[m][t] != 0 {
+                    state.keep[m][f] = 1
+                    added = true
+                }
+            }
+        }
+    }
+    return added
+}
+
+// Closes the function and type graphs; false after a diagnostic.
+ResolveReachability :: (state: *LinkState) -> bool {
+    program := state.program
+    while true {
+        changed: s32 = 1
+        while changed != 0 {
+            changed = 0
+            for m: 0..program.module_count - 1 {
+                if !ReachModule(state, m, *changed) { return false }
+            }
+        }
+        changed = 1
+        while changed != 0 {
+            changed = 0
+            for m: 0..program.module_count - 1 {
+                if !MarkModuleTypes(state, m, *changed) { return false }
+            }
+        }
+        // Retain Go methods and close their dependencies before pruning
+        // fields and declarations.
+        if state.native != 2 || !KeepGoMethods(state) { break }
+    }
+    return true
+}
+
+// Constants are source expressions in saved IR. Keep only constants
+// referenced by retained declarations, then follow their dependencies.
+KeepUsedConstants :: (state: *LinkState) {
+    program := state.program
+    changed := true
+    while changed {
+        changed = false
+        for d: 0..program.module_count - 1 {
+            dependency := ModuleAt(program, d)
+            for value: 0..dependency.define_count - 1 {
+                if state.keep_defines[d][value] != 0 { continue }
+                constant := DefineAt(dependency, value)
+                used := false
+                for m: 0..program.module_count - 1 {
+                    if used { break }
+                    consumer := ModuleAt(program, m)
+                    visible := m == d
+                    if !visible && constant.is_public != 0 {
+                        for i: 0..consumer.import_count - 1 {
+                            if ImportAt(consumer, i).resolved_module == dependency {
+                                visible = true
+                                break
+                            }
+                        }
+                    }
+                    if visible {
+                        used = UsesConstantName(program, state.keep, *state.uses, consumer, state.keep_types[m], state.keep_defines[m], *constant.name[0])
+                    }
+                }
+                if used {
+                    state.keep_defines[d][value] = 1
+                    changed = true
+                }
+            }
+        }
+    }
+}
+
+// The trimmed name before "==" of an effect or abi law, in NAME.
+LawEffectName :: (law: *IR.ZirLaw, name: *u8) {
+    payload := *law.payload[0]
+    comparison := strstr(payload, CStr("=="))
+    length := ifx comparison != null then Distance(payload, comparison) else strlen(payload)
+    if length >= IR.ZIR_NAME_MAX { length = IR.ZIR_NAME_MAX - 1 }
+    memcpy(name, payload, length)
+    name[length] = 0
+    trim_in_place(name)
+}
+
+// Keeps the constant that bounds a type or bounds law, or the type it names.
+KeepLawBound :: (state: *LinkState, m: s32, module: *IR.ZirModule, law: *IR.ZirLaw) {
+    resolved := skip_ws(*law.payload[0])
+    for depth: 0..7 {
+        if resolved[0] == #char "[" { break }
+        found: *IR.ZirDefine = null
+        for d: 0..module.define_count - 1 {
+            constant := DefineAt(module, d)
+            if Same(*constant.name[0], resolved) {
+                found = constant
+                break
+            }
+        }
+        if found == null { break }
+        resolved = skip_ws(found.value)
+    }
+    if resolved[0] == #char "[" {
+        close := strchr(resolved, #char "]")
+        if close == null { return }
+        length := Distance(resolved, close)
+        if length <= 1 || length - 1 >= IR.ZIR_NAME_MAX { return }
+        bound: [IR.ZIR_NAME_MAX]u8
+        memcpy(*bound[0], PtrAdd(resolved, 1), length - 1)
+        bound[length - 1] = 0
+        trimmed := trim_in_place(*bound[0])
+        for d: 0..module.define_count - 1 {
+            if Same(*DefineAt(module, d).name[0], trimmed) { state.keep_defines[m][d] = 1 }
+        }
+        return
+    }
+    for t: 0..module.type_count - 1 {
+        if Same(*TypeAt(module, t).name[0], resolved) { state.keep_types[m][t] = 1 }
+    }
+}
+
+// A law keeps what it names so its closure stays decidable in the linked
+// bundle.
+KeepLawSubjects :: (state: *LinkState) {
+    program := state.program
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        for l: 0..module.law_count - 1 {
+            law := LawAt(module, l)
+            kind := *law.kind[0]
+            name: [IR.ZIR_NAME_MAX]u8
+            if Same(kind, CStr("type")) || Same(kind, CStr("bounds")) {
+                KeepLawBound(state, m, module, law)
+            } else if Same(kind, CStr("size")) {
+                if LawSubject(law, *name[0]) {
+                    for t: 0..module.type_count - 1 {
+                        if Same(*TypeAt(module, t).name[0], *name[0]) { state.keep_types[m][t] = 1 }
+                    }
+                }
+            } else if Same(kind, CStr("effect")) || Same(kind, CStr("abi")) {
+                LawEffectName(law, *name[0])
+                for f: 0..module.function_count - 1 {
+                    if Same(*FunctionAt(module, f).name[0], *name[0]) { state.keep[m][f] = 1 }
+                }
+            }
+        }
+    }
+}
+
+// Marks the modules a link keeps: those with kept declarations or used
+// globals, their constant-only dependencies and their re-exporting entries.
+KeepModules :: (state: *LinkState) {
+    program := state.program
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        kept := module.law_count != 0 || module.proof_count != 0 || state.startup_path[m] != 0 ||
+            AnySet(state.keep[m], module.function_count) || AnySet(state.keep_types[m], module.type_count) ||
+            AnySet(state.keep_defines[m], module.define_count)
+        state.keep_modules[m] = ifx kept then 1 else 0
+    }
+    for m: 0..program.module_count - 1 {
+        module := ModuleAt(program, m)
+        for g: 0..module.global_count - 1 {
+            if GlobalIsUsed(*state.uses, module, GlobalAt(module, g)) { state.keep_modules[m] = 1 }
+        }
+    }
+}
+
+// Checked statement text may still use imported constants in array bounds.
+// Carries constants-only modules through the same import closure, then the
+// public module entries that only re-export: their own declarations can be
+// empty while retained callers need their import graph to resolve types
+// during saved-IR code generation.
+KeepModuleClosure :: (state: *LinkState) {
+    program := state.program
+    changed: s32 = 1
+    while changed != 0 {
+        changed = 0
+        for m: 0..program.module_count - 1 {
+            if state.keep_modules[m] == 0 { continue }
+            module := ModuleAt(program, m)
+            for i: 0..module.import_count - 1 {
+                imported := ImportAt(module, i)
+                dependency := imported.resolved_module
+                d := ModuleIndex(program, dependency)
+                if (imported.kind == .OPEN || imported.kind == .MODULE) && d >= 0 &&
+                   (module.law_count != 0 || module.proof_count != 0 ||
+                    UsesImportedConstant(*state.uses, module, state.keep[m], state.keep_types[m], state.keep_defines[m], state.keep_defines[d], dependency)) {
+                    Mark(*state.keep_modules[d], *changed)
+                }
+            }
+        }
+    }
+    changed = 1
+    while changed != 0 {
+        changed = 0
+        for m: 0..program.module_count - 1 {
+            if state.keep_modules[m] == 0 { continue }
+            module := ModuleAt(program, m)
+            for i: 0..module.import_count - 1 {
+                imported := ImportAt(module, i)
+                d := ModuleIndex(program, imported.resolved_module)
+                // A plain import keeps a re-exporting module only while it
+                // still leads to something retained.
+                if d >= 0 && (imported.is_using != 0 || ((imported.kind == .OPEN || imported.kind == .MODULE) &&
+                    ReexportsKept(program, imported.resolved_module, state.keep, state.keep_types))) {
+                    Mark(*state.keep_modules[d], *changed)
+                }
+            }
+        }
+    }
+}
+
+CountSet :: (flags: *u8, count: s32) -> s32 {
+    total: s32 = 0
+    for i: 0..count - 1 {
+        if flags[i] != 0 { total += 1 }
+    }
+    return total
+}
+
+// Copies the kept declarations of SOURCE, module M of the program, into
+// TARGET; false when memory runs out.
+CopyKeptModule :: (state: *LinkState, m: s32, source: *IR.ZirModule, target: *IR.ZirModule) -> bool {
+    program := state.program
+    kept_functions := CountSet(state.keep[m], source.function_count)
+    kept_types := CountSet(state.keep_types[m], source.type_count)
+    kept_defines := CountSet(state.keep_defines[m], source.define_count)
+    ClearModuleCopy(target, source, state.linked.context)
+    if source.parameter_count > 0 {
+        failed := false
+        target.parameters = cast(*IR.ZirModuleParameter)CopyRecords(cast(*u8)source.parameters, source.parameter_count, size_of(IR.ZirModuleParameter), *failed)
+        if failed { return false }
+        target.parameter_count = source.parameter_count
+        target.parameter_cap = source.parameter_count
+    }
+    if !CopyLaws(target, source) { return false }
+    // Statement text is reparsed when a bundle is loaded. Keep constants so
+    // symbolic array declarations retain their checked meaning.
+    if kept_defines > 0 {
+        target.defines = cast(*IR.ZirDefine)malloc(cast(usize)kept_defines * size_of(IR.ZirDefine))
+        if target.defines == null { return false }
+        for d: 0..source.define_count - 1 {
+            if state.keep_defines[m][d] != 0 {
+                slot := DefineAt(target, target.define_count)
+                <<slot = <<DefineAt(source, d)
+                target.define_count += 1
+            }
+        }
+        target.define_cap = kept_defines
+        SymbolLookupsChanged()
+    }
+    // Keep module globals read or written by retained functions. Globals used
+    // only by discarded functions must not add bundle state or unsupported
+    // initializer requirements.
+    for g: 0..source.global_count - 1 {
+        global := GlobalAt(source, g)
+        if !GlobalIsUsed(*state.uses, source, global) { continue }
+        next := cast(*IR.ZirGlobal)realloc(cast(*u8)target.globals, cast(usize)(target.global_count + 1) * size_of(IR.ZirGlobal))
+        if next == null { return false }
+        target.globals = next
+        slot := GlobalAt(target, target.global_count)
+        <<slot = <<global
+        target.global_count += 1
+        target.global_cap = target.global_count
+    }
+    if kept_functions > 0 {
+        target.functions = cast(*IR.ZirFunction)calloc(cast(usize)kept_functions, size_of(IR.ZirFunction))
+        if target.functions == null { return false }
+        target.function_count = kept_functions
+        target.function_cap = kept_functions
+        next: s32 = 0
+        for f: 0..source.function_count - 1 {
+            if state.keep[m][f] == 0 { continue }
+            if !CopyFunction(FunctionAt(target, next), FunctionAt(source, f)) { return false }
+            next += 1
+        }
+    }
+    if kept_types > 0 {
+        SymbolLookupsChanged()
+        target.types = cast(*IR.ZirType)calloc(cast(usize)kept_types, size_of(IR.ZirType))
+        if target.types == null { return false }
+        target.type_count = kept_types
+        target.type_cap = kept_types
+        next: s32 = 0
+        for t: 0..source.type_count - 1 {
+            if state.keep_types[m][t] == 0 { continue }
+            slot := TypeAt(target, next)
+            <<slot = <<TypeAt(source, t)
+            next += 1
+        }
+    }
+    if source.import_count > 0 {
+        target.imports = cast(*IR.ZirImport)calloc(cast(usize)source.import_count, size_of(IR.ZirImport))
+        if target.imports == null { return false }
+        target.import_cap = source.import_count
+    }
+    for i: 0..source.import_count - 1 {
+        imported := ImportAt(source, i)
+        d := ModuleIndex(program, imported.resolved_module)
+        startup := d >= 0 && state.startup_path[d] != 0
+        if startup || KeepsImport(state, source, m, imported) {
+            slot := ImportAt(target, target.import_count)
+            <<slot = <<imported
+            target.import_count += 1
+        }
+    }
+    return true
+}
+
+// Builds the linked program from the kept declarations and checks it as
+// saved IR; false after a diagnostic or when memory runs out.
+BuildLinked :: (state: *LinkState, entry_module: *u8, entry_function: *u8) -> bool {
+    program := state.program
+    selected := CountSet(state.keep_modules, program.module_count)
+    state.linked = ProgramNew()
+    linked := state.linked
+    if linked == null { return false }
+    linked.modules = cast(*IR.ZirModule)calloc(cast(usize)selected, size_of(IR.ZirModule))
+    if linked.modules == null { return false }
+    if ProgramInheritContexts(linked, program) == 0 { return false }
+    linked.module_count = selected
+    linked.module_cap = selected
+    out: s32 = 0
+    for m: 0..program.module_count - 1 {
+        if state.keep_modules[m] == 0 { continue }
+        target := ModuleAt(linked, out)
+        out += 1
+        if !CopyKeptModule(state, m, ModuleAt(program, m), target) { return false }
+    }
+    // Parse-time imports can load dependencies before their caller, while
+    // saved IR loads the caller first. Give both paths one module order.
+    qsort(cast(*u8)linked.modules, cast(usize)linked.module_count, size_of(IR.ZirModule), ModuleNameOrder)
+    // Removing declarations can remove a local type that shadowed an imported
+    // record field. Recheck this closed graph so its member types are
+    // canonical in the surviving scope before it is serialized or lowered.
+    // The loader still independently requires exact canonical saved IR.
+    if LinkImports(*state.linked, 1) == 0 || !PruneRecordFields(linked, entry_module, entry_function) { return false }
+    // These are already checked and pruned expression graphs. Use the same
+    // graph-preserving check as saved IR, rather than re-elaborating source
+    // expressions and producing a different source/saved graph.
+    for m: 0..linked.module_count - 1 {
+        module := ModuleAt(linked, m)
+        for f: 0..module.function_count - 1 { FunctionAt(module, f).from_ir = 1 }
+    }
+    return CheckPrograms(*state.linked, 1) != 0 && CheckLawGates(*state.linked, 1) != 0
+}
+
+// The closed program ENTRY_MODULE:ENTRY_FUNCTION reaches, or null after a
+// diagnostic. NATIVE is 1 for C and native links and 2 for Go.
+LinkCheckedEntry :: (program: *IR.ZirProgram, entry_module: *u8, entry_function: *u8, native: s32) -> *IR.ZirProgram {
+    if program == null || program.module_count <= 0 || entry_module == null || entry_function == null { return null }
+    state := cast(*LinkState)AllocateOrExit(size_of(LinkState))
+    memset(cast(*u8)state, 0, size_of(LinkState))
+    state.program = program
+    state.native = native
+    ok := LinkStart(state, entry_module, entry_function) && MarkVerificationRoots(state) && ResolveReachability(state)
+    if ok {
+        KeepUsedConstants(state)
+        KeepModules(state)
+        KeepLawSubjects(state)
+        KeepModuleClosure(state)
+        ok = BuildLinked(state, entry_module, entry_function)
+    }
+    linked := state.linked
+    LinkStateFree(state)
+    free(cast(*u8)state)
+    if !ok {
+        ProgramFree(linked)
+        return null
+    }
+    return linked
+}

@@ -51,6 +51,8 @@ S16's persistence ports cover the checked IR codec, module loading, locked
 package resolution, and executable ZX asset collection. Both compiler stages
 link the Ziran modules. The C boundary supplies host paths and streams and
 preserves the existing C signatures. The checked IR format remains version 66.
+Entry linking for the C, Go and native backends, `compiler_zx_link`, replaces
+`zir_link.c` with the same exported C entry points.
 
 S16–S18 remain open for the remaining portable ZX and host interfaces, inline
 assembly and tool drivers, and the stage-0 through stage-2 fixed-point proof.
@@ -243,7 +245,7 @@ C ABI/storage boundary:
 | `zir_host.c` | embedding API `BundleOpen:46`, instances `:335`, run `:348`, state/components `:653`, `:868` | `compiler_host_api` | S16 |
 | `zir_host_exec.c` / `.h` | executable ZX engine facade; bundle open `ExecBundleOpen:421`, host instances `:1399`; no-engine stubs `:1396` onward | `compiler_zx_exec` | S16 |
 | `zir_law.c` / `.h` | laws and parallel-region checks `CheckLawGates:877`, `CheckParallelRegions:1856` | `compiler_law_runtime` | S15 |
-| `zir_link.c` | portable link/assets; `split_binding_name:27` | `compiler_zx_link` | S16 |
+| `compiler_zx_link.zi` / `zir_link.h` | entry linking and host binding; C declarations in `zir_link.h` | `compiler_zx_link` | S16 |
 | `compiler_load.zi` / `zir_load.h` | toolchain discovery and source or checked IR module loading | `compiler_load`; C declarations in `zir_load.h` | S16 persistence |
 | `zir_memory.c` / `.h` | compiler memory arenas `CompilerMemoryBegin:18` | Ziran allocator; only hooks remain in bootstrap runtime | S18 |
 | `zir_native.c` / `.h` | collision-safe native names `PrepareNativeNames:11` | `compiler_native_names` | S17 |
@@ -272,6 +274,7 @@ C ABI/storage boundary:
 | `zir_thread.h` | thread/context scope API `:28-54` | `compiler_context_types` and the TLS backing in `zir_memory.c` | S15 |
 | `zir_token.c` / `.h` | lexer state over generated scanner `LexerInit:22`, `LexerNext:53` | existing `compiler_token` and `compiler_scan` | S15 |
 | `zir_type.c` | cached type queries from `:12`, generated calls `:278`, `:363`, `:395` | `compiler_frontend_ir` | S15 |
+| `zir_zx_module.c` | hosted ZX module runtime: module state, components and the `include/ziran_zx_module.h` API | `compiler_zx_module` | S16 |
 | `zir_zx_wasm.c` / `.h` | Wasm runtime provider/platform `ZxWasmInstallBundledPlatform:50`, host memory `:83`; lowering calls `:320`, `:443`, `:474` | `compiler_zx_wasm_host` | S16 |
 | `zir_zx_wasm_platform.h` | provider ABI `:47`, set/active `:54`, `:55` | `compiler_zx_wasm_host` | S16 |
 | `zir_zx_wasm_web.c` | Emscripten/JS bridge `EM_JS` entries from `:35`, `:85`, `:93` | `compiler_zx_wasm_web` behind provider ABI | S16 |
@@ -536,10 +539,16 @@ No step commits before its implementation and proof are complete.
   The generated seeds support stage 0. `zir_persistence_host.c` supplies host
   streams and translates the existing C call signatures. `ProgramSet`,
   `ZxAsset`, and `ZxAssets` come from the generated headers.
-- Port portable linking, the portable command runner, the native embedding
-  and execution APIs, and the Wasm provider and web bridges. Preserve the
-  public embedding and executable APIs and add their modules to bootstrap.
-- Retire the replaced `zir_link.c`, `zir_host.c`, `zir_host_exec.c`,
+- `compiler_zx_link` (`cmd/compiler_zx_link.zi` with the loaded
+  `compiler_zx_link_prune.zi` and `compiler_zx_link_reach.zi`) replaces
+  `zir_link.c`: host binding, the private program copy, dead statement and
+  record field pruning, and entry reachability. It exports `BindHostProvider`,
+  `BindHostModule`, `NativeLink`, `NativeGoLink` and `ProgramUsesFunction`
+  for the C tool drivers.
+- Port the portable command runner, the native embedding and execution APIs,
+  the hosted module runtime, and the Wasm provider and web bridges. Preserve
+  the public embedding and executable APIs and add their modules to bootstrap.
+- Retire the replaced `zir_host.c`, `zir_host_exec.c`, `zir_zx_module.c`,
   `zir_zx_wasm.c`, `zir_zx_wasm_web.c`, `zir_exec_console.h`, and
   `cmd/zi2zx/zx_exec_run.c` as those ports land.
 - Verify saved bytes and diagnostics against the previous compiler, then run

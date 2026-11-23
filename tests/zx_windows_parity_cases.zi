@@ -6,7 +6,9 @@
 // reproducible. Every .exe keeps W^X sections, is ASLR- and NX-ready, and
 // its base relocations reach only addresses inside its image; hello.exe
 // imports exactly GetStdHandle, WriteFile and ExitProcess, and a program
-// that prints nothing imports only ExitProcess.
+// that prints nothing imports only ExitProcess. A program that prints more
+// than once buffers its output and imports GetConsoleMode too: a console
+// gets each line once it ends, a redirected descriptor whole buffers.
 //
 // Wine is WINE, or wine on PATH. Without it the test is skipped, unless
 // WINDOWS_REQUIRED=1, as in CI.
@@ -247,6 +249,66 @@ Agrees :: (test: *NativeTest, wine: string, label: string, elf: string, exe: str
     return reference
 }
 
+// The number TEXT spells, or -1 when it spells none.
+NumberText :: (text: string) -> s64 {
+    value: s64 = -1
+    for index: cast(s64)0..text.count - 1 {
+        if text[index] < cast(u8)48 || text[index] > cast(u8)57 { continue }
+        if value < 0 { value = 0 }
+        value = value * 10 + cast(s64)(text[index] - cast(u8)48)
+    }
+    return value
+}
+
+// A program that prints, works, then prints again. The Windows .exe imports
+// exactly the console set, and redirected it prints and exits as its ELF.
+// Under a pseudo-terminal each system must show the first line while the
+// program is still working: the run records when that line arrived and when
+// the program ended, so a whole-buffer console cannot pass by timing.
+ConsoleLines :: (test: *NativeTest, tools: string, wine: string) -> bool {
+    app := CheckPath(test.work, "pace.zi")
+    unused NativeWrite(test, app, "#program_export\nmain :: () -> s32 {\n    print(\"first\\n\")\n    total: s64 = 0\n    for outer: 0..9 {\n        for index: 0..999999999 { total += (index & 1023) }\n    }\n    print(\"second %\\n\", total)\n    return 7\n}\n")
+    zx := CheckPath(test.work, "pace.zx")
+    lower := string.[CheckPath(tools, "zi2zx"), "--root", test.work, "--entry", "pace:main", "-o", zx, app]
+    unused NativeRun(test, lower[:])
+    elf := CheckPath(test.work, "pace.elf")
+    exe := CheckPath(test.work, "pace.exe")
+    if test.failed || !Executables(test, tools, zx, elf, exe) { return false }
+    console := string.["ExitProcess", "GetStdHandle", "WriteFile", "GetConsoleMode"]
+    count: s64 = 0
+    if !PeCheck(test, exe, console[:], *count) { return false }
+    reference := Agrees(test, wine, "pace:main", elf, exe)
+    if !NativeAssert(test, reference.code == 7, "the paced program did not exit 7") { return false }
+    if CheckExecutable("script") == "" {
+        print("SKIP: console line timing needs script\n")
+        return true
+    }
+    // The terminal run polls the raw output until the first line shows,
+    // keeps that moment's file, then lets the program finish.
+    measure := CheckPath(test.work, "pace.sh")
+    unused NativeWrite(test, measure, "#!/bin/sh\nstart=$(date +%s%N)\nscript -qec \"$1\" /dev/null < /dev/null > \"$2\" 2>/dev/null &\npid=$!\nwhile ! grep -q first \"$2\" 2>/dev/null; do\n    sleep 0.02\n    kill -0 $pid 2>/dev/null || break\ndone\nfirst=$(date +%s%N)\ncp \"$2\" \"$2.at-first\"\nwait $pid\nstatus=$?\nend=$(date +%s%N)\necho $(( (first - start) / 1000000 )) > \"$3.first\"\necho $(( (end - start) / 1000000 )) > \"$3.total\"\necho $status > \"$3.status\"\n")
+    for index: cast(s64)0..1 {
+        label := ifx index == 0 then "ELF" else "Windows"
+        run := ifx index == 0 then elf else CheckConcat("env -u TMPDIR ", CheckConcat(wine, CheckConcat(" ", exe)))
+        raw := CheckPath(test.work, CheckConcat("pace", CheckConcat(CheckNumber(index), ".raw")))
+        report := CheckPath(test.work, CheckConcat("pace", CheckNumber(index)))
+        command := string.["sh", measure, run, raw, report]
+        unused NativeRun(test, command[:])
+        first := NumberText(NativeRead(test, CheckConcat(report, ".first")))
+        total := NumberText(NativeRead(test, CheckConcat(report, ".total")))
+        status := NumberText(NativeRead(test, CheckConcat(report, ".status")))
+        early := NativeRead(test, CheckConcat(raw, ".at-first"))
+        whole := NativeRead(test, raw)
+        parts := string.["console line mode ", label, ": the first line arrived after ", CheckNumber(first),
+            " ms and the program ended after ", CheckNumber(total), " ms with status ", CheckNumber(status)]
+        if !NativeAssert(test, first >= 0 && first + 1000 < total, TextDetach(TextJoin(parts[:], ""))) { return false }
+        wrong := string.["console line mode ", label, ": the terminal did not show the first line alone, then the second"]
+        if !NativeAssert(test, status == 7 && TextContains(early, "first") && !TextContains(early, "second") &&
+            TextContains(whole, "second"), TextDetach(TextJoin(wrong[:], ""))) { return false }
+    }
+    return true
+}
+
 // Real named DLL imports, two providers, Win64 register/stack placement,
 // aggregate arguments, floating results and narrow signed/unsigned results.
 WindowsHosts :: (test: *NativeTest, tools: string, wine: string) -> bool {
@@ -395,6 +457,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
             CheckConcat(item.entry, ": an expected trap did not trap"))
     }
     if !NativeAssert(*test, unwind > 0, "no Windows image carried x64 unwind data") { return 1 }
+    unused NativeAssert(*test, ConsoleLines(*test, tools, wine), "console line mode failed")
     unused NativeAssert(*test, WindowsHosts(*test, tools, wine), "Windows external hosts failed")
     server := CheckExecutable("wineserver")
     if server != "" {
@@ -402,6 +465,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         unused NativeInvoke(*test, stop[:])
     }
     if test.failed { return 1 }
+    print("Windows console line mode: the first line reaches a terminal while the program works, on Linux and Windows\n")
     print("Windows named DLL hosts: two providers, Win64 scalar/record/float arguments, IAT/map/determinism and explicit gaps passed\n")
     version := string.["env", "-u", "TMPDIR", wine, "--version"]
     print("Windows parity: % programs print and exit as their Linux native ELFs, as PE32+ executables under %",

@@ -22,8 +22,8 @@ using Win64 :: #import "compiler_x86_win64"
 // writes directly, with no buffer and no terminal probe. Every write takes all
 // its bytes, repeating after a partial write or EINTR; a failed write exits
 // with status 125. Windows writes descriptor N to GetStdHandle(-10 - N) with
-// WriteFile and buffers standard output in whole buffers: telling a console
-// apart would take another import.
+// WriteFile; GetConsoleMode tells a console, which gets each line once it
+// ends, from a redirected or piped descriptor, which gets whole buffers.
 //
 // Resize(rdi = data or null, rsi = old count, rdx = new count, rcx = element
 // size) -> rax: the new data, or null when freed or refused. A refused
@@ -711,7 +711,7 @@ EmitBuffer :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
         X86Move(writer, Rsi, Rdi)
     }
     Mark(emitter, .Stdout)
-    if !Windows(emitter) { EmitTerminalMode(emitter) }
+    EmitTerminalMode(emitter)
     Mark(emitter, .Known)
     X86Load(writer, Rax, OutLength(emitter), 8, false)
     X86MoveImmediate32(writer, Rcx, MachineX64RuntimeOutBytes)
@@ -750,7 +750,6 @@ EmitBuffer :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
     Mark(emitter, .Long)
     X86Byte(writer, 243); X86Byte(writer, 164)
     Mark(emitter, .Appended)
-    if Windows(emitter) { X86Return(writer); return }
     // A terminal gets each line once it ends.
     CompareByteAt(writer, OutMode(emitter), 1)
     JumpIf(emitter, X86NotEqual, .WriteDone)
@@ -762,23 +761,44 @@ EmitBuffer :: (emitter: *Emitter, uses: MachineX64RuntimeUses) {
     Jump(emitter, .Flush)
 }
 
-// The first write learns whether standard output is a terminal.
+// The first write learns whether standard output is a terminal: Linux asks
+// ioctl TCGETS, Windows GetConsoleMode, which fails once output is
+// redirected. A terminal is mode 1 and anything else mode 2.
 EmitTerminalMode :: (emitter: *Emitter) {
     writer := *emitter.writer
     CompareByteAt(writer, OutMode(emitter), 0)
     JumpIf(emitter, X86NotEqual, .Known)
     X86Push(writer, Rsi); X86Push(writer, Rdx)
-    X86SubtractStack(writer, 64)
-    X86MoveImmediate32(writer, Rdi, 1)
-    X86MoveImmediate32(writer, Rsi, 0x5401)
-    X86Move(writer, Rdx, X86Rsp)
-    Syscall(writer, 16)
-    X86Encode(writer, 0, true, 131, 1, 0, X86Direct(X86Rsp), trailing = 1)
-    X86Byte(writer, 64)
-    X86MoveImmediate32(writer, Rcx, 2)
-    X86MoveImmediate32(writer, Rdx, 1)
-    X86Arithmetic(writer, X86Test, Rax, Rax)
-    X86Encode(writer, 0, false, 0x0f44, 2, Rcx, X86Direct(Rdx))
+    if Windows(emitter) {
+        // GetConsoleMode(GetStdHandle(STD_OUTPUT_HANDLE), &mode): nonzero
+        // for a console. The mode lands in 32 bytes of stack.
+        X86MoveImmediate32(writer, Rcx, 0xfffffff5)
+        Kernel32(emitter, .GetStdHandle)
+        X86SubtractStack(writer, 32)
+        X86Encode(writer, 0, true, 199, 1, 0, X86At(X86Rsp, 0), trailing = 4)
+        X86Little(writer, 0, 4)
+        X86Move(writer, Rcx, Rax)
+        X86Move(writer, Rdx, X86Rsp)
+        Kernel32(emitter, .GetConsoleMode)
+        X86Encode(writer, 0, true, 131, 1, 0, X86Direct(X86Rsp), trailing = 1)
+        X86Byte(writer, 32)
+        X86MoveImmediate32(writer, Rcx, 2)
+        X86MoveImmediate32(writer, Rdx, 1)
+        TestLow(writer)
+        X86Encode(writer, 0, false, 0x0f45, 2, Rcx, X86Direct(Rdx))
+    } else {
+        X86SubtractStack(writer, 64)
+        X86MoveImmediate32(writer, Rdi, 1)
+        X86MoveImmediate32(writer, Rsi, 0x5401)
+        X86Move(writer, Rdx, X86Rsp)
+        Syscall(writer, 16)
+        X86Encode(writer, 0, true, 131, 1, 0, X86Direct(X86Rsp), trailing = 1)
+        X86Byte(writer, 64)
+        X86MoveImmediate32(writer, Rcx, 2)
+        X86MoveImmediate32(writer, Rdx, 1)
+        X86Arithmetic(writer, X86Test, Rax, Rax)
+        X86Encode(writer, 0, false, 0x0f44, 2, Rcx, X86Direct(Rdx))
+    }
     X86Store(writer, OutMode(emitter), Rcx, 1)
     Pop(writer, Rdx); Pop(writer, Rsi)
 }
@@ -867,6 +887,7 @@ MachineX64RuntimeImports :: (uses: MachineX64RuntimeUses) -> u32 {
     if MachineX64RuntimeConsole(uses) {
         imports |= MachineWin64ImportBit(.GetStdHandle) | MachineWin64ImportBit(.WriteFile)
     }
+    if uses.buffered { imports |= MachineWin64ImportBit(.GetConsoleMode) }
     if uses.resize {
         imports |= MachineWin64ImportBit(.VirtualAlloc) | MachineWin64ImportBit(.VirtualFree)
     }

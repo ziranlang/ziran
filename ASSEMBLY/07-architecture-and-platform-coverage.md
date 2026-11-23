@@ -71,8 +71,10 @@ registers ([`compiler_x86_win64.zi`](../cmd/compiler_x86_win64.zi)). Code
 inside the program keeps the Ziran-internal convention on both. The PE imports
 only what its runtime calls, is DYNAMIC_BASE/HIGH_ENTROPY_VA with base
 relocations for the pointer runtime's addresses and NX_COMPAT, and commits an
-8 MiB stack, so frames need no probes; it has no unwind data yet. Every other
-described row fails before input/output with
+8 MiB stack, so frames need no probes; every function with a prologue carries
+x64 unwind data (.pdata and .xdata), and a console gets each line once it ends
+where a redirected descriptor gets whole buffers. Every other described row
+fails before input/output with
 `assembly.gap.machine-platform-service-unavailable` because it has no
 executable writer or process-entry/`write_all`/exit runtime. Once a registry row
 is Implemented, a CPU feature it does not implement (including another

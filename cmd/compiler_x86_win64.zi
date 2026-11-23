@@ -10,8 +10,10 @@ using Bytes :: #import "compiler_x86_bytes"
 // and rsi, so a runtime routine keeps its own contract across a call.
 
 // The kernel32 functions a runtime may call, in import order.
-MachineWin64Import :: enum s32 { ExitProcess; GetStdHandle; WriteFile; VirtualAlloc; VirtualFree }
-MachineWin64ImportCount :: 5
+MachineWin64Import :: enum s32 {
+    ExitProcess; GetStdHandle; WriteFile; VirtualAlloc; VirtualFree; GetConsoleMode
+}
+MachineWin64ImportCount :: 6
 
 // The image's IAT slot for each import, as a runtime position; a slot the
 // image does not import is never called.
@@ -27,7 +29,8 @@ MachineWin64ImportName :: (entry: MachineWin64Import) -> string {
     if entry == .GetStdHandle { return "GetStdHandle" }
     if entry == .WriteFile { return "WriteFile" }
     if entry == .VirtualAlloc { return "VirtualAlloc" }
-    return "VirtualFree"
+    if entry == .VirtualFree { return "VirtualFree" }
+    return "GetConsoleMode"
 }
 
 // An aligned call frame: push rbp; mov rbp, rsp; and rsp, -16; sub rsp,

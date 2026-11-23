@@ -343,7 +343,7 @@ TargetRowAt :: (index: s32) -> TargetRow {
     }
     if index == 2 {
         return .{arch = .X86_64, os = .Windows, state = .Gap, executable = "pe", milestone = "M5",
-            note = "zx2native writes a PE32+ console executable whose runtime calls kernel32 through its IAT; no in-process loader, unwind data, files or clock."}
+            note = "zx2native writes a PE32+ console executable whose runtime calls kernel32 through its IAT, with x64 unwind data and console line mode; no in-process loader, files or clock."}
     }
     if index == 3 {
         return .{arch = .X86_64, os = .MacOS, state = .Gap, milestone = "M5",

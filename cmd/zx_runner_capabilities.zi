@@ -12,8 +12,12 @@
 #import "std/file_tree_linux"
 #import "std/timer_linux"
 using Vectors :: #import "std/vec"
-// The window set needs SDL2; a runner built without it lacks guest_window.
-#if #defined(ZX_WINDOW) {
+// The window set needs a window host: SDL2 on a desktop, the app's EGL glue
+// on Android. A runner built without one lacks guest_window.
+#if #defined(ZX_ANDROID) {
+    Window :: #import "zx_runner_window_android";
+}
+#if #defined(ZX_WINDOW) && !#defined(ZX_ANDROID) {
     Window :: #import "zx_runner_window";
 }
 
@@ -40,7 +44,7 @@ RunnerProvides :: (module: string, function: string) -> bool {
             function == "FileRemoveHost" || function == "FileRenameHost" ||
             function == "DirectoryMakeHost" || function == "DirectoryListHost"
     }
-    #if #defined(ZX_WINDOW) {
+    #if #defined(ZX_WINDOW) || #defined(ZX_ANDROID) {
         if module == "guest_window" {
             return function == "WindowOpenHost" || function == "WindowPresentHost" ||
                 function == "WindowNextEventHost" || function == "WindowWaitHost" ||
@@ -172,7 +176,7 @@ FileCall :: (state: *RunnerState, function: string, arguments: *HostValue, count
     return 0
 }
 
-#if #defined(ZX_WINDOW) {
+#if #defined(ZX_WINDOW) || #defined(ZX_ANDROID) {
 WindowCall :: (state: *RunnerState, function: string, arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
     if function == "WindowOpenHost" && count == 4 {
         opened := Window.WindowOpen(Text(arguments[0]), cast(s32)Whole(arguments[1]), cast(s32)Whole(arguments[2]), Whole(arguments[3]) != 0)
@@ -222,7 +226,7 @@ RunnerCall :: (context: *void, module_name: *u8, function_name: *u8,
     if module == "guest_clock" { return ClockCall(function, count, result) }
     if module == "guest_process" { return ProcessCall(state, function, arguments, count, result) }
     if module == "guest_files" { return FileCall(state, function, arguments, count, result) }
-    #if #defined(ZX_WINDOW) {
+    #if #defined(ZX_WINDOW) || #defined(ZX_ANDROID) {
         if module == "guest_window" { return WindowCall(state, function, arguments, count, result) }
     }
     return 0

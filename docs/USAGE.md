@@ -40,6 +40,9 @@ bundles use installed package-provided platform hosts through the same command;
 see [runtime providers](ZX.md#running-bundles). `make install-user` also
 installs ZX Runner: `zx app.zx` runs a bundle with the toolchain's own
 runtime, and file managers open `.zx` files with it ([ZX Runner](ZX.md#zx-runner)).
+`python3 packaging/android/build.py` builds the same runner as an Android APK
+(`build/android-zx/zx-runner.apk`) with [`packaging/android`](../packaging/android);
+it registers the `.zx` type for `VIEW` and `SEND`.
 
 ## Integer literals
 

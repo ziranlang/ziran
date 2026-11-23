@@ -1,0 +1,44 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.ziranlang.zx"
+    android:versionCode="1"
+    android:versionName="0.1">
+  <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="28"/>
+  <application
+      android:label="ZX Runner"
+      android:icon="@mipmap/ic_launcher"
+      android:roundIcon="@mipmap/ic_launcher_round"
+      android:hasCode="true"
+      android:extractNativeLibs="true"
+      android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+    <activity
+        android:name=".LauncherActivity"
+        android:exported="true"
+        android:label="ZX Runner">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN"/>
+        <category android:name="android.intent.category.LAUNCHER"/>
+      </intent-filter>
+    </activity>
+    <activity
+        android:name=".RunnerActivity"
+        android:exported="true"
+        android:label="ZX Runner"
+        android:screenOrientation="fullSensor"
+        android:configChanges="orientation|keyboardHidden|screenSize|keyboard|navigation|uiMode|density">
+      <meta-data android:name="android.app.lib_name" android:value="zxrunner"/>
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:mimeType="application/x-ziran-bundle"/>
+        <data android:scheme="content" android:pathPattern=".*\\.zx"/>
+        <data android:scheme="file" android:pathPattern=".*\\.zx"/>
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.SEND"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <data android:mimeType="application/x-ziran-bundle"/>
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>

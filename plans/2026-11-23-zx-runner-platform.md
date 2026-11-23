@@ -62,6 +62,14 @@ modular arcihetcuer".
    Kryon's players (desktop_zx, app_player, window_player, zx_window_*,
    bundle_player*, android_bundle_run) and the player copies
    `mk/ziran-project.mk` installs are deleted; app lanes bump their pins.
-4. Android ZX Runner APK on the same capability set: opens `.zx` from VIEW
-   and SEND intents (`application/x-ziran-bundle`, `*.zx`) and its own recent
-   list; tested on the Moto (armv7) and Pixel 4a (aarch64).
+4. Done: Android ZX Runner APK on the same capability set
+   (`packaging/android/build.py`). It opens `.zx` from VIEW and
+   SEND intents (`application/x-ziran-bundle`, `*.zx`) and from its launcher,
+   which picks a program and keeps a recent list. The window set is answered
+   by the activity's EGL surface, letterboxed, with touch and key input mapped
+   back into the bundle's pixels. Verified on the Moto (armv7, Android 9) and
+   a Pixel 3a (arm64, Android 12): the console bundle prints and exits 42, a
+   Kryon pixmap bundle renders its button page, and a tap raises the counter.
+   Open: soft-keyboard text entry, pointer cursors and a multi-instance
+   foreground service for long-running programs; the launcher's recents are
+   app-private copies, so a removed file leaves a dead row until long-pressed.

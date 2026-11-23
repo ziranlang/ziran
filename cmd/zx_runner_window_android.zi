@@ -1,0 +1,80 @@
+// ZX Runner's window capabilities (std/guest_window) on Android: the
+// NativeActivity surface, presented by the app's own EGL glue
+// (packaging/android/native/zx_android.c). Touch and key events arrive from
+// the same glue already translated to guest events, so this module only
+// opens, presents, waits and forwards the clipboard and text input.
+#import "std/byte_text_linux"
+#import "std/c_string"
+using Vectors :: #import "std/vec"
+
+#scope_file
+zxandroid :: #system_library "zxandroid";
+Ready :: () -> s32 #foreign zxandroid "zx_android_ready";
+Width :: () -> s32 #foreign zxandroid "zx_android_width";
+Height :: () -> s32 #foreign zxandroid "zx_android_height";
+Present :: (pixels: *u8, width: s32, height: s32) -> s32 #foreign zxandroid "zx_android_present";
+NextEvent :: (out: *u8) -> s32 #foreign zxandroid "zx_android_next_event";
+Wait :: (milliseconds: s32) -> s32 #foreign zxandroid "zx_android_wait";
+SetTitle :: (title: *u8) #foreign zxandroid "zx_android_set_title";
+SetTextInput :: (active: s32) #foreign zxandroid "zx_android_set_text_input";
+ClipboardReadRaw :: (out: *u8, capacity: s32) -> s32 #foreign zxandroid "zx_android_clipboard_read";
+ClipboardWriteRaw :: (text: *u8) -> s32 #foreign zxandroid "zx_android_clipboard_write";
+CloseWindow :: () #foreign zxandroid "zx_android_close";
+
+EVENT_BYTES :: 40;
+CLIPBOARD_BYTES :: 65536;
+
+// The guest event bytes WindowNextEvent's result borrows.
+event_bytes: [EVENT_BYTES]u8;
+// ClipboardRead's landing buffer.
+clipboard_bytes: [CLIPBOARD_BYTES]u8;
+
+#scope_export
+WindowOpen :: (title: string, width: s32, height: s32, resizable: bool) -> bool {
+    if width <= 0 || height <= 0 || width > 16384 || height > 16384 { return false }
+    name: [512]u8
+    if CopyCString(ifx title.count < 511 then title else title[0:511], name[:]) { SetTitle(*name[0]) }
+    return Ready() == 1
+}
+
+WindowPresent :: (pixels: []u8, width: s32, height: s32) -> bool {
+    if width <= 0 || height <= 0 { return false }
+    if pixels.count < cast(s64)width * cast(s64)height * 4 { return false }
+    return Present(*pixels[0], width, height) == 1
+}
+
+// The next guest event's bytes, or an empty slice when none is waiting.
+WindowNextEvent :: () -> []u8 {
+    if NextEvent(*event_bytes[0]) != 1 { return event_bytes[0:0] }
+    return event_bytes[:]
+}
+
+WindowWait :: (milliseconds: s32) -> bool { return Wait(milliseconds) == 1 }
+
+WindowSize :: () -> (width: s32, height: s32) { return Width(), Height() }
+
+WindowTitle :: (title: string) {
+    name: [512]u8
+    if CopyCString(ifx title.count < 511 then title else title[0:511], name[:]) { SetTitle(*name[0]) }
+}
+
+// Android has no hardware cursor.
+WindowCursor :: (shape: s32) {}
+
+WindowTextInput :: (active: bool) { SetTextInput(ifx active then 1 else 0) }
+
+ClipboardRead :: (answer: *Vec(u8)) {
+    VecClear(<<answer)
+    length := ClipboardReadRaw(*clipboard_bytes[0], CLIPBOARD_BYTES)
+    if length <= 0 { return }
+    for index: 0..cast(s64)length - 1 { VecPush(<<answer, clipboard_bytes[index]) }
+}
+
+ClipboardWrite :: (text: string) -> bool {
+    copy: Vec(u8)
+    for byte: text { VecPush(copy, byte) }
+    VecPush(copy, 0)
+    return ClipboardWriteRaw(*copy[0]) == 1
+}
+
+WindowClose :: () { CloseWindow() }

@@ -7,14 +7,13 @@ permissions:
 
 jobs:
   quick:
-    runs-on: build-native-primary
+    # Build's primary host slot. ccache is installed on the host.
+    runs-on: build-primary
     timeout-minutes: 15
     steps:
       - uses: https://github.com/actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Prepare the C compiler cache
-        run: sh scripts/ci_packages.sh ccache
       - uses: ./.github/actions/compile-cache
         with:
           key: check

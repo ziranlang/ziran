@@ -959,28 +959,73 @@ Canonical :: (type: *u8) -> *u8 {
     return type
 }
 
+#scope_file
+
+NativeHashText :: (hash: u64, text: *u8) -> u64 {
+    p := text
+    while p[0] != 0 {
+        hash = (hash ^ cast(u64)p[0]) * cast(u64)FNV_PRIME
+        p = PtrAdd(p, 1)
+    }
+    return (hash ^ cast(u64)0xff) * cast(u64)FNV_PRIME
+}
+
+// What a type whose name another type shares is named by. A declared type is
+// named by where it is declared. A type application is named by what it
+// applies, its template and each argument type, so every module that spells
+// one application, as Vec(Entry) or Vec(C.Entry), emits one native type
+// while another module's own Entry gives another.
+NativeTypeIdentity :: (hash: u64, owner: *IR.ZirModule, type: *IR.ZirType, depth: s32) -> u64 {
+    template_owner: *IR.ZirModule = null
+    template: *IR.ZirType = null
+    if depth < 16 && type.is_synthetic_application != 0 && type.template_name[0] != 0 {
+        template = CFindType(owner, *type.template_name[0], *template_owner)
+    }
+    if template == null || template == type {
+        hash = NativeHashText(NativeHashText(hash, *owner.source_path[0]), CSpanPath(type.span))
+        coords: [2]u32 = .{cast(u32)type.span.line, cast(u32)type.span.column}
+        for i: 0..1 {
+            for b: 0..3 {
+                hash = (hash ^ cast(u64)((coords[i] >> cast(u32)(b * 8)) & 0xff)) * cast(u64)FNV_PRIME
+            }
+        }
+        return hash
+    }
+    hash = NativeTypeIdentity(hash, ifx template_owner != null then template_owner else owner, template, depth + 1)
+    p := *type.template_args[0]
+    while p[0] != 0 {
+        if !IsAlnum(p[0]) && p[0] != #char "_" {
+            hash = (hash ^ cast(u64)p[0]) * cast(u64)FNV_PRIME
+            p = PtrAdd(p, 1)
+            continue
+        }
+        token: [256]u8
+        length: usize = 0
+        while IsAlnum(p[0]) || p[0] == #char "_" || (p[0] == #char "." && (IsAlnum(p[1]) || p[1] == #char "_")) {
+            if length < 255 { token[length] = p[0]; length += 1 }
+            p = PtrAdd(p, 1)
+        }
+        token[length] = 0
+        argument_owner: *IR.ZirModule = null
+        argument := ifx IsDigit(token[0]) then null else CFindType(owner, *token[0], *argument_owner)
+        if argument != null && BuiltinType(*argument.name[0]) != argument {
+            hash = NativeTypeIdentity(hash, ifx argument_owner != null then argument_owner else owner, argument, depth + 1)
+        } else {
+            hash = NativeHashText(hash, *token[0])
+        }
+    }
+    return hash
+}
+
+#scope_export
+
 #program_export
 NativeTypeName :: (owner: *IR.ZirModule, type: *IR.ZirType, out: *u8, size: usize) {
     if type.native_name_mangled == 0 {
         copy_text(out, size, *type.name[0])
         return
     }
-    hash: u64 = FnvOffset()
-    paths: [2]*u8 = .{*owner.source_path[0], CSpanPath(type.span)}
-    for part: 0..1 {
-        p := paths[part]
-        while p[0] != 0 {
-            hash = (hash ^ cast(u64)p[0]) * cast(u64)FNV_PRIME
-            p = PtrAdd(p, 1)
-        }
-        hash = (hash ^ cast(u64)0xff) * cast(u64)FNV_PRIME
-    }
-    coords: [2]u32 = .{cast(u32)type.span.line, cast(u32)type.span.column}
-    for i: 0..1 {
-        for b: 0..3 {
-            hash = (hash ^ cast(u64)((coords[i] >> cast(u32)(b * 8)) & 0xff)) * cast(u64)FNV_PRIME
-        }
-    }
+    hash := NativeTypeIdentity(FnvOffset(), owner, type, 0)
     length := snprintf(out, size, CStr("zir_%016llx_"), hash)
     if length < 0 || cast(usize)length >= size {
         if size > 0 { out[0] = 0 }

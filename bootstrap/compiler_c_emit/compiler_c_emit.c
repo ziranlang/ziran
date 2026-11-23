@@ -688,6 +688,8 @@ static void compiler_c_emit_NativeNamesMarkShared(NativeValueNames* names) ZIRAN
 static void compiler_c_emit_NativeNamesMarkTypeValues(NativeValueNames* names) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_c_emit_MarkNativeMacroCollisions(ZirProgram** programs, int32_t count) ZIRAN_MAYBE_UNUSED;
 static uint64_t compiler_c_emit_NativeTopHash(ZirModule* module, ZirSourceSpan span, uint8_t* name) ZIRAN_MAYBE_UNUSED;
+static uint64_t compiler_c_emit_NativeHashText(uint64_t hash, uint8_t* text) ZIRAN_MAYBE_UNUSED;
+static uint64_t compiler_c_emit_NativeTypeIdentity(uint64_t hash, ZirModule* owner, ZirType* type, int32_t depth) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_ReadableModuleName(uint8_t* name, uint8_t* out, size_t size, bool upper) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_c_emit_ModuleNeedsStartupWalk(ZirModule* module, ModuleVisits* visits) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_GoFileStem(uint8_t* source, uint8_t* out, size_t size) ZIRAN_MAYBE_UNUSED;
@@ -2823,6 +2825,149 @@ zir_emit_canonical(uint8_t* type)
     return type;
 }
 
+static uint64_t
+compiler_c_emit_NativeHashText(uint64_t hash, uint8_t* text)
+{
+    uint8_t* p = text;
+    while (p[0] != 0) {
+        hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(p[0])) * UINT64_C(1099511628211));
+        uint8_t* value_0 = p;
+        uint8_t* value_1 = (void *)0;
+        {
+            uint8_t* p = value_0;
+            size_t n = 1;
+            value_1 = (uint8_t*)(((size_t)(p) + n));
+        }
+        p = value_1;
+    }
+    return (uint64_t)(((uint64_t)hash ^ UINT64_C(255)) * UINT64_C(1099511628211));
+}
+
+static uint64_t
+compiler_c_emit_NativeTypeIdentity(uint64_t hash, ZirModule* owner, ZirType* type, int32_t depth)
+{
+    ZirModule* template_owner = (void *)0;
+    ZirType* template = (void *)0;
+    if (depth < 16 && type->is_synthetic_application != 0 && (type->template_name)[0] != 0) {
+        template = zir_f_88c96d1f737973e0_CFindType(owner, &(type->template_name[0]), &(template_owner));
+    }
+    if (template == ((void *)0) || template == type) {
+        uint64_t value_0 = compiler_c_emit_NativeHashText(hash, &(owner->source_path[0]));
+        hash = compiler_c_emit_NativeHashText(value_0, zir_f_88c96d1f737973e0_CSpanPath(type->span));
+        uint32_t coords[2] = {(uint32_t)(type->span.line), (uint32_t)(type->span.column)};
+        for (int64_t i = 0LL; i <= 1LL; i++) {
+            for (int64_t b = 0LL; b <= 3LL; b++) {
+                uint32_t value_1 = (uint32_t)((uint32_t)((ZiShrU32((coords)[i], (uint64_t)((uint32_t)(((int64_t)((uint64_t)b * UINT64_C(8))))), 32))) & 255u);
+                hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(value_1)) * UINT64_C(1099511628211));
+            }
+        }
+        return hash;
+    }
+    ZirModule* value_2 = (void *)0;
+    if (template_owner != ((void *)0)) {
+        value_2 = template_owner;
+    } else {
+        value_2 = owner;
+    }
+    hash = compiler_c_emit_NativeTypeIdentity(hash, value_2, template, (int32_t)((uint32_t)depth + 1u));
+    uint8_t* p = &(type->template_args[0]);
+    while (p[0] != 0) {
+        uint8_t value_3 = p[0];
+        bool value_4 = false;
+        {
+            uint8_t c = value_3;
+            value_4 = (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57);
+        }
+        if (!value_4 && p[0] != 95) {
+            hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(p[0])) * UINT64_C(1099511628211));
+            uint8_t* value_6 = p;
+            uint8_t* value_7 = (void *)0;
+            {
+                uint8_t* p = value_6;
+                size_t n = 1;
+                value_7 = (uint8_t*)(((size_t)(p) + n));
+            }
+            p = value_7;
+            continue;
+        }
+        uint8_t token[256] = {0};
+        size_t length = 0;
+        while (true) {
+            uint8_t value_9 = p[0];
+            bool value_10 = false;
+            {
+                uint8_t c = value_9;
+                value_10 = (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57);
+            }
+            bool value_12 = value_10 || p[0] == 95;
+            bool value_13 = value_12;
+            if (!value_13) {
+                bool value_14 = p[0] == 46;
+                bool value_15 = value_14;
+                if (value_15) {
+                    uint8_t value_16 = p[1];
+                    bool value_17 = false;
+                    {
+                        uint8_t c = value_16;
+                        value_17 = (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57);
+                    }
+                    value_15 = (value_17 || p[1] == 95);
+                }
+                value_13 = value_15;
+            }
+            if (!value_13) { break; }
+            if (length < 255) {
+                uint8_t* value_19 = &(token[length]);
+                (*value_19) = p[0];
+                length = length + 1;
+            }
+            uint8_t* value_20 = p;
+            uint8_t* value_21 = (void *)0;
+            {
+                uint8_t* p = value_20;
+                size_t n = 1;
+                value_21 = (uint8_t*)(((size_t)(p) + n));
+            }
+            p = value_21;
+        }
+        uint8_t* value_23 = &(token[length]);
+        (*value_23) = 0;
+        ZirModule* argument_owner = (void *)0;
+        uint8_t value_24 = (token)[0];
+        bool value_25 = false;
+        {
+            uint8_t c = value_24;
+            value_25 = c >= 48 && c <= 57;
+        }
+        ZirType* value_27 = (void *)0;
+        if (value_25) {
+            value_27 = (void *)0;
+        } else {
+            ZirType* value_28 = zir_f_88c96d1f737973e0_CFindType(owner, &(token[0]), &(argument_owner));
+            value_27 = value_28;
+        }
+        ZirType* argument = value_27;
+        bool value_29 = argument != ((void *)0);
+        bool value_30 = value_29;
+        if (value_30) {
+            ZirType* value_31 = zir_f_88c96d1f737973e0_BuiltinType(&(argument->name[0]));
+            value_30 = (value_31 != argument);
+        }
+        if (value_30) {
+            ZirModule* value_32 = (void *)0;
+            if (argument_owner != ((void *)0)) {
+                value_32 = argument_owner;
+            } else {
+                value_32 = owner;
+            }
+            hash = compiler_c_emit_NativeTypeIdentity(hash, value_32, argument, (int32_t)((uint32_t)depth + 1u));
+        } else {
+            hash = compiler_c_emit_NativeHashText(hash, &(token[0]));
+        }
+    }
+    return hash;
+}
+
 void
 NativeTypeName(ZirModule* owner, ZirType* type, uint8_t* out, size_t size)
 {
@@ -2834,80 +2979,52 @@ NativeTypeName(ZirModule* owner, ZirType* type, uint8_t* out, size_t size)
     {
         value_0 = 14695981039346656037ULL;
     }
-    uint64_t hash = value_0;
-    uint8_t* value_2[2] = {0};
-    value_2[0] = &(owner->source_path[0]);
-    uint8_t* value_3 = zir_f_88c96d1f737973e0_CSpanPath(type->span);
-    value_2[1] = value_3;
-    uint8_t* paths[2] = {0};
-    memmove(paths, value_2, sizeof(paths));
-    for (int64_t part = 0LL; part <= 1LL; part++) {
-        uint8_t* p = (paths)[part];
-        while (p[0] != 0) {
-            hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(p[0])) * UINT64_C(1099511628211));
-            uint8_t* value_4 = p;
-            uint8_t* value_5 = (void *)0;
-            {
-                uint8_t* p = value_4;
-                size_t n = 1;
-                value_5 = (uint8_t*)(((size_t)(p) + n));
-            }
-            p = value_5;
-        }
-        hash = (uint64_t)(((uint64_t)hash ^ UINT64_C(255)) * UINT64_C(1099511628211));
-    }
-    uint32_t coords[2] = {(uint32_t)(type->span.line), (uint32_t)(type->span.column)};
-    for (int64_t i = 0LL; i <= 1LL; i++) {
-        for (int64_t b = 0LL; b <= 3LL; b++) {
-            uint32_t value_7 = (uint32_t)((uint32_t)((ZiShrU32((coords)[i], (uint64_t)((uint32_t)(((int64_t)((uint64_t)b * UINT64_C(8))))), 32))) & 255u);
-            hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(value_7)) * UINT64_C(1099511628211));
-        }
-    }
-    uint8_t* value_8 = out;
-    size_t value_9 = size;
-    String value_10 = StringLiteral("zir_%016llx_");
-    uint8_t* value_11 = (void *)0;
+    uint64_t hash = compiler_c_emit_NativeTypeIdentity(value_0, owner, type, 0);
+    uint8_t* value_2 = out;
+    size_t value_3 = size;
+    String value_4 = StringLiteral("zir_%016llx_");
+    uint8_t* value_5 = (void *)0;
     {
-        String s = value_10;
-        value_11 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
+        String s = value_4;
+        value_5 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
     }
-    int32_t length = zir_f_88c96d1f737973e0_snprintf(value_8, value_9, value_11, hash);
+    int32_t length = zir_f_88c96d1f737973e0_snprintf(value_2, value_3, value_5, hash);
     if (length < 0 || (size_t)(length) >= size) {
         if (size > 0) {
-            uint8_t* value_13 = &(out[0]);
-            (*value_13) = 0;
+            uint8_t* value_7 = &(out[0]);
+            (*value_7) = 0;
         }
         return;
     }
     size_t used = (size_t)(length);
     uint8_t* p = &(type->name[0]);
     while (p[0] != 0 && used + 1 < size) {
-        uint8_t* value_14 = &(out[used]);
-        uint8_t value_15 = p[0];
-        bool value_16 = false;
+        uint8_t* value_8 = &(out[used]);
+        uint8_t value_9 = p[0];
+        bool value_10 = false;
         {
-            uint8_t c = value_15;
-            value_16 = (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57);
+            uint8_t c = value_9;
+            value_10 = (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57);
         }
-        uint8_t value_18 = 0;
-        if (value_16 || p[0] == 95) {
-            value_18 = p[0];
+        uint8_t value_12 = 0;
+        if (value_10 || p[0] == 95) {
+            value_12 = p[0];
         } else {
-            value_18 = 95;
+            value_12 = 95;
         }
-        (*value_14) = value_18;
+        (*value_8) = value_12;
         used = used + 1;
-        uint8_t* value_19 = p;
-        uint8_t* value_20 = (void *)0;
+        uint8_t* value_13 = p;
+        uint8_t* value_14 = (void *)0;
         {
-            uint8_t* p = value_19;
+            uint8_t* p = value_13;
             size_t n = 1;
-            value_20 = (uint8_t*)(((size_t)(p) + n));
+            value_14 = (uint8_t*)(((size_t)(p) + n));
         }
-        p = value_20;
+        p = value_14;
     }
-    uint8_t* value_22 = &(out[used]);
-    (*value_22) = 0;
+    uint8_t* value_16 = &(out[used]);
+    (*value_16) = 0;
 }
 
 int32_t

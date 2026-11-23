@@ -153,7 +153,7 @@ ToolSourceExcerpts :: (test: *NativeTest) -> bool {
 // C keywords, predefined macros or the runtime's own names, and Vecs of
 // another module's records passed to that module. A case with a module
 // writes it as NAME_db.zi.
-BuildCase :: struct { name: string; source: string; code: s32; module: string; }
+BuildCase :: struct { name: string; source: string; code: s32; module: string; other: string; }
 
 ToolCheckBuildAgree :: (test: *NativeTest) -> bool {
     cases := BuildCase.[
@@ -168,11 +168,18 @@ ToolCheckBuildAgree :: (test: *NativeTest) -> bool {
         .{name = "module_vec", code = 10,
           source = "using Vectors :: #import \"std/vec\"\nusing Db :: #import \"module_vec_db\"\nScale :: (width: s64) -> s64 { return width * 2 }\nmain :: () -> s32 {\n    matches: Vec(Db.Match)\n    Db.Find(*matches, 1)\n    frag: Db.Frag = .{line = 3}\n    frags: Vec(*Db.Frag)\n    Db.Keep(*frags, *frag)\n    total := matches[0].line + frags[0].line + Scale(1)\n    VecFree(matches)\n    VecFree(frags)\n    return cast(s32)total\n}\n",
           module = "using Vectors :: #import \"std/vec\"\n#scope_file\nwidth :: 5;\n#scope_export\nMatch :: struct { name: string; line: s64; }\nFrag :: struct { line: s64; }\nFind :: (matches: *Vec(Match), line: s64) { VecPush(<<matches, .{name = \"m\", line = line * width}) }\nKeep :: (frags: *Vec(*Frag), frag: *Frag) { VecPush(<<frags, frag) }\n"},
+        // One application has one C type in every module that spells it, also
+        // when a third module's own Entry gives its Vec(Entry) the same name.
+        .{name = "shared_vec", code = 5,
+          source = "using Vectors :: #import \"std/vec\"\nusing Db :: #import \"shared_vec_db\"\nIndex :: #import \"shared_vec_other\"\nKeep :: (entries: []Db.Entry) -> Vec(Db.Entry) {\n    out: Vec(Db.Entry)\n    for entry: entries { VecPush(out, entry) }\n    return out\n}\nmain :: () -> s32 {\n    entries := Db.Selected(2)\n    kept := Keep(VecSlice(entries, 0, entries.count))\n    names := Index.Names()\n    total := entries.count + kept.count + names.count\n    VecFree(entries)\n    VecFree(kept)\n    VecFree(names)\n    return cast(s32)total\n}\n",
+          module = "using Vectors :: #import \"std/vec\"\nEntry :: struct { key: string; group: s64; }\nSelected :: (count: s64) -> Vec(Entry) {\n    out: Vec(Entry)\n    for index: 1..count { VecPush(out, .{key = \"k\", group = index}) }\n    return out\n}\n",
+          other = "using Vectors :: #import \"std/vec\"\nEntry :: struct { name: string; }\nNames :: () -> Vec(Entry) {\n    out: Vec(Entry)\n    VecPush(out, .{name = \"n\"})\n    return out\n}\n"},
     ]
     for build: cases {
         source := CheckPath(test.work, CheckConcat(build.name, ".zi"))
         output := CheckPath(test.work, CheckConcat(build.name, "-c"))
         if build.module.count != 0 && !NativeWrite(test, CheckPath(test.work, CheckConcat(build.name, "_db.zi")), build.module) { return false }
+        if build.other.count != 0 && !NativeWrite(test, CheckPath(test.work, CheckConcat(build.name, "_other.zi")), build.other) { return false }
         if !NativeWrite(test, source, build.source) { return false }
         check := string.[test.ziran, "check", "--root", test.work, source]
         unused NativeRun(test, check[:])

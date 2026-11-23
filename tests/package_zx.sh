@@ -88,66 +88,6 @@ with tempfile.TemporaryDirectory(prefix='package-zx-test-', dir=ziran.parent.par
             return result.stdout.strip()
         assert result.returncode != 0 and failure in result.stderr, f'{arguments}: {result.stdout}{result.stderr}'
 
-    # Two pinned revisions of one package coexist, but a #program_export
-    # symbol both define is reported by `ziran check` with the fix instead of
-    # failing in the C compiler (Kryon's LightPalette from two Kryon pins).
-    graph = root / 'two-revisions'
-    repo = Path(command('git', 'rev-parse', '--show-toplevel', cwd=ziran.parent))
-    graph_env = dict(env, XDG_CACHE_HOME=str(graph / 'cache'), ZIRAN_TEST_ALLOW_LOCAL_GIT='1',
-                     GIT_CONFIG_COUNT='1', GIT_CONFIG_KEY_0='protocol.file.allow', GIT_CONFIG_VALUE_0='always')
-
-    def graph_run(*arguments, cwd):
-        return subprocess.run(arguments, cwd=cwd, env=graph_env, capture_output=True, text=True, timeout=60)
-
-    def graph_package(name, manifest, files):
-        directory = graph / name
-        directory.mkdir(parents=True)
-        (directory / 'ziran.toml').write_text(manifest)
-        for path, text in files.items():
-            (directory / path).parent.mkdir(parents=True, exist_ok=True)
-            (directory / path).write_text(text)
-        return directory
-
-    def graph_commit(directory):
-        for arguments in (('init', '-q', '-b', 'master'), ('add', '.'),
-                          ('-c', 'user.name=Package fixture', '-c', 'user.email=fixture@example.org',
-                           '-c', 'commit.gpgsign=false', 'commit', '-qm', 'fixture')):
-            assert graph_run('git', *arguments, cwd=directory).returncode == 0
-        return graph_run('git', 'rev-parse', 'HEAD', cwd=directory).stdout.strip()
-
-    def graph_dependency(alias, ref):
-        return f'[dependencies.{alias}]\ngit = "file://{graph / alias}"\nref = "{ref}"\n'
-
-    kit = graph_package('kit', '[package]\nname = "kit"\nmodule_roots = ["."]\n[exports]\nKit = "kit.zi"\n',
-                        {'kit.zi': '#program_export\nLightPalette :: () -> s32 { return 1 }\n'})
-    kit_old = graph_commit(kit)
-    (kit / 'kit.zi').write_text('#program_export\nLightPalette :: () -> s32 { return 2 }\n')
-    assert graph_run('git', '-c', 'user.name=Package fixture', '-c', 'user.email=fixture@example.org',
-                     '-c', 'commit.gpgsign=false', 'commit', '-qam', 'new', cwd=kit).returncode == 0
-    kit_new = graph_run('git', 'rev-parse', 'HEAD', cwd=kit).stdout.strip()
-    for name, ref in (('css', kit_new), ('theme', kit_old)):
-        graph_commit(graph_package(name, f'[package]\nname = "{name}"\nmodule_roots = ["."]\n[exports]\n'
-                                   f'Api = "api.zi"\n' + graph_dependency('kit', ref), {'api.zi': '#import "kit/Kit"\n'}))
-    both = graph_package('both', '[package]\nname = "app"\nentry = "src/app.zi"\nmodule_roots = ["src"]\n'
-                         '[toolchain]\ngit = "https://github.com/ziranlang/ziran.git"\nref = "master"\n' +
-                         graph_dependency('css', 'master') + graph_dependency('theme', 'master'), {
-                             'ziran.local.toml': f'[overrides]\nziran = "{repo}"\n',
-                             'src/app.zi': '#import "css/Api"\n#import "theme/Api"\nmain :: () -> s32 { return 0 }\n'})
-    assert graph_run(ziran, 'lock', cwd=both).returncode == 0
-    revisions = [item['commit'] for item in json.loads((both / 'ziran.lock').read_text())['packages']
-                 if item['name'] == 'kit']
-    assert sorted(revisions) == sorted([kit_old, kit_new]), revisions
-    refused = graph_run(ziran, 'check', '--project', cwd=both)
-    assert refused.returncode != 0 and ('#program_export symbol LightPalette is also exported by another revision of '
-                                        'kit.zi') in refused.stderr and 'agree on one revision' in refused.stderr, refused.stderr
-    theme = graph / 'theme'
-    (theme / 'ziran.toml').write_text((theme / 'ziran.toml').read_text().replace(kit_old, kit_new))
-    assert graph_run('git', '-c', 'user.name=Package fixture', '-c', 'user.email=fixture@example.org',
-                     '-c', 'commit.gpgsign=false', 'commit', '-qam', 'agree', cwd=theme).returncode == 0
-    assert graph_run(ziran, 'update', cwd=both).returncode == 0
-    checked = graph_run(ziran, 'check', '--project', cwd=both)
-    assert checked.returncode == 0, checked.stderr
-
     key, cert = root / 'key.pem', root / 'cert.pem'
     command('openssl', 'req', '-new', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
             '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost', '-keyout', key, '-out', cert)

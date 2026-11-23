@@ -240,12 +240,12 @@ Push the repository anywhere Git can reach. Prefer HTTPS URLs in published
 manifests so fresh clones and CI can fetch without an SSH key.
 
 Package modules receive an internal identity derived from their repository
-and commit. Two versions of a transitive dependency can coexist in one build,
-except for what has one name in the whole program: `ziran check` reports a
-`#program_export` procedure that both revisions define, before the C compiler
-would, and the dependencies that pin the package must agree on one revision
-(or, while developing, one root override can select a single checkout for all
-of them).
+and commit. Two versions of a transitive dependency can coexist in one build.
+A `#program_export` procedure is the exception in generated C, where it is
+one linker symbol: when both versions define it the C build fails with
+conflicting or duplicate definitions, so the dependencies that pin the
+package must agree on one revision (or, while developing, one root override
+can select a single checkout for all of them).
 The identity is carried through ZIR, saved `.zir`, portable bundles,
 and native output names.
 

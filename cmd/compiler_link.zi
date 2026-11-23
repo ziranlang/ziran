@@ -11,55 +11,9 @@ Bytes :: #import "compiler_text";
 // Give each open import a module alias, then resolve every import to the
 // one module its target names. False after a diagnostic.
 LinkImports :: (programs: **IR.ZirProgram, count: s32) -> bool {
-    ok := AliasOpenImports(programs, count) && ResolveImports(programs, count) &&
-        UniqueExports(programs, count)
+    ok := AliasOpenImports(programs, count) && ResolveImports(programs, count)
     Services.LookupsChanged()
     return ok
-}
-
-// A #program_export symbol names one procedure in the whole program. Two
-// modules exporting it, most often two revisions of one package that
-// different dependencies pin, would otherwise fail only in the C compiler.
-UniqueExports :: (programs: **IR.ZirProgram, count: s32) -> bool {
-    for p: 0..count - 1 {
-        for m: 0..programs[p].module_count - 1 {
-            module := *programs[p].modules[m]
-            for f: 0..module.function_count - 1 {
-                function := *module.functions[f]
-                if function.exported == 0 { continue }
-                clash := EarlierExport(programs, p, m, function)
-                if clash == null { continue }
-                path := Path(function.span); other := IR.CText(*clash.source_path[0])
-                revision := other.count > path.count && other[other.count - path.count:] == path
-                tail: Text
-                unused BuilderAppend(tail.bytes, ifx revision then " is also exported by another revision of " else " is also exported by ") &&
-                    BuilderAppend(tail.bytes, ifx revision then path else other) &&
-                    BuilderAppend(tail.bytes, ifx revision then " (ziran.lock pins two revisions of its package); make the dependencies that pin that package agree on one revision" else "; a program exports a symbol once")
-                return Fail(function.span, "check.file_scope", "#program_export symbol ", ExportSymbol(function), TextView(tail))
-            }
-        }
-    }
-    return true
-}
-
-// An exported procedure before module M of program P, from another source
-// file, with FUNCTION's linker name. Two revisions of one package share
-// relative file names, so modules also compare by their source paths.
-EarlierExport :: (programs: **IR.ZirProgram, p: s32, m: s32, function: *IR.ZirFunction) -> *IR.ZirModule {
-    symbol := ExportSymbol(function); path := Path(function.span)
-    source := IR.CText(*programs[p].modules[m].source_path[0])
-    for q: 0..p {
-        limit := ifx q == p then m else programs[q].module_count
-        for n: 0..limit - 1 {
-            other := *programs[q].modules[n]
-            for g: 0..other.function_count - 1 {
-                candidate := *other.functions[g]
-                if candidate.exported != 0 && ExportSymbol(candidate) == symbol &&
-                    (Path(candidate.span) != path || IR.CText(*other.source_path[0]) != source) { return other }
-            }
-        }
-    }
-    return null
 }
 
 // Rename colliding file-private procedures, constants, globals and types,
@@ -108,12 +62,6 @@ Fail :: (span: IR.ZirSourceSpan, code: string, message: string, subject: string,
 }
 
 Path :: (span: IR.ZirSourceSpan) -> string { return IR.CText(Services.SpanPath(span)) }
-
-// The linker name of an exported procedure: its #program_export name or its own.
-ExportSymbol :: (function: *IR.ZirFunction) -> string {
-    if function.export_symbol[0] != 0 { return IR.CText(*function.export_symbol[0]) }
-    return IR.CText(*function.name[0])
-}
 
 // PREFIX and SERIAL in decimal, written into OUTPUT.
 Numbered :: (output: []u8, prefix: string, serial: s32) -> string {

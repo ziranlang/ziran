@@ -454,8 +454,8 @@ ziran new hello && cd hello && ziran lock && ziran run   # a project
 
 In a project (`ziran.toml`), run `ziran lock` once, then `ziran check`,
 `ziran build` and `ziran run` without a file. Two dependencies may pin different
-revisions of one package and both are linked, unless both define one
-`#program_export` name: `ziran check` reports that, and the pins must agree. Plain `ziran run file.zi`
+revisions of one package and both are linked; in generated C they must not
+both define one `#program_export` name, so make such pins agree. Plain `ziran run file.zi`
 uses the portable engine, which has no `std/*_linux` modules: use
 `--target=c` for programs that touch files, input or processes.
 

@@ -90,8 +90,6 @@ struct __type_2906b320536adc4d {
 #endif
 #endif
 bool compiler_link_LinkImports(ZirProgram** programs, int32_t count);
-bool compiler_link_UniqueExports(ZirProgram** programs, int32_t count);
-ZirModule* compiler_link_EarlierExport(ZirProgram** programs, int32_t p, int32_t m, ZirFunction* function);
 bool compiler_link_NamePrivate(ZirModule* module);
 bool compiler_link_CheckInline(ZirProgram** programs, int32_t count);
 

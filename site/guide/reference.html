@@ -395,8 +395,8 @@ ziran new hello &amp;&amp; cd hello &amp;&amp; ziran lock &amp;&amp; ziran run  
 </code></pre>
 <p>In a project (<code>ziran.toml</code>), run <code>ziran lock</code> once, then <code>ziran check</code>,
 <code>ziran build</code> and <code>ziran run</code> without a file. Two dependencies may pin different
-revisions of one package and both are linked, unless both define one
-<code>#program_export</code> name: <code>ziran check</code> reports that, and the pins must agree. Plain <code>ziran run file.zi</code>
+revisions of one package and both are linked; in generated C they must not
+both define one <code>#program_export</code> name, so make such pins agree. Plain <code>ziran run file.zi</code>
 uses the portable engine, which has no <code>std/*_linux</code> modules: use
 <code>--target=c</code> for programs that touch files, input or processes.</p>
 <h2 id="14-you-would-guess-x-ziran-is-y">14. You would guess X; Ziran is Y</h2>

@@ -867,7 +867,7 @@ HostExercise :: (test: *NativeTest, compiler: string) -> bool {
         "--entry", "host_bound:Answer", "--bind",
         "host_bound:Input=missing:Provide", "-o", missing_output,
         bound_input, provider_input]
-    if !NativeReject(test, missing[:], "host capability or exported Ziran provider is missing") ||
+    if !NativeReject(test, missing[:], "exported Ziran provider is missing: host_bound:Input=missing:Provide; no module missing exports Provide") ||
         !NativeAssert(test, NativeRead(test, missing_output) == "preserved bound output",
             "an invalid in-bundle provider must not replace output") { return false }
 

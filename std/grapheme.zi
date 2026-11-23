@@ -24,7 +24,12 @@ Step :: struct { state: State; boundary: bool; }
 
 Push :: (state: State, scalar: u32, valid: bool) -> Step {
     result: Step
-    flags := Data.Property(scalar)
+    flags: s32
+    if scalar < cast(u32)128 {
+        if scalar == cast(u32)13 { flags = 1 }
+        else if scalar == cast(u32)10 { flags = 2 }
+        else if scalar < cast(u32)32 || scalar == cast(u32)127 { flags = 3 }
+    } else { flags = Data.Property(scalar) }
     current := flags & 255
     previous := state.previous
     join: bool
@@ -62,6 +67,16 @@ Next :: (value: string, at: s32) -> s32 {
     if at < 0 { at = 0 }
     length := cast(s32)value.count
     if at >= length { return length }
+    // Between ASCII scalars only CR+LF joins. A following non-ASCII
+    // scalar still needs the full rules (accents, prepend, and so on).
+    if value[at] < cast(u8)128 {
+        after := at + 1
+        if after == length { return after }
+        if value[after] < cast(u8)128 {
+            if value[at] == cast(u8)13 && value[after] == cast(u8)10 { return after + 1 }
+            return after
+        }
+    }
     state: State
     cursor := at
     while cursor < length {

@@ -1,0 +1,769 @@
+{
+  "updated_at": "2026-11-19T09:38:00.503642+00:00",
+  "task_id": "d02d36c002cde23707dae51b009a34e906d7",
+  "host": "omega",
+  "status": "incomplete: Text and Input below 2x; uncommitted, unpushed, uninstalled",
+  "measurement": "bench/results/widget-native-omega-sparse-load-11.json",
+  "measurement_sha256": "3ab28d12ac290afa623fc8b1b41e91c7b9ea1c7d2e929517c510622428a4158a",
+  "methodology": "Two frames per entry: public widget layout, interaction and paint-command generation. Deterministic monospace metrics and a recording paint host consume payloads. Pixel rasterization, system fonts and OS I/O are excluded. Sessions are retained between calls; each scenario verifies its behavior and returns zero on success. Matched shuffled runs on frozen artifacts; 11 calibrated batches/run, symmetric inclusive 1.5xIQR within and across runs; all raw values and exclusions retained.  Host gate: every measured job runs pinned (inherited affinity, no wrapper) to one logical CPU of the quietest core, chosen again before each attempt once its other hyperthread has settled, and is repeated unless that CPU kept its clock within 3% of the job median (10th to 90th percentile), the median reached 95% of the clock calibrated at start, and the hyperthread sibling was busy at most 15% of the job; Go runs with GOMAXPROCS=1 on that CPU. Rejected attempts are retained with their observations.",
+  "summary": {
+    "button": {
+      "before_us": 2.315771362182617,
+      "current_us": 1.8800314337768556,
+      "current_c_us": 1.9226716322021484,
+      "speedup": 1.231772682401586
+    },
+    "text": {
+      "before_us": 3.1004499470214846,
+      "current_us": 2.1828293447875975,
+      "current_c_us": 1.6152652587890626,
+      "speedup": 1.4203812837797345
+    },
+    "input": {
+      "before_us": 3.107508055175781,
+      "current_us": 2.557076417419433,
+      "current_c_us": 2.456956790527344,
+      "speedup": 1.2152581886120697
+    }
+  },
+  "owned_files": [
+    {
+      "repository": "/mnt/storage/Projects/ziranlang/ziran",
+      "path": "bench/bench.zi",
+      "sha256": "dd36975f09c8bb6eb392867f8846ed38b1b6d8d4e2673dc9627b97b35e4424eb",
+      "bytes": 15223,
+      "diff_sha256": "eb7a91cdf87038d45a9fa60c033a25101a7d0f3f00fb5ea4ac3b141c27845a1b",
+      "hunks": [
+        "@@ -99,0 +100,2 @@ Registry :: () -> Vec(Benchmark) {"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/ziranlang/ziran",
+      "path": "bench/widget_native.py",
+      "sha256": "8e09361ce3c60dec03c05741c38b728cd1d21e40b631d3afafa4012cc33ff116",
+      "bytes": 10776,
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "hunks": [],
+      "tracked": false
+    },
+    {
+      "repository": "/mnt/storage/Projects/ziranlang/ziran",
+      "path": "bench/widget_profile.zi",
+      "sha256": "36fdb369e04eeb43bc056534001a541b646e44e3958a34907b8ec36a82bb632b",
+      "bytes": 1318,
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "hunks": [],
+      "tracked": false
+    },
+    {
+      "repository": "/mnt/storage/Projects/ziranlang/ziran",
+      "path": "cmd/compiler_x86_64.zi",
+      "sha256": "017a027edaa5744639fe3c0aa62b524c3321f09a02a4bcdafc2252b9fdb20f10",
+      "bytes": 160690,
+      "diff_sha256": "db4fc71bd67af525636718431ec25d17ee101bfa3b3035184d55709472ed1841",
+      "hunks": [
+        "@@ -263,10 +263,10 @@ AtOffset :: (memory: X86Operand, offset: s64) -> X86Operand {",
+        "@@ -299,6 +299,14 @@ CopyMemory :: (state: *State, destination: X86Operand, source: X86Operand, size:",
+        "@@ -323,8 +331,16 @@ ZeroMemory :: (state: *State, destination: X86Operand, size: s64) -> bool {",
+        "@@ -494,6 +510,12 @@ FuelStore :: (state: *State) { if state.fuel_live { FuelCounter(state, true) } }",
+        "@@ -2326,9 +2348,9 @@ TailCallAt :: (program: MachineProgram, block_id: s32, at: s32) -> bool {",
+        "@@ -2338,7 +2360,7 @@ Frameless :: (program: MachineProgram, function_id: s32) -> bool {"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/ziranlang/ziran",
+      "path": "cmd/compiler_regalloc.zi",
+      "sha256": "8271965f0704c317ed1ad02bc097abeb8ec14140542f83e7c8fd095bf88d9965",
+      "bytes": 128960,
+      "diff_sha256": "41073b61d99a16b4c56f4ba8926013c9d69ab56c2a6e4ed106b711b111ba89ce",
+      "hunks": [
+        "@@ -111,0 +112 @@ Alloc :: struct {",
+        "@@ -460,0 +462 @@ ResetFunction :: (state: *Alloc) -> bool {",
+        "@@ -473 +475 @@ ResetFunction :: (state: *Alloc) -> bool {",
+        "@@ -474,0 +477 @@ ResetFunction :: (state: *Alloc) -> bool {",
+        "@@ -517,0 +521,6 @@ CollectParameters :: (state: *Alloc) -> bool {",
+        "@@ -1357,0 +1367,21 @@ HintRegister :: (state: *Alloc, interval: s32) -> s32 {",
+        "@@ -1456,0 +1487 @@ ScanBank :: (state: *Alloc, bank: s32) -> bool {",
+        "@@ -2474,0 +2506 @@ FreeScratch :: (state: *Alloc) {"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/ziranlang/ziran",
+      "path": "std/grapheme.zi",
+      "sha256": "96af5f2710a3a986276c0c7ccf4ce1e848e464892f7db3a54a2a0146b74a1386",
+      "bytes": 4658,
+      "diff_sha256": "3161af7dad2460e177afa3b9626e988fcd4be5f886ec57e1e1141140228c288c",
+      "hunks": [
+        "@@ -27 +27,6 @@ Push :: (state: State, scalar: u32, valid: bool) -> Step {",
+        "@@ -64,0 +70,10 @@ Next :: (value: string, at: s32) -> s32 {"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/ziranlang/ziran",
+      "path": "tests/spec/native_large_global_fields.zi",
+      "sha256": "f325349c41df557d29a1cec037f12baba08b49ca422688edce7d55f3cde6201e",
+      "bytes": 7573,
+      "diff_sha256": "09cb1d66f77a0721ba18e8fe1b470ab99931b87ee40b50613c9bc721efdffac9",
+      "hunks": [
+        "@@ -104,7 +104,61 @@ Fresh :: (rounds: s32) -> u64 {"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/kryonlabs/kryon",
+      "path": "src/ui/text_layout.zi",
+      "sha256": "7eb097bf5c587745277a9fc40a062046b00f2fff290f1b5b67c92583500ff82f",
+      "bytes": 12292,
+      "diff_sha256": "97968482c0e59ad2216a0814d4d0a2dce88f951a648a417ac89e7b3ec222d209",
+      "hunks": [
+        "@@ -108,0 +109 @@ TextTokenNext :: (value: string, offset: s32, icons: bool) -> TextToken {",
+        "@@ -117,2 +118,14 @@ TextTokenNext :: (value: string, offset: s32, icons: bool) -> TextToken {",
+        "@@ -121 +134,2 @@ TextTokenNext :: (value: string, offset: s32, icons: bool) -> TextToken {",
+        "@@ -123 +137 @@ TextTokenNext :: (value: string, offset: s32, icons: bool) -> TextToken {"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/kryonlabs/kryon",
+      "path": "src/ui/text/text.zi",
+      "sha256": "3bca618bb242632e7ed43001768df573a26ea75780732a0df0c1bc1d630386b6",
+      "bytes": 25468,
+      "diff_sha256": "ceb366d79f3b9052ceea403e2743dd768846f1e3aae166abbc5f1d42cde164d8",
+      "hunks": [
+        "@@ -186,0 +187,8 @@ using Text :: #import \"text_props\";",
+        "@@ -213,0 +222 @@ using Text :: #import \"text_props\";",
+        "@@ -267,0 +277,6 @@ using Text :: #import \"text_props\";",
+        "@@ -279,0 +295 @@ using Text :: #import \"text_props\";",
+        "@@ -281,3 +297,9 @@ using Text :: #import \"text_props\";",
+        "@@ -385 +407,3 @@ using Text :: #import \"text_props\";",
+        "@@ -403 +427,3 @@ using Text :: #import \"text_props\";"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/kryonlabs/kryon",
+      "path": "src/ui/textfield/textfield.zi",
+      "sha256": "b9a3208f9c6e73af6a64c4fb2d806d9b5ccb870ddfcf1ca6c4b88c2028c1ca39",
+      "bytes": 35560,
+      "diff_sha256": "8a172bf785b09e9dbc5926e6a0ece6e3882da76d0ddffd0a5d7199f7962c83bf",
+      "hunks": [
+        "@@ -246,88 +246,3 @@ Theme :: #import \"theme\";",
+        "@@ -335 +250 @@ Theme :: #import \"theme\";",
+        "@@ -500,0 +416,94 @@ Theme :: #import \"theme\";",
+        "@@ -526 +535,5 @@ Theme :: #import \"theme\";"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/kryonlabs/kryon",
+      "path": "tests/ziran_text_wrap_test.zi",
+      "sha256": "ca70909ad9d981932e5e20bf9594a4b94fd881569fed5949286dd0230549c47c",
+      "bytes": 7628,
+      "diff_sha256": "c69de947cff423314568dda1afacbf0fe73d5b076d29b4f391f8556abe50ee76",
+      "hunks": [
+        "@@ -74,0 +75,29 @@ AnywhereTests :: () -> s32 {",
+        "@@ -76,0 +106 @@ main :: () -> s32 {"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/kryonlabs/kryon",
+      "path": "tests/ziran_text_widget_test.zi",
+      "sha256": "36993346ac8a238fab48cf757d9a9492b936db9a7a5a6eadbc933730d78fe83c",
+      "bytes": 8540,
+      "diff_sha256": "445c3a1ffd4907adef06d91ee62770709bd1035473b727ba3ce75d8b6f89391c",
+      "hunks": [
+        "@@ -108,0 +109,23 @@ main :: () -> s32 {",
+        "@@ -127 +150 @@ LinkChecks :: () -> s32 {"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/kryonlabs/kryon",
+      "path": "tests/ziran_text_widget_host.zi",
+      "sha256": "6fa33d3f70bc52439facd1eac48b7c45a3a1f196c7e48e9dae5a8655564a53b2",
+      "bytes": 5932,
+      "diff_sha256": "e91a52be36025fbde202f29a6b39a1888d59f00e9e2ec9183522b19495b4d9db",
+      "hunks": [
+        "@@ -3,0 +4 @@",
+        "@@ -18,0 +20,6 @@ link_fill_colors: [4]Color;",
+        "@@ -101,0 +109,2 @@ MeasureGlyphWidth :: (value: string, font: s32,"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/kryonlabs/kryon",
+      "path": "tests/widget_benchmarks.zi",
+      "sha256": "5100b991a75b0e94da713293d9216f537cbf1c093bf5997a21b64595cb30b5b7",
+      "bytes": 4620,
+      "diff_sha256": "0507fd7f25fc3cf060dda1156e44aeccb63d8ab0265a97fc63b94bd44b03e6a8",
+      "hunks": [
+        "@@ -94,0 +95,2 @@ main :: () -> s32 {",
+        "@@ -96,0 +99,2 @@ main :: () -> s32 {",
+        "@@ -97,0 +102,2 @@ main :: () -> s32 {",
+        "@@ -98,0 +105,2 @@ main :: () -> s32 {"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/kryonlabs/kryon",
+      "path": "src/ui/tree.zi",
+      "sha256": "f60a84fc0ea5c3929e9c32efa37a67acc4b3f3d78f620b5d80ab4f7e73c19c5d",
+      "bytes": 69522,
+      "diff_sha256": "b755b4325f37bd16278eccc95f74d30c91d8559674c482d4a2edd29423c627a1",
+      "hunks": [
+        "@@ -375,0 +376,4 @@ NodeGeometry :: struct {",
+        "@@ -380 +384 @@ NodeGeometry :: struct {",
+        "@@ -411,0 +416 @@ NodeGeometry :: struct {",
+        "@@ -445,0 +451,12 @@ NodeGeometry :: struct {",
+        "@@ -520,0 +538,8 @@ NodeGeometry :: struct {",
+        "@@ -1023 +1048 @@ NodeGeometry :: struct {"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/kryonlabs/kryon",
+      "path": "tests/tree_identity_index_test.zi",
+      "sha256": "7dad6cb48357f8bf97e7443b070422ef7c3e8c6c7b36276b81484cbd3fa31649",
+      "bytes": 7142,
+      "diff_sha256": "baa4415d9f83c5cb7206e5a071501200730ca1e54dded62f6e882a917c979eae",
+      "hunks": [
+        "@@ -51,0 +52,35 @@ Same :: (left: Identities, right: Identities) -> bool {",
+        "@@ -53,0 +89 @@ main :: () -> s32 {"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/ziranlang/ziran",
+      "path": "cmd/package_explain.zi",
+      "sha256": "30c3f3584705a08c69708d70302444f7c11bc5b6626bc4e9972a898408d8ef64",
+      "bytes": 16604,
+      "diff_sha256": "bf574ab57f9f31893a195969ec316cacf845b8683145a916924e302f68dd29cc",
+      "hunks": [
+        "@@ -11 +11 @@ PkgExplanation :: struct {",
+        "@@ -92,0 +93 @@ PkgPrintExplanation :: (code: string, json: bool) -> void {"
+      ],
+      "tracked": true
+    },
+    {
+      "repository": "/mnt/storage/Projects/ziranlang/ziran",
+      "path": "tests/x86_encoder_cases.zi",
+      "sha256": "59b9ff4a778063af3aa1e21f7bdf402f97f69ffa87b37130a5496ba3b4421f45",
+      "bytes": 71979,
+      "diff_sha256": "53004cdd5e6dbc8c5dfe23a756782e02873727bb6390a9596e6d8f8f127685b0",
+      "tracked": true,
+      "hunks": [
+        "@@ -555,6 +555,11 @@ Accounted :: (b: *Builder, image: X64.MachineX64Image) -> bool {",
+        "@@ -569,7 +574,7 @@ Accounted :: (b: *Builder, image: X64.MachineX64Image) -> bool {",
+        "@@ -872,7 +877,7 @@ Basics :: () -> bool {",
+        "@@ -908,12 +913,12 @@ Basics :: () -> bool {",
+        "@@ -986,6 +991,12 @@ Calls :: () -> bool {",
+        "@@ -1003,7 +1014,7 @@ Calls :: () -> bool {"
+      ]
+    },
+    {
+      "repository": "/mnt/storage/Projects/ziranlang/ziran",
+      "path": "CHANGELOG.md",
+      "sha256": "17126e66f6d7b446673f1603f29d42c8c2f7b28d747ccb6afd0d991c099fa683",
+      "bytes": 27022,
+      "diff_sha256": "23f59a09be7c09c5ac2927652f31c220652ede142f980991753a355977946aeb",
+      "tracked": true,
+      "hunks": [
+        "@@ -2,6 +2,7 @@"
+      ]
+    },
+    {
+      "repository": "/mnt/storage/Projects/ziranlang/ziran",
+      "path": "cmd/compiler_machine_fields.zi",
+      "sha256": "bfbcb0d6f3bc74d8de8d342c7d4b86fb64556f98006ac282d5c6c1b8a9e5370e",
+      "bytes": 7086,
+      "diff_sha256": "e62032f6f5e66152a6681df78e53712b849725a07d1d18ae79b07802a0c681ea"
+    },
+    {
+      "repository": "/mnt/storage/Projects/ziranlang/ziran",
+      "path": "cmd/compiler_machine_verify.zi",
+      "sha256": "e3edeee5726a0fb916c7c560c991d8ff2740adb1dd13d98faff93ade0c925a70",
+      "bytes": 50387,
+      "diff_sha256": "79c13be1c97b1234f67c9e90dd07901b66ba28e5a04c7ca83eb5aee2c968d6b9"
+    },
+    {
+      "repository": "/mnt/storage/Projects/ziranlang/ziran",
+      "path": "cmd/compiler_machine_lower.zi",
+      "sha256": "c5c018ff7f12b926770b07a0ea0a4c2506ee936f81e32ca6d9e4333a278f1e0c",
+      "bytes": 113716,
+      "diff_sha256": "37111cd7c2844a5519010243f20385444b4c36e98e00767dd6e8b45440ddd3bc"
+    },
+    {
+      "repository": "/mnt/storage/Projects/ziranlang/ziran",
+      "path": "tests/machine_fields_cases.zi",
+      "sha256": "c2ddbfad237004afa61328be807499b4d5ccf9cd5e992b4eab466489e5b5b83f",
+      "bytes": 11776,
+      "diff_sha256": "21351918d7a28a9111ab22c7ffee5193f6a1fd96c4b340c2bdd03aaa34505c28"
+    }
+  ],
+  "local_tests": {
+    "completed": [
+      "make -j2 check CHECK_FILTER=regalloc",
+      "make -j2 check CHECK_FILTER=zx_native",
+      "make -j2 check CHECK_FILTER=unicode",
+      "Kryon field widget/menu/composition and exact benchmark source/savedZX/C/Go tests",
+      "Kryon Text layout/ellipsis and >8 lines + changing-font-revision parity; direct C with RasterTriangles binding",
+      "copy boundary/alias/zero guards C/JIT/native ELF checksum 17427066000978187267",
+      "Current bench/widget_native.py py_compile; runtime provenance/artifact equality and restored Kryon source identities0130a1dfbb21d5262f186d2f3c0ee861ec3a",
+      "bench_entry48 drivers covered5e69542030dd1ffaeaca8e47af905d74561a"
+    ],
+    "full_ziran_suite_and_bootstrap": {
+      "command": "ZIRAN_LEARN=off; unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS; env YUE_DESKTOP_RECOVERY=0 make -j2 all; env YUE_DESKTOP_RECOVERY=0 make -j2 check CHECK_JOBS=2; env YUE_DESKTOP_RECOVERY=0 make -j2 check-bootstrap",
+      "receipt": "3f758f4f65da067902985576a4261c10bac9",
+      "finished_at": 1795074859,
+      "status": "finished",
+      "exit_code": 0,
+      "tests_passed": 273,
+      "tests_executed": 273,
+      "tests_reused": 0,
+      "seconds": 375.1,
+      "bootstrap": "matches",
+      "applies_to": "Retained CFG hints, copy/zero, grapheme and diagnostic registry; rejected HeapKey, alignment and FP-free proof trials removed."
+    },
+    "full_kryon_test_and_push_check": {
+      "command": "ZIRAN_ROOT=/mnt/storage/Projects/ziranlang/ziran ZIRAN_BIN=/mnt/storage/Projects/ziranlang/ziran/build/bin/ziran ZIRAN_LEARN=off; unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS; env YUE_DESKTOP_RECOVERY=0 make -j2 test TEST_JOBS=2; env YUE_DESKTOP_RECOVERY=0 make -j2 push-check TEST_JOBS=2",
+      "receipt": "9d8a429e41d3bf1a4a62de7e152381f0f560",
+      "status": "finished",
+      "started_at": 1795075111,
+      "exit_code": 2,
+      "finished_at": 1795076645,
+      "behavior_tests_passed": 173,
+      "behavior_tests_total": 174,
+      "behavior_seconds": 429.1,
+      "failure": "Notification export host CMake cache retained nonexistent /home/wao/.local/bin/cc; source generation succeeded. push-check skipped by set-e."
+    },
+    "heap_key_candidate": {
+      "source_check_receipts": [
+        "cf2ce4f61e25c8bdd05f4e51a59df9228fa5",
+        "3c29be1c31d439d9a946edf9e359a41fdd23"
+      ],
+      "standalone_regalloc_receipt": "71349c8adbcb714061e00e2a5c4166dca514",
+      "command": "env -u DISPLAY -u WAYLAND_DISPLAY ZIRAN_LEARN=off sh tests/regalloc.sh \"$PWD/build/bin/ziran\"",
+      "exit_code": 0,
+      "scope": "Standalone suite passed with the priority ordering; final radix-only overflow correction source-checked afterwards. Normal compiler/runtime not rebuilt yet."
+    },
+    "tree_linear_candidate": {
+      "receipt": "7e18d16be2ef4c090d2a1422fdc1a9108f07",
+      "exit_code": 0,
+      "tests": [
+        "tests/ziran_tree_identity_index_test.sh",
+        "tests/ziran_tree_commit_test.sh",
+        "tests/ziran_reorder_test.sh",
+        "tests/ziran_widget_benchmarks_test.sh"
+      ],
+      "scope": "Identity and retirement across small/hashed index transitions, reorder, failed-frame, duplicate-key behavior, and exact widget paint/edit oracles on source and portable targets"
+    },
+    "kryon_gate_recovery": {
+      "receipt": "96db2fdbbd694e8126b4b1dfe9f653294908",
+      "status": "finished",
+      "started_at": 1795076677,
+      "scope": "Refresh only stale disposable host notification CMake caches; rerun notification exports, then make -j2 push-check TEST_JOBS=2.",
+      "exit_code": 0,
+      "finished_at": 1795076791,
+      "failed_test_rerun": "passed",
+      "push_check": "passed",
+      "interpretation": "All174behavior scripts passed across original173/174 run and focused recovery; original make test exited2 due stale cache, not relabeled as one clean run."
+    },
+    "short_tail_fixture_source_check": {
+      "receipt": "48e3dbf573436c38bdc799f556c82f2b501a",
+      "status": "finished",
+      "exit_code": 0,
+      "scope": "Added guarded copy/zero/alias coverage for lengths7,11,13,14 in existing native_large_global_fields test; candidate not applied."
+    },
+    "cold_frame_full_suite": {
+      "command_id": "7fb9d1f883fe83d467687a942894d5bc43c7",
+      "exit_code": 0,
+      "tests_passed": 273,
+      "tests_executed": 273,
+      "tests_reused": 0,
+      "seconds": 354.7,
+      "bootstrap": "matches",
+      "applies_to": "Retained cold-frame leaf optimization, before the entry-stack trial."
+    },
+    "canonical_restored_before_cold_frame": {
+      "command_id": "531aa976d3c9a7fcc0679a677d140d454778",
+      "result": "build, regalloc, x86_encoder, zx_lowered_parity passed after all GPR/callee-order trials reverted"
+    },
+    "canonical_cold_frame_restore": {
+      "command_id": "28ca2641e8234b66a57652430a75311d4823",
+      "status": "finished",
+      "exit_code": 0,
+      "source_bytes": "exact comparison to pre-trial lowerer and test files",
+      "build": "make -j2 all",
+      "focused_tests": "machine_ir 1/1 executed (1.4s), zx_lowered_parity 1/1 executed (13.0s), no reuse"
+    }
+  },
+  "remaining": [
+    "Text and Input remain below the owner 2x goal; latest definitive retained gains are recorded in summary.",
+    "Further native/compiler or scoped library optimization with identical frozen workload, followed by full local integrated validation.",
+    "No commits, pushes or installation while the feature set is incomplete.",
+    "Keep peer code, ARM/APK outputs, package pins and active build state intact."
+  ],
+  "peer_files_preserved": [
+    "Kryon paint_queue.zi/tree_draw.zi, tree.zi, backend/Android/manifests/locks",
+    "Ziran runtime host files and renderer lane files"
+  ],
+  "reverted_trials": [
+    "record-argument inline-cost trial (backup/widget-record-inline.patch)",
+    "TextFieldApplyInput result-pointer trial: slower; focused parity passed; backup/widget-field-outparam.patch",
+    "TextFieldDefaultFace local theme snapshot: no material native gain; focused parity passed",
+    "TextTokenNext ASCII-run loop: 2.7% short-run gain amid control drift, not retained; Kryon backup/widget-token-runs.zi",
+    "HeapKey live-in ordering: Text +1.7% but Input -1.2% in matched screening; rejected and own hunk removed; backup/widget-allocation-window/heap-key-candidate.zi",
+    "Transfer-aware loop alignment: encoded Text/Input about3% smaller but no matched runtime gain; backup/widget-allocation-window/transfer-heads.zi",
+    "FP-free forward/transitive/recursive call proof: fewer static FP spills/reloads but no 11-round matched runtime gain; backup/widget-allocation-window/float-free-regalloc.zi",
+    {
+      "label": "short-tail",
+      "status": "rejected and source reverted: Text and Input did not improve",
+      "build_receipt": "10a6ca50a33934d94af03fa3273b983a08b6",
+      "source_check_receipt": "aafe1017ce9383c09da56e607d00c46d099f",
+      "program_origin": "tree-linear immutable bundles and C controls",
+      "files": [
+        "cmd/compiler_x86_64.zi",
+        "tests/spec/native_large_global_fields.zi"
+      ],
+      "purpose": "Read both overlapping short-copy chunks before stores; zero tails stay inside object. Reduce hot15-byte token return copy from4scalar pairs to2pairs.",
+      "timing_report": "bench/results/widget-native-omega-short-tail-screen.json",
+      "timing_receipt": "2e8d1ac59407ac0627c182aa79820ffb08b2",
+      "local_tests": {
+        "x86_encoder": "1/1 passed",
+        "zx_lowered_parity": "1/1 passed across C, interpreter, bundle, native ELF and available Wasm"
+      }
+    },
+    {
+      "label": "near-spills",
+      "status": "rejected and source reverted: 11 rounds Text +0.6%, Input -0.3%, Button -1.7%",
+      "timing_report": "bench/results/widget-native-omega-near-spills-11.json",
+      "timing_receipt": "7bc61471f10c53e5942c696465e9dec5335a",
+      "local_tests_receipt": "06b3a002d75e3aeec28c842cf0320f8e798c",
+      "static_text_bytes": [
+        247562,
+        244170
+      ],
+      "static_input_bytes": [
+        435419,
+        429019
+      ]
+    },
+    {
+      "label": "general-calls",
+      "status": "rejected as no useful code change; guarded tests pass",
+      "timing_report": "bench/results/widget-native-omega-general-calls-screen.json",
+      "timing_receipt": "8a80bc300ca6979eb3727b105123c2b0d8fd"
+    },
+    {
+      "label": "gpr-calls",
+      "status": "rejected as no material code or performance gain; guarded tests pass",
+      "timing_report": "bench/results/widget-native-omega-gpr-calls-screen.json",
+      "timing_receipt": "a61bfca9a901f43c3be20731bfb50d248a5c"
+    },
+    {
+      "label": "callee-order",
+      "status": "rejected and all compiler/test hunks reverted: Text +1.9%, Input flat, Button -2.2% after11 rounds",
+      "timing_report": "bench/results/widget-native-omega-callee-order-11.json",
+      "timing_receipt": "4b1e19d33cc581bc38ff88ac8729d1a6b445",
+      "local_tests_receipt": "bbf2b0c9a63eff741f65eb2ee7f45a36825b"
+    },
+    {
+      "label": "entry-stack",
+      "status": "reverted",
+      "reason": "Matched 11 rounds: Text and Button slower, Input only 0.56% faster; also identified a potential local-address tail-call lifetime hazard in this rejected approach, so it must not be reused without tail-call changes. No hazard fix retained.",
+      "report": "bench/results/widget-native-omega-entry-stack-11.json",
+      "measurement_command_id": "e16876b71632b981d0a0e6233482f9bbbd54",
+      "focused_tests_command_id": "02fed73a968661669ca72a1faa4c5bf2acd0",
+      "revert_and_restore_command_id": "28ca2641e8234b66a57652430a75311d4823",
+      "restored_source_hashes": {
+        "cmd/compiler_machine_lower.zi": "a663d391ae031a7321ab34aef57c4f4312c363ec7edce088b53d54cb59a4f317",
+        "tests/machine_ir_cases.zi": "440aa2708ead2210dd10df98c6df744db1b27d4464b6d06e9f472e2e22c4ebdc"
+      },
+      "failed_restore_command_id": "d80f14f8e2357fa28554e2dfdbc1b60a2400",
+      "failed_restore_reason": "Patch headers use repository-relative paths; default git apply stripping rejected before any mutation. Corrected with -p0."
+    }
+  ],
+  "source_snapshot_label": "cold-frame",
+  "trial_evidence": {
+    "field_outparam": {
+      "receipt": "082842ec55d412c9b31949e207ffca806746",
+      "report": "bench/results/widget-native-omega-field-outparam.json",
+      "native_input_us": [
+        2.701690918945313,
+        2.775843869995117
+      ],
+      "parity_receipt": "f76077e8af8fb337f5f1fb469a1b6d3480de"
+    },
+    "field_theme": {
+      "receipt": "e6b6b27443bbb17b61d9b0a7f2a9b2d07587",
+      "report": "bench/results/widget-native-omega-field-theme.json",
+      "native_input_us": [
+        2.922734864013672,
+        2.915847660888672
+      ],
+      "parity_receipt": "e5c40605425d6a3146e1e793ff86450295bc"
+    },
+    "token_runs": {
+      "receipt": "2ccdc490183aea53558f76444e59e59b01f9",
+      "report": "bench/results/widget-native-omega-token-runs.json",
+      "native_text_us": [
+        2.478374022705078,
+        2.413893802490234
+      ],
+      "parity_receipt": "21a86879785bcfb80413a2c90e332c8c2c4a",
+      "restored_source_check": "b4e9a9375328bbb2ac3057c603ada43486e4"
+    },
+    "cfg_profile": {
+      "report": "bench/results/widget-profile-omega-cfg-hints.json",
+      "native_samples": {
+        "input": 594,
+        "text": 524
+      },
+      "method": "four independent frozen31-batch processes per scenario; SIGPROF; no timing claim"
+    },
+    "tree_linear": {
+      "status": "retained: focused identity/lifecycle/reorder/failed-frame parity passes, 11-round matched gain confirmed",
+      "measurement_command_id": "db81c9a704d630161c1fa30decd5b7fb87e4",
+      "command": "python3 bench/widget_native.py --labels tree-linear cfg-hints --rounds 3 --output bench/results/widget-native-omega-tree-linear.json",
+      "prepare_receipt": "576ec4ee5c13f9d9ea90acc1ef791060f43e",
+      "manifest": {
+        "sha256": "50f52fb0e919aa86cb76243c59cf51b2bcae79f59fd4adda43e1cb145a54fd91",
+        "bytes": 136473
+      },
+      "runtime": "Exact frozen cfg-hints runtime; does not include HeapKey candidate",
+      "completion_code": 1,
+      "measurement_receipt": "31bb8f91053280380393206f75af439c2cc4",
+      "report": "bench/results/widget-native-omega-tree-linear-11.json",
+      "previous_hostgate_failure": "db81c9a704d630161c1fa30decd5b7fb87e4 completed1; retained as failed attempt, not a timing result"
+    },
+    "heap_key": {
+      "status": "rejected and own HeapKey hunk reverted; small Text improvement with Input regression",
+      "report": "bench/results/widget-native-omega-heap-order.json",
+      "assembly_report": "bench/results/widget-native-omega-heap-assembly.json",
+      "measurement_receipt": "d40e67a1ce25e2e2981c6a248ab016347331",
+      "matched_rounds": 3,
+      "samples_per_run": 11,
+      "median_us": {
+        "button": {
+          "c": 1.9352784420166016,
+          "heap-baseline": 2.0363947769775392,
+          "heap-order": 2.0328718873901366
+        },
+        "text": {
+          "c": 1.6390250857543947,
+          "heap-baseline": 2.4045848404541017,
+          "heap-order": 2.3645274667968748
+        },
+        "input": {
+          "c": 2.4007054453125,
+          "heap-baseline": 2.8292263159179685,
+          "heap-order": 2.86337670690918
+        }
+      },
+      "baseline_build_receipt": "36328475d9b3142c0a5d23f217bb60211694",
+      "invalid_control": "heap-control was caught containing the candidate; preserved and never used for timing"
+    },
+    "encoder_loop_alignment": {
+      "status": "rejected and own encoder/test hunks removed; static code size improved but matched runtime did not",
+      "before_receipt": "863970c12ffc50d251ffc415aa550212e71e",
+      "after_receipt": "22e3468711e5118159e625651e57d98aa3da",
+      "build_receipt": "54d25cb47125b6af3e71698aa07d9e18d8cb",
+      "mechanism": "Resolve allocator transfer targets from original edges, retaining real backward target alignment and metadata-free direct-MIR layout handling; bound and charge header analysis",
+      "screening_receipt": "b6616131b29519aebd95b24dd035c47a57c6",
+      "report": "bench/results/widget-native-omega-transfer-tree-screen.json",
+      "restored_source_check": "90d022b1602811ccb3a406d1c2056168b094",
+      "backup": "backup/widget-allocation-window/transfer-heads.zi"
+    },
+    "native_relocation_explain": {
+      "status": "fixed locally; registry and specific guidance added; focused explain 1/1 executed passes; full final suite not yet rerun",
+      "receipt": "675f6b09615e08987bc8f3d53a81560713f3",
+      "path": "cmd/package_explain.zi",
+      "peer_failure": "Latest peer full suite 272/273 had only missing zx.native.relocation; the older 273/273 milestone is not current final validation"
+    },
+    "build_window": {
+      "status": "inactive Breeze hold lifted by parent; one bounded check found no active conflicting build, snapshots saved, canonical normal rebuilds completed; current alignment build owns slot",
+      "parent_feedback": "d5e0648e14add20ffe607f43dd62f55e970b",
+      "process_receipt": "89d1176f234d06463d0b8e561a7f8b7b1a67",
+      "snapshot_receipt": "2d83862ea8b6d76db317243216ce01a85ac5",
+      "manifest": "backup/widget-allocation-window/manifest.json"
+    },
+    "float_free_calls": {
+      "status": "rejected and own proof/fixture hunks removed; 11-round matched results did not confirm runtime improvement",
+      "screening_report": "bench/results/widget-native-omega-float-free.json",
+      "report": "bench/results/widget-native-omega-float-free-11.json",
+      "assembly_report": "bench/results/widget-native-omega-float-free-assembly.json",
+      "measurement_receipt": "e1e27b61dc993c02279e146e92264a421fea",
+      "revert_and_checks_receipt": "b4ea3ca76016bbd1757ff2aa9da0aa53eb9b",
+      "focused_tests_receipt": "547944c1666a709a1eb1d43f42ff0b0a4e9f",
+      "static_receipt": "f9f67348a2c55306e770a97eaeb9e9a47b62"
+    },
+    "cold_frame_leaf": {
+      "status": "retained",
+      "report": "bench/results/widget-native-omega-cold-frame-11.json",
+      "measurement_command_id": "13883c692e602b109a55ffd1e7a61b487cf6",
+      "focused_tests_command_id": "8209493cd75c74e43ba5f67bf4cc409b85b8",
+      "native_leaf_fuel_api_command_id": "4944aad07959153a035a87a4609c245c8142",
+      "frameless_metadata_command_id": "8dd8cec8eaaec6e352bd97d55e6a0a9043f3",
+      "effect": "Text 2.35% faster than tree-linear; Input and Button flat; correct fuel traps and ordinary caller-frame preservation."
+    }
+  },
+  "report_artifacts": [
+    {
+      "path": "bench/results/widget-button-omega-2026-11-16-fields-profile.json",
+      "sha256": "6164bd52c3806f2b93352f2a9b5bde873d20563faf666d07a92411d4173a2703",
+      "bytes": 1060
+    },
+    {
+      "path": "bench/results/widget-button-omega-2026-11-16-profile.json",
+      "sha256": "3f2c26c27443005815eb82000bb7882d8128133bb0c203d740597c1dc8c63542",
+      "bytes": 3952
+    },
+    {
+      "path": "bench/results/widget-native-omega-ascii.json",
+      "sha256": "8a324320b10a168828d2203b6bf6a0f2d0f5b0af6f06cda8ebee40e9d14df61e",
+      "bytes": 368457
+    },
+    {
+      "path": "bench/results/widget-native-omega-baseline.json",
+      "sha256": "ba9f6a6252e5dd392526c356d631933bda96206f9f9869ad06bb0b5f7fd3d2ff",
+      "bytes": 215784
+    },
+    {
+      "path": "bench/results/widget-native-omega-cfg-hints.json",
+      "sha256": "82671f6cf29b6826dd99c8e35f391766424c6336d481bf3f4fcc78b36d0de42c",
+      "bytes": 376639
+    },
+    {
+      "path": "bench/results/widget-native-omega-copy.json",
+      "sha256": "9f794e495a811bfd5c1a026c6f893eaa919a7c5533f45f5f0a87617e829200be",
+      "bytes": 389964
+    },
+    {
+      "path": "bench/results/widget-native-omega-draw-plans.json",
+      "sha256": "02b09f4ecb9a9c275f8a62830d6cafe4be94a30b99a0e3ee410508308f73e53e",
+      "bytes": 392647
+    },
+    {
+      "path": "bench/results/widget-native-omega-field-outline.json",
+      "sha256": "801b2239e0d27085dae069382093dc1d4f753cd611b0867ed247d696e72c3eaf",
+      "bytes": 374128
+    },
+    {
+      "path": "bench/results/widget-native-omega-field-outparam.json",
+      "sha256": "cabb9f630e971cbb1495c373038cc3c41793ccf230b4b70e23ad8393e70646e9",
+      "bytes": 373975
+    },
+    {
+      "path": "bench/results/widget-native-omega-field-theme.json",
+      "sha256": "f1a3620e608d7175e162ab8486e045c5e3375723ee7e8e7326249cbbc52d9073",
+      "bytes": 390997
+    },
+    {
+      "path": "bench/results/widget-native-omega-grapheme-ascii.json",
+      "sha256": "9ced6f7cf6bf9aa7a571b7874b4dfc94c037f6475395679c0d1c6b69f5f03a2e",
+      "bytes": 390048
+    },
+    {
+      "path": "bench/results/widget-native-omega-inline-ab.json",
+      "sha256": "783255752e9c397c50229979dfcdeebefd2a516eb6256ef6d7fa042e907e62c1",
+      "bytes": 379501
+    },
+    {
+      "path": "bench/results/widget-native-omega-inline.json",
+      "sha256": "009b992200d049c8d2986153db02b33e85fb7da5dc6f0543c7bef3591c86d026",
+      "bytes": 390054
+    },
+    {
+      "path": "bench/results/widget-native-omega-progress-11.json",
+      "sha256": "e42b1f7328af78329862f871e29ed14df9518b7f999b4ee0df0b5a3eae1ea663",
+      "bytes": 573474
+    },
+    {
+      "path": "bench/results/widget-native-omega-token-runs.json",
+      "sha256": "89529b14ea2c142dee60ee950a1cbc872cb85de0d87e543dc4f26bf24200e8cc",
+      "bytes": 382933
+    },
+    {
+      "path": "bench/results/widget-profile-omega-cfg-hints.json",
+      "sha256": "6210129e52a0f890b857aae06e3ea767aca968dd40860346b05d0e5266a554f4",
+      "bytes": 11026
+    },
+    {
+      "path": "bench/results/widget-profile-omega-draw-plans.json",
+      "sha256": "5383c3bafa62561445da5275c1be92673de017f762561506cd8a33a2ae8e3fdd",
+      "bytes": 26250
+    },
+    {
+      "path": "bench/results/widget-native-omega-machine.json",
+      "sha256": "e335a1bc26bc13d3c99d92fa6b833949f927ecf786b1780eb154c22e410d683c",
+      "bytes": 35169
+    },
+    {
+      "path": "bench/results/widget-native-omega-assembly.json",
+      "sha256": "731dcc4b55aef4d304e1fd88840f938c44a3391d25ede087343a1a0af9d20d59",
+      "bytes": 55494
+    }
+  ],
+  "current_profile": {
+    "report": "bench/results/widget-profile-omega-tree-linear.json",
+    "receipt": "9c502c496894037de2d5b39e56c8bee2c6f6",
+    "status": "finished",
+    "exit_code": 0,
+    "scope": "Diagnostic SIGPROF only; exact nonrelocation code comparison; sampled during Kryon integrated gate, not performance evidence.",
+    "instruction_report": "bench/results/widget-profile-omega-tree-linear-instructions.json",
+    "instruction_attribution_command_id": "e7d3bb37572819ab9a3517a4884a70d3b5f6",
+    "instruction_note": "Reused saved raw SIGPROF samples. Exact code cmp against the original profiled images passed before instruction attribution. Text 653/673 and Input 472/497 samples fell in instruction ranges; remaining samples are outside those ranges. Diagnostic only, not timing evidence."
+  },
+  "active_trial": null,
+  "sparse_load_candidate": {
+    "status": "retained after matched11 and full local suite/bootstrap; no commit or push",
+    "screen_receipt": "4ab83fbe3a82fa45a60e0448ae9fa21108a1",
+    "matched11_receipt": "bb024698f19b943e3b193336c3c1e2b6908e",
+    "matched11_report": "bench/results/widget-native-omega-sparse-load-11.json",
+    "focused_receipt": "b19e858853c08acab4bc61d227f1496deee6",
+    "focused_tests": "machine_ir, x86_encoder, zx_lowered_parity: each executed 1/1, zero reused",
+    "changes": "unchecked x86 record snapshots with only constant extracts copy demanded first-level members at their original load point; no source alias is retained; other targets, checks, whole-value and dynamic uses keep full snapshots",
+    "guard": "mask 1..64 fields; selected bytes at most half the original; no partial escaping snapshot",
+    "mir_evidence_receipt": "5c89cd2ae80865b4f399f6a36144a73f4cee",
+    "inventory": "backup/widget-allocation-window/retained-cold-frame-inventory.json",
+    "new_owned_paths": [
+      "cmd/compiler_machine_fields.zi",
+      "cmd/compiler_machine_verify.zi",
+      "cmd/compiler_machine_lower.zi",
+      "tests/machine_fields_cases.zi"
+    ],
+    "full_gate": {
+      "receipt": "1b3e6bb44d77f763f9a9523a1580ab911918",
+      "executed": 273,
+      "reused": 0,
+      "passed": 273,
+      "seconds": 348.5,
+      "bootstrap": "matches"
+    },
+    "median_us": {
+      "button": {
+        "c": 1.877286074005127,
+        "sparse-load": 1.8650408928222657,
+        "cold-frame": 1.824957884338379,
+        "before": 2.2014328642578125
+      },
+      "text": {
+        "c": 1.527947722961426,
+        "sparse-load": 2.1332717279052735,
+        "cold-frame": 2.172758544464111,
+        "before": 3.0402727060546875
+      },
+      "input": {
+        "c": 2.3439848646240233,
+        "sparse-load": 2.493808598876953,
+        "cold-frame": 2.5311816425781246,
+        "before": 3.022708013183594
+      }
+    }
+  }
+}

@@ -1,0 +1,183 @@
+{
+  "host": "omega",
+  "recorded_at": "2026-11-19T07:46:58.937033+00:00",
+  "status": "rejected: lower static FP spill/reload counts did not improve 11-round matched execution; own proof and fixtures reverted",
+  "timing_report": "bench/results/widget-native-omega-float-free-11.json",
+  "timing_receipt": "e1e27b61dc993c02279e146e92264a421fea",
+  "static_receipt": "f9f67348a2c55306e770a97eaeb9e9a47b62",
+  "focused_tests_receipt": "547944c1666a709a1eb1d43f42ff0b0a4e9f",
+  "build_and_focused_suite_receipt": "b3bafafb4a3345e1a60cfb51e6ef2b24c4f9",
+  "cases": {
+    "text": {
+      "tree-linear": {
+        "code_bytes": 247562,
+        "code_sha256": "1b11a4c50dcb887494c35b2cf048341f7d44a5d1466464a97f6b9c888f6f6a55",
+        "totals": {
+          "instructions": 27213,
+          "moves": 5253,
+          "spills": 1214,
+          "reloads": 1753,
+          "fp_spills": 457,
+          "fp_reloads": 671
+        },
+        "selected_functions": [
+          {
+            "id": 61,
+            "name": "text:PaintTextLinesWithPlans",
+            "begin": 77568,
+            "end": 91522,
+            "blocks": 169,
+            "edge_blocks": 83,
+            "instructions": 1738,
+            "moves": 384,
+            "spills": 365,
+            "reloads": 500,
+            "aligned_heads": 62,
+            "original_backward_targets": 21,
+            "fp_spills": 123,
+            "fp_reloads": 199,
+            "forward_calls": 7,
+            "forward_reduced_masks": 1
+          },
+          {
+            "id": 127,
+            "name": "text_layout:NextTextLineUncached",
+            "begin": 152128,
+            "end": 156776,
+            "blocks": 154,
+            "edge_blocks": 70,
+            "instructions": 641,
+            "moves": 200,
+            "spills": 34,
+            "reloads": 56,
+            "aligned_heads": 40,
+            "original_backward_targets": 19,
+            "fp_spills": 2,
+            "fp_reloads": 5,
+            "forward_calls": 1,
+            "forward_reduced_masks": 0
+          },
+          {
+            "id": 149,
+            "name": "text_layout:TextTokenNext",
+            "begin": 175872,
+            "end": 178425,
+            "blocks": 97,
+            "edge_blocks": 33,
+            "instructions": 412,
+            "moves": 134,
+            "spills": 14,
+            "reloads": 32,
+            "aligned_heads": 18,
+            "original_backward_targets": 11,
+            "fp_spills": 0,
+            "fp_reloads": 0,
+            "forward_calls": 1,
+            "forward_reduced_masks": 1
+          }
+        ]
+      },
+      "float-free": {
+        "code_bytes": 246186,
+        "code_sha256": "8cf4e5c0d55fc07c8317de990098ff74aedcddea2459a9fd07e5682fa5bc329d",
+        "totals": {
+          "instructions": 27064,
+          "moves": 5283,
+          "spills": 1147,
+          "reloads": 1643,
+          "fp_spills": 390,
+          "fp_reloads": 561
+        },
+        "selected_functions": [
+          {
+            "id": 61,
+            "name": "text:PaintTextLinesWithPlans",
+            "begin": 77568,
+            "end": 91138,
+            "blocks": 169,
+            "edge_blocks": 83,
+            "instructions": 1693,
+            "moves": 384,
+            "spills": 350,
+            "reloads": 470,
+            "aligned_heads": 62,
+            "original_backward_targets": 21,
+            "fp_spills": 108,
+            "fp_reloads": 169,
+            "forward_calls": 7,
+            "forward_reduced_masks": 0
+          },
+          {
+            "id": 127,
+            "name": "text_layout:NextTextLineUncached",
+            "begin": 150880,
+            "end": 155496,
+            "blocks": 153,
+            "edge_blocks": 69,
+            "instructions": 633,
+            "moves": 200,
+            "spills": 32,
+            "reloads": 51,
+            "aligned_heads": 39,
+            "original_backward_targets": 19,
+            "fp_spills": 0,
+            "fp_reloads": 0,
+            "forward_calls": 1,
+            "forward_reduced_masks": 0
+          },
+          {
+            "id": 149,
+            "name": "text_layout:TextTokenNext",
+            "begin": 174592,
+            "end": 177145,
+            "blocks": 97,
+            "edge_blocks": 33,
+            "instructions": 412,
+            "moves": 134,
+            "spills": 14,
+            "reloads": 32,
+            "aligned_heads": 18,
+            "original_backward_targets": 11,
+            "fp_spills": 0,
+            "fp_reloads": 0,
+            "forward_calls": 1,
+            "forward_reduced_masks": 0
+          }
+        ]
+      }
+    },
+    "input": {
+      "tree-linear": {
+        "code_bytes": 435419,
+        "code_sha256": "3923f41ae39b729be435a745b2164ebef4843dcb4d510e54284d8408a8c3d66f",
+        "totals": {
+          "instructions": 49322,
+          "moves": 11293,
+          "spills": 2119,
+          "reloads": 3212,
+          "fp_spills": 439,
+          "fp_reloads": 715
+        },
+        "selected_functions": []
+      },
+      "float-free": {
+        "code_bytes": 434331,
+        "code_sha256": "43bf8da56abd9a1968e3cddf7a59f66c7e04e13f6dfd2ec94dba031005ed2e47",
+        "totals": {
+          "instructions": 49181,
+          "moves": 11314,
+          "spills": 2064,
+          "reloads": 3108,
+          "fp_spills": 384,
+          "fp_reloads": 611
+        },
+        "selected_functions": []
+      }
+    }
+  },
+  "notes": [
+    "Exact frozen tree-linear bundles and C controls were reused; no workload change. Static counts are not dynamic cost.",
+    "The proof propagated FP/vector/unknown-call use through the reverse direct call graph, with bounded allocation/work. Integer-only recursive components used only reserved transfer scratch.",
+    "New focused fixtures exercised direct/transitive/integer-recursive proof and negative FP/indirect paths. Existing spill-pressure fixtures were made to use real FP before the proof was rejected. Both source versions are preserved only in ignored backup."
+  ]
+}

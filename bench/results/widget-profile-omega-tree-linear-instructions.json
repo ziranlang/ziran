@@ -1,0 +1,1012 @@
+{
+  "text": {
+    "captured_native_samples": 673,
+    "instruction_range_samples": 653,
+    "opcodes": {
+      "Compare": 69,
+      "Store": 67,
+      "Return": 64,
+      "Branch": 40,
+      "AggregateExtract": 40,
+      "Spill": 32,
+      "CallDirect": 32,
+      "Move": 29,
+      "AggregateInsert": 29,
+      "Load": 28,
+      "Convert": 27,
+      "IntegerAdd": 25,
+      "Fuel": 24,
+      "ElementAddress": 20,
+      "Jump": 19,
+      "MoveImmediate": 18,
+      "SetCondition": 12,
+      "IntegerSubtract": 12,
+      "Reload": 11,
+      "FieldAddress": 7,
+      "BytesEqual": 6,
+      "ShiftLeft": 6,
+      "AggregateBuild": 5,
+      "IntegerAnd": 5,
+      "Zero": 5,
+      "IntegerDivide": 4,
+      "GlobalAddress": 3,
+      "FloatMultiply": 3,
+      "CallIndirect": 2,
+      "IntegerMultiply": 2,
+      "ArenaAllocate": 2,
+      "FloatSubtract": 2,
+      "StackAddress": 1,
+      "FloatAdd": 1,
+      "IntegerNegate": 1
+    },
+    "hot_instructions": [
+      {
+        "function": "std_utf8:Decode",
+        "opcode": "Return",
+        "samples": 11,
+        "begin": 147835,
+        "end": 147873,
+        "origin": -1,
+        "pcs": [
+          147843,
+          147866,
+          147871
+        ]
+      },
+      {
+        "function": "text_layout:TextTokenNext",
+        "opcode": "Return",
+        "samples": 11,
+        "begin": 177606,
+        "end": 177673,
+        "origin": -1,
+        "pcs": [
+          177614,
+          177667
+        ]
+      },
+      {
+        "function": "widget_benchmark_host:RasterTextClipped",
+        "opcode": "IntegerAdd",
+        "samples": 11,
+        "begin": 204718,
+        "end": 204721,
+        "origin": -1,
+        "pcs": [
+          204718
+        ]
+      },
+      {
+        "function": "paint_queue:PendingTextValue",
+        "opcode": "Return",
+        "samples": 8,
+        "begin": 173984,
+        "end": 173999,
+        "origin": -1,
+        "pcs": [
+          173993
+        ]
+      },
+      {
+        "function": "tree:TreeStoreLabel",
+        "opcode": "IntegerAdd",
+        "samples": 7,
+        "begin": 125104,
+        "end": 125108,
+        "origin": -1,
+        "pcs": [
+          125104
+        ]
+      },
+      {
+        "function": "text_layout:NextTextLineUncached",
+        "opcode": "Spill",
+        "samples": 7,
+        "begin": 156273,
+        "end": 156280,
+        "origin": -1,
+        "pcs": [
+          156273
+        ]
+      },
+      {
+        "function": "tree:TreeSubmit",
+        "opcode": "Store",
+        "samples": 5,
+        "begin": 62144,
+        "end": 62167,
+        "origin": -1,
+        "pcs": [
+          62152
+        ]
+      },
+      {
+        "function": "paint_queue:PendingPaintAt",
+        "opcode": "Load",
+        "samples": 5,
+        "begin": 104564,
+        "end": 104839,
+        "origin": -1,
+        "pcs": [
+          104607,
+          104615,
+          104787
+        ]
+      },
+      {
+        "function": "tree:TreeLayerAt",
+        "opcode": "Compare",
+        "samples": 5,
+        "begin": 150603,
+        "end": 150606,
+        "origin": -1,
+        "pcs": [
+          150603
+        ]
+      },
+      {
+        "function": "paint_queue:KeepShortPaintBytes",
+        "opcode": "Return",
+        "samples": 5,
+        "begin": 214553,
+        "end": 214594,
+        "origin": -1,
+        "pcs": [
+          214561,
+          214593
+        ]
+      },
+      {
+        "function": "widget_benchmarks:TextCase",
+        "opcode": "CallDirect",
+        "samples": 4,
+        "begin": 534,
+        "end": 588,
+        "origin": -1,
+        "pcs": [
+          551,
+          559
+        ]
+      },
+      {
+        "function": "paint_queue:PaintClear",
+        "opcode": "Store",
+        "samples": 4,
+        "begin": 24222,
+        "end": 24239,
+        "origin": -1,
+        "pcs": [
+          24227
+        ]
+      },
+      {
+        "function": "paint_queue:PaintClear",
+        "opcode": "Store",
+        "samples": 4,
+        "begin": 24381,
+        "end": 24398,
+        "origin": -1,
+        "pcs": [
+          24386
+        ]
+      },
+      {
+        "function": "tree:TreeStart",
+        "opcode": "Store",
+        "samples": 4,
+        "begin": 24751,
+        "end": 24768,
+        "origin": -1,
+        "pcs": [
+          24756
+        ]
+      },
+      {
+        "function": "tree:TreeStart",
+        "opcode": "Store",
+        "samples": 4,
+        "begin": 24805,
+        "end": 24822,
+        "origin": -1,
+        "pcs": [
+          24810
+        ]
+      },
+      {
+        "function": "text:DrawSession",
+        "opcode": "CallDirect",
+        "samples": 4,
+        "begin": 27414,
+        "end": 27757,
+        "origin": -1,
+        "pcs": [
+          27693,
+          27722
+        ]
+      },
+      {
+        "function": "paint_queue:PaintFlush",
+        "opcode": "AggregateInsert",
+        "samples": 4,
+        "begin": 41868,
+        "end": 42153,
+        "origin": -1,
+        "pcs": [
+          41996,
+          42036,
+          42113,
+          42126
+        ]
+      },
+      {
+        "function": "tree:TreeRead",
+        "opcode": "AggregateInsert",
+        "samples": 4,
+        "begin": 45659,
+        "end": 45666,
+        "origin": -1,
+        "pcs": [
+          45659
+        ]
+      },
+      {
+        "function": "tree:TreeSubmit",
+        "opcode": "Store",
+        "samples": 4,
+        "begin": 61981,
+        "end": 62105,
+        "origin": -1,
+        "pcs": [
+          61989,
+          61993
+        ]
+      },
+      {
+        "function": "text:PrepareTextWithLines",
+        "opcode": "BytesEqual",
+        "samples": 4,
+        "begin": 68261,
+        "end": 68278,
+        "origin": -1,
+        "pcs": [
+          68268,
+          68271
+        ]
+      },
+      {
+        "function": "text:PaintTextLinesWithPlans",
+        "opcode": "CallDirect",
+        "samples": 4,
+        "begin": 83466,
+        "end": 83760,
+        "origin": -1,
+        "pcs": [
+          83499,
+          83654,
+          83715
+        ]
+      },
+      {
+        "function": "text:DefaultTextFace",
+        "opcode": "AggregateExtract",
+        "samples": 4,
+        "begin": 115044,
+        "end": 115152,
+        "origin": -1,
+        "pcs": [
+          115044,
+          115048,
+          115094,
+          115124
+        ]
+      },
+      {
+        "function": "text:DefaultTextFace",
+        "opcode": "AggregateInsert",
+        "samples": 4,
+        "begin": 115163,
+        "end": 115271,
+        "origin": -1,
+        "pcs": [
+          115171,
+          115252
+        ]
+      },
+      {
+        "function": "text:PaintTextLineRuns",
+        "opcode": "IntegerSubtract",
+        "samples": 4,
+        "begin": 133700,
+        "end": 133703,
+        "origin": -1,
+        "pcs": [
+          133700
+        ]
+      },
+      {
+        "function": "text_layout:NextTextLineUncached",
+        "opcode": "IntegerDivide",
+        "samples": 4,
+        "begin": 154698,
+        "end": 154719,
+        "origin": -1,
+        "pcs": [
+          154701,
+          154716
+        ]
+      },
+      {
+        "function": "std_math:SineDegrees",
+        "opcode": "SetCondition",
+        "samples": 4,
+        "begin": 157432,
+        "end": 157449,
+        "origin": -1,
+        "pcs": [
+          157435,
+          157438
+        ]
+      },
+      {
+        "function": "text_layout:TextTokenNext",
+        "opcode": "Convert",
+        "samples": 4,
+        "begin": 176004,
+        "end": 176010,
+        "origin": -1,
+        "pcs": [
+          176004
+        ]
+      },
+      {
+        "function": "paint_queue:PaintClear",
+        "opcode": "Store",
+        "samples": 3,
+        "begin": 24169,
+        "end": 24186,
+        "origin": -1,
+        "pcs": [
+          24174
+        ]
+      },
+      {
+        "function": "paint_queue:PaintClear",
+        "opcode": "Store",
+        "samples": 3,
+        "begin": 24328,
+        "end": 24345,
+        "origin": -1,
+        "pcs": [
+          24333
+        ]
+      },
+      {
+        "function": "tree:TreeStart",
+        "opcode": "Store",
+        "samples": 3,
+        "begin": 25034,
+        "end": 25057,
+        "origin": -1,
+        "pcs": [
+          25042
+        ]
+      },
+      {
+        "function": "text:PaintTextLinesWithPlans",
+        "opcode": "Compare",
+        "samples": 3,
+        "begin": 78705,
+        "end": 78708,
+        "origin": -1,
+        "pcs": [
+          78705
+        ]
+      },
+      {
+        "function": "paint_queue:PendingPaintAt",
+        "opcode": "FieldAddress",
+        "samples": 3,
+        "begin": 104283,
+        "end": 104291,
+        "origin": -1,
+        "pcs": [
+          104283
+        ]
+      },
+      {
+        "function": "text:DefaultTextFace",
+        "opcode": "AggregateInsert",
+        "samples": 3,
+        "begin": 115473,
+        "end": 115581,
+        "origin": -1,
+        "pcs": [
+          115481,
+          115485,
+          115528
+        ]
+      },
+      {
+        "function": "text:DefaultTextFace",
+        "opcode": "AggregateInsert",
+        "samples": 3,
+        "begin": 115597,
+        "end": 115705,
+        "origin": -1,
+        "pcs": [
+          115609,
+          115627,
+          115632
+        ]
+      },
+      {
+        "function": "text_layout:NextTextLine",
+        "opcode": "Return",
+        "samples": 3,
+        "begin": 121388,
+        "end": 121433,
+        "origin": -1,
+        "pcs": [
+          121400
+        ]
+      },
+      {
+        "function": "text:PaintTextLineRuns",
+        "opcode": "AggregateExtract",
+        "samples": 3,
+        "begin": 130278,
+        "end": 130291,
+        "origin": -1,
+        "pcs": [
+          130286
+        ]
+      },
+      {
+        "function": "paint_queue:PaintClippedLabel",
+        "opcode": "Store",
+        "samples": 3,
+        "begin": 138423,
+        "end": 138715,
+        "origin": -1,
+        "pcs": [
+          138526,
+          138534,
+          138629
+        ]
+      },
+      {
+        "function": "cursor:CursorHoverFrameCommit",
+        "opcode": "Fuel",
+        "samples": 3,
+        "begin": 145266,
+        "end": 145286,
+        "origin": -1,
+        "pcs": [
+          145274
+        ]
+      },
+      {
+        "function": "text_layout:NextTextLineUncached",
+        "opcode": "Spill",
+        "samples": 3,
+        "begin": 154539,
+        "end": 154545,
+        "origin": -1,
+        "pcs": [
+          154539
+        ]
+      },
+      {
+        "function": "text_layout:NextTextLineUncached",
+        "opcode": "Compare",
+        "samples": 3,
+        "begin": 154667,
+        "end": 154674,
+        "origin": -1,
+        "pcs": [
+          154667
+        ]
+      }
+    ]
+  },
+  "input": {
+    "captured_native_samples": 497,
+    "instruction_range_samples": 472,
+    "opcodes": {
+      "Store": 72,
+      "Compare": 45,
+      "Fuel": 44,
+      "Return": 42,
+      "AggregateExtract": 39,
+      "Load": 31,
+      "Branch": 25,
+      "CallDirect": 20,
+      "Convert": 19,
+      "Move": 14,
+      "ElementAddress": 13,
+      "ShiftLeft": 12,
+      "AggregateInsert": 12,
+      "FieldAddress": 12,
+      "Spill": 10,
+      "MoveImmediate": 10,
+      "Reload": 9,
+      "Zero": 6,
+      "GlobalAddress": 6,
+      "Jump": 6,
+      "IntegerAnd": 5,
+      "CallIndirect": 4,
+      "AggregateBuild": 3,
+      "IntegerSubtract": 3,
+      "StackAddress": 2,
+      "IntegerAdd": 2,
+      "SetCondition": 2,
+      "IntegerOr": 1,
+      "IntegerNot": 1,
+      "IntegerDivide": 1,
+      "FloatSubtract": 1
+    },
+    "hot_instructions": [
+      {
+        "function": "paint_queue:KeepPaintMesh",
+        "opcode": "Fuel",
+        "samples": 8,
+        "begin": 278573,
+        "end": 278583,
+        "origin": -1,
+        "pcs": [
+          278573
+        ]
+      },
+      {
+        "function": "paint_queue:QueuePaint",
+        "opcode": "Store",
+        "samples": 6,
+        "begin": 226336,
+        "end": 226359,
+        "origin": -1,
+        "pcs": [
+          226344
+        ]
+      },
+      {
+        "function": "tree:TreeSetTextValue",
+        "opcode": "Store",
+        "samples": 5,
+        "begin": 162048,
+        "end": 162067,
+        "origin": -1,
+        "pcs": [
+          162053
+        ]
+      },
+      {
+        "function": "paint_queue:QueuePaint",
+        "opcode": "Load",
+        "samples": 5,
+        "begin": 225533,
+        "end": 225877,
+        "origin": -1,
+        "pcs": [
+          225594,
+          225616,
+          225644
+        ]
+      },
+      {
+        "function": "paint_queue:PendingTextValue",
+        "opcode": "Return",
+        "samples": 5,
+        "begin": 328864,
+        "end": 328879,
+        "origin": -1,
+        "pcs": [
+          328873,
+          328877
+        ]
+      },
+      {
+        "function": "paint_queue:PaintClear",
+        "opcode": "Store",
+        "samples": 4,
+        "begin": 30430,
+        "end": 30447,
+        "origin": -1,
+        "pcs": [
+          30435
+        ]
+      },
+      {
+        "function": "paint_queue:PaintFlush",
+        "opcode": "CallIndirect",
+        "samples": 4,
+        "begin": 98386,
+        "end": 98697,
+        "origin": -1,
+        "pcs": [
+          98455,
+          98556,
+          98624,
+          98650
+        ]
+      },
+      {
+        "function": "tree:TreeSubmit",
+        "opcode": "Convert",
+        "samples": 4,
+        "begin": 123495,
+        "end": 123498,
+        "origin": -1,
+        "pcs": [
+          123495
+        ]
+      },
+      {
+        "function": "tree:TreeCurrentParent",
+        "opcode": "Fuel",
+        "samples": 4,
+        "begin": 129874,
+        "end": 129894,
+        "origin": -1,
+        "pcs": [
+          129882
+        ]
+      },
+      {
+        "function": "tree:TreeSetTextValue",
+        "opcode": "Load",
+        "samples": 4,
+        "begin": 161883,
+        "end": 161900,
+        "origin": -1,
+        "pcs": [
+          161887
+        ]
+      },
+      {
+        "function": "paint_queue:PendingPaintAt",
+        "opcode": "Compare",
+        "samples": 4,
+        "begin": 188889,
+        "end": 188899,
+        "origin": -1,
+        "pcs": [
+          188889
+        ]
+      },
+      {
+        "function": "paint_queue:PendingPaintAt",
+        "opcode": "Load",
+        "samples": 4,
+        "begin": 189236,
+        "end": 189511,
+        "origin": -1,
+        "pcs": [
+          189279,
+          189292,
+          189403
+        ]
+      },
+      {
+        "function": "tree:TreeFindOld",
+        "opcode": "FieldAddress",
+        "samples": 4,
+        "begin": 198475,
+        "end": 198479,
+        "origin": -1,
+        "pcs": [
+          198475
+        ]
+      },
+      {
+        "function": "paint_queue:PaintClear",
+        "opcode": "Store",
+        "samples": 3,
+        "begin": 30377,
+        "end": 30394,
+        "origin": -1,
+        "pcs": [
+          30382,
+          30386
+        ]
+      },
+      {
+        "function": "paint_queue:PaintClear",
+        "opcode": "Store",
+        "samples": 3,
+        "begin": 30536,
+        "end": 30553,
+        "origin": -1,
+        "pcs": [
+          30541
+        ]
+      },
+      {
+        "function": "tree:TreeStart",
+        "opcode": "Store",
+        "samples": 3,
+        "begin": 31013,
+        "end": 31030,
+        "origin": -1,
+        "pcs": [
+          31018
+        ]
+      },
+      {
+        "function": "tree:TreeStart",
+        "opcode": "Store",
+        "samples": 3,
+        "begin": 31176,
+        "end": 31193,
+        "origin": -1,
+        "pcs": [
+          31181
+        ]
+      },
+      {
+        "function": "tree:TreeStart",
+        "opcode": "Store",
+        "samples": 3,
+        "begin": 31386,
+        "end": 31409,
+        "origin": -1,
+        "pcs": [
+          31394
+        ]
+      },
+      {
+        "function": "textfield:TextFieldCore",
+        "opcode": "CallDirect",
+        "samples": 3,
+        "begin": 40096,
+        "end": 40472,
+        "origin": -1,
+        "pcs": [
+          40096,
+          40336,
+          40369
+        ]
+      },
+      {
+        "function": "tree:TreeSetCaptureTab",
+        "opcode": "Compare",
+        "samples": 3,
+        "begin": 155290,
+        "end": 155299,
+        "origin": -1,
+        "pcs": [
+          155290
+        ]
+      },
+      {
+        "function": "paint_queue:PendingPaintAt",
+        "opcode": "Store",
+        "samples": 3,
+        "begin": 188995,
+        "end": 189008,
+        "origin": -1,
+        "pcs": [
+          189003
+        ]
+      },
+      {
+        "function": "paint_queue:PendingPaintAt",
+        "opcode": "Return",
+        "samples": 3,
+        "begin": 189511,
+        "end": 189833,
+        "origin": -1,
+        "pcs": [
+          189577,
+          189637,
+          189779
+        ]
+      },
+      {
+        "function": "tree:TreeEnsureSemantic",
+        "opcode": "Store",
+        "samples": 3,
+        "begin": 219200,
+        "end": 219223,
+        "origin": -1,
+        "pcs": [
+          219208
+        ]
+      },
+      {
+        "function": "paint_queue:QueuePaint",
+        "opcode": "Compare",
+        "samples": 3,
+        "begin": 226859,
+        "end": 226862,
+        "origin": -1,
+        "pcs": [
+          226859
+        ]
+      },
+      {
+        "function": "paint_queue:QueuePaint",
+        "opcode": "AggregateExtract",
+        "samples": 3,
+        "begin": 228551,
+        "end": 228567,
+        "origin": -1,
+        "pcs": [
+          228551
+        ]
+      },
+      {
+        "function": "std_utf8:Decode",
+        "opcode": "Return",
+        "samples": 3,
+        "begin": 261014,
+        "end": 261051,
+        "origin": -1,
+        "pcs": [
+          261022
+        ]
+      },
+      {
+        "function": "std_utf8:Decode",
+        "opcode": "Return",
+        "samples": 3,
+        "begin": 261147,
+        "end": 261185,
+        "origin": -1,
+        "pcs": [
+          261155
+        ]
+      },
+      {
+        "function": "paint_queue:KeepShortPaintBytes",
+        "opcode": "Return",
+        "samples": 3,
+        "begin": 388857,
+        "end": 388898,
+        "origin": -1,
+        "pcs": [
+          388865,
+          388884
+        ]
+      },
+      {
+        "function": "paint_queue:__zi_spec_3418540b7982beec",
+        "opcode": "Return",
+        "samples": 3,
+        "begin": 404594,
+        "end": 404639,
+        "origin": -1,
+        "pcs": [
+          404605,
+          404637
+        ]
+      },
+      {
+        "function": "tree_draw:BeginFrame",
+        "opcode": "Store",
+        "samples": 2,
+        "begin": 3887,
+        "end": 3913,
+        "origin": -1,
+        "pcs": [
+          3887,
+          3909
+        ]
+      },
+      {
+        "function": "tree_input:PointerSample",
+        "opcode": "Return",
+        "samples": 2,
+        "begin": 15522,
+        "end": 15565,
+        "origin": -1,
+        "pcs": [
+          15538,
+          15559
+        ]
+      },
+      {
+        "function": "paint_queue:PaintClear",
+        "opcode": "Store",
+        "samples": 2,
+        "begin": 30483,
+        "end": 30500,
+        "origin": -1,
+        "pcs": [
+          30488
+        ]
+      },
+      {
+        "function": "tree:TreeStart",
+        "opcode": "Store",
+        "samples": 2,
+        "begin": 31242,
+        "end": 31265,
+        "origin": -1,
+        "pcs": [
+          31250
+        ]
+      },
+      {
+        "function": "tree:TreeStart",
+        "opcode": "Store",
+        "samples": 2,
+        "begin": 31314,
+        "end": 31337,
+        "origin": -1,
+        "pcs": [
+          31322
+        ]
+      },
+      {
+        "function": "paint_queue:PaintFlush",
+        "opcode": "Load",
+        "samples": 2,
+        "begin": 96913,
+        "end": 96917,
+        "origin": -1,
+        "pcs": [
+          96913
+        ]
+      },
+      {
+        "function": "paint_queue:PaintFlush",
+        "opcode": "AggregateInsert",
+        "samples": 2,
+        "begin": 97356,
+        "end": 97641,
+        "origin": -1,
+        "pcs": [
+          97444,
+          97548
+        ]
+      },
+      {
+        "function": "tree:TreeSubmit",
+        "opcode": "Store",
+        "samples": 2,
+        "begin": 123165,
+        "end": 123289,
+        "origin": -1,
+        "pcs": [
+          123173,
+          123203
+        ]
+      },
+      {
+        "function": "textfield:TextFieldApplyInput",
+        "opcode": "CallDirect",
+        "samples": 2,
+        "begin": 142691,
+        "end": 142774,
+        "origin": -1,
+        "pcs": [
+          142728,
+          142742
+        ]
+      },
+      {
+        "function": "textfield:TextFieldApplyInput",
+        "opcode": "Return",
+        "samples": 2,
+        "begin": 150432,
+        "end": 150543,
+        "origin": -1,
+        "pcs": [
+          150485,
+          150542
+        ]
+      },
+      {
+        "function": "tree:TreeSetTextValue",
+        "opcode": "AggregateInsert",
+        "samples": 2,
+        "begin": 161987,
+        "end": 161991,
+        "origin": -1,
+        "pcs": [
+          161987
+        ]
+      }
+    ]
+  }
+}

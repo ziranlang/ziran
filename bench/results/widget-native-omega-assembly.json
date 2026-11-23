@@ -1,0 +1,1717 @@
+{
+  "before_input": {
+    "image": "build/widget-native/BeforeInput.image",
+    "image_sha256": "7a48ab2640db05c2fd1d8529d61d5220df660b39b886b4d73b398591d3f9d2c6",
+    "functions": {
+      "textfield:TextFieldCore": {
+        "counts": {
+          "instructions": 13539,
+          "stack_operands": 4751,
+          "moves": 9310,
+          "memory_operands": 6450,
+          "conditional_jumps": 598,
+          "calls": 305,
+          "nops": 943,
+          "unconditional_jumps": 779
+        },
+        "sample_excerpts": [
+          "f65f:\tmovss  %xmm0,-0xde8(%rbp)",
+          "f667:\tmovss  %xmm1,-0x13c0(%rbp)",
+          "f66f:\tmov    $0xffffffffffffff10,%r11",
+          "f676:\tmovups 0x110(%rbp,%r11,1),%xmm15",
+          "f67f:\tmovups %xmm15,0xf0(%rsp,%r11,1)",
+          "f688:\tsub    $0xfffffffffffffff0,%r11",
+          "f68c:\tjne    0xf676",
+          "f692:\tmov    0x110(%rbp),%r11",
+          "f699:\tmov    %r11,0xf0(%rsp)",
+          "f6a1:\tmovzwl 0x118(%rbp),%r11d",
+          "f6a9:\tmov    %r11w,0xf8(%rsp)",
+          "f6b2:\tlea    0x3f(%r14),%rax",
+          "f6b6:\tmov    %r15,0x0(%rip)        # 0xf6bd",
+          "f6bd:\tnopl   (%rax)",
+          "13d7d:\tmov    %r12,-0x1170(%rbp)",
+          "13d84:\tmov    %rdx,%r12",
+          "13d87:\tmov    %rcx,%rdx",
+          "13d8a:\tmovzbl -0xd70(%rbp),%ecx",
+          "13d91:\tjmp    0x98a0",
+          "13d96:\tmov    %eax,-0xd68(%rbp)",
+          "13d9c:\tmov    %r8,%rax",
+          "13d9f:\tmovss  %xmm2,%xmm3",
+          "13da3:\tmov    %r10,%r8",
+          "13da6:\tmov    %rsi,%r10",
+          "13da9:\tmovss  %xmm0,%xmm2",
+          "13dad:\tmovslq -0x1160(%rbp),%rsi",
+          "13db4:\tmov    -0x1170(%rbp),%rdi",
+          "13dbb:\tmov    %rdx,%r11",
+          "13dbe:\tmov    %r12,%rdx",
+          "13dc1:\tmov    %rcx,%r12",
+          "13dc4:\tmov    %r11,%rcx",
+          "13dc7:\tmov    %bl,-0x1910(%rbp)",
+          "13dcd:\tmov    %r9,%rbx",
+          "13dd0:\tmovzbl -0x1910(%rbp),%r9d",
+          "13dd8:\tjmp    0x98c0"
+        ],
+        "begin": 36320,
+        "end": 106304,
+        "bytes": 69984,
+        "native_samples": 28,
+        "hot_offsets": [
+          [
+            63103,
+            3
+          ],
+          [
+            81308,
+            2
+          ],
+          [
+            36446,
+            1
+          ],
+          [
+            67217,
+            1
+          ]
+        ],
+        "function": "textfield:TextFieldCore",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/textfield/textfield.zi",
+          "line": 421
+        }
+      },
+      "paint_queue:QueuePaint": {
+        "counts": {
+          "instructions": 1249,
+          "stack_operands": 206,
+          "moves": 590,
+          "memory_operands": 607,
+          "conditional_jumps": 89,
+          "nops": 120,
+          "unconditional_jumps": 63,
+          "calls": 39
+        },
+        "sample_excerpts": [
+          "39a76:\tmov    -0x7d8(%rbp),%r11",
+          "39a7d:\tmov    %r11,0x8(%rax)",
+          "39a81:\tlea    0x4c(%r14),%rax",
+          "39a85:\tlea    -0x7f0(%rbp),%rcx",
+          "39a8c:\txor    %r11d,%r11d",
+          "39a8f:\tmov    %r11,(%rcx)",
+          "39a92:\tmov    %r11,0x8(%rcx)",
+          "39a96:\tmov    -0x7f0(%rbp),%r11",
+          "39a9d:\tmov    %r11,(%rax)",
+          "39aa0:\tmov    -0x7e8(%rbp),%r11",
+          "39aa7:\tmov    %r11,0x8(%rax)",
+          "39aab:\tlea    0xde(%r14),%rax",
+          "39ab2:\tmovzbl (%rax),%eax",
+          "39ab5:\ttest   %rax,%rax",
+          "39ab8:\tjne    0x3ad3d",
+          "39abe:\txchg   %ax,%ax",
+          "39ac0:\tlea    0xf3(%r14),%rax",
+          "39ac7:\tmovzbl (%rax),%eax",
+          "39aca:\ttest   %rax,%rax",
+          "39acd:\tjne    0x3ad4b",
+          "39ad3:\tnopw   0x0(%rax,%rax,1)",
+          "39c85:\tmov    %r11,(%rax)",
+          "39c88:\tmov    -0x680(%rbp),%r11",
+          "39c8f:\tmov    %r11,0x8(%rax)",
+          "39c93:\tmov    $0xfffffffffffffee0,%r11",
+          "39c9a:\tmovups 0x120(%r12,%r11,1),%xmm15",
+          "39ca3:\tmovups %xmm15,-0x698(%rbp,%r11,1)",
+          "39cac:\tsub    $0xfffffffffffffff0,%r11",
+          "39cb0:\tjne    0x39c9a",
+          "39cb6:\tmov    0x120(%r12),%r11",
+          "39cbe:\tmov    %r11,-0x698(%rbp)",
+          "39cc5:\tmov    0x128(%r12),%r11d",
+          "39ccd:\tmov    %r11d,-0x690(%rbp)",
+          "39cd4:\tmovzwl 0x12c(%r12),%r11d",
+          "39cdd:\tmov    %r11w,-0x68c(%rbp)"
+        ],
+        "begin": 235520,
+        "end": 241728,
+        "bytes": 6208,
+        "native_samples": 11,
+        "hot_offsets": [
+          [
+            236707,
+            2
+          ],
+          [
+            236182,
+            1
+          ],
+          [
+            237689,
+            1
+          ],
+          [
+            236846,
+            1
+          ]
+        ],
+        "function": "paint_queue:QueuePaint",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/paint_queue.zi",
+          "line": 747
+        }
+      },
+      "tree:TreeBuildNewIndex": {
+        "counts": {
+          "instructions": 397,
+          "stack_operands": 60,
+          "moves": 171,
+          "memory_operands": 162,
+          "conditional_jumps": 27,
+          "nops": 32,
+          "unconditional_jumps": 22,
+          "calls": 13
+        },
+        "sample_excerpts": [
+          "34ae7:\timul   $0x205ab,%rax,%r11",
+          "34aee:\tlea    (%rsi,%r11,1),%rsi",
+          "34af2:\tlea    0x2044c(%rsi),%rsi",
+          "34af9:\tmov    (%rsi),%r11",
+          "34afc:\tmov    %r11,-0x58(%rbp)",
+          "34b00:\tmov    0x8(%rsi),%r11",
+          "34b04:\tmov    %r11,-0x50(%rbp)",
+          "34b08:\tmov    0x10(%rsi),%r11",
+          "34b0c:\tmov    %r11,-0x48(%rbp)",
+          "34b10:\tmov    -0x58(%rbp),%rdi",
+          "34b14:\tmov    -0x50(%rbp),%r8",
+          "34b18:\tmov    -0x48(%rbp),%r9",
+          "34b1c:\tnopl   0x0(%rax)",
+          "34b20:\tcmp    %r9,%r8",
+          "34b23:\tjge    0x34e0a",
+          "34b29:\tnopw   0x0(%rax,%rax,1)",
+          "34b32:\tnopw   0x0(%rax,%rax,1)",
+          "34b3b:\tnopl   0x0(%rax,%rax,1)",
+          "34b40:\tmov    -0x58(%rbp),%rdi",
+          "34b44:\tmov    -0x50(%rbp),%r8",
+          "34b48:\tlea    0x1(%r8),%r9",
+          "34b4c:\tmovl   $0xffffffff,(%rdi,%r8,4)",
+          "34b54:\tmov    %r9,-0x50(%rbp)",
+          "34b58:\tmov    $0x1,%edi"
+        ],
+        "begin": 215040,
+        "end": 216768,
+        "bytes": 1728,
+        "native_samples": 2,
+        "hot_offsets": [
+          [
+            215812,
+            1
+          ],
+          [
+            215832,
+            1
+          ]
+        ],
+        "function": "tree:TreeBuildNewIndex",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/tree.zi",
+          "line": 414
+        }
+      },
+      "tree:TreeBuildOldIndex": {
+        "counts": {
+          "instructions": 437,
+          "stack_operands": 69,
+          "moves": 192,
+          "memory_operands": 188,
+          "conditional_jumps": 26,
+          "nops": 41,
+          "unconditional_jumps": 23,
+          "calls": 12
+        },
+        "sample_excerpts": [
+          "22780:\tlea    0x0(%rip),%rax        # 0x22787",
+          "22787:\timul   $0x205ab,%rbx,%r11",
+          "2278e:\tlea    (%rax,%r11,1),%rax",
+          "22792:\tlea    0x20434(%rax),%rax",
+          "22799:\tmov    (%rax),%r11",
+          "2279c:\tmov    %r11,-0x58(%rbp)",
+          "227a0:\tmov    0x8(%rax),%r11",
+          "227a4:\tmov    %r11,-0x50(%rbp)",
+          "227a8:\tmov    0x10(%rax),%r11",
+          "227ac:\tmov    %r11,-0x48(%rbp)",
+          "227b0:\tmov    -0x58(%rbp),%rdi",
+          "227b4:\tmov    -0x50(%rbp),%rsi",
+          "227b8:\tmov    -0x48(%rbp),%r8",
+          "227bc:\tnopl   0x0(%rax)",
+          "227c0:\tcmp    %r8,%rsi",
+          "227c3:\tjge    0x22a57",
+          "227c9:\tnopw   0x0(%rax,%rax,1)",
+          "227d2:\tnopw   0x0(%rax,%rax,1)",
+          "227db:\tnopl   0x0(%rax,%rax,1)",
+          "227e0:\tmov    -0x58(%rbp),%rsi",
+          "227e4:\tmov    -0x50(%rbp),%rdi",
+          "227e8:\tlea    0x1(%rdi),%r8",
+          "227ec:\tmovl   $0xffffffff,(%rsi,%rdi,4)",
+          "227f3:\tmov    %r8,-0x50(%rbp)",
+          "227f7:\tmov    $0x1,%esi",
+          "227fc:\tnopl   0x0(%rax)",
+          "22800:\tmov    -0x58(%rbp),%r11",
+          "22804:\tmov    %r11,(%rax)",
+          "22807:\tmov    -0x50(%rbp),%r11",
+          "2280b:\tmov    %r11,0x8(%rax)",
+          "2280f:\tmov    -0x48(%rbp),%r11",
+          "22813:\tmov    %r11,0x10(%rax)",
+          "22817:\tnopw   0x0(%rax,%rax,1)",
+          "22820:\tcmp    $0x0,%rsi",
+          "22824:\tje     0x229a1",
+          "2282a:\tadd    $0x1,%rdx",
+          "2282e:\tmovslq %edx,%rdx",
+          "22831:\tsub    $0x1,%r15",
+          "22835:\tjb     0x22ade"
+        ],
+        "begin": 140128,
+        "end": 142080,
+        "bytes": 1952,
+        "native_samples": 2,
+        "hot_offsets": [
+          [
+            141303,
+            1
+          ],
+          [
+            141216,
+            1
+          ]
+        ],
+        "function": "tree:TreeBuildOldIndex",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/tree.zi",
+          "line": 380
+        }
+      }
+    }
+  },
+  "cfg_input": {
+    "image": "build/widget-native/CfgInput.image",
+    "image_sha256": "fbb3c4912ceb8e76264b365d9a2ede0b40719351df5648f06d7b3db31e25ce11",
+    "functions": {
+      "textfield:TextFieldCore": {
+        "counts": {
+          "instructions": 8916,
+          "stack_operands": 3253,
+          "moves": 5834,
+          "memory_operands": 4397,
+          "conditional_jumps": 433,
+          "calls": 262,
+          "nops": 642,
+          "unconditional_jumps": 488
+        },
+        "sample_excerpts": [
+          "c266:\tmovslq -0x344(%rbp),%rbx",
+          "c26d:\tsub    $0x1,%r15",
+          "c271:\tjb     0x140ea",
+          "c277:\txorps  %xmm3,%xmm3",
+          "c27a:\tcvtsi2ss %rbx,%xmm3",
+          "c27f:\tsubss  %xmm3,%xmm1",
+          "c283:\txor    %r11d,%r11d",
+          "c286:\tmovd   %r11d,%xmm3",
+          "c28b:\tucomiss %xmm1,%xmm3",
+          "c28e:\tja     0x11a2b",
+          "c294:\tmov    $0x3f000000,%r11d",
+          "c29a:\tmovd   %r11d,%xmm3",
+          "c29f:\taddss  %xmm3,%xmm1",
+          "c2a3:\tmov    $0xcf000000,%r11d",
+          "c2a9:\tmovd   %r11d,%xmm15",
+          "c2ae:\tucomiss %xmm15,%xmm1",
+          "c2b2:\tjb     0x140fd",
+          "c2b8:\tmov    $0x4f000000,%r11d",
+          "c2be:\tmovd   %r11d,%xmm15",
+          "c2c3:\tucomiss %xmm15,%xmm1",
+          "11726:\tmov    %rcx,%r8",
+          "11729:\tmov    -0xef0(%rbp),%rcx",
+          "11730:\tmov    %rdx,%r9",
+          "11733:\tmov    %rdi,%r12",
+          "11736:\tmov    %rbx,%rdx",
+          "11739:\tmov    %r10,%rbx",
+          "1173c:\tmov    %rsi,%r10",
+          "1173f:\tmov    -0xee0(%rbp),%esi",
+          "11745:\tjmp    0xb2c0",
+          "1174a:\tmov    -0xef0(%rbp),%rdi",
+          "11751:\tmovslq -0xcf0(%rbp),%rax",
+          "11758:\tmov    -0xee0(%rbp),%ecx",
+          "1175e:\tmovslq -0xda8(%rbp),%rdx",
+          "11765:\tjmp    0x10240",
+          "1176a:\tmov    -0xee0(%rbp),%ecx",
+          "11770:\tmov    -0xef0(%rbp),%rdx",
+          "11777:\tmovslq -0xcf0(%rbp),%rax",
+          "1177e:\txchg   %ax,%ax",
+          "11780:\tjmp    0xb340",
+          "11785:\tjmp    0x10900"
+        ],
+        "begin": 36480,
+        "end": 84192,
+        "bytes": 47712,
+        "native_samples": 66,
+        "hot_offsets": [
+          [
+            71493,
+            3
+          ],
+          [
+            49795,
+            2
+          ],
+          [
+            72332,
+            2
+          ],
+          [
+            36796,
+            2
+          ]
+        ],
+        "function": "textfield:TextFieldCore",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/textfield/textfield.zi",
+          "line": 421
+        }
+      },
+      "textfield:TextFieldApplyInput": {
+        "counts": {
+          "instructions": 1856,
+          "stack_operands": 567,
+          "moves": 1004,
+          "memory_operands": 830,
+          "conditional_jumps": 147,
+          "nops": 159,
+          "unconditional_jumps": 148,
+          "calls": 42
+        },
+        "sample_excerpts": [
+          "22d83:\tmov    %r15,0x0(%rip)        # 0x22d8a",
+          "22d8a:\tcall   0x327c0",
+          "22d8f:\tmov    0x0(%rip),%r15        # 0x22d96",
+          "22d96:\tmovups -0x108(%rbp),%xmm15",
+          "22d9e:\tmovups %xmm15,-0x128(%rbp)",
+          "22da6:\tmov    -0xf8(%rbp),%r11",
+          "22dad:\tmov    %r11,-0x118(%rbp)",
+          "22db4:\tmovzbl -0xf0(%rbp),%r11d",
+          "22dbc:\tmov    %r11b,-0x110(%rbp)",
+          "22dc3:\tmovups -0x128(%rbp),%xmm15",
+          "22dcb:\tmovups %xmm15,0x133(%rbp)",
+          "22dd3:\tmov    -0x118(%rbp),%r11",
+          "22dda:\tmov    %r11,0x143(%rbp)",
+          "22e89:\tmov    (%rax),%rcx",
+          "22e8c:\tcmp    $0x0,%rcx",
+          "22e90:\tje     0x23453",
+          "22e96:\tnopw   0x0(%rax,%rax,1)",
+          "22e9f:\tnop",
+          "22ea0:\tmovzbl -0x6d(%rbp),%ecx",
+          "22ea4:\ttest   %rcx,%rcx",
+          "22ea7:\tjne    0x237db",
+          "22ead:\tnopw   0x0(%rax,%rax,1)",
+          "22eb6:\tnopw   0x0(%rax,%rax,1)",
+          "22ebf:\tnop",
+          "22ec0:\txor    %ecx,%ecx",
+          "22ec2:\tnopw   0x0(%rax,%rax,1)",
+          "22ecb:\tnopw   0x0(%rax,%rax,1)",
+          "22ed4:\tnopw   0x0(%rax,%rax,1)",
+          "22edd:\tnopl   (%rax)",
+          "22ee0:\tmov    %cl,0x131(%rbp)"
+        ],
+        "begin": 142304,
+        "end": 151808,
+        "bytes": 9504,
+        "native_samples": 10,
+        "hot_offsets": [
+          [
+            142750,
+            2
+          ],
+          [
+            143012,
+            1
+          ],
+          [
+            143396,
+            1
+          ],
+          [
+            142328,
+            1
+          ]
+        ],
+        "function": "textfield:TextFieldApplyInput",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/textfield/textfield.zi",
+          "line": 247
+        }
+      },
+      "paint_queue:QueuePaint": {
+        "counts": {
+          "instructions": 1413,
+          "stack_operands": 387,
+          "moves": 820,
+          "memory_operands": 873,
+          "conditional_jumps": 79,
+          "nops": 100,
+          "unconditional_jumps": 42,
+          "calls": 39
+        },
+        "sample_excerpts": [
+          "36bd6:\tmov    0x0(%rip),%r15        # 0x36bdd",
+          "36bdd:\tlea    0x30(%r13),%rax",
+          "36be1:\txor    %ecx,%ecx",
+          "36be3:\tlea    -0x678(%rbp),%rcx",
+          "36bea:\txorps  %xmm15,%xmm15",
+          "36bee:\tmovups %xmm15,(%rcx)",
+          "36bf2:\tmovups -0x678(%rbp),%xmm15",
+          "36bfa:\tmovups %xmm15,(%rax)",
+          "36bfe:\tlea    0x4c(%r13),%rax",
+          "36c02:\tlea    -0x688(%rbp),%rcx",
+          "36c09:\txorps  %xmm15,%xmm15",
+          "36c0d:\tmovups %xmm15,(%rcx)",
+          "36c11:\tmovups -0x688(%rbp),%xmm15",
+          "36c19:\tmovups %xmm15,(%rax)",
+          "36c1d:\tmovups (%r12),%xmm15",
+          "36c22:\tmovups %xmm15,-0x7b8(%rbp)",
+          "36c2a:\tmovups 0x10(%r12),%xmm15",
+          "36c30:\tmovups %xmm15,-0x7a8(%rbp)",
+          "3712c:\tand    %r10,%r8",
+          "3712f:\tmov    %r8d,%r8d",
+          "37132:\tcmp    $0x0,%r8",
+          "37136:\tje     0x384a5",
+          "3713c:\tlea    0x0(%rip),%rcx        # 0x37143",
+          "37143:\tmov    (%rcx,%rsi,8),%rcx",
+          "37147:\tmov    0x14(%rbp),%r8",
+          "3714b:\tcmp    %r8,%rcx",
+          "3714e:\tje     0x384b0",
+          "37154:\tjmp    0x384be",
+          "37159:\tmov    %r12,%rax",
+          "3715c:\tnopl   0x0(%rax)",
+          "37160:\tcmp    $0x9,%rax",
+          "37164:\tjge    0x36940",
+          "3716a:\tlea    0x0(%rip),%rax        # 0x37171",
+          "37171:\tmov    (%rax),%eax",
+          "37173:\tmov    $0x1,%ecx",
+          "37178:\tmov    %r12,%rdx",
+          "3717b:\tmov    %edx,%edx",
+          "3717d:\tmov    %rcx,%rsi",
+          "37180:\tmov    %rdx,%rcx",
+          "37183:\tcmp    $0x20,%rcx",
+          "37187:\tjae    0x385cf"
+        ],
+        "begin": 223168,
+        "end": 231072,
+        "bytes": 7904,
+        "native_samples": 43,
+        "hot_offsets": [
+          [
+            224242,
+            2
+          ],
+          [
+            225611,
+            2
+          ],
+          [
+            224818,
+            2
+          ],
+          [
+            223743,
+            2
+          ]
+        ],
+        "function": "paint_queue:QueuePaint",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/paint_queue.zi",
+          "line": 747
+        }
+      },
+      "tree:TreeBuildNewIndex": {
+        "counts": {
+          "instructions": 385,
+          "stack_operands": 56,
+          "moves": 163,
+          "memory_operands": 149,
+          "conditional_jumps": 27,
+          "nops": 28,
+          "unconditional_jumps": 22,
+          "calls": 13
+        },
+        "sample_excerpts": [
+          "2fc2e:\tlea    (%rsi,%r11,1),%rsi",
+          "2fc32:\tlea    0x2044c(%rsi),%rsi",
+          "2fc39:\tmovups (%rsi),%xmm15",
+          "2fc3d:\tmovups %xmm15,-0x58(%rbp)",
+          "2fc42:\tmov    0x10(%rsi),%r11",
+          "2fc46:\tmov    %r11,-0x48(%rbp)",
+          "2fc4a:\tmov    -0x58(%rbp),%rdi",
+          "2fc4e:\tmov    -0x50(%rbp),%r8",
+          "2fc52:\tmov    -0x48(%rbp),%r9",
+          "2fc56:\tcmp    %r9,%r8",
+          "2fc59:\tjge    0x2ff0a",
+          "2fc5f:\tnop",
+          "2fc60:\tmov    -0x58(%rbp),%rdi",
+          "2fc64:\tmov    -0x50(%rbp),%r8",
+          "2fc68:\tlea    0x1(%r8),%r9",
+          "2fc6c:\tmovl   $0xffffffff,(%rdi,%r8,4)",
+          "2fc74:\tmov    %r9,-0x50(%rbp)",
+          "2fc78:\tmov    $0x1,%edi",
+          "2fc7d:\tnopl   (%rax)",
+          "2fc80:\tmovups -0x58(%rbp),%xmm15",
+          "2fc85:\tmovups %xmm15,(%rsi)",
+          "2fc89:\tmov    -0x48(%rbp),%r11",
+          "2fc8d:\tmov    %r11,0x10(%rsi)",
+          "2fc91:\tcmp    $0x0,%rdi",
+          "2fc95:\tje     0x2fe90",
+          "2fc9b:\tadd    $0x1,%rdx",
+          "2fc9f:\tmovslq %edx,%rdx",
+          "2fca2:\tsub    $0x1,%r15",
+          "2fca6:\tjb     0x2ff8e",
+          "2fcac:\tcmp    %rcx,%rdx",
+          "2fcaf:\tjl     0x2fc20",
+          "2fcb5:\tjmp    0x2fb00",
+          "2fcba:\tnopw   0x0(%rax,%rax,1)",
+          "2fcc0:\tcmp    $0x0,%r9",
+          "2fcc4:\tsete   %al"
+        ],
+        "begin": 194880,
+        "end": 196544,
+        "bytes": 1664,
+        "native_samples": 23,
+        "hot_offsets": [
+          [
+            195662,
+            6
+          ],
+          [
+            195717,
+            5
+          ],
+          [
+            195645,
+            4
+          ],
+          [
+            195700,
+            2
+          ]
+        ],
+        "function": "tree:TreeBuildNewIndex",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/tree.zi",
+          "line": 414
+        }
+      },
+      "tree:TreeBuildOldIndex": {
+        "counts": {
+          "instructions": 430,
+          "stack_operands": 72,
+          "moves": 194,
+          "memory_operands": 185,
+          "conditional_jumps": 25,
+          "nops": 31,
+          "unconditional_jumps": 19,
+          "calls": 12
+        },
+        "sample_excerpts": [
+          "1d916:\tcmp    %r9,%r8",
+          "1d919:\tjge    0x1db30",
+          "1d91f:\tnop",
+          "1d920:\tmov    -0x58(%rbp),%rdi",
+          "1d924:\tmov    -0x50(%rbp),%r8",
+          "1d928:\tlea    0x1(%r8),%r9",
+          "1d92c:\tmovl   $0xffffffff,(%rdi,%r8,4)",
+          "1d934:\tmov    %r9,-0x50(%rbp)",
+          "1d938:\tmov    $0x1,%edi",
+          "1d93d:\tnopl   (%rax)",
+          "1d940:\tmovups -0x58(%rbp),%xmm15",
+          "1d945:\tmovups %xmm15,(%rsi)",
+          "1d949:\tmov    -0x48(%rbp),%r11",
+          "1d94d:\tmov    %r11,0x10(%rsi)",
+          "1d951:\tcmp    $0x0,%rdi",
+          "1d955:\tje     0x1dab5",
+          "1d95b:\tadd    $0x1,%rdx",
+          "1d95f:\tmovslq %edx,%rdx",
+          "1d962:\tsub    $0x1,%r15",
+          "1d966:\tjb     0x1dbb6",
+          "1d96c:\tcmp    %rcx,%rdx",
+          "1d96f:\tjl     0x1d8e0",
+          "1d975:\tjmp    0x1d620",
+          "1d97a:\tnopw   0x0(%rax,%rax,1)",
+          "1d980:\tcmp    $0x0,%r9",
+          "1d984:\tsete   %al"
+        ],
+        "begin": 119936,
+        "end": 121824,
+        "bytes": 1888,
+        "native_samples": 23,
+        "hot_offsets": [
+          [
+            121157,
+            8
+          ],
+          [
+            121140,
+            4
+          ],
+          [
+            121102,
+            3
+          ],
+          [
+            120158,
+            2
+          ]
+        ],
+        "function": "tree:TreeBuildOldIndex",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/tree.zi",
+          "line": 380
+        }
+      }
+    }
+  },
+  "before_input_c": {
+    "binary": "build/widget-native/before/input/c-runner",
+    "sha256": "369344eec745351ac6be2528abdc190d77f44eb00a365f3ecc4fd01c360929dd",
+    "functions": {
+      "paint_queue:QueuePaint": {
+        "counts": {
+          "instructions": 454,
+          "moves": 210,
+          "stack_operands": 91,
+          "memory_operands": 174,
+          "conditional_jumps": 57,
+          "calls": 19,
+          "unconditional_jumps": 15,
+          "nops": 13
+        },
+        "sample_excerpts": [
+          "cf20:\tpush   %r15",
+          "cf22:\tmov    %rdx,%r15",
+          "cf25:\tpush   %r14",
+          "cf27:\tpush   %r13",
+          "cf29:\tpush   %r12",
+          "cf2b:\tmov    %r8,%r12",
+          "cf2e:\tpush   %rbp",
+          "cf2f:\tmov    %rdi,%rbp",
+          "cf32:\tpush   %rbx",
+          "cf33:\tmov    %rsi,%rbx",
+          "cf36:\tsub    $0x1c8,%rsp",
+          "cf3d:\tmovb   $0x0,0xec(%rdx)",
+          "cf44:\tmovb   $0x0,0x104(%rdx)",
+          "cf4b:\tmov    0x200(%rsp),%rax",
+          "cf53:\tmovb   $0x0,0x130(%rdx)",
+          "cf5a:\tmov    (%rdx),%edx",
+          "cf5c:\tmov    %rcx,0x8(%rsp)"
+        ],
+        "symbol": "paint_queue_QueuePaint",
+        "begin": 53024,
+        "bytes": 2057
+      },
+      "textfield:TextFieldCore": {
+        "counts": {
+          "instructions": 2425,
+          "moves": 1424,
+          "stack_operands": 1141,
+          "memory_operands": 1177,
+          "conditional_jumps": 191,
+          "nops": 32,
+          "calls": 150,
+          "unconditional_jumps": 68
+        },
+        "sample_excerpts": [
+          "15bb0:\tpush   %r15",
+          "15bb2:\tmov    $0xf,%ecx",
+          "15bb7:\tpush   %r14",
+          "15bb9:\tpush   %r13",
+          "15bbb:\tpush   %r12",
+          "15bbd:\tpush   %rbp",
+          "15bbe:\tpush   %rbx",
+          "15bbf:\txor    %ebx,%ebx",
+          "15bc1:\tsub    $0x718,%rsp",
+          "15bc8:\tmov    0x758(%rsp),%rax",
+          "15bd0:\tmov    %rdi,0x58(%rsp)",
+          "15bd5:\tlea    0x270(%rsp),%rdi",
+          "15bdd:\tmovups 0x758(%rsp),%xmm6",
+          "15be5:\tmov    0x7b8(%rsp),%ebp",
+          "15bec:\tmov    %rdx,(%rsp)",
+          "15bf0:\tmov    %rax,0xb0(%rsp)"
+        ],
+        "symbol": "textfield_TextFieldCore",
+        "begin": 89008,
+        "bytes": 13024
+      },
+      "tree:TreeBuildNewIndex": {
+        "counts": {
+          "instructions": 193,
+          "moves": 52,
+          "stack_operands": 13,
+          "calls": 6,
+          "memory_operands": 50,
+          "conditional_jumps": 28,
+          "nops": 8,
+          "unconditional_jumps": 6
+        },
+        "sample_excerpts": [
+          "1a800:\tpush   %r15",
+          "1a802:\tpush   %r14",
+          "1a804:\tpush   %r13",
+          "1a806:\tmov    %rsi,%r13",
+          "1a809:\tpush   %r12",
+          "1a80b:\tmov    %rdi,%r12",
+          "1a80e:\tpush   %rbp",
+          "1a80f:\tpush   %rbx",
+          "1a810:\tmov    %edx,%ebx",
+          "1a812:\tsub    $0x18,%rsp",
+          "1a816:\tcall   e0f0 <SessionIndex>",
+          "1a81b:\tlea    0x140fde(%rip),%r8        # 15b800 <trees>",
+          "1a822:\tmovslq %eax,%rcx",
+          "1a825:\tmovslq %ebx,%rax",
+          "1a828:\timul   $0x205c0,%rcx,%rdx",
+          "1a82f:\tadd    %rax,%rax",
+          "1a832:\tcmp    %rax,0x20458(%r8,%rdx,1)",
+          "1a83a:\tjg     1a888 <tree_TreeBuildNewIndex+0x88>",
+          "1a83c:\tmov    $0x8,%ebp"
+        ],
+        "symbol": "tree_TreeBuildNewIndex",
+        "begin": 108544,
+        "bytes": 787
+      },
+      "tree:TreeBuildOldIndex": {
+        "counts": {
+          "instructions": 193,
+          "memory_operands": 54,
+          "moves": 63,
+          "stack_operands": 22,
+          "calls": 4,
+          "conditional_jumps": 27,
+          "nops": 8,
+          "unconditional_jumps": 5
+        },
+        "sample_excerpts": [
+          "1a4b0:\tpush   %r15",
+          "1a4b2:\tpush   %r14",
+          "1a4b4:\tlea    0x141345(%rip),%r14        # 15b800 <trees>",
+          "1a4bb:\tpush   %r13",
+          "1a4bd:\tmov    %rsi,%r13",
+          "1a4c0:\tpush   %r12",
+          "1a4c2:\tmov    %rdi,%r12",
+          "1a4c5:\tpush   %rbp",
+          "1a4c6:\tpush   %rbx",
+          "1a4c7:\tsub    $0x28,%rsp",
+          "1a4cb:\tcall   e0f0 <SessionIndex>",
+          "1a4d0:\tmovslq %eax,%rbp",
+          "1a4d3:\timul   $0x205c0,%rbp,%rax",
+          "1a4da:\tadd    %r14,%rax",
+          "1a4dd:\tmovzbl 0x20590(%rax),%r9d",
+          "1a4e5:\ttest   %r9b,%r9b",
+          "1a4e8:\tjne    1a677 <tree_TreeBuildOldIndex+0x1c7>",
+          "1a4ee:\tmovslq 0x2056c(%rax),%rdx"
+        ],
+        "symbol": "tree_TreeBuildOldIndex",
+        "begin": 107696,
+        "bytes": 833
+      }
+    }
+  },
+  "cfg_input_c": {
+    "binary": "build/widget-native/cfg-hints/input/c-runner",
+    "sha256": "671ee45e781912cd4a59859ed956cbe6da6d74950b220f7a5318a67556197998",
+    "functions": {
+      "paint_queue:QueuePaint": {
+        "counts": {
+          "instructions": 454,
+          "moves": 210,
+          "stack_operands": 91,
+          "memory_operands": 174,
+          "conditional_jumps": 57,
+          "calls": 19,
+          "unconditional_jumps": 15,
+          "nops": 13
+        },
+        "sample_excerpts": [
+          "cf20:\tpush   %r15",
+          "cf22:\tmov    %rdx,%r15",
+          "cf25:\tpush   %r14",
+          "cf27:\tpush   %r13",
+          "cf29:\tpush   %r12",
+          "cf2b:\tmov    %r8,%r12",
+          "cf2e:\tpush   %rbp",
+          "cf2f:\tmov    %rdi,%rbp",
+          "cf32:\tpush   %rbx",
+          "cf33:\tmov    %rsi,%rbx",
+          "cf36:\tsub    $0x1c8,%rsp",
+          "cf3d:\tmovb   $0x0,0xec(%rdx)",
+          "cf44:\tmovb   $0x0,0x104(%rdx)",
+          "cf4b:\tmov    0x200(%rsp),%rax",
+          "cf53:\tmovb   $0x0,0x130(%rdx)",
+          "cf5a:\tmov    (%rdx),%edx",
+          "cf5c:\tmov    %rcx,0x8(%rsp)"
+        ],
+        "symbol": "paint_queue_QueuePaint",
+        "begin": 53024,
+        "bytes": 2057
+      },
+      "textfield:TextFieldApplyInput": {
+        "counts": {
+          "instructions": 725,
+          "moves": 409,
+          "stack_operands": 373,
+          "memory_operands": 389,
+          "conditional_jumps": 72,
+          "calls": 26,
+          "nops": 21,
+          "unconditional_jumps": 27
+        },
+        "sample_excerpts": [
+          "16030:\tpush   %r15",
+          "16032:\tpush   %r14",
+          "16034:\tmov    %rdi,%r14",
+          "16037:\tpush   %r13",
+          "16039:\tpush   %r12",
+          "1603b:\tmov    %rsi,%r12",
+          "1603e:\tpush   %rbp",
+          "1603f:\tpush   %rbx",
+          "16040:\tsub    $0x138,%rsp",
+          "16047:\tmov    0x190(%rsp),%rax",
+          "1604f:\tmov    %ecx,0x30(%rsp)",
+          "16053:\tmovzbl 0x1e8(%rsp),%ecx",
+          "1605b:\tmovzbl 0x290(%rsp),%ebx",
+          "16063:\tmov    %rdx,0x38(%rsp)",
+          "16068:\tmov    %rax,0x58(%rsp)",
+          "1606d:\tmov    0x240(%rsp),%rax"
+        ],
+        "symbol": "textfield_TextFieldApplyInput",
+        "begin": 90160,
+        "bytes": 3794
+      },
+      "textfield:TextFieldCore": {
+        "counts": {
+          "instructions": 1849,
+          "moves": 1129,
+          "stack_operands": 897,
+          "memory_operands": 918,
+          "conditional_jumps": 125,
+          "calls": 122,
+          "unconditional_jumps": 37,
+          "nops": 29
+        },
+        "sample_excerpts": [
+          "16f10:\tpush   %r15",
+          "16f12:\tmov    $0xf,%ecx",
+          "16f17:\tpush   %r14",
+          "16f19:\txor    %r14d,%r14d",
+          "16f1c:\tpush   %r13",
+          "16f1e:\tpush   %r12",
+          "16f20:\tpush   %rbp",
+          "16f21:\tmov    %rdi,%rbp",
+          "16f24:\tpush   %rbx",
+          "16f25:\tsub    $0x708,%rsp",
+          "16f2c:\tmov    0x748(%rsp),%rax",
+          "16f34:\tmov    %rsi,0x20(%rsp)",
+          "16f39:\tlea    0x260(%rsp),%rdi",
+          "16f41:\tmovups 0x748(%rsp),%xmm6",
+          "16f49:\tmov    %rdx,0x8(%rsp)",
+          "16f4e:\tmov    %rax,0xa8(%rsp)"
+        ],
+        "symbol": "textfield_TextFieldCore",
+        "begin": 93968,
+        "bytes": 9757
+      },
+      "tree:TreeBuildNewIndex": {
+        "counts": {
+          "instructions": 193,
+          "moves": 52,
+          "stack_operands": 13,
+          "calls": 6,
+          "memory_operands": 50,
+          "conditional_jumps": 28,
+          "nops": 8,
+          "unconditional_jumps": 6
+        },
+        "sample_excerpts": [
+          "1aec0:\tpush   %r15",
+          "1aec2:\tpush   %r14",
+          "1aec4:\tpush   %r13",
+          "1aec6:\tmov    %rsi,%r13",
+          "1aec9:\tpush   %r12",
+          "1aecb:\tmov    %rdi,%r12",
+          "1aece:\tpush   %rbp",
+          "1aecf:\tpush   %rbx",
+          "1aed0:\tmov    %edx,%ebx",
+          "1aed2:\tsub    $0x18,%rsp",
+          "1aed6:\tcall   e0f0 <SessionIndex>",
+          "1aedb:\tlea    0x14191e(%rip),%r8        # 15c800 <trees>",
+          "1aee2:\tmovslq %eax,%rcx",
+          "1aee5:\tmovslq %ebx,%rax",
+          "1aee8:\timul   $0x205c0,%rcx,%rdx",
+          "1aeef:\tadd    %rax,%rax",
+          "1aef2:\tcmp    %rax,0x20458(%r8,%rdx,1)",
+          "1aefa:\tjg     1af48 <tree_TreeBuildNewIndex+0x88>",
+          "1aefc:\tmov    $0x8,%ebp"
+        ],
+        "symbol": "tree_TreeBuildNewIndex",
+        "begin": 110272,
+        "bytes": 787
+      },
+      "tree:TreeBuildOldIndex": {
+        "counts": {
+          "instructions": 193,
+          "memory_operands": 54,
+          "moves": 63,
+          "stack_operands": 22,
+          "calls": 4,
+          "conditional_jumps": 27,
+          "nops": 8,
+          "unconditional_jumps": 5
+        },
+        "sample_excerpts": [
+          "1ab70:\tpush   %r15",
+          "1ab72:\tpush   %r14",
+          "1ab74:\tlea    0x141c85(%rip),%r14        # 15c800 <trees>",
+          "1ab7b:\tpush   %r13",
+          "1ab7d:\tmov    %rsi,%r13",
+          "1ab80:\tpush   %r12",
+          "1ab82:\tmov    %rdi,%r12",
+          "1ab85:\tpush   %rbp",
+          "1ab86:\tpush   %rbx",
+          "1ab87:\tsub    $0x28,%rsp",
+          "1ab8b:\tcall   e0f0 <SessionIndex>",
+          "1ab90:\tmovslq %eax,%rbp",
+          "1ab93:\timul   $0x205c0,%rbp,%rax",
+          "1ab9a:\tadd    %r14,%rax",
+          "1ab9d:\tmovzbl 0x20590(%rax),%r9d",
+          "1aba5:\ttest   %r9b,%r9b",
+          "1aba8:\tjne    1ad37 <tree_TreeBuildOldIndex+0x1c7>",
+          "1abae:\tmovslq 0x2056c(%rax),%rdx"
+        ],
+        "symbol": "tree_TreeBuildOldIndex",
+        "begin": 109424,
+        "bytes": 833
+      }
+    }
+  },
+  "before_text": {
+    "image": "build/widget-native/BeforeText.image",
+    "image_sha256": "fc03fae7c672831cb13bd925ba0c300fa5cc40c48f33158d72b1786dda9df43c",
+    "functions": {
+      "text_layout:TextTokenNext": {
+        "counts": {
+          "instructions": 443,
+          "stack_operands": 83,
+          "moves": 208,
+          "memory_operands": 164,
+          "conditional_jumps": 43,
+          "nops": 41,
+          "unconditional_jumps": 48,
+          "calls": 15
+        },
+        "sample_excerpts": [
+          "28f34:\tnopw   0x0(%rax,%rax,1)",
+          "28f3d:\tnopl   (%rax)",
+          "28f40:\tmov    %eax,-0x34(%rbp)",
+          "28f43:\tmov    %eax,-0x30(%rbp)",
+          "28f46:\tmov    -0x50(%rbp),%rax",
+          "28f4a:\tmov    -0x38(%rbp),%r11",
+          "28f4e:\tmov    %r11,(%rax)",
+          "28f51:\tmov    -0x30(%rbp),%r11d",
+          "28f55:\tmov    %r11d,0x8(%rax)",
+          "28f59:\tmovzwl -0x2c(%rbp),%r11d",
+          "28f5e:\tmov    %r11w,0xc(%rax)",
+          "28f63:\tmovzbl -0x2a(%rbp),%r11d",
+          "28f68:\tmov    %r11b,0xe(%rax)",
+          "28f6c:\tmov    %r15,0x0(%rip)        # 0x28f73",
+          "28f73:\tmov    -0x8(%rbp),%rbx",
+          "28f77:\tmov    -0x10(%rbp),%r12",
+          "28f7b:\tmov    -0x18(%rbp),%r13",
+          "28f7f:\tmov    -0x20(%rbp),%r14",
+          "28f83:\tmov    -0x28(%rbp),%r15",
+          "28f87:\tleave",
+          "28f88:\tret",
+          "28f89:\tmov    -0x50(%rbp),%rax",
+          "28f8d:\tmov    -0x38(%rbp),%r11",
+          "290c4:\tjmp    0x28d80",
+          "290c9:\tmovzbl -0x58(%rbp),%ebx",
+          "290cd:\tmovslq -0x60(%rbp),%rax",
+          "290d1:\tmov    -0x98(%rbp),%ecx",
+          "290d7:\tjmp    0x28e20",
+          "290dc:\tmovzbl -0x58(%rbp),%eax",
+          "290e0:\tmovslq -0x60(%rbp),%rcx",
+          "290e4:\tjmp    0x28de0",
+          "290e9:\tmov    %rax,%rsi",
+          "290ec:\tmov    %r13,%r10",
+          "290ef:\tmov    %rcx,%rax",
+          "290f2:\tmov    %r12,%rcx",
+          "290f5:\tjmp    0x28c20",
+          "290fa:\tmov    %rdx,%rax",
+          "290fd:\tmov    %r14,%rdx",
+          "29100:\tjmp    0x28f40",
+          "29105:\tmov    -0x68(%rbp),%eax",
+          "29108:\tjmp    0x28e60",
+          "2910d:\tmovslq -0x60(%rbp),%rax",
+          "29111:\tmov    -0x68(%rbp),%ecx",
+          "29114:\tmovslq -0x78(%rbp),%rdx",
+          "29118:\tmov    -0x98(%rbp),%esi",
+          "2911e:\txchg   %ax,%ax",
+          "29120:\tjmp    0x28ea0"
+        ],
+        "begin": 166496,
+        "end": 168448,
+        "bytes": 1952,
+        "native_samples": 21,
+        "hot_offsets": [
+          [
+            167758,
+            5
+          ],
+          [
+            168164,
+            2
+          ],
+          [
+            167392,
+            2
+          ],
+          [
+            166784,
+            2
+          ]
+        ],
+        "function": "text_layout:TextTokenNext",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/text_layout.zi",
+          "line": 86
+        }
+      },
+      "text_layout:NextTextLineUncached": {
+        "counts": {
+          "instructions": 982,
+          "stack_operands": 170,
+          "moves": 454,
+          "memory_operands": 346,
+          "conditional_jumps": 76,
+          "nops": 118,
+          "unconditional_jumps": 106,
+          "calls": 28
+        },
+        "sample_excerpts": [
+          "23e92:\tmov    %r11,(%rsp)",
+          "23e96:\tmov    0x18(%rbp),%r11",
+          "23e9a:\tmov    %r11,0x8(%rsp)",
+          "23e9f:\tlea    -0x38(%rbp),%rax",
+          "23ea3:\tmov    %r15,0x0(%rip)        # 0x23eaa",
+          "23eaa:\tcall   0x28a60",
+          "23eaf:\tmov    0x0(%rip),%r15        # 0x23eb6",
+          "23eb6:\tmovzbl -0x2c(%rbp),%eax",
+          "23eba:\tnopw   0x0(%rax,%rax,1)",
+          "23ec0:\tcmp    $0x0,%rax",
+          "23ec4:\tje     0x2470d",
+          "23eca:\tmovzbl -0x2b(%rbp),%eax",
+          "23ece:\ttest   %rax,%rax",
+          "23ed1:\tje     0x24718",
+          "23ed7:\tmovslq -0x30(%rbp),%rax",
+          "23edb:\tmov    %eax,0x8(%r14)",
+          "23edf:\tnop",
+          "23ee0:\tcmp    $0x0,%rbx",
+          "23ee4:\tjne    0x243c0",
+          "23eea:\tmovslq 0x4(%r14),%rax",
+          "23eee:\tmovslq (%r14),%rcx",
+          "247da:\tmov    %rax,%rdi",
+          "247dd:\tnopl   (%rax)",
+          "247e0:\tjmp    0x24160",
+          "247e5:\tmov    %rdi,%rax",
+          "247e8:\tjmp    0x240a0",
+          "247ed:\tjmp    0x240a0",
+          "247f2:\tmovzbl -0xc8(%rbp),%ecx",
+          "247f9:\tmov    %r10d,-0x128(%rbp)",
+          "24800:\tmov    %r9,%r10",
+          "24803:\tmov    %rax,%r9",
+          "24806:\tmov    -0xb0(%rbp),%rax",
+          "2480d:\tjmp    0x24200",
+          "24812:\tmov    -0xb0(%rbp),%rax",
+          "24819:\tjmp    0x241c0",
+          "2481e:\tmov    %rax,%r10",
+          "24821:\tmov    -0xb0(%rbp),%rax",
+          "24828:\tjmp    0x241c0",
+          "2482d:\tmov    %r10,%r11",
+          "24830:\tmov    %rcx,%r10",
+          "24833:\tmov    %rax,%rcx",
+          "24836:\tmov    %r11,%rax",
+          "24839:\tjmp    0x24180"
+        ],
+        "begin": 145536,
+        "end": 150016,
+        "bytes": 4480,
+        "native_samples": 19,
+        "hot_offsets": [
+          [
+            149497,
+            4
+          ],
+          [
+            147119,
+            2
+          ],
+          [
+            149279,
+            1
+          ],
+          [
+            147632,
+            1
+          ]
+        ],
+        "function": "text_layout:NextTextLineUncached",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/text_layout.zi",
+          "line": 235
+        }
+      }
+    }
+  },
+  "cfg_text": {
+    "image": "build/widget-native/CfgText.image",
+    "image_sha256": "8b0a61957348d1af3f3f1210742799e91ad959bba2affc63a9de93eaa1c65e09",
+    "functions": {
+      "text_layout:TextTokenNext": {
+        "counts": {
+          "instructions": 578,
+          "stack_operands": 93,
+          "moves": 300,
+          "memory_operands": 173,
+          "conditional_jumps": 61,
+          "nops": 43,
+          "unconditional_jumps": 49,
+          "calls": 13
+        },
+        "sample_excerpts": [
+          "2b0c4:\tnopw   0x0(%rax,%rax,1)",
+          "2b0cd:\tnopw   0x0(%rax,%rax,1)",
+          "2b0d6:\tnopw   0x0(%rax,%rax,1)",
+          "2b0df:\tnop",
+          "2b0e0:\tmov    %edi,-0x34(%rbp)",
+          "2b0e3:\tmov    %edi,-0x30(%rbp)",
+          "2b0e6:\tmov    -0x50(%rbp),%rax",
+          "2b0ea:\tmov    -0x38(%rbp),%r11",
+          "2b0ee:\tmov    %r11,(%rax)",
+          "2b0f1:\tmov    -0x30(%rbp),%r11d",
+          "2b0f5:\tmov    %r11d,0x8(%rax)",
+          "2b0f9:\tmovzwl -0x2c(%rbp),%r11d",
+          "2b0fe:\tmov    %r11w,0xc(%rax)",
+          "2b103:\tmovzbl -0x2a(%rbp),%r11d",
+          "2b108:\tmov    %r11b,0xe(%rax)",
+          "2b10c:\tmov    %r15,0x0(%rip)        # 0x2b113",
+          "2b113:\tmov    -0x8(%rbp),%rbx",
+          "2b117:\tmov    -0x10(%rbp),%r12",
+          "2b11b:\tmov    -0x18(%rbp),%r13",
+          "2b11f:\tmov    -0x20(%rbp),%r14",
+          "2b123:\tmov    -0x28(%rbp),%r15",
+          "2b127:\tleave",
+          "2b128:\tret",
+          "2b129:\tmov    -0x50(%rbp),%rax",
+          "2b12d:\tmov    -0x38(%rbp),%r11"
+        ],
+        "begin": 174624,
+        "end": 177184,
+        "bytes": 2560,
+        "native_samples": 34,
+        "hot_offsets": [
+          [
+            176366,
+            10
+          ],
+          [
+            176355,
+            3
+          ],
+          [
+            174756,
+            3
+          ],
+          [
+            175588,
+            2
+          ]
+        ],
+        "function": "text_layout:TextTokenNext",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/text_layout.zi",
+          "line": 86
+        }
+      },
+      "text_layout:NextTextLineUncached": {
+        "counts": {
+          "instructions": 1023,
+          "stack_operands": 178,
+          "moves": 471,
+          "memory_operands": 358,
+          "conditional_jumps": 81,
+          "nops": 108,
+          "unconditional_jumps": 109,
+          "calls": 28
+        },
+        "sample_excerpts": [
+          "25778:\tsar    $0x1,%rax",
+          "2577c:\tmovslq %eax,%rax",
+          "2577f:\tadd    %rcx,%rax",
+          "25782:\tmovslq %eax,%rax",
+          "25785:\tmov    %rsi,%rcx",
+          "25788:\tmov    %rax,%rsi",
+          "2578b:\tmov    -0xa8(%rbp),%rax",
+          "25792:\tmov    %rdi,%rdx",
+          "25795:\tmov    %r9,%rdi",
+          "25798:\tmov    -0x130(%rbp),%r9",
+          "2579f:\tnop",
+          "257a0:\tjmp    0x25720",
+          "257a5:\tnopw   0x0(%rax,%rax,1)",
+          "257ae:\tnopw   0x0(%rax,%rax,1)",
+          "257b7:\tnopw   0x0(%rax,%rax,1)",
+          "257c0:\tmovzbl (%rsi,%rdi,1),%r9d",
+          "257c5:\tmov    %r9,%r10",
+          "257c8:\tcmp    $0xa,%r10",
+          "257cc:\tjne    0x2581c",
+          "257d2:\tcmp    %rcx,%r8",
+          "257d5:\tjle    0x25e1f",
+          "25d71:\tjmp    0x255e0",
+          "25d76:\tmov    %rax,%r11",
+          "25d79:\tmov    %rsi,%rax",
+          "25d7c:\tmov    %rdx,%rsi",
+          "25d7f:\tmov    %rcx,%rdx",
+          "25d82:\tmov    %r11,%rcx",
+          "25d85:\tjmp    0x255e0",
+          "25d8a:\tmovslq -0xb0(%rbp),%rcx",
+          "25d91:\tmov    %r10d,-0x150(%rbp)",
+          "25d98:\tmov    %r9,%r10",
+          "25d9b:\tmov    %rsi,%r9",
+          "25d9e:\tmovzbl -0xf0(%rbp),%esi",
+          "25da5:\tjmp    0x25740",
+          "25daa:\tmovslq -0xb0(%rbp),%rcx",
+          "25db1:\tjmp    0x25700",
+          "25db6:\tmov    %rsi,%r10",
+          "25db9:\tmovslq -0xb0(%rbp),%rcx",
+          "25dc0:\tjmp    0x25700",
+          "25dc5:\tmov    %r10,%r11",
+          "25dc8:\tmov    %rsi,%r10",
+          "25dcb:\tmov    %r11,%rsi",
+          "25dce:\tjmp    0x256c0"
+        ],
+        "begin": 150880,
+        "end": 155552,
+        "bytes": 4672,
+        "native_samples": 40,
+        "hot_offsets": [
+          [
+            155025,
+            5
+          ],
+          [
+            153496,
+            3
+          ],
+          [
+            155045,
+            3
+          ],
+          [
+            152995,
+            3
+          ]
+        ],
+        "function": "text_layout:NextTextLineUncached",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/text_layout.zi",
+          "line": 235
+        }
+      },
+      "text:PrepareTextWithLines": {
+        "counts": {
+          "instructions": 705,
+          "stack_operands": 109,
+          "moves": 339,
+          "memory_operands": 230,
+          "conditional_jumps": 56,
+          "nops": 45,
+          "unconditional_jumps": 38,
+          "calls": 35
+        },
+        "sample_excerpts": [
+          "10a6c:\tmovups %xmm15,(%r14)",
+          "10a70:\tmovups 0x98(%rbp),%xmm15",
+          "10a78:\tmovups %xmm15,-0x48(%rbp)",
+          "10a7d:\tmov    -0x48(%rbp),%rdi",
+          "10a81:\tmov    -0x40(%rbp),%rcx",
+          "10a85:\tcmp    %rdx,%rcx",
+          "10a88:\tjne    0x10a8c",
+          "10a8a:\trepz cmpsb %es:(%rdi),%ds:(%rsi)",
+          "10a8c:\tsete   %al",
+          "10a8f:\tmovzbl %al,%eax",
+          "10a92:\tjmp    0x10a96",
+          "10a94:\txor    %eax,%eax",
+          "10a96:\tnopw   0x0(%rax,%rax,1)",
+          "10a9f:\tnop",
+          "10aa0:\tcmp    $0x0,%rax",
+          "10aa4:\tje     0x10ac0",
+          "10aaa:\tlea    0xb8(%rbp),%rax",
+          "10ab1:\tlea    (%rax),%rax",
+          "10ab4:\tmovups 0x48(%rax),%xmm15",
+          "10ab9:\tmovups %xmm15,-0x48(%rbp)",
+          "10abe:\txchg   %ax,%ax",
+          "10ac0:\tmovups -0x48(%rbp),%xmm15",
+          "10ac5:\tmovups %xmm15,0x18(%r14)",
+          "10aca:\tmovslq 0x38(%rbp),%rdi",
+          "11208:\tmovups 0x18(%r14),%xmm15",
+          "1120d:\tmovups %xmm15,-0x100(%rbp)",
+          "11215:\tmovss  %xmm1,%xmm0",
+          "11219:\tmov    %eax,-0x218(%rbp)",
+          "1121f:\tmovss  %xmm1,-0x1f8(%rbp)",
+          "11227:\tmovups -0xf0(%rbp),%xmm15",
+          "1122f:\tmovups %xmm15,(%rsp)",
+          "11234:\tmovups -0x100(%rbp),%xmm15",
+          "1123c:\tmovups %xmm15,0x10(%rsp)",
+          "11242:\tlea    -0x110(%rbp),%rax",
+          "11249:\tmov    %r15,0x0(%rip)        # 0x11250",
+          "11250:\tcall   0x1cc00",
+          "11255:\tmov    0x0(%rip),%r15        # 0x1125c",
+          "1125c:\tmovslq 0x30(%r14),%rax",
+          "11260:\tmov    %rax,%rcx",
+          "11263:\tcmp    %r12,%rcx",
+          "11266:\tjge    0x1140a"
+        ],
+        "begin": 68032,
+        "end": 71264,
+        "bytes": 3232,
+        "native_samples": 16,
+        "hot_offsets": [
+          [
+            68236,
+            4
+          ],
+          [
+            70183,
+            1
+          ],
+          [
+            70273,
+            1
+          ],
+          [
+            69206,
+            1
+          ]
+        ],
+        "function": "text:PrepareTextWithLines",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/text/text.zi",
+          "line": 193
+        }
+      },
+      "text:PaintTextLinesWithPlans": {
+        "counts": {
+          "instructions": 2447,
+          "stack_operands": 1137,
+          "moves": 1691,
+          "memory_operands": 1360,
+          "conditional_jumps": 92,
+          "nops": 160,
+          "unconditional_jumps": 139,
+          "calls": 47
+        },
+        "sample_excerpts": [
+          "144e1:\tmovups %xmm15,0x108(%rsp)",
+          "144ea:\tmov    %r15,0x0(%rip)        # 0x144f1",
+          "144f1:\tcall   0x1f7a0",
+          "144f6:\tmov    0x0(%rip),%r15        # 0x144fd",
+          "144fd:\tnopl   (%rax)",
+          "14500:\ttest   %rbx,%rbx",
+          "14503:\tjne    0x15cdb",
+          "14509:\tjmp    0x15da5",
+          "1450e:\tnopw   0x0(%rax,%rax,1)",
+          "14517:\tnopw   0x0(%rax,%rax,1)",
+          "14520:\tmov    %dil,-0x160(%rbp)",
+          "14527:\tmovslq -0xf8(%rbp),%rdi",
+          "1452e:\tmov    %sil,-0x158(%rbp)",
+          "14535:\tmovslq -0x1d0(%rbp),%rsi",
+          "1453c:\tmov    %edx,-0x150(%rbp)",
+          "1545d:\tmovups -0x38(%rbp),%xmm15",
+          "15462:\tmovups %xmm15,-0xa8(%rbp)",
+          "1546a:\tmovss  -0x168(%rbp),%xmm1",
+          "15472:\tmovss  -0x170(%rbp),%xmm2",
+          "1547a:\tjmp    0x13620",
+          "1547f:\tmovss  -0x200(%rbp),%xmm2",
+          "15487:\tjmp    0x13680",
+          "1548c:\tmov    %r8,%rbx",
+          "1548f:\tmov    %rax,%r8",
+          "15492:\tmov    %rdx,%rax",
+          "15495:\tmov    %r12,%rdx",
+          "15498:\tmov    %r9,%r12",
+          "1549b:\tmov    %rsi,%r9",
+          "1549e:\tmov    %r13,%rsi",
+          "154a1:\tmov    %r10,%r13",
+          "154a4:\tmov    %rcx,%r10",
+          "154a7:\tmov    %r14,%rcx",
+          "154aa:\tmov    %rdi,%r14",
+          "154ad:\tmovzbl -0x160(%rbp),%edi",
+          "154b4:\tmovss  -0x168(%rbp),%xmm1"
+        ],
+        "begin": 77536,
+        "end": 91520,
+        "bytes": 13984,
+        "native_samples": 30,
+        "hot_offsets": [
+          [
+            83197,
+            4
+          ],
+          [
+            87162,
+            2
+          ],
+          [
+            77755,
+            1
+          ],
+          [
+            79220,
+            1
+          ]
+        ],
+        "function": "text:PaintTextLinesWithPlans",
+        "source_definition": {
+          "path": "/mnt/storage/Projects/kryonlabs/kryon/src/ui/text/text.zi",
+          "line": 281
+        }
+      }
+    }
+  },
+  "before_text_c": {
+    "binary": "build/widget-native/before/text/c-runner",
+    "sha256": "3bd6c68b4ebd864b32408f5f24aefd16004883bfbdf0ef954e31a373cefb9032",
+    "functions": {
+      "text_layout:NextTextLineUncached": {
+        "counts": {
+          "instructions": 352,
+          "moves": 168,
+          "memory_operands": 84,
+          "stack_operands": 83,
+          "conditional_jumps": 20,
+          "unconditional_jumps": 8,
+          "nops": 7,
+          "calls": 6
+        },
+        "sample_excerpts": [
+          "d130:\tpush   %r15",
+          "d132:\tmov    %edx,%r11d",
+          "d135:\tlea    0x1(%rsi),%r10d",
+          "d139:\tpush   %r14",
+          "d13b:\tpush   %r13",
+          "d13d:\tpush   %r12",
+          "d13f:\tpush   %rbp",
+          "d140:\tpush   %rbx",
+          "d141:\tsub    $0x58,%rsp",
+          "d145:\tmov    0x90(%rsp),%rax",
+          "d14d:\tmov    %r8d,0x28(%rsp)",
+          "d152:\tmov    %rax,0x18(%rsp)",
+          "d157:\tmov    0x98(%rsp),%rax",
+          "d15f:\tmov    %rax,0x20(%rsp)",
+          "d164:\tcmp    %edx,%esi",
+          "d166:\tjle    d3d0 <text_layout_NextTextLineUncached+0x2a0>",
+          "d16c:\tmovslq %edx,%rax",
+          "d16f:\ttest   %rdi,%rdi"
+        ],
+        "symbol": "text_layout_NextTextLineUncached",
+        "begin": 53552,
+        "bytes": 1260
+      },
+      "text_layout:TextTokenNext": {
+        "counts": {
+          "instructions": 259,
+          "stack_operands": 14,
+          "moves": 51,
+          "memory_operands": 46,
+          "conditional_jumps": 50,
+          "nops": 9,
+          "unconditional_jumps": 12,
+          "calls": 6
+        },
+        "sample_excerpts": [
+          "cca0:\tpush   %r15",
+          "cca2:\txor    %eax,%eax",
+          "cca4:\tpush   %r14",
+          "cca6:\tpush   %r13",
+          "cca8:\tpush   %r12",
+          "ccaa:\tpush   %rbp",
+          "ccab:\tpush   %rbx",
+          "ccac:\tsub    $0x28,%rsp",
+          "ccb0:\ttest   %edx,%edx",
+          "ccb2:\tcmovns %edx,%eax",
+          "ccb5:\tmov    %rsi,(%rsp)",
+          "ccb9:\tmov    %cl,0xf(%rsp)",
+          "ccbd:\tmov    %eax,%ebx",
+          "ccbf:\tcmp    %esi,%eax",
+          "ccc1:\tjge    cd01 <TextTokenNext+0x61>",
+          "ccc3:\tmov    %rdi,%r15",
+          "ccc6:\tcltq",
+          "ccc8:\tmov    %esi,%ebp",
+          "ccca:\tmov    %ecx,%edi",
+          "cccc:\tmovabs $0x100001a00,%rsi",
+          "ccd6:\tadd    %r15,%rax",
+          "ccd9:\tnopl   0x0(%rax)",
+          "cce0:\tmovzbl (%rax),%edx"
+        ],
+        "symbol": "TextTokenNext",
+        "begin": 52384,
+        "bytes": 1024
+      }
+    }
+  },
+  "cfg_text_c": {
+    "binary": "build/widget-native/cfg-hints/text/c-runner",
+    "sha256": "b29727d26da8b67f7575d768e41c440f266d78ae579d75695e6a43bb265dbc8b",
+    "functions": {
+      "text_layout:NextTextLineUncached": {
+        "counts": {
+          "instructions": 352,
+          "moves": 168,
+          "memory_operands": 84,
+          "stack_operands": 83,
+          "conditional_jumps": 20,
+          "unconditional_jumps": 8,
+          "nops": 7,
+          "calls": 6
+        },
+        "sample_excerpts": [
+          "d4b0:\tpush   %r15",
+          "d4b2:\tmov    %edx,%r11d",
+          "d4b5:\tlea    0x1(%rsi),%r10d",
+          "d4b9:\tpush   %r14",
+          "d4bb:\tpush   %r13",
+          "d4bd:\tpush   %r12",
+          "d4bf:\tpush   %rbp",
+          "d4c0:\tpush   %rbx",
+          "d4c1:\tsub    $0x58,%rsp",
+          "d4c5:\tmov    0x90(%rsp),%rax",
+          "d4cd:\tmov    %r8d,0x28(%rsp)",
+          "d4d2:\tmov    %rax,0x18(%rsp)",
+          "d4d7:\tmov    0x98(%rsp),%rax",
+          "d4df:\tmov    %rax,0x20(%rsp)",
+          "d4e4:\tcmp    %edx,%esi",
+          "d4e6:\tjle    d750 <text_layout_NextTextLineUncached+0x2a0>",
+          "d4ec:\tmovslq %edx,%rax",
+          "d4ef:\ttest   %rdi,%rdi"
+        ],
+        "symbol": "text_layout_NextTextLineUncached",
+        "begin": 54448,
+        "bytes": 1260
+      },
+      "text:PaintTextLinesWithPlans": {
+        "counts": {
+          "instructions": 613,
+          "stack_operands": 352,
+          "moves": 395,
+          "memory_operands": 363,
+          "calls": 16,
+          "conditional_jumps": 30,
+          "unconditional_jumps": 10,
+          "nops": 6
+        },
+        "sample_excerpts": [
+          "b4e0:\tpush   %r15",
+          "b4e2:\tpush   %r14",
+          "b4e4:\tpush   %r13",
+          "b4e6:\tpush   %r12",
+          "b4e8:\tpush   %rbp",
+          "b4e9:\tpush   %rbx",
+          "b4ea:\tsub    $0x128,%rsp",
+          "b4f1:\tmov    0x180(%rsp),%rax",
+          "b4f9:\tmov    0x1b8(%rsp),%rbp",
+          "b501:\tmov    %rcx,0xd0(%rsp)",
+          "b509:\tmovdqu 0x1a8(%rsp),%xmm7",
+          "b512:\tmov    %r8,0x88(%rsp)",
+          "b51a:\tmov    %rax,0x58(%rsp)",
+          "b51f:\tmovzbl 0x1c2(%rsp),%eax"
+        ],
+        "symbol": "text_PaintTextLinesWithPlans",
+        "begin": 46304,
+        "bytes": 3433
+      },
+      "text:PrepareTextWithLines": {
+        "counts": {
+          "instructions": 184,
+          "stack_operands": 73,
+          "moves": 99,
+          "memory_operands": 75,
+          "conditional_jumps": 6,
+          "calls": 14,
+          "nops": 1,
+          "unconditional_jumps": 2
+        },
+        "sample_excerpts": [
+          "a780:\tpush   %r15",
+          "a782:\tpxor   %xmm0,%xmm0",
+          "a786:\tpush   %r14",
+          "a788:\tpush   %r13",
+          "a78a:\tpush   %r12",
+          "a78c:\tpush   %rbp",
+          "a78d:\tpush   %rbx",
+          "a78e:\tsub    $0x98,%rsp",
+          "a795:\tmovss  0xe0(%rsp),%xmm2",
+          "a79e:\tmov    0x170(%rsp),%eax",
+          "a7a5:\tmovaps %xmm0,0x80(%rsp)",
+          "a7ad:\tmovss  0xe4(%rsp),%xmm3",
+          "a7b6:\tmov    0x168(%rsp),%rbx",
+          "a7be:\tmov    %rdi,0x30(%rsp)"
+        ],
+        "symbol": "text_PrepareTextWithLines",
+        "begin": 42880,
+        "bytes": 780
+      },
+      "text_layout:TextTokenNext": {
+        "counts": {
+          "instructions": 253,
+          "moves": 61,
+          "stack_operands": 14,
+          "memory_operands": 38,
+          "conditional_jumps": 43,
+          "nops": 10,
+          "unconditional_jumps": 15,
+          "calls": 2
+        },
+        "sample_excerpts": [
+          "d050:\tpush   %r15",
+          "d052:\txor    %eax,%eax",
+          "d054:\tmov    %rsi,%r15",
+          "d057:\tpush   %r14",
+          "d059:\tpush   %r13",
+          "d05b:\tpush   %r12",
+          "d05d:\tpush   %rbp",
+          "d05e:\tpush   %rbx",
+          "d05f:\tsub    $0x28,%rsp",
+          "d063:\ttest   %edx,%edx",
+          "d065:\tcmovns %edx,%eax",
+          "d068:\tmov    %cl,0xd(%rsp)",
+          "d06c:\tmov    %eax,%ebx",
+          "d06e:\tcmp    %esi,%eax",
+          "d070:\tjge    d0b2 <TextTokenNext+0x62>",
+          "d072:\tcltq",
+          "d074:\tmov    %ecx,%esi",
+          "d076:\tmov    %rdi,%r13",
+          "d079:\tmov    %r15d,%r12d",
+          "d07c:\tmovabs $0x100001a00,%rcx",
+          "d086:\tadd    %rdi,%rax",
+          "d089:\tnopl   0x0(%rax)",
+          "d090:\tmovzbl (%rax),%edx"
+        ],
+        "symbol": "TextTokenNext",
+        "begin": 53328,
+        "bytes": 974
+      }
+    }
+  },
+  "notes": [
+    "Native sizes include at most31 bytes of alignment padding. Counts are static, not dynamic cost.",
+    "Native hot PCs use actual frozen runtime image function offsets, not standalone-map addresses.",
+    "C is the equivalent generated C compiled with cc -O2. GCC may inline helpers; absent symbols are not invented.",
+    "Before profiles are single31-batch processes; cfg profiles pool4; compare shares with that sampling limitation.",
+    "Source/IR instruction mapping requires verified instruction-byte correspondence; no unsupported exact PC-to-IR claim.",
+    "Native function/source definitions are matched through the actual RX function offset table and source declaration names. They do not claim a precise hot PC to source line mapping: the standalone map has different lowering options and no source origins for these frozen bundles."
+  ]
+}

@@ -1,0 +1,746 @@
+{
+  "label": "tree-linear",
+  "manifest": {
+    "path": "build/widget-native/tree-linear/manifest.json",
+    "sha256": "50f52fb0e919aa86cb76243c59cf51b2bcae79f59fd4adda43e1cb145a54fd91"
+  },
+  "note": "Diagnostic SIGPROF samples during the Kryon integrated gate, not timing evidence. All machine-code bytes compared after zeroing only known four-byte loader relocation fields; remainder of RX mapping contains runtime data/stubs. TreeText1 was captured by completed failed-attribution receipt52fb33aa59f50225ef92aa8e6b8696418833 and reused, not repeated.",
+  "cases": {
+    "text": {
+      "native_samples": 673,
+      "functions": [
+        [
+          "text_layout:TextTokenNext",
+          59
+        ],
+        [
+          "text_layout:NextTextLineUncached",
+          49
+        ],
+        [
+          "text:PaintTextLinesWithPlans",
+          39
+        ],
+        [
+          "paint_queue:QueuePaint",
+          34
+        ],
+        [
+          "tree:TreeSubmit",
+          30
+        ],
+        [
+          "text:PaintTextLineRuns",
+          24
+        ],
+        [
+          "paint_queue:PendingPaintAt",
+          21
+        ],
+        [
+          "std_math:SineDegrees",
+          21
+        ],
+        [
+          "paint_queue:PaintClear",
+          20
+        ],
+        [
+          "paint_queue:KeepShortPaintBytes",
+          19
+        ],
+        [
+          "tree_draw:BeginFrame",
+          18
+        ],
+        [
+          "text:DrawSession",
+          18
+        ],
+        [
+          "text:DefaultTextFace",
+          17
+        ],
+        [
+          "std_utf8:Decode",
+          17
+        ],
+        [
+          "paint_queue:PaintFlush",
+          17
+        ],
+        [
+          "tree:TreeStart",
+          16
+        ],
+        [
+          "text:PrepareTextWithLines",
+          15
+        ],
+        [
+          "tree:TreeStoreLabel",
+          13
+        ],
+        [
+          "tree:TreeEnsureSemantic",
+          13
+        ],
+        [
+          "widget_benchmark_host:RasterTextClipped",
+          13
+        ],
+        [
+          "tree:TreeRead",
+          13
+        ],
+        [
+          "text:TextHiddenLines",
+          12
+        ],
+        [
+          "widget_benchmarks:TextCase",
+          12
+        ],
+        [
+          "tree:TreeLayerAt",
+          11
+        ],
+        [
+          "paint_queue:PendingTextValue",
+          11
+        ],
+        [
+          "paint_queue:__zi_spec_3418540b7982beec",
+          10
+        ],
+        [
+          "tree:TreeFindOld",
+          8
+        ],
+        [
+          "tree:TreeFinish",
+          8
+        ],
+        [
+          "paint_queue:KeepPaintMesh",
+          7
+        ],
+        [
+          "geometry:RotatedRectangleBounds",
+          7
+        ],
+        [
+          "paint_queue:EmitLabel",
+          6
+        ],
+        [
+          "tree:TreeParentGeneration",
+          6
+        ],
+        [
+          "paint_queue:KeepPaintText",
+          6
+        ],
+        [
+          "paint_queue:PaintClippedLabel",
+          6
+        ],
+        [
+          "tree:TreeBuildNewIndex",
+          6
+        ],
+        [
+          "tree:TreeExplicitExists",
+          5
+        ],
+        [
+          "tree_input:PointerSample",
+          5
+        ],
+        [
+          "text_layout:TextNoBreakBefore",
+          5
+        ],
+        [
+          "tree_input:TreeKeyboardRoute",
+          5
+        ],
+        [
+          "text:TextFaceOf",
+          5
+        ],
+        [
+          "tree_draw:CommitFrame",
+          4
+        ],
+        [
+          "tree_draw:EndFrame",
+          4
+        ],
+        [
+          "text_layout:NextTextLine",
+          4
+        ],
+        [
+          "cursor:CursorHoverFrameCommit",
+          4
+        ],
+        [
+          "paint_queue:PaintOrder",
+          3
+        ],
+        [
+          "text:TextLinkRunAt",
+          3
+        ],
+        [
+          "tree:TreeCurrentParent",
+          3
+        ],
+        [
+          "tree:TreeSubmittedGeometryAt",
+          3
+        ],
+        [
+          "tree:TreeSetStyleId",
+          3
+        ],
+        [
+          "cursor:CursorHoverFrameStart",
+          3
+        ],
+        [
+          "tree:TreeBuildOldIndex",
+          2
+        ],
+        [
+          "tree_draw:FrameInputCommit",
+          2
+        ],
+        [
+          "text:PaintTextEmphasis",
+          2
+        ],
+        [
+          "text_behavior:ResolveTextStyle",
+          2
+        ],
+        [
+          "tree:TreeSetLabel",
+          2
+        ],
+        [
+          "tree:TreeSetSemantic",
+          1
+        ],
+        [
+          "widget_benchmarks:BeginCase",
+          1
+        ]
+      ],
+      "raw": [
+        {
+          "samples": {
+            "path": "build/widget-native/TreeText1.samples",
+            "sha256": "7bb9ee4376b3dee0d2ac95c410c639db96a98817b5989e86fe3f6631f17c49f1"
+          },
+          "profile": {
+            "path": "build/widget-native/TreeText1.profile.txt",
+            "sha256": "2470dfe8782eefec4e37e6cfe1a005076eb1e03f41fe860aa912670b7ae5818e"
+          },
+          "image": {
+            "path": "build/standard-profile/TreeText1.bin",
+            "sha256": "f9d286fd8d11294280823b8026f1e749d11a1a6ea935af2ec8ebb670e1976137"
+          },
+          "nonrelocation_code_bytes_equal": true
+        },
+        {
+          "samples": {
+            "path": "build/widget-native/TreeText2.samples",
+            "sha256": "35556ced33a8bfaaf0be611fa1087f37a1041bb873d00fd4129673a89f7aa920"
+          },
+          "profile": {
+            "path": "build/widget-native/TreeText2.profile.txt",
+            "sha256": "1b9125c24bfcd87c1f3342f296ff0155602273f021b70f7145ba50ee030a8ca7"
+          },
+          "image": {
+            "path": "build/standard-profile/TreeText2.bin",
+            "sha256": "3435656edc2ed5bd3b68777b7b58123d25879edd9eac6455e874364e26ca9ab6"
+          },
+          "nonrelocation_code_bytes_equal": true
+        },
+        {
+          "samples": {
+            "path": "build/widget-native/TreeText3.samples",
+            "sha256": "bb843650fc8a89935048323ba822919101bbf6466528c8ca41e6aebdb523d54c"
+          },
+          "profile": {
+            "path": "build/widget-native/TreeText3.profile.txt",
+            "sha256": "38c37c76076fb8b89b73c929561e4fa6747ba978cb3fa221e0a80fbf5760b1b4"
+          },
+          "image": {
+            "path": "build/standard-profile/TreeText3.bin",
+            "sha256": "195be21fae53f56f8717e6e0bba82ed4d4669ad340f8fd9ec832eb6d72f965e6"
+          },
+          "nonrelocation_code_bytes_equal": true
+        },
+        {
+          "samples": {
+            "path": "build/widget-native/TreeText4.samples",
+            "sha256": "502cc5d43cfc39d06a0b630b7657d4bb88f947d65130086bc96a2c5e7c70b0d1"
+          },
+          "profile": {
+            "path": "build/widget-native/TreeText4.profile.txt",
+            "sha256": "3a3854d21e9d2c3047d9aa5aa0f32f145f7615de062252d207c0ce5356bdd07d"
+          },
+          "image": {
+            "path": "build/standard-profile/TreeText4.bin",
+            "sha256": "b14828c608abb7495f32889fed5d54aa529a4aad09c79d299aff22bd9d5a16f7"
+          },
+          "nonrelocation_code_bytes_equal": true
+        }
+      ],
+      "inspection": {
+        "path": "build/widget-native/TreeText.inspection.jsonl",
+        "sha256": "534fb19dbea78fba308d4466609295c0b4215601bd3c37725892feeb7f5505b7"
+      },
+      "machine_code": {
+        "path": "build/widget-native/TreeText.machine-code",
+        "sha256": "1b11a4c50dcb887494c35b2cf048341f7d44a5d1466464a97f6b9c888f6f6a55"
+      },
+      "relocation_fields": 4182
+    },
+    "input": {
+      "native_samples": 497,
+      "functions": [
+        [
+          "textfield:TextFieldCore",
+          48
+        ],
+        [
+          "paint_queue:QueuePaint",
+          38
+        ],
+        [
+          "paint_queue:PaintFlush",
+          22
+        ],
+        [
+          "tree:TreeSubmit",
+          19
+        ],
+        [
+          "paint_queue:PaintClear",
+          18
+        ],
+        [
+          "tree:TreeSetTextValue",
+          17
+        ],
+        [
+          "paint_queue:PendingPaintAt",
+          17
+        ],
+        [
+          "tree:TreeStart",
+          17
+        ],
+        [
+          "tree:TreeFindOld",
+          16
+        ],
+        [
+          "textfield:TextFieldApplyInput",
+          12
+        ],
+        [
+          "paint_queue:KeepPaintMesh",
+          11
+        ],
+        [
+          "tree:TreeEnsureSemantic",
+          10
+        ],
+        [
+          "tree:TreeCurrentParent",
+          9
+        ],
+        [
+          "tree_input:TreeTopModalLayer",
+          9
+        ],
+        [
+          "std_utf8:Decode",
+          9
+        ],
+        [
+          "tree_draw:BeginFrame",
+          8
+        ],
+        [
+          "paint_queue:PendingTextValue",
+          7
+        ],
+        [
+          "tree:TreeParentGeneration",
+          7
+        ],
+        [
+          "paint_queue:__zi_spec_3418540b7982beec",
+          7
+        ],
+        [
+          "paint_queue:KeepShortPaintBytes",
+          6
+        ],
+        [
+          "tree:TreeLayerAt",
+          6
+        ],
+        [
+          "tree:TreeEnsureInteraction",
+          6
+        ],
+        [
+          "font_metrics:GlyphCaret",
+          6
+        ],
+        [
+          "style_sheet:StyleDefaultFacts",
+          6
+        ],
+        [
+          "tree_draw:EndFrame",
+          5
+        ],
+        [
+          "text_input_platform:TextInputOwnerMatches",
+          5
+        ],
+        [
+          "paint_queue:PaintOrder",
+          5
+        ],
+        [
+          "tree_input:TreeKeyboardRoute",
+          5
+        ],
+        [
+          "paint_queue:PaintRoundedFill",
+          5
+        ],
+        [
+          "tree:TreeSubmittedGeometryAt",
+          5
+        ],
+        [
+          "textfield:TextFieldDefaultFace",
+          5
+        ],
+        [
+          "tree_input:TreeHitAt",
+          5
+        ],
+        [
+          "tree:TreeFinish",
+          5
+        ],
+        [
+          "paint_queue:ShapeVisible",
+          4
+        ],
+        [
+          "widget_benchmarks:InputCase",
+          4
+        ],
+        [
+          "tree_input:TreeTakePointerActivationAt",
+          4
+        ],
+        [
+          "tree_input:PointerSample",
+          4
+        ],
+        [
+          "tree_input:TreePointerUpdate",
+          4
+        ],
+        [
+          "tree:TreeBuildNewIndex",
+          4
+        ],
+        [
+          "tree:TreePointerActivatable",
+          3
+        ],
+        [
+          "std_grapheme:Next",
+          3
+        ],
+        [
+          "tree_input:TreeTakeDragAt",
+          3
+        ],
+        [
+          "text_context_menu:TextMenuOpenRequested",
+          3
+        ],
+        [
+          "textfield:TextFieldCursorAtX",
+          3
+        ],
+        [
+          "text_request:TextRequestTake",
+          3
+        ],
+        [
+          "tree:TreeBuildOldIndex",
+          3
+        ],
+        [
+          "tree:TreeSetCaptureTab",
+          3
+        ],
+        [
+          "tree_draw:CommitFrame",
+          3
+        ],
+        [
+          "tree:TreeSetSemantic",
+          3
+        ],
+        [
+          "tree_input:TreeFocusAt",
+          3
+        ],
+        [
+          "cursor:CursorHoverFrameCommit",
+          3
+        ],
+        [
+          "std_grapheme:Push",
+          3
+        ],
+        [
+          "tree:TreeStoreLabel",
+          3
+        ],
+        [
+          "tree_input:TreeFocusedAt",
+          2
+        ],
+        [
+          "text_input:TextFieldPaintFor",
+          2
+        ],
+        [
+          "widget_benchmark_host:RecordBounds",
+          2
+        ],
+        [
+          "widget_benchmarks:BeginCase",
+          2
+        ],
+        [
+          "tree:TreeSetLabel",
+          2
+        ],
+        [
+          "textfield:TextFieldFaceFor",
+          2
+        ],
+        [
+          "text_input_platform:TextInputFocusFrameBegin",
+          2
+        ],
+        [
+          "paint_queue:KeepPaintText",
+          2
+        ],
+        [
+          "text_input:TextFieldScrollFor",
+          2
+        ],
+        [
+          "widget_benchmark_host:RasterLine",
+          2
+        ],
+        [
+          "tree:TreeSetSelected",
+          2
+        ],
+        [
+          "tree:TreeFrameStatus",
+          2
+        ],
+        [
+          "paint_queue:EmitRoundedOutline",
+          2
+        ],
+        [
+          "tree:TreeSetInteractive",
+          2
+        ],
+        [
+          "paint_queue:EmitLine",
+          2
+        ],
+        [
+          "paint_queue:ShapeWhole",
+          2
+        ],
+        [
+          "tree:TreeExplicitExists",
+          2
+        ],
+        [
+          "std_grapheme:Boundary",
+          2
+        ],
+        [
+          "paint_queue:PaintClippedLabel",
+          2
+        ],
+        [
+          "tree:TreeSetStyleClass",
+          1
+        ],
+        [
+          "paint_queue:EmitRoundedFill",
+          1
+        ],
+        [
+          "textfield:TextFieldEditFor",
+          1
+        ],
+        [
+          "paint_queue:PaintLine",
+          1
+        ],
+        [
+          "tree:TreePrevious",
+          1
+        ],
+        [
+          "std_grapheme_data:Property",
+          1
+        ],
+        [
+          "textfield:Draw",
+          1
+        ],
+        [
+          "raster_text:PaintTextClipped",
+          1
+        ],
+        [
+          "tree_input:TreeTextFocused",
+          1
+        ],
+        [
+          "tree_draw:FrameInputCommit",
+          1
+        ],
+        [
+          "paint_queue:PaintRoundedOutline",
+          1
+        ],
+        [
+          "widget_benchmark_host:RasterText",
+          1
+        ],
+        [
+          "widget_benchmark_host:RasterRoundedRectangle",
+          1
+        ],
+        [
+          "text_typeface:TextTypefaceUse",
+          1
+        ],
+        [
+          "widget_benchmark_host:RasterRoundedRectangleOutline",
+          1
+        ],
+        [
+          "tree:TreeSetStyleId",
+          1
+        ],
+        [
+          "cursor:CursorHoverFrameStart",
+          1
+        ]
+      ],
+      "raw": [
+        {
+          "samples": {
+            "path": "build/widget-native/TreeInput1.samples",
+            "sha256": "008047feda02464e19a9d7589208b41f88fb878f937ea09a45470e31cd7d66f9"
+          },
+          "profile": {
+            "path": "build/widget-native/TreeInput1.profile.txt",
+            "sha256": "dc3a025079aa0c2bd5a985f9b1c622d947e1bae80c670783687d53f76c29a75f"
+          },
+          "image": {
+            "path": "build/standard-profile/TreeInput1.bin",
+            "sha256": "6544a19a1a1c71d50d677e0fbfce2331b65993bba4ca01de3aa7a9cae6c47931"
+          },
+          "nonrelocation_code_bytes_equal": true
+        },
+        {
+          "samples": {
+            "path": "build/widget-native/TreeInput2.samples",
+            "sha256": "01b1e109762966a2d278de842d697735f51f0b41a51828f7842a11316d2e6734"
+          },
+          "profile": {
+            "path": "build/widget-native/TreeInput2.profile.txt",
+            "sha256": "f9f9dd3a3ac55e1b57261ef077dbbed03885c5e74f00e883fc5b8aa1aa366bd2"
+          },
+          "image": {
+            "path": "build/standard-profile/TreeInput2.bin",
+            "sha256": "48a80c5f4d5143ceadff53c2d158ed492612d89a538f92b28d392b1cf64da45e"
+          },
+          "nonrelocation_code_bytes_equal": true
+        },
+        {
+          "samples": {
+            "path": "build/widget-native/TreeInput3.samples",
+            "sha256": "ed81c59af337592392c37ae689fac511485d78909d928f5ff01922da00ba7193"
+          },
+          "profile": {
+            "path": "build/widget-native/TreeInput3.profile.txt",
+            "sha256": "8247e52c61fc3c076e55ca0a08bf490d60fe1413f4af82c5b7521cd60e45507f"
+          },
+          "image": {
+            "path": "build/standard-profile/TreeInput3.bin",
+            "sha256": "1e3374dc26eb78ee22b6fef0aaa6d5c3597978f3871b0fd001b10a338eab1f5a"
+          },
+          "nonrelocation_code_bytes_equal": true
+        },
+        {
+          "samples": {
+            "path": "build/widget-native/TreeInput4.samples",
+            "sha256": "8e099e9341fc4c47cdee09c224d05c2d41a7b288e1b874324f8c5d15d195bf4d"
+          },
+          "profile": {
+            "path": "build/widget-native/TreeInput4.profile.txt",
+            "sha256": "f6d0309ab91522221fbb81ee928605777ce639eea5cd2e9dec3243f003fc6184"
+          },
+          "image": {
+            "path": "build/standard-profile/TreeInput4.bin",
+            "sha256": "46b08e83a91658eaa2d312e55adee5a01c3747b200f0f06fa9ca974f2fc6a775"
+          },
+          "nonrelocation_code_bytes_equal": true
+        }
+      ],
+      "inspection": {
+        "path": "build/widget-native/TreeInput.inspection.jsonl",
+        "sha256": "61a77750a6ed08a8de4455ff57557af783cd8ae9946aaf88b3980f3fdf27e349"
+      },
+      "machine_code": {
+        "path": "build/widget-native/TreeInput.machine-code",
+        "sha256": "3923f41ae39b729be435a745b2164ebef4843dcb4d510e54284d8408a8c3d66f"
+      },
+      "relocation_fields": 7911
+    }
+  }
+}

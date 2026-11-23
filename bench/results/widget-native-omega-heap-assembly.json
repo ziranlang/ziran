@@ -1,0 +1,432 @@
+{
+  "host": "omega",
+  "recorded_at": "2026-11-19T07:13:12.048431+00:00",
+  "status": "rejected after matched timing: Text +1.7%, Input -1.2%; own HeapKey source hunk reverted",
+  "candidate_build_receipt": "de550f59519ab5bdc3077dd1984e3ebd0fa0",
+  "focused_tests_receipt": "08df751e2272691271d7699decec35628ee8",
+  "baseline_build_and_oracles_receipt": "36328475d9b3142c0a5d23f217bb60211694",
+  "mapping_and_measurement_command": "d40e67a1ce25e2e2981c6a248ab016347331",
+  "manifests": {
+    "heap-baseline": {
+      "path": "build/widget-native/heap-baseline/manifest.json",
+      "sha256": "bf86002101844e6a5fe4121009cb59e542bde1f2c4c4ae2283c887a8cc67c6ce",
+      "bytes": 273167
+    },
+    "heap-order": {
+      "path": "build/widget-native/heap-order/manifest.json",
+      "sha256": "84a92054187b981b964e578e741c76029b02b5f4393aa3f387f80bd2585b1ad0",
+      "bytes": 273143
+    }
+  },
+  "cases": {
+    "text": {
+      "code": {
+        "heap-baseline": {
+          "path": "build/widget-native/heap-baseline/text/inspected-code",
+          "sha256": "8b0a61957348d1af3f3f1210742799e91ad959bba2affc63a9de93eaa1c65e09",
+          "bytes": 246122
+        },
+        "heap-order": {
+          "path": "build/widget-native/heap-order/text/inspected-code",
+          "sha256": "e3a69c497cea4f7f52614f9ecc660131a87846598d88447a46c8ed2e59ae4359",
+          "bytes": 245706
+        }
+      },
+      "functions": [
+        {
+          "function": "tree:TreeBuildOldIndex",
+          "heap-baseline": {
+            "id": 43,
+            "name": "tree:TreeBuildOldIndex",
+            "begin": 58752,
+            "end": 60617,
+            "blocks": 38,
+            "edge_blocks": 7,
+            "instructions": 236,
+            "moves": 49,
+            "spills": 1,
+            "reloads": 1,
+            "aligned_heads": 12,
+            "original_backward_targets": 9,
+            "fp_spills": 0,
+            "fp_reloads": 0,
+            "forward_calls": 1,
+            "forward_reduced_masks": 1,
+            "function_bytes": 1865
+          },
+          "heap-order": {
+            "id": 43,
+            "name": "tree:TreeBuildOldIndex",
+            "begin": 58848,
+            "end": 60713,
+            "blocks": 38,
+            "edge_blocks": 7,
+            "instructions": 236,
+            "moves": 49,
+            "spills": 1,
+            "reloads": 1,
+            "aligned_heads": 12,
+            "original_backward_targets": 9,
+            "fp_spills": 0,
+            "fp_reloads": 0,
+            "forward_calls": 1,
+            "forward_reduced_masks": 1,
+            "function_bytes": 1865
+          }
+        },
+        {
+          "function": "text:PrepareTextWithLines",
+          "heap-baseline": {
+            "id": 49,
+            "name": "text:PrepareTextWithLines",
+            "begin": 68032,
+            "end": 71238,
+            "blocks": 75,
+            "edge_blocks": 22,
+            "instructions": 362,
+            "moves": 75,
+            "spills": 8,
+            "reloads": 7,
+            "aligned_heads": 19,
+            "original_backward_targets": 9,
+            "fp_spills": 1,
+            "fp_reloads": 2,
+            "forward_calls": 3,
+            "forward_reduced_masks": 2,
+            "function_bytes": 3206
+          },
+          "heap-order": {
+            "id": 49,
+            "name": "text:PrepareTextWithLines",
+            "begin": 68096,
+            "end": 71334,
+            "blocks": 75,
+            "edge_blocks": 22,
+            "instructions": 362,
+            "moves": 74,
+            "spills": 9,
+            "reloads": 7,
+            "aligned_heads": 19,
+            "original_backward_targets": 9,
+            "fp_spills": 1,
+            "fp_reloads": 2,
+            "forward_calls": 3,
+            "forward_reduced_masks": 2,
+            "function_bytes": 3238
+          }
+        },
+        {
+          "function": "text:PaintTextLinesWithPlans",
+          "heap-baseline": {
+            "id": 61,
+            "name": "text:PaintTextLinesWithPlans",
+            "begin": 77536,
+            "end": 91490,
+            "blocks": 169,
+            "edge_blocks": 83,
+            "instructions": 1738,
+            "moves": 384,
+            "spills": 365,
+            "reloads": 500,
+            "aligned_heads": 62,
+            "original_backward_targets": 21,
+            "fp_spills": 123,
+            "fp_reloads": 199,
+            "forward_calls": 7,
+            "forward_reduced_masks": 1,
+            "function_bytes": 13954
+          },
+          "heap-order": {
+            "id": 61,
+            "name": "text:PaintTextLinesWithPlans",
+            "begin": 77632,
+            "end": 91373,
+            "blocks": 170,
+            "edge_blocks": 84,
+            "instructions": 1702,
+            "moves": 370,
+            "spills": 354,
+            "reloads": 488,
+            "aligned_heads": 63,
+            "original_backward_targets": 21,
+            "fp_spills": 125,
+            "fp_reloads": 201,
+            "forward_calls": 7,
+            "forward_reduced_masks": 1,
+            "function_bytes": 13741
+          }
+        },
+        {
+          "function": "tree:TreeBuildNewIndex",
+          "heap-baseline": {
+            "id": 79,
+            "name": "tree:TreeBuildNewIndex",
+            "begin": 109664,
+            "end": 111316,
+            "blocks": 42,
+            "edge_blocks": 11,
+            "instructions": 230,
+            "moves": 48,
+            "spills": 2,
+            "reloads": 2,
+            "aligned_heads": 14,
+            "original_backward_targets": 10,
+            "fp_spills": 0,
+            "fp_reloads": 0,
+            "forward_calls": 0,
+            "forward_reduced_masks": 0,
+            "function_bytes": 1652
+          },
+          "heap-order": {
+            "id": 79,
+            "name": "tree:TreeBuildNewIndex",
+            "begin": 109632,
+            "end": 111284,
+            "blocks": 42,
+            "edge_blocks": 11,
+            "instructions": 231,
+            "moves": 49,
+            "spills": 2,
+            "reloads": 2,
+            "aligned_heads": 14,
+            "original_backward_targets": 10,
+            "fp_spills": 0,
+            "fp_reloads": 0,
+            "forward_calls": 0,
+            "forward_reduced_masks": 0,
+            "function_bytes": 1652
+          }
+        },
+        {
+          "function": "text_layout:NextTextLineUncached",
+          "heap-baseline": {
+            "id": 127,
+            "name": "text_layout:NextTextLineUncached",
+            "begin": 150880,
+            "end": 155528,
+            "blocks": 154,
+            "edge_blocks": 70,
+            "instructions": 641,
+            "moves": 200,
+            "spills": 34,
+            "reloads": 56,
+            "aligned_heads": 40,
+            "original_backward_targets": 19,
+            "fp_spills": 2,
+            "fp_reloads": 5,
+            "forward_calls": 1,
+            "forward_reduced_masks": 0,
+            "function_bytes": 4648
+          },
+          "heap-order": {
+            "id": 127,
+            "name": "text_layout:NextTextLineUncached",
+            "begin": 150880,
+            "end": 155425,
+            "blocks": 154,
+            "edge_blocks": 70,
+            "instructions": 615,
+            "moves": 170,
+            "spills": 36,
+            "reloads": 58,
+            "aligned_heads": 40,
+            "original_backward_targets": 19,
+            "fp_spills": 2,
+            "fp_reloads": 5,
+            "forward_calls": 1,
+            "forward_reduced_masks": 0,
+            "function_bytes": 4545
+          }
+        },
+        {
+          "function": "text_layout:TextTokenNext",
+          "heap-baseline": {
+            "id": 149,
+            "name": "text_layout:TextTokenNext",
+            "begin": 174624,
+            "end": 177177,
+            "blocks": 97,
+            "edge_blocks": 33,
+            "instructions": 412,
+            "moves": 134,
+            "spills": 14,
+            "reloads": 32,
+            "aligned_heads": 18,
+            "original_backward_targets": 11,
+            "fp_spills": 0,
+            "fp_reloads": 0,
+            "forward_calls": 1,
+            "forward_reduced_masks": 1,
+            "function_bytes": 2553
+          },
+          "heap-order": {
+            "id": 149,
+            "name": "text_layout:TextTokenNext",
+            "begin": 174464,
+            "end": 177010,
+            "blocks": 97,
+            "edge_blocks": 33,
+            "instructions": 407,
+            "moves": 123,
+            "spills": 17,
+            "reloads": 35,
+            "aligned_heads": 18,
+            "original_backward_targets": 11,
+            "fp_spills": 0,
+            "fp_reloads": 0,
+            "forward_calls": 1,
+            "forward_reduced_masks": 1,
+            "function_bytes": 2546
+          }
+        }
+      ]
+    },
+    "input": {
+      "code": {
+        "heap-baseline": {
+          "path": "build/widget-native/heap-baseline/input/inspected-code",
+          "sha256": "fbb3c4912ceb8e76264b365d9a2ede0b40719351df5648f06d7b3db31e25ce11",
+          "bytes": 433787
+        },
+        "heap-order": {
+          "path": "build/widget-native/heap-order/input/inspected-code",
+          "sha256": "ba221bf02c74b49a1e3d0c373ce480a9e3e2aa85d91ea17afc39dded61756fe8",
+          "bytes": 429723
+        }
+      },
+      "functions": [
+        {
+          "function": "textfield:TextFieldCore",
+          "heap-baseline": {
+            "id": 30,
+            "name": "textfield:TextFieldCore",
+            "begin": 36480,
+            "end": 84168,
+            "blocks": 674,
+            "edge_blocks": 308,
+            "instructions": 5868,
+            "moves": 1544,
+            "spills": 939,
+            "reloads": 1377,
+            "aligned_heads": 235,
+            "original_backward_targets": 84,
+            "fp_spills": 118,
+            "fp_reloads": 204,
+            "forward_calls": 58,
+            "forward_reduced_masks": 16,
+            "function_bytes": 47688
+          },
+          "heap-order": {
+            "id": 30,
+            "name": "textfield:TextFieldCore",
+            "begin": 36256,
+            "end": 83937,
+            "blocks": 673,
+            "edge_blocks": 307,
+            "instructions": 5874,
+            "moves": 1584,
+            "spills": 926,
+            "reloads": 1357,
+            "aligned_heads": 235,
+            "original_backward_targets": 84,
+            "fp_spills": 118,
+            "fp_reloads": 204,
+            "forward_calls": 58,
+            "forward_reduced_masks": 16,
+            "function_bytes": 47681
+          }
+        },
+        {
+          "function": "tree:TreeBuildOldIndex",
+          "heap-baseline": {
+            "id": 57,
+            "name": "tree:TreeBuildOldIndex",
+            "begin": 119936,
+            "end": 121801,
+            "blocks": 38,
+            "edge_blocks": 7,
+            "instructions": 236,
+            "moves": 49,
+            "spills": 1,
+            "reloads": 1,
+            "aligned_heads": 12,
+            "original_backward_targets": 9,
+            "fp_spills": 0,
+            "fp_reloads": 0,
+            "forward_calls": 1,
+            "forward_reduced_masks": 1,
+            "function_bytes": 1865
+          },
+          "heap-order": {
+            "id": 57,
+            "name": "tree:TreeBuildOldIndex",
+            "begin": 119680,
+            "end": 121545,
+            "blocks": 38,
+            "edge_blocks": 7,
+            "instructions": 236,
+            "moves": 49,
+            "spills": 1,
+            "reloads": 1,
+            "aligned_heads": 12,
+            "original_backward_targets": 9,
+            "fp_spills": 0,
+            "fp_reloads": 0,
+            "forward_calls": 1,
+            "forward_reduced_masks": 1,
+            "function_bytes": 1865
+          }
+        },
+        {
+          "function": "tree:TreeBuildNewIndex",
+          "heap-baseline": {
+            "id": 145,
+            "name": "tree:TreeBuildNewIndex",
+            "begin": 194880,
+            "end": 196532,
+            "blocks": 42,
+            "edge_blocks": 11,
+            "instructions": 230,
+            "moves": 48,
+            "spills": 2,
+            "reloads": 2,
+            "aligned_heads": 14,
+            "original_backward_targets": 10,
+            "fp_spills": 0,
+            "fp_reloads": 0,
+            "forward_calls": 0,
+            "forward_reduced_masks": 0,
+            "function_bytes": 1652
+          },
+          "heap-order": {
+            "id": 145,
+            "name": "tree:TreeBuildNewIndex",
+            "begin": 194208,
+            "end": 195860,
+            "blocks": 42,
+            "edge_blocks": 11,
+            "instructions": 231,
+            "moves": 49,
+            "spills": 2,
+            "reloads": 2,
+            "aligned_heads": 14,
+            "original_backward_targets": 10,
+            "fp_spills": 0,
+            "fp_reloads": 0,
+            "forward_calls": 0,
+            "forward_reduced_masks": 0,
+            "function_bytes": 1652
+          }
+        }
+      ]
+    }
+  },
+  "notes": [
+    "heap-control was caught already containing the candidate; it is NOT a valid baseline and is preserved without being used for timing. heap-baseline is a fresh normal build with only HeapKey reverted.",
+    "Both retained bundles/C controls are immutable and byte identical. Full input inventory differs only in cmd/compiler_regalloc.zi. Fresh baseline MachineCodeBuild code matches cfg-hints byte for byte.",
+    "Counts are static allocated IR and encoded code sizes, not dynamic costs. Both candidate and baseline widget checksum oracles pass.",
+    "Current canonical source/output has baseline HeapKey while matched selection runs. Candidate source is preserved in ignored backup/widget-allocation-window/heap-key-candidate.zi."
+  ],
+  "timing_report": "bench/results/widget-native-omega-heap-order.json",
+  "timing_receipt": "d40e67a1ce25e2e2981c6a248ab016347331"
+}

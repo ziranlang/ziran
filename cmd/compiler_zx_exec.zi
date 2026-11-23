@@ -1,0 +1,236 @@
+// Revision-28 executable ZX behind the embedding API: the platform console
+// services a run binds (cmd/zir/zir_exec_console.h). It is generated with
+// the portable instruction engine and compiled under the engine's private
+// names, so its calls reach the engine libziran carries while its own entry
+// points keep their C names. cmd/zir/zir_host_exec.c holds the rest of the
+// facade until it is ported.
+Exec :: #import "compiler_exec"
+LIR :: #import "compiler_lowered_ir"
+
+#scope_file
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+memcpy :: (dst: *u8, src: *u8, count: usize) -> *u8 #foreign libc "memcpy";
+memset :: (dst: *u8, value: s32, count: usize) -> *u8 #foreign libc "memset";
+memcmp :: (a: *u8, b: *u8, count: usize) -> s32 #foreign libc "memcmp";
+strlen :: (s: *u8) -> usize #foreign libc "strlen";
+fwrite :: (data: *u8, size: usize, count: usize, file: *void) -> usize #foreign libc "fwrite";
+isatty :: (descriptor: s32) -> s32 #foreign libc "isatty";
+StandardOutput :: () -> *void #foreign compiler "CompilerStandardOutput";
+StandardError :: () -> *void #foreign compiler "CompilerStandardError";
+FormatPrintFloat :: (value: float64, single: s32, out: *u8, capacity: usize) #foreign compiler "FormatPrintFloat";
+
+StaticText :: struct { data: *u8; length: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+TextData :: (s: *string) -> *u8 { return (cast(*StaticText)s).data }
+
+// A module or function name of the program is TEXT.
+NameIs :: (name: string, text: string) -> bool {
+    return name.count == text.count && memcmp(TextData(*name), CStr(text), cast(usize)text.count) == 0
+}
+
+ConsoleWriteHook :: #type (context: *void, descriptor: s32, bytes: *u8, size: usize) -> s32 #c_call;
+
+// zir_exec_console.h's ZX_SERVICE_ names.
+SERVICE_NONE :: 0
+SERVICE_PRINT_BYTES :: 1
+SERVICE_PRINT_SIGNED :: 2
+SERVICE_PRINT_UNSIGNED :: 3
+SERVICE_PRINT_BOOL :: 4
+SERVICE_PRINT_FLOAT32 :: 5
+SERVICE_PRINT_FLOAT64 :: 6
+
+#scope_export
+
+// Standard output a run gathers so that it reaches stdio in one write. It
+// goes out when the console is flushed, before anything goes to standard
+// error, and when it fills; a terminal or a custom sink gets each write at
+// once. The layout is zir_exec_console.h's ZxConsole.
+ZxConsole :: struct {
+    used: usize
+    direct: s32
+    write: ConsoleWriteHook
+    context: *void
+    data: [4096]u8
+}
+
+// The platform console service a host function of PROGRAM stands for.
+#program_export
+ZxPlatformService :: (program: *LIR.LirProgram, function: s64) -> s32 {
+    if function < 0 || function >= program.functions.count { return SERVICE_NONE }
+    declared := *program.functions[function]
+    if !declared.external || declared.module < 0 || cast(s64)declared.module >= program.modules.count ||
+       !NameIs(program.modules[declared.module], "ziran.platform") { return SERVICE_NONE }
+    name := declared.name
+    if NameIs(name, "ziran.platform.write_all") { return SERVICE_PRINT_BYTES }
+    if NameIs(name, "ziran.print.signed") { return SERVICE_PRINT_SIGNED }
+    if NameIs(name, "ziran.print.unsigned") { return SERVICE_PRINT_UNSIGNED }
+    if NameIs(name, "ziran.print.bool") { return SERVICE_PRINT_BOOL }
+    if NameIs(name, "ziran.print.float32") { return SERVICE_PRINT_FLOAT32 }
+    if NameIs(name, "ziran.print.float64") { return SERVICE_PRINT_FLOAT64 }
+    return SERVICE_NONE
+}
+
+// Hands what CONSOLE holds to standard output: 0 when that failed.
+#program_export
+ZxConsoleFlush :: (console: *ZxConsole) -> s32 {
+    if console == null || console.used == 0 { return 1 }
+    used := console.used
+    console.used = 0
+    return ifx fwrite(*console.data[0], 1, used, StandardOutput()) == used then 1 else 0
+}
+
+#program_export
+ZxConsoleOpen :: (console: *ZxConsole) {
+    unused memset(cast(*u8)console, 0, size_of(ZxConsole))
+    console.direct = isatty(1)
+}
+
+#program_export
+ZxConsoleWrite :: (console: *ZxConsole, bytes: *u8, size: usize) -> s32 {
+    return ifx ConsoleOut(console, bytes, size) then 1 else 0
+}
+
+#program_export
+ZxBindConsole :: (instance: *Exec.LirExecInstance, program: *LIR.LirProgram, console: *ZxConsole) -> Exec.LirExecProblem {
+    if console != null { ZxConsoleOpen(console) }
+    context := cast(*void)console
+    for index: cast(s64)0..program.functions.count - 1 {
+        service := ZxPlatformService(program, index)
+        function := cast(s32)index
+        bound := Exec.LirExecProblem.None
+        if service == SERVICE_PRINT_BYTES { bound = Exec.LirExecBindPlatformWrite(instance, function, ConsolePlatformWrite, context) }
+        if service == SERVICE_PRINT_SIGNED { bound = Exec.LirExecBindHost(instance, function, PrintSigned, context) }
+        if service == SERVICE_PRINT_UNSIGNED { bound = Exec.LirExecBindHost(instance, function, PrintUnsigned, context) }
+        if service == SERVICE_PRINT_BOOL { bound = Exec.LirExecBindHost(instance, function, PrintBool, context) }
+        if service == SERVICE_PRINT_FLOAT32 { bound = Exec.LirExecBindHost(instance, function, PrintFloat32, context) }
+        if service == SERVICE_PRINT_FLOAT64 { bound = Exec.LirExecBindHost(instance, function, PrintFloat64, context) }
+        if bound != .None { return bound }
+    }
+    return .None
+}
+
+// What a failed run's problem means to the program's reader, or null.
+#program_export
+ZxExecProblemText :: (problem: Exec.LirExecProblem) -> *u8 {
+    if problem == .Pointer { return CStr("an index or address is out of bounds or no longer valid") }
+    if problem == .Unreachable { return CStr("unreachable code executed") }
+    if problem == .FrameLimit { return CStr("nested calls filled the stack") }
+    if problem == .DivideByZero { return CStr("integer division by zero") }
+    if problem == .InvalidShift { return CStr("shift count out of range") }
+    if problem == .InvalidConversion { return CStr("conversion out of range") }
+    if problem == .Trap { return CStr("the program trapped") }
+    if problem == .Host { return CStr("a host call failed") }
+    if problem == .FuelLimit { return CStr("the step limit ran out") }
+    if problem == .ValueLimit || problem == .AddressLimit || problem == .ValueBytes || problem == .Allocation {
+        return CStr("the program ran out of value storage")
+    }
+    return null
+}
+
+#scope_file
+
+// Standard output through CONSOLE: a custom sink or a terminal gets each
+// write at once, anything else is gathered.
+ConsoleOut :: (console: *ZxConsole, bytes: *u8, size: usize) -> bool {
+    if size == 0 { return true }
+    if console != null && cast(*void)console.write != null { return console.write(console.context, 1, bytes, size) != 0 }
+    if console == null || console.direct != 0 { return fwrite(bytes, 1, size, StandardOutput()) == size }
+    if size > 4096 - console.used {
+        if ZxConsoleFlush(console) == 0 { return false }
+        if size > 4096 { return fwrite(bytes, 1, size, StandardOutput()) == size }
+    }
+    unused memcpy(*console.data[console.used], bytes, size)
+    console.used += size
+    return true
+}
+
+// ziran.platform.write_all: standard output, or standard error after what
+// standard output holds, as when every print went straight to stdio.
+ConsolePlatformWrite :: (context: *void, descriptor: u64, bytes: []u8) -> bool {
+    console := cast(*ZxConsole)context
+    data: *u8 = ifx bytes.count > 0 then *bytes[0] else null
+    size := cast(usize)bytes.count
+    if descriptor == 1 { return ConsoleOut(console, data, size) }
+    if descriptor != 2 { return false }
+    if console != null && cast(*void)console.write != null { return size == 0 || console.write(console.context, 2, data, size) != 0 }
+    if ZxConsoleFlush(console) == 0 { return false }
+    return size == 0 || fwrite(data, 1, size, StandardError()) == size
+}
+
+// The decimal digits of VALUE at TEXT; their count.
+FormatUnsigned :: (text: *u8, value: u64) -> usize {
+    digits: [20]u8
+    count: usize = 0
+    rest := value
+    while true {
+        digits[count] = cast(u8)(cast(u64)#char "0" + rest % 10)
+        count += 1
+        rest /= 10
+        if rest == 0 { break }
+    }
+    at: usize = 0
+    while at < count {
+        text[at] = digits[count - 1 - at]
+        at += 1
+    }
+    return count
+}
+
+PrintText :: (context: *void, text: *u8, length: usize, result: *u64) -> bool {
+    <<result = 0
+    return ConsoleOut(cast(*ZxConsole)context, text, length)
+}
+
+PrintSigned :: (context: *void, function: s32, arguments: []u64, result: *u64) -> bool {
+    <<result = 0
+    if arguments.count != 1 { return false }
+    text: [64]u8
+    length: usize = 0
+    magnitude := arguments[0]
+    if cast(s64)arguments[0] < 0 {
+        text[0] = #char "-"
+        length = 1
+        magnitude = ~magnitude + 1
+    }
+    length += FormatUnsigned(*text[length], magnitude)
+    return PrintText(context, *text[0], length, result)
+}
+
+PrintUnsigned :: (context: *void, function: s32, arguments: []u64, result: *u64) -> bool {
+    <<result = 0
+    if arguments.count != 1 { return false }
+    text: [64]u8
+    return PrintText(context, *text[0], FormatUnsigned(*text[0], arguments[0]), result)
+}
+
+PrintBool :: (context: *void, function: s32, arguments: []u64, result: *u64) -> bool {
+    <<result = 0
+    if arguments.count != 1 { return false }
+    word := ifx arguments[0] != 0 then "true" else "false"
+    return PrintText(context, CStr(word), cast(usize)word.count, result)
+}
+
+PrintFloat32 :: (context: *void, function: s32, arguments: []u64, result: *u64) -> bool {
+    <<result = 0
+    if arguments.count != 1 { return false }
+    bits := cast(u32)arguments[0]
+    value: float32 = 0
+    unused memcpy(cast(*u8)*value, cast(*u8)*bits, 4)
+    text: [64]u8
+    FormatPrintFloat(cast(float64)value, 1, *text[0], 64)
+    return PrintText(context, *text[0], strlen(*text[0]), result)
+}
+
+PrintFloat64 :: (context: *void, function: s32, arguments: []u64, result: *u64) -> bool {
+    <<result = 0
+    if arguments.count != 1 { return false }
+    bits := arguments[0]
+    value: float64 = 0
+    unused memcpy(cast(*u8)*value, cast(*u8)*bits, 8)
+    text: [64]u8
+    FormatPrintFloat(value, 0, *text[0], 64)
+    return PrintText(context, *text[0], strlen(*text[0]), result)
+}

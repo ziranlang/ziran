@@ -5,6 +5,7 @@
 #endif
 
 void *CompilerStandardError(void) { return stderr; }
+void *CompilerStandardOutput(void) { return stdout; }
 
 void
 S15PlatformDiagnosticLog(int warning, const char *path, int line, int column,

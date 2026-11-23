@@ -246,7 +246,7 @@ C ABI/storage boundary:
 | `zir_emit_statement.c` | statement/body emission; `EmitBody:2068`, public scratch wrapper `:2115` | `compiler_c_emit_statement` | S5 |
 | `zir_emit_value.c` | output/format controls from `:8` | `compiler_c_emit_value` | S5 |
 | `zir_enum.c` | enum snapshot cache; generated arithmetic call `:92`; public `EnumMemberValue:113` | `compiler_frontend_ir` cache | S15 |
-| `zir_exec_console.h` | portable failure text | `compiler_zx_run` | S16 |
+| `zir_exec_console.h` | C declarations of the console services `cmd/compiler_zx_exec.zi` implements | `compiler_zx_exec` | S16 |
 | `zir_expr.h` | C adapters to the Ziran expression IR parser used by portable linking and retained tests | `compiler_expr_ir` | S16 |
 | `zir_files.c` / `.h` | filesystem/path policy `PathIsAbsolute:19`, status `:7` | `compiler_files` | S15 |
 | `compiler_host_api.zi` / `include/ziran_host.h` | embedding API: bundles, instances, run control, module state and components, read with `compiler_host_api_state.zi` | `compiler_host_api` | S16 |
@@ -571,9 +571,14 @@ No step commits before its implementation and proof are complete.
   `compiler_host_api_modules.zi` (loader, programs, handles, export calls,
   hot replacement, runtime services), replacing `zir_zx_module.c`. The
   `stat` identity probe `S15FileIdentity` stays in `zir_files_host.c`.
-- Port the engine execution facade and the Wasm provider and web bridges.
-  Preserve the public embedding and executable APIs and add their modules to
-  bootstrap.
+- The engine execution facade moves into `compiler_zx_exec`
+  (`cmd/compiler_zx_exec.zi`), generated with the instruction engine from
+  `cmd/compiler_runtime.zi` and compiled under its private names, so its calls
+  reach the engine libziran carries while its own C entry points keep their
+  names. The platform console services come first; the bundle reader, host
+  calls, instances and the Wasm provider follow in stages.
+- Port the rest of the engine execution facade and the Wasm provider and web
+  bridges. Preserve the public embedding and executable APIs.
 - Retire the replaced `zir_host_exec.c`, `zir_zx_module_internal.h`,
   `zir_zx_wasm.c`, `zir_zx_wasm_web.c` and `zir_exec_console.h` as those
   ports land.

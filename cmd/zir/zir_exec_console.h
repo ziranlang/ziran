@@ -1,8 +1,9 @@
 /*
  * zir_exec_console.h - the platform console services of revision-28
  * executable ZX: print and write_all in the ziran.platform module, bound to
- * standard output and standard error. Uses the generated engine headers
- * (cmd/compiler_runtime.zi), found with -iquote.
+ * standard output and standard error, implemented in cmd/compiler_zx_exec.zi.
+ * Uses the generated engine headers (cmd/compiler_runtime.zi), found with
+ * -iquote.
  */
 #ifndef ZIR_EXEC_CONSOLE_H
 #define ZIR_EXEC_CONSOLE_H

@@ -1,0 +1,16 @@
+{
+  "first_frame_composed_ms": 888.2,
+  "idle_seconds": 30.0,
+  "cpu_ticks": 923,
+  "ticks_per_second": 100,
+  "cpu_percent_one_core": 30.766,
+  "mouse_visible_ms_upper_bound": 928.6,
+  "key_visible_ms_upper_bound": 148.7,
+  "idle_minute_clock_updated": null,
+  "pool": "128M",
+  "resolution": "1024x768",
+  "pid": 3608768,
+  "emulator_sha256": "d4fa82e033d79c2418dcacc30216f4162e34fb64aebfb88c5f8724b0196ee2c4",
+  "bundle_sha256": "44a26f3453196cbabd96b1cdfc80de8f64be13c8d40ac226aebe168459a5b3ab",
+  "zxrun_sha256": "2825f8c707bc3ffdcd20a5b815157d5c6ca343a5ff7a304ab4e9148e14f2e51a"
+}

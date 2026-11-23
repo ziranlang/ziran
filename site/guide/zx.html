@@ -476,6 +476,11 @@ capabilities. A portable bundle cannot contain an undeclared dependency on
 target-specific C or Go code. Host capabilities name portable typed services
 and are bound independently of CPU lowering; missing host bindings and missing
 ABI veneers are different gaps and neither is repaired by the other layer.</p>
+<p>Portable scalars are the fixed-width integers, <code>bool</code>, enums, floats,
+<code>string</code>, plain records and fixed arrays, plus pointer-sized <code>isize</code> and
+<code>usize</code>, which lower as 64-bit signed and unsigned integers with
+<code>size_of</code> 8. A procedure type declared <code>#c_call</code> is native only and stays
+rejected on this target.</p>
 <h2 id="component-identity-state-and-replacement">Component identity, state, and replacement</h2>
 <p>A component is an ordinary <code>.zx</code> entry plus its declared host capabilities;
 Ziran has no UI- or application-specific component names. <code>BundleCodeIdentity</code>

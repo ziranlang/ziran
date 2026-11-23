@@ -522,6 +522,12 @@ target-specific C or Go code. Host capabilities name portable typed services
 and are bound independently of CPU lowering; missing host bindings and missing
 ABI veneers are different gaps and neither is repaired by the other layer.
 
+Portable scalars are the fixed-width integers, `bool`, enums, floats,
+`string`, plain records and fixed arrays, plus pointer-sized `isize` and
+`usize`, which lower as 64-bit signed and unsigned integers with
+`size_of` 8. A procedure type declared `#c_call` is native only and stays
+rejected on this target.
+
 ## Component identity, state, and replacement
 
 A component is an ordinary `.zx` entry plus its declared host capabilities;

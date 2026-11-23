@@ -245,6 +245,20 @@ console-only Ziran install.</p>
 A graphical <code>.zx</code> then runs with <code>ziran run app.zx</code> without application sources,
 a manifest or generated native output. The portable bundle carries its linked
 UI code and embedded assets; the installed provider bridges the local OS.</p>
+<h3 id="zx-runner">ZX Runner</h3>
+<p><code>make install-user</code> installs <code>zx</code>, ZX Runner, beside the toolchain. <code>zx
+app.zx [ARGUMENT...]</code> runs the bundle with that toolchain exactly as <code>ziran
+run</code> does. It reads the header first, so a file that is not a ZX program, or
+one written in an older or newer ZX format revision, gets a plain explanation
+naming both revisions. Started without a terminal on standard error, as a file
+manager starts it, ZX Runner also shows any failure, including the program's
+own error output, in a dialog (<code>zenity</code>, else <code>xmessage</code>).</p>
+<p>The installation registers the <code>.zx</code> file type for the user from
+<code>packaging/linux</code>: <code>application/x-ziran-bundle</code>, matched by the <code>*.zx</code> name and
+by the <code>ZX\0\0</code> signature at offset 0, with icons in the hicolor theme. The
+desktop entry <code>org.ziran_lang.zx.desktop</code> opens that type and becomes its
+default opener through <code>xdg-mime</code>. The header has to start the file, so a
+bundle cannot carry a <code>#!</code> line; run it with <code>zx app.zx</code> or open it.</p>
 <h2 id="writing-bundles">Writing bundles</h2>
 <p><code>zi2zx --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...</code>
 loads explicit inputs and their extensionless imports, lowers what the entry

@@ -202,29 +202,30 @@ ZIR_BIT_CTZ :: 2
 ZIR_BIT_POPCOUNT :: 3
 ZIR_BIT_BSWAP :: 4
 
-// zi_kbits, zi_ksigned, zi_kfloat, zi_kmask, zi_sx and zi_fput.
-zi_kbits :: (kind: s32) -> s32 {
+// Kind helpers: width, signedness, float classification, mask, sign extension
+// and float bit moves.
+LowerKindBits :: (kind: s32) -> s32 {
     if kind == ZI_K_F32 { return 32 }
     if kind == ZI_K_F64 { return 64 }
     shift: s32 = kind / 2
     return cast(s32)8 << shift
 }
-zi_ksigned :: (kind: s32) -> bool { return kind <= ZI_K_S64 && (kind & 1) != 0 }
-zi_kfloat :: (kind: s32) -> bool { return kind >= ZI_K_F32 }
-zi_kmask :: (kind: s32) -> u64 {
-    bits: u64 = cast(u64)zi_kbits(kind)
+LowerKindSigned :: (kind: s32) -> bool { return kind <= ZI_K_S64 && (kind & 1) != 0 }
+LowerKindFloat :: (kind: s32) -> bool { return kind >= ZI_K_F32 }
+LowerKindMask :: (kind: s32) -> u64 {
+    bits: u64 = cast(u64)LowerKindBits(kind)
     if bits == cast(u64)64 { return 18446744073709551615 }
     return (cast(u64)1 << bits) - cast(u64)1
 }
-zi_sx :: (value: u64, kind: s32) -> s64 {
-    width: u64 = cast(u64)zi_kbits(kind)
+LowerSignExtend :: (value: u64, kind: s32) -> s64 {
+    width: u64 = cast(u64)LowerKindBits(kind)
     if width == cast(u64)64 { return cast(s64)value }
     sign := cast(u64)1 << (width - cast(u64)1)
-    bits := value & zi_kmask(kind)
-    if (bits & sign) != cast(u64)0 { return cast(s64)(bits | ~zi_kmask(kind)) }
+    bits := value & LowerKindMask(kind)
+    if (bits & sign) != cast(u64)0 { return cast(s64)(bits | ~LowerKindMask(kind)) }
     return cast(s64)bits
 }
-zi_fget :: (bits: u64, kind: s32) -> float64 {
+LowerFloatGet :: (bits: u64, kind: s32) -> float64 {
     if kind == ZI_K_F32 {
         word: s32 = cast(s32)(bits & 4294967295)
         single: float32
@@ -235,7 +236,7 @@ zi_fget :: (bits: u64, kind: s32) -> float64 {
     memcpy(cast(*void)*value, cast(*void)*bits, 8)
     return value
 }
-zi_fput :: (value: float64, kind: s32) -> u64 {
+LowerFloatPut :: (value: float64, kind: s32) -> u64 {
     if kind == ZI_K_F32 {
         single := cast(float32)value
         word: s32

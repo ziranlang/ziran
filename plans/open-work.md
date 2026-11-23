@@ -57,11 +57,11 @@ line when the work lands. Keep detail in the referenced plan.
   `MachineVerify::DirectProven` stays conservative; test with
   `tests/proven_pointer_cases.zi`, `tests/guarded_index_ranges.sh`,
   `tests/trust_boundary_cases.zi`.
-- Language quick wins: reserve the `zi_` generated-name prefix, add
-  statement-level parse recovery with a per-region error cap, and list
-  ambiguity candidates in `module.ambiguous`/`package.ambiguous`; new codes
-  enter the explain registry and `tests/explain.sh` must pass; clean-file
-  `.zir` output stays byte-identical.
+- Language quick wins, remaining: add statement-level parse recovery with a
+  per-region error cap, and list ambiguity candidates in
+  `module.ambiguous`/`package.ambiguous`; new codes enter the explain registry
+  and `tests/explain.sh` must pass; clean-file `.zir` output stays
+  byte-identical.
 - Several parse errors per file: a recovery point around each top-level declaration, added where the parser port puts recovery (today ParserWithRecovery in cmd/zir/zir_parse.c covers a whole parse).
 - Exact caret columns inside a declaration's value: re-land the PartSpan span change (reverted in 527c3d0b) once the saved-IR codec stores literal values instead of reparsing statement-text slices.
 - Check control: one documented switch builds the most thorough program

@@ -45,6 +45,12 @@ ToolDeclarationNames :: (test: *NativeTest) -> bool {
         "zi_default_0123456789abcdef_field_ :: 3",
         "zi_default_0123456789abcdef_field_x :: 3",
         "zi_default_0123456789abcdef_extra :: 3",
+        // The whole generated-name prefix is reserved, not only the helper form.
+        "zi_new :: () -> s32 { return 1 }",
+        "zi_free :: 3",
+        "zi_simd_at: s32 = 4;",
+        "zi_enum_name_point :: struct { x: s32 }",
+        "zi_kbits :: (kind: s32) -> s32 { return kind }",
     ]
     for declaration: declarations {
         if !NativeWrite(test, source, CheckConcat(declaration, "\n#program_export\nAnswer :: () -> s32 { return 0 }\n")) { return false }

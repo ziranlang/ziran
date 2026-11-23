@@ -103,7 +103,7 @@ ApiMetadata :: (test: *NativeTest) -> bool {
     rows := ApiRows(*source); saved_rows := ApiRows(*saved)
     for row: rows {
         name := CheckField(*source, row.row, "name")
-        if CheckField(*source, row.row, "symbol_kind") != "law" && !NativeAssert(test, !TextHasPrefix(name, "Hidden") && !TextHasPrefix(name, "__") && !TextHasPrefix(name, "zi_default_"), "API exposed a private or generated name") { return false }
+        if CheckField(*source, row.row, "symbol_kind") != "law" && !NativeAssert(test, !TextHasPrefix(name, "Hidden") && !TextHasPrefix(name, "__") && !TextHasPrefix(name, "zi_"), "API exposed a private or generated name") { return false }
         if row.kind == "laws" && !NativeAssert(test, CheckField(*source, row.row, "visibility") == "module_contract", "law lost module-contract visibility") { return false }
         if row.module == "vec" { continue }
         document := JsonMember(*source, row.row, "document"); span := JsonMember(*source, row.row, "span")

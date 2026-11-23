@@ -178,8 +178,18 @@ check_native_storage :: (module: *IR.ZirModule) -> s32 {
 
 #scope_file
 generated_helper_name :: (name: *u8) -> s32 {
+    // The compiler spells these itself: nested local procedures, enum member
+    // adapters and the C backend's own names.
+    generated: [3]string = .["zi_local_", "zi_enum_name_", "zi_print_"]
     prefix_storage_0 := cast(*S12Array12_u8)AllocateOrExit(size_of(S12Array12_u8))
     defer CompilerFree(cast(*void)prefix_storage_0)
+    name_length: usize = cast(usize)(cast(u64)(strlen(name)))
+    for prefix: generated {
+        memset(cast(*void)prefix_storage_0, 0, size_of(S12Array12_u8))
+        copy_text(cast(*u8)prefix_storage_0, size_of(S12Array12_u8), CheckCString(prefix))
+        width: usize = cast(usize)(cast(u64)prefix.count)
+        if name_length >= width && strncmp(name, cast(*u8)(*((prefix_storage_0[0]).items)), width) == 0 { return 1 }
+    }
     memset(cast(*void)prefix_storage_0, 0, size_of(S12Array12_u8))
     copy_text(cast(*u8)prefix_storage_0, size_of(S12Array12_u8), CheckCString("zi_default_"))
     at: usize = cast(usize)((cast(u64)size_of(S12Array12_u8) - cast(u64)(1)))
@@ -219,14 +229,15 @@ reserved_declaration :: (module: *IR.ZirModule) -> s32 {
     prefix_storage_0 := cast(*S12Array12_u8)AllocateOrExit(size_of(S12Array12_u8))
     defer CompilerFree(cast(*void)prefix_storage_0)
     memset(cast(*void)prefix_storage_0, 0, size_of(S12Array12_u8))
-    copy_text(cast(*u8)prefix_storage_0, size_of(S12Array12_u8), CheckCString("zi_default_"))
-    at: usize = cast(usize)((cast(u64)size_of(S12Array12_u8) - cast(u64)(1)))
+    copy_text(cast(*u8)prefix_storage_0, size_of(S12Array12_u8), CheckCString("zi_"))
+    at: usize = cast(usize)((cast(u64)(3)))
     {
         i: s32 = 0
         while check_loop_39 := (i < (module).function_count) {
             name: *u8 = cast(*u8)(*((((module).functions)[i]).name))
-            if ((strncmp(name, cast(*u8)(*((prefix_storage_0[0]).items)), at) == 0) && !(generated_helper_name(name) != 0)) {
-                Diagnostic((((module).functions)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's generated-helper prefix: %s"), name)
+            generated: s32 = cast(s32)((((((module).functions)[i]).is_specialization != 0) || (((module).functions)[i]).is_global_initializer != 0))
+            if ((strncmp(name, cast(*u8)(*((prefix_storage_0[0]).items)), at) == 0) && !(generated != 0) && !(generated_helper_name(name) != 0)) {
+                Diagnostic((((module).functions)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's reserved zi_ prefix: %s"), name)
                 return 0
             }
             S12Post2(*(i))
@@ -237,7 +248,7 @@ reserved_declaration :: (module: *IR.ZirModule) -> s32 {
         while check_loop_40 := (i < (module).global_count) {
             name: *u8 = cast(*u8)(*((((module).globals)[i]).name))
             if ((strncmp(name, cast(*u8)(*((prefix_storage_0[0]).items)), at) == 0) && !(generated_helper_name(name) != 0)) {
-                Diagnostic((((module).globals)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's generated-helper prefix: %s"), name)
+                Diagnostic((((module).globals)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's reserved zi_ prefix: %s"), name)
                 return 0
             }
             S12Post2(*(i))
@@ -248,7 +259,7 @@ reserved_declaration :: (module: *IR.ZirModule) -> s32 {
         while check_loop_41 := (i < (module).define_count) {
             name: *u8 = cast(*u8)(*((((module).defines)[i]).name))
             if ((strncmp(name, cast(*u8)(*((prefix_storage_0[0]).items)), at) == 0) && !(generated_helper_name(name) != 0)) {
-                Diagnostic((((module).defines)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's generated-helper prefix: %s"), name)
+                Diagnostic((((module).defines)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's reserved zi_ prefix: %s"), name)
                 return 0
             }
             S12Post2(*(i))
@@ -259,7 +270,7 @@ reserved_declaration :: (module: *IR.ZirModule) -> s32 {
         while check_loop_42 := (i < (module).type_count) {
             name: *u8 = cast(*u8)(*((((module).types)[i]).name))
             if ((strncmp(name, cast(*u8)(*((prefix_storage_0[0]).items)), at) == 0) && !(generated_helper_name(name) != 0)) {
-                Diagnostic((((module).types)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's generated-helper prefix: %s"), name)
+                Diagnostic((((module).types)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's reserved zi_ prefix: %s"), name)
                 return 0
             }
             S12Post2(*(i))
@@ -270,7 +281,7 @@ reserved_declaration :: (module: *IR.ZirModule) -> s32 {
         while check_loop_43 := (i < (module).import_count) {
             name: *u8 = cast(*u8)(*((((module).imports)[i]).name))
             if ((strncmp(name, cast(*u8)(*((prefix_storage_0[0]).items)), at) == 0) && !(generated_helper_name(name) != 0)) {
-                Diagnostic((((module).imports)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's generated-helper prefix: %s"), name)
+                Diagnostic((((module).imports)[i]).span, CheckCString("check.reserved_name"), CheckCString("declaration name starts with the compiler's reserved zi_ prefix: %s"), name)
                 return 0
             }
             S12Post2(*(i))

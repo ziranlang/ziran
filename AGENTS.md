@@ -50,7 +50,10 @@ do not import a UI library.
 
 - Scope: no Inbe application code (`../inbe`); no Kryon widgets or
   UI-specific compiler cases (`../kryon` is an ordinary library). Add a
-  capability here only when non-graphical programs benefit.
+  capability here only when non-graphical programs benefit. The exception
+  is ZX Runner and the platform layer it hosts (window, drawing, input,
+  media) on Linux and Android, which belong here even though they are
+  visual (owner, 2026-11-23); widgets stay in UI libraries.
 - No backward compatibility: use current Ziran syntax only. Remove legacy
   spellings, flags, binary formats, and entry points; keep the rejection
   tests that enforce current rules.

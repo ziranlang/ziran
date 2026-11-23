@@ -395,7 +395,7 @@ LEAN ?= lean
 # contains it. Every ordinary run executes the complete retained suite.
 CHECK_JOBS ?=
 CHECK_FILTER ?=
-all: $(BIN_DIR)/zi-edit $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2zx $(BIN_DIR)/zx2wasm $(BIN_DIR)/zx2native $(BUILD_DIR)/libziran.a
+all: $(BIN_DIR)/zi-edit $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2zx $(BIN_DIR)/zx2wasm $(BIN_DIR)/zx2native $(BIN_DIR)/zx $(BUILD_DIR)/libziran.a
 
 proof-model: $(PROOF_KERNEL_OBJECT)
 	mkdir -p $(BUILD_DIR)/proofs
@@ -406,9 +406,14 @@ proof-model: $(PROOF_KERNEL_OBJECT)
 
 USER_BIN ?= $(HOME)/.local/bin
 USER_SHARE ?= $(HOME)/.local/share/ziran/bootstrap
+# ZX Runner's desktop integration: the .zx file type and the entry that
+# opens .zx files, under the user's XDG data directory.
+USER_DATA ?= $(HOME)/.local/share
+ZX_DESKTOP := org.ziran_lang.zx.desktop
+ZX_MIME := application/x-ziran-bundle
 install-user: all
 	mkdir -p $(USER_BIN) $(USER_SHARE)/build/bin
-	@set -e; for tool in ziran zi-fmt zi-edit zi2zir zi-api zi-inspect zi2c zi2go zi2zx zx2wasm zx2native; do \
+	@set -e; for tool in ziran zi-fmt zi-edit zi2zir zi-api zi-inspect zi2c zi2go zi2zx zx2wasm zx2native zx; do \
 		temporary=$$(mktemp "$(USER_SHARE)/build/bin/.$$tool.XXXXXX"); \
 		trap 'rm -f "$$temporary"' EXIT; \
 		cp "$(BIN_DIR)/$$tool" "$$temporary"; chmod 755 "$$temporary"; \
@@ -417,7 +422,7 @@ install-user: all
 	rm -rf $(USER_SHARE)/std $(USER_SHARE)/include $(USER_SHARE)/templates
 	cp -r std include templates $(USER_SHARE)/
 	@# Another tool's launcher, such as a build queue wrapper, stays in place.
-	@set -e; for tool in ziran zi2zx; do \
+	@set -e; for tool in ziran zi2zx zx; do \
 		launcher="exec \"$(USER_SHARE)/build/bin/$$tool\" \"\$$@\""; \
 		if test -e "$(USER_BIN)/$$tool" && ! grep -qxF "$$launcher" "$(USER_BIN)/$$tool"; then \
 			echo "install-user: kept $(USER_BIN)/$$tool, which launches something else"; \
@@ -426,6 +431,17 @@ install-user: all
 			chmod 755 "$(USER_BIN)/$$tool"; \
 		fi; \
 	done
+	mkdir -p $(USER_DATA)/applications $(USER_DATA)/mime/packages
+	@# The entry runs the installed runner itself, whatever zx PATH finds.
+	sed 's|@ZX@|$(abspath $(USER_SHARE))/build/bin/zx|g' packaging/linux/$(ZX_DESKTOP) > $(USER_DATA)/applications/.$(ZX_DESKTOP).new
+	mv -f $(USER_DATA)/applications/.$(ZX_DESKTOP).new $(USER_DATA)/applications/$(ZX_DESKTOP)
+	cp packaging/linux/ziran-zx.xml $(USER_DATA)/mime/packages/ziran-zx.xml
+	@# Refresh the caches the desktop reads, where its tools are installed.
+	@if command -v update-mime-database >/dev/null; then update-mime-database $(USER_DATA)/mime; fi
+	@if command -v update-desktop-database >/dev/null; then update-desktop-database -q $(USER_DATA)/applications; fi
+	@# xdg-mime writes mimeapps.list there but does not create the folder.
+	@if command -v xdg-mime >/dev/null; then mkdir -p "$${XDG_CONFIG_HOME:-$$HOME/.config}" && \
+		XDG_DATA_HOME=$(USER_DATA) xdg-mime default $(ZX_DESKTOP) $(ZX_MIME); fi
 
 # A reused build directory must not mix sanitized and ordinary objects.
 # Preserve the stamp's mtime unless the actual compiler configuration changes.
@@ -670,6 +686,17 @@ $(BIN_DIR)/zi-fmt: $(FORMAT_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/.compiler-flag
 	$(BIN_DIR)/zi2c --entry format:main $(ZIRAN_DEFINES) --root cmd --module-path std \
 	    -o $(FORMAT_C) cmd/format.zi
 	$(NICE) $(CC) $(CFLAGS) -I$(FORMAT_C) -o $@ $(FORMAT_C)/*.c -lm
+
+# ZX Runner, the `zx` command: runs any .zx program with this toolchain.
+ZX_RUNNER_C := $(BUILD_DIR)/zx-runner-c
+ZX_RUNNER_SOURCES := cmd/zx_runner.zi cmd/zx_runner_header.zi cmd/zx_runner_dialog.zi cmd/compiler_bundle.zi \
+    std/byte_text_linux.zi std/c_string.zi std/environment_linux.zi std/file.zi std/file_linux.zi \
+    std/process_run_linux.zi std/stdio_linux.zi std/text_tools.zi std/vec.zi
+$(BIN_DIR)/zx: $(ZX_RUNNER_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/.compiler-flags | $(BIN_DIR)
+	rm -rf $(ZX_RUNNER_C)
+	$(BIN_DIR)/zi2c --entry zx_runner:main $(ZIRAN_DEFINES) --root cmd --module-path std \
+	    -o $(ZX_RUNNER_C) cmd/zx_runner.zi
+	$(NICE) $(CC) $(CFLAGS) -I$(ZX_RUNNER_C) -o $@ $(ZX_RUNNER_C)/*.c -lm
 
 EDIT_C := $(BUILD_DIR)/edit-c
 $(BIN_DIR)/zi-edit: cmd/edit.zi cmd/transport.zi cmd/format_source.zi cmd/diagnostics.zi std/json_document.zi cmd/zir/zir_edit.c cmd/zir/zir_edit.h $(BIN_DIR)/zi2c $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) | $(BIN_DIR)

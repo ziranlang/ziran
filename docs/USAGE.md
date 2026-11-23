@@ -37,7 +37,9 @@ compiler, downstream toolchains, and validated runtime cases separately.
 
 Portable bundles run with `ziran run app.zx`. Graphical
 bundles use installed package-provided platform hosts through the same command;
-see [runtime providers](ZX.md#running-bundles).
+see [runtime providers](ZX.md#running-bundles). `make install-user` also
+installs ZX Runner: `zx app.zx` runs a bundle with the toolchain's own
+runtime, and file managers open `.zx` files with it ([ZX Runner](ZX.md#zx-runner)).
 
 ## Integer literals
 

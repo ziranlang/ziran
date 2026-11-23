@@ -1,0 +1,43 @@
+// The first check ZX Runner makes: is this a .zx program this toolchain
+// reads? The header layout is ASSEMBLY/zx-executable-format.md; the full
+// container is verified again when the program loads.
+#import "compiler_bundle"
+#import "std/file_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ZxHeaderKind :: enum s32 { Runnable; Missing; NotZx; Older; Newer }
+ZxHeader :: struct { kind: ZxHeaderKind; revision: u32 }
+
+ReadZxHeader :: (path: string) -> ZxHeader {
+    file := OpenRead(path)
+    if !file.valid { return .{kind = .Missing} }
+    bytes: [8]u8
+    count := ReadAt(file, bytes[:], 0)
+    unused CloseFile(file)
+    if count < 8 || bytes[0] != #char "Z" || bytes[1] != #char "X" || bytes[2] != 0 || bytes[3] != 0 {
+        return .{kind = .NotZx}
+    }
+    revision := cast(u32)bytes[4] | (cast(u32)bytes[5] << 8) | (cast(u32)bytes[6] << 16) | (cast(u32)bytes[7] << 24)
+    current := ExecutableVersionNumber()
+    if revision > current { return .{kind = .Newer, revision = revision} }
+    if revision < current { return .{kind = .Older, revision = revision} }
+    return .{kind = .Runnable, revision = revision}
+}
+
+ZxHeaderMessage :: (path: string, header: ZxHeader) -> Text {
+    message: Vec(u8)
+    current := ExecutableVersionNumber()
+    if header.kind == .Missing {
+        BuilderPrint(*message, "cannot open %: there is no readable file there", path)
+    } else if header.kind == .NotZx {
+        BuilderPrint(*message, "% is not a ZX program", path)
+    } else if header.kind == .Newer {
+        BuilderPrint(*message, "% needs a newer ZX Runner: it uses ZX format %, and this runner reads format %. Update Ziran to run it.",
+            path, header.revision, current)
+    } else if header.kind == .Older {
+        BuilderPrint(*message, "% was made by an older Ziran (ZX format %); this runner reads format %. Rebuild it with the current Ziran.",
+            path, header.revision, current)
+    }
+    return BuilderFinish(message)
+}

@@ -31,6 +31,11 @@ line when the work lands. Keep detail in the referenced plan.
 
 ## Compiler and tools
 
+- ZX Runner: generated icons, the window capability set with its desktop
+  host in `zx`, Kryon apps ported onto it with Kryon's players removed, and
+  the Android ZX Runner APK; test with `make check CHECK_FILTER=install_user`,
+  a Kryon example through plain `zx` on a private Xvfb, and adb VIEW intents
+  on the Moto and Pixel. Detail: plans/2026-11-23-zx-runner-platform.md.
 - Self-hosting S16-S18: port the remaining compiler C to Ziran (portable
   linking, the ZX command runner, the embedding and execution APIs, the Wasm
   provider, inline assembly, the editor service and the tool drivers), then

@@ -1,0 +1,130 @@
+// zx, the ZX Runner: runs any portable .zx program, as Linux runs an ELF
+// file, with the runtime of the toolchain installed beside it.
+// `zx FILE.zx [ARGUMENT...]`.
+//
+// The runner knows no library: a bundle carries all of its own code and
+// imports only the runner's host capabilities. A capability this runner
+// lacks is an error, never a hand-off to another program. The header is
+// checked first, so a wrong file, or one made by an older or newer Ziran,
+// gets a plain explanation. Started without a terminal, as from a file
+// manager, the runner shows any failure in a dialog as well.
+#import "std/byte_text_linux"
+#import "std/c_string"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_linux"
+#import "std/process_run_linux"
+#import "std/stdio_linux"
+#import "std/text_tools"
+#import "zx_runner_dialog"
+#import "zx_runner_header"
+using Vectors :: #import "std/vec"
+
+#scope_file
+// The engine's status for a bundle that needs a capability it lacks.
+GAP :: 3
+libc :: #system_library "libc";
+TerminalRaw :: (fd: s32) -> s32 #foreign libc "isatty";
+ReadLinkRaw :: (path: *u8, output: *u8, capacity: usize) -> isize #foreign libc "readlink";
+ProcessIdRaw :: () -> s32 #foreign libc "getpid";
+
+// The directory holding this executable, where its toolchain lives.
+ToolDirectory :: (storage: []u8) -> string {
+    link: [32]u8
+    if !CopyCString("/proc/self/exe", link[:]) { return "" }
+    length := cast(s64)ReadLinkRaw(*link[0], *storage[0], cast(usize)(storage.count - 1))
+    if length <= 0 || length >= storage.count - 1 { return "" }
+    slash := length - 1
+    while slash > 0 && storage[slash] != #char "/" { slash -= 1 }
+    if slash <= 0 { return "" }
+    return TextFromBytes(storage[0:slash])
+}
+
+// Says what went wrong on standard error and, when nobody is watching a
+// terminal, in a dialog.
+Fail :: (message: string, attended: bool, code: s32) -> s32 {
+    line: Vec(u8)
+    BuilderPrint(*line, "zx: %\n", message)
+    text: Text = BuilderFinish(line)
+    unused PrintError(TextView(text))
+    if !attended { ShowError(message) }
+    return code
+}
+
+// A private file for the program's standard error while unattended.
+ErrorLogPath :: () -> Text {
+    directory := EnvironmentText("XDG_RUNTIME_DIR")
+    if directory == "" || directory[0] != #char "/" { directory = "/tmp" }
+    path: Vec(u8)
+    BuilderPrint(*path, "%/zx-runner-%.log", directory, ProcessIdRaw())
+    return BuilderFinish(path)
+}
+
+// The last lines of a program's error output, short enough for a dialog.
+Tail :: (text: string, limit: s64) -> string {
+    if text.count <= limit { return text }
+    start := text.count - limit
+    while start < text.count && text[start] != #char "\n" { start += 1 }
+    if start >= text.count - 1 { return text[text.count - limit:] }
+    return text[start + 1:]
+}
+
+#scope_export
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    attended := TerminalRaw(2) == 1
+    if argc < 2 {
+        return Fail("usage: zx FILE.zx [ARGUMENT...]: open a .zx program with ZX Runner", attended, 2)
+    }
+    path := TextFromCString(argv[1])
+    header := ReadZxHeader(path)
+    if header.kind != .Runnable {
+        problem: Text = ZxHeaderMessage(path, header)
+        return Fail(TextView(problem), attended, 1)
+    }
+
+    directory_storage: [4096]u8
+    directory := ToolDirectory(directory_storage[:])
+    if directory == "" { return Fail("cannot find the Ziran toolchain beside this runner", attended, 1) }
+    engine: Vec(u8)
+    BuilderPrint(*engine, "%/zi2zx", directory)
+    engine_path: Text = BuilderFinish(engine)
+    // --host-dispatch makes the engine stop with GAP before running anything
+    // when the bundle imports a capability it does not provide.
+    arguments: Vec(string)
+    VecPush(arguments, TextView(engine_path))
+    VecPush(arguments, "run")
+    VecPush(arguments, "--host-dispatch")
+    for index: 1..argc - 1 { VecPush(arguments, TextFromCString(argv[index])) }
+
+    options: ProcessOptions = .{.arguments = VecSlice(arguments, 0, arguments.count)}
+    log: Text = ErrorLogPath()
+    if !attended { options.error_path = TextView(log) }
+    run: ProcessRun
+    started := RunProcess(options, *run)
+    errors := ""
+    if !attended {
+        text, ok := ReadEntireFile(TextView(log))
+        if ok { errors = text; unused PrintError(text) }
+        unused RemoveFile(TextView(log))
+    }
+    if !started { return Fail("cannot start the Ziran toolchain beside this runner", attended, 1) }
+    if run.code == GAP {
+        gap: Vec(u8)
+        BuilderPrint(*gap, "% needs platform capabilities, such as a window, that this ZX Runner does not provide", path)
+        missing: Text = BuilderFinish(gap)
+        return Fail(TextView(missing), attended, 1)
+    }
+    if run.code != 0 && !attended {
+        message: Vec(u8)
+        detail := Tail(errors, 1500)
+        if detail == "" {
+            BuilderPrint(*message, "% stopped with exit status %.", path, run.code)
+        } else {
+            BuilderPrint(*message, "% stopped with exit status %:\n\n%", path, run.code, detail)
+        }
+        shown: Text = BuilderFinish(message)
+        ShowError(TextView(shown))
+    }
+    return run.code
+}

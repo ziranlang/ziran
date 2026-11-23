@@ -2,11 +2,63 @@
 #import "check_support"
 #import "check_cache"
 #import "std/byte_text_linux"
+#import "std/file_linux"
 #import "std/file_tree_linux"
 #import "std/process_run_linux"
 #import "std/text_tools"
 #import "std/timer_linux"
 using Vectors :: #import "std/vec"
+
+// ZX Runner and its desktop integration: the .zx file type and the
+// default opener, checked with the desktop's own tools inside the test prefix.
+CheckZxRunner :: (test: *NativeTest, share: string, data: string) -> bool {
+    hello := CheckPath(test.work, "hello.zx")
+    source := CheckPath(test.work, "hello_zx.zi")
+    if !NativeWrite(test, source, "main :: () { print(\"Hello, zx\\n\") }\n") { return false }
+    build := string.[test.ziran, "bundle", "--root", test.work, "--entry", "hello_zx:main", "-o", hello, source]
+    unused NativeRun(test, build[:])
+    entry := CheckPath(data, "applications/org.ziran_lang.zx.desktop")
+    types := CheckPath(data, "mime/packages/ziran-zx.xml")
+    validate := string.["desktop-file-validate", entry]
+    unused NativeRun(test, validate[:])
+    xml := string.["xmllint", "--noout", types]
+    unused NativeRun(test, xml[:])
+    if test.failed { return false }
+    text := NativeRead(test, entry)
+    runner := CheckPath(share, "build/bin/zx")
+    exec := CheckConcat(CheckConcat("\nExec=", runner), " %f\n")
+    if !NativeAssert(test, TextContains(text, exec) && TextContains(text, "\nMimeType=application/x-ziran-bundle;\n"), "desktop entry does not open .zx files with the installed zx") { return false }
+    if !NativeAssert(test, TextContains(NativeRead(test, CheckPath(data, "mime/globs2")), "application/x-ziran-bundle:*.zx\n"), "update-mime-database did not register *.zx") { return false }
+    // The header alone identifies a .zx program that lost its extension.
+    unnamed := CheckPath(test.work, "hello-copy")
+    if !NativeWrite(test, unnamed, NativeRead(test, hello)) { return false }
+    by_name := string.["xdg-mime", "query", "filetype", hello]
+    by_header := string.["xdg-mime", "query", "filetype", unnamed]
+    opener := string.["xdg-mime", "query", "default", "application/x-ziran-bundle"]
+    unused NativeExpect(test, by_name[:], "application/x-ziran-bundle\n")
+    unused NativeExpect(test, by_header[:], "application/x-ziran-bundle\n")
+    unused NativeExpect(test, opener[:], "org.ziran_lang.zx.desktop\n")
+    // What the file manager runs: the entry's Exec line with the file for %f.
+    line := text[TextFind(text, "\nExec=") + 6:]
+    line = line[0:TextFind(line, "\n")]
+    words := TextSplit(line, " ")
+    for words { if it == "%f" { words[it_index] = hello } }
+    unused NativeExpect(test, VecSlice(words, 0, words.count), "Hello, zx\n")
+    junk := CheckPath(test.work, "junk.zx")
+    if !NativeWrite(test, junk, "not a program\n") { return false }
+    wrong := string.[runner, junk]
+    rejected := NativeRun(test, wrong[:], "", 1)
+    if !NativeAssert(test, !test.failed && TextContains(rejected.error, "junk.zx is not a ZX program"), "zx did not explain a file that is not a ZX program") { return false }
+    // A capability the runner lacks is an error; nothing else runs the app.
+    window := CheckPath(test.work, "window_gap.zx")
+    importer := CheckPath(test.work, "window_gap.zi")
+    if !NativeWrite(test, importer, "host_api :: #system_library \"host_api\";\nOpenWindowHost :: (width: s32, height: s32) -> s32 #foreign host_api;\nmain :: () -> s32 { return OpenWindowHost(640, 480) }\n") { return false }
+    gap_build := string.[test.ziran, "bundle", "--root", test.work, "--entry", "window_gap:main", "-o", window, importer]
+    unused NativeRun(test, gap_build[:])
+    gap := string.[runner, window]
+    missing := NativeRun(test, gap[:], "", 1)
+    return NativeAssert(test, !test.failed && TextContains(missing.error, "window_gap.zx needs platform capabilities"), "zx did not report a capability it lacks")
+}
 
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
@@ -16,8 +68,15 @@ main :: (argc: s32, argv: **u8) -> s32 {
     make := CheckExecutable("gmake"); if make == "" { make = CheckExecutable("make") }
     share := CheckPath(test.work, "bootstrap")
     bin := CheckPath(test.work, "bin")
+    data := CheckPath(test.work, "data")
+    // The desktop tools read and write only this prefix's data and settings.
+    NativeSet(*test, "HOME", test.work)
+    NativeSet(*test, "XDG_DATA_HOME", data)
+    NativeSet(*test, "XDG_CONFIG_HOME", CheckPath(test.work, "config"))
+    desktops := string.["XDG_CURRENT_DESKTOP", "DESKTOP_SESSION", "KDE_FULL_SESSION", "GNOME_DESKTOP_SESSION_ID"]
+    for name: desktops { NativeUnset(*test, name) }
     // Reuse the exact already-built toolchain during a disposable installation.
-    command := string.[make, "--no-print-directory", "-s", "-o", "all", "install-user", CheckConcat("BUILD_DIR=", PathParent(PathParent(test.ziran))), CheckConcat("USER_BIN=", bin), CheckConcat("USER_SHARE=", share)]
+    command := string.[make, "--no-print-directory", "-s", "-o", "all", "install-user", CheckConcat("BUILD_DIR=", PathParent(PathParent(test.ziran))), CheckConcat("USER_BIN=", bin), CheckConcat("USER_SHARE=", share), CheckConcat("USER_DATA=", data)]
     unused NativeRun(*test, command[:])
     source := CheckPath(test.work, "live.zi")
     if !NativeWrite(*test, source, "#program_export\nmain :: () -> s32 { while true {} return 0 }\n") { return 1 }
@@ -50,7 +109,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
     direct := string.[CheckPath(bin, "zi2zx"), "run", "hello.zi"]
     unused NativeExpect(*test, ziran[:], "Hello, World!\n", test.work)
     unused NativeExpect(*test, direct[:], "Hello, World!\n", test.work)
-    tools := string.["ziran", "zi2zx"]
+    if !NativeAssert(*test, NativeSameFile(CheckPath(share, "build/bin/zx"), CheckPath(PathParent(test.ziran), "zx")), "installed zx differs") { return 1 }
+    if !CheckZxRunner(*test, share, data) { return 1 }
+    tools := string.["ziran", "zi2zx", "zx"]
     marker := "#!/bin/sh\n# Owner's existing launcher\nexit 23\n"
     for tool: tools { if !NativeWrite(*test, CheckPath(bin, tool), marker) { return 1 } }
     unused NativeRun(*test, command[:])
@@ -58,6 +119,6 @@ main :: (argc: s32, argv: **u8) -> s32 {
         if !NativeAssert(*test, NativeRead(*test, CheckPath(bin, tool)) == marker, "installation overwrote an existing launcher") { return 1 }
     }
     if test.failed { return 1 }
-    print("Local installation tests: busy binaries, existing launchers and both one-line run commands passed\n")
+    print("Local installation tests: busy binaries, existing launchers, both one-line run commands and ZX Runner's desktop integration passed\n")
     return 0
 }

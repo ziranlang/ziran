@@ -1,0 +1,16 @@
+// A failure dialog for ZX Runner when it was started without a terminal.
+// It uses the desktop's own dialog program; with no display, or none of
+// them installed, the message stays on standard error alone.
+#import "std/environment_linux"
+#import "std/process_run_linux"
+
+ShowError :: (message: string) {
+    if EnvironmentText("DISPLAY") == "" && EnvironmentText("WAYLAND_DISPLAY") == "" { return }
+    zenity := string.["zenity", "--error", "--no-markup", "--title=ZX Runner", "--width=520", "--text", message]
+    run: ProcessRun
+    // 127 is the status of a program the shell could not find.
+    if RunProcess(.{arguments = zenity[:]}, *run) && run.code != 127 { return }
+    xmessage := string.["xmessage", "-center", "-title", "ZX Runner", message]
+    other: ProcessRun
+    unused RunProcess(.{arguments = xmessage[:]}, *other)
+}

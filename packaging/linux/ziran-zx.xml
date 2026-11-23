@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The .zx program file type, owned by Ziran. Its header starts with the
+     bytes ZX\0\0 (ASSEMBLY/zx-executable-format.md). -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-ziran-bundle">
+    <comment>ZX program</comment>
+    <icon name="application-x-ziran-bundle"/>
+    <glob pattern="*.zx"/>
+    <magic priority="60">
+      <match type="little32" offset="0" value="0x0000585a"/>
+    </magic>
+  </mime-type>
+</mime-info>

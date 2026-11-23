@@ -278,6 +278,28 @@ A graphical `.zx` then runs with `ziran run app.zx` without application sources,
 a manifest or generated native output. The portable bundle carries its linked
 UI code and embedded assets; the installed provider bridges the local OS.
 
+### ZX Runner
+
+`make install-user` installs `zx`, ZX Runner, beside the toolchain. `zx
+app.zx [ARGUMENT...]` runs any bundle with that toolchain's runtime, as Linux
+runs an ELF file; a console program and a window program are opened the same
+way. The bundle carries all of its code, including the libraries it imports,
+and imports only the host capabilities the runner provides. A capability the
+runner lacks is an error naming the bundle; unlike `ziran run`, the runner
+hands a bundle to no installed provider. It reads the header first, so a file
+that is not a ZX program, or one written in an older or newer ZX format
+revision, gets a plain explanation naming both revisions. Started without a
+terminal on standard error, as a file manager starts it, ZX Runner also shows
+any failure, including the program's own error output, in a dialog (`zenity`,
+else `xmessage`).
+
+The installation registers the `.zx` file type for the user from
+`packaging/linux`: `application/x-ziran-bundle`, matched by the `*.zx` name and
+by the `ZX\0\0` signature at offset 0. The desktop entry
+`org.ziran_lang.zx.desktop` runs the installed runner on that type and becomes
+its default opener through `xdg-mime`. The header has to start the file, so a
+bundle cannot carry a `#!` line; run it with `zx app.zx` or open it.
+
 ## Writing bundles
 
 `zi2zx --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...`

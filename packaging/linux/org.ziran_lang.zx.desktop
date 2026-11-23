@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=ZX Runner
+GenericName=Program Runner
+Comment=Run portable .zx programs made with Ziran
+Exec=@ZX@ %f
+TryExec=@ZX@
+Icon=org.ziran_lang.zx
+Terminal=false
+NoDisplay=true
+MimeType=application/x-ziran-bundle;
+Categories=Development;

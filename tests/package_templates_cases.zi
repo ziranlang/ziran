@@ -109,6 +109,19 @@ Templates :: (test: *NativeTest) -> bool {
     if !NativeAssert(test, IsFile(CheckPath(greeter, "src/app.zi")), "template merge omitted source") { return false }
     again := PackageCommand(test, greeter, init[:])
     if !NativeAssert(test, NativeRead(test, manifest_path) == after && TextContains(again, "kept src/app.zi (already present)"), "template merge was not idempotent") { return false }
+    // A project's own [toolchain] ref survives init: the template's pin never
+    // replaces it, and ziran.lock still records the resolved commit.
+    tool_ref := "ref = \"master\""
+    if !NativeAssert(test, TextContains(NativeRead(test, manifest_path), tool_ref), "the template did not pin the toolchain ref") { return false }
+    floating := NativeRead(test, manifest_path)
+    quit := TextReplace(floating, "ref = \"master\"", "ref = \"v0.0.0-template\"")
+    if !NativeAssert(test, quit != floating && NativeWrite(test, manifest_path, quit), "cannot set the project's own toolchain ref") { return false }
+    kept := PackageCommand(test, greeter, init[:])
+    if !NativeAssert(test, TextContains(kept, "kept ref = \"v0.0.0-template\" in [toolchain]; the template has \"master\"") &&
+        TextContains(NativeRead(test, manifest_path), "ref = \"v0.0.0-template\""), "init replaced the project's toolchain ref") { return false }
+    // Restore the fixture's own ref and lock it again for the later run.
+    if !NativeWrite(test, manifest_path, floating) { return false }
+    relock := string.["lock"]; unused PackageCommand(test, greeter, relock[:])
     unused PackageCommand(test, greeter, run[:])
     return !test.failed
 }

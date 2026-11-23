@@ -29,8 +29,9 @@ GoAssemblyRecord :: (document: *JsonDocument, records: s32, form: string, mode: 
     JsonAppend(document, records, node)
 }
 
-#program_export
-main :: (argc: s32, argv: **u8) -> s32 {
+// One run of the Go assembly checks; argv holds the compiler and, optionally,
+// a work folder. tests/go_codegen_cases.zi runs it as a case.
+GoAssemblyMain :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "go-assembly-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)

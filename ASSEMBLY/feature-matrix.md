@@ -68,7 +68,7 @@ replace ZX or establish portability/performance completion.
 
 | Feature | Working behavior and restriction | Evidence |
 |---|---|---|
-| GNU assembly variants | Current C/Go behavior may use a checked portable body. For the direct assembly target, a missing matching target/feature implementation is a Gap and rejects at preflight; no portable body or cgo bridge satisfies the cell. | [assembly](../tests/assembly.sh), [ZX assembly](../tests/zx_native_asm.sh), [Go assembly](../tests/go_assembly.sh) |
+| GNU assembly variants | Current C/Go behavior may use a checked portable body. For the direct assembly target, a missing matching target/feature implementation is a Gap and rejects at preflight; no portable body or cgo bridge satisfies the cell. | [assembly](../tests/assembly.sh), [ZX assembly](../tests/zx_native_asm.sh), [Go assembly](../tests/go_assembly_cases.zi) |
 | C callbacks / `#c_call` | Native C ABI only; Go and ZX target preflight reject it before output. | [capabilities](../docs/CAPABILITIES.md), [compiler inventory](../tests/compiler_inventory_cases.zi) |
 | Go foreign types/maps | Go target extension only; opaque identity and scalar-union checks reject unsupported portable lowering. Renaming does not create a portable layout. | [compiler IR](../cmd/compiler_ir.zi), [capabilities](../docs/CAPABILITIES.md) |
 | OS libraries | Explicit foreign/library dependencies remain allowed; native platform service portability is defined per OS row, not by opcode presence. | [executable bundle](../tests/executable_bundle.sh), [architecture](../docs/ARCHITECTURE.md) |

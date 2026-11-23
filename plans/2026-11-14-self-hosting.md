@@ -627,7 +627,7 @@ is deleted, then keep their golden hashes/bytes as regression fixtures.
 | S7 | Change `tests/simd.sh`, `tests/simd_go.sh`, `tests/simd_native.sh`, and `tests/simd_target.sh`; retain C/Go/GPU text goldens. |
 | S8 | Change `tests/c99_target.sh`, `tests/compile_targets.sh`, and `tests/compile_values.sh`; compare complete generated trees. |
 | S9 | Change `tests/native_build_cache.sh`, `tests/native_build_cache_cases.zi`, `tests/native_build_parallel.sh`, and `tests/native_build_parallel_cases.zi`; cover hits, corrupt entries, locks and worker failure. |
-| S10 | Change `tests/go_fields.sh`, `tests/simd_go.sh`, and Go assembly fixtures under `tests/fixtures/go_assembly/`; compare Go and assembly bytes/text. |
+| S10 | Change `tests/fixtures/go/fields/` (the `fields` case of `tests/go_semantics_cases.zi`), `tests/simd_go.sh`, and Go assembly fixtures under `tests/fixtures/go_assembly/`; compare Go and assembly bytes/text. |
 | S11 | Change `tests/safe_inference.sh` and `tests/safe_inference.zi`; add checker result/diagnostic/source-span parity. |
 | S12 | Change `tests/parser_recovery.sh`, `tests/parser_recovery_test.c`, `tests/borrow_import_graph.sh`, and assembly/SIMD checker cases; prove whole-program/link/borrow behavior. |
 | S13 | Retain parser recovery, module parameter, compile-time expression and source insertion coverage. Compare emitted IR and diagnostics against the pre-port compiler. |

@@ -30,8 +30,9 @@ DirectArtifactHashes :: (test: *NativeTest, directory: string) -> string {
     return TextDetach(BuilderFinish(output))
 }
 
-#program_export
-main :: (argc: s32, argv: **u8) -> s32 {
+// One run of the direct Go assembly checks; argv holds the compiler and,
+// optionally, a work folder. tests/go_codegen_cases.zi runs it as a case.
+GoDirectAssemblyMain :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "go-direct-assembly-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)

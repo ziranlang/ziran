@@ -208,8 +208,22 @@ GoPassed :: (go: *GoCase, message: string) {
     if !go.test.failed { print("%\n", message) }
 }
 
-// Given the compiler, and optionally a work folder, every case runs as a
-// parallel child of this program; a child also receives the name of its case.
+// Given the compiler, and optionally a work folder, each named case runs as a
+// parallel child of this program, which also receives the name of its case.
+GoChildren :: (argc: s32, argv: **u8, prefix: string, names: []string) -> s32 {
+    test := NativeStart(argc, argv, prefix)
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    self := TextDetach(ResolvePath("/proc/self/exe"))
+    commands: Vec(string)
+    for name: names {
+        arguments := string.[self, test.ziran, CheckPath(test.work, name), name]
+        VecPush(commands, CaseCommand(arguments[:]))
+    }
+    return RunCases(*test, names, commands[:])
+}
+
+// Runs every case through GoChildren; a child runs the body of its case.
 GoGroup :: (argc: s32, argv: **u8, prefix: string, cases: []GoCaseEntry) -> s32 {
     if argc == 4 {
         test := NativeStart(3, argv, prefix)
@@ -226,16 +240,7 @@ GoGroup :: (argc: s32, argv: **u8, prefix: string, cases: []GoCaseEntry) -> s32 
         print("unknown Go case: %\n", go.name)
         return 2
     }
-    test := NativeStart(argc, argv, prefix)
-    if test.failed { return 1 }
-    defer NativeCleanup(*test)
-    self := TextDetach(ResolvePath("/proc/self/exe"))
     names: Vec(string)
-    commands: Vec(string)
-    for entry: cases {
-        arguments := string.[self, test.ziran, CheckPath(test.work, entry.name), entry.name]
-        VecPush(names, entry.name)
-        VecPush(commands, CaseCommand(arguments[:]))
-    }
-    return RunCases(*test, names[:], commands[:])
+    for entry: cases { VecPush(names, entry.name) }
+    return GoChildren(argc, argv, prefix, names[:])
 }

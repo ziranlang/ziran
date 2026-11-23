@@ -1,0 +1,20 @@
+// Go target code generation: native assembly companions and the direct
+// assembly target, run as two parallel cases of one check.
+#import "go_case_support"
+#import "go_assembly_cases"
+#import "go_direct_assembly_cases"
+#import "std/byte_text_linux"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc == 4 {
+        name := TextFromCString(argv[3])
+        if name == "assembly" { return GoAssemblyMain(3, argv) }
+        if name == "direct_assembly" { return GoDirectAssemblyMain(3, argv) }
+        print("unknown Go case: %\n", name)
+        return 2
+    }
+    // The heavier case launches first.
+    names := string.["assembly", "direct_assembly"]
+    return GoChildren(argc, argv, "go-codegen-", names[:])
+}

@@ -2430,7 +2430,7 @@ NEON and its masked fallback under `qemu-arm` with GCC and Clang
 instead of skipping).
 `tests/zx_wasm.sh` builds SIMD128 and baseline modules
 with `ZIRAN_WASM_CC` (default `clang`, `WASM_REQUIRED=1` to require it).
-`tests/go_assembly.sh` checks native and default Go builds, forced fallback,
+`tests/go_assembly_cases.zi` checks native and default Go builds, forced fallback,
 strict cgo pointer checking, startup dispatch, memory aliases, concurrency and
 source/saved IR. `bench/go_assembly.py` compares whole-loop and per-operation
 bridges with checked Go bodies, a preserved compiler and native C controls.

@@ -75,7 +75,7 @@ CheckProgram :: struct {
     compiler_library: bool
 }
 
-check_programs: [59]CheckProgram = .[
+check_programs: [60]CheckProgram = .[
     .{name = "json_conformance", source = "json_cases.zi", cost = 8},
     .{name = "simd_string", source = "simd_string_cases.zi", cost = 5},
     .{name = "module_parameters_cases.zi", cost = 2},
@@ -117,6 +117,7 @@ check_programs: [59]CheckProgram = .[
     .{name = "compound_order", source = "compound_order_cases.zi"},
     .{name = "direct_assembly", compiler_library = true, source = "assembly_cases.zi", module_path = "cmd"},
     .{name = "generic_assembly", source = "generic_assembly_cases.zi"},
+    .{name = "go_codegen", source = "go_codegen_cases.zi", cost = 30},
     .{name = "go_exports", source = "go_exports_cases.zi", cost = 25},
     .{name = "go_semantics", source = "go_semantics_cases.zi", cost = 20},
     .{name = "install_user", source = "install_user_cases.zi"},

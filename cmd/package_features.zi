@@ -345,7 +345,7 @@ Features :: (arguments: []string) -> s32 {
     assembly_feature.accepted_example = "#program_export\nAnswer :: () -> s64 {\n    value: s64 = 41\n    result: s64\n    #asm(\"x86_64\", \"leaq 1(%[value]), %[result]\", \"=r:result\", \"r:value\", \"\", \"\") {\n        result = value + 1\n    }\n    return result\n}\n"
     assembly_feature.rejected_example = "Wrong :: (value: s64) -> s64 #asm(\"x86_64\", \"\", \"=r\", \"\", \"\", \"\") { return value }\n"
     assembly_feature.rejection = "Input and output constraint counts must match parameters and results."
-    assembly_feature.evidence = "tests/assembly.sh\ntests/assembly_features.sh\ntests/assembly_blocks.sh\ntests/go_assembly.sh\ntests/go_direct_assembly.sh\ntests/generic_assembly_cases.zi\nbench/assembly.py\nbench/cpu_features.py\nbench/go_assembly.py\ncheck.assembly\n"
+    assembly_feature.evidence = "tests/assembly.sh\ntests/assembly_features.sh\ntests/assembly_blocks.sh\ntests/go_assembly_cases.zi\ntests/go_direct_assembly_cases.zi\ntests/generic_assembly_cases.zi\nbench/assembly.py\nbench/cpu_features.py\nbench/go_assembly.py\ncheck.assembly\n"
     assembly_feature.targets = assembly_targets
     features: [16]PkgFeature = .[
         base_features[0], law_feature, contracts[0], contracts[1], contracts[2],

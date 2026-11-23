@@ -1423,18 +1423,33 @@ compiler_check_program_check_native_storage(ZirModule* module)
 static int32_t
 compiler_check_program_generated_helper_name(uint8_t* name)
 {
+    String generated[3] = {StringLiteral("zi_local_"), StringLiteral("zi_enum_name_"), StringLiteral("zi_print_")};
     void* value_0 = zir_f_5800aae0fa0940e0_AllocateOrExit(sizeof(S12Array12_u8));
     S12Array12_u8* prefix_storage_0 = (S12Array12_u8*)(value_0);
+    size_t value_1 = zir_f_5800aae0fa0940e0_strlen(name);
+    size_t name_length = (size_t)((uint64_t)(value_1));
+    for (int64_t it_index = 0LL; it_index < 3; it_index++) {
+        String prefix = (generated)[it_index];
+        zir_f_5800aae0fa0940e0_memset((void*)(prefix_storage_0), 0, sizeof(S12Array12_u8));
+        uint8_t* value_2 = (uint8_t*)(prefix_storage_0);
+        zir_f_5800aae0fa0940e0_copy_text(value_2, sizeof(S12Array12_u8), compiler_check_types_CheckCString(prefix));
+        size_t width = (size_t)((uint64_t)((int64_t)(prefix).length));
+        if (name_length >= width && zir_f_5800aae0fa0940e0_strncmp(name, (uint8_t*)(&((prefix_storage_0[0]).items)), width) == 0) {
+            int32_t cleanup_return_0 = 1;
+            zir_f_5800aae0fa0940e0_CompilerFree((void*)(prefix_storage_0));
+            return cleanup_return_0;
+        }
+    }
     zir_f_5800aae0fa0940e0_memset((void*)(prefix_storage_0), 0, sizeof(S12Array12_u8));
-    uint8_t* value_1 = (uint8_t*)(prefix_storage_0);
-    zir_f_5800aae0fa0940e0_copy_text(value_1, sizeof(S12Array12_u8), compiler_check_types_CheckCString(StringLiteral("zi_default_")));
+    uint8_t* value_3 = (uint8_t*)(prefix_storage_0);
+    zir_f_5800aae0fa0940e0_copy_text(value_3, sizeof(S12Array12_u8), compiler_check_types_CheckCString(StringLiteral("zi_default_")));
     size_t at = (size_t)(((uint64_t)((uint64_t)(sizeof(S12Array12_u8)) - UINT64_C(1))));
-    size_t value_2 = zir_f_5800aae0fa0940e0_strlen(name);
-    size_t length = (size_t)((uint64_t)(value_2));
+    size_t value_4 = zir_f_5800aae0fa0940e0_strlen(name);
+    size_t length = (size_t)((uint64_t)(value_4));
     if (length < at + (size_t)(16LL) || zir_f_5800aae0fa0940e0_strncmp(name, (uint8_t*)(&((prefix_storage_0[0]).items)), at) != 0) {
-        int32_t cleanup_return_0 = 0;
+        int32_t cleanup_return_1 = 0;
         zir_f_5800aae0fa0940e0_CompilerFree((void*)(prefix_storage_0));
-        return cleanup_return_0;
+        return cleanup_return_1;
     }
     {
         size_t i = at;
@@ -1443,25 +1458,25 @@ compiler_check_program_generated_helper_name(uint8_t* name)
             if (!check_loop_37) {
                 break;
             }
-            bool value_3 = zir_f_5800aae0fa0940e0_isxdigit((int32_t)(name[i])) != 0;
-            if (!value_3) {
-                int32_t cleanup_return_1 = 0;
+            bool value_5 = zir_f_5800aae0fa0940e0_isxdigit((int32_t)(name[i])) != 0;
+            if (!value_5) {
+                int32_t cleanup_return_2 = 0;
                 zir_f_5800aae0fa0940e0_CompilerFree((void*)(prefix_storage_0));
-                return cleanup_return_1;
+                return cleanup_return_2;
             }
             compiler_check_s12_types_S12Post5(&(i));
         }
     }
     if (length == at + (size_t)(16LL)) {
-        int32_t cleanup_return_2 = 1;
-        zir_f_5800aae0fa0940e0_CompilerFree((void*)(prefix_storage_0));
-        return cleanup_return_2;
-    }
-    size_t value_4 = (size_t)((uint8_t*)(((size_t)(name) + ((size_t)(at) * sizeof(uint8_t))))) + ((size_t)(16LL) * sizeof(uint8_t));
-    if (zir_f_5800aae0fa0940e0_strncmp((uint8_t*)(value_4), compiler_check_types_CheckCString(StringLiteral("_field_")), (size_t)(7ULL)) != 0) {
-        int32_t cleanup_return_3 = 0;
+        int32_t cleanup_return_3 = 1;
         zir_f_5800aae0fa0940e0_CompilerFree((void*)(prefix_storage_0));
         return cleanup_return_3;
+    }
+    size_t value_6 = (size_t)((uint8_t*)(((size_t)(name) + ((size_t)(at) * sizeof(uint8_t))))) + ((size_t)(16LL) * sizeof(uint8_t));
+    if (zir_f_5800aae0fa0940e0_strncmp((uint8_t*)(value_6), compiler_check_types_CheckCString(StringLiteral("_field_")), (size_t)(7ULL)) != 0) {
+        int32_t cleanup_return_4 = 0;
+        zir_f_5800aae0fa0940e0_CompilerFree((void*)(prefix_storage_0));
+        return cleanup_return_4;
     }
     {
         size_t i = (at + (size_t)(16LL)) + (size_t)(7LL);
@@ -1470,22 +1485,22 @@ compiler_check_program_generated_helper_name(uint8_t* name)
             if (!check_loop_38) {
                 break;
             }
-            bool value_5 = zir_f_5800aae0fa0940e0_isdigit((int32_t)(name[i])) != 0;
-            if (!value_5) {
-                int32_t cleanup_return_4 = 0;
+            bool value_7 = zir_f_5800aae0fa0940e0_isdigit((int32_t)(name[i])) != 0;
+            if (!value_7) {
+                int32_t cleanup_return_5 = 0;
                 zir_f_5800aae0fa0940e0_CompilerFree((void*)(prefix_storage_0));
-                return cleanup_return_4;
+                return cleanup_return_5;
             }
             compiler_check_s12_types_S12Post5(&(i));
         }
     }
-    int32_t value_6 = 0;
+    int32_t value_8 = 0;
     if (length > (at + (size_t)(16LL)) + (size_t)(7LL)) {
-        value_6 = 1;
+        value_8 = 1;
     }
-    int32_t cleanup_return_5 = value_6;
+    int32_t cleanup_return_6 = value_8;
     zir_f_5800aae0fa0940e0_CompilerFree((void*)(prefix_storage_0));
-    return cleanup_return_5;
+    return cleanup_return_6;
 }
 
 static int32_t
@@ -1495,8 +1510,8 @@ compiler_check_program_reserved_declaration(ZirModule* module)
     S12Array12_u8* prefix_storage_0 = (S12Array12_u8*)(value_0);
     zir_f_5800aae0fa0940e0_memset((void*)(prefix_storage_0), 0, sizeof(S12Array12_u8));
     uint8_t* value_1 = (uint8_t*)(prefix_storage_0);
-    zir_f_5800aae0fa0940e0_copy_text(value_1, sizeof(S12Array12_u8), compiler_check_types_CheckCString(StringLiteral("zi_default_")));
-    size_t at = (size_t)(((uint64_t)((uint64_t)(sizeof(S12Array12_u8)) - UINT64_C(1))));
+    zir_f_5800aae0fa0940e0_copy_text(value_1, sizeof(S12Array12_u8), compiler_check_types_CheckCString(StringLiteral("zi_")));
+    size_t at = (size_t)(3ULL);
     {
         int32_t i = 0;
         while (true) {
@@ -1505,17 +1520,24 @@ compiler_check_program_reserved_declaration(ZirModule* module)
                 break;
             }
             uint8_t* name = (uint8_t*)(&((module->functions[i]).name));
-            bool value_2 = zir_f_5800aae0fa0940e0_strncmp(name, (uint8_t*)(&((prefix_storage_0[0]).items)), at) == 0;
-            bool value_3 = value_2;
-            if (value_3) {
-                bool value_4 = compiler_check_program_generated_helper_name(name) != 0;
-                value_3 = !value_4;
+            bool value_2 = (module->functions[i]).is_specialization != 0 || (module->functions[i]).is_global_initializer != 0;
+            int32_t value_3 = 0;
+            if (value_2) {
+                value_3 = 1;
             }
-            if (value_3) {
-                ZirSourceSpan value_5 = (module->functions[i]).span;
-                uint8_t* value_6 = compiler_check_types_CheckCString(StringLiteral("check.reserved_name"));
-                uint8_t* value_7 = compiler_check_types_CheckCString(StringLiteral("declaration name starts with the compiler's generated-helper prefix: %s"));
-                zir_f_5800aae0fa0940e0_Diagnostic(value_5, value_6, value_7, name);
+            int32_t generated = value_3;
+            bool value_4 = zir_f_5800aae0fa0940e0_strncmp(name, (uint8_t*)(&((prefix_storage_0[0]).items)), at) == 0;
+            bool value_5 = value_4 && !(generated != 0);
+            bool value_6 = value_5;
+            if (value_6) {
+                bool value_7 = compiler_check_program_generated_helper_name(name) != 0;
+                value_6 = !value_7;
+            }
+            if (value_6) {
+                ZirSourceSpan value_8 = (module->functions[i]).span;
+                uint8_t* value_9 = compiler_check_types_CheckCString(StringLiteral("check.reserved_name"));
+                uint8_t* value_10 = compiler_check_types_CheckCString(StringLiteral("declaration name starts with the compiler's reserved zi_ prefix: %s"));
+                zir_f_5800aae0fa0940e0_Diagnostic(value_8, value_9, value_10, name);
                 int32_t cleanup_return_0 = 0;
                 zir_f_5800aae0fa0940e0_CompilerFree((void*)(prefix_storage_0));
                 return cleanup_return_0;
@@ -1531,17 +1553,17 @@ compiler_check_program_reserved_declaration(ZirModule* module)
                 break;
             }
             uint8_t* name = (uint8_t*)(&((module->globals[i]).name));
-            bool value_8 = zir_f_5800aae0fa0940e0_strncmp(name, (uint8_t*)(&((prefix_storage_0[0]).items)), at) == 0;
-            bool value_9 = value_8;
-            if (value_9) {
-                bool value_10 = compiler_check_program_generated_helper_name(name) != 0;
-                value_9 = !value_10;
+            bool value_11 = zir_f_5800aae0fa0940e0_strncmp(name, (uint8_t*)(&((prefix_storage_0[0]).items)), at) == 0;
+            bool value_12 = value_11;
+            if (value_12) {
+                bool value_13 = compiler_check_program_generated_helper_name(name) != 0;
+                value_12 = !value_13;
             }
-            if (value_9) {
-                ZirSourceSpan value_11 = (module->globals[i]).span;
-                uint8_t* value_12 = compiler_check_types_CheckCString(StringLiteral("check.reserved_name"));
-                uint8_t* value_13 = compiler_check_types_CheckCString(StringLiteral("declaration name starts with the compiler's generated-helper prefix: %s"));
-                zir_f_5800aae0fa0940e0_Diagnostic(value_11, value_12, value_13, name);
+            if (value_12) {
+                ZirSourceSpan value_14 = (module->globals[i]).span;
+                uint8_t* value_15 = compiler_check_types_CheckCString(StringLiteral("check.reserved_name"));
+                uint8_t* value_16 = compiler_check_types_CheckCString(StringLiteral("declaration name starts with the compiler's reserved zi_ prefix: %s"));
+                zir_f_5800aae0fa0940e0_Diagnostic(value_14, value_15, value_16, name);
                 int32_t cleanup_return_1 = 0;
                 zir_f_5800aae0fa0940e0_CompilerFree((void*)(prefix_storage_0));
                 return cleanup_return_1;
@@ -1557,17 +1579,17 @@ compiler_check_program_reserved_declaration(ZirModule* module)
                 break;
             }
             uint8_t* name = (uint8_t*)(&((module->defines[i]).name));
-            bool value_14 = zir_f_5800aae0fa0940e0_strncmp(name, (uint8_t*)(&((prefix_storage_0[0]).items)), at) == 0;
-            bool value_15 = value_14;
-            if (value_15) {
-                bool value_16 = compiler_check_program_generated_helper_name(name) != 0;
-                value_15 = !value_16;
+            bool value_17 = zir_f_5800aae0fa0940e0_strncmp(name, (uint8_t*)(&((prefix_storage_0[0]).items)), at) == 0;
+            bool value_18 = value_17;
+            if (value_18) {
+                bool value_19 = compiler_check_program_generated_helper_name(name) != 0;
+                value_18 = !value_19;
             }
-            if (value_15) {
-                ZirSourceSpan value_17 = (module->defines[i]).span;
-                uint8_t* value_18 = compiler_check_types_CheckCString(StringLiteral("check.reserved_name"));
-                uint8_t* value_19 = compiler_check_types_CheckCString(StringLiteral("declaration name starts with the compiler's generated-helper prefix: %s"));
-                zir_f_5800aae0fa0940e0_Diagnostic(value_17, value_18, value_19, name);
+            if (value_18) {
+                ZirSourceSpan value_20 = (module->defines[i]).span;
+                uint8_t* value_21 = compiler_check_types_CheckCString(StringLiteral("check.reserved_name"));
+                uint8_t* value_22 = compiler_check_types_CheckCString(StringLiteral("declaration name starts with the compiler's reserved zi_ prefix: %s"));
+                zir_f_5800aae0fa0940e0_Diagnostic(value_20, value_21, value_22, name);
                 int32_t cleanup_return_2 = 0;
                 zir_f_5800aae0fa0940e0_CompilerFree((void*)(prefix_storage_0));
                 return cleanup_return_2;
@@ -1583,17 +1605,17 @@ compiler_check_program_reserved_declaration(ZirModule* module)
                 break;
             }
             uint8_t* name = (uint8_t*)(&((module->types[i]).name));
-            bool value_20 = zir_f_5800aae0fa0940e0_strncmp(name, (uint8_t*)(&((prefix_storage_0[0]).items)), at) == 0;
-            bool value_21 = value_20;
-            if (value_21) {
-                bool value_22 = compiler_check_program_generated_helper_name(name) != 0;
-                value_21 = !value_22;
+            bool value_23 = zir_f_5800aae0fa0940e0_strncmp(name, (uint8_t*)(&((prefix_storage_0[0]).items)), at) == 0;
+            bool value_24 = value_23;
+            if (value_24) {
+                bool value_25 = compiler_check_program_generated_helper_name(name) != 0;
+                value_24 = !value_25;
             }
-            if (value_21) {
-                ZirSourceSpan value_23 = (module->types[i]).span;
-                uint8_t* value_24 = compiler_check_types_CheckCString(StringLiteral("check.reserved_name"));
-                uint8_t* value_25 = compiler_check_types_CheckCString(StringLiteral("declaration name starts with the compiler's generated-helper prefix: %s"));
-                zir_f_5800aae0fa0940e0_Diagnostic(value_23, value_24, value_25, name);
+            if (value_24) {
+                ZirSourceSpan value_26 = (module->types[i]).span;
+                uint8_t* value_27 = compiler_check_types_CheckCString(StringLiteral("check.reserved_name"));
+                uint8_t* value_28 = compiler_check_types_CheckCString(StringLiteral("declaration name starts with the compiler's reserved zi_ prefix: %s"));
+                zir_f_5800aae0fa0940e0_Diagnostic(value_26, value_27, value_28, name);
                 int32_t cleanup_return_3 = 0;
                 zir_f_5800aae0fa0940e0_CompilerFree((void*)(prefix_storage_0));
                 return cleanup_return_3;
@@ -1609,17 +1631,17 @@ compiler_check_program_reserved_declaration(ZirModule* module)
                 break;
             }
             uint8_t* name = (uint8_t*)(&((module->imports[i]).name));
-            bool value_26 = zir_f_5800aae0fa0940e0_strncmp(name, (uint8_t*)(&((prefix_storage_0[0]).items)), at) == 0;
-            bool value_27 = value_26;
-            if (value_27) {
-                bool value_28 = compiler_check_program_generated_helper_name(name) != 0;
-                value_27 = !value_28;
+            bool value_29 = zir_f_5800aae0fa0940e0_strncmp(name, (uint8_t*)(&((prefix_storage_0[0]).items)), at) == 0;
+            bool value_30 = value_29;
+            if (value_30) {
+                bool value_31 = compiler_check_program_generated_helper_name(name) != 0;
+                value_30 = !value_31;
             }
-            if (value_27) {
-                ZirSourceSpan value_29 = (module->imports[i]).span;
-                uint8_t* value_30 = compiler_check_types_CheckCString(StringLiteral("check.reserved_name"));
-                uint8_t* value_31 = compiler_check_types_CheckCString(StringLiteral("declaration name starts with the compiler's generated-helper prefix: %s"));
-                zir_f_5800aae0fa0940e0_Diagnostic(value_29, value_30, value_31, name);
+            if (value_30) {
+                ZirSourceSpan value_32 = (module->imports[i]).span;
+                uint8_t* value_33 = compiler_check_types_CheckCString(StringLiteral("check.reserved_name"));
+                uint8_t* value_34 = compiler_check_types_CheckCString(StringLiteral("declaration name starts with the compiler's reserved zi_ prefix: %s"));
+                zir_f_5800aae0fa0940e0_Diagnostic(value_32, value_33, value_34, name);
                 int32_t cleanup_return_4 = 0;
                 zir_f_5800aae0fa0940e0_CompilerFree((void*)(prefix_storage_0));
                 return cleanup_return_4;

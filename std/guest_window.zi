@@ -1,0 +1,156 @@
+// A window for a portable bundle. The bundle draws its own pixels and runs
+// its own loop: open the window, take events, present a frame, wait. The
+// program that runs the bundle, such as ZX Runner, shows the pixels and
+// reports input. One window per bundle.
+host_api :: #system_library "host_api";
+
+WindowOpenHost :: (title: string, width: s32, height: s32, resizable: bool) -> bool #foreign host_api;
+// RGBA bytes, rows of width * 4 bytes, top row first, alpha ignored.
+WindowPresentHost :: (pixels: string, width: s32, height: s32) -> bool #foreign host_api;
+// The next event as WINDOW_EVENT_BYTES little-endian bytes, or "" for none.
+WindowNextEventHost :: () -> string #foreign host_api;
+// Waits up to milliseconds for input; true when an event is waiting.
+WindowWaitHost :: (milliseconds: s32) -> bool #foreign host_api;
+WindowWidthHost :: () -> s32 #foreign host_api;
+WindowHeightHost :: () -> s32 #foreign host_api;
+WindowTitleHost :: (title: string) #foreign host_api;
+WindowCursorHost :: (shape: s32) #foreign host_api;
+WindowTextInputHost :: (active: bool) #foreign host_api;
+ClipboardReadHost :: () -> string #foreign host_api;
+ClipboardWriteHost :: (text: string) -> bool #foreign host_api;
+WindowCloseHost :: () #foreign host_api;
+
+WINDOW_EVENT_NONE :: 0;
+WINDOW_EVENT_CLOSE :: 1;
+WINDOW_EVENT_RESIZE :: 2;
+WINDOW_EVENT_POINTER_MOVE :: 3;
+WINDOW_EVENT_POINTER_DOWN :: 4;
+WINDOW_EVENT_POINTER_UP :: 5;
+WINDOW_EVENT_WHEEL :: 6;
+WINDOW_EVENT_KEY_DOWN :: 7;
+WINDOW_EVENT_KEY_UP :: 8;
+WINDOW_EVENT_TEXT :: 9;
+WINDOW_EVENT_FOCUS :: 10;
+WINDOW_EVENT_BLUR :: 11;
+
+// Buttons: 1 primary, 2 middle, 3 secondary.
+// Keys: letters as uppercase ASCII and other printable keys as ASCII; named
+// keys from 256 as GLFW numbers them: Escape 256, Enter 257, Tab 258,
+// Backspace 259, Insert 260, Delete 261, Right 262, Left 263, Down 264,
+// Up 265, Page Up 266, Page Down 267, Home 268, End 269, F1-F12 290-301.
+KEY_ESCAPE :: 256;
+KEY_ENTER :: 257;
+KEY_TAB :: 258;
+KEY_BACKSPACE :: 259;
+KEY_DELETE :: 261;
+KEY_RIGHT :: 262;
+KEY_LEFT :: 263;
+KEY_DOWN :: 264;
+KEY_UP :: 265;
+MODIFIER_SHIFT :: 1;
+MODIFIER_CONTROL :: 2;
+MODIFIER_ALT :: 4;
+MODIFIER_SUPER :: 8;
+
+CURSOR_HIDDEN :: -1;
+CURSOR_ARROW :: 0;
+CURSOR_TEXT :: 1;
+CURSOR_WAIT :: 2;
+CURSOR_CROSSHAIR :: 3;
+CURSOR_RESIZE_HORIZONTAL :: 7;
+CURSOR_RESIZE_VERTICAL :: 8;
+CURSOR_MOVE :: 9;
+CURSOR_NOT_ALLOWED :: 10;
+CURSOR_HAND :: 11;
+
+WINDOW_EVENT_BYTES :: 40;
+
+WindowEvent :: struct {
+    kind: s32
+    // The pointer in window pixels, for pointer and wheel events.
+    x: float32
+    y: float32
+    button: s32
+    key: s32
+    modifiers: s32
+    // One Unicode code point of typed text, for WINDOW_EVENT_TEXT.
+    codepoint: s32
+    // Wheel steps, positive to the right and away from the user.
+    wheel_x: float32
+    wheel_y: float32
+    // The window's size after WINDOW_EVENT_RESIZE.
+    width: s32
+    height: s32
+}
+
+#scope_file
+Word :: (bytes: string, at: s64) -> u32 {
+    return cast(u32)bytes[at] | (cast(u32)bytes[at + 1] << 8) |
+        (cast(u32)bytes[at + 2] << 16) | (cast(u32)bytes[at + 3] << 24)
+}
+
+Signed :: (bytes: string, at: s64) -> s32 { return cast(s32)Word(bytes, at) }
+
+// Wheel and pointer positions travel as hundredths.
+Hundredths :: (bytes: string, at: s64) -> float32 { return cast(float32)Signed(bytes, at) / 100.0 }
+
+#scope_export
+#program_export
+WindowOpen :: (title: string, width: s32, height: s32, resizable: bool = true) -> bool {
+    return WindowOpenHost(title, width, height, resizable)
+}
+
+#program_export
+WindowPresent :: (pixels: []u8, width: s32, height: s32) -> bool {
+    if pixels.count < cast(s64)width * cast(s64)height * 4 { return false }
+    return WindowPresentHost(TextView(pixels), width, height)
+}
+
+// The next waiting event, or one whose kind is WINDOW_EVENT_NONE.
+#program_export
+WindowNextEvent :: () -> WindowEvent {
+    event: WindowEvent
+    bytes := WindowNextEventHost()
+    if bytes.count < WINDOW_EVENT_BYTES { return event }
+    event.kind = Signed(bytes, 0)
+    event.x = Hundredths(bytes, 4)
+    event.y = Hundredths(bytes, 8)
+    event.button = Signed(bytes, 12)
+    event.key = Signed(bytes, 16)
+    event.modifiers = Signed(bytes, 20)
+    event.codepoint = Signed(bytes, 24)
+    event.wheel_x = Hundredths(bytes, 28)
+    event.wheel_y = Hundredths(bytes, 32)
+    packed := Word(bytes, 36)
+    event.width = cast(s32)(packed >> 16)
+    event.height = cast(s32)(packed & 65535)
+    return event
+}
+
+#program_export
+WindowWait :: (milliseconds: s32) -> bool { return WindowWaitHost(milliseconds) }
+
+#program_export
+WindowWidth :: () -> s32 { return WindowWidthHost() }
+
+#program_export
+WindowHeight :: () -> s32 { return WindowHeightHost() }
+
+#program_export
+WindowTitle :: (title: string) { WindowTitleHost(title) }
+
+#program_export
+WindowCursor :: (shape: s32) { WindowCursorHost(shape) }
+
+// Asks for typed text (and an on-screen keyboard where there is one).
+#program_export
+WindowTextInput :: (active: bool) { WindowTextInputHost(active) }
+
+#program_export
+ClipboardRead :: () -> string { return ClipboardReadHost() }
+
+#program_export
+ClipboardWrite :: (text: string) -> bool { return ClipboardWriteHost(text) }
+
+#program_export
+WindowClose :: () { WindowCloseHost() }

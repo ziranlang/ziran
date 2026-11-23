@@ -278,8 +278,16 @@ unlike <code>ziran run</code>, it hands a bundle to no installed provider.</p>
 <td><code>std/guest_process</code></td>
 <td><code>ArgumentCount</code>, <code>Argument</code> (0 is the bundle's path), <code>Environment</code></td>
 </tr>
+<tr>
+<td><code>std/guest_window</code></td>
+<td><code>WindowOpen</code>, <code>WindowPresent</code> (RGBA pixels the bundle drew), <code>WindowNextEvent</code> (pointer, wheel, keys with GLFW numbering, text, resize, focus, close), <code>WindowWait</code>, <code>WindowWidth</code>/<code>Height</code>, <code>WindowTitle</code>, <code>WindowCursor</code>, <code>WindowTextInput</code>, <code>ClipboardRead</code>/<code>Write</code>, <code>WindowClose</code></td>
+</tr>
 </tbody>
 </table></div>
+<p>The bundle runs its own loop and draws its own pixels; the runner only shows
+them and reports input. <code>zx</code> answers <code>std/guest_window</code> when it was built
+with SDL2 (<code>pkg-config sdl2</code>); built without it, a window bundle is refused
+with the capabilities named.</p>
 <p>Capabilities are only added: a runner never changes what an existing name
 means, and a different meaning gets a new name.</p>
 <p><code>zx</code> reads the header first, so a file

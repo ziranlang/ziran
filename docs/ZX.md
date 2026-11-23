@@ -296,6 +296,12 @@ The capabilities every bundle may use are declared in standard modules:
 | `std/guest_clock` | `MonotonicNanoseconds`, `WallMilliseconds` (since 1970 UTC) |
 | `std/guest_files` | `FileStatus` (size, `FILE_MISSING`, `FILE_DIRECTORY`), `FileRead`, `FileWrite`, `FileRemove`, `FileRename`, `DirectoryMake`, `DirectoryList`, with a native program's reach |
 | `std/guest_process` | `ArgumentCount`, `Argument` (0 is the bundle's path), `Environment` |
+| `std/guest_window` | `WindowOpen`, `WindowPresent` (RGBA pixels the bundle drew), `WindowNextEvent` (pointer, wheel, keys with GLFW numbering, text, resize, focus, close), `WindowWait`, `WindowWidth`/`Height`, `WindowTitle`, `WindowCursor`, `WindowTextInput`, `ClipboardRead`/`Write`, `WindowClose` |
+
+The bundle runs its own loop and draws its own pixels; the runner only shows
+them and reports input. `zx` answers `std/guest_window` when it was built
+with SDL2 (`pkg-config sdl2`); built without it, a window bundle is refused
+with the capabilities named.
 
 Capabilities are only added: a runner never changes what an existing name
 means, and a different meaning gets a new name.

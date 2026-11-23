@@ -44,15 +44,14 @@ modular arcihetcuer".
       and `guest_process` (docs/ZX.md "ZX Runner"). Open: `std/file` and its
       neighbours use them when `TARGET == .ZX`, so ordinary code runs in a
       bundle unchanged.
-   c. Window set: open a window (title, size, flags), size and scale,
-      present a premultiplied RGBA frame with its damage rectangle, input
-      events (pointer, wheel, touch, keys with modifiers, text, resize,
-      focus, close), cursor shape or picture, clipboard text, text input on
-      and off, frame pacing; audio output follows. The runner calls the
-      bundle's frame entry once per frame. Drawing, text and images run in
-      the bundle. Desktop host: SDL2 inside `zx`.
-   d. Proof: a plain Ziran example that draws and reacts to input runs
-      through `zx` on a private Xvfb.
+   c. Done: the window set in `std/guest_window` (open, present RGBA,
+      events, wait, size, title, cursor, text input, clipboard, close),
+      answered by cmd/zx_runner_window.zi on SDL2 when `pkg-config sdl2`
+      finds it. The bundle runs its own loop and draws its own pixels.
+      Open: display scale, a damage rectangle, cursor pictures, touch and
+      audio output.
+   d. Done: `install_user` opens a window through the installed `zx` on a
+      private Xvfb; a pixel demo with pointer and keys ran the same way.
    e. Kryon's zx backend: its pixmap rasterizer and font decoder compiled
       into the bundle, presenting through the window set, so a Kryon example
       runs through plain `zx`. Kryon's player answers 62 capabilities on

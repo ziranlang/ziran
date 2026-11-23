@@ -12,6 +12,10 @@
 #import "std/file_tree_linux"
 #import "std/timer_linux"
 using Vectors :: #import "std/vec"
+// The window set needs SDL2; a runner built without it lacks guest_window.
+#if #defined(ZX_WINDOW) {
+    Window :: #import "zx_runner_window";
+}
 
 RunnerState :: struct {
     bundle: *void
@@ -35,6 +39,16 @@ RunnerProvides :: (module: string, function: string) -> bool {
         return function == "FileStatusHost" || function == "FileReadHost" || function == "FileWriteHost" ||
             function == "FileRemoveHost" || function == "FileRenameHost" ||
             function == "DirectoryMakeHost" || function == "DirectoryListHost"
+    }
+    #if #defined(ZX_WINDOW) {
+        if module == "guest_window" {
+            return function == "WindowOpenHost" || function == "WindowPresentHost" ||
+                function == "WindowNextEventHost" || function == "WindowWaitHost" ||
+                function == "WindowWidthHost" || function == "WindowHeightHost" ||
+                function == "WindowTitleHost" || function == "WindowCursorHost" ||
+                function == "WindowTextInputHost" || function == "ClipboardReadHost" ||
+                function == "ClipboardWriteHost" || function == "WindowCloseHost"
+        }
     }
     return false
 }
@@ -158,6 +172,43 @@ FileCall :: (state: *RunnerState, function: string, arguments: *HostValue, count
     return 0
 }
 
+#if #defined(ZX_WINDOW) {
+WindowCall :: (state: *RunnerState, function: string, arguments: *HostValue, count: s32, result: *HostValue) -> s32 {
+    if function == "WindowOpenHost" && count == 4 {
+        opened := Window.WindowOpen(Text(arguments[0]), cast(s32)Whole(arguments[1]), cast(s32)Whole(arguments[2]), Whole(arguments[3]) != 0)
+        return Integer(result, ifx opened then 1 else 0)
+    }
+    if function == "WindowPresentHost" && count == 3 {
+        pixels := BytesFromPointer(cast(*u8)arguments[0].data, cast(u64)arguments[0].length)
+        shown := Window.WindowPresent(pixels, cast(s32)Whole(arguments[1]), cast(s32)Whole(arguments[2]))
+        return Integer(result, ifx shown then 1 else 0)
+    }
+    if function == "WindowNextEventHost" && count == 0 {
+        bytes := Window.WindowNextEvent()
+        if bytes.count == 0 { return Borrowed(result, null, 0) }
+        return Borrowed(result, *bytes[0], cast(u64)bytes.count)
+    }
+    if function == "WindowWaitHost" && count == 1 {
+        return Integer(result, ifx Window.WindowWait(cast(s32)Whole(arguments[0])) then 1 else 0)
+    }
+    if function == "WindowWidthHost" && count == 0 { width, _ := Window.WindowSize(); return Integer(result, cast(s64)width) }
+    if function == "WindowHeightHost" && count == 0 { _, height := Window.WindowSize(); return Integer(result, cast(s64)height) }
+    if function == "WindowTitleHost" && count == 1 { Window.WindowTitle(Text(arguments[0])); return 1 }
+    if function == "WindowCursorHost" && count == 1 { Window.WindowCursor(cast(s32)Whole(arguments[0])); return 1 }
+    if function == "WindowTextInputHost" && count == 1 { Window.WindowTextInput(Whole(arguments[0]) != 0); return 1 }
+    if function == "ClipboardReadHost" && count == 0 {
+        Window.ClipboardRead(*state.answer)
+        if state.answer.count == 0 { return Borrowed(result, null, 0) }
+        return Borrowed(result, *state.answer[0], cast(u64)state.answer.count)
+    }
+    if function == "ClipboardWriteHost" && count == 1 {
+        return Integer(result, ifx Window.ClipboardWrite(Text(arguments[0])) then 1 else 0)
+    }
+    if function == "WindowCloseHost" && count == 0 { Window.WindowClose(); return 1 }
+    return 0
+}
+}
+
 #scope_export
 // The one host callback the runner binds for every capability it provides.
 RunnerCall :: (context: *void, module_name: *u8, function_name: *u8,
@@ -171,5 +222,8 @@ RunnerCall :: (context: *void, module_name: *u8, function_name: *u8,
     if module == "guest_clock" { return ClockCall(function, count, result) }
     if module == "guest_process" { return ProcessCall(state, function, arguments, count, result) }
     if module == "guest_files" { return FileCall(state, function, arguments, count, result) }
+    #if #defined(ZX_WINDOW) {
+        if module == "guest_window" { return WindowCall(state, function, arguments, count, result) }
+    }
     return 0
 }

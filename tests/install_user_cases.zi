@@ -67,7 +67,16 @@ CheckZxRunner :: (test: *NativeTest, share: string, data: string) -> bool {
     base_build := string.[test.ziran, "bundle", "--root", test.work, "--asset-dir", CheckConcat("zx-assets=", assets), "--entry", "base_zx:main", "-o", base, base_source]
     unused NativeRun(test, base_build[:])
     copied := string.[runner, base, CheckPath(test.work, "base-copy.txt")]
-    return NativeExpect(test, copied[:], "2 true from the bundle\n")
+    if !NativeExpect(test, copied[:], "2 true from the bundle\n") { return false }
+    // The window set, on a private display.
+    window_source := CheckPath(test.work, "window_zx.zi")
+    if !NativeWrite(test, window_source, "#import \"std/guest_window\"\nmain :: () -> s32 {\n    if !WindowOpen(\"zx check\", 64, 48, false) { return 2 }\n    pixels: [64 * 48 * 4]u8\n    for index: 0..pixels.count - 1 { pixels[index] = 200 }\n    shown := WindowPresent(pixels[:], 64, 48)\n    print(\"window % % %\\n\", WindowWidth(), WindowHeight(), shown)\n    WindowClose()\n    return 0\n}\n") { return false }
+    window_bundle := CheckPath(test.work, "window_zx.zx")
+    window_build := string.[test.ziran, "bundle", "--root", test.work, "--entry", "window_zx:main", "-o", window_bundle, window_source]
+    unused NativeRun(test, window_build[:])
+    NativeSet(test, "SDL_VIDEODRIVER", "x11")
+    shown := string.["xvfb-run", "-a", runner, window_bundle]
+    return NativeExpect(test, shown[:], "window 64 48 true\n")
 }
 
 #program_export

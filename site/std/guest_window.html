@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="A window for a portable bundle."><title>std/guest_window · Ziran</title><link rel="canonical" href="https://ziran-lang.org/std/guest_window"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#std">Modules</a> / Standard library</p><h1>std/guest_window</h1><p>A window for a portable bundle. The bundle draws its own pixels and runs its own loop: open the window, take events, present a frame, wait. The program that runs the bundle, such as ZX Runner, shows the pixels and reports input. One window per bundle.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> <span class="module-target">Needs: Host capability.</span> Available on master (Unreleased).</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Declarations</strong><a href="#WINDOW_EVENT_NONE">WINDOW_EVENT_NONE</a><a href="#WINDOW_EVENT_CLOSE">WINDOW_EVENT_CLOSE</a><a href="#WINDOW_EVENT_RESIZE">WINDOW_EVENT_RESIZE</a><a href="#WINDOW_EVENT_POINTER_MOVE">WINDOW_EVENT_POINTER_MOVE</a><a href="#WINDOW_EVENT_POINTER_DOWN">WINDOW_EVENT_POINTER_DOWN</a><a href="#WINDOW_EVENT_POINTER_UP">WINDOW_EVENT_POINTER_UP</a><a href="#WINDOW_EVENT_WHEEL">WINDOW_EVENT_WHEEL</a><a href="#WINDOW_EVENT_KEY_DOWN">WINDOW_EVENT_KEY_DOWN</a><a href="#WINDOW_EVENT_KEY_UP">WINDOW_EVENT_KEY_UP</a><a href="#WINDOW_EVENT_TEXT">WINDOW_EVENT_TEXT</a><a href="#WINDOW_EVENT_FOCUS">WINDOW_EVENT_FOCUS</a><a href="#WINDOW_EVENT_BLUR">WINDOW_EVENT_BLUR</a><a href="#KEY_ESCAPE">KEY_ESCAPE</a><a href="#KEY_ENTER">KEY_ENTER</a><a href="#KEY_TAB">KEY_TAB</a><a href="#KEY_BACKSPACE">KEY_BACKSPACE</a><a href="#KEY_DELETE">KEY_DELETE</a><a href="#KEY_RIGHT">KEY_RIGHT</a><a href="#KEY_LEFT">KEY_LEFT</a><a href="#KEY_DOWN">KEY_DOWN</a><a href="#KEY_UP">KEY_UP</a><a href="#MODIFIER_SHIFT">MODIFIER_SHIFT</a><a href="#MODIFIER_CONTROL">MODIFIER_CONTROL</a><a href="#MODIFIER_ALT">MODIFIER_ALT</a><a href="#MODIFIER_SUPER">MODIFIER_SUPER</a><a href="#CURSOR_HIDDEN">CURSOR_HIDDEN</a><a href="#CURSOR_ARROW">CURSOR_ARROW</a><a href="#CURSOR_TEXT">CURSOR_TEXT</a><a href="#CURSOR_WAIT">CURSOR_WAIT</a><a href="#CURSOR_CROSSHAIR">CURSOR_CROSSHAIR</a><a href="#CURSOR_RESIZE_HORIZONTAL">CURSOR_RESIZE_HORIZONTAL</a><a href="#CURSOR_RESIZE_VERTICAL">CURSOR_RESIZE_VERTICAL</a><a href="#CURSOR_MOVE">CURSOR_MOVE</a><a href="#CURSOR_NOT_ALLOWED">CURSOR_NOT_ALLOWED</a><a href="#CURSOR_HAND">CURSOR_HAND</a><a href="#WINDOW_EVENT_BYTES">WINDOW_EVENT_BYTES</a><a href="#WindowEvent">WindowEvent</a><a href="#WindowOpen">WindowOpen</a><a href="#WindowPresent">WindowPresent</a><a href="#WindowNextEvent">WindowNextEvent</a><a href="#WindowWait">WindowWait</a><a href="#WindowWidth">WindowWidth</a><a href="#WindowHeight">WindowHeight</a><a href="#WindowTitle">WindowTitle</a><a href="#WindowCursor">WindowCursor</a><a href="#WindowTextInput">WindowTextInput</a><a href="#ClipboardRead">ClipboardRead</a><a href="#ClipboardWrite">ClipboardWrite</a><a href="#WindowClose">WindowClose</a></aside><div class="article-body api-body">
+<section><p>Import with <code>#import "std/guest_window"</code>.</p><div class="api-list">
+<div id="WINDOW_EVENT_NONE"><code>WINDOW_EVENT_NONE :: 0</code></div>
+<div id="WINDOW_EVENT_CLOSE"><code>WINDOW_EVENT_CLOSE :: 1</code></div>
+<div id="WINDOW_EVENT_RESIZE"><code>WINDOW_EVENT_RESIZE :: 2</code></div>
+<div id="WINDOW_EVENT_POINTER_MOVE"><code>WINDOW_EVENT_POINTER_MOVE :: 3</code></div>
+<div id="WINDOW_EVENT_POINTER_DOWN"><code>WINDOW_EVENT_POINTER_DOWN :: 4</code></div>
+<div id="WINDOW_EVENT_POINTER_UP"><code>WINDOW_EVENT_POINTER_UP :: 5</code></div>
+<div id="WINDOW_EVENT_WHEEL"><code>WINDOW_EVENT_WHEEL :: 6</code></div>
+<div id="WINDOW_EVENT_KEY_DOWN"><code>WINDOW_EVENT_KEY_DOWN :: 7</code></div>
+<div id="WINDOW_EVENT_KEY_UP"><code>WINDOW_EVENT_KEY_UP :: 8</code></div>
+<div id="WINDOW_EVENT_TEXT"><code>WINDOW_EVENT_TEXT :: 9</code></div>
+<div id="WINDOW_EVENT_FOCUS"><code>WINDOW_EVENT_FOCUS :: 10</code></div>
+<div id="WINDOW_EVENT_BLUR"><code>WINDOW_EVENT_BLUR :: 11</code><p>Buttons: 1 primary, 2 middle, 3 secondary. Keys: letters as uppercase ASCII and other printable keys as ASCII; named keys from 256 as GLFW numbers them: Escape 256, Enter 257, Tab 258, Backspace 259, Insert 260, Delete 261, Right 262, Left 263, Down 264,</p></div>
+<div id="KEY_ESCAPE"><code>KEY_ESCAPE :: 256</code><p>Buttons: 1 primary, 2 middle, 3 secondary. Keys: letters as uppercase ASCII and other printable keys as ASCII; named keys from 256 as GLFW numbers them: Escape 256, Enter 257, Tab 258, Backspace 259, Insert 260, Delete 261, Right 262, Left 263, Down 264, Up 265, Page Up 266, Page Down 267, Home 268, End 269, F1-F12 290-301.</p></div>
+<div id="KEY_ENTER"><code>KEY_ENTER :: 257</code></div>
+<div id="KEY_TAB"><code>KEY_TAB :: 258</code></div>
+<div id="KEY_BACKSPACE"><code>KEY_BACKSPACE :: 259</code></div>
+<div id="KEY_DELETE"><code>KEY_DELETE :: 261</code></div>
+<div id="KEY_RIGHT"><code>KEY_RIGHT :: 262</code></div>
+<div id="KEY_LEFT"><code>KEY_LEFT :: 263</code></div>
+<div id="KEY_DOWN"><code>KEY_DOWN :: 264</code></div>
+<div id="KEY_UP"><code>KEY_UP :: 265</code></div>
+<div id="MODIFIER_SHIFT"><code>MODIFIER_SHIFT :: 1</code></div>
+<div id="MODIFIER_CONTROL"><code>MODIFIER_CONTROL :: 2</code></div>
+<div id="MODIFIER_ALT"><code>MODIFIER_ALT :: 4</code></div>
+<div id="MODIFIER_SUPER"><code>MODIFIER_SUPER :: 8</code></div>
+<div id="CURSOR_HIDDEN"><code>CURSOR_HIDDEN :: -1</code></div>
+<div id="CURSOR_ARROW"><code>CURSOR_ARROW :: 0</code></div>
+<div id="CURSOR_TEXT"><code>CURSOR_TEXT :: 1</code></div>
+<div id="CURSOR_WAIT"><code>CURSOR_WAIT :: 2</code></div>
+<div id="CURSOR_CROSSHAIR"><code>CURSOR_CROSSHAIR :: 3</code></div>
+<div id="CURSOR_RESIZE_HORIZONTAL"><code>CURSOR_RESIZE_HORIZONTAL :: 7</code></div>
+<div id="CURSOR_RESIZE_VERTICAL"><code>CURSOR_RESIZE_VERTICAL :: 8</code></div>
+<div id="CURSOR_MOVE"><code>CURSOR_MOVE :: 9</code></div>
+<div id="CURSOR_NOT_ALLOWED"><code>CURSOR_NOT_ALLOWED :: 10</code></div>
+<div id="CURSOR_HAND"><code>CURSOR_HAND :: 11</code></div>
+<div id="WINDOW_EVENT_BYTES"><code>WINDOW_EVENT_BYTES :: 40</code></div>
+<div id="WindowEvent"><code>WindowEvent :: struct { kind: s32; x: float32; y: float32; button: s32; key: s32; modifiers: s32; codepoint: s32; wheel_x: float32; wheel_y: float32; width: s32; height: s32; }</code></div>
+<div id="WindowOpen"><code>WindowOpen :: (title: string, width: s32, height: s32, resizable: bool) -&gt; bool</code><p class="api-note">Needs a host capability.</p></div>
+<div id="WindowPresent"><code>WindowPresent :: (pixels: []u8, width: s32, height: s32) -&gt; bool</code><p class="api-note">Needs a host capability.</p></div>
+<div id="WindowNextEvent"><code>WindowNextEvent :: () -&gt; WindowEvent</code><p>The next waiting event, or one whose kind is WINDOW_EVENT_NONE.</p><p class="api-note">Needs a host capability.</p></div>
+<div id="WindowWait"><code>WindowWait :: (milliseconds: s32) -&gt; bool</code><p class="api-note">Needs a host capability.</p></div>
+<div id="WindowWidth"><code>WindowWidth :: () -&gt; s32</code><p class="api-note">Needs a host capability.</p></div>
+<div id="WindowHeight"><code>WindowHeight :: () -&gt; s32</code><p class="api-note">Needs a host capability.</p></div>
+<div id="WindowTitle"><code>WindowTitle :: (title: string)</code><p class="api-note">Needs a host capability.</p></div>
+<div id="WindowCursor"><code>WindowCursor :: (shape: s32)</code><p class="api-note">Needs a host capability.</p></div>
+<div id="WindowTextInput"><code>WindowTextInput :: (active: bool)</code><p>Asks for typed text (and an on-screen keyboard where there is one).</p><p class="api-note">Needs a host capability.</p></div>
+<div id="ClipboardRead"><code>ClipboardRead :: () -&gt; string</code><p class="api-note">Needs a host capability.</p></div>
+<div id="ClipboardWrite"><code>ClipboardWrite :: (text: string) -&gt; bool</code><p class="api-note">Needs a host capability.</p></div>
+<div id="WindowClose"><code>WindowClose :: ()</code><p class="api-note">Needs a host capability.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/guest_window.zi">Source ↗</a> · <a class="text-link" href="../modules.html#std">All modules</a></p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

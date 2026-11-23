@@ -696,11 +696,14 @@ ZX_RUNNER_C := $(BUILD_DIR)/zx-runner-c
 ZX_RUNNER_SOURCES := $(wildcard cmd/zx_runner*.zi) std/bundle_host.zi std/byte_text_linux.zi \
     std/c_string.zi std/environment_linux.zi std/file.zi std/file_linux.zi std/file_tree_linux.zi \
     std/process_run_linux.zi std/stdio_linux.zi std/text_tools.zi std/timer_linux.zi std/vec.zi
+# With SDL2 present, zx also answers the window set (std/guest_window).
+ZX_WINDOW_LIBS := $(shell pkg-config --libs sdl2 2>/dev/null)
 $(BIN_DIR)/zx: $(ZX_RUNNER_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/libziran.a $(BUILD_DIR)/.compiler-flags | $(BIN_DIR)
 	rm -rf $(ZX_RUNNER_C)
-	$(BIN_DIR)/zi2c --entry zx_runner:main $(ZIRAN_DEFINES) --root cmd --module-path std \
-	    -o $(ZX_RUNNER_C) cmd/zx_runner.zi
-	$(NICE) $(CC) $(CFLAGS) -I$(ZX_RUNNER_C) -o $@ $(ZX_RUNNER_C)/*.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
+	$(BIN_DIR)/zi2c --entry zx_runner:main $(ZIRAN_DEFINES) $(if $(ZX_WINDOW_LIBS),--define ZX_WINDOW) \
+	    --root cmd --module-path std -o $(ZX_RUNNER_C) cmd/zx_runner.zi
+	$(NICE) $(CC) $(CFLAGS) -I$(ZX_RUNNER_C) -o $@ $(ZX_RUNNER_C)/*.c $(BUILD_DIR)/libziran.a \
+	    $(ZX_WINDOW_LIBS) $(RUNTIME_LIBS)
 
 EDIT_C := $(BUILD_DIR)/edit-c
 $(BIN_DIR)/zi-edit: cmd/edit.zi cmd/transport.zi cmd/format_source.zi cmd/diagnostics.zi std/json_document.zi cmd/zir/zir_edit.c cmd/zir/zir_edit.h $(BIN_DIR)/zi2c $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) | $(BIN_DIR)

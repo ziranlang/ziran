@@ -1,0 +1,289 @@
+// ZX Runner's window capabilities (std/guest_window) on SDL2: one window, a
+// streaming texture the bundle's RGBA frames are copied into, and SDL events
+// translated to guest events. Built only when SDL2 is present (ZX_WINDOW).
+#import "std/byte_text_linux"
+#import "std/c_string"
+using Vectors :: #import "std/vec"
+
+#scope_file
+sdl :: #system_library "SDL2";
+Init :: (flags: u32) -> s32 #foreign sdl "SDL_Init";
+CreateWindow :: (title: *u8, x: s32, y: s32, width: s32, height: s32, flags: u32) -> *void #foreign sdl "SDL_CreateWindow";
+DestroyWindow :: (window: *void) #foreign sdl "SDL_DestroyWindow";
+SetWindowTitle :: (window: *void, title: *u8) #foreign sdl "SDL_SetWindowTitle";
+GetWindowSize :: (window: *void, width: *s32, height: *s32) #foreign sdl "SDL_GetWindowSize";
+CreateRenderer :: (window: *void, index: s32, flags: u32) -> *void #foreign sdl "SDL_CreateRenderer";
+DestroyRenderer :: (renderer: *void) #foreign sdl "SDL_DestroyRenderer";
+CreateTexture :: (renderer: *void, format: u32, access: s32, width: s32, height: s32) -> *void #foreign sdl "SDL_CreateTexture";
+DestroyTexture :: (texture: *void) #foreign sdl "SDL_DestroyTexture";
+UpdateTexture :: (texture: *void, rectangle: *void, pixels: *u8, pitch: s32) -> s32 #foreign sdl "SDL_UpdateTexture";
+RenderClear :: (renderer: *void) -> s32 #foreign sdl "SDL_RenderClear";
+RenderCopy :: (renderer: *void, texture: *void, source: *void, destination: *void) -> s32 #foreign sdl "SDL_RenderCopy";
+RenderPresent :: (renderer: *void) #foreign sdl "SDL_RenderPresent";
+PollEvent :: (event: *u8) -> s32 #foreign sdl "SDL_PollEvent";
+WaitEventTimeout :: (event: *u8, milliseconds: s32) -> s32 #foreign sdl "SDL_WaitEventTimeout";
+CreateSystemCursor :: (shape: s32) -> *void #foreign sdl "SDL_CreateSystemCursor";
+SetCursor :: (cursor: *void) #foreign sdl "SDL_SetCursor";
+ShowCursor :: (toggle: s32) -> s32 #foreign sdl "SDL_ShowCursor";
+StartTextInput :: () #foreign sdl "SDL_StartTextInput";
+StopTextInput :: () #foreign sdl "SDL_StopTextInput";
+GetClipboardText :: () -> *u8 #foreign sdl "SDL_GetClipboardText";
+SetClipboardText :: (text: *u8) -> s32 #foreign sdl "SDL_SetClipboardText";
+Free :: (memory: *void) #foreign sdl "SDL_free";
+
+INIT_VIDEO :: 0x20;
+WINDOW_RESIZABLE :: 0x20;
+WINDOW_CENTERED :: 0x2fff0000;
+RENDERER_SOFTWARE :: 1;
+RENDERER_ACCELERATED :: 2;
+// RGBA bytes in memory order on a little-endian host.
+PIXELS_RGBA :: 0x16762004;
+TEXTURE_STREAMING :: 1;
+SDL_QUIT :: 0x100;
+SDL_WINDOW_EVENT :: 0x200;
+SDL_KEY_DOWN :: 0x300;
+SDL_KEY_UP :: 0x301;
+SDL_TEXT_INPUT :: 0x303;
+SDL_MOUSE_MOTION :: 0x400;
+SDL_MOUSE_DOWN :: 0x401;
+SDL_MOUSE_UP :: 0x402;
+SDL_MOUSE_WHEEL :: 0x403;
+WINDOW_SIZE_CHANGED :: 6;
+WINDOW_FOCUS_GAINED :: 12;
+WINDOW_FOCUS_LOST :: 13;
+WINDOW_CLOSE :: 14;
+EVENT_BYTES :: 40;
+
+#scope_export
+RunnerWindow :: struct {
+    window: *void
+    renderer: *void
+    texture: *void
+    texture_width: s32
+    texture_height: s32
+    // SDL's event: 56 bytes on the SDL2 ABI.
+    sdl_event: [56]u8
+    // The guest event bytes the latest WindowNextEventHost result borrows.
+    event: [EVENT_BYTES]u8
+    // Code points of a text event; those from pending_at on are not yet
+    // handed to the guest.
+    pending: Vec(s32)
+    pending_at: s64
+    cursor: *void
+}
+// The runner's one window.
+runner_window: RunnerWindow;
+
+#scope_file
+Word :: (bytes: []u8, at: s64) -> u32 {
+    return cast(u32)bytes[at] | (cast(u32)bytes[at + 1] << 8) |
+        (cast(u32)bytes[at + 2] << 16) | (cast(u32)bytes[at + 3] << 24)
+}
+
+Put :: (bytes: []u8, at: s64, value: s32) {
+    word := cast(u32)value
+    bytes[at] = cast(u8)(word & 255); bytes[at + 1] = cast(u8)((word >> 8) & 255)
+    bytes[at + 2] = cast(u8)((word >> 16) & 255); bytes[at + 3] = cast(u8)(word >> 24)
+}
+
+// GLFW key numbers from SDL keycodes, as std/guest_window documents them.
+Key :: (sdl: s32) -> s32 {
+    if sdl == 27 { return 256 }
+    if sdl == 13 || sdl == 0x40000058 { return 257 }
+    if sdl == 9 { return 258 }
+    if sdl == 8 { return 259 }
+    if sdl == 0x40000049 { return 260 }
+    if sdl == 127 { return 261 }
+    if sdl == 0x4000004F { return 262 }
+    if sdl == 0x40000050 { return 263 }
+    if sdl == 0x40000051 { return 264 }
+    if sdl == 0x40000052 { return 265 }
+    if sdl == 0x4000004B { return 266 }
+    if sdl == 0x4000004E { return 267 }
+    if sdl == 0x4000004A { return 268 }
+    if sdl == 0x4000004D { return 269 }
+    if sdl >= 0x4000003A && sdl <= 0x40000045 { return sdl - 0x4000003A + 290 }
+    if sdl >= 97 && sdl <= 122 { return sdl - 32 }
+    if sdl >= 32 && sdl < 127 { return sdl }
+    return 0
+}
+
+// SDL's KMOD bits to MODIFIER_SHIFT, CONTROL, ALT and SUPER.
+Modifiers :: (sdl: u32) -> s32 {
+    modifiers: s32 = 0
+    if (sdl & 0x3) != 0 { modifiers |= 1 }
+    if (sdl & 0xC0) != 0 { modifiers |= 2 }
+    if (sdl & 0x300) != 0 { modifiers |= 4 }
+    if (sdl & 0xC00) != 0 { modifiers |= 8 }
+    return modifiers
+}
+
+// Decodes one UTF-8 code point at at; count is how many bytes it used.
+CodePoint :: (bytes: []u8, at: s64) -> (value: s32, count: s64) {
+    lead := cast(s32)bytes[at]
+    if lead < 0x80 { return lead, 1 }
+    if lead >= 0xF0 && at + 3 < bytes.count {
+        return ((lead & 7) << 18) | ((cast(s32)bytes[at + 1] & 63) << 12) | ((cast(s32)bytes[at + 2] & 63) << 6) | (cast(s32)bytes[at + 3] & 63), 4
+    }
+    if lead >= 0xE0 && at + 2 < bytes.count {
+        return ((lead & 15) << 12) | ((cast(s32)bytes[at + 1] & 63) << 6) | (cast(s32)bytes[at + 2] & 63), 3
+    }
+    if lead >= 0xC0 && at + 1 < bytes.count { return ((lead & 31) << 6) | (cast(s32)bytes[at + 1] & 63), 2 }
+    return 0xFFFD, 1
+}
+
+// Fills the guest event from the SDL event in sdl_event; false for events
+// the guest does not see.
+Translate :: (out: []u8) -> bool {
+    raw := runner_window.sdl_event[:]
+    kind := Word(raw, 0)
+    if kind == SDL_QUIT { Put(out, 0, 1); return true }
+    if kind == SDL_WINDOW_EVENT {
+        which := raw[12]
+        if which == WINDOW_CLOSE { Put(out, 0, 1); return true }
+        if which == WINDOW_SIZE_CHANGED {
+            Put(out, 0, 2)
+            Put(out, 36, (cast(s32)Word(raw, 16) << 16) | (cast(s32)Word(raw, 20) & 65535))
+            return true
+        }
+        if which == WINDOW_FOCUS_GAINED { Put(out, 0, 10); return true }
+        if which == WINDOW_FOCUS_LOST { Put(out, 0, 11); return true }
+        return false
+    }
+    if kind == SDL_MOUSE_MOTION {
+        Put(out, 0, 3); Put(out, 4, cast(s32)Word(raw, 20) * 100); Put(out, 8, cast(s32)Word(raw, 24) * 100)
+        return true
+    }
+    if kind == SDL_MOUSE_DOWN || kind == SDL_MOUSE_UP {
+        Put(out, 0, ifx kind == SDL_MOUSE_DOWN then 4 else 5)
+        Put(out, 4, cast(s32)Word(raw, 20) * 100); Put(out, 8, cast(s32)Word(raw, 24) * 100)
+        Put(out, 12, cast(s32)raw[16])
+        return true
+    }
+    if kind == SDL_MOUSE_WHEEL {
+        Put(out, 0, 6); Put(out, 28, cast(s32)Word(raw, 16) * 100); Put(out, 32, cast(s32)Word(raw, 20) * 100)
+        return true
+    }
+    if kind == SDL_KEY_DOWN || kind == SDL_KEY_UP {
+        key := Key(cast(s32)Word(raw, 20))
+        if key == 0 { return false }
+        Put(out, 0, ifx kind == SDL_KEY_DOWN then 7 else 8)
+        Put(out, 16, key)
+        Put(out, 20, Modifiers(Word(raw, 24) & 65535))
+        return true
+    }
+    if kind == SDL_TEXT_INPUT {
+        text := raw[12:44]
+        at: s64 = 0
+        while at < text.count && text[at] != 0 {
+            value, used := CodePoint(text, at)
+            VecPush(runner_window.pending, value)
+            at += used
+        }
+        return false
+    }
+    return false
+}
+
+#scope_export
+WindowOpen :: (title: string, width: s32, height: s32, resizable: bool) -> bool {
+    if runner_window.window != null { return false }
+    if width <= 0 || height <= 0 || width > 16384 || height > 16384 { return false }
+    if Init(INIT_VIDEO) != 0 { return false }
+    name: [512]u8
+    if !CopyCString(ifx title.count < 511 then title else title[0:511], name[:]) { return false }
+    runner_window.window = CreateWindow(*name[0], WINDOW_CENTERED, WINDOW_CENTERED, width, height,
+        ifx resizable then cast(u32)WINDOW_RESIZABLE else cast(u32)0)
+    if runner_window.window == null { return false }
+    runner_window.renderer = CreateRenderer(runner_window.window, -1, RENDERER_SOFTWARE)
+    if runner_window.renderer == null { runner_window.renderer = CreateRenderer(runner_window.window, -1, RENDERER_ACCELERATED) }
+    return runner_window.renderer != null
+}
+
+WindowPresent :: (pixels: []u8, width: s32, height: s32) -> bool {
+    if runner_window.renderer == null || width <= 0 || height <= 0 { return false }
+    if pixels.count < cast(s64)width * cast(s64)height * 4 { return false }
+    if runner_window.texture == null || runner_window.texture_width != width || runner_window.texture_height != height {
+        if runner_window.texture != null { DestroyTexture(runner_window.texture) }
+        runner_window.texture = CreateTexture(runner_window.renderer, PIXELS_RGBA, TEXTURE_STREAMING, width, height)
+        runner_window.texture_width = width; runner_window.texture_height = height
+        if runner_window.texture == null { return false }
+    }
+    if UpdateTexture(runner_window.texture, null, *pixels[0], width * 4) != 0 { return false }
+    unused RenderClear(runner_window.renderer)
+    if RenderCopy(runner_window.renderer, runner_window.texture, null, null) != 0 { return false }
+    RenderPresent(runner_window.renderer)
+    return true
+}
+
+// The next guest event's bytes, or an empty slice when none is waiting.
+WindowNextEvent :: () -> []u8 {
+    out := runner_window.event[:]
+    for index: 0..EVENT_BYTES - 1 { out[index] = 0 }
+    if runner_window.pending_at < runner_window.pending.count {
+        Put(out, 0, 9)
+        Put(out, 24, runner_window.pending[runner_window.pending_at])
+        runner_window.pending_at += 1
+        if runner_window.pending_at == runner_window.pending.count {
+            VecClear(runner_window.pending); runner_window.pending_at = 0
+        }
+        return out
+    }
+    if runner_window.window == null { return out[0:0] }
+    while PollEvent(*runner_window.sdl_event[0]) == 1 {
+        if Translate(out) { return out }
+        if runner_window.pending_at < runner_window.pending.count { return WindowNextEvent() }
+    }
+    return out[0:0]
+}
+
+WindowWait :: (milliseconds: s32) -> bool {
+    if runner_window.pending_at < runner_window.pending.count { return true }
+    if runner_window.window == null { return false }
+    return WaitEventTimeout(null, milliseconds) == 1
+}
+
+WindowSize :: () -> (width: s32, height: s32) {
+    width: s32 = 0; height: s32 = 0
+    if runner_window.window != null { GetWindowSize(runner_window.window, *width, *height) }
+    return width, height
+}
+
+WindowTitle :: (title: string) {
+    if runner_window.window == null { return }
+    name: [512]u8
+    if CopyCString(ifx title.count < 511 then title else title[0:511], name[:]) { SetWindowTitle(runner_window.window, *name[0]) }
+}
+
+WindowCursor :: (shape: s32) {
+    if shape < 0 { unused ShowCursor(0); return }
+    unused ShowCursor(1)
+    cursor := CreateSystemCursor(shape)
+    if cursor != null { SetCursor(cursor); runner_window.cursor = cursor }
+}
+
+WindowTextInput :: (active: bool) {
+    if active { StartTextInput() } else { StopTextInput() }
+}
+
+// The clipboard's text, copied into answer.
+ClipboardRead :: (answer: *Vec(u8)) {
+    VecClear(<<answer)
+    text := GetClipboardText()
+    if text == null { return }
+    for byte: TextFromCString(text) { VecPush(<<answer, byte) }
+    Free(cast(*void)text)
+}
+
+ClipboardWrite :: (text: string) -> bool {
+    copy: Vec(u8)
+    for byte: text { VecPush(copy, byte) }
+    VecPush(copy, 0)
+    return SetClipboardText(*copy[0]) == 0
+}
+
+WindowClose :: () {
+    if runner_window.texture != null { DestroyTexture(runner_window.texture); runner_window.texture = null }
+    if runner_window.renderer != null { DestroyRenderer(runner_window.renderer); runner_window.renderer = null }
+    if runner_window.window != null { DestroyWindow(runner_window.window); runner_window.window = null }
+}

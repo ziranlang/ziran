@@ -127,3 +127,8 @@ int ZiranCommandLastError(void)
 {
     return errno;
 }
+
+void ZiranCommandClearError(void)
+{
+    errno = 0;
+}

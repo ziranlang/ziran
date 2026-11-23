@@ -635,6 +635,20 @@ No step commits before its implementation and proof are complete.
   the retained ZX corpus, stdout, `--unbounded` and defaults. `zx_wasm.sh`,
   `compile_*`, `c99_target`, `go_*`, `simd_go`, `tool_names`, `cli_defines`
   pass.
+- Done 2026-11-23: `cmd/zi2zx.zi` replaces its C driver. It builds the
+  library linkage text (`--export`/`--require-module`/`--import` sorting and
+  checks), the retained roots, assets, ZX/LIR/optimization-report outputs,
+  `.zx` inspection (`zx`/`lir`/`linkage`) and `run` (backend policy, module
+  roots/images, limits, native preflight, heap report) on the assembly set's
+  own entry points. The generated copy uses the assembly headers with no
+  engine names, matching `assembly-core.o`. `zx_module_build`, `package_zx`,
+  `compile_targets`, `cli_defines`, `machine_elf`, `global_owned_storage`,
+  `local_owned_fields` pass; a differential on source builds (zx/lir/opt
+  report), runs (native/engine), source runs and `.zx` inspection is
+  byte-identical.
+- Remaining S17 drivers: `zx2native` (host-library discovery, map/report,
+  PE/ELF layout) and `zi-api` (host API JSON surface); then delete
+  `zir_command.h`/`zir_edit.h` and the tool C, and run S18.
 - Change Makefile tool targets and editor links to Ziran drivers. The `ziran`
   package driver is already Ziran; no change beyond imports.
 - Delete `cmd/zir/zir_profile.c/.h`,

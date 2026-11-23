@@ -817,9 +817,19 @@ $(BIN_DIR)/zi2go: cmd/zi2go.zi cmd/compiler_cli.zi cmd/compiler_ir.zi $(BIN_DIR)
 	$(NICE) $(CC) $(CFLAGS) -I$(ZI2GO_C) -o $@ $(ZI2GO_C)/zi2go.c $(GO_PORT_OBJECTS) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) -lm
 
 # zi2zx runs revision-28 executable ZX on the portable instruction engine.
-$(BIN_DIR)/zi2zx: $(call obj,cmd/zi2zx/main.c) $(BUILD_DIR)/obj/assembly-core.o \
+# Its driver is Ziran; the generated copy uses the assembly set's own headers
+# (no engine defines), matching assembly-core.o's unprefixed entry points.
+ZI2ZX_C := $(BUILD_DIR)/zi2zx-c
+$(ZI2ZX_C)/.generated: cmd/zi2zx.zi cmd/compiler_cli.zi cmd/compiler_ir.zi \
+    $(BUILD_DIR)/compiler-assembly/.generated $(BIN_DIR)/zi2c
+	$(BIN_DIR)/zi2c --entry zi2zx:main --root cmd --module-path std -o $(ZI2ZX_C) cmd/zi2zx.zi
+	touch $@
+$(ZI2ZX_C)/%.c: $(ZI2ZX_C)/.generated
+	@test -f $@
+$(BIN_DIR)/zi2zx: $(ZI2ZX_C)/zi2zx.c $(BUILD_DIR)/obj/assembly-core.o \
     $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
+	$(NICE) $(CC) $(CFLAGS) -I$(ZI2ZX_C) -I$(BUILD_DIR)/compiler-assembly -o $@ $(ZI2ZX_C)/zi2zx.c \
+	    $(BUILD_DIR)/obj/assembly-core.o $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 	chmod 755 $@
 
 # zx2wasm accepts only verified revision-28 ZX and uses the same lowerer object

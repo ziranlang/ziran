@@ -56,7 +56,9 @@ Entry linking for the C, Go and native backends, `compiler_zx_link`, replaces
 checking and C emission, `compiler_inline_asm`, replaces `zir_asm.c` and
 `zir_asm.h`. The embedding API, `compiler_host_api`, replaces `zir_host.c`
 with the same C interface; only the platform backend probe stays in C beside
-the native loader.
+the native loader. The ZX command runner, `compiler_zx_run`, replaces
+`cmd/zi2zx/zx_exec_run.c`; `zx_exec_run.h` keeps its declarations for the C
+drivers.
 
 S16–S18 remain open for the remaining portable ZX and host interfaces, inline
 assembly and tool drivers, and the stage-0 through stage-2 fixed-point proof.
@@ -167,8 +169,8 @@ C ABI/storage boundary:
 |---|---|---|---|
 | `zir_asm_lower.h` | Public ABI at `:9-17` | `cmd/compiler_zir_lower.zi` exports the same ABI | S1 |
 | `zir_asm_lower.c` | `assembly_type_in:335`, `assembly_emit:631`, `assembly_address:1419`, `AssemblyLower:4918`, `AssemblyView:5039`, `AssemblyFree:5045`, `AssemblyHostInterface:5207`, `AssemblyPrintLir:5301` | `compiler_zir_lower` ZIR -> LIR/ZX lowering | S1 |
-| `zx_exec_run.h` | API at `:18`, `:26` | `compiler_zx_run` | S16 |
-| `zx_exec_run.c` | `ZxExecRunProgram:15`, `portable_entry:60`, `ZxExecBuild:83`; calls lowering at `:93`, `:95`, `:116` | `compiler_zx_run` | S16 |
+| `zx_exec_run.h` | C declarations of `compiler_zx_run` for `zi2zx/main.c` and the web bundles | `cmd/zi2zx.zi` driver | S17 |
+| `compiler_zx_run.zi` | command runs, dependency module images, entry check, lowering views and executable ZX writing | `compiler_zx_run` | S16 |
 | `main.c` | CLI and preflight `assembly_machine_gap:232`, read `:328`, report `:407`, `main:586`; lowering calls `:707`, `:741`, `:887` | `cmd/zi2zx.zi` driver | S17 |
 
 ### `cmd/zir-wasm`
@@ -556,12 +558,18 @@ No step commits before its implementation and proof are complete.
   hot-swapped components. Its records mirror `include/ziran_host.h` field for
   field. `zir_host_native.c` keeps `BundleNativePlatformBackend` and
   `BundleAutoPlatformBackend`, the target `#if` checks.
-- Port the portable command runner, the engine execution facade, the hosted
-  module runtime, and the Wasm provider and web bridges. Preserve the public
-  embedding and executable APIs and add their modules to bootstrap.
+- `compiler_zx_run` (`cmd/compiler_zx_run.zi`) replaces
+  `cmd/zi2zx/zx_exec_run.c`: console-bound command runs on the instruction
+  engine, `NAME=SHA256=PATH` module images, dependency module loading, the
+  portable entry check, and the lowering, optimization and executable ZX
+  writing behind zi2zx's views. It is generated with the assembly set for the
+  native tools and compiled from its seed in the web playground.
+- Port the engine execution facade, the hosted module runtime, and the Wasm
+  provider and web bridges. Preserve the public embedding and executable APIs
+  and add their modules to bootstrap.
 - Retire the replaced `zir_host_exec.c`, `zir_zx_module.c`,
-  `zir_zx_wasm.c`, `zir_zx_wasm_web.c`, `zir_exec_console.h`, and
-  `cmd/zi2zx/zx_exec_run.c` as those ports land.
+  `zir_zx_wasm.c`, `zir_zx_wasm_web.c` and `zir_exec_console.h` as those
+  ports land.
 - Verify saved bytes and diagnostics against the previous compiler, then run
   `env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check JOBS=2 CHECK_JOBS=2` and
   `env -u DISPLAY -u WAYLAND_DISPLAY make check-bootstrap JOBS=2`.

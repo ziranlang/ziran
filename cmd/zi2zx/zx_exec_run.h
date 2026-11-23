@@ -1,8 +1,9 @@
 /*
- * zx_exec_run.h - run verified executable ZX on the portable instruction
- * engine for zi2zx run, with the platform console services bound, and write
- * it for zi2zx. zi2zx run opens it through the
- * embedding API (cmd/zir/zir_host_exec.c).
+ * zx_exec_run.h - the C declarations of the ZX command runner,
+ * cmd/compiler_zx_run.zi: run verified executable ZX on the portable
+ * instruction engine for zi2zx run, with the platform console services
+ * bound, and lower and write it for zi2zx. The records match the Ziran ones
+ * field for field.
  */
 #ifndef ZX_EXEC_RUN_H
 #define ZX_EXEC_RUN_H

@@ -789,7 +789,7 @@ $(BIN_DIR)/zi2go: $(call obj,cmd/zi2go/main.c) $(GO_PORT_OBJECTS) $(BUNDLE_OBJEC
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 # zi2zx runs revision-28 executable ZX on the portable instruction engine.
-$(BIN_DIR)/zi2zx: $(call obj,cmd/zi2zx/main.c cmd/zi2zx/zx_exec_run.c) $(BUILD_DIR)/obj/assembly-core.o \
+$(BIN_DIR)/zi2zx: $(call obj,cmd/zi2zx/main.c) $(BUILD_DIR)/obj/assembly-core.o \
     $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 	chmod 755 $@
@@ -1105,7 +1105,7 @@ BOOTSTRAP_MODULES := scan text source declaration enum type expression statement
 GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
     -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
 BOOTSTRAP_MODULES += parse portable_body scalar c_emit c_emit_value c_emit_statement c_emit_call c_emit_expr simd_metadata c_emit_simd go_simd c_backend
-BOOTSTRAP_MODULES += $(GO_PORT_MODULES) $(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES) $(FRONTEND_PORT_MODULES) host_api
+BOOTSTRAP_MODULES += $(GO_PORT_MODULES) $(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES) $(FRONTEND_PORT_MODULES) host_api zx_run
 # Darwin's seed copies of the platform modules, generated with the defines a
 # Darwin host passes; one copy serves Apple Silicon and Intel.
 DARWIN_BOOTSTRAP_MODULES := runtime_emit backend_cache backend_process

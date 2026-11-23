@@ -1,0 +1,543 @@
+// The ZX command runner of zi2zx and the web playground. It runs verified
+// executable ZX on the portable instruction engine with the platform console
+// bound, opens a bundle's dependency modules from roots or from an exact image
+// map, and lowers a checked program to executable ZX for zi2zx's views and
+// writer. The C drivers declare these entry points in cmd/zi2zx/zx_exec_run.h;
+// the records below match it field for field.
+IR :: #import "compiler_ir"
+LIR :: #import "compiler_lowered_ir"
+Exec :: #import "compiler_exec"
+Verify :: #import "compiler_lowered_verify"
+Opt :: #import "compiler_opt"
+Link :: #import "compiler_exec_link"
+Assets :: #import "compiler_bundle"
+Lowering :: #import "compiler_zir_lower"
+
+#scope_file
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+malloc :: (size: usize) -> *u8 #foreign libc "malloc";
+free :: (memory: *u8) #foreign libc "free";
+memcmp :: (a: *u8, b: *u8, count: usize) -> s32 #foreign libc "memcmp";
+memset :: (dst: *u8, value: s32, count: usize) -> *u8 #foreign libc "memset";
+strlen :: (s: *u8) -> usize #foreign libc "strlen";
+strcmp :: (a: *u8, b: *u8) -> s32 #foreign libc "strcmp";
+strchr :: (s: *u8, c: s32) -> *u8 #foreign libc "strchr";
+strrchr :: (s: *u8, c: s32) -> *u8 #foreign libc "strrchr";
+strndup :: (s: *u8, count: usize) -> *u8 #foreign libc "strndup";
+fopen :: (path: *u8, mode: *u8) -> *void #foreign libc "fopen";
+fclose :: (file: *void) -> s32 #foreign libc "fclose";
+// C long is pointer-sized on every target, wasm32 included.
+fseek :: (file: *void, offset: isize, whence: s32) -> s32 #foreign libc "fseek";
+ftell :: (file: *void) -> isize #foreign libc "ftell";
+fread :: (data: *u8, size: usize, count: usize, file: *void) -> usize #foreign libc "fread";
+fgetc :: (file: *void) -> s32 #foreign libc "fgetc";
+ferror :: (file: *void) -> s32 #foreign libc "ferror";
+fflush :: (file: *void) -> s32 #foreign libc "fflush";
+fprintf :: (file: *void, fmt: *u8, args: ..any) -> s32 #foreign libc "fprintf";
+
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, fmt: *u8, args: ..any) #foreign compiler "Diagnostic";
+DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
+StandardError :: () -> *void #foreign compiler "CompilerStandardError";
+FindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+ScalarWidth :: (type: *u8) -> u32 #foreign compiler "ScalarWidthZiran";
+// zir_text.h's ZirParameters begins with its count.
+ParameterCount :: struct { count: s32 }
+ParametersOf :: (text: *u8) -> *ParameterCount #foreign compiler "ParametersOf";
+
+Sha256 :: struct {
+    state: [8]u32
+    length: u64
+    block: [64]u8
+    used: usize
+}
+Sha256Begin :: (hash: *Sha256) #foreign compiler "Sha256Begin";
+Sha256Add :: (hash: *Sha256, data: *u8, size: usize) #foreign compiler "Sha256Add";
+Sha256End :: (hash: *Sha256, digest: *u8) #foreign compiler "Sha256End";
+
+// zir_exec_console.h: standard output a run gathers for one write.
+ZxConsole :: struct {
+    used: usize
+    direct: s32
+    write: *void
+    context: *void
+    data: [4096]u8
+}
+ZxBindConsole :: (instance: *Exec.LirExecInstance, program: *LIR.LirProgram, console: *ZxConsole) -> Exec.LirExecProblem #foreign compiler "ZxBindConsole";
+ZxConsoleFlush :: (console: *ZxConsole) -> s32 #foreign compiler "ZxConsoleFlush";
+ZxExecProblemText :: (problem: Exec.LirExecProblem) -> *u8 #foreign compiler "ZxExecProblemText";
+
+// ziran_host.h: the instance options and the instance calls a run without
+// dependency modules makes.
+BundleInstanceOptions :: struct {
+    backend: s32
+    max_steps: s32
+    unbounded: s32
+}
+BundleInstantiateWithOptions :: (bundle: *void, bindings: *void, count: usize, options: *BundleInstanceOptions) -> *void #foreign compiler "BundleInstantiateWithOptions";
+BundleInstanceRun :: (instance: *void, result: *s64, has_result: *s32) -> s32 #foreign compiler "BundleInstanceRun";
+BundleInstanceClose :: (instance: *void) #foreign compiler "BundleInstanceClose";
+
+// include/ziran_zx_module.h: the module loader a run with dependency
+// modules opens.
+IMAGE_MISSING :: 0
+IMAGE_FOUND :: 1
+IMAGE_ERROR :: 2
+ImageRelease :: #type (context: *void, data: *u8, size: usize) #c_call;
+ZxModuleImage :: struct {
+    data: *u8
+    size: usize
+    release: ImageRelease
+}
+ZxModuleResolve :: #type (context: *void, path: *u8, image: *ZxModuleImage) -> s32 #c_call;
+ZxModuleLoaderConfig :: struct {
+    roots: **u8
+    root_count: usize
+    options: BundleInstanceOptions
+    library_bindings: *void
+    library_binding_count: usize
+    resolve: ZxModuleResolve
+    resolve_context: *void
+    write: *void
+    console_context: *void
+}
+ZxModuleProgramNeedsLoader :: (bundle: *void) -> s32 #foreign compiler "ZxModuleProgramNeedsLoader";
+ZxModuleLoaderOpenConfigured :: (config: *ZxModuleLoaderConfig) -> *void #foreign compiler "ZxModuleLoaderOpenConfigured";
+ZxModuleLoaderClose :: (loader: *void) #foreign compiler "ZxModuleLoaderClose";
+ZxModuleLoaderError :: (loader: *void) -> *u8 #foreign compiler "ZxModuleLoaderError";
+ZxModuleProgramOpen :: (loader: *void, bundle: *void, bindings: *void, count: usize) -> *void #foreign compiler "ZxModuleProgramOpen";
+ZxModuleProgramRun :: (program: *void, result: *s64, has_result: *s32) -> s32 #foreign compiler "ZxModuleProgramRun";
+ZxModuleProgramClose :: (program: *void) #foreign compiler "ZxModuleProgramClose";
+
+StaticText :: struct { data: *u8; length: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+TextData :: (s: *string) -> *u8 { return (cast(*StaticText)s).data }
+TextOf :: (data: *u8, length: usize) -> string {
+    result: string
+    view := cast(*StaticText)(*result)
+    view.data = data
+    view.length = length
+    return result
+}
+BytesOf :: (data: *u8, length: s64) -> []u8 {
+    result: []u8
+    view := cast(*StaticText)(*result)
+    view.data = data
+    view.length = cast(usize)length
+    return result
+}
+PtrAdd :: (p: *u8, n: usize) -> *u8 { return cast(*u8)(cast(usize)p + n) }
+PtrDistance :: (end: *u8, start: *u8) -> usize { return cast(usize)end - cast(usize)start }
+NoSpan :: () -> IR.ZirSourceSpan {
+    span: IR.ZirSourceSpan
+    return span
+}
+
+// The largest executable ZX image a run or a build accepts.
+IMAGE_LIMIT :: 268435456
+
+#scope_export
+
+ZxRunModuleImage :: struct {
+    name: *u8
+    name_length: usize
+    path: *u8
+    sha256: [32]u8
+}
+
+ZxImportRoot :: struct {
+    module: *u8
+    function: *u8
+}
+
+ZxModuleBuild :: struct {
+    exports: *Lowering.AssemblyExportRoot
+    export_count: s32
+    imports: *ZxImportRoot
+    import_count: s32
+    linkage: string
+}
+
+// Source lowering shared by zi2zx's ZX, LIR and optimization-report views.
+// The owner keeps the source-side interface spelling and, when requested,
+// the optimized program and counters.
+ZxLowerOwner :: struct {
+    lowered: *Lowering.AssemblyProgram
+    optimized: Opt.LirOptOwner
+    optimization: Opt.LirOptResult
+    program: LIR.LirProgram
+    has_optimization: s32
+}
+
+// Runs the program's entry. Returns the exit status: the low byte of an
+// integer result, 0 for void, 125 for a failed run.
+#program_export "ZxExecRunProgram"
+RunProgram :: (program: *LIR.LirProgram, limits: Exec.LirExecLimits, heap_report: s32) -> s32 {
+    failed: s32 = 125
+    if program.entry < 0 || cast(s64)program.entry >= program.functions.count {
+        Diagnostic(NoSpan(), CStr("assembly.execute"), CStr("instruction input has no entry procedure"))
+        return failed
+    }
+    entry := program.functions[program.entry]
+    result_type := program.types[entry.result]
+    if entry.parameters.count != 0 || (result_type.kind != .Integer && result_type.kind != .Bool && result_type.kind != .Void) {
+        Diagnostic(NoSpan(), CStr("assembly.execute"), CStr("command entry must have no parameters and return void, bool or an integer"))
+        return failed
+    }
+    plan: Exec.LirExecPlan
+    instance: Exec.LirExecInstance
+    console: ZxConsole
+    result := Exec.LirExecPlanBuild(<<program, LIR.LirDefaultLimits(), *plan)
+    if result.problem == .None { result = Exec.LirExecInstanceOpen(*plan, limits, 1, *instance) }
+    if result.problem == .None {
+        bound := ZxBindConsole(*instance, *plan.program, *console)
+        if bound != .None { result.problem = bound }
+    }
+    if result.problem == .None { result = Exec.LirExecRun(*instance) }
+    unused ZxConsoleFlush(*console)
+    status: s32 = ifx result_type.kind == .Void then 0 else cast(s32)(result.value.bits & 255)
+    if result.problem != .None {
+        unused fflush(null)
+        problem := Exec.LirExecProblemName(result.problem)
+        text := ZxExecProblemText(result.problem)
+        if text == null { text = CStr("failed") }
+        Diagnostic(NoSpan(), CStr("assembly.execute"),
+            CStr("instruction execution failed: %s (problem=%.*s function=%d block=%d instruction=%d origin=%d trap=%llu work_remaining=%lld fuel_remaining=%lld)"),
+            text, cast(s32)problem.count, TextData(*problem), result.function, result.block, result.instruction, result.origin,
+            result.trap, result.work_remaining, result.fuel_remaining)
+        status = failed
+    } else if heap_report != 0 {
+        unused fprintf(StandardError(), CStr("heap: %lld live blocks\n"), Exec.LirExecHeapLive(*instance))
+    }
+    unused fflush(null)
+    Exec.LirExecInstanceClose(*instance)
+    Exec.LirExecPlanFree(*plan)
+    return status
+}
+
+#scope_file
+
+HexDigit :: (digit: u8) -> s32 {
+    if digit >= #char "0" && digit <= #char "9" { return cast(s32)(digit - #char "0") }
+    if digit >= #char "a" && digit <= #char "f" { return cast(s32)(digit - #char "a") + 10 }
+    return -1
+}
+
+#scope_export
+
+// NAME=SHA256=PATH: a dependency module's exact image.
+#program_export "ZxRunModuleImageParse"
+RunModuleImageParse :: (spec: *u8, image: *ZxRunModuleImage) -> s32 {
+    name_end := strchr(spec, #char "=")
+    if name_end == null || name_end == spec { return 0 }
+    digest := PtrAdd(name_end, 1)
+    digest_end := strchr(digest, #char "=")
+    if digest_end == null || PtrDistance(digest_end, digest) != 64 || digest_end[1] == 0 { return 0 }
+    for index: 0..31 {
+        high := HexDigit(digest[2 * index])
+        low := HexDigit(digest[2 * index + 1])
+        if high < 0 || low < 0 { return 0 }
+        image.sha256[index] = cast(u8)(high * 16 + low)
+    }
+    image.name = spec
+    image.name_length = PtrDistance(name_end, spec)
+    image.path = PtrAdd(digest_end, 1)
+    return 1
+}
+
+#scope_file
+
+ImageMap :: struct {
+    images: *ZxRunModuleImage
+    count: usize
+}
+
+ReleaseImage :: (context: *void, data: *u8, size: usize) {
+    free(data)
+}
+
+// The file at PATH, at most LIMIT bytes, with a terminating zero byte; null
+// when it cannot be read whole.
+ReadBounded :: (path: *u8, limit: isize, size: *usize) -> *u8 {
+    stream := fopen(path, CStr("rb"))
+    if stream == null { return null }
+    bytes: *u8 = null
+    ok := false
+    if fseek(stream, 0, 2) == 0 {
+        length := ftell(stream)
+        if length >= 0 && length <= limit && fseek(stream, 0, 0) == 0 {
+            bytes = malloc(cast(usize)length + 1)
+            if bytes == null {
+                DiagnosticOutOfMemory()
+            } else if fread(bytes, 1, cast(usize)length, stream) == cast(usize)length && fgetc(stream) < 0 && ferror(stream) == 0 {
+                bytes[length] = 0
+                <<size = cast(usize)length
+                ok = true
+            }
+        }
+    }
+    if fclose(stream) != 0 { ok = false }
+    if !ok {
+        free(bytes)
+        return null
+    }
+    return bytes
+}
+
+// Resolves "/NAME.zx" to the mapped image of NAME after checking its digest.
+ResolveMappedImage :: (context: *void, path: *u8, image: *ZxModuleImage) -> s32 {
+    map := cast(*ImageMap)context
+    length := strlen(path)
+    if length <= 4 || path[0] != #char "/" || strcmp(PtrAdd(path, length - 3), CStr(".zx")) != 0 { return IMAGE_MISSING }
+    for index: cast(s64)0..cast(s64)map.count - 1 {
+        pin := *map.images[index]
+        if pin.name_length != length - 4 || memcmp(pin.name, PtrAdd(path, 1), pin.name_length) != 0 { continue }
+        size: usize = 0
+        bytes := ReadBounded(pin.path, IMAGE_LIMIT, *size)
+        if bytes == null { return IMAGE_ERROR }
+        digest: [32]u8
+        hash: Sha256
+        Sha256Begin(*hash)
+        Sha256Add(*hash, bytes, size)
+        Sha256End(*hash, *digest[0])
+        if memcmp(*digest[0], *pin.sha256[0], 32) != 0 {
+            free(bytes)
+            return IMAGE_ERROR
+        }
+        image.data = bytes
+        image.size = size
+        image.release = ReleaseImage
+        return IMAGE_FOUND
+    }
+    return IMAGE_MISSING
+}
+
+#scope_export
+
+// Runs BUNDLE, resolving its dependency modules from the exact image map, or
+// from ROOTS (by default the bundle's directory) when no map was supplied. A
+// null PATH denotes a source run.
+#program_export "ZxExecRunBundle"
+RunBundle :: (bundle: *void, path: *u8, roots: **u8, root_count: usize, images: *ZxRunModuleImage,
+              image_count: usize, options: *BundleInstanceOptions, result: *s64, has_result: *s32) -> s32 {
+    if ZxModuleProgramNeedsLoader(bundle) == 0 {
+        instance := BundleInstantiateWithOptions(bundle, null, 0, options)
+        ok: s32 = ifx instance != null && BundleInstanceRun(instance, result, has_result) != 0 then 1 else 0
+        BundleInstanceClose(instance)
+        return ok
+    }
+    directory: *u8 = null
+    default_root := CStr(".")
+    root_list := roots
+    root_total := root_count
+    if image_count != 0 {
+        default_root = CStr("/")
+        root_list = *default_root
+        root_total = 1
+    } else if root_count == 0 {
+        slash: *u8 = ifx path == null then null else strrchr(path, #char "/")
+        if slash != null {
+            directory = strndup(path, ifx slash == path then 1 else PtrDistance(slash, path))
+            if directory == null {
+                Diagnostic(NoSpan(), CStr("zx.module-run"), CStr("cannot allocate the module root path"))
+                return 0
+            }
+            default_root = directory
+        }
+        root_list = *default_root
+        root_total = 1
+    }
+    map := ImageMap.{images = images, count = image_count}
+    config: ZxModuleLoaderConfig
+    config.roots = root_list
+    config.root_count = root_total
+    config.options = <<options
+    if image_count != 0 {
+        config.resolve = ResolveMappedImage
+        config.resolve_context = cast(*void)(*map)
+    }
+    loader := ZxModuleLoaderOpenConfigured(*config)
+    free(directory)
+    program: *void = ifx loader == null then null else ZxModuleProgramOpen(loader, bundle, null, 0)
+    ok: s32 = ifx program != null && ZxModuleProgramRun(program, result, has_result) != 0 then 1 else 0
+    if ok == 0 {
+        problem := ZxModuleLoaderError(loader)
+        if problem[0] != 0 { Diagnostic(NoSpan(), CStr("zx.module-run"), CStr("%s"), problem) }
+    }
+    ZxModuleProgramClose(program)
+    ZxModuleLoaderClose(loader)
+    return ok
+}
+
+#scope_file
+
+// A bundle's entry: a zero-argument Ziran function returning an integer,
+// bool, an enum or nothing.
+PortableEntry :: (program: *IR.ZirProgram, module: *u8, function: *u8) -> bool {
+    owner: *IR.ZirModule = null
+    entry: *IR.ZirFunction = null
+    for m: 0..program.module_count - 1 {
+        candidate := *program.modules[m]
+        if strcmp(*candidate.name[0], module) != 0 { continue }
+        for f: 0..candidate.function_count - 1 {
+            if strcmp(*candidate.functions[f].name[0], function) == 0 {
+                owner = candidate
+                entry = *candidate.functions[f]
+                break
+            }
+        }
+        if entry != null { break }
+    }
+    if entry == null || entry.is_extern != 0 { return false }
+    parameters := ParametersOf(ifx entry.args_text == null then CStr("") else entry.args_text)
+    if parameters == null || parameters.count != 0 { return false }
+    result := ifx entry.return_type[0] != 0 then *entry.return_type[0] else CStr("void")
+    enumeration := FindType(owner, result, null)
+    if enumeration != null && enumeration.is_enum != 0 {
+        result = ifx enumeration.enum_backing[0] != 0 then *enumeration.enum_backing[0] else CStr("s64")
+    }
+    return ScalarWidth(result) != 0 || strcmp(result, CStr("bool")) == 0 || strcmp(result, CStr("void")) == 0
+}
+
+SameName :: (name: string, text: *u8) -> bool {
+    length := strlen(text)
+    return cast(usize)name.count == length && memcmp(TextData(*name), text, length) == 0
+}
+
+HasModuleImport :: (program: *LIR.LirProgram, root: *ZxImportRoot) -> bool {
+    for i: 0..program.functions.count - 1 {
+        function := *program.functions[i]
+        if function.external && function.calling == .Host &&
+           SameName(program.modules[function.module], root.module) && SameName(function.name, root.function) { return true }
+    }
+    return false
+}
+
+#scope_export
+
+#program_export "ZxLowerBuild"
+LowerBuild :: (program: *IR.ZirProgram, module: *u8, function: *u8, link: *ZxModuleBuild,
+               optimize: s32, owner: *ZxLowerOwner) -> s32 {
+    unused memset(cast(*u8)owner, 0, cast(usize)size_of(ZxLowerOwner))
+    if link.export_count > 0 {
+        owner.lowered = Lowering.LowerModule(program, link.exports, link.export_count)
+    } else if !PortableEntry(program, module, function) {
+        Diagnostic(Span(CStr("<bundle>"), 1, 1), CStr("zx.entry"),
+                   CStr("entry must be one unique zero-argument integer, bool, or void Ziran function"))
+        return 0
+    } else {
+        owner.lowered = Lowering.Lower(program, module, function)
+    }
+    if owner.lowered == null { return 0 }
+    view := Lowering.View(owner.lowered)
+    diagnostic := Verify.LirVerify(<<view, LIR.LirDefaultLimits())
+    if diagnostic.problem != .None {
+        Diagnostic(NoSpan(), CStr("assembly.verify"),
+            CStr("lowered IR rejected: problem=%d function=%d block=%d instruction=%d value=%d origin=%d"),
+            cast(s32)diagnostic.problem, diagnostic.function, diagnostic.block, diagnostic.instruction,
+            diagnostic.value, diagnostic.origin)
+        LowerFree(owner)
+        return 0
+    }
+    owner.program = <<view
+    if optimize != 0 {
+        owner.optimization = Opt.LirOptBuild(*owner.optimized, <<view, LIR.LirDefaultLimits(), Opt.LirOptDefaultOptions())
+        if owner.optimization.problem != .None {
+            rejected := owner.optimization.diagnostic
+            Diagnostic(NoSpan(), CStr("assembly.optimize"),
+                CStr("optimization rejected: problem=%d verifier=%d function=%d block=%d instruction=%d value=%d origin=%d"),
+                cast(s32)owner.optimization.problem, cast(s32)rejected.problem, rejected.function, rejected.block,
+                rejected.instruction, rejected.value, rejected.origin)
+            LowerFree(owner)
+            return 0
+        }
+        owner.program = Opt.LirOptProgram(*owner.optimized)
+        owner.has_optimization = 1
+    }
+    for i: 0..link.import_count - 1 {
+        root := *link.imports[i]
+        if !HasModuleImport(*owner.program, root) {
+            Diagnostic(Span(CStr("<command>"), 1, 1), CStr("zx.module-import"),
+                       CStr("module import is not reachable: %s:%s"), root.module, root.function)
+            LowerFree(owner)
+            return 0
+        }
+    }
+    return 1
+}
+
+#program_export "ZxLowerView"
+LowerView :: (owner: *ZxLowerOwner) -> *LIR.LirProgram {
+    if owner.lowered == null { return null }
+    return *owner.program
+}
+
+#program_export "ZxLowerOptimization"
+LowerOptimization :: (owner: *ZxLowerOwner) -> *Opt.LirOptResult {
+    if owner.has_optimization == 0 { return null }
+    return *owner.optimization
+}
+
+#program_export "ZxLowerFree"
+LowerFree :: (owner: *ZxLowerOwner) {
+    Opt.LirOptFree(*owner.optimized)
+    Lowering.FreeProgram(owner.lowered)
+    unused memset(cast(*u8)owner, 0, cast(usize)size_of(ZxLowerOwner))
+}
+
+#scope_file
+
+ContainerFailure :: (action: *u8, result: Link.ZxExecResult) {
+    problem := Link.ZxExecProblemName(result.problem)
+    Diagnostic(NoSpan(), CStr("assembly.container"),
+        CStr("cannot %s executable ZX output: problem=%.*s container=%d codec=%d verifier=%d"),
+        action, cast(s32)problem.count, TextData(*problem), cast(s32)result.container, cast(s32)result.codec,
+        cast(s32)result.diagnostic.problem)
+}
+
+#scope_export
+
+// Lowers the linked program's entry, optimizes it and writes revision-28
+// executable ZX with its host interface section: what zi2zx writes. ASSETS
+// are compiler_bundle Asset values in name order. The entry must take no
+// arguments and return an integer, bool or nothing; a library supplies
+// sorted export roots as its generated entry instead. With DEBUG, source
+// texts and origins go to the optional debug attachment. Returns malloc'd
+// bytes, or null after a diagnostic.
+#program_export "ZxExecBuild"
+ExecBuild :: (program: *IR.ZirProgram, module: *u8, function: *u8, link: *ZxModuleBuild,
+              assets: []Assets.Asset, debug: s32, size: *usize) -> *u8 {
+    <<size = 0
+    lower: ZxLowerOwner
+    if LowerBuild(program, module, function, link, 1, *lower) == 0 { return null }
+    bytes: *u8 = null
+    optimized := LowerView(*lower)
+    interface_length: usize = 0
+    interface := Lowering.HostInterface(lower.lowered, *interface_length)
+    if interface != null {
+        interface_text := TextOf(interface, interface_length)
+        empty: []u8
+        measured := Link.ZxExecWriteModule(<<optimized, assets, empty, interface_text, debug != 0, link.linkage)
+        if measured.problem != .None || measured.size <= 0 || measured.size > IMAGE_LIMIT {
+            ContainerFailure(CStr("measure"), measured)
+        } else {
+            bytes = malloc(cast(usize)measured.size)
+            if bytes != null {
+                encoded := Link.ZxExecWriteModule(<<optimized, assets, BytesOf(bytes, measured.size), interface_text,
+                                                  debug != 0, link.linkage)
+                if encoded.problem != .None || encoded.size != measured.size {
+                    ContainerFailure(CStr("encode"), encoded)
+                    free(bytes)
+                    bytes = null
+                } else {
+                    <<size = cast(usize)measured.size
+                }
+            }
+        }
+    }
+    LowerFree(*lower)
+    return bytes
+}

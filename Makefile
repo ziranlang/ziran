@@ -1173,10 +1173,14 @@ $(BIN_DIR)/check-runner: $(CHECK_RUNNER_SOURCES) $(wildcard std/*.zi) $(BIN_DIR)
 	    -o $(CHECK_RUNNER_C) tests/run_check.zi
 	$(NICE) $(CC) $(CFLAGS) $(SANITIZE_FLAGS) -I$(CHECK_RUNNER_C) -o $@ $(CHECK_RUNNER_C)/*.c -lm
 
-check: all $(BIN_DIR)/check-runner $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-capability-test $(BIN_DIR)/record-host-test $(BIN_DIR)/record-fields-by-name-test $(BIN_DIR)/array-host-test $(BIN_DIR)/slice-host-test $(BIN_DIR)/process-host-test $(BIN_DIR)/startup-graph-test $(BIN_DIR)/native-wx-test $(BIN_DIR)/native-load-test
+# make check always runs the complete suite. make check-incremental reuses the
+# passing result of each check audited in tests/check_cache_audits.json while
+# no input of the suite has changed, and runs every other check.
+.PHONY: check-incremental
+check check-incremental: all $(BIN_DIR)/check-runner $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-capability-test $(BIN_DIR)/record-host-test $(BIN_DIR)/record-fields-by-name-test $(BIN_DIR)/array-host-test $(BIN_DIR)/slice-host-test $(BIN_DIR)/process-host-test $(BIN_DIR)/startup-graph-test $(BIN_DIR)/native-wx-test $(BIN_DIR)/native-load-test
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/startup-graph-test
-	$(BIN_DIR)/check-runner --bin-dir $(BIN_DIR) $(if $(CHECK_JOBS),--jobs $(CHECK_JOBS)) \
-	    $(if $(CHECK_FILTER),--filter $(call check_quote,$(CHECK_FILTER)))
+	$(BIN_DIR)/check-runner --bin-dir $(BIN_DIR) $(if $(filter check-incremental,$@),--incremental) \
+	    $(if $(CHECK_JOBS),--jobs $(CHECK_JOBS)) $(if $(CHECK_FILTER),--filter $(call check_quote,$(CHECK_FILTER)))
 
 zx-wasm-test: all
 	env -u DISPLAY -u WAYLAND_DISPLAY tests/zx_wasm.sh $(BIN_DIR)/ziran

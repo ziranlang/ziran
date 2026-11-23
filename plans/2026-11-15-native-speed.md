@@ -1,5 +1,14 @@
 # Native speed: measured gaps and implementation plan (2026-11-15)
 
+The subsequent i386 emu work is recorded separately in
+[the i386 execution plan](2026-11-21-i386-execution.md). It records a compact-engine
+experiment and retained budget-parity tests. The unproven interpreter changes
+were withdrawn before installation. Preliminary scalar-loop gains were not
+reproduced by the paired physical Alpha blend measurement: the current archive
+was about 4% slower than baseline. The requested 10× Rill improvement
+and native i386 execution remain unfinished. Those measurements must not be
+mixed with the earlier native ELF/C comparisons below.
+
 Analysis only. No compiler or test source changed. `native` below means the
 zx2native ELF; `zx` in the receipt means the instruction engine. These are
 separate targets. The initial task table accidentally quoted engine times as

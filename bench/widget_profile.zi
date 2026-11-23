@@ -1,0 +1,29 @@
+// Profile the unchanged warmed public widget entry through its native runner.
+using P :: #import "standard_profile"
+using T :: #import "c_teacher_profile"
+#import "std/byte_text_linux"
+#import "std/text_tools"
+#import "std/file"
+using Vectors :: #import "std/vec"
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 4 { return 2 }
+    name := TextFromCString(argv[1])
+    runner := TextFromCString(argv[2])
+    bundle := TextFromCString(argv[3])
+    arguments := string.[runner, bundle, "0", "31"]
+    profile: T.TeacherProfile
+    maps: Vec(u8)
+    if !T.TeacherSampleProcess(arguments[:], *profile, *maps) || profile.exit_code != 0 || profile.total < 64 {
+        print("profile failed: exit %, samples %\n", profile.exit_code, profile.total)
+        return 1
+    }
+    P.Report(P.Workload.{name = name, size = 2}, *profile, TextDetach(BuilderFinish(maps)))
+    rows: Vec(u8)
+    for sample: profile.samples {
+        if sample.address >= profile.image_base && sample.address - profile.image_base < cast(u64)profile.image.count {
+            unused BuilderAppend(rows, P.Join(P.HexText(sample.address - profile.image_base), " ", P.Number(sample.count), "\n"))
+        }
+    }
+    if !WriteEntireFile(P.Join("build/widget-native/", name, ".samples"), TextDetach(BuilderFinish(rows))) { return 1 }
+    return 0
+}

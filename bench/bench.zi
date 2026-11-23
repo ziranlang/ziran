@@ -98,6 +98,8 @@ Registry :: () -> Vec(Benchmark) {
     Add(*list, "vm-native", "bench/vm_native.py", .Python, .Host, "engine workloads against generated C and Go")
     Add(*list, "vm-startup", "bench/vm_startup.py", .Python, .Host, "checked loading and engine preparation")
     Add(*list, "wasm-tier", "bench/wasm_tier.py", .Python, .Host, "native/Wasm kernels; --standard adds independent C/Go references")
+    Add(*list, "widget-native", "bench/widget_native.py", .Python, .Host, "matched frozen public Kryon Text, Input and Button scenarios")
+    Add(*list, "widget-profile", "bench/widget_profile.zi", .Ziran, .Host, "SIGPROF of warmed public widget scenarios")
     Add(*list, "zx-compare", "bench/zx_compare.zi", .Ziran, .Host, "ZX runtime comparison cohorts")
     Add(*list, "zx-compare-devices", "bench/zx_compare.py", .Python, .Device, "ZX comparison on Alpha or a USB phone")
     Add(*list, "zx-engine", "bench/zx_engine.zi", .Ziran, .Host, "instruction engine against the C target")

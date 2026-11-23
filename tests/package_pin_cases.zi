@@ -200,6 +200,30 @@ SharedCommit :: (test: *NativeTest, root: string) -> bool {
     return !test.failed
 }
 
+OverrideMirrors :: (test: *NativeTest, root: string) -> bool {
+    if !FixtureIsolation(test, root) { return false }
+    NativeSet(test, "ZIRAN_PINNED_LAUNCHER", "1")
+    library := CheckPath(root, "library"); app := CheckPath(root, "app")
+    if !FixtureInit(test, library) ||
+        !NativeWrite(test, CheckPath(library, "ziran.toml"), "[package]\nname = \"Widgets\"\nmodule_roots = [\"src\"]\n[exports]\nGrid = \"src/Grid.zi\"\nBox = \"src/Box.zi\"\n") ||
+        !NativeWrite(test, CheckPath(library, "src/Grid.zi"), "#import \"Box\"\nGridSize :: () -> s32 { return BoxSize() + 1 }\n") ||
+        !NativeWrite(test, CheckPath(library, "src/Box.zi"), "BoxSize :: () -> s32 { return 41 }\n") { return false }
+    unused FixtureCommit(test, library, "local widgets fixture")
+    manifest := "[package]\nname = \"MirrorConsumer\"\nmodule_roots = [\"src\"]\n[toolchain]\ngit = \"https://compiler.example/ziran.git\"\nref = \"master\"\n[dependencies.legacy]\ngit = \"https://legacy.example/widgets.git\"\nref = \"master\"\n[dependencies.current]\ngit = \"https://current.example/widgets.git\"\nref = \"master\"\n"
+    if !NativeWrite(test, CheckPath(app, "ziran.toml"), manifest) ||
+        !NativeWrite(test, CheckPath(app, "src/app.zi"), "Old :: #import \"legacy/Box\"\nNew :: #import \"current/Grid\"\n#program_export\nmain :: () -> s32 { return Old.BoxSize() + New.GridSize() - 83 }\n") { return false }
+    aliases := string.["ziran", "legacy", "current"]; paths := string.[test.repo, library, library]
+    if !FixtureOverrides(test, app, aliases[:], paths[:]) { return false }
+    lock := string.["lock", "--offline"]; unused PackageCommand(test, app, lock[:])
+    lock_path := CheckPath(app, "ziran.lock"); saved := NativeRead(test, lock_path)
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, saved) && JsonCount(*document, JsonMember(*document, document.root, "packages")) == 2,
+        "mirror URLs lost their separate saved pins") { return false }
+    run := string.["run", "--project", "--offline", "--target=c", "src/app.zi"]
+    unused PackageCommand(test, app, run[:])
+    return NativeAssert(test, NativeRead(test, lock_path) == saved, "using an override rewrote the saved lock") && !test.failed
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "package-pins-")
@@ -207,6 +231,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     defer NativeCleanup(*test)
     local_only := argc > 3 && TextFromCString(argv[3]) == "--local-overrides-only"
     if !ObjectPins(*test, CheckPath(test.work, "objects")) || !LockedPins(*test, CheckPath(test.work, "locked")) ||
+        !OverrideMirrors(*test, CheckPath(test.work, "mirrors")) ||
         (!local_only && !SharedCommit(*test, CheckPath(test.work, "shared"))) { return 1 }
     print("Local package pins: exact Git objects, offline immutable validation, atomic batches and false commits passed\n")
     return 0

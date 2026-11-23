@@ -1270,6 +1270,19 @@ PkgApplyOverrideIdentities :: (root: string, overrides: *PkgOverrides,
             old_id: string = item.id
             item.commit = commit
             item.id = PkgLockId(item.url, commit, item.source)
+            // The compiler loads a source file once. Mirror URLs that select
+            // the same local module checkout must use one runtime namespace.
+            if !item.source {
+                prior: s32 = 0
+                while prior < index {
+                    candidate: *PkgLocked = *locked.packages[prior]
+                    if !candidate.source && candidate.path == item.path {
+                        item.id = candidate.id
+                        break
+                    }
+                    prior += 1
+                }
+            }
             owner: s32 = -1
             while owner < locked.count {
                 edges: *PkgNamedValue = *locked.root_edges[0]

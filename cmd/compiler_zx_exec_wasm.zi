@@ -1,0 +1,511 @@
+// Revision-28 bundles executed as WebAssembly through the installed provider.
+// Mirrors the instruction engine's instance contract so the embedding API
+// picks between engines at one seam. The module comes from the engine's Wasm
+// lowering (compiler_zx_wasm.zi); its host calls and its globals cross as the
+// engine's host images, which this bridge copies between the instance's
+// memory and ExecHosts, the embedding API's translation to HostValue trees.
+// Loaded by compiler_zx_exec.zi.
+
+Wasm :: #import "compiler_zx_wasm"
+
+// zir_zx_wasm.h's output services of the (zx, host_i64) import.
+WASM_PRINT_STRING :: 4294967295
+WASM_PRINT_SIGNED :: 4294967294
+WASM_PRINT_UNSIGNED :: 4294967293
+WASM_PRINT_FLOAT64 :: 4294967292
+WASM_PRINT_FLOAT32 :: 4294967291
+WASM_PRINT_BOOL :: 4294967290
+// compiler_zx_wasm_types.zi's value kinds.
+WASM_VOID :: 0
+WASM_BITS :: 1
+WASM_IMAGE :: 2
+
+DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+// The load-time provider install (zir_zx_wasm_install.c, or the web bridge).
+InstallPlatform :: () #foreign compiler "ZxWasmInstallBundledPlatform";
+
+// zir_zx_wasm_platform.h's provider seam, field for field.
+WasmInstantiate :: #type (context: *void, bytes: *u8, size: usize) -> usize #c_call;
+WasmSetBudget :: #type (context: *void, handle: usize, budget: s64) -> s32 #c_call;
+WasmCall :: #type (context: *void, handle: usize, result: *s64) -> s32 #c_call;
+WasmReadBytes :: #type (context: *void, handle: usize, address: usize, destination: *void, size: usize) -> s32 #c_call;
+WasmWriteBytes :: #type (context: *void, handle: usize, address: usize, source: *void, size: usize) -> s32 #c_call;
+WasmAllocateState :: #type (context: *void, handle: usize, size: usize) -> usize #c_call;
+WasmInitialize :: #type (context: *void, handle: usize) -> s32 #c_call;
+WasmBudgetLeft :: #type (context: *void, handle: usize, budget: *s64) -> s32 #c_call;
+WasmRelease :: #type (context: *void, handle: usize) #c_call;
+
+ZxWasmPlatform :: struct {
+    context: *void
+    instantiate: WasmInstantiate
+    set_budget: WasmSetBudget
+    call: WasmCall
+    read: WasmReadBytes
+    write: WasmWriteBytes
+    allocate_state: WasmAllocateState
+    initialize: WasmInitialize
+    budget_left: WasmBudgetLeft
+    release: WasmRelease
+    suspends: s32
+}
+
+// One bundle instance running through the provider; the opaque ZxWasm of
+// zir_zx_wasm.h.
+ZxWasm :: struct {
+    // The installed provider, its context this instance.
+    platform: ZxWasmPlatform
+    handle: usize
+    budget: s64
+    // The step limit the budget started from, for diagnostics.
+    limit: s64
+    // Opened with a step limit: initialization and runs share it.
+    shared_budget: s32
+    failed: s32
+    exec: *ExecBundle
+    hosts: *ExecHosts
+    // The lowered module's capabilities and globals; its bytes are gone once
+    // it is instantiated.
+    image: Wasm.ZxWasmImage
+    // Each capability's bundle host index.
+    host_of: *usize
+    // The image a state value of ZxWasmStateAt borrows.
+    state_image: *u8
+}
+
+active_platform: ZxWasmPlatform;
+platform_installed: s32;
+
+#program_export
+ZxWasmSetPlatform :: (platform: *ZxWasmPlatform) {
+    if platform == null {
+        platform_installed = 0
+        unused memset(cast(*u8)*active_platform, 0, size_of(ZxWasmPlatform))
+        return
+    }
+    unused memcpy(cast(*u8)*active_platform, cast(*u8)platform, size_of(ZxWasmPlatform))
+    platform_installed = 1
+}
+
+#program_export
+ZxWasmPlatformActive :: () -> *ZxWasmPlatform {
+    if platform_installed == 0 { InstallPlatform() }
+    return ifx platform_installed != 0 then *active_platform else null
+}
+
+// ---- Instance memory ----------------------------------------------------
+
+// The installed provider's context is the instance, so a callback takes the
+// instance as its own context.
+WasmRead :: (context: *void, address: usize, destination: *void, size: usize) -> s32 {
+    wasm := cast(*ZxWasm)context
+    return ifx size <= ~cast(usize)(0) - address &&
+               wasm.platform.read(wasm.platform.context, wasm.handle, address, destination, size) == 0 then 1 else 0
+}
+
+WasmWrite :: (context: *void, address: usize, source: *void, size: usize) -> s32 {
+    wasm := cast(*ZxWasm)context
+    return ifx size <= ~cast(usize)(0) - address &&
+               wasm.platform.write(wasm.platform.context, wasm.handle, address, source, size) == 0 then 1 else 0
+}
+
+WasmReserve :: (context: *void, size: usize) -> usize {
+    wasm := cast(*ZxWasm)context
+    if size > 4294967295 { return 0 }
+    return wasm.platform.allocate_state(wasm.platform.context, wasm.handle, size)
+}
+
+// The lowering's memory callback takes a plain pointer.
+WasmStore :: (context: *void, address: usize, source: *void, size: usize) -> s32 {
+    return WasmWrite(context, address, source, size)
+}
+
+WasmMemoryFor :: (wasm: *ZxWasm) -> Wasm.ZxWasmMemory {
+    memory: Wasm.ZxWasmMemory
+    memory.context = cast(*void)wasm
+    memory.read = WasmRead
+    memory.write = WasmStore
+    memory.reserve = WasmReserve
+    return memory
+}
+
+// ---- Host calls ---------------------------------------------------------
+
+#program_export
+ZxWasmHostPrint :: (context: *void, service: u32, argument: s64) -> s32 {
+    wasm := cast(*ZxWasm)context
+    if wasm == null { return 0 }
+    if service == WASM_PRINT_STRING {
+        address := cast(usize)cast(u32)argument
+        length := cast(usize)(cast(u64)argument >> 32)
+        bytes: [4096]u8
+        while length != 0 {
+            count := ifx length < 4096 then length else 4096
+            if WasmRead(cast(*void)wasm, address, cast(*void)*bytes[0], count) == 0 ||
+               fwrite(*bytes[0], 1, count, StandardOutput()) != count { return 0 }
+            address += count
+            length -= count
+        }
+        return 1
+    }
+    text: [64]u8
+    if service == WASM_PRINT_SIGNED {
+        unused snprintf(*text[0], 64, CStr("%lld"), argument)
+    } else if service == WASM_PRINT_UNSIGNED {
+        unused snprintf(*text[0], 64, CStr("%llu"), cast(u64)argument)
+    } else if service == WASM_PRINT_BOOL {
+        unused snprintf(*text[0], 64, CStr("%s"), ifx argument != 0 then CStr("true") else CStr("false"))
+    } else if service == WASM_PRINT_FLOAT32 {
+        bits := cast(u32)argument
+        value: float32 = 0
+        unused memcpy(cast(*u8)*value, cast(*u8)*bits, 4)
+        FormatPrintFloat(cast(float64)value, 1, *text[0], 64)
+    } else if service == WASM_PRINT_FLOAT64 {
+        value: float64 = 0
+        unused memcpy(cast(*u8)*value, cast(*u8)*argument, 8)
+        FormatPrintFloat(value, 0, *text[0], 64)
+    } else {
+        return 0
+    }
+    length := strlen(*text[0])
+    return ifx fwrite(*text[0], 1, length, StandardOutput()) == length then 1 else 0
+}
+
+WasmU64 :: (bytes: *u8) -> u64 {
+    value: u64 = 0
+    for at: 0..7 { value |= cast(u64)bytes[at] << cast(u64)(8 * at) }
+    return value
+}
+
+WasmU32 :: (bytes: *u8) -> u32 {
+    return cast(u32)bytes[0] | cast(u32)bytes[1] << 8 | cast(u32)bytes[2] << 16 | cast(u32)bytes[3] << 24
+}
+
+WasmPut :: (bytes: *u8, value: u64, width: usize) {
+    for at: 0..cast(s64)width - 1 { bytes[at] = cast(u8)(value >> cast(u64)(8 * at)) }
+}
+
+// The elements a []T argument names, from its record entry and image.
+WasmSlice :: (value: *Wasm.ZxWasmValue, entry: *u8, argument: *ExecHostArgument, start: *u64, end: *u64) -> bool {
+    if value.kind != WASM_IMAGE || value.element_size == 0 || argument.size < 16 { return false }
+    count := WasmU64(Advance(argument.bytes, 8))
+    if count == 0 || count > 4294967295 / cast(u64)value.element_size { return false }
+    begin := cast(u64)WasmU32(Advance(entry, 4))
+    span := count * cast(u64)value.element_size
+    <<start = begin
+    <<end = begin + span
+    return true
+}
+
+#program_export
+ZxWasmHostCall :: (context: *void, index: u32, record: u32) -> s32 {
+    wasm := cast(*ZxWasm)context
+    if wasm == null || wasm.hosts == null || cast(usize)index >= wasm.image.capability_count { return 0 }
+    declared := wasm.image.capabilities[cast(usize)index]
+    host := wasm.host_of[cast(usize)index]
+    count := declared.parameter_count
+    if count > ~cast(usize)(0) / 16 - 1 { return 0 }
+    entries := cast(*u8)malloc(cast(usize)16 * (count + 1))
+    arguments := cast(*ExecHostArgument)calloc(count + 1, size_of(ExecHostArgument))
+    images := cast(**u8)calloc(count + 1, size_of(*u8))
+    ok: s32 = 0
+    if entries == null || arguments == null || images == null ||
+       WasmRead(cast(*void)wasm, cast(usize)record, cast(*void)entries, cast(usize)16 * (count + 1)) == 0 { ok = 0 }
+    else {
+        for at: 0..cast(s64)count - 1 {
+            entry := Advance(entries, cast(usize)16 * cast(usize)at)
+            argument := *arguments[cast(usize)at]
+            declared_value := declared.parameters[cast(usize)at]
+            argument.type = declared_value.type
+            if declared_value.kind == WASM_BITS {
+                argument.bits = WasmU64(entry)
+            } else {
+                length := WasmU32(Advance(entry, 8))
+                image := cast(*u8)malloc(ifx length != 0 then cast(usize)length else 1)
+                images[cast(usize)at] = image
+                if image == null || WasmRead(cast(*void)wasm, cast(usize)WasmU32(entry), cast(*void)image, cast(usize)length) == 0 {
+                    return WasmHostCallClose(entries, arguments, images, count, 0)
+                }
+                argument.bytes = image
+                argument.size = cast(usize)length
+            }
+        }
+        // Two []T arguments of one call may not share elements.
+        for left: 0..cast(s64)count - 1 {
+            left_start: u64 = 0
+            left_end: u64 = 0
+            if ExecBundleHostMutable(wasm.exec, host, cast(usize)left) == 0 ||
+               !WasmSlice(*declared.parameters[cast(usize)left], Advance(entries, cast(usize)16 * cast(usize)left),
+                          *arguments[cast(usize)left], *left_start, *left_end) { continue }
+            for right: (left + 1)..(cast(s64)count - 1) {
+                right_start: u64 = 0
+                right_end: u64 = 0
+                if ExecBundleHostMutable(wasm.exec, host, cast(usize)right) != 0 &&
+                   WasmSlice(*declared.parameters[cast(usize)right], Advance(entries, cast(usize)16 * cast(usize)right),
+                             *arguments[cast(usize)right], *right_start, *right_end) &&
+                   left_start < right_end && right_start < left_end {
+                    Diagnostic(NoSpan(), CStr("zx.host_alias"),
+                               CStr("host capability %s:%s received two mutable slices that share elements"),
+                               declared.module, declared.function)
+                    return WasmHostCallClose(entries, arguments, images, count, 0)
+                }
+            }
+        }
+        result: ExecHostArgument
+        result.type = declared.result.type
+        if ExecHostsCall(wasm.hosts, host, arguments, count, *result) == 0 {
+            return WasmHostCallClose(entries, arguments, images, count, 0)
+        }
+        // Changed slices go back into their images; the module copies them
+        // into the caller's elements.
+        for at: 0..cast(s64)count - 1 {
+            argument := *arguments[cast(usize)at]
+            if argument.changed == 0 { continue }
+            entry := Advance(entries, cast(usize)16 * cast(usize)at)
+            flag: [4]u8
+            WasmPut(*flag[0], 1, cast(usize)4)
+            declared_value := declared.parameters[cast(usize)at]
+            if declared_value.kind != WASM_IMAGE || declared_value.element_size == 0 ||
+               argument.size != cast(usize)WasmU32(Advance(entry, 8)) ||
+               WasmWrite(cast(*void)wasm, cast(usize)WasmU32(entry), cast(*void)argument.bytes, argument.size) == 0 ||
+               WasmWrite(cast(*void)wasm, cast(usize)record + cast(usize)16 * cast(usize)at + cast(usize)12, cast(*void)*flag[0], 4) == 0 {
+                return WasmHostCallClose(entries, arguments, images, count, 0)
+            }
+        }
+        entry: [16]u8
+        if declared.result.kind == WASM_BITS {
+            WasmPut(*entry[0], result.bits, cast(usize)8)
+        } else if declared.result.kind == WASM_IMAGE && result.size > 0 {
+            address := WasmReserve(cast(*void)wasm, result.size)
+            if address == 0 || address > 4294967295 ||
+               WasmWrite(cast(*void)wasm, address, cast(*void)result.bytes, result.size) == 0 {
+                return WasmHostCallClose(entries, arguments, images, count, 0)
+            }
+            WasmPut(*entry[0], cast(u64)address, cast(usize)4)
+            WasmPut(Advance(*entry[0], 8), cast(u64)result.size, cast(usize)4)
+        }
+        ok = ifx declared.result.kind == WASM_VOID ||
+                 WasmWrite(cast(*void)wasm, cast(usize)record + cast(usize)16 * count, cast(*void)*entry[0], 16) != 0 then 1 else 0
+    }
+    return WasmHostCallClose(entries, arguments, images, count, ok)
+}
+
+WasmHostCallClose :: (entries: *u8, arguments: *ExecHostArgument, images: **u8, count: usize, ok: s32) -> s32 {
+    for at: 0..cast(s64)count - 1 {
+        if images != null { free(images[cast(usize)at]) }
+    }
+    free(cast(*u8)images)
+    free(cast(*u8)arguments)
+    free(entries)
+    return ok
+}
+
+// ---- Instances ----------------------------------------------------------
+
+// Spends a shared budget by what the provider says is left; gives whether
+// the budget ran out.
+WasmCharge :: (wasm: *ZxWasm) -> bool {
+    left: s64 = 1
+    if cast(*void)wasm.platform.budget_left == null ||
+       wasm.platform.budget_left(wasm.platform.context, wasm.handle, *left) != 0 { return false }
+    if wasm.shared_budget != 0 { wasm.budget = ifx left > 0 then left else 0 }
+    return left <= 0
+}
+
+// A failed call: a spent step limit, as the engine words it, or a trap.
+WasmFailed :: (wasm: *ZxWasm, spent: bool, what: *u8) {
+    if spent && wasm.limit > 0 {
+        Diagnostic(NoSpan(), CStr("zx.runtime"), CStr("wasm execution failed: stopped after %lld steps"), wasm.limit)
+    } else {
+        Diagnostic(NoSpan(), CStr("zx.wasm"), CStr("%s trapped or failed"), what)
+    }
+}
+
+#program_export
+ZxWasmOpenExec :: (bundle: *ExecBundle, find: ExecFindBinding, context: *void, max_steps: s64) -> *ZxWasm {
+    if platform_installed == 0 { InstallPlatform() }
+    program := cast(*LIR.LirProgram)ExecBundleProgram(bundle)
+    if program == null || platform_installed == 0 || cast(*void)active_platform.read == null ||
+       cast(*void)active_platform.write == null || cast(*void)active_platform.allocate_state == null { return null }
+    wasm := cast(*ZxWasm)calloc(1, size_of(ZxWasm))
+    if wasm == null {
+        DiagnosticOutOfMemory()
+        return null
+    }
+    wasm.exec = bundle
+    lowered: bool = false
+    if active_platform.suspends != 0 {
+        lowered = Wasm.LowerProgramSuspendable(program, *wasm.image)
+    } else {
+        lowered = Wasm.LowerProgram(program, *wasm.image)
+    }
+    if !lowered { return WasmOpenFailed(wasm) }
+    wasm.hosts = ExecHostsOpen(bundle, find, context)
+    wasm.host_of = cast(*usize)calloc(wasm.image.capability_count + 1, size_of(usize))
+    if wasm.hosts == null || wasm.host_of == null { return WasmOpenFailed(wasm) }
+    for index: 0..cast(s64)wasm.image.capability_count - 1 {
+        capability := wasm.image.capabilities[cast(usize)index]
+        host: usize = 0
+        hosts := ExecBundleCapabilityCount(bundle)
+        while host < hosts && (strcmp(ExecBundleCapabilityModule(bundle, host), capability.module) != 0 ||
+                               strcmp(ExecBundleCapabilityFunction(bundle, host), capability.function) != 0) { host += 1 }
+        if host == hosts {
+            Diagnostic(NoSpan(), CStr("zx.wasm"), CStr("the bundle declares no host capability %s:%s"),
+                       capability.module, capability.function)
+            return WasmOpenFailed(wasm)
+        }
+        wasm.host_of[cast(usize)index] = host
+    }
+    wasm.platform = active_platform
+    wasm.platform.context = cast(*void)wasm
+    wasm.shared_budget = ifx max_steps > 0 then 1 else 0
+    wasm.limit = ifx max_steps > 0 then max_steps else 0
+    wasm.budget = ifx max_steps > 0 then max_steps else 9223372036854775807
+    wasm.handle = wasm.platform.instantiate(wasm.platform.context, wasm.image.bytes, wasm.image.size)
+    free(wasm.image.bytes)
+    wasm.image.bytes = null
+    if wasm.handle == 0 {
+        Diagnostic(NoSpan(), CStr("zx.wasm"), CStr("the wasm provider rejected the lowered module"))
+        return WasmOpenFailed(wasm)
+    }
+    // Global initializers run when the instance opens, as on the engine.
+    if cast(*void)wasm.platform.initialize != null {
+        initialized := wasm.platform.set_budget(wasm.platform.context, wasm.handle, wasm.budget) == 0 &&
+                       wasm.platform.initialize(wasm.platform.context, wasm.handle) == 0
+        spent := WasmCharge(wasm)
+        if !initialized {
+            WasmFailed(wasm, spent, CStr("module initialization"))
+            return WasmOpenFailed(wasm)
+        }
+    }
+    return wasm
+}
+
+WasmOpenFailed :: (wasm: *ZxWasm) -> *ZxWasm {
+    ZxWasmClose(wasm)
+    return null
+}
+
+#program_export
+ZxWasmRun :: (wasm: *ZxWasm, result: *s64, has_result: *s32) -> s32 {
+    if wasm == null || wasm.failed != 0 { return 0 }
+    if wasm.shared_budget != 0 && wasm.budget == 0 {
+        WasmFailed(wasm, true, CStr("the run"))
+        return 0
+    }
+    value: s64 = 0
+    called := wasm.platform.set_budget(wasm.platform.context, wasm.handle, wasm.budget) == 0 &&
+              wasm.platform.call(wasm.platform.context, wasm.handle, *value) == 0
+    spent := WasmCharge(wasm)
+    if !called {
+        WasmFailed(wasm, spent, CStr("the wasm instance"))
+        wasm.failed = 1
+        return 0
+    }
+    if result != null { <<result = value }
+    if has_result != null { <<has_result = wasm.image.returns }
+    return 1
+}
+
+#program_export
+ZxWasmLimitSteps :: (wasm: *ZxWasm, max_steps: s64) {
+    if wasm == null { return }
+    // The lowered module charges its fuel against this budget; zero is
+    // unbounded. A shared limit is replaced, otherwise each later run gets it.
+    wasm.limit = ifx max_steps > 0 then max_steps else 0
+    wasm.budget = ifx max_steps > 0 then max_steps else 9223372036854775807
+}
+
+#program_export
+ZxWasmMatchFieldsByName :: (wasm: *ZxWasm, enabled: s32) {
+    if wasm != null && wasm.hosts != null { ExecHostsMatchFieldsByName(wasm.hosts, enabled) }
+}
+
+#program_export
+ZxWasmLiveBytes :: (wasm: *ZxWasm) -> usize {
+    if wasm == null { return 0 }
+    bytes: usize = 0
+    for index: 0..cast(s64)wasm.image.global_count - 1 {
+        bytes += cast(usize)wasm.image.global_sizes[cast(usize)index]
+    }
+    return bytes
+}
+
+// ---- Module state -------------------------------------------------------
+
+#program_export
+ZxWasmStateCount :: (wasm: *ZxWasm) -> usize {
+    return ifx wasm != null then ExecBundleStateCount(wasm.exec) else 0
+}
+
+#program_export
+ZxWasmStateAt :: (wasm: *ZxWasm, index: usize, module: **u8, name: **u8, type: **u8,
+                  value: *HostValue) -> s32 {
+    global: s32 = 0
+    if wasm == null || wasm.failed != 0 || ExecBundleStateAt(wasm.exec, index, module, name, type, *global) == 0 {
+        return 0
+    }
+    if value == null { return 1 }
+    free(wasm.state_image)
+    wasm.state_image = null
+    memory := WasmMemoryFor(wasm)
+    size: usize = 0
+    if !Wasm.GlobalImage(cast(*LIR.LirProgram)ExecBundleProgram(wasm.exec), global, *wasm.image, *memory,
+                         *wasm.state_image, *size) { return 0 }
+    return ExecHostsStateValue(wasm.hosts, index, wasm.state_image, size, value)
+}
+
+#program_export
+ZxWasmStateStore :: (wasm: *ZxWasm, values: **HostValue) -> s32 {
+    if wasm == null || wasm.failed != 0 || values == null { return 0 }
+    count := ExecBundleStateCount(wasm.exec)
+    images := cast(**u8)calloc(count + 1, size_of(*u8))
+    sizes := cast(*usize)calloc(count + 1, size_of(usize))
+    ok: s32 = ifx images != null && sizes != null then 1 else 0
+    // Every value becomes an image before any global changes.
+    for index: 0..cast(s64)count - 1 {
+        if ok == 0 { break }
+        image_value := values[cast(usize)index]
+        if image_value == null { continue }
+        bytes: *u8 = null
+        if ExecHostsStateImage(wasm.hosts, cast(usize)index, image_value, *bytes, *sizes[cast(usize)index]) == 0 {
+            ok = 0
+            break
+        }
+        image := cast(*u8)malloc(ifx sizes[cast(usize)index] != 0 then sizes[cast(usize)index] else 1)
+        images[cast(usize)index] = image
+        if image == null { ok = 0; break }
+        if sizes[cast(usize)index] != 0 { unused memcpy(image, bytes, sizes[cast(usize)index]) }
+    }
+    memory := WasmMemoryFor(wasm)
+    for index: 0..cast(s64)count - 1 {
+        if ok == 0 { break }
+        image := images[cast(usize)index]
+        if image == null { continue }
+        module: *u8 = null
+        name: *u8 = null
+        type: *u8 = null
+        global: s32 = 0
+        if ExecBundleStateAt(wasm.exec, cast(usize)index, *module, *name, *type, *global) == 0 ||
+           !Wasm.GlobalStore(cast(*LIR.LirProgram)ExecBundleProgram(wasm.exec), global, *wasm.image, *memory,
+                             image, sizes[cast(usize)index]) { ok = 0 }
+    }
+    for index: 0..cast(s64)count - 1 {
+        if images != null { free(images[cast(usize)index]) }
+    }
+    free(cast(*u8)images)
+    free(cast(*u8)sizes)
+    return ok
+}
+
+#program_export
+ZxWasmClose :: (wasm: *ZxWasm) {
+    if wasm == null { return }
+    if cast(*void)wasm.platform.release != null && wasm.handle != 0 {
+        wasm.platform.release(wasm.platform.context, wasm.handle)
+    }
+    ExecHostsClose(wasm.hosts)
+    Wasm.ImageFree(*wasm.image)
+    free(cast(*u8)wasm.host_of)
+    free(wasm.state_image)
+    free(cast(*u8)wasm)
+}

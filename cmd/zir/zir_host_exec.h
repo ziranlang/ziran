@@ -1,7 +1,8 @@
 /*
  * zir_host_exec.h - revision-28 executable ZX behind the embedding API
- * (include/ziran_host.h). The engine is generated Ziran; this interface keeps
- * its headers out of the rest of the library.
+ * (include/ziran_host.h), implemented in cmd/compiler_zx_exec*.zi. The engine
+ * is generated Ziran; this interface keeps its headers out of the rest of the
+ * library.
  */
 #ifndef ZIR_HOST_EXEC_H
 #define ZIR_HOST_EXEC_H

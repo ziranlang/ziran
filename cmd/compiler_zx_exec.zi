@@ -1,17 +1,38 @@
-// Revision-28 executable ZX behind the embedding API: the platform console
-// services a run binds (cmd/zir/zir_exec_console.h). It is generated with
-// the portable instruction engine and compiled under the engine's private
-// names, so its calls reach the engine libziran carries while its own entry
-// points keep their C names. cmd/zir/zir_host_exec.c holds the rest of the
-// facade until it is ported.
+// Revision-28 executable ZX behind the embedding API (zir_host_exec.h and
+// zir_exec_console.h): a bundle is read, verified and planned once, and each
+// instance runs it on the portable instruction engine with its host
+// capabilities and platform console services bound. It is generated with
+// the engine and compiled under the engine's private names, so its calls
+// reach the engine libziran carries while its own entry points keep their C
+// names.
+//
+// This file holds the console services and the shared declarations;
+// compiler_zx_exec_bundle.zi reads bundles, compiler_zx_exec_hosts.zi
+// translates host calls and compiler_zx_exec_instance.zi runs instances.
 Exec :: #import "compiler_exec"
 LIR :: #import "compiler_lowered_ir"
+Link :: #import "compiler_exec_link"
+Serial :: #import "compiler_exec_serial"
+Assets :: #import "compiler_bundle"
+Debug :: #import "compiler_exec_debug"
 
-#scope_file
-
+// Shared with the loaded files, so declared at module scope.
 libc :: #system_library "libc";
 compiler :: #system_library "ziran";
 
+malloc :: (size: usize) -> *u8 #foreign libc "malloc";
+calloc :: (count: usize, size: usize) -> *u8 #foreign libc "calloc";
+realloc :: (memory: *u8, size: usize) -> *u8 #foreign libc "realloc";
+free :: (memory: *u8) #foreign libc "free";
+strcmp :: (a: *u8, b: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (a: *u8, b: *u8, count: usize) -> s32 #foreign libc "strncmp";
+strchr :: (s: *u8, c: s32) -> *u8 #foreign libc "strchr";
+strrchr :: (s: *u8, c: s32) -> *u8 #foreign libc "strrchr";
+memchr :: (data: *u8, c: s32, count: usize) -> *u8 #foreign libc "memchr";
+// C long is pointer-sized on every target, wasm32 included.
+strtol :: (s: *u8, end: **u8, base: s32) -> isize #foreign libc "strtol";
+snprintf :: (out: *u8, size: usize, format: *u8, args: ..any) -> s32 #foreign libc "snprintf";
+fflush :: (file: *void) -> s32 #foreign libc "fflush";
 memcpy :: (dst: *u8, src: *u8, count: usize) -> *u8 #foreign libc "memcpy";
 memset :: (dst: *u8, value: s32, count: usize) -> *u8 #foreign libc "memset";
 memcmp :: (a: *u8, b: *u8, count: usize) -> s32 #foreign libc "memcmp";
@@ -21,6 +42,123 @@ isatty :: (descriptor: s32) -> s32 #foreign libc "isatty";
 StandardOutput :: () -> *void #foreign compiler "CompilerStandardOutput";
 StandardError :: () -> *void #foreign compiler "CompilerStandardError";
 FormatPrintFloat :: (value: float64, single: s32, out: *u8, capacity: usize) #foreign compiler "FormatPrintFloat";
+Diagnostic :: (span: ZirSourceSpan, code: *u8, fmt: *u8, args: ..any) #foreign compiler "Diagnostic";
+Span :: (path: *u8, line: s32, column: s32) -> ZirSourceSpan #foreign compiler "Span";
+ZxRunControlRequested :: (control: *ZxRunControl) -> s32 #foreign compiler "ZxRunControlRequested";
+// The instance whose host call this thread is running (zir_atomics.c).
+ThreadEngine :: () -> *void #foreign compiler "S15ThreadEngine";
+SetThreadEngine :: (engine: *void) #foreign compiler "S15SetThreadEngine";
+Sha256Begin :: (hash: *Sha256) #foreign compiler "Sha256Begin";
+Sha256Add :: (hash: *Sha256, data: *u8, size: usize) #foreign compiler "Sha256Add";
+Sha256End :: (hash: *Sha256, digest: *u8) #foreign compiler "Sha256End";
+
+ZirSourceSpan :: struct {
+    context: *u8
+    file: s32
+    line: s32
+    column: s32
+    end_line: s32
+    end_column: s32
+}
+NoSpan :: () -> ZirSourceSpan {
+    span: ZirSourceSpan
+    return span
+}
+
+Sha256 :: struct {
+    state: [8]u32
+    length: u64
+    block: [64]u8
+    used: usize
+}
+
+// include/ziran_host.h's records and callbacks, field for field.
+HostKind :: enum s32 { Void; Integer; Unsigned; Real; String; Record; Slice; Pointer; Array; BorrowedSlice }
+
+HostValue :: struct {
+    kind: HostKind
+    type: *u8
+    integer: s64
+    bits: u64
+    real: float64
+    data: *u8
+    length: usize
+    fields: *HostField
+    field_count: usize
+    elements: *HostValue
+    pointer: *void
+}
+
+HostField :: struct {
+    name: *u8
+    value: HostValue
+}
+
+HostBinding :: struct {
+    module: *u8
+    function: *u8
+    call: *void
+    context: *void
+}
+
+BundleCapabilityAbi :: struct {
+    module: *u8
+    function: *u8
+    signature: *u8
+    arguments: *u8
+    return_type: *u8
+    variable_arguments: s32
+    reads_arguments: s32
+}
+
+ZxRunControl :: struct { requested: s32 }
+
+BundleImageRelease :: #type (context: *void, data: *u8, size: usize) #c_call;
+BundleReadAt :: #type (context: *void, offset: u64, output: *void, size: usize) -> usize #c_call;
+BundleShrink :: #type (storage: *void, size: usize) -> *void #c_call;
+
+// ziran_host.h's ZxRunStatus.
+RUN_ERROR :: 0
+RUN_OK :: 1
+RUN_CANCELLED :: 2
+
+Advance :: (text: *u8, count: usize) -> *u8 { return cast(*u8)(cast(usize)text + count) }
+PtrDistance :: (end: *u8, start: *u8) -> usize { return cast(usize)end - cast(usize)start }
+Same :: (a: *u8, b: *u8) -> bool { return strcmp(a, b) == 0 }
+SizeMax :: () -> usize {
+    zero: usize = 0
+    return zero - 1
+}
+TextOf :: (data: *u8, length: usize) -> string {
+    result: string
+    view := cast(*StaticText)(*result)
+    view.data = data
+    view.length = length
+    return result
+}
+// The words of a std/vec Vec, for the facade's in-place rewrites of the
+// reader's and the plan's storage, as the engine's C callers see them.
+RawVec :: struct {
+    data: *u8
+    count: s64
+    capacity: s64
+}
+RawOf :: (vector: *void) -> *RawVec { return cast(*RawVec)vector }
+
+// The words of a slice ([]T): zir_slice.h uses int64_t for length, unlike
+// String which uses size_t.
+RawSlice :: struct {
+    data: *u8
+    length: s64
+}
+
+BytesOf :: (data: *u8, length: s64) -> []u8 {
+    result: []u8
+    view := cast(*RawSlice)(*result)
+    view.data = data
+    view.length = length
+    return result
+}
 
 StaticText :: struct { data: *u8; length: usize }
 CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
@@ -234,3 +372,8 @@ PrintFloat64 :: (context: *void, function: s32, arguments: []u64, result: *u64) 
     FormatPrintFloat(value, 0, *text[0], 64)
     return PrintText(context, *text[0], strlen(*text[0]), result)
 }
+
+#load "compiler_zx_exec_bundle.zi";
+#load "compiler_zx_exec_hosts.zi";
+#load "compiler_zx_exec_instance.zi";
+#load "compiler_zx_exec_wasm.zi";

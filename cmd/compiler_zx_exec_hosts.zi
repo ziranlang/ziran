@@ -1,0 +1,1165 @@
+// Host calls of one bundle: arguments and results cross as the engine's
+// host images (scalars and pointers as bits, anything else as the value's
+// bytes followed by the elements of each view inside it, a view's two words
+// being the offset of its elements and their count), translated to and from
+// HostValue trees by the rules the semantic VM follows. A host's changes to
+// the elements of a []T argument are copied back. Native calls translate the
+// in-process representation the same way. Loaded by compiler_zx_exec.zi.
+
+// One allocation of a call's host values, freed when the call returns.
+ExecBlock :: struct {
+    next: *ExecBlock
+    pad: u64
+}
+EXEC_BLOCK_HEADER :: 16
+
+// A growing buffer of host images. Offsets in an image count from BASE.
+// While GIVEN is set, a string still inside those bytes, the image the host
+// was called with and copied to BASE, keeps its place.
+ExecImage :: struct {
+    bytes: *u8
+    length: usize
+    capacity: usize
+    base: usize
+    given: *u8
+    given_length: usize
+}
+
+// zir_host_exec.h's ExecHostArgument and ExecHostNativeValue.
+ExecHostArgument :: struct {
+    type: s32
+    bits: u64
+    bytes: *u8
+    size: usize
+    changed: s32
+    borrowed: s32
+}
+
+ExecHostNativeValue :: struct {
+    type: s32
+    bits: u64
+    bytes: *u8
+    size: usize
+}
+
+ExecFindBinding :: #type (context: *void, module: *u8, function: *u8) -> *HostBinding #c_call;
+ExecNativeResolve :: #type (context: *void, token: u64, bytes: usize, writable: s32) -> *void #c_call;
+ExecNativeCreate :: #type (context: *void, address: *void, bytes: usize) -> u64 #c_call;
+HostCallback :: #type (context: *void, module: *u8, function: *u8, args: *HostValue, count: s32, result: *HostValue) -> s32 #c_call;
+
+ExecHosts :: struct {
+    engine: *ExecInstance
+    bundle: *ExecBundle
+    bound: **HostBinding
+    blocks: *ExecBlock
+    result: ExecImage
+    // Mutable slice arguments' new images, and images of imported state.
+    back: ExecImage
+    // Native aggregate arguments translated to engine images, and native
+    // result and copy-back payloads. A payload holding the elements of
+    // returned views moves to RETAINED, so a string or slice a host returns
+    // stays valid for later calls, as on the engine, until the hosts close.
+    native_in: ExecImage
+    native_out: ExecImage
+    retained: **u8
+    retained_count: usize
+    retained_capacity: usize
+    retained_bytes: usize
+    native_resolve: ExecNativeResolve
+    native_create: ExecNativeCreate
+    native_pointers: *void
+    match_fields_by_name: s32
+}
+
+ValueAt :: (values: *HostValue, index: usize) -> *HostValue { return *values[index] }
+FieldValueAt :: (fields: *HostField, index: usize) -> *HostField { return *fields[index] }
+ArgumentAt :: (arguments: *ExecHostArgument, index: usize) -> *ExecHostArgument { return *arguments[index] }
+NativeAt :: (values: *ExecHostNativeValue, index: usize) -> *ExecHostNativeValue { return *values[index] }
+
+// The address a native pointer value names for BYTES bytes, or null.
+NativeAddress :: (hosts: *ExecHosts, value: u64, bytes: usize, writable: s32) -> *u8 {
+    if cast(*void)hosts.native_resolve == null { return cast(*u8)cast(usize)value }
+    return cast(*u8)hosts.native_resolve(hosts.native_pointers, value, bytes, writable)
+}
+
+// The native pointer value naming BYTES read-only bytes at ADDRESS.
+NativeName :: (hosts: *ExecHosts, address: *u8, bytes: usize) -> u64 {
+    if cast(*void)hosts.native_create == null { return cast(u64)cast(usize)address }
+    return hosts.native_create(hosts.native_pointers, cast(*void)address, bytes)
+}
+
+// COUNT zeroed items of WIDTH bytes that live until the call returns.
+Arena :: (hosts: *ExecHosts, count: usize, width: usize) -> *u8 {
+    if width != 0 && count > (SizeMax() - EXEC_BLOCK_HEADER) / width { return null }
+    items: usize = ifx count != 0 then count else 1
+    block := cast(*ExecBlock)calloc(1, EXEC_BLOCK_HEADER + items * width)
+    if block == null { return null }
+    block.next = hosts.blocks
+    hosts.blocks = block
+    return Advance(cast(*u8)block, EXEC_BLOCK_HEADER)
+}
+
+ArenaFree :: (hosts: *ExecHosts) {
+    while hosts.blocks != null {
+        next := hosts.blocks.next
+        free(cast(*u8)hosts.blocks)
+        hosts.blocks = next
+    }
+}
+
+TypeOf :: (bundle: *ExecBundle, type: s32) -> *LIR.LirType { return *bundle.program.types[type] }
+SizeOf :: (bundle: *ExecBundle, type: s32) -> s64 {
+    sizes := cast(*s64)RawOf(cast(*void)*bundle.plan.type_sizes).data
+    return sizes[type]
+}
+
+ReadWord :: (bytes: *u8, count: s64) -> u64 {
+    value: u64 = 0
+    for at: cast(s64)0..count - 1 { value = value | (cast(u64)bytes[at] << cast(u64)(8 * at)) }
+    return value
+}
+
+WriteWord :: (bytes: *u8, count: s64, value: u64) {
+    for at: cast(s64)0..count - 1 { bytes[at] = cast(u8)(value >> cast(u64)(8 * at)) }
+}
+
+// The element type of a view type {data: *T, count: s64}, or -1.
+ViewElement :: (bundle: *ExecBundle, type: s32) -> s32 {
+    view := TypeOf(bundle, type)
+    if view.kind != .Record || view.fields.count != 2 { return -1 }
+    pointer := TypeOf(bundle, view.fields[0])
+    return ifx pointer.kind == .Pointer then pointer.element else -1
+}
+
+// Unlike a HostValue tree, a byte view relies on its declared element
+// spelling to tell the callback how many bytes to read: both interface
+// names must agree with the element type in the checked program.
+BorrowableSlice :: (bundle: *ExecBundle, node: *ExecNode, type: s32) -> bool {
+    if node.class != NODE_SLICE || strncmp(node.spelling, CStr("[]"), 2) != 0 { return false }
+    child := NodeAt(bundle, node.child)
+    item := ViewElement(bundle, type)
+    if child.class != NODE_SCALAR || item < 0 { return false }
+    element := TypeOf(bundle, item)
+    if element.native_width { return false }
+    prefix: *u8 = null
+    if element.kind == .Integer { prefix = ifx element.is_signed then CStr("s") else CStr("u") }
+    else if element.kind == .Float { prefix = CStr("float") }
+    else { return false }
+    spelling: [16]u8
+    unused snprintf(*spelling[0], 16, CStr("%s%d"), prefix, element.bits)
+    return Same(child.spelling, *spelling[0]) && Same(Advance(node.spelling, 2), *spelling[0])
+}
+
+// A module export's value: a node of BUNDLE's interface and its LIR type.
+ModuleType :: struct {
+    bundle: *ExecBundle
+    node: s32
+    type: s32
+}
+
+ModuleHostType :: (bundle: *ExecBundle, host_id: usize, parameter: s32, out: *ModuleType) -> bool {
+    if bundle.interface_complete == 0 || host_id >= bundle.host_count { return false }
+    host := HostAt(bundle, host_id)
+    function := *bundle.program.functions[host.function]
+    if host.host_lines != 1 || host.abi_lines != 1 || host.variadic != 0 || function.variadic ||
+       parameter < -1 || parameter >= host.parameter_count { return false }
+    out.bundle = bundle
+    if parameter < 0 {
+        out.node = host.result
+        out.type = function.result
+    } else {
+        out.node = host.parameters[parameter]
+        out.type = function.parameters[parameter]
+    }
+    return true
+}
+
+ModuleScalar :: (node: *ExecNode, type: *LIR.LirType) -> bool {
+    name := node.spelling
+    if Is(name, "bool") { return type.kind == .Bool }
+    if Is(name, "float32") || Is(name, "float64") {
+        return type.kind == .Float && type.bits == (ifx name[5] == #char "3" then 32 else 64)
+    }
+    if name[0] == #char "s" || name[0] == #char "u" {
+        widths: [4]string = .["8", "16", "32", "64"]
+        for i: 0..3 {
+            if Same(Advance(name, 1), CStr(widths[i])) {
+                return type.kind == .Integer && type.bits == (8 << cast(s32)i) && type.is_signed == (name[0] == #char "s") && !type.native_width
+            }
+        }
+    }
+    return type.kind == .Integer || type.kind == .Float || type.kind == .Bool
+}
+
+// Whether two portable value shapes agree, by both the HostValue
+// declaration and the verified LIR, through nested record fields and array
+// elements.
+ModuleTypeEqual :: (left: ModuleType, right: ModuleType, depth: s32, remaining: *usize) -> bool {
+    if depth > EXEC_DEPTH || <<remaining == 0 { return false }
+    <<remaining -= 1
+    a := TypeOf(left.bundle, left.type)
+    b := TypeOf(right.bundle, right.type)
+    if left.node < 0 || right.node < 0 { return left.node == right.node && a.kind == .Void && b.kind == .Void }
+    x := NodeAt(left.bundle, left.node)
+    y := NodeAt(right.bundle, right.node)
+    if x.spelling[0] == 0 || !Same(x.spelling, y.spelling) || x.class != y.class || a.kind != b.kind { return false }
+    if x.class == NODE_SCALAR {
+        return ModuleScalar(x, a) && ModuleScalar(y, b) && a.bits == b.bits && a.is_signed == b.is_signed && a.native_width == b.native_width
+    }
+    if x.class == NODE_STRING {
+        l := ViewElement(left.bundle, left.type)
+        r := ViewElement(right.bundle, right.type)
+        if l < 0 || r < 0 || a.fields.count != 2 || b.fields.count != 2 || !Is(x.spelling, "string") { return false }
+        lc := TypeOf(left.bundle, a.fields[1])
+        rc := TypeOf(right.bundle, b.fields[1])
+        le := TypeOf(left.bundle, l)
+        re := TypeOf(right.bundle, r)
+        return le.kind == .Integer && re.kind == .Integer && le.bits == 8 && re.bits == 8 && !le.is_signed && !re.is_signed &&
+               lc.kind == .Integer && rc.kind == .Integer && lc.bits == 64 && rc.bits == 64
+    }
+    if x.class == NODE_ARRAY {
+        return a.kind == .Array && a.count == b.count &&
+            ModuleTypeEqual(ModuleType.{bundle = left.bundle, node = x.child, type = a.element},
+                            ModuleType.{bundle = right.bundle, node = y.child, type = b.element}, depth + 1, remaining)
+    }
+    if x.class == NODE_RECORD {
+        if a.kind != .Record || x.field_count != y.field_count || a.fields.count != cast(s64)x.field_count ||
+           b.fields.count != cast(s64)y.field_count { return false }
+        for field: 0..x.field_count - 1 {
+            if !Same(x.field_names[field], y.field_names[field]) ||
+               !ModuleTypeEqual(ModuleType.{bundle = left.bundle, node = x.field_nodes[field], type = a.fields[field]},
+                                ModuleType.{bundle = right.bundle, node = y.field_nodes[field], type = b.fields[field]}, depth + 1, remaining) {
+                return false
+            }
+        }
+        return true
+    }
+    // Pointers, slices and procedures need a shared address space.
+    return false
+}
+
+#program_export
+ExecBundleModuleType :: (bundle: *ExecBundle, host: usize, parameter: s32) -> *u8 {
+    type: ModuleType
+    remaining: usize = 65536
+    if !ModuleHostType(bundle, host, parameter, *type) || !ModuleTypeEqual(type, type, 0, *remaining) { return null }
+    name := ifx type.node >= 0 then NodeAt(bundle, type.node).spelling else CStr("void")
+    declared := HostAt(bundle, host).return_type
+    if parameter < 0 && !TypeMatches(name, ifx declared[0] != 0 then declared else CStr("void"), 0) { return null }
+    return name
+}
+
+#program_export
+ExecBundleModuleTypeEqual :: (left: *ExecBundle, left_host: usize, left_parameter: s32,
+                              right: *ExecBundle, right_host: usize, right_parameter: s32) -> s32 {
+    a: ModuleType
+    b: ModuleType
+    remaining: usize = 65536
+    equal := ModuleHostType(left, left_host, left_parameter, *a) && ModuleHostType(right, right_host, right_parameter, *b) &&
+        ModuleTypeEqual(a, b, 0, *remaining)
+    return ifx equal then 1 else 0
+}
+
+#program_export
+ExecBundleModuleParameterCount :: (bundle: *ExecBundle, host: usize) -> s32 {
+    return ifx host < bundle.host_count then HostAt(bundle, host).parameter_count else -1
+}
+
+// A scalar's bits as the semantic VM gives them to a host, which keeps a u64
+// beyond the s64 range only in bits.
+ScalarValue :: (node: *ExecNode, type: *LIR.LirType, bits: u64, out: *HostValue) -> bool {
+    out.type = node.spelling
+    if type.kind == .Float {
+        out.kind = .Real
+        if type.bits == 32 {
+            narrow := cast(u32)bits
+            value: float32 = 0
+            unused memcpy(cast(*u8)*value, cast(*u8)*narrow, 4)
+            out.real = cast(float64)value
+        } else {
+            unused memcpy(cast(*u8)*out.real, cast(*u8)*bits, 8)
+        }
+        return true
+    }
+    if type.kind != .Integer && type.kind != .Bool { return false }
+    width: s32 = ifx type.kind == .Bool then 1 else type.bits
+    integer := cast(s64)bits
+    if type.kind == .Integer && type.is_signed && width < 64 && ((bits >> cast(u64)(width - 1)) & 1) != 0 {
+        integer = cast(s64)(bits | ~((cast(u64)1 << cast(u64)width) - 1))
+    }
+    out.kind = ifx node.spelling[0] == #char "u" then .Unsigned else .Integer
+    if out.kind == .Unsigned && bits > 9223372036854775807 { integer = 0 }
+    out.integer = integer
+    out.bits = bits
+    return true
+}
+
+// Reads the TYPE value at IMAGE[AT] into OUT, as NODE_ID names it.
+FromImage :: (hosts: *ExecHosts, node_id: s32, type: s32, image: *u8, size: s64, at: s64, out: *HostValue, depth: s32) -> bool {
+    bundle := hosts.bundle
+    node := NodeAt(bundle, node_id)
+    shape := TypeOf(bundle, type)
+    width := SizeOf(bundle, type)
+    if depth > EXEC_DEPTH || at < 0 || width < 0 || at > size || width > size - at { return false }
+    out.type = node.spelling
+    if node.class == NODE_PROCEDURE { return false }
+    if node.class == NODE_SCALAR { return ScalarValue(node, shape, ReadWord(Advance(image, cast(usize)at), width), out) }
+    if node.class == NODE_POINTER {
+        if shape.kind != .Pointer { return false }
+        out.kind = .Pointer
+        out.pointer = cast(*void)cast(usize)ReadWord(Advance(image, cast(usize)at), 8)
+        return true
+    }
+    if node.class == NODE_ARRAY {
+        if shape.kind != .Array { return false }
+        element := SizeOf(bundle, shape.element)
+        out.kind = .Array
+        out.length = cast(usize)shape.count
+        if shape.count == 0 { return true }
+        out.elements = cast(*HostValue)Arena(hosts, cast(usize)shape.count, size_of(HostValue))
+        if out.elements == null { return false }
+        for index: cast(s64)0..shape.count - 1 {
+            if !FromImage(hosts, node.child, shape.element, image, size, at + index * element, ValueAt(out.elements, cast(usize)index), depth + 1) { return false }
+        }
+        return true
+    }
+    if node.class == NODE_RECORD {
+        if shape.kind != .Record || shape.fields.count != cast(s64)node.field_count { return false }
+        fields := cast(*HostField)Arena(hosts, cast(usize)node.field_count, size_of(HostField))
+        if fields == null { return false }
+        out.kind = .Record
+        out.fields = fields
+        out.field_count = cast(usize)node.field_count
+        offset := at
+        for index: 0..node.field_count - 1 {
+            field := shape.fields[index]
+            target := FieldValueAt(fields, cast(usize)index)
+            target.name = node.field_names[index]
+            if !FromImage(hosts, node.field_nodes[index], field, image, size, offset, *target.value, depth + 1) { return false }
+            offset += SizeOf(bundle, field)
+        }
+        return true
+    }
+    // A string or slice: its two words, then its elements in the image.
+    element := ViewElement(bundle, type)
+    if element < 0 || width != 16 { return false }
+    start := ReadWord(Advance(image, cast(usize)at), 8)
+    count := ReadWord(Advance(image, cast(usize)at + 8), 8)
+    element_width := SizeOf(bundle, element)
+    if element_width <= 0 || start > cast(u64)size || count > cast(u64)((size - cast(s64)start) / element_width) { return false }
+    if node.class == NODE_STRING {
+        if element_width != 1 { return false }
+        out.kind = .String
+        out.data = ifx count != 0 then Advance(image, cast(usize)start) else null
+        out.length = cast(usize)count
+        return true
+    }
+    out.kind = .Slice
+    out.length = cast(usize)count
+    out.elements = cast(*HostValue)Arena(hosts, cast(usize)count, size_of(HostValue))
+    if out.elements == null { return false }
+    index: u64 = 0
+    while index < count {
+        if !FromImage(hosts, node.child, element, image, size, cast(s64)start + cast(s64)index * element_width,
+                      ValueAt(out.elements, cast(usize)index), depth + 1) { return false }
+        index += 1
+    }
+    return true
+}
+
+// Room for COUNT more zero bytes at the end of IMAGE: their offset in its
+// bytes, or -1. An image decodes into the instance's value storage, so one
+// beyond its value-byte limit is refused before any of it is allocated.
+ImageGrow :: (image: *ExecImage, count: s64) -> s64 {
+    if count < 0 || cast(usize)count > SizeMax() / 2 - image.length { return -1 }
+    needed := image.length + cast(usize)count
+    if needed > cast(usize)Exec.LirExecDefaultLimits().value_bytes { return -1 }
+    if needed > image.capacity {
+        capacity: usize = ifx image.capacity != 0 then image.capacity else 256
+        while capacity < needed { capacity *= 2 }
+        grown := realloc(image.bytes, capacity)
+        if grown == null { return -1 }
+        image.bytes = grown
+        image.capacity = capacity
+    }
+    at := cast(s64)image.length
+    // An empty image asked for no bytes still has no storage.
+    if count > 0 { unused memset(Advance(image.bytes, cast(usize)at), 0, cast(usize)count) }
+    image.length = needed
+    return at
+}
+
+ImageAt :: (image: *ExecImage, at: s64) -> *u8 { return Advance(image.bytes, cast(usize)at) }
+
+// Writes the in-process representation at NATIVE into an engine image: a
+// native view holds an address and count, the image a root-relative offset
+// and count.
+NativeToImage :: (hosts: *ExecHosts, image: *ExecImage, node_id: s32, type: s32, native: *u8, at: s64, depth: s32) -> bool {
+    bundle := hosts.bundle
+    node := NodeAt(bundle, node_id)
+    shape := TypeOf(bundle, type)
+    width := SizeOf(bundle, type)
+    if depth > EXEC_DEPTH || native == null || width < 0 || node.class == NODE_PROCEDURE { return false }
+    if node.class == NODE_SCALAR || node.class == NODE_POINTER {
+        unused memcpy(ImageAt(image, at), native, cast(usize)width)
+        return true
+    }
+    if node.class == NODE_ARRAY {
+        if shape.kind != .Array { return false }
+        element := SizeOf(bundle, shape.element)
+        for index: cast(s64)0..shape.count - 1 {
+            if !NativeToImage(hosts, image, node.child, shape.element, Advance(native, cast(usize)(index * element)), at + index * element, depth + 1) { return false }
+        }
+        return true
+    }
+    if node.class == NODE_RECORD {
+        if shape.kind != .Record || shape.fields.count != cast(s64)node.field_count { return false }
+        offset: s64 = 0
+        for index: 0..node.field_count - 1 {
+            field := shape.fields[index]
+            if !NativeToImage(hosts, image, node.field_nodes[index], field, Advance(native, cast(usize)offset), at + offset, depth + 1) { return false }
+            offset += SizeOf(bundle, field)
+        }
+        return true
+    }
+    element := ViewElement(bundle, type)
+    element_width: s64 = ifx element >= 0 then SizeOf(bundle, element) else -1
+    if element < 0 || width != 16 || element_width <= 0 { return false }
+    pointer := ReadWord(native, 8)
+    count := ReadWord(Advance(native, 8), 8)
+    unused memset(ImageAt(image, at), 0, 16)
+    WriteWord(ImageAt(image, at + 8), 8, count)
+    if count == 0 { return true }
+    if pointer == 0 || count > cast(u64)(9223372036854775807 / element_width) { return false }
+    bytes := cast(s64)count * element_width
+    elements := NativeAddress(hosts, pointer, cast(usize)bytes, 0)
+    if elements == null { return false }
+    start := ImageGrow(image, bytes)
+    if start < 0 { return false }
+    WriteWord(ImageAt(image, at), 8, cast(u64)(start - cast(s64)image.base))
+    // A string's elements are its bytes; its node has no element child.
+    if node.class == NODE_STRING {
+        unused memcpy(ImageAt(image, start), elements, cast(usize)bytes)
+        return true
+    }
+    index: u64 = 0
+    while index < count {
+        if !NativeToImage(hosts, image, node.child, element, Advance(elements, cast(usize)(index * cast(u64)element_width)),
+                          start + cast(s64)index * element_width, depth + 1) { return false }
+        index += 1
+    }
+    return true
+}
+
+// Writes one engine-image value in its native representation. OUT owns the
+// elements of returned nested views; its capacity is reserved before the
+// call, so addresses written into NATIVE stay valid.
+ImageToNative :: (hosts: *ExecHosts, out: *ExecImage, node_id: s32, type: s32, image: *u8, size: s64, at: s64, native: *u8, depth: s32) -> bool {
+    bundle := hosts.bundle
+    node := NodeAt(bundle, node_id)
+    shape := TypeOf(bundle, type)
+    width := SizeOf(bundle, type)
+    if depth > EXEC_DEPTH || native == null || at < 0 || width < 0 || at > size || width > size - at || node.class == NODE_PROCEDURE { return false }
+    if node.class == NODE_SCALAR || node.class == NODE_POINTER {
+        unused memcpy(native, Advance(image, cast(usize)at), cast(usize)width)
+        return true
+    }
+    if node.class == NODE_ARRAY {
+        if shape.kind != .Array { return false }
+        element := SizeOf(bundle, shape.element)
+        for index: cast(s64)0..shape.count - 1 {
+            if !ImageToNative(hosts, out, node.child, shape.element, image, size, at + index * element, Advance(native, cast(usize)(index * element)), depth + 1) { return false }
+        }
+        return true
+    }
+    if node.class == NODE_RECORD {
+        if shape.kind != .Record || shape.fields.count != cast(s64)node.field_count { return false }
+        offset: s64 = 0
+        for index: 0..node.field_count - 1 {
+            field := shape.fields[index]
+            if !ImageToNative(hosts, out, node.field_nodes[index], field, image, size, at + offset, Advance(native, cast(usize)offset), depth + 1) { return false }
+            offset += SizeOf(bundle, field)
+        }
+        return true
+    }
+    element := ViewElement(bundle, type)
+    element_width: s64 = ifx element >= 0 then SizeOf(bundle, element) else -1
+    if element < 0 || width != 16 || element_width <= 0 { return false }
+    start := ReadWord(Advance(image, cast(usize)at), 8)
+    count := ReadWord(Advance(image, cast(usize)at + 8), 8)
+    if start > cast(u64)size || count > cast(u64)((size - cast(s64)start) / element_width) ||
+       count > cast(u64)(9223372036854775807 / element_width) { return false }
+    WriteWord(Advance(native, 8), 8, count)
+    if count == 0 {
+        WriteWord(native, 8, 0)
+        return true
+    }
+    bytes := cast(s64)count * element_width
+    target := ImageGrow(out, bytes)
+    if target < 0 { return false }
+    elements := ImageAt(out, target)
+    named := NativeName(hosts, elements, cast(usize)bytes)
+    if named == 0 { return false }
+    WriteWord(native, 8, named)
+    if node.class == NODE_STRING {
+        unused memcpy(elements, Advance(image, cast(usize)start), cast(usize)bytes)
+        return true
+    }
+    index: u64 = 0
+    while index < count {
+        if !ImageToNative(hosts, out, node.child, element, image, size, cast(s64)start + cast(s64)index * element_width,
+                          Advance(elements, cast(usize)(index * cast(u64)element_width)), depth + 1) { return false }
+        index += 1
+    }
+    return true
+}
+
+// QUALIFIED differs from PLAIN only by module qualifier dots.
+FlatTypeMatches :: (qualified: *u8, plain: *u8) -> bool {
+    q := qualified
+    p := plain
+    while q[0] != 0 && p[0] != 0 {
+        if q[0] == #char "." {
+            q = Advance(q, 1)
+            continue
+        }
+        if q[0] != p[0] { return false }
+        q = Advance(q, 1)
+        p = Advance(p, 1)
+    }
+    while q[0] == #char "." { q = Advance(q, 1) }
+    return q[0] == 0 && p[0] == 0
+}
+
+IsHexDigit :: (c: u8) -> bool { return (c >= #char "0" && c <= #char "9") || (c >= #char "a" && c <= #char "f") }
+
+// Whether a host names a value's type as declared: the same spelling, or one
+// that differs only by a module or package qualifier, element by element
+// through arrays, slices and pointers.
+TypeMatches :: (expected: *u8, actual: *u8, depth: s32) -> bool {
+    if depth >= EXEC_DEPTH || expected == null || actual == null { return false }
+    if Same(expected, actual) { return true }
+    if expected[0] == #char "[" && actual[0] == #char "[" {
+        expected_close := strchr(expected, #char "]")
+        actual_close := strchr(actual, #char "]")
+        if expected_close == null || actual_close == null { return false }
+        expected_prefix := PtrDistance(expected_close, expected) + 1
+        actual_prefix := PtrDistance(actual_close, actual) + 1
+        return expected_prefix == actual_prefix && memcmp(expected, actual, expected_prefix) == 0 &&
+               TypeMatches(Advance(expected_close, 1), Advance(actual_close, 1), depth + 1)
+    }
+    if expected[0] == #char "*" && actual[0] == #char "*" { return TypeMatches(Advance(expected, 1), Advance(actual, 1), depth + 1) }
+    expected_dot := strrchr(expected, #char ".")
+    actual_dot := strrchr(actual, #char ".")
+    expected_leaf := ifx expected_dot != null then Advance(expected_dot, 1) else expected
+    actual_leaf := ifx actual_dot != null then Advance(actual_dot, 1) else actual
+    if expected_dot != null && actual_dot != null {
+        if !Same(expected_leaf, actual_leaf) { return false }
+        expected_module := PtrDistance(expected_dot, expected)
+        actual_module := PtrDistance(actual_dot, actual)
+        packaged := expected
+        plain := actual
+        packaged_length := expected_module
+        plain_length := actual_module
+        if actual_module > expected_module {
+            packaged = actual
+            plain = expected
+            packaged_length = actual_module
+            plain_length = expected_module
+        }
+        if packaged_length != plain_length + 18 || packaged[0] != #char "p" || packaged[17] != #char "_" { return false }
+        for i: 1..16 {
+            if !IsHexDigit(packaged[i]) { return false }
+        }
+        return memcmp(Advance(packaged, 18), plain, plain_length) == 0
+    }
+    if Same(expected_leaf, actual_leaf) { return true }
+    if expected_dot != null { return FlatTypeMatches(expected, actual) }
+    if actual_dot != null { return FlatTypeMatches(actual, expected) }
+    return false
+}
+
+// A scalar or pointer result's canonical bits by the rules of the semantic
+// VM's host returns: the host gives the kind its spelling selects.
+ScalarBits :: (node: *ExecNode, type: *LIR.LirType, value: *HostValue, bits: *u64) -> bool {
+    if value.field_count != 0 || value.fields != null || !TypeMatches(node.spelling, value.type, 0) { return false }
+    if node.class == NODE_POINTER {
+        if type.kind != .Pointer || value.kind != .Pointer { return false }
+        <<bits = cast(u64)cast(usize)value.pointer
+        return true
+    }
+    if type.kind == .Float {
+        if value.kind != .Real { return false }
+        if type.bits == 32 {
+            narrow := cast(float32)value.real
+            word: u32 = 0
+            unused memcpy(cast(*u8)*word, cast(*u8)*narrow, 4)
+            <<bits = cast(u64)word
+        } else {
+            unused memcpy(cast(*u8)bits, cast(*u8)*value.real, 8)
+        }
+        return true
+    }
+    if type.kind != .Integer && type.kind != .Bool { return false }
+    unsigned := node.spelling[0] == #char "u"
+    if unsigned && value.kind != .Unsigned { return false }
+    if !unsigned && value.kind != .Integer { return false }
+    raw := ifx unsigned then value.bits else cast(u64)value.integer
+    if type.kind == .Bool {
+        <<bits = ifx raw != 0 then 1 else 0
+    } else {
+        <<bits = ifx type.bits < 64 then raw & ((cast(u64)1 << cast(u64)type.bits) - 1) else raw
+    }
+    return true
+}
+
+FieldNamed :: (value: *HostValue, name: *u8) -> *HostField {
+    index: usize = 0
+    while index < value.field_count {
+        field := FieldValueAt(value.fields, index)
+        if field.name != null && Same(field.name, name) { return field }
+        index += 1
+    }
+    return null
+}
+
+// Writes the host's VALUE as the TYPE value at IMAGE's bytes at AT,
+// appending the elements of its views.
+ToImage :: (hosts: *ExecHosts, image: *ExecImage, node_id: s32, type: s32, value: *HostValue, at: s64, depth: s32) -> bool {
+    bundle := hosts.bundle
+    node := NodeAt(bundle, node_id)
+    shape := TypeOf(bundle, type)
+    width := SizeOf(bundle, type)
+    if depth > EXEC_DEPTH || width < 0 || node.class == NODE_PROCEDURE || !TypeMatches(node.spelling, value.type, 0) { return false }
+    if node.class == NODE_SCALAR || node.class == NODE_POINTER {
+        bits: u64 = 0
+        if !ScalarBits(node, shape, value, *bits) { return false }
+        WriteWord(ImageAt(image, at), width, bits)
+        return true
+    }
+    if node.class == NODE_ARRAY {
+        if shape.kind != .Array || value.kind != .Array || value.length != cast(usize)shape.count || (shape.count != 0 && value.elements == null) { return false }
+        element := SizeOf(bundle, shape.element)
+        for index: cast(s64)0..shape.count - 1 {
+            if !ToImage(hosts, image, node.child, shape.element, ValueAt(value.elements, cast(usize)index), at + index * element, depth + 1) { return false }
+        }
+        return true
+    }
+    if node.class == NODE_RECORD {
+        if shape.kind != .Record || shape.fields.count != cast(s64)node.field_count || value.kind != .Record ||
+           (value.field_count != 0 && value.fields == null) { return false }
+        if hosts.match_fields_by_name == 0 && value.field_count != cast(usize)node.field_count { return false }
+        offset := at
+        for index: 0..node.field_count - 1 {
+            field := shape.fields[index]
+            given: *HostField = null
+            if hosts.match_fields_by_name != 0 {
+                given = FieldNamed(value, node.field_names[index])
+            } else {
+                candidate := FieldValueAt(value.fields, cast(usize)index)
+                if candidate.name == null || !Same(candidate.name, node.field_names[index]) { return false }
+                given = candidate
+            }
+            // A field the host does not give keeps the value already there.
+            if given != null && !ToImage(hosts, image, node.field_nodes[index], field, *given.value, offset, depth + 1) { return false }
+            offset += SizeOf(bundle, field)
+        }
+        return true
+    }
+    element := ViewElement(bundle, type)
+    element_width: s64 = ifx element >= 0 then SizeOf(bundle, element) else -1
+    if element < 0 || width != 16 || element_width <= 0 { return false }
+    count := value.length
+    if node.class == NODE_STRING {
+        if value.kind != .String || element_width != 1 || (count != 0 && value.data == null) { return false }
+        unused memset(ImageAt(image, at), 0, 16)
+        if count == 0 { return true }
+        data := cast(usize)value.data
+        given := cast(usize)image.given
+        start: s64 = 0
+        if image.given != null && data >= given && count <= image.given_length && data - given <= image.given_length - count {
+            start = cast(s64)(data - given)
+        } else {
+            grown := ImageGrow(image, cast(s64)count)
+            if grown < 0 { return false }
+            unused memcpy(ImageAt(image, grown), value.data, count)
+            start = grown - cast(s64)image.base
+        }
+        WriteWord(ImageAt(image, at), 8, cast(u64)start)
+        WriteWord(ImageAt(image, at + 8), 8, cast(u64)count)
+        return true
+    }
+    if value.kind != .Slice || (count != 0 && value.elements == null) || count > cast(usize)(9223372036854775807 / element_width) { return false }
+    unused memset(ImageAt(image, at), 0, 16)
+    if count == 0 { return true }
+    start := ImageGrow(image, cast(s64)count * element_width)
+    if start < 0 { return false }
+    WriteWord(ImageAt(image, at), 8, cast(u64)(start - cast(s64)image.base))
+    WriteWord(ImageAt(image, at + 8), 8, cast(u64)count)
+    index: usize = 0
+    while index < count {
+        if !ToImage(hosts, image, node.child, element, ValueAt(value.elements, index), start + cast(s64)index * element_width, depth + 1) { return false }
+        index += 1
+    }
+    return true
+}
+
+// Whether two images hold the same value. Contents, not offsets: encoding a
+// nested view may place its unchanged elements elsewhere in the new image.
+SameImageValue :: (bundle: *ExecBundle, node_id: s32, type: s32, left: *u8, left_size: s64, left_at: s64,
+                   right: *u8, right_size: s64, right_at: s64, depth: s32) -> bool {
+    node := NodeAt(bundle, node_id)
+    shape := TypeOf(bundle, type)
+    width := SizeOf(bundle, type)
+    if depth > EXEC_DEPTH || width < 0 || left_at < 0 || right_at < 0 || left_at > left_size || right_at > right_size ||
+       width > left_size - left_at || width > right_size - right_at { return false }
+    if node.class == NODE_SCALAR || node.class == NODE_POINTER {
+        return memcmp(Advance(left, cast(usize)left_at), Advance(right, cast(usize)right_at), cast(usize)width) == 0
+    }
+    if node.class == NODE_RECORD {
+        if shape.kind != .Record || shape.fields.count != cast(s64)node.field_count { return false }
+        offset: s64 = 0
+        for at: 0..node.field_count - 1 {
+            field := shape.fields[at]
+            if !SameImageValue(bundle, node.field_nodes[at], field, left, left_size, left_at + offset, right, right_size, right_at + offset, depth + 1) { return false }
+            offset += SizeOf(bundle, field)
+        }
+        return true
+    }
+    if node.class == NODE_ARRAY {
+        if shape.kind != .Array { return false }
+        element := SizeOf(bundle, shape.element)
+        for at: cast(s64)0..shape.count - 1 {
+            if !SameImageValue(bundle, node.child, shape.element, left, left_size, left_at + at * element,
+                               right, right_size, right_at + at * element, depth + 1) { return false }
+        }
+        return true
+    }
+    if (node.class != NODE_STRING && node.class != NODE_SLICE) || width != 16 { return false }
+    element := ViewElement(bundle, type)
+    element_width: s64 = ifx element >= 0 then SizeOf(bundle, element) else 0
+    if element_width <= 0 { return false }
+    a := ReadWord(Advance(left, cast(usize)left_at), 8)
+    b := ReadWord(Advance(right, cast(usize)right_at), 8)
+    count := ReadWord(Advance(left, cast(usize)left_at + 8), 8)
+    if count != ReadWord(Advance(right, cast(usize)right_at + 8), 8) || a > cast(u64)left_size || b > cast(u64)right_size ||
+       count > cast(u64)((left_size - cast(s64)a) / element_width) || count > cast(u64)((right_size - cast(s64)b) / element_width) { return false }
+    if node.class == NODE_STRING { return memcmp(Advance(left, cast(usize)a), Advance(right, cast(usize)b), cast(usize)count) == 0 }
+    at: u64 = 0
+    while at < count {
+        if !SameImageValue(bundle, node.child, element, left, left_size, cast(s64)(a + at * cast(u64)element_width),
+                           right, right_size, cast(s64)(b + at * cast(u64)element_width), depth + 1) { return false }
+        at += 1
+    }
+    return true
+}
+
+// The new image of a []T argument the host may have changed, appended to
+// HOSTS.back: the image it was given with each element written again, as the
+// semantic VM copies a host's slice elements back.
+CopyBack :: (hosts: *ExecHosts, node_id: s32, argument: *ExecHostArgument, value: *HostValue, offset: *usize) -> bool {
+    bundle := hosts.bundle
+    node := NodeAt(bundle, node_id)
+    element := ViewElement(bundle, argument.type)
+    width: s64 = ifx element >= 0 then SizeOf(bundle, element) else 0
+    if width <= 0 || argument.size < 16 { return false }
+    start := ReadWord(argument.bytes, 8)
+    count := ReadWord(Advance(argument.bytes, 8), 8)
+    if value.kind != .Slice || value.type == null || !Same(value.type, node.spelling) || cast(u64)value.length != count ||
+       (count != 0 && value.elements == null) { return false }
+    image := *hosts.back
+    image.base = image.length
+    if ImageGrow(image, cast(s64)argument.size) < 0 { return false }
+    unused memcpy(Advance(image.bytes, image.base), argument.bytes, argument.size)
+    image.given = argument.bytes
+    image.given_length = argument.size
+    ok := true
+    index: u64 = 0
+    while ok && index < count {
+        ok = ToImage(hosts, image, node.child, element, ValueAt(value.elements, cast(usize)index),
+                     cast(s64)(cast(u64)image.base + start + index * cast(u64)width), 1)
+        index += 1
+    }
+    image.given = null
+    <<offset = image.base
+    return ok
+}
+
+#program_export
+ExecHostsOpen :: (bundle: *ExecBundle, find: ExecFindBinding, context: *void) -> *ExecHosts {
+    hosts := cast(*ExecHosts)calloc(1, size_of(ExecHosts))
+    if hosts == null { return null }
+    hosts.bundle = bundle
+    hosts.bound = cast(**HostBinding)calloc(bundle.host_count + 1, size_of(*HostBinding))
+    if hosts.bound == null {
+        ExecHostsClose(hosts)
+        return null
+    }
+    index: usize = 0
+    while index < bundle.host_count {
+        host := HostAt(bundle, index)
+        hosts.bound[index] = find(context, host.module, host.name)
+        if hosts.bound[index] == null {
+            Diagnostic(NoSpan(), CStr("zx.capability"), CStr("host capability %s:%s is not bound"), host.module, host.name)
+            ExecHostsClose(hosts)
+            return null
+        }
+        index += 1
+    }
+    return hosts
+}
+
+// One host argument as a HostValue: a borrowed view, a scalar, a pointer or
+// an image.
+ArgumentValue :: (hosts: *ExecHosts, host: *ExecHost, at: usize, argument: *ExecHostArgument, value: *HostValue) -> bool {
+    bundle := hosts.bundle
+    node := NodeAt(bundle, host.parameters[at])
+    type := TypeOf(bundle, argument.type)
+    argument.changed = 0
+    if argument.borrowed != 0 {
+        if node.class != NODE_STRING && node.class != NODE_SLICE { return false }
+        element := ViewElement(bundle, argument.type)
+        width: s64 = ifx element >= 0 then SizeOf(bundle, element) else 0
+        if width <= 0 || argument.size % cast(usize)width != 0 || (argument.size != 0 && argument.bytes == null) { return false }
+        value.kind = ifx node.class == NODE_STRING then .String else .BorrowedSlice
+        value.type = node.spelling
+        value.data = ifx argument.size != 0 then argument.bytes else null
+        value.length = argument.size / cast(usize)width
+        return true
+    }
+    if node.class == NODE_SCALAR { return ScalarValue(node, type, argument.bits, value) }
+    if node.class == NODE_POINTER {
+        if type.kind != .Pointer { return false }
+        value.kind = .Pointer
+        value.type = node.spelling
+        value.pointer = cast(*void)cast(usize)argument.bits
+        return true
+    }
+    return FromImage(hosts, host.parameters[at], argument.type, argument.bytes, cast(s64)argument.size, 0, value, 0)
+}
+
+// The host's result into RESULT: bits for a scalar or pointer, else an image
+// in HOSTS.result.
+ResultValue :: (hosts: *ExecHosts, host: *ExecHost, returned: *HostValue, result: *ExecHostArgument) -> bool {
+    bundle := hosts.bundle
+    type := bundle.program.functions[host.function].result
+    unused memset(cast(*u8)result, 0, size_of(ExecHostArgument))
+    result.type = type
+    if host.result < 0 { return returned.kind == .Void }
+    node := NodeAt(bundle, host.result)
+    if node.class == NODE_SCALAR || node.class == NODE_POINTER { return ScalarBits(node, TypeOf(bundle, type), returned, *result.bits) }
+    hosts.result.length = 0
+    hosts.result.base = 0
+    if ImageGrow(*hosts.result, SizeOf(bundle, type)) < 0 || !ToImage(hosts, *hosts.result, host.result, type, returned, 0, 0) { return false }
+    result.bytes = hosts.result.bytes
+    result.size = hosts.result.length
+    return true
+}
+
+#program_export
+ExecHostsCall :: (hosts: *ExecHosts, index: usize, arguments: *ExecHostArgument, count: usize, result: *ExecHostArgument) -> s32 {
+    bundle := hosts.bundle
+    if index >= bundle.host_count || count != cast(usize)HostAt(bundle, index).parameter_count { return 0 }
+    host := HostAt(bundle, index)
+    // A callback may run this instance again. Its borrowed HostValues must
+    // survive until that callback returns, a failing nested call included.
+    outer_blocks := hosts.blocks
+    hosts.blocks = null
+    ok := false
+    values := cast(*HostValue)Arena(hosts, count, size_of(HostValue))
+    backs := cast(*usize)Arena(hosts, count, size_of(usize))
+    if values != null && backs != null { ok = CallHost(hosts, host, index, arguments, count, values, backs, result) }
+    // The new images are complete; the buffer no longer moves.
+    at: usize = 0
+    while backs != null && at < count {
+        argument := ArgumentAt(arguments, at)
+        if argument.changed != 0 {
+            end := hosts.back.length
+            next := at + 1
+            while next < count {
+                if ArgumentAt(arguments, next).changed != 0 {
+                    end = backs[next]
+                    break
+                }
+                next += 1
+            }
+            argument.bytes = Advance(hosts.back.bytes, backs[at])
+            argument.size = end - backs[at]
+            if !ok { argument.changed = 0 }
+        }
+        at += 1
+    }
+    ArenaFree(hosts)
+    hosts.blocks = outer_blocks
+    return ifx ok then 1 else 0
+}
+
+CallHost :: (hosts: *ExecHosts, host: *ExecHost, index: usize, arguments: *ExecHostArgument, count: usize,
+             values: *HostValue, backs: *usize, result: *ExecHostArgument) -> bool {
+    bundle := hosts.bundle
+    at: usize = 0
+    while at < count {
+        if !ArgumentValue(hosts, host, at, ArgumentAt(arguments, at), ValueAt(values, at)) { return false }
+        at += 1
+    }
+    binding := hosts.bound[index]
+    // As on the semantic VM, the result starts named as declared, so a host
+    // may leave its type as it finds it.
+    returned: HostValue
+    returned.type = ifx host.result >= 0 then NodeAt(bundle, host.result).spelling else CStr("void")
+    outer := ThreadEngine()
+    SetThreadEngine(cast(*void)hosts.engine)
+    call := cast(HostCallback)binding.call
+    called := call(binding.context, host.module, host.name, values, cast(s32)count, *returned)
+    SetThreadEngine(outer)
+    if called == 0 { return false }
+    hosts.back.length = 0
+    at = 0
+    while at < count {
+        argument := ArgumentAt(arguments, at)
+        parameter := host.parameters[at]
+        if argument.borrowed == 0 && NodeAt(bundle, parameter).class == NODE_SLICE {
+            if !CopyBack(hosts, parameter, argument, ValueAt(values, at), *backs[at]) { return false }
+            // Reading a slice does not change its elements: report only
+            // images that actually differ.
+            size := hosts.back.length - backs[at]
+            same := SameImageValue(bundle, parameter, argument.type, argument.bytes, cast(s64)argument.size, 0,
+                                   Advance(hosts.back.bytes, backs[at]), cast(s64)size, 0, 0)
+            argument.changed = ifx same then 0 else 1
+            if same { hosts.back.length = backs[at] }
+        }
+        at += 1
+    }
+    return ResultValue(hosts, host, *returned, result)
+}
+
+// Keeps HOSTS.native_out when it holds more than a result root the caller
+// copies out at once, within the engine's value-byte limit.
+NativeRetain :: (hosts: *ExecHosts, root_bytes: usize) -> bool {
+    length := hosts.native_out.length
+    if length <= root_bytes { return true }
+    limit := cast(usize)Exec.LirExecDefaultLimits().value_bytes
+    if hosts.retained_bytes > limit || length > limit - hosts.retained_bytes { return false }
+    if hosts.retained_count == hosts.retained_capacity {
+        capacity: usize = ifx hosts.retained_capacity != 0 then hosts.retained_capacity * 2 else 8
+        grown := cast(**u8)realloc(cast(*u8)hosts.retained, capacity * size_of(*u8))
+        if grown == null { return false }
+        hosts.retained = grown
+        hosts.retained_capacity = capacity
+    }
+    hosts.retained[hosts.retained_count] = hosts.native_out.bytes
+    hosts.retained_count += 1
+    hosts.retained_bytes += length
+    unused memset(cast(*u8)*hosts.native_out, 0, size_of(ExecImage))
+    return true
+}
+
+IsAggregateNode :: (bundle: *ExecBundle, node: s32) -> bool {
+    class := NodeAt(bundle, node).class
+    return class != NODE_SCALAR && class != NODE_POINTER
+}
+
+// The native byte range a mutable view argument names, in BEGIN and BYTES.
+MutableRange :: (hosts: *ExecHosts, type: s32, argument: *ExecHostNativeValue, begin: *usize, bytes: *usize) -> bool {
+    bundle := hosts.bundle
+    element := ViewElement(bundle, type)
+    width: s64 = ifx element >= 0 then SizeOf(bundle, element) else -1
+    if width <= 0 || argument.bytes == null || argument.size < 16 { return false }
+    elements := ReadWord(Advance(argument.bytes, 8), 8)
+    if elements > cast(u64)(SizeMax() / cast(usize)width) { return false }
+    <<bytes = cast(usize)elements * cast(usize)width
+    <<begin = 0
+    if <<bytes != 0 {
+        <<begin = cast(usize)NativeAddress(hosts, ReadWord(argument.bytes, 8), <<bytes, 1)
+        if <<begin == 0 { return false }
+    }
+    return <<begin <= SizeMax() - <<bytes
+}
+
+// The engine rejects overlapping mutable views; so does a native call,
+// before the callback, so copy-back order cannot change behavior.
+DisjointMutableViews :: (hosts: *ExecHosts, index: usize, parameters: []s32, arguments: *ExecHostNativeValue, count: usize) -> bool {
+    left: usize = 0
+    while left < count {
+        if ExecBundleHostMutable(hosts.bundle, index, left) != 0 {
+            begin: usize = 0
+            bytes: usize = 0
+            if !MutableRange(hosts, parameters[left], NativeAt(arguments, left), *begin, *bytes) { return false }
+            right := left + 1
+            while right < count {
+                if ExecBundleHostMutable(hosts.bundle, index, right) != 0 {
+                    other: usize = 0
+                    other_bytes: usize = 0
+                    if !MutableRange(hosts, parameters[right], NativeAt(arguments, right), *other, *other_bytes) { return false }
+                    if bytes != 0 && other_bytes != 0 && begin < other + other_bytes && other < begin + bytes { return false }
+                }
+                right += 1
+            }
+        }
+        left += 1
+    }
+    return true
+}
+
+#program_export
+ExecHostsCallNative :: (hosts: *ExecHosts, index: usize, arguments: *ExecHostNativeValue, count: usize, result: *ExecHostNativeValue) -> s32 {
+    if hosts == null || result == null || index >= hosts.bundle.host_count { return 0 }
+    host := HostAt(hosts.bundle, index)
+    if count != cast(usize)host.parameter_count || (count != 0 && arguments == null) { return 0 }
+    items: usize = ifx count != 0 then count else 1
+    wire := cast(*ExecHostArgument)calloc(items, size_of(ExecHostArgument))
+    offsets := cast(*usize)calloc(items, size_of(usize))
+    if wire == null || offsets == null {
+        free(cast(*u8)offsets)
+        free(cast(*u8)wire)
+        return 0
+    }
+    // Detach the input image while the callback is active: a reentrant call
+    // can reuse its own scratch but cannot overwrite this call's arguments.
+    // The outermost buffer stays cached; nested scratch is discarded.
+    native_in := hosts.native_in
+    unused memset(cast(*u8)*hosts.native_in, 0, size_of(ExecImage))
+    native_in.length = 0
+    ok := CallNative(hosts, host, index, arguments, count, result, wire, offsets, *native_in)
+    free(hosts.native_in.bytes)
+    hosts.native_in = native_in
+    free(cast(*u8)offsets)
+    free(cast(*u8)wire)
+    return ifx ok then 1 else 0
+}
+
+CallNative :: (hosts: *ExecHosts, host: *ExecHost, index: usize, arguments: *ExecHostNativeValue, count: usize,
+               result: *ExecHostNativeValue, wire: *ExecHostArgument, offsets: *usize, native_in: *ExecImage) -> bool {
+    bundle := hosts.bundle
+    parameters := bundle.program.functions[host.function].parameters
+    at: usize = 0
+    while at < count {
+        type := parameters[at]
+        argument := NativeAt(arguments, at)
+        width := SizeOf(bundle, type)
+        if argument.type != type || width < 0 { return false }
+        ArgumentAt(wire, at).type = type
+        if !IsAggregateNode(bundle, host.parameters[at]) {
+            ArgumentAt(wire, at).bits = argument.bits
+        } else {
+            if argument.bytes == null || argument.size < cast(usize)width { return false }
+            offsets[at] = native_in.length
+            native_in.base = native_in.length
+            root := ImageGrow(native_in, width)
+            if root < 0 || !NativeToImage(hosts, native_in, host.parameters[at], type, argument.bytes, root, 0) { return false }
+        }
+        at += 1
+    }
+    at = 0
+    while at < count {
+        if IsAggregateNode(bundle, host.parameters[at]) {
+            end := native_in.length
+            next := at + 1
+            while next < count {
+                if IsAggregateNode(bundle, host.parameters[next]) {
+                    end = offsets[next]
+                    break
+                }
+                next += 1
+            }
+            target := ArgumentAt(wire, at)
+            target.bytes = Advance(native_in.bytes, offsets[at])
+            target.size = end - offsets[at]
+        }
+        at += 1
+    }
+    if !DisjointMutableViews(hosts, index, parameters, arguments, count) { return false }
+    returned: ExecHostArgument
+    if ExecHostsCall(hosts, index, wire, count, *returned) == 0 { return false }
+    reserve := returned.size
+    at = 0
+    while at < count {
+        if ArgumentAt(wire, at).changed != 0 {
+            if ArgumentAt(wire, at).size > SizeMax() - reserve { return false }
+            reserve += ArgumentAt(wire, at).size
+        }
+        at += 1
+    }
+    hosts.native_out.length = 0
+    if reserve != 0 {
+        if reserve > 9223372036854775807 || ImageGrow(*hosts.native_out, cast(s64)reserve) < 0 { return false }
+        hosts.native_out.length = 0
+    }
+    at = 0
+    while at < count {
+        changed := ArgumentAt(wire, at)
+        if changed.changed != 0 && !CopyBackNative(hosts, host, parameters[at], host.parameters[at], NativeAt(arguments, at), changed) { return false }
+        at += 1
+    }
+    unused memset(cast(*u8)result, 0, size_of(ExecHostNativeValue))
+    result.type = returned.type
+    result.bits = returned.bits
+    root_bytes: usize = 0
+    if host.result >= 0 && IsAggregateNode(bundle, host.result) && SizeOf(bundle, returned.type) > 0 {
+        width := SizeOf(bundle, returned.type)
+        root := ImageGrow(*hosts.native_out, width)
+        if root < 0 || !ImageToNative(hosts, *hosts.native_out, host.result, returned.type, returned.bytes, cast(s64)returned.size, 0,
+                                      ImageAt(*hosts.native_out, root), 0) { return false }
+        result.bytes = ImageAt(*hosts.native_out, root)
+        result.size = cast(usize)width
+        root_bytes = cast(usize)width
+    }
+    return NativeRetain(hosts, root_bytes)
+}
+
+// Writes a changed []T argument's elements back into the caller's storage.
+CopyBackNative :: (hosts: *ExecHosts, host: *ExecHost, type: s32, node: s32, argument: *ExecHostNativeValue, wire: *ExecHostArgument) -> bool {
+    bundle := hosts.bundle
+    element := ViewElement(bundle, type)
+    element_width: s64 = ifx element >= 0 then SizeOf(bundle, element) else -1
+    if element_width <= 0 || argument.bytes == null || argument.size < 16 || wire.bytes == null || wire.size < 16 { return false }
+    count_before := ReadWord(Advance(argument.bytes, 8), 8)
+    start := ReadWord(wire.bytes, 8)
+    count_after := ReadWord(Advance(wire.bytes, 8), 8)
+    if count_before > cast(u64)(SizeMax() / cast(usize)element_width) { return false }
+    destination: *u8 = null
+    if count_before != 0 {
+        destination = NativeAddress(hosts, ReadWord(argument.bytes, 8), cast(usize)count_before * cast(usize)element_width, 1)
+    }
+    if count_before != count_after || (count_after != 0 && destination == null) || start > cast(u64)wire.size ||
+       count_after > cast(u64)((wire.size - cast(usize)start) / cast(usize)element_width) { return false }
+    child := NodeAt(bundle, node).child
+    item: u64 = 0
+    while item < count_after {
+        if !ImageToNative(hosts, *hosts.native_out, child, element, wire.bytes, cast(s64)wire.size,
+                          cast(s64)start + cast(s64)item * element_width, Advance(destination, cast(usize)(item * cast(u64)element_width)), 1) { return false }
+        item += 1
+    }
+    return true
+}
+
+#program_export
+ExecHostsNativePointers :: (hosts: *ExecHosts, resolve: ExecNativeResolve, create: ExecNativeCreate, context: *void) {
+    if hosts == null { return }
+    hosts.native_resolve = resolve
+    hosts.native_create = create
+    hosts.native_pointers = context
+}
+
+#program_export
+ExecHostsMatchFieldsByName :: (hosts: *ExecHosts, enabled: s32) {
+    if hosts != null { hosts.match_fields_by_name = ifx enabled != 0 then 1 else 0 }
+}
+
+#program_export
+ExecHostsClose :: (hosts: *ExecHosts) {
+    if hosts == null { return }
+    ArenaFree(hosts)
+    free(hosts.result.bytes)
+    free(hosts.back.bytes)
+    free(hosts.native_in.bytes)
+    free(hosts.native_out.bytes)
+    at: usize = 0
+    while at < hosts.retained_count {
+        free(hosts.retained[at])
+        at += 1
+    }
+    free(cast(*u8)hosts.retained)
+    free(cast(*u8)hosts.bound)
+    free(cast(*u8)hosts)
+}

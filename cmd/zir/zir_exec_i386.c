@@ -1,6 +1,36 @@
-/* Included by the packed engine on Linux/i386. Fragments only see the current
- * frame's canonical scalar words. They cannot address guest memory or call
- * anything. Edges, pointers, calls and failures stay in the interpreter. */
+/*
+ * zir_exec_i386.c - the Linux i386 block compiler of the packed engine:
+ * hot straight-line runs of a packed block become i386 code that the
+ * interpreter calls for them. Fragments only see the current frame's
+ * canonical scalar words. They cannot address guest memory or call anything.
+ * Edges, pointers, calls and failures stay in the interpreter. Elsewhere
+ * ExecI386Open gives NULL and the engine interprets every block. Compiled
+ * under the engine's private names with its generated headers.
+ */
+#include <stddef.h>
+#include <stdint.h>
+
+#ifndef ZIRAN_NO_ENGINE
+#include "compiler_exec.h"
+#include "compiler_lowered_ir.h"
+#endif
+
+#if defined(ZIRAN_NO_ENGINE)
+
+/* Bootstrap builds have no instruction engine, so no block compiler. */
+void *ExecI386Open(const void *instance) { (void)instance; return NULL; }
+int ExecI386RunEntry(void *instance, void *ran, void *cache)
+{
+    (void)instance; (void)ran; (void)cache;
+    return 0;
+}
+void ExecI386Close(void *cache) { (void)cache; }
+
+#elif defined(__linux__) && defined(__i386__) && !defined(__ANDROID__) && !defined(ZIRAN_EXEC_NO_I386_BLOCKS)
+
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 #include "zir_native_memory.h"
 
 enum { I386Slots = 16, I386Heat = 4, I386CompileLimit = 64, I386Scan = 128, I386Ops = 64, I386Bytes = 4096 };
@@ -315,3 +345,34 @@ i386_close(ExecI386Cache *cache)
 }
 
 #undef I386Emit
+
+void *
+ExecI386Open(const LirExecInstance *instance)
+{
+    return i386_open(instance);
+}
+
+int
+ExecI386RunEntry(LirExecInstance *instance, LirExecResult *ran, void *cache)
+{
+    LirExecPackedBlocks blocks = {.run = i386_run_block, .context = cache};
+    return compiler_exec_LirExecRunEntryWithPackedBlocks(instance, ran, cache != NULL ? &blocks : NULL);
+}
+
+void
+ExecI386Close(void *cache)
+{
+    i386_close(cache);
+}
+
+#else
+
+void *ExecI386Open(const LirExecInstance *instance) { (void)instance; return NULL; }
+int ExecI386RunEntry(LirExecInstance *instance, LirExecResult *ran, void *cache)
+{
+    (void)cache;
+    return compiler_exec_LirExecRunEntry(instance, ran);
+}
+void ExecI386Close(void *cache) { (void)cache; }
+
+#endif

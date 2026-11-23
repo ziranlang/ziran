@@ -250,7 +250,7 @@ C ABI/storage boundary:
 | `zir_expr.h` | C adapters to the Ziran expression IR parser used by portable linking and retained tests | `compiler_expr_ir` | S16 |
 | `zir_files.c` / `.h` | filesystem/path policy `PathIsAbsolute:19`, status `:7` | `compiler_files` | S15 |
 | `compiler_host_api.zi` / `include/ziran_host.h` | embedding API: bundles, instances, run control, module state and components, read with `compiler_host_api_state.zi` | `compiler_host_api` | S16 |
-| `zir_host_exec.c` / `.h` | executable ZX engine facade; bundle open `ExecBundleOpen:421`, host instances `:1399`; no-engine stubs `:1396` onward | `compiler_zx_exec` | S16 |
+| `compiler_zx_exec_bundle.zi` / `_hosts.zi` / `_instance.zi` / `zir_host_exec.h` | executable ZX engine facade: bundle reader, host call translation, instances and module state; C declarations in `zir_host_exec.h`; the Linux i386 block compiler stays C in `zir_exec_i386.c` | `compiler_zx_exec` | S16 |
 | `zir_law.c` / `.h` | laws and parallel-region checks `CheckLawGates:877`, `CheckParallelRegions:1856` | `compiler_law_runtime` | S15 |
 | `compiler_zx_link.zi` / `zir_link.h` | entry linking and host binding; C declarations in `zir_link.h` | `compiler_zx_link` | S16 |
 | `compiler_load.zi` / `zir_load.h` | toolchain discovery and source or checked IR module loading | `compiler_load`; C declarations in `zir_load.h` | S16 persistence |
@@ -282,8 +282,7 @@ C ABI/storage boundary:
 | `zir_token.c` / `.h` | lexer state over generated scanner `LexerInit:22`, `LexerNext:53` | existing `compiler_token` and `compiler_scan` | S15 |
 | `zir_type.c` | cached type queries from `:12`, generated calls `:278`, `:363`, `:395` | `compiler_frontend_ir` | S15 |
 | `compiler_host_api_linkage.zi` / `compiler_host_api_modules.zi` | hosted ZX module runtime of `include/ziran_zx_module.h`: linkage and dispatch ABI, module lookup, graph check, instances, calls, replacement and services | `compiler_host_api` | S16 |
-| `zir_zx_wasm.c` / `.h` | Wasm runtime provider/platform `ZxWasmInstallBundledPlatform:50`, host memory `:83`; lowering calls `:320`, `:443`, `:474` | `compiler_zx_wasm_host` | S16 |
-| `zir_zx_wasm_platform.h` | provider ABI `:47`, set/active `:54`, `:55` | `compiler_zx_wasm_host` | S16 |
+| `compiler_zx_exec_wasm.zi` / `zir_zx_wasm.h` | Wasm runtime provider: lowering, instantiation, host calls, budget and module state; the provider ABI stays in `zir_zx_wasm_platform.h`, and `zir_zx_wasm_install.c` keeps the load-time install | `compiler_zx_exec_wasm`, part of `compiler_zx_exec` | S16 |
 | `zir_zx_wasm_web.c` | Emscripten/JS bridge `EM_JS` entries from `:35`, `:85`, `:93` | `compiler_zx_wasm_web` behind provider ABI | S16 |
 
 Every file listed above is deleted by its step or by the final bootstrap step.
@@ -575,13 +574,21 @@ No step commits before its implementation and proof are complete.
   (`cmd/compiler_zx_exec.zi`), generated with the instruction engine from
   `cmd/compiler_runtime.zi` and compiled under its private names, so its calls
   reach the engine libziran carries while its own C entry points keep their
-  names. The platform console services come first; the bundle reader, host
-  calls, instances and the Wasm provider follow in stages.
-- Port the rest of the engine execution facade and the Wasm provider and web
-  bridges. Preserve the public embedding and executable APIs.
-- Retire the replaced `zir_host_exec.c`, `zir_zx_module_internal.h`,
-  `zir_zx_wasm.c`, `zir_zx_wasm_web.c` and `zir_exec_console.h` as those
-  ports land.
+  names. It holds the platform console services, the bundle reader
+  (`compiler_zx_exec_bundle.zi`), host call translation between engine images,
+  native values and HostValue trees (`compiler_zx_exec_hosts.zi`), and
+  instances with their module state (`compiler_zx_exec_instance.zi`), and
+  replaces `zir_host_exec.c` and `zir_zx_module_internal.h`. The Linux i386
+  block compiler stays C as `zir_exec_i386.c` behind `ExecI386Open`,
+  `ExecI386RunEntry` and `ExecI386Close`; the host-call thread slot is
+  `S15ThreadEngine` in `zir_atomics.c`.
+- `compiler_zx_exec_wasm.zi`, loaded into `compiler_zx_exec`, replaces
+  `zir_zx_wasm.c`: the provider seam, lowering, instantiation, host calls and
+  module state. `zir_zx_wasm.h` keeps its C declarations and
+  `zir_zx_wasm_install.c` keeps the load-time provider install. The web
+  bridge `zir_zx_wasm_web.c` stays C behind the provider ABI.
+- Retire `zir_zx_wasm_web.c` and `zir_exec_console.h` as their last C users
+  move.
 - Verify saved bytes and diagnostics against the previous compiler, then run
   `env -u DISPLAY -u WAYLAND_DISPLAY make -j2 check JOBS=2 CHECK_JOBS=2` and
   `env -u DISPLAY -u WAYLAND_DISPLAY make check-bootstrap JOBS=2`.

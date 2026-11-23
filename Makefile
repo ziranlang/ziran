@@ -329,7 +329,7 @@ LIB_SOURCES := $(FRONTEND) cmd/zir/zir_native_memory.c
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
 # The portable instruction engine (cmd/compiler_runtime.zi), behind the
-# embedding API in cmd/zir/zir_host_exec.c. Every name the engine's modules
+# embedding API facade (cmd/compiler_zx_exec*.zi). Every name the engine's modules
 # define gets the ziran_engine_ prefix (ENGINE_NAMES, force-included in them
 # and in the API), so a program with its own copies of the same standard
 # modules (math, vec, ...) links beside it on ELF, COFF and wasm alike. Its
@@ -341,10 +341,10 @@ ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_veri
     text_buffer number_text compiler_zx_wasm_types compiler_zx_wasm_fn compiler_zx_wasm_plan compiler_zx_wasm_code \
     compiler_zx_wasm_body compiler_zx_wasm_helpers compiler_zx_wasm
 # The Wasm lowering of revision-28 ZX (cmd/compiler_zx_wasm*.zi) is part of
-# the engine; zir_zx_wasm.c and zx2wasm call it under the engine's names.
+# the engine; compiler_zx_exec_wasm.zi and zx2wasm call it under the engine's names.
 # The native loader's per-architecture veneers are zir_host_native_<arch>.c.
-HOST_EXEC_SOURCES := cmd/zir/zir_host_exec.c cmd/zir/zir_host_native.c cmd/zir/zir_host_native_x86_64.c \
-    cmd/zir/zir_host_native_aarch64.c cmd/zir/zir_host_native_armv7.c cmd/zir/zir_zx_wasm.c
+HOST_EXEC_SOURCES := cmd/zir/zir_exec_i386.c cmd/zir/zir_host_native.c cmd/zir/zir_host_native_x86_64.c \
+    cmd/zir/zir_host_native_aarch64.c cmd/zir/zir_host_native_armv7.c cmd/zir/zir_zx_wasm_install.c
 ENGINE_NAMES := $(ENGINE_C)/engine_names.h
 ifeq ($(BOOTSTRAP),1)
 ENGINE_OBJECTS :=

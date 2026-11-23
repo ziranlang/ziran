@@ -1,0 +1,460 @@
+// Instances: an opened bundle running on the instruction engine with its
+// host capabilities bound, its globals initialized within the step budget,
+// and module state read and written as host values. Loaded by
+// compiler_zx_exec.zi.
+
+// The Linux i386 block compiler of zir_exec_i386.c: Open gives null
+// elsewhere, and RunEntry runs the entry with its blocks.
+ExecI386Open :: (instance: *Exec.LirExecInstance) -> *void #foreign compiler "ExecI386Open";
+ExecI386RunEntry :: (instance: *Exec.LirExecInstance, ran: *Exec.LirExecResult, cache: *void) -> s32 #foreign compiler "ExecI386RunEntry";
+ExecI386Close :: (cache: *void) #foreign compiler "ExecI386Close";
+IntAdd :: (slot: *void, value: s32) -> s32 #foreign compiler "S15IntAdd";
+
+ExecCall :: struct {
+    owner: *ExecInstance
+    host: usize
+}
+
+ExecInstance :: struct {
+    bundle: *ExecBundle
+    instance: Exec.LirExecInstance
+    hosts: *ExecHosts
+    calls: *ExecCall
+    arguments: *ExecHostArgument
+    // Steps for each run, or for initialization and all runs together when
+    // cumulative; 0 is unbounded.
+    limit: s64
+    used: s64
+    active_limit: s64
+    run_fuel: s64
+    renew_steps: s32
+    cumulative: s32
+    failed: s32
+    console: ZxConsole
+    i386: *void
+}
+
+// Instances are numbered across threads; 0 is never one.
+instance_identities: s32;
+
+// Lets the step budget of the instance whose host call is running start
+// again, for a host that waited on its user; 0 outside a bounded run.
+#program_export
+BundleHostRenewSteps :: () -> s32 {
+    instance := cast(*ExecInstance)ThreadEngine()
+    if instance == null || instance.active_limit <= 0 { return 0 }
+    instance.renew_steps = 1
+    return 1
+}
+
+HostCall :: (context: *void, function: s32, arguments: []Exec.LirExecArgument, result: *Exec.LirExecArgument) -> bool {
+    call := cast(*ExecCall)context
+    instance := call.owner
+    host := HostAt(instance.bundle, call.host)
+    if host.function != function || arguments.count != cast(s64)host.parameter_count { return false }
+    // The host may write to standard output or wait for input: the
+    // program's own output comes first.
+    if ZxConsoleFlush(*instance.console) == 0 { return false }
+    for at: cast(s64)0..arguments.count - 1 {
+        given := *arguments[at]
+        target := ArgumentAt(instance.arguments, cast(usize)at)
+        target.type = given.type
+        target.bits = given.bits
+        target.bytes = ifx given.bytes.count > 0 then *given.bytes[0] else null
+        target.size = cast(usize)given.bytes.count
+        target.changed = 0
+        target.borrowed = ifx given.borrowed then 1 else 0
+    }
+    returned: ExecHostArgument
+    called := ExecHostsCall(instance.hosts, call.host, instance.arguments, cast(usize)arguments.count, *returned) != 0
+    for at: cast(s64)0..arguments.count - 1 {
+        target := ArgumentAt(instance.arguments, cast(usize)at)
+        if target.borrowed != 0 { target.bytes = null }
+        if called && target.changed != 0 {
+            given := *arguments[at]
+            given.changed = true
+            given.bytes = BytesOf(target.bytes, cast(s64)target.size)
+        }
+    }
+    if !called || ZxRunControlRequested(cast(*ZxRunControl)instance.instance.cancel_context) != 0 { return false }
+    if instance.renew_steps != 0 {
+        // The engine hands typed calls to the slow path before invoking the
+        // host, so no precharged segment fuel remains to restore.
+        instance.renew_steps = 0
+        instance.used = 0
+        instance.run_fuel = instance.active_limit
+        instance.instance.fuel_remaining = instance.run_fuel
+    }
+    result.type = returned.type
+    result.bits = returned.bits
+    result.bytes = BytesOf(returned.bytes, cast(s64)returned.size)
+    return true
+}
+
+CancelRequested :: (context: *void) -> bool {
+    return ZxRunControlRequested(cast(*ZxRunControl)context) != 0
+}
+
+StoppedAfter :: (limit: s64) {
+    Diagnostic(NoSpan(), CStr("zx.runtime"), CStr("portable execution failed: stopped after %lld steps"), limit)
+}
+
+// Runs the entry, or with INITIALIZE only the global initializers, within
+// the step budget. A run that succeeds leaves its result and remaining fuel
+// in the instance; only a failure fills RAN.
+Run :: (instance: *ExecInstance, initialize: bool, ran: *Exec.LirExecResult, control: *ZxRunControl) -> s32 {
+    bundle := instance.bundle
+    limit := instance.limit
+    fuel: s64 = 9223372036854775807
+    if limit > 0 { fuel = ifx instance.cumulative != 0 then limit - instance.used else limit }
+    if instance.failed != 0 || instance.instance.running { return RUN_ERROR }
+    if ZxRunControlRequested(control) != 0 { return RUN_CANCELLED }
+    if fuel <= 0 {
+        StoppedAfter(limit)
+        instance.failed = 1
+        return RUN_ERROR
+    }
+    instance.instance.limits.fuel = fuel
+    instance.active_limit = ifx initialize then 0 else limit
+    instance.run_fuel = fuel
+    if control != null {
+        instance.instance.cancel_check = CancelRequested
+        instance.instance.cancel_context = cast(*void)control
+    }
+    ok := false
+    remaining: s64 = 0
+    if initialize {
+        <<ran = Exec.LirExecInitialize(*instance.instance)
+        ok = ran.problem == .None
+        remaining = ran.fuel_remaining
+    } else {
+        if instance.i386 != null {
+            ok = ExecI386RunEntry(*instance.instance, ran, instance.i386) != 0
+        } else {
+            ok = Exec.LirExecRunEntry(*instance.instance, ran)
+        }
+        remaining = ifx ok then instance.instance.fuel_remaining else ran.fuel_remaining
+    }
+    instance.active_limit = 0
+    instance.renew_steps = 0
+    // A procedure value has no null literal: clear the hook's bytes, up to
+    // the context that follows it.
+    check := cast(*u8)*instance.instance.cancel_check
+    unused memset(check, 0, PtrDistance(cast(*u8)*instance.instance.cancel_context, check))
+    instance.instance.cancel_context = null
+    if instance.cumulative != 0 { instance.used += instance.run_fuel - remaining }
+    // A run that ends normally leaves its output to the stream's own
+    // buffering, as a C program's does; a failed run's output comes out
+    // before its diagnostic.
+    unused ZxConsoleFlush(*instance.console)
+    if (!ok && ran.problem == .Cancelled) || ((ok || ran.problem == .Host) && ZxRunControlRequested(control) != 0) {
+        instance.failed = 1
+        return RUN_CANCELLED
+    }
+    if ok { return RUN_OK }
+    if cast(*void)instance.console.write == null { unused fflush(null) }
+    instance.failed = 1
+    if ran.problem == .FuelLimit && limit > 0 {
+        StoppedAfter(limit)
+    } else {
+        problem := Exec.LirExecProblemName(ran.problem)
+        text := ZxExecProblemText(ran.problem)
+        place := ifx initialize then CStr("global initialization") else bundle.entry_function
+        meaning := ifx text != null then text else CStr("failed")
+        Diagnostic(NoSpan(), CStr("zx.runtime"),
+            CStr("portable execution failed in %s: %s (problem=%.*s function=%d block=%d instruction=%d)"),
+            place, meaning, cast(s32)problem.count, TextData(*problem), ran.function, ran.block, ran.instruction)
+    }
+    return RUN_ERROR
+}
+
+// Binds every host capability of the instance and marks its mutable views.
+BindHosts :: (instance: *ExecInstance) -> Exec.LirExecProblem {
+    bundle := instance.bundle
+    index: usize = 0
+    while index < bundle.host_count {
+        host := HostAt(bundle, index)
+        call := *instance.calls[index]
+        call.owner = instance
+        call.host = index
+        bound := Exec.LirExecBindHostTyped(*instance.instance, host.function, HostCall, cast(*void)call)
+        if bound != .None { return bound }
+        for at: 0..host.parameter_count - 1 {
+            if ExecBundleHostMutable(bundle, index, cast(usize)at) != 0 {
+                bound = Exec.LirExecHostMutableView(*instance.instance, host.function, at)
+                if bound != .None { return bound }
+            }
+        }
+        index += 1
+    }
+    return .None
+}
+
+#program_export
+ExecInstanceOpen :: (bundle: *ExecBundle, find: ExecFindBinding, context: *void, max_steps: s64,
+                     write: ConsoleWriteHook, console_context: *void, control: *ZxRunControl, status: *s32) -> *ExecInstance {
+    instance := cast(*ExecInstance)calloc(1, size_of(ExecInstance))
+    if instance == null { return null }
+    instance.bundle = bundle
+    instance.limit = ifx max_steps > 0 then max_steps else 0
+    instance.cumulative = ifx max_steps > 0 then 1 else 0
+    parameters: usize = 1
+    index: usize = 0
+    while index < bundle.host_count {
+        count := cast(usize)HostAt(bundle, index).parameter_count
+        if count >= parameters { parameters = count + 1 }
+        index += 1
+    }
+    instance.hosts = ExecHostsOpen(bundle, find, context)
+    instance.calls = cast(*ExecCall)calloc(bundle.host_count + 1, size_of(ExecCall))
+    instance.arguments = cast(*ExecHostArgument)calloc(parameters, size_of(ExecHostArgument))
+    if instance.hosts == null || instance.calls == null || instance.arguments == null {
+        ExecInstanceClose(instance)
+        return null
+    }
+    instance.hosts.engine = instance
+    limits := Exec.LirExecDefaultLimits()
+    limits.work = 9223372036854775807
+    limits.fuel = 9223372036854775807
+    // Deep recursion works; a runaway one stops at this depth, before it
+    // fills the instance's value storage.
+    limits.frames = 65536
+    identity := cast(u32)(IntAdd(cast(*void)*instance_identities, 1) + 1)
+    if identity == 0 { identity = cast(u32)(IntAdd(cast(*void)*instance_identities, 1) + 1) }
+    opened := Exec.LirExecInstanceOpen(*bundle.plan, limits, identity, *instance.instance)
+    bound := opened.problem
+    if bound == .None { bound = ZxBindConsole(*instance.instance, *bundle.program, *instance.console) }
+    instance.console.write = write
+    instance.console.context = console_context
+    if bound == .None { bound = BindHosts(instance) }
+    if bound != .None {
+        problem := Exec.LirExecProblemName(bound)
+        Diagnostic(NoSpan(), CStr("zx.capability"), CStr("cannot start the instance: problem=%.*s"),
+            cast(s32)problem.count, TextData(*problem))
+        ExecInstanceClose(instance)
+        return null
+    }
+    // Globals are initialized now, within the budget, as on the semantic VM.
+    initialized: Exec.LirExecResult
+    outcome := Run(instance, true, *initialized, control)
+    if status != null { <<status = outcome }
+    if outcome != RUN_OK {
+        ExecInstanceClose(instance)
+        return null
+    }
+    instance.i386 = ExecI386Open(*instance.instance)
+    return instance
+}
+
+#program_export
+ExecInstanceBorrowHostView :: (instance: *ExecInstance, module: *u8, function: *u8, parameter: usize, string_view: s32) -> s32 {
+    if module == null || function == null || parameter >= 64 || instance.instance.running { return 0 }
+    bundle := instance.bundle
+    index: usize = 0
+    while index < bundle.host_count {
+        host := HostAt(bundle, index)
+        if Same(host.module, module) && Same(host.name, function) {
+            if parameter >= cast(usize)host.parameter_count { return 0 }
+            node := NodeAt(bundle, host.parameters[parameter])
+            if string_view != 0 {
+                if node.class != NODE_STRING { return 0 }
+            } else if host.reads == 0 || !BorrowableSlice(bundle, node, ExecBundleCapabilityParameterTypeId(bundle, index, parameter)) {
+                return 0
+            }
+            borrowed := Exec.LirExecHostBorrowView(*instance.instance, host.function, cast(s32)parameter, string_view != 0)
+            return ifx borrowed == .None then 1 else 0
+        }
+        index += 1
+    }
+    return 0
+}
+
+#program_export
+ExecInstanceRun :: (instance: *ExecInstance, result: *s64, has_result: *s32, control: *ZxRunControl) -> s32 {
+    bundle := instance.bundle
+    ran: Exec.LirExecResult
+    status := Run(instance, false, *ran, control)
+    if status != RUN_OK { return status }
+    entry := *bundle.program.functions[bundle.program.entry]
+    type := TypeOf(bundle, entry.result)
+    returns := type.kind != .Void
+    if has_result != null { <<has_result = ifx returns then 1 else 0 }
+    if result != null {
+        bits := instance.instance.result_value.bits
+        if type.kind == .Integer && type.is_signed && type.bits < 64 && ((bits >> cast(u64)(type.bits - 1)) & 1) != 0 {
+            bits = bits | ~((cast(u64)1 << cast(u64)type.bits) - 1)
+        }
+        <<result = ifx returns then cast(s64)bits else 0
+    }
+    return RUN_OK
+}
+
+#program_export
+ExecInstanceLimitSteps :: (instance: *ExecInstance, max_steps: s64) {
+    if instance != null { instance.limit = ifx max_steps > 0 then max_steps else 0 }
+}
+
+#program_export
+ExecInstanceMatchFieldsByName :: (instance: *ExecInstance, enabled: s32) {
+    if instance != null { ExecHostsMatchFieldsByName(instance.hosts, enabled) }
+}
+
+#program_export
+ExecInstanceLiveBytes :: (instance: *ExecInstance) -> usize {
+    return cast(usize)instance.bundle.plan.global_bytes + cast(usize)instance.instance.owned.count
+}
+
+#program_export
+ExecInstanceStateCount :: (instance: *ExecInstance) -> usize { return instance.bundle.global_count }
+
+GlobalType :: (bundle: *ExecBundle, global: *ExecGlobal) -> s32 { return bundle.program.globals[global.index].type }
+
+#program_export
+ExecInstanceStateAt :: (instance: *ExecInstance, index: usize, module: **u8, name: **u8, type: **u8, value: *HostValue) -> s32 {
+    bundle := instance.bundle
+    if index >= bundle.global_count || instance.failed != 0 { return 0 }
+    global := GlobalAt(bundle, index)
+    <<module = global.module
+    <<name = global.name
+    <<type = NodeAt(bundle, global.node).spelling
+    if value == null { return 1 }
+    unused memset(cast(*u8)value, 0, size_of(HostValue))
+    ArenaFree(instance.hosts)
+    if Exec.LirExecGlobalImage(*instance.instance, global.index) != .None { return 0 }
+    bytes := RawOf(cast(*void)*instance.instance.host_bytes)
+    ok := FromImage(instance.hosts, global.node, GlobalType(bundle, global), bytes.data, bytes.count, 0, value, 0)
+    return ifx ok then 1 else 0
+}
+
+#program_export
+ExecInstanceStateStore :: (instance: *ExecInstance, values: **HostValue) -> s32 {
+    bundle := instance.bundle
+    hosts := instance.hosts
+    image := *hosts.back
+    count := bundle.global_count
+    if instance.failed != 0 { return 0 }
+    offsets := cast(*usize)calloc(count + 1, size_of(usize))
+    if offsets == null { return 0 }
+    image.length = 0
+    ok := true
+    // Every value becomes an image before any global changes.
+    index: usize = 0
+    while ok && index < count {
+        global := GlobalAt(bundle, index)
+        type := GlobalType(bundle, global)
+        image.base = image.length
+        offsets[index] = image.base
+        image.given = null
+        ok = values[index] == null || (ImageGrow(image, SizeOf(bundle, type)) >= 0 &&
+            ToImage(hosts, image, global.node, type, values[index], cast(s64)image.base, 0))
+        index += 1
+    }
+    offsets[count] = image.length
+    index = 0
+    while ok && index < count {
+        if values[index] != null {
+            bytes := BytesOf(Advance(image.bytes, offsets[index]), cast(s64)(offsets[index + 1] - offsets[index]))
+            ok = Exec.LirExecGlobalStore(*instance.instance, GlobalAt(bundle, index).index, bytes) == .None
+        }
+        index += 1
+    }
+    free(cast(*u8)offsets)
+    return ifx ok then 1 else 0
+}
+
+// Module state for other engines: the Wasm tier keeps globals in its own
+// memory and gives and takes them as host images, which these name and
+// translate by the interface section.
+#program_export
+ExecBundleStateCount :: (bundle: *ExecBundle) -> usize { return bundle.global_count }
+
+#program_export
+ExecBundleStateAt :: (bundle: *ExecBundle, index: usize, module: **u8, name: **u8, type: **u8, global: *s32) -> s32 {
+    if index >= bundle.global_count { return 0 }
+    entry := GlobalAt(bundle, index)
+    <<module = entry.module
+    <<name = entry.name
+    <<type = NodeAt(bundle, entry.node).spelling
+    <<global = entry.index
+    return 1
+}
+
+#program_export
+ExecHostsStateValue :: (hosts: *ExecHosts, index: usize, image: *u8, size: usize, value: *HostValue) -> s32 {
+    bundle := hosts.bundle
+    if index >= bundle.global_count || size > 9223372036854775807 { return 0 }
+    global := GlobalAt(bundle, index)
+    unused memset(cast(*u8)value, 0, size_of(HostValue))
+    ArenaFree(hosts)
+    ok := FromImage(hosts, global.node, GlobalType(bundle, global), image, cast(s64)size, 0, value, 0)
+    return ifx ok then 1 else 0
+}
+
+#program_export
+ExecHostsNativeStateValue :: (hosts: *ExecHosts, index: usize, native: *u8, value: *HostValue) -> s32 {
+    bundle := hosts.bundle
+    if index >= bundle.global_count || native == null || value == null { return 0 }
+    global := GlobalAt(bundle, index)
+    type := GlobalType(bundle, global)
+    image := *hosts.native_in
+    image.length = 0
+    image.base = 0
+    root := ImageGrow(image, SizeOf(bundle, type))
+    if root < 0 || !NativeToImage(hosts, image, global.node, type, native, root, 0) { return 0 }
+    unused memset(cast(*u8)value, 0, size_of(HostValue))
+    ArenaFree(hosts)
+    ok := FromImage(hosts, global.node, type, image.bytes, cast(s64)image.length, 0, value, 0)
+    return ifx ok then 1 else 0
+}
+
+#program_export
+ExecHostsNativeStateCheck :: (hosts: *ExecHosts, index: usize, value: *HostValue) -> s32 {
+    image: *u8 = null
+    size: usize = 0
+    return ExecHostsStateImage(hosts, index, value, *image, *size)
+}
+
+#program_export
+ExecHostsNativeStateStore :: (hosts: *ExecHosts, index: usize, value: *HostValue, native: *u8) -> s32 {
+    bundle := hosts.bundle
+    image: *u8 = null
+    size: usize = 0
+    if native == null || ExecHostsStateImage(hosts, index, value, *image, *size) == 0 { return 0 }
+    global := GlobalAt(bundle, index)
+    // Reserve the image's bytes so nested views never move, then keep them.
+    hosts.native_out.length = 0
+    if size > 9223372036854775807 || ImageGrow(*hosts.native_out, cast(s64)size) < 0 { return 0 }
+    hosts.native_out.length = 0
+    if !ImageToNative(hosts, *hosts.native_out, global.node, GlobalType(bundle, global), image, cast(s64)size, 0, native, 0) { return 0 }
+    return ifx NativeRetain(hosts, 0) then 1 else 0
+}
+
+#program_export
+ExecHostsStateImage :: (hosts: *ExecHosts, index: usize, value: *HostValue, image: **u8, size: *usize) -> s32 {
+    bundle := hosts.bundle
+    if index >= bundle.global_count || value == null { return 0 }
+    global := GlobalAt(bundle, index)
+    type := GlobalType(bundle, global)
+    back := *hosts.back
+    back.length = 0
+    back.base = 0
+    back.given = null
+    if ImageGrow(back, SizeOf(bundle, type)) < 0 || !ToImage(hosts, back, global.node, type, value, 0, 0) { return 0 }
+    <<image = back.bytes
+    <<size = back.length
+    return 1
+}
+
+#program_export
+ExecInstanceClose :: (instance: *ExecInstance) {
+    if instance == null { return }
+    // What the instance wrote is out by the time it closes.
+    unused ZxConsoleFlush(*instance.console)
+    if cast(*void)instance.console.write == null { unused fflush(null) }
+    ExecI386Close(instance.i386)
+    Exec.LirExecInstanceClose(*instance.instance)
+    ExecHostsClose(instance.hosts)
+    free(cast(*u8)instance.calls)
+    free(cast(*u8)instance.arguments)
+    free(cast(*u8)instance)
+}

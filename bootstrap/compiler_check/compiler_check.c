@@ -2234,13 +2234,22 @@ compiler_check_layout_type_with_buffers(ZirModule* module, uint8_t* source, int3
         zir_f_db75f2f733e13c03_CompilerFree((void*)(type_storage_0));
         return cleanup_return_21;
     }
-    bool value_93 = record == (ZirType*)(((void *)0)) || record->is_procedure_type != 0 || record->is_extern != 0 || record->is_map != 0;
-    if (value_93 || record->is_record_template != 0 || record->is_type_instance != 0) {
-        int32_t cleanup_return_22 = 0;
+    if (record != (ZirType*)(((void *)0)) && record->is_procedure_type != 0) {
+        compiler_check_types_CheckSet3(size, (size_t)(16LL));
+        compiler_check_types_CheckSet3(alignment, (size_t)(8LL));
+        int32_t cleanup_return_22 = 1;
         zir_f_db75f2f733e13c03_CompilerFree((void*)(vector_storage_2));
         zir_f_db75f2f733e13c03_CompilerFree((void*)(element_storage_1));
         zir_f_db75f2f733e13c03_CompilerFree((void*)(type_storage_0));
         return cleanup_return_22;
+    }
+    bool value_93 = record == (ZirType*)(((void *)0)) || record->is_procedure_type != 0 || record->is_extern != 0 || record->is_map != 0;
+    if (value_93 || record->is_record_template != 0 || record->is_type_instance != 0) {
+        int32_t cleanup_return_23 = 0;
+        zir_f_db75f2f733e13c03_CompilerFree((void*)(vector_storage_2));
+        zir_f_db75f2f733e13c03_CompilerFree((void*)(element_storage_1));
+        zir_f_db75f2f733e13c03_CompilerFree((void*)(type_storage_0));
+        return cleanup_return_23;
     }
     if (record->is_enum != 0) {
         ZirModule* value_94 = (void *)0;
@@ -2249,11 +2258,11 @@ compiler_check_layout_type_with_buffers(ZirModule* module, uint8_t* source, int3
         } else {
             value_94 = module;
         }
-        int32_t cleanup_return_23 = private_check_layout_type(value_94, (uint8_t*)(&(record->enum_backing)), (int32_t)((uint32_t)depth + 1u), size, alignment);
+        int32_t cleanup_return_24 = private_check_layout_type(value_94, (uint8_t*)(&(record->enum_backing)), (int32_t)((uint32_t)depth + 1u), size, alignment);
         zir_f_db75f2f733e13c03_CompilerFree((void*)(vector_storage_2));
         zir_f_db75f2f733e13c03_CompilerFree((void*)(element_storage_1));
         zir_f_db75f2f733e13c03_CompilerFree((void*)(type_storage_0));
-        return cleanup_return_23;
+        return cleanup_return_24;
     }
     size_t offset = (size_t)(0LL);
     size_t maximum_alignment = (size_t)(1LL);
@@ -2292,11 +2301,11 @@ compiler_check_layout_type_with_buffers(ZirModule* module, uint8_t* source, int3
             value_97 = value_99;
         }
         if (value_97) {
-            int32_t cleanup_return_24 = 0;
+            int32_t cleanup_return_25 = 0;
             zir_f_db75f2f733e13c03_CompilerFree((void*)(vector_storage_2));
             zir_f_db75f2f733e13c03_CompilerFree((void*)(element_storage_1));
             zir_f_db75f2f733e13c03_CompilerFree((void*)(type_storage_0));
-            return cleanup_return_24;
+            return cleanup_return_25;
         }
         if (record->is_union != 0) {
             if (field_size > offset) {
@@ -2317,18 +2326,18 @@ compiler_check_layout_type_with_buffers(ZirModule* module, uint8_t* source, int3
         value_105 = !value_106;
     }
     if (value_105) {
-        int32_t cleanup_return_25 = 0;
+        int32_t cleanup_return_26 = 0;
         zir_f_db75f2f733e13c03_CompilerFree((void*)(vector_storage_2));
         zir_f_db75f2f733e13c03_CompilerFree((void*)(element_storage_1));
         zir_f_db75f2f733e13c03_CompilerFree((void*)(type_storage_0));
-        return cleanup_return_25;
+        return cleanup_return_26;
     }
     compiler_check_types_CheckSet3(alignment, maximum_alignment);
-    int32_t cleanup_return_26 = 1;
+    int32_t cleanup_return_27 = 1;
     zir_f_db75f2f733e13c03_CompilerFree((void*)(vector_storage_2));
     zir_f_db75f2f733e13c03_CompilerFree((void*)(element_storage_1));
     zir_f_db75f2f733e13c03_CompilerFree((void*)(type_storage_0));
-    return cleanup_return_26;
+    return cleanup_return_27;
 }
 
 int32_t

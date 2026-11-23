@@ -1,0 +1,894 @@
+// Opened executable ZX bundles: the verified program read from bytes or
+// from a consistent snapshot of a read callback, planned once, with the
+// host interface section parsed into value nodes, host lines and module
+// globals, and the embedded assets copied. Loaded by compiler_zx_exec.zi.
+
+// A value node of the interface section. A procedure value is code, not a
+// value a host or a state snapshot takes.
+NODE_SCALAR :: 0
+NODE_STRING :: 1
+NODE_POINTER :: 2
+NODE_PROCEDURE :: 3
+NODE_SLICE :: 4
+NODE_ARRAY :: 5
+NODE_RECORD :: 6
+EXEC_DEPTH :: 64
+
+ExecNode :: struct {
+    class: s32
+    spelling: *u8
+    child: s32
+    field_count: s32
+    field_names: **u8
+    field_nodes: *s32
+}
+
+ExecHost :: struct {
+    function: s32
+    module: *u8
+    name: *u8
+    result: s32
+    parameter_count: s32
+    parameters: *s32
+    // The declaration as written, from its abi line.
+    variadic: s32
+    reads: s32
+    abi_lines: s32
+    host_lines: s32
+    signature: *u8
+    arguments: *u8
+    return_type: *u8
+}
+
+ExecGlobal :: struct {
+    index: s32
+    module: *u8
+    name: *u8
+    node: s32
+}
+
+ExecAsset :: struct {
+    name: *u8
+    data: *u8
+    size: usize
+}
+
+ExecBundle :: struct {
+    owner: Link.ZxExecOwner
+    program: LIR.LirProgram
+    plan: Exec.LirExecPlan
+    packed_instructions: *void
+    engine_only: s32
+    text: *u8
+    interface_complete: s32
+    nodes: *ExecNode
+    node_count: s32
+    hosts: *ExecHost
+    host_count: usize
+    globals: *ExecGlobal
+    global_count: usize
+    entry_module: *u8
+    entry_function: *u8
+    entry_arguments: *u8
+    entry_return: *u8
+    assets: *ExecAsset
+    asset_count: usize
+    asset_bytes: *u8
+}
+
+NodeAt :: (bundle: *ExecBundle, index: s32) -> *ExecNode { return *bundle.nodes[index] }
+HostAt :: (bundle: *ExecBundle, index: usize) -> *ExecHost { return *bundle.hosts[index] }
+GlobalAt :: (bundle: *ExecBundle, index: usize) -> *ExecGlobal { return *bundle.globals[index] }
+LineAt :: (lines: *ExecHost, index: s32) -> *ExecHost { return *lines[index] }
+
+// A NUL-terminated copy of TEXT, or null.
+CopyText :: (text: string) -> *u8 {
+    length := cast(usize)text.count
+    copy := malloc(length + 1)
+    if copy == null { return null }
+    if length != 0 { unused memcpy(copy, TextData(*text), length) }
+    copy[length] = 0
+    return copy
+}
+
+// Splits the next tab- or line-ended field off CURSOR, ending it in place.
+Field :: (cursor: **u8, line_end: *bool) -> *u8 {
+    start := <<cursor
+    at := start
+    while at[0] != 0 && at[0] != 9 && at[0] != 10 { at = Advance(at, 1) }
+    <<line_end = at[0] != 9
+    if at[0] != 0 {
+        at[0] = 0
+        at = Advance(at, 1)
+    }
+    <<cursor = at
+    return start
+}
+
+// A decimal from -1 to INT32_MAX.
+Number :: (text: *u8, value: *s32) -> bool {
+    end: *u8 = null
+    parsed := strtol(text, *end, 10)
+    if end == text || end[0] != 0 || parsed < -1 || parsed > 2147483647 { return false }
+    <<value = cast(s32)parsed
+    return true
+}
+
+Is :: (text: *u8, expected: string) -> bool { return strcmp(text, CStr(expected)) == 0 }
+
+// One node line: its id, class, spelling and class fields.
+ParseNode :: (bundle: *ExecBundle, fields: **u8, count: s32) -> bool {
+    id: s32 = 0
+    if count < 3 || !Number(fields[0], *id) || id != bundle.node_count { return false }
+    node := NodeAt(bundle, bundle.node_count)
+    node.spelling = fields[2]
+    node.child = -1
+    class := fields[1]
+    extra := count - 3
+    if Is(class, "scalar") || Is(class, "string") || Is(class, "pointer") || Is(class, "procedure") {
+        if extra != 0 { return false }
+        node.class = NODE_PROCEDURE
+        if Is(class, "scalar") { node.class = NODE_SCALAR }
+        if Is(class, "string") { node.class = NODE_STRING }
+        if Is(class, "pointer") { node.class = NODE_POINTER }
+    } else if Is(class, "slice") || Is(class, "array") {
+        if extra != 1 || !Number(fields[3], *node.child) || node.child < 0 { return false }
+        node.class = ifx Is(class, "slice") then NODE_SLICE else NODE_ARRAY
+    } else if Is(class, "record") {
+        if extra % 2 != 0 { return false }
+        node.class = NODE_RECORD
+        node.field_count = extra / 2
+        node.field_names = cast(**u8)calloc(cast(usize)node.field_count + 1, size_of(*u8))
+        node.field_nodes = cast(*s32)calloc(cast(usize)node.field_count + 1, size_of(s32))
+        if node.field_names == null || node.field_nodes == null { return false }
+        for field: 0..node.field_count - 1 {
+            node.field_names[field] = fields[3 + 2 * field]
+            if !Number(fields[4 + 2 * field], *node.field_nodes[field]) || node.field_nodes[field] < 0 { return false }
+        }
+    } else {
+        return false
+    }
+    bundle.node_count += 1
+    return true
+}
+
+ParseHost :: (bundle: *ExecBundle, hosts: *ExecHost, host_lines: *s32, fields: **u8, count: s32) -> bool {
+    host := LineAt(hosts, <<host_lines)
+    if count < 2 || !Number(fields[0], *host.function) || !Number(fields[1], *host.result) || host.result >= bundle.node_count { return false }
+    host.signature = CStr("")
+    host.arguments = CStr("")
+    host.return_type = CStr("")
+    host.parameter_count = count - 2
+    host.parameters = cast(*s32)calloc(cast(usize)host.parameter_count + 1, size_of(s32))
+    if host.parameters == null { return false }
+    for at: 0..host.parameter_count - 1 {
+        if !Number(fields[2 + at], *host.parameters[at]) || host.parameters[at] < 0 || host.parameters[at] >= bundle.node_count { return false }
+    }
+    <<host_lines += 1
+    return true
+}
+
+ParseAbi :: (hosts: *ExecHost, host_lines: s32, fields: **u8, count: s32) -> bool {
+    function: s32 = 0
+    variadic: s32 = 0
+    reads: s32 = 0
+    if count != 6 || !Number(fields[0], *function) || !Number(fields[1], *variadic) || !Number(fields[2], *reads) { return false }
+    host: *ExecHost = null
+    for line: 0..host_lines - 1 {
+        if host == null && LineAt(hosts, line).function == function { host = LineAt(hosts, line) }
+    }
+    if host == null { return false }
+    host.abi_lines += 1
+    host.variadic = ifx variadic != 0 then 1 else 0
+    host.reads = ifx reads != 0 then 1 else 0
+    host.signature = fields[3]
+    host.arguments = fields[4]
+    host.return_type = fields[5]
+    return true
+}
+
+ParseGlobal :: (bundle: *ExecBundle, fields: **u8, count: s32) -> bool {
+    index: s32 = 0
+    node: s32 = 0
+    if count != 2 || !Number(fields[0], *index) || !Number(fields[1], *node) || index < 0 ||
+       cast(s64)index >= bundle.program.globals.count || node < 0 || node >= bundle.node_count { return false }
+    declared := *bundle.program.globals[index]
+    global := GlobalAt(bundle, bundle.global_count)
+    bundle.global_count += 1
+    global.index = index
+    global.node = node
+    global.module = CopyText(bundle.program.modules[declared.module])
+    global.name = CopyText(declared.name)
+    return global.module != null && global.name != null
+}
+
+// The host interface section: node lines, which may name any node, itself
+// included, then host, abi, global and entry lines.
+ParseInterface :: (bundle: *ExecBundle, hosts: **ExecHost, host_lines: *s32) -> bool {
+    lines: usize = 0
+    at: usize = 0
+    while bundle.text[at] != 0 {
+        if bundle.text[at] == 10 { lines += 1 }
+        at += 1
+    }
+    bundle.nodes = cast(*ExecNode)calloc(lines + 1, size_of(ExecNode))
+    bundle.globals = cast(*ExecGlobal)calloc(lines + 1, size_of(ExecGlobal))
+    <<hosts = cast(*ExecHost)calloc(lines + 1, size_of(ExecHost))
+    if bundle.nodes == null || bundle.globals == null || <<hosts == null { return false }
+    cursor := bundle.text
+    fields: [516]*u8
+    while cursor[0] != 0 {
+        end := false
+        kind := Field(*cursor, *end)
+        count: s32 = 0
+        while !end && count < 516 {
+            fields[count] = Field(*cursor, *end)
+            count += 1
+        }
+        if !end { return false }
+        ok := false
+        if Is(kind, "node") { ok = ParseNode(bundle, *fields[0], count) }
+        else if Is(kind, "host") { ok = ParseHost(bundle, <<hosts, host_lines, *fields[0], count) }
+        else if Is(kind, "abi") { ok = ParseAbi(<<hosts, <<host_lines, *fields[0], count) }
+        else if Is(kind, "global") { ok = ParseGlobal(bundle, *fields[0], count) }
+        else if Is(kind, "entry") {
+            ok = count == 2
+            if ok {
+                bundle.entry_arguments = fields[0]
+                bundle.entry_return = fields[1]
+            }
+        }
+        if !ok { return false }
+    }
+    for id: 0..bundle.node_count - 1 {
+        node := NodeAt(bundle, id)
+        if node.child >= bundle.node_count { return false }
+        for field: 0..node.field_count - 1 {
+            if node.field_nodes[field] >= bundle.node_count { return false }
+        }
+    }
+    return true
+}
+
+// Copies the container's assets, which the reader has checked and identified.
+ReadAssets :: (bundle: *ExecBundle, bytes: *u8, size: usize) -> bool {
+    input := TextOf(bytes, size)
+    none: []Assets.Asset
+    layout := Assets.ExecutableDecode(input, none)
+    if layout.problem != .None || layout.assets < 0 { return false }
+    count := cast(usize)layout.assets
+    if count == 0 { return true }
+    views: *Assets.Asset = ifx count < SizeMax() / size_of(Assets.Asset) then cast(*Assets.Asset)calloc(count, size_of(Assets.Asset)) else null
+    bundle.assets = ifx views != null then cast(*ExecAsset)calloc(count, size_of(ExecAsset)) else null
+    if bundle.assets == null {
+        free(cast(*u8)views)
+        return false
+    }
+    layout = Assets.ExecutableDecode(input, AssetSlice(views, count))
+    ok := layout.problem == .None
+    total: usize = 0
+    index: usize = 0
+    while ok && index < count {
+        view := *views[index]
+        need := cast(usize)view.name.count + cast(usize)view.data.count + 2
+        ok = cast(usize)view.name.count < size && cast(usize)view.data.count < size && need <= SizeMax() - total
+        total += need
+        index += 1
+    }
+    bundle.asset_bytes = ifx ok then malloc(total) else null
+    if bundle.asset_bytes == null {
+        free(cast(*u8)views)
+        return false
+    }
+    at := bundle.asset_bytes
+    index = 0
+    while index < count {
+        asset := *bundle.assets[index]
+        view := *views[index]
+        name_length := cast(usize)view.name.count
+        data_length := cast(usize)view.data.count
+        asset.name = at
+        if name_length != 0 { unused memcpy(at, TextData(*view.name), name_length) }
+        at[name_length] = 0
+        at = Advance(at, name_length + 1)
+        asset.data = at
+        asset.size = data_length
+        if data_length != 0 { unused memcpy(at, TextData(*view.data), data_length) }
+        at[data_length] = 0
+        at = Advance(at, data_length + 1)
+        index += 1
+    }
+    bundle.asset_count = count
+    free(cast(*u8)views)
+    return true
+}
+
+AssetSlice :: (data: *Assets.Asset, count: usize) -> []Assets.Asset {
+    result: []Assets.Asset
+    view := cast(*RawSlice)(*result)
+    view.data = cast(*u8)data
+    view.length = cast(s64)count
+    return result
+}
+
+#program_export
+ExecBundleClose :: (bundle: *ExecBundle) {
+    if bundle == null { return }
+    Exec.LirExecPlanFree(*bundle.plan)
+    free(cast(*u8)bundle.packed_instructions)
+    Link.ZxExecReadFree(*bundle.owner)
+    for index: 0..bundle.node_count - 1 {
+        node := NodeAt(bundle, index)
+        free(cast(*u8)node.field_names)
+        free(cast(*u8)node.field_nodes)
+    }
+    free(cast(*u8)bundle.nodes)
+    index: usize = 0
+    while index < bundle.host_count {
+        host := HostAt(bundle, index)
+        free(host.module)
+        free(host.name)
+        free(cast(*u8)host.parameters)
+        index += 1
+    }
+    free(cast(*u8)bundle.hosts)
+    index = 0
+    while index < bundle.global_count {
+        global := GlobalAt(bundle, index)
+        free(global.module)
+        free(global.name)
+        index += 1
+    }
+    free(cast(*u8)bundle.globals)
+    free(cast(*u8)bundle.assets)
+    free(bundle.asset_bytes)
+    free(bundle.text)
+    free(bundle.entry_module)
+    free(bundle.entry_function)
+    free(cast(*u8)bundle)
+}
+
+CopyBundleAssets :: (bundle: *ExecBundle, bytes: *u8, size: usize, name: *u8) -> bool {
+    if ReadAssets(bundle, bytes, size) { return true }
+    Diagnostic(Span(name, 1, 1), CStr("zx.input"), CStr("cannot read the executable ZX assets"))
+    return false
+}
+
+// A bundle read through a callback is verified from a snapshot: pages are
+// fingerprinted the first time they are read and must not change after.
+SOURCE_IMAGE_MAX :: 268435456
+SOURCE_PAGE_SIZE :: 32768
+SOURCE_FINGERPRINT_BYTES :: 32
+SOURCE_FRAMING_PAGES :: 4
+
+ExecSourceInput :: struct {
+    read_at: BundleReadAt
+    context: *void
+    size: u64
+    digest: *u8
+    unsupported: *s32
+    engine_only: s32
+    shrink: BundleShrink
+}
+
+ExecSourceSnapshot :: struct {
+    source: *ExecSourceInput
+    size: usize
+    page_size: usize
+    cached_at: usize
+    page: *u8
+    fingerprints: *u8
+    seen: *u8
+    framing_at: [4]usize
+    framing_count: usize
+    next_raw_page: usize
+    raw: Sha256
+    streaming: s32
+    problem: *u8
+}
+
+SourcePageSize :: (snapshot: *ExecSourceSnapshot, at: usize) -> usize {
+    remaining := snapshot.size - at
+    return ifx snapshot.page_size < remaining then snapshot.page_size else remaining
+}
+
+SourceFingerprint :: (bytes: *u8, size: usize, digest: *u8) {
+    hash: Sha256
+    Sha256Begin(*hash)
+    Sha256Add(*hash, bytes, size)
+    Sha256End(*hash, digest)
+}
+
+// Page INDEX of the source: one of the first framing pages kept for the
+// whole read, or the one cached page.
+SourcePage :: (snapshot: *ExecSourceSnapshot, index: usize) -> *u8 {
+    begin := index * snapshot.page_size
+    i: usize = 0
+    while i < snapshot.framing_count {
+        if snapshot.framing_at[i] == begin { return Advance(snapshot.page, (i + 1) * snapshot.page_size) }
+        i += 1
+    }
+    if snapshot.cached_at == begin { return snapshot.page }
+    source := snapshot.source
+    size := SourcePageSize(snapshot, begin)
+    pin := snapshot.streaming == 0 && snapshot.framing_count < SOURCE_FRAMING_PAGES
+    output := snapshot.page
+    if pin { output = Advance(output, (snapshot.framing_count + 1) * snapshot.page_size) }
+    if source.read_at(source.context, cast(u64)begin, cast(*void)output, size) != size {
+        snapshot.problem = CStr("short read or read error in ZX source")
+        return null
+    }
+    digest: [32]u8
+    expected := Advance(snapshot.fingerprints, index * SOURCE_FINGERPRINT_BYTES)
+    SourceFingerprint(output, size, *digest[0])
+    if snapshot.seen[index] != 0 && memcmp(*digest[0], expected, SOURCE_FINGERPRINT_BYTES) != 0 {
+        snapshot.problem = CStr("ZX source changed during verification")
+        return null
+    }
+    if snapshot.seen[index] == 0 {
+        unused memcpy(expected, *digest[0], SOURCE_FINGERPRINT_BYTES)
+        snapshot.seen[index] = 1
+    }
+    if pin {
+        snapshot.framing_at[snapshot.framing_count] = begin
+        snapshot.framing_count += 1
+    } else {
+        snapshot.cached_at = begin
+    }
+    return output
+}
+
+// The bytes of the source from AT to the end of its page. While streaming,
+// every earlier page also goes into the raw digest, in order.
+SourceWindow :: (context: *void, at: s64) -> string {
+    snapshot := cast(*ExecSourceSnapshot)context
+    none: string
+    if snapshot.problem != null || at < 0 || cast(u64)at >= cast(u64)snapshot.size { return none }
+    position := cast(usize)at
+    index := position / snapshot.page_size
+    begin := index * snapshot.page_size
+    size := SourcePageSize(snapshot, begin)
+    while snapshot.streaming != 0 && snapshot.next_raw_page <= index {
+        next := snapshot.next_raw_page
+        snapshot.next_raw_page += 1
+        bytes := SourcePage(snapshot, next)
+        if bytes == null { return none }
+        Sha256Add(*snapshot.raw, bytes, SourcePageSize(snapshot, next * snapshot.page_size))
+    }
+    page := SourcePage(snapshot, index)
+    if page == null { return none }
+    relative := position - begin
+    return TextOf(Advance(page, relative), size - relative)
+}
+
+SourceStreamBegin :: (context: *void) {
+    snapshot := cast(*ExecSourceSnapshot)context
+    snapshot.streaming = 1
+}
+
+SourceStreamFinish :: (snapshot: *ExecSourceSnapshot) {
+    snapshot.streaming = 1
+    last := SourceWindow(cast(*void)snapshot, cast(s64)snapshot.size - 1)
+    if TextData(*last) != null { Sha256End(*snapshot.raw, snapshot.source.digest) }
+}
+
+SourceSnapshotBegin :: (snapshot: *ExecSourceSnapshot, source: *ExecSourceInput) -> bool {
+    if cast(*void)source.read_at == null || source.size == 0 || source.size > SOURCE_IMAGE_MAX {
+        snapshot.problem = CStr("invalid ZX source size or callback")
+        return false
+    }
+    size := cast(usize)source.size
+    page_size: usize = ifx size < SOURCE_PAGE_SIZE then size else SOURCE_PAGE_SIZE
+    pages := 1 + (size - 1) / page_size
+    window_bytes := (SOURCE_FRAMING_PAGES + 1) * page_size
+    snapshot.page = malloc(window_bytes + pages * (SOURCE_FINGERPRINT_BYTES + 1))
+    if snapshot.page == null {
+        snapshot.problem = CStr("cannot allocate a ZX source window")
+        return false
+    }
+    snapshot.source = source
+    snapshot.size = size
+    snapshot.page_size = page_size
+    snapshot.cached_at = SizeMax()
+    snapshot.fingerprints = Advance(snapshot.page, window_bytes)
+    snapshot.seen = Advance(snapshot.fingerprints, pages * SOURCE_FINGERPRINT_BYTES)
+    unused memset(snapshot.seen, 0, pages)
+    Sha256Begin(*snapshot.raw)
+    return true
+}
+
+Shrink :: (shrink: BundleShrink, storage: *u8, size: usize) -> *u8 {
+    if cast(*void)shrink != null { return cast(*u8)shrink(cast(*void)storage, size) }
+    return realloc(storage, size)
+}
+
+// Rewrites an engine-only bundle's instructions in place as the engine's
+// packed records. The decoder and the plan visit the same contiguous block
+// order, so a smaller record never overlaps unread LIR; only operands,
+// edges and block lengths stay borrowed from the reader.
+PackInstructions :: (bundle: *ExecBundle, shrink: BundleShrink) {
+    read := *bundle.owner.read
+    instructions := RawOf(cast(*void)*read.instructions)
+    wide := cast(*LIR.LirInstruction)instructions.data
+    count := instructions.count
+    if count == 0 || size_of(LIR.LirExecPackedInstruction) >= size_of(LIR.LirInstruction) { return }
+    for at: cast(s64)0..count - 1 {
+        if wide[at].operands.count < 0 || wide[at].operands.count > 4294967295 { return }
+    }
+    storage := cast(*u8)wide
+    for at: cast(s64)0..count - 1 {
+        source := *wide[at]
+        packed: LIR.LirExecPackedInstruction
+        packed.operand_data = ifx source.operands.count > 0 then *source.operands[0] else null
+        packed.edge_data = ifx source.edges.count > 0 then *source.edges[0] else null
+        packed.immediate = source.immediate
+        packed.result = source.result
+        packed.symbol = source.symbol
+        packed.operand_count = cast(u32)source.operands.count
+        packed.alignment = source.alignment
+        packed.op = source.op
+        packed.checked = source.checked
+        unused memcpy(Advance(storage, cast(usize)at * size_of(LIR.LirExecPackedInstruction)), cast(*u8)*packed, size_of(LIR.LirExecPackedInstruction))
+    }
+    blocks := RawOf(cast(*void)*read.blocks)
+    block_data := cast(*LIR.LirBlock)blocks.data
+    for at: cast(s64)0..blocks.count - 1 {
+        block := *block_data[at]
+        none: []LIR.LirInstruction
+        block.instructions = BlockInstructions(none, block.instructions.count)
+    }
+    instructions.data = null
+    instructions.count = 0
+    instructions.capacity = 0
+    read.valid = false
+    size := cast(usize)count * size_of(LIR.LirExecPackedInstruction)
+    smaller := Shrink(shrink, storage, size)
+    bundle.packed_instructions = cast(*void)(ifx smaller != null then smaller else storage)
+    bundle.plan.packed_instructions = PackedSlice(bundle.packed_instructions, count)
+}
+
+// A block's instruction slice with no data and COUNT elements, as the C
+// facade left it once the instructions moved.
+BlockInstructions :: (none: []LIR.LirInstruction, count: s64) -> []LIR.LirInstruction {
+    result := none
+    view := cast(*RawSlice)(*result)
+    view.data = null
+    view.length = count
+    return result
+}
+
+PackedSlice :: (data: *void, count: s64) -> []LIR.LirExecPackedInstruction {
+    result: []LIR.LirExecPackedInstruction
+    view := cast(*RawSlice)(*result)
+    view.data = cast(*u8)data
+    view.length = count
+    return result
+}
+
+// Rewrites the compact decoder's records as the engine's packed records
+// once planning no longer needs the scratch function or effect ordinals;
+// the reader chose records at least as wide.
+FinishCompactDecode :: (bundle: *ExecBundle, shrink: BundleShrink) {
+    read := *bundle.owner.read
+    compact := RawOf(cast(*void)*read.compact_instructions)
+    operands := RawOf(cast(*void)*read.operands)
+    edges := RawOf(cast(*void)*read.edges)
+    count := compact.count
+    decoded := cast(*Serial.LirCompactDecodeInstruction)compact.data
+    operand_data := cast(*s32)operands.data
+    edge_data := cast(*LIR.LirEdge)edges.data
+    Serial.LirReleaseFunctionBodies(read)
+    storage := cast(*u8)decoded
+    for at: cast(s64)0..count - 1 {
+        record := decoded[at].instruction
+        operand_end: u32 = ifx at + 1 < count then decoded[at + 1].instruction.operand_start else cast(u32)operands.count
+        flags := record.edge_and_flags
+        instruction: LIR.LirExecPackedInstruction
+        instruction.operand_data = ifx operand_data != null then *operand_data[record.operand_start] else null
+        instruction.edge_data = ifx edge_data != null then *edge_data[flags >> 9] else null
+        instruction.immediate = record.immediate
+        instruction.result = record.result
+        instruction.symbol = record.symbol
+        instruction.operand_count = operand_end - record.operand_start
+        instruction.op = cast(LIR.LirOp)cast(u8)((flags >> 3) & 63)
+        instruction.alignment = cast(u16)((flags >> 1) & 3)
+        instruction.checked = (flags & 1) != 0
+        unused memcpy(Advance(storage, cast(usize)at * size_of(LIR.LirExecPackedInstruction)), cast(*u8)*instruction, size_of(LIR.LirExecPackedInstruction))
+    }
+    compact.data = null
+    compact.count = 0
+    compact.capacity = 0
+    read.valid = false
+    size := cast(usize)count * size_of(LIR.LirExecPackedInstruction)
+    if size < cast(usize)count * size_of(Serial.LirCompactDecodeInstruction) {
+        smaller := Shrink(shrink, storage, size)
+        if smaller != null { storage = smaller }
+    }
+    bundle.packed_instructions = cast(*void)storage
+    bundle.plan.packed_instructions = PackedSlice(bundle.packed_instructions, count)
+}
+
+ReadFromSource :: (bundle: *ExecBundle, source: *ExecSourceInput, name: *u8, limits: LIR.LirLimits, read: *Link.ZxExecResult) -> bool {
+    snapshot: ExecSourceSnapshot
+    if SourceSnapshotBegin(*snapshot, source) {
+        input := Assets.ExecutableReadSource.{context = cast(*void)*snapshot, window = SourceWindow, size = cast(s64)snapshot.size}
+        begin: Link.ZxExecSourceBegin = SourceStreamBegin
+        if source.engine_only != 0 {
+            <<read = Link.ZxExecReadCompactAppSource(*bundle.owner, *input, limits, begin)
+        } else {
+            <<read = Link.ZxExecReadAppSource(*bundle.owner, *input, limits, begin)
+        }
+        if read.problem == .None || read.problem == .SourceProfile { SourceStreamFinish(*snapshot) }
+    }
+    free(snapshot.page)
+    if snapshot.problem != null {
+        Diagnostic(Span(name, 1, 1), CStr("zx.input"), CStr("%s"), snapshot.problem)
+        return false
+    }
+    if read.problem == .SourceProfile && source.unsupported != null {
+        unsupported := source.unsupported
+        <<unsupported = 1
+        return false
+    }
+    return true
+}
+
+// Each host capability of the program in function order, with its
+// interface line; false after a diagnostic.
+IndexHosts :: (bundle: *ExecBundle, lines: *ExecHost, line_count: s32, name: *u8) -> bool {
+    bundle.hosts = cast(*ExecHost)calloc(cast(usize)bundle.program.functions.count + 1, size_of(ExecHost))
+    if bundle.hosts == null { return false }
+    // Index the interface lines by LIR function before packing the binding
+    // table in function order; the packed prefix cannot overwrite a later
+    // function's index.
+    for line: 0..line_count - 1 {
+        index := LineAt(lines, line).function
+        if index >= 0 && cast(s64)index < bundle.program.functions.count {
+            host := HostAt(bundle, cast(usize)index)
+            if host.host_lines == 0 { host.function = line }
+            host.host_lines += 1
+        }
+    }
+    for index: cast(s64)0..bundle.program.functions.count - 1 {
+        function := *bundle.program.functions[index]
+        if function.external && function.calling == .Host && ZxPlatformService(*bundle.program, index) == SERVICE_NONE {
+            host_lines := HostAt(bundle, cast(usize)index).host_lines
+            found: *ExecHost = ifx host_lines != 0 then LineAt(lines, HostAt(bundle, cast(usize)index).function) else null
+            host := HostAt(bundle, bundle.host_count)
+            bundle.host_count += 1
+            unused memset(cast(*u8)host, 0, size_of(ExecHost))
+            host.function = cast(s32)index
+            host.host_lines = host_lines
+            host.module = CopyText(bundle.program.modules[function.module])
+            host.name = CopyText(function.name)
+            if host.module == null || host.name == null { return false }
+            void_result := bundle.program.types[function.result].kind == .Void
+            if found == null || cast(s64)found.parameter_count != function.parameters.count || (found.result < 0) != void_result {
+                Diagnostic(Span(name, 1, 1), CStr("zx.input"),
+                    CStr("executable ZX names no host interface for capability %s:%s; rebuild it with zi2zx"), host.module, host.name)
+                return false
+            }
+            host.result = found.result
+            host.parameter_count = found.parameter_count
+            host.parameters = found.parameters
+            host.variadic = found.variadic
+            host.reads = found.reads
+            host.abi_lines = found.abi_lines
+            host.signature = found.signature
+            host.arguments = found.arguments
+            host.return_type = found.return_type
+            found.parameters = null
+        }
+    }
+    return true
+}
+
+FreeLines :: (lines: *ExecHost, line_count: s32) {
+    if lines == null { return }
+    for line: 0..line_count - 1 { free(cast(*u8)LineAt(lines, line).parameters) }
+    free(cast(*u8)lines)
+}
+
+OpenBundle :: (bytes: *u8, size: usize, name: *u8, consumed: BundleImageRelease, context: *void, source: *ExecSourceInput) -> *ExecBundle {
+    bundle := cast(*ExecBundle)calloc(1, size_of(ExecBundle))
+    if bundle == null { return null }
+    lines: *ExecHost = null
+    line_count: s32 = 0
+    compact_decode := false
+    if !BuildBundle(bundle, bytes, size, name, consumed, context, source, *lines, *line_count, *compact_decode) {
+        FreeLines(lines, line_count)
+        ExecBundleClose(bundle)
+        return null
+    }
+    FreeLines(lines, line_count)
+    if bundle.engine_only != 0 && !compact_decode { PackInstructions(bundle, source.shrink) }
+    return bundle
+}
+
+BuildBundle :: (bundle: *ExecBundle, bytes: *u8, size: usize, name: *u8, consumed: BundleImageRelease, context: *void,
+                source: *ExecSourceInput, lines: **ExecHost, line_count: *s32, compacted: *bool) -> bool {
+    bundle.entry_arguments = CStr("")
+    bundle.entry_return = CStr("")
+    limits := LIR.LirDefaultLimits()
+    read: Link.ZxExecResult
+    if source == null {
+        read = Link.ZxExecRead(*bundle.owner, TextOf(bytes, size), limits)
+    } else if !ReadFromSource(bundle, source, name, limits, *read) {
+        return false
+    }
+    if read.problem != .None {
+        problem := Link.ZxExecProblemName(read.problem)
+        container := Assets.ExecutableMessage(read.container)
+        Diagnostic(Span(name, 1, 1), CStr("zx.input"),
+            CStr("executable ZX rejected: problem=%.*s container=%.*s codec=%d offset=%lld verifier=%d"),
+            cast(s32)problem.count, TextData(*problem), cast(s32)container.count, TextData(*container),
+            cast(s32)read.codec, read.offset, cast(s32)read.diagnostic.problem)
+        return false
+    }
+    bundle.program = Link.ZxExecReadProgram(*bundle.owner)
+    has_consumed := cast(*void)consumed != null
+    if has_consumed {
+        if !CopyBundleAssets(bundle, bytes, size, name) { return false }
+        consumed(context, bytes, size)
+    }
+    bundle.engine_only = ifx source != null && source.engine_only != 0 then 1 else 0
+    compact_decode := bundle.owner.read.compact_instructions.count != 0
+    <<compacted = compact_decode
+    planned: Exec.LirExecResult
+    if compact_decode {
+        bodies := Serial.LirReadFunctionBodies(*bundle.owner.read)
+        planned = Exec.LirExecPlanBuildCompactBodies(bundle.program, limits, *bundle.plan, bodies)
+    } else if bundle.engine_only != 0 {
+        planned = Exec.LirExecPlanBuildCompact(bundle.program, limits, *bundle.plan)
+    } else {
+        planned = Exec.LirExecPlanBuild(bundle.program, limits, *bundle.plan)
+    }
+    if planned.problem != .None {
+        problem := Exec.LirExecProblemName(planned.problem)
+        Diagnostic(Span(name, 1, 1), CStr("zx.input"), CStr("executable ZX cannot run: problem=%.*s"),
+            cast(s32)problem.count, TextData(*problem))
+        return false
+    }
+    if compact_decode { FinishCompactDecode(bundle, source.shrink) }
+    if source == null && !has_consumed && !CopyBundleAssets(bundle, bytes, size, name) { return false }
+    entry := *bundle.program.functions[bundle.program.entry]
+    bundle.entry_module = CopyText(bundle.program.modules[entry.module])
+    bundle.entry_function = CopyText(entry.name)
+    interface_length := cast(usize)bundle.owner.interface.count
+    bundle.text = malloc(interface_length + 1)
+    if bundle.entry_module == null || bundle.entry_function == null || bundle.text == null { return false }
+    if interface_length != 0 { unused memcpy(bundle.text, RawOf(cast(*void)*bundle.owner.interface).data, interface_length) }
+    bundle.text[interface_length] = 0
+    bundle.interface_complete = ifx memchr(bundle.text, 0, interface_length) == null then 1 else 0
+    if !ParseInterface(bundle, lines, line_count) {
+        Diagnostic(Span(name, 1, 1), CStr("zx.input"), CStr("executable ZX has an invalid host interface section; rebuild it"))
+        return false
+    }
+    return IndexHosts(bundle, <<lines, <<line_count, name)
+}
+
+#program_export
+ExecBundleOpen :: (bytes: *u8, size: usize, name: *u8) -> *ExecBundle {
+    none := cast(BundleImageRelease)null
+    return OpenBundle(bytes, size, name, none, null, null)
+}
+
+#program_export
+ExecBundleOpenWithRelease :: (bytes: *u8, size: usize, name: *u8, consumed: BundleImageRelease, context: *void) -> *ExecBundle {
+    return OpenBundle(bytes, size, name, consumed, context, null)
+}
+
+#program_export
+ExecBundleOpenReadAt :: (size: u64, read_at: BundleReadAt, context: *void, digest: *u8, unsupported: *s32,
+                         engine_only: s32, shrink: BundleShrink) -> *ExecBundle {
+    source := ExecSourceInput.{read_at = read_at, context = context, size = size, digest = digest,
+                               unsupported = unsupported, engine_only = engine_only, shrink = shrink}
+    none := cast(BundleImageRelease)null
+    return OpenBundle(null, 0, CStr("<embedded ZX source>"), none, null, *source)
+}
+
+#program_export
+ExecBundleProgram :: (bundle: *ExecBundle) -> *void {
+    return ifx bundle != null && bundle.engine_only == 0 then cast(*void)*bundle.program else null
+}
+
+#program_export
+ExecBundleModuleLinkage :: (bundle: *ExecBundle, length: *usize) -> *u8 {
+    text := Link.ZxExecReadModuleLinkage(*bundle.owner)
+    <<length = cast(usize)text.count
+    return TextData(*text)
+}
+
+#program_export
+ExecBundleModuleEntry :: (bundle: *ExecBundle) -> s32 {
+    if !Is(bundle.entry_module, "__zx_module_dispatch") { return 0 }
+    entry := *bundle.program.functions[bundle.program.entry]
+    dispatcher := Is(bundle.entry_function, "__zx_module_dispatch") && !entry.external && !entry.variadic &&
+        entry.calling == .Portable && entry.parameters.count == 0 && bundle.program.types[entry.result].kind == .Void
+    return ifx dispatcher then 1 else -1
+}
+
+#program_export
+ExecBundleDebugProgram :: (bundle: *ExecBundle, debug: *void) -> s32 {
+    if bundle == null || bundle.engine_only != 0 || debug == null { return 0 }
+    problem := Link.ZxExecReadDebug(*bundle.owner, cast(*Debug.ZxDebugOwner)debug, LIR.LirDefaultLimits())
+    return ifx problem == .None then 1 else 0
+}
+
+#program_export
+ExecBundleCapabilityCount :: (bundle: *ExecBundle) -> usize { return bundle.host_count }
+
+#program_export
+ExecBundleCapabilityModule :: (bundle: *ExecBundle, index: usize) -> *u8 {
+    return ifx index < bundle.host_count then HostAt(bundle, index).module else null
+}
+
+#program_export
+ExecBundleCapabilityFunction :: (bundle: *ExecBundle, index: usize) -> *u8 {
+    return ifx index < bundle.host_count then HostAt(bundle, index).name else null
+}
+
+#program_export
+ExecBundleCapabilityFunctionId :: (bundle: *ExecBundle, index: usize) -> s32 {
+    return ifx index < bundle.host_count then HostAt(bundle, index).function else -1
+}
+
+#program_export
+ExecBundleCapabilityParameterTypeId :: (bundle: *ExecBundle, index: usize, parameter: usize) -> s32 {
+    if index >= bundle.host_count { return -1 }
+    host := HostAt(bundle, index)
+    if parameter >= cast(usize)host.parameter_count { return -1 }
+    return bundle.program.functions[host.function].parameters[parameter]
+}
+
+#program_export
+ExecBundleCapabilityResultTypeId :: (bundle: *ExecBundle, index: usize) -> s32 {
+    if index >= bundle.host_count { return -1 }
+    return bundle.program.functions[HostAt(bundle, index).function].result
+}
+
+#program_export
+ExecBundleCapabilityAbi :: (bundle: *ExecBundle, index: usize, abi: *BundleCapabilityAbi) -> s32 {
+    if index >= bundle.host_count { return 0 }
+    host := HostAt(bundle, index)
+    abi.module = host.module
+    abi.function = host.name
+    abi.signature = host.signature
+    abi.arguments = host.arguments
+    abi.return_type = host.return_type
+    abi.variable_arguments = host.variadic
+    abi.reads_arguments = host.reads
+    return 1
+}
+
+#program_export
+ExecBundleHostMutable :: (bundle: *ExecBundle, index: usize, parameter: usize) -> s32 {
+    if index >= bundle.host_count || parameter >= cast(usize)HostAt(bundle, index).parameter_count { return 0 }
+    return ifx NodeAt(bundle, HostAt(bundle, index).parameters[parameter]).class == NODE_SLICE then 1 else 0
+}
+
+#program_export
+ExecBundleEntryModule :: (bundle: *ExecBundle) -> *u8 { return bundle.entry_module }
+#program_export
+ExecBundleEntryFunction :: (bundle: *ExecBundle) -> *u8 { return bundle.entry_function }
+#program_export
+ExecBundleEntryArguments :: (bundle: *ExecBundle) -> *u8 { return bundle.entry_arguments }
+#program_export
+ExecBundleEntryReturnType :: (bundle: *ExecBundle) -> *u8 { return bundle.entry_return }
+#program_export
+ExecBundleAssetCount :: (bundle: *ExecBundle) -> usize { return bundle.asset_count }
+
+#program_export
+ExecBundleAssetName :: (bundle: *ExecBundle, index: usize) -> *u8 {
+    return ifx index < bundle.asset_count then bundle.assets[index].name else null
+}
+
+#program_export
+ExecBundleAssetData :: (bundle: *ExecBundle, index: usize) -> *u8 {
+    return ifx index < bundle.asset_count then bundle.assets[index].data else null
+}
+
+#program_export
+ExecBundleAssetSize :: (bundle: *ExecBundle, index: usize) -> usize {
+    return ifx index < bundle.asset_count then bundle.assets[index].size else 0
+}

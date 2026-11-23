@@ -14,3 +14,9 @@ int S15IntCompare(void *slot, int *expected, int value)
 }
 size_t S15SizeAdd(void *slot, size_t value) { return __atomic_fetch_add((size_t *)slot, value, __ATOMIC_SEQ_CST); }
 size_t S15SizeLoad(void *slot) { return __atomic_load_n((size_t *)slot, __ATOMIC_SEQ_CST); }
+
+/* The instance whose host call this thread is running, for
+ * BundleHostRenewSteps (cmd/compiler_zx_exec_instance.zi). */
+static _Thread_local void *S15ThreadEngineSlot;
+void *S15ThreadEngine(void) { return S15ThreadEngineSlot; }
+void S15SetThreadEngine(void *engine) { S15ThreadEngineSlot = engine; }

@@ -12,7 +12,9 @@
  * the installed provider (zir_zx_wasm_platform.h), with host calls and
  * module state translated by the embedding API's rules (ExecHosts).
  * Lowering and provider rejection fail the selected engine; the caller
- * never starts a different engine. */
+ * never starts a different engine. Implemented in
+ * cmd/compiler_zx_exec_wasm.zi; zir_zx_wasm_install.c keeps the load-time
+ * provider install. */
 typedef struct ZxWasm ZxWasm;
 
 /* Lower, instantiate and initialize one instance, every capability bound

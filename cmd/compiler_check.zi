@@ -713,6 +713,12 @@ layout_type_with_buffers :: (module: *IR.ZirModule, source: *u8, depth: s32, siz
         CheckSet3(size, CheckSet3(alignment, cast(usize)(8)))
         return 1
     }
+    // A Ziran procedure value is its context and its code: two pointers.
+    if (record != cast(*IR.ZirType)((null))) && ((record).is_procedure_type != 0) {
+        CheckSet3(size, cast(usize)(16))
+        CheckSet3(alignment, cast(usize)(8))
+        return 1
+    }
     if ((((((record == cast(*IR.ZirType)((null))) || ((record).is_procedure_type != 0)) || ((record).is_extern != 0)) || ((record).is_map != 0)) || ((record).is_record_template != 0)) || ((record).is_type_instance != 0)) {
         return 0
     }

@@ -276,7 +276,7 @@ PARSE_PORT_MODULES := parse_types parse_condition parse_discover parse_source \
     frontend_parse parse_s14_types $(S14_PARSE_MODULES)
 SUPPORT_PORT_MODULES := context document diagnostic files source_store overlay semantic sha256 profile
 PERSISTENCE_PORT_MODULES := zir_serial load package_resolve zx_assets
-FRONTEND_PORT_MODULES := context_types $(SUPPORT_PORT_MODULES) frontend_ir law_runtime target_bridge $(PERSISTENCE_PORT_MODULES) zx_link inline_asm
+FRONTEND_PORT_MODULES := cli edit context_types $(SUPPORT_PORT_MODULES) frontend_ir law_runtime target_bridge $(PERSISTENCE_PORT_MODULES) zx_link inline_asm
 compiler-port-dir = $(if $(filter 1,$(BOOTSTRAP)),bootstrap/compiler_$(1),$(BUILD_DIR)/compiler-$(subst _,-,$(1)))
 compiler-port-seed = $(addprefix bootstrap/compiler_$(1)/compiler_$(1).,c h)
 compiler-port-ready = $(if $(filter 1,$(BOOTSTRAP)),$(call compiler-port-seed,$(1)),$(call compiler-port-dir,$(1))/.generated)
@@ -313,8 +313,8 @@ RANGE_MODULES := compiler_c_range compiler_c_range_facts compiler_c_range_values
 RANGE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/c-range/%.o,$(RANGE_MODULES))
 override CFLAGS += -I$(RANGE_C)
 FRONTEND := cmd/zir/zir_memory.c cmd/zir/zir_profile_host.c cmd/zir/zir_services.c \
-    cmd/zir/zir_atomics.c cmd/zir/zir_diagnostic_host.c \
-    cmd/zir/zir_files_host.c cmd/zir/zir_sha256_host.c
+    cmd/zir/zir_atomics.c cmd/zir/zir_diagnostic_host.c cmd/zir/zir_command_host.c \
+    cmd/zir/zir_edit_host.c cmd/zir/zir_files_host.c cmd/zir/zir_sha256_host.c
 PERSISTENCE_HOST := cmd/zir/zir_persistence_host.c
 HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
 # std/simd's C helpers, vector types and typed Go helpers are generated at
@@ -708,9 +708,9 @@ $(BIN_DIR)/zx: $(ZX_RUNNER_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/libziran.a $(BU
 	    $(ZX_WINDOW_LIBS) $(RUNTIME_LIBS)
 
 EDIT_C := $(BUILD_DIR)/edit-c
-$(BIN_DIR)/zi-edit: cmd/edit.zi cmd/transport.zi cmd/format_source.zi cmd/diagnostics.zi std/json_document.zi cmd/zir/zir_edit.c cmd/zir/zir_edit.h $(BIN_DIR)/zi2c $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) | $(BIN_DIR)
+$(BIN_DIR)/zi-edit: cmd/edit.zi cmd/transport.zi cmd/format_source.zi cmd/diagnostics.zi std/json_document.zi cmd/zir/zir_edit.h $(BIN_DIR)/zi2c $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) | $(BIN_DIR)
 	$(BIN_DIR)/zi2c --entry edit:main $(ZIRAN_DEFINES) --root cmd --module-path std -o $(EDIT_C) cmd/edit.zi
-	$(NICE) $(CC) $(CFLAGS) -I$(EDIT_C) -o $@ $(EDIT_C)/*.c cmd/zir/zir_edit.c $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) -lm
+	$(NICE) $(CC) $(CFLAGS) -I$(EDIT_C) -o $@ $(EDIT_C)/*.c $(FRONTEND_OBJECTS) $(BUNDLE_MODULE_OBJECT) -lm
 
 $(BIN_DIR)/zi2zir: $(call obj,cmd/zi2zir/main.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
@@ -912,6 +912,11 @@ $(foreach module,$(S14_PARSE_MODULES),\
     $(eval $(call compiler-port-rules,$(module),$(S14_PARSE_HEADERS) $(call compiler-port-ready,parse_s14_types),$(S14_PARSE_IMPORTS) cmd/compiler_parse_s14_types.zi)))
 FRONTEND_SUPPORT_IMPORTS := $(S14_PARSE_IMPORTS) cmd/compiler_parse_s14_types.zi cmd/compiler_check_types.zi
 FRONTEND_SUPPORT_HEADERS := $(S14_PARSE_HEADERS) $(call compiler-port-ready,parse_s14_types) $(call compiler-port-ready,check_types)
+# Command-line mechanics, linked into every tool driver through parse.o.
+$(eval $(call compiler-port-rules,cli,$(IR_READY),cmd/compiler_ir.zi))
+# Editor requests: the source tool behind zi-edit (cmd/zir/zir_edit_host.c
+# supplies POSIX flags and struct stat fields).
+$(eval $(call compiler-port-rules,edit,$(IR_READY) $(call compiler-port-ready,check_types),cmd/compiler_ir.zi cmd/compiler_check_types.zi))
 $(eval $(call compiler-port-rules,context_types,$(FRONTEND_SUPPORT_HEADERS),$(FRONTEND_SUPPORT_IMPORTS)))
 $(foreach module,$(SUPPORT_PORT_MODULES),\
     $(eval $(call compiler-port-rules,$(module),$(FRONTEND_SUPPORT_HEADERS) $(call compiler-port-ready,context_types),$(FRONTEND_SUPPORT_IMPORTS) cmd/compiler_context_types.zi)))

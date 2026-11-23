@@ -610,6 +610,16 @@ No step commits before its implementation and proof are complete.
   the remaining `main.c` drivers. Native
   names are already `cmd/compiler_native_names.zi`. Keep the existing tool names and flags
   until the separate naming-cutover item lands.
+- Done 2026-11-23: `compiler_cli` (`cmd/compiler_cli.zi`) replaces every
+  inline rule of `zir_command.h`; the header keeps the C drivers' call
+  syntax as wrappers over the generated module, and the process-priority
+  calls stay in `zir_command_host.c`. `cli_defines.sh`, `tool_names.sh`,
+  `tool_diagnostics` and `atomic_cli_link.sh` pass; the seed matches.
+- Done 2026-11-23: `compiler_edit` (`cmd/compiler_edit.zi`) replaces
+  `zir_edit.c` with the same `ZiranEdit*`/`ZiranTool*` C entry points; the
+  POSIX open flags and `struct stat` fields stay in `zir_edit_host.c`, so one
+  seed serves every host. `semantic_edit.sh` exercises the generated module
+  through the same `--wrap` boundaries and passes; the seed matches.
 - Change Makefile tool targets and editor links to Ziran drivers. The `ziran`
   package driver is already Ziran; no change beyond imports.
 - Delete `cmd/zir/zir_profile.c/.h`,

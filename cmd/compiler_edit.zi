@@ -1,0 +1,950 @@
+// Source editing for the zi-edit driver: open one .zi under a verified digest,
+// add byte or declaration edits, build and validate the candidate through the
+// real frontend, then replace the file atomically. POSIX flags and struct
+// stat fields come from zir_edit_host.c; every decision stays here.
+
+IR :: #import "compiler_ir"
+Check :: #import "compiler_check_types"
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+Raw :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+StaticText :: struct { data: *u8; count: usize }
+
+EDIT_BYTES :: 16 * 1024 * 1024
+EDIT_COUNT :: 256
+READ_LIMIT :: 33554464
+NAME_LIMIT :: 128
+
+TOKEN_EOF :: 0
+TOKEN_STRING :: 4
+TOKEN_DIRECTIVE :: 6
+TOKEN_OPERATOR :: 7
+TOKEN_PUNCT :: 8
+
+malloc :: (size: usize) -> *void #foreign libc "malloc";
+calloc :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+realloc :: (memory: *void, size: usize) -> *void #foreign libc "realloc";
+free :: (memory: *void) #foreign libc "free";
+memcpy :: (output: *void, input: *void, count: usize) -> *void #foreign libc "memcpy";
+memcmp :: (left: *void, right: *void, count: usize) -> s32 #foreign libc "memcmp";
+memchr :: (data: *void, byte: s32, count: usize) -> *void #foreign libc "memchr";
+strlen :: (text: *u8) -> usize #foreign libc "strlen";
+strcmp :: (left: *u8, right: *u8) -> s32 #foreign libc "strcmp";
+strcpy :: (output: *u8, input: *u8) -> *u8 #foreign libc "strcpy";
+strdup :: (text: *u8) -> *u8 #foreign libc "strdup";
+strchr :: (text: *u8, byte: s32) -> *u8 #foreign libc "strchr";
+strrchr :: (text: *u8, byte: s32) -> *u8 #foreign libc "strrchr";
+strstr :: (text: *u8, needle: *u8) -> *u8 #foreign libc "strstr";
+sprintf :: (output: *u8, format: *u8, arguments: ..any) -> s32 #foreign libc "sprintf";
+snprintf :: (output: *u8, capacity: usize, format: *u8, arguments: ..any) -> s32 #foreign libc "snprintf";
+realpath :: (path: *u8, resolved: *u8) -> *u8 #foreign libc "realpath";
+pread :: (descriptor: s32, output: *void, count: usize, offset: isize) -> isize #foreign libc "pread";
+write :: (descriptor: s32, bytes: *void, count: usize) -> isize #foreign libc "write";
+close :: (descriptor: s32) -> s32 #foreign libc "close";
+fsync :: (descriptor: s32) -> s32 #foreign libc "fsync";
+fchmod :: (descriptor: s32, mode: u32) -> s32 #foreign libc "fchmod";
+renameat :: (directory: s32, from: *u8, destination_directory: s32, to: *u8) -> s32 #foreign libc "renameat";
+unlinkat :: (directory: s32, name: *u8, flags: s32) -> s32 #foreign libc "unlinkat";
+getpid :: () -> s32 #foreign libc "getpid";
+
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, arguments: ..any) #foreign compiler "Diagnostic";
+SetDiagnosticFormat :: (format: *u8) -> s32 #foreign compiler "SetDiagnosticFormat";
+DiagnosticJsonEnabled :: () -> s32 #foreign compiler "DiagnosticJsonEnabled";
+DocumentDigest :: (text: *u8, count: usize, output: *u8) #foreign compiler "DocumentDigest";
+DocumentForSpan :: (module: *IR.ZirModule, span: IR.ZirSourceSpan) -> *Check.ZirDocument #foreign compiler "DocumentForSpan";
+DocumentOffset :: (document: *Check.ZirDocument, line: s32, column: s32, offset: *usize) -> s32 #foreign compiler "DocumentOffset";
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+SemanticId :: (module: *IR.ZirModule, kind: *u8, name: *u8, signature: *u8, result: *u8, id: *u8) #foreign compiler "SemanticId";
+FunctionSemanticId :: (module: *IR.ZirModule, function: *IR.ZirFunction, id: *u8) #foreign compiler "FunctionSemanticId";
+LexerInit :: (lexer: *IR.ZirLexer, source: *void, path: *void) #foreign compiler "CompilerLexerInit";
+LexerNext :: (lexer: *IR.ZirLexer) -> IR.ZirToken #foreign compiler "LexerNext";
+LexerNextCode :: (lexer: *IR.ZirLexer) -> IR.ZirToken #foreign compiler "LexerNextCode";
+SourceOverlayBegin :: (path: *u8, source: *u8, count: usize) -> s32 #foreign compiler "SourceOverlayBegin";
+SourceOverlayRestrict :: (root: *u8, standard: *u8) #foreign compiler "SourceOverlayRestrict";
+SourceOverlayPermitRoot :: (root: *u8) -> s32 #foreign compiler "SourceOverlayPermitRoot";
+SourceOverlayEnd :: () #foreign compiler "SourceOverlayEnd";
+ToolchainStandardDirectory :: () -> *u8 #foreign compiler "ToolchainStandardDirectory";
+ProgramsLoadWithDefines :: (set: *IR.ProgramSet, root: *u8, module_paths: **u8, module_path_count: s32, defines: **u8, define_count: s32, inputs: **u8, input_count: s32) -> s32 #foreign compiler "ProgramsLoadWithDefines";
+ProgramsFree :: (set: *IR.ProgramSet) #foreign compiler "ProgramsFree";
+CheckCanonicalPrograms :: (programs: **IR.ZirProgram, count: s32, input_paths: **u8) -> s32 #foreign compiler "CheckCanonicalPrograms";
+EditHostOpenSource :: (path: *u8) -> s32 #foreign compiler "ZiranEditHostOpenSource";
+EditHostOpenDirectory :: (path: *u8) -> s32 #foreign compiler "ZiranEditHostOpenDirectory";
+EditHostOpenSubdirectory :: (parent: s32, name: *u8) -> s32 #foreign compiler "ZiranEditHostOpenSubdirectory";
+EditHostOpenLeaf :: (parent: s32, name: *u8) -> s32 #foreign compiler "ZiranEditHostOpenLeaf";
+EditHostCreatePrivate :: (parent: s32, name: *u8) -> s32 #foreign compiler "ZiranEditHostCreatePrivate";
+EditHostFdInfo :: (descriptor: s32, size: *s64, mode: *u32, regular: *s32, device: *u64, inode: *u64) -> s32 #foreign compiler "ZiranEditHostFdInfo";
+EditHostAtInfo :: (directory: s32, name: *u8, device: *u64, inode: *u64, mode: *u32, regular: *s32, links: *u64, size: *s64) -> s32 #foreign compiler "ZiranEditHostAtInfo";
+EditHostPathIsDirectory :: (path: *u8) -> s32 #foreign compiler "ZiranEditHostPathIsDirectory";
+
+EditPart :: struct {
+    start: usize
+    end: usize
+    count: usize
+    replacement: *u8
+}
+
+Edit :: struct {
+    root: *u8
+    path: *u8
+    source: *u8
+    candidate: *u8
+    leaf: *u8
+    parent: s32
+    fd: s32
+    count: s32
+    size: usize
+    candidate_size: usize
+    module_paths: **u8
+    module_roots: **u8
+    module_count: s32
+    define_count: s32
+    defines: [32]*u8
+    source_device: u64
+    source_inode: u64
+    source_mode: u32
+    parts: [EDIT_COUNT]EditPart
+}
+
+TokenPair :: struct { a: IR.ZirToken; b: IR.ZirToken }
+
+digest_buffer: [65]u8;
+
+Fail :: (message: *u8) -> s32 {
+    span: IR.ZirSourceSpan = .{}
+    Diagnostic(span, CStr("command.arguments"), CStr("source tool: %s"), message)
+    return 0
+}
+
+Copy :: (value: string) -> *u8 {
+    if value.count > EDIT_BYTES ||
+       (value.count != 0 && (Raw(value) == null || memchr(cast(*void)Raw(value), 0, cast(usize)value.count) != null)) {
+        return null
+    }
+    text := cast(*u8)malloc(cast(usize)value.count + 1)
+    if text == null { return null }
+    if value.count != 0 { unused memcpy(cast(*void)text, cast(*void)Raw(value), cast(usize)value.count) }
+    text[value.count] = 0
+    return text
+}
+
+Utf8 :: (text: *u8, count: usize) -> s32 {
+    at: usize = 0
+    while at < count {
+        c := text[at]
+        n: usize = 0
+        if c < 128 { n = 1 }
+        else if c >= 194 && c <= 223 { n = 2 }
+        else if c >= 224 && c <= 239 { n = 3 }
+        else if c >= 240 && c <= 244 { n = 4 }
+        if c == 0 || n == 0 || n > count - at { return 0 }
+        j: usize = 1
+        while j < n {
+            if text[at + j] < 128 || text[at + j] > 191 { return 0 }
+            j += 1
+        }
+        if (c == 224 && text[at + 1] < 160) || (c == 237 && text[at + 1] >= 160) ||
+           (c == 240 && text[at + 1] < 144) || (c == 244 && text[at + 1] >= 144) {
+            return 0
+        }
+        at += n
+    }
+    return 1
+}
+
+ReadFd :: (descriptor: s32, count: *usize) -> *u8 {
+    size: s64 = 0
+    mode: u32 = 0
+    regular: s32 = 0
+    device: u64 = 0
+    inode: u64 = 0
+    if EditHostFdInfo(descriptor, *size, *mode, *regular, *device, *inode) != 0 ||
+       regular == 0 || size < 0 || size > READ_LIMIT {
+        return null
+    }
+    text := cast(*u8)malloc(cast(usize)size + 1)
+    if text == null { return null }
+    at: usize = 0
+    total := cast(usize)size
+    while at < total {
+        n := pread(descriptor, cast(*void)(cast(usize)text + at), total - at, cast(isize)at)
+        if n <= 0 {
+            free(cast(*void)text)
+            return null
+        }
+        at += cast(usize)n
+    }
+    text[total] = 0
+    <<count = total
+    return text
+}
+
+#program_export "ZiranEditJsonEnabled"
+JsonEnabled :: () -> s32 {
+    return DiagnosticJsonEnabled()
+}
+
+#program_export "ZiranEditDiagnosticFormat"
+DiagnosticFormat :: (value: string) -> s32 {
+    if value.count == 4 && memcmp(cast(*void)Raw(value), cast(*void)CStr("json"), 4) == 0 {
+        return SetDiagnosticFormat(CStr("json"))
+    }
+    if value.count == 4 && memcmp(cast(*void)Raw(value), cast(*void)CStr("text"), 4) == 0 {
+        return SetDiagnosticFormat(CStr("text"))
+    }
+    return 0
+}
+
+#program_export "ZiranToolReadText"
+ToolReadText :: (path: string, limit: s64) -> *u8 {
+    if limit < 0 || limit > READ_LIMIT {
+        unused Fail(CStr("invalid text byte limit"))
+        return null
+    }
+    name := Copy(path)
+    if name == null {
+        unused Fail(CStr("invalid request path"))
+        return null
+    }
+    descriptor := EditHostOpenSource(name)
+    free(cast(*void)name)
+    size: s64 = 0
+    mode: u32 = 0
+    regular: s32 = 0
+    device: u64 = 0
+    inode: u64 = 0
+    if descriptor < 0 {
+        unused Fail(CStr("cannot open request"))
+        return null
+    }
+    if EditHostFdInfo(descriptor, *size, *mode, *regular, *device, *inode) != 0 ||
+       regular == 0 || size < 0 || size > limit {
+        unused close(descriptor)
+        unused Fail(CStr("input must be a regular file within the byte limit"))
+        return null
+    }
+    count: usize = 0
+    text := ReadFd(descriptor, *count)
+    unused close(descriptor)
+    if count > cast(usize)limit {
+        free(cast(*void)text)
+        unused Fail(CStr("input must be a regular file within the byte limit"))
+        return null
+    }
+    if text == null || memchr(cast(*void)text, 0, count) != null || Utf8(text, count) == 0 {
+        free(cast(*void)text)
+        unused Fail(CStr("request must be UTF-8 without null bytes"))
+        return null
+    }
+    return text
+}
+
+#program_export "ZiranToolDigest"
+ToolDigest :: (text: string) -> *u8 {
+    DocumentDigest(Raw(text), cast(usize)text.count, *digest_buffer[0])
+    return *digest_buffer[0]
+}
+
+#program_export "ZiranToolWriteMap"
+ToolWriteMap :: (path: string, text: string) -> s32 {
+    name := Copy(path)
+    if name == null { return Fail(CStr("invalid map path")) }
+    slash := strrchr(name, #char "/")
+    leaf := name
+    if slash != null { leaf = cast(*u8)(cast(usize)slash + 1) }
+    if leaf[0] == 0 || strcmp(leaf, CStr(".")) == 0 || strcmp(leaf, CStr("..")) == 0 {
+        free(cast(*void)name)
+        return Fail(CStr("invalid map filename"))
+    }
+    directory: *u8 = null
+    if slash != null {
+        slash[0] = 0
+        directory = realpath(ifx name[0] != 0 then name else CStr("/"), null)
+    } else {
+        directory = realpath(CStr("."), null)
+    }
+    parent := ifx directory != null then EditHostOpenDirectory(directory) else -1
+    free(cast(*void)directory)
+    if parent < 0 {
+        free(cast(*void)name)
+        return Fail(CStr("cannot open map directory"))
+    }
+    device: u64 = 0
+    inode: u64 = 0
+    mode: u32 = 0
+    regular: s32 = 0
+    links: u64 = 0
+    size: s64 = 0
+    exists := EditHostAtInfo(parent, leaf, *device, *inode, *mode, *regular, *links, *size) == 0
+    if exists && (regular == 0 || links != 1) {
+        unused close(parent)
+        free(cast(*void)name)
+        return Fail(CStr("map destination is linked or nonregular"))
+    }
+    temporary: [64]u8
+    descriptor: s32 = -1
+    index: u32 = 0
+    while index < 128 && descriptor < 0 {
+        unused snprintf(*temporary[0], 64, CStr(".zi-map-%ld-%u"), cast(isize)getpid(), index)
+        descriptor = EditHostCreatePrivate(parent, *temporary[0])
+        index += 1
+    }
+    if descriptor < 0 {
+        unused close(parent)
+        free(cast(*void)name)
+        return Fail(CStr("cannot create map"))
+    }
+    length := cast(usize)text.count
+    at: usize = 0
+    while at < length {
+        written := write(descriptor, cast(*void)(cast(usize)Raw(text) + at), length - at)
+        if written <= 0 { break }
+        at += cast(usize)written
+    }
+    replacement_mode: u32 = 420
+    if exists { replacement_mode = mode & 511 }
+    valid := at == length && fchmod(descriptor, replacement_mode) == 0 && fsync(descriptor) == 0
+    if close(descriptor) != 0 { valid = false }
+    if valid { valid = renameat(parent, *temporary[0], parent, leaf) == 0 }
+    if !valid { unused unlinkat(parent, *temporary[0], 0) }
+    unused close(parent)
+    free(cast(*void)name)
+    if !valid { return Fail(CStr("cannot finish map")) }
+    return 1
+}
+
+#program_export "ZiranEditClose"
+Close :: (handle: *void) {
+    e := cast(*Edit)handle
+    if e == null { return }
+    for i: 0..e.count - 1 { free(cast(*void)e.parts[i].replacement) }
+    for i: 0..e.module_count - 1 {
+        free(cast(*void)e.module_paths[i])
+        free(cast(*void)e.module_roots[i])
+    }
+    free(cast(*void)e.module_paths)
+    free(cast(*void)e.module_roots)
+    for i: 0..e.define_count - 1 { free(cast(*void)e.defines[i]) }
+    if e.fd >= 0 { unused close(e.fd) }
+    if e.parent >= 0 { unused close(e.parent) }
+    free(cast(*void)e.root)
+    free(cast(*void)e.path)
+    free(cast(*void)e.source)
+    free(cast(*void)e.candidate)
+    free(cast(*void)e.leaf)
+    free(cast(*void)e)
+}
+
+#program_export "ZiranEditOpen"
+Open :: (root: string, path: string, hash: string) -> *void {
+    e := cast(*Edit)calloc(1, size_of(Edit))
+    if e == null {
+        unused Fail(CStr("out of memory"))
+        return null
+    }
+    e.fd = -1
+    e.parent = -1
+    raw := Copy(root)
+    relative := Copy(path)
+    expected := Copy(hash)
+    e.root = null
+    if raw != null { e.root = realpath(raw, null) }
+    free(cast(*void)raw)
+    valid := e.root != null && relative != null && expected != null &&
+        strlen(expected) == 64 && relative[0] != 0 && relative[0] != #char "/"
+    i: usize = 0
+    while valid && i < 64 {
+        c := expected[i]
+        valid = (c >= 48 && c <= 57) || (c >= 97 && c <= 102)
+        i += 1
+    }
+    if valid {
+        n := strlen(relative)
+        valid = n > 3 && strcmp(cast(*u8)(cast(usize)relative + n - 3), CStr(".zi")) == 0
+        e.path = cast(*u8)malloc(strlen(e.root) + n + 2)
+        if e.path != null { unused sprintf(e.path, CStr("%s/%s"), e.root, relative) } else { valid = false }
+        e.parent = EditHostOpenDirectory(e.root)
+        if e.parent < 0 { valid = false }
+        component := relative
+        while valid {
+            slash := strchr(component, #char "/")
+            if slash != null { slash[0] = 0 }
+            if component[0] == 0 || strcmp(component, CStr(".")) == 0 || strcmp(component, CStr("..")) == 0 {
+                valid = false
+                break
+            }
+            if slash == null {
+                e.leaf = strdup(component)
+                break
+            }
+            next := EditHostOpenSubdirectory(e.parent, component)
+            if next < 0 {
+                valid = false
+                break
+            }
+            unused close(e.parent)
+            e.parent = next
+            component = cast(*u8)(cast(usize)slash + 1)
+        }
+    }
+    if valid && e.leaf != null { e.fd = EditHostOpenLeaf(e.parent, e.leaf) }
+    source_size: s64 = 0
+    source_mode: u32 = 0
+    source_regular: s32 = 0
+    source_device: u64 = 0
+    source_inode: u64 = 0
+    if e.fd < 0 || EditHostFdInfo(e.fd, *source_size, *source_mode, *source_regular,
+                                *source_device, *source_inode) != 0 ||
+       source_size > EDIT_BYTES {
+        valid = false
+    }
+    if valid {
+        e.size = cast(usize)source_size
+        e.source_mode = source_mode
+        e.source_device = source_device
+        e.source_inode = source_inode
+        e.source = ReadFd(e.fd, *e.size)
+        valid = e.source != null && Utf8(e.source, e.size) != 0
+    }
+    if valid {
+        actual: [65]u8
+        DocumentDigest(e.source, e.size, *actual[0])
+        valid = strcmp(*actual[0], expected) == 0
+    }
+    if valid {
+        canonical := realpath(e.path, null)
+        if canonical == null { valid = false }
+        else {
+            free(cast(*void)e.path)
+            e.path = canonical
+        }
+    }
+    free(cast(*void)relative)
+    free(cast(*void)expected)
+    if !valid {
+        Close(cast(*void)e)
+        unused Fail(CStr("invalid path, non-UTF-8 source, or stale document hash"))
+        return null
+    }
+    return cast(*void)e
+}
+
+#program_export "ZiranEditModulePath"
+ModulePath :: (handle: *void, value: string) -> s32 {
+    e := cast(*Edit)handle
+    if e == null || e.candidate != null { return Fail(CStr("invalid edit state")) }
+    path := Copy(value)
+    if path == null { return Fail(CStr("invalid module path")) }
+    equals := strchr(path, #char "=")
+    directory := path
+    if equals != null { directory = cast(*u8)(cast(usize)equals + 1) }
+    canonical := realpath(directory, null)
+    is_directory := EditHostPathIsDirectory(canonical)
+    if canonical == null || is_directory == 0 {
+        free(cast(*void)path)
+        free(cast(*void)canonical)
+        return Fail(CStr("module path is not a directory"))
+    }
+    prefix: usize = 0
+    if equals != null { prefix = cast(usize)(cast(usize)equals - cast(usize)path) + 1 }
+    argument := cast(*u8)malloc(prefix + strlen(canonical) + 1)
+    if argument == null {
+        free(cast(*void)path)
+        free(cast(*void)canonical)
+        return Fail(CStr("out of memory"))
+    }
+    if prefix != 0 { unused memcpy(cast(*void)argument, cast(*void)path, prefix) }
+    unused strcpy(cast(*u8)(cast(usize)argument + prefix), canonical)
+    free(cast(*void)path)
+    if e.module_count == 2147483647 {
+        free(cast(*void)argument)
+        free(cast(*void)canonical)
+        return Fail(CStr("module path storage overflow"))
+    }
+    paths := cast(**u8)realloc(cast(*void)e.module_paths, (cast(usize)e.module_count + 1) * size_of(*u8))
+    if paths == null {
+        free(cast(*void)argument)
+        free(cast(*void)canonical)
+        return Fail(CStr("out of memory"))
+    }
+    e.module_paths = paths
+    roots := cast(**u8)realloc(cast(*void)e.module_roots, (cast(usize)e.module_count + 1) * size_of(*u8))
+    if roots == null {
+        free(cast(*void)argument)
+        free(cast(*void)canonical)
+        return Fail(CStr("out of memory"))
+    }
+    e.module_roots = roots
+    e.module_paths[e.module_count] = argument
+    e.module_roots[e.module_count] = canonical
+    e.module_count += 1
+    return 1
+}
+
+#program_export "ZiranEditDefine"
+Define :: (handle: *void, name: string) -> s32 {
+    e := cast(*Edit)handle
+    if e == null || e.define_count == 32 || name.count == 0 || name.count >= NAME_LIMIT {
+        return Fail(CStr("invalid define"))
+    }
+    length := cast(usize)name.count
+    i: usize = 0
+    while i < length {
+        c := Raw(name)[i]
+        allowed := (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || c == 95 || (i != 0 && c >= 48 && c <= 57)
+        if !allowed { return Fail(CStr("invalid define")) }
+        i += 1
+    }
+    text := Copy(name)
+    if text == null { return Fail(CStr("out of memory")) }
+    e.defines[e.define_count] = text
+    e.define_count += 1
+    return 1
+}
+
+// A semantic replacement must cover one entire checked declaration. The lexer
+// determines its terminator, respecting string/comment tokens and nesting.
+// Omitted terminators and rewritten raw coordinates are rejected.
+DeclarationRange :: (e: *Edit, module: *IR.ZirModule, span: IR.ZirSourceSpan,
+                     start: *usize, end: *usize) -> s32 {
+    document := DocumentForSpan(module, span)
+    if document == null || document.rewritten != 0 ||
+       strcmp(SpanPath(span), cast(*u8)*module.source_path) != 0 ||
+       DocumentOffset(document, span.line, span.column, start) == 0 {
+        return 0
+    }
+    lexer: IR.ZirLexer = .{}
+    LexerInit(*lexer, cast(*void)e.source, cast(*void)e.path)
+    active: s32 = 0
+    braces: s32 = 0
+    parens: s32 = 0
+    brackets: s32 = 0
+    saw_brace: s32 = 0
+    while true {
+        token := LexerNextCode(*lexer)
+        if token.kind == TOKEN_EOF || token.truncated != 0 { return 0 }
+        at: usize = 0
+        if DocumentOffset(document, token.span.line, token.span.column, *at) == 0 { return 0 }
+        if active == 0 {
+            if at < start.* { continue }
+            if at != start.* { return 0 }
+            active = 1
+        }
+        if token.kind != TOKEN_PUNCT && token.kind != TOKEN_OPERATOR { continue }
+        text := cast(*u8)*token.text
+        if strcmp(text, CStr("(")) == 0 { parens += 1 }
+        else if strcmp(text, CStr(")")) == 0 { parens -= 1 }
+        else if strcmp(text, CStr("[")) == 0 { brackets += 1 }
+        else if strcmp(text, CStr("]")) == 0 { brackets -= 1 }
+        else if strcmp(text, CStr("{")) == 0 {
+            braces += 1
+            saw_brace = 1
+        } else if strcmp(text, CStr("}")) == 0 {
+            braces -= 1
+            if braces == 0 && parens == 0 && brackets == 0 && saw_brace != 0 {
+                <<end = lexer.pos
+                return 1
+            }
+        } else if strcmp(text, CStr(";")) == 0 && braces == 0 && parens == 0 && brackets == 0 {
+            <<end = lexer.pos
+            return 1
+        }
+        if braces < 0 || parens < 0 || brackets < 0 { return 0 }
+    }
+}
+
+SemanticIdMatches :: (e: *Edit, module: *IR.ZirModule, wanted: string, kind: *u8,
+                      name: *u8, signature: *u8, result: *u8, span: IR.ZirSourceSpan,
+                      start: *usize, end: *usize) -> s32 {
+    id: [68]u8
+    SemanticId(module, kind, name, signature, result, *id[0])
+    if memcmp(cast(*void)Raw(wanted), cast(*void)*id[0], 67) != 0 { return 0 }
+    return DeclarationRange(e, module, span, start, end)
+}
+
+SemanticRange :: (e: *Edit, wanted: string, start: *usize, end: *usize) -> s32 {
+    if wanted.count != 67 { return 0 }
+    set: IR.ProgramSet = .{}
+    found: s32 = 0
+    if CheckCandidate(e, e.source, e.size, *set) == 0 {
+        ProgramsFree(*set)
+        return 0
+    }
+    p: s32 = 0
+    while p < set.count {
+        m: s32 = 0
+        while m < set.programs[cast(usize)p].module_count {
+            module := *set.programs[cast(usize)p].modules[cast(usize)m]
+            if strcmp(set.paths[cast(usize)p], e.path) == 0 {
+                documented: bool = false
+                document := cast(*Check.ZirDocument)module.document
+                if document != null && document.bytes == e.size {
+                    hash: [65]u8
+                    DocumentDigest(e.source, e.size, *hash[0])
+                    documented = strcmp(*hash[0], cast(*u8)*document.sha256.items) == 0
+                }
+                if documented {
+                    f: s32 = 0
+                    while f < module.function_count {
+                        function := *module.functions[cast(usize)f]
+                        if function.is_public != 0 && function.is_file_private == 0 &&
+                           function.is_specialization == 0 && function.is_global_initializer == 0 {
+                            id: [68]u8
+                            FunctionSemanticId(module, function, *id[0])
+                            if memcmp(cast(*void)Raw(wanted), cast(*void)*id[0], 67) == 0 &&
+                               DeclarationRange(e, module, function.span, start, end) != 0 {
+                                found += 1
+                            }
+                        }
+                        f += 1
+                    }
+                    t: s32 = 0
+                    while t < module.type_count {
+                        typ := *module.types[cast(usize)t]
+                        if typ.is_public != 0 && typ.is_file_private == 0 && typ.is_results == 0 &&
+                           typ.is_synthetic_application == 0 && typ.is_type_instance == 0 {
+                            found += SemanticIdMatches(e, module, wanted, CStr("type"),
+                                cast(*u8)*typ.name, cast(*u8)*typ.template_params, CStr(""), typ.span,
+                                start, end)
+                        }
+                        t += 1
+                    }
+                    d: s32 = 0
+                    while d < module.define_count {
+                        define := *module.defines[cast(usize)d]
+                        if define.is_public != 0 && define.is_file_private == 0 {
+                            found += SemanticIdMatches(e, module, wanted, CStr("constant"),
+                                cast(*u8)*define.name, CStr(""), CStr(""), define.span, start, end)
+                        }
+                        d += 1
+                    }
+                    g: s32 = 0
+                    while g < module.global_count {
+                        global := *module.globals[cast(usize)g]
+                        if global.is_static == 0 && global.is_file_private == 0 {
+                            found += SemanticIdMatches(e, module, wanted, CStr("global"),
+                                cast(*u8)*global.name, cast(*u8)*global.type, CStr(""), global.span,
+                                start, end)
+                        }
+                        g += 1
+                    }
+                }
+            }
+            m += 1
+        }
+        p += 1
+    }
+    ProgramsFree(*set)
+    return ifx found == 1 then 1 else 0
+}
+
+#program_export "ZiranEditAdd"
+Add :: (handle: *void, low: s64, high: s64, original: string, replacement: string, semantic: string) -> s32 {
+    e := cast(*Edit)handle
+    if e == null || e.count == EDIT_COUNT || e.candidate != null {
+        return Fail(CStr("too many edits or invalid edit state"))
+    }
+    start: usize = 0
+    end: usize = 0
+    if semantic.count != 0 {
+        if low != -1 || high != -1 || SemanticRange(e, semantic, *start, *end) == 0 {
+            return Fail(CStr("unresolved or ambiguous declaration identity"))
+        }
+    } else {
+        if low < 0 || high < low || cast(u64)high > cast(u64)e.size { return Fail(CStr("invalid byte range")) }
+        start = cast(usize)low
+        end = cast(usize)high
+    }
+    if start > e.size || end > e.size || end < start || cast(usize)original.count != end - start ||
+       (original.count != 0 && (Raw(original) == null ||
+        memcmp(cast(*void)(cast(usize)e.source + start), cast(*void)Raw(original), cast(usize)original.count) != 0)) ||
+       (start < e.size && (e.source[start] & 192) == 128) ||
+       (end < e.size && (e.source[end] & 192) == 128) ||
+       Utf8(Raw(replacement), cast(usize)replacement.count) == 0 || replacement.count > EDIT_BYTES {
+        return Fail(CStr("preimage mismatch, invalid UTF-8 boundary, or oversized replacement"))
+    }
+    if original.count == replacement.count &&
+       (original.count == 0 || memcmp(cast(*void)Raw(original), cast(*void)Raw(replacement), cast(usize)original.count) == 0) {
+        return Fail(CStr("no-op edit"))
+    }
+    i: s32 = 0
+    while i < e.count {
+        if start == e.parts[cast(usize)i].start ||
+           (start < e.parts[cast(usize)i].end && end > e.parts[cast(usize)i].start) {
+            return Fail(CStr("overlapping or colliding edits"))
+        }
+        i += 1
+    }
+    text := Copy(replacement)
+    if text == null { return Fail(CStr("cannot retain replacement")) }
+    e.parts[cast(usize)e.count].start = start
+    e.parts[cast(usize)e.count].end = end
+    e.parts[cast(usize)e.count].count = cast(usize)replacement.count
+    e.parts[cast(usize)e.count].replacement = text
+    e.count += 1
+    return 1
+}
+
+#program_export "ZiranEditBuild"
+Build :: (handle: *void) -> *u8 {
+    e := cast(*Edit)handle
+    if e == null || e.count == 0 || e.candidate != null {
+        unused Fail(CStr("empty or repeated edit build"))
+        return null
+    }
+    i: s32 = 1
+    while i < e.count {
+        item := e.parts[cast(usize)i]
+        j := i
+        while j > 0 && e.parts[cast(usize)(j - 1)].start > item.start {
+            e.parts[cast(usize)j] = e.parts[cast(usize)(j - 1)]
+            j -= 1
+        }
+        e.parts[cast(usize)j] = item
+        i += 1
+    }
+    size := e.size
+    i = 0
+    while i < e.count {
+        part := e.parts[cast(usize)i]
+        size -= part.end - part.start
+        if part.count > EDIT_BYTES - size {
+            unused Fail(CStr("candidate exceeds byte budget"))
+            return null
+        }
+        size += part.count
+        i += 1
+    }
+    e.candidate = cast(*u8)malloc(size + 1)
+    if e.candidate == null {
+        unused Fail(CStr("out of memory"))
+        return null
+    }
+    at: usize = 0
+    out: usize = 0
+    i = 0
+    while i < e.count {
+        part := e.parts[cast(usize)i]
+        n := part.start - at
+        unused memcpy(cast(*void)(cast(usize)e.candidate + out), cast(*void)(cast(usize)e.source + at), n)
+        out += n
+        unused memcpy(cast(*void)(cast(usize)e.candidate + out), cast(*void)part.replacement, part.count)
+        out += part.count
+        at = part.end
+        i += 1
+    }
+    unused memcpy(cast(*void)(cast(usize)e.candidate + out),
+                  cast(*void)(cast(usize)e.source + at), e.size - at)
+    e.candidate[size] = 0
+    e.candidate_size = size
+    return e.candidate
+}
+
+#program_export "ZiranEditSource"
+EditSource :: (handle: *void) -> *u8 {
+    e := cast(*Edit)handle
+    return ifx e != null then e.source else null
+}
+
+#program_export "ZiranEditSize"
+EditSize :: (handle: *void) -> s64 {
+    e := cast(*Edit)handle
+    return ifx e != null then cast(s64)e.candidate_size else 0
+}
+
+#program_export "ZiranEditSourceSize"
+EditSourceSize :: (handle: *void) -> s64 {
+    e := cast(*Edit)handle
+    return ifx e != null then cast(s64)e.size else 0
+}
+
+// Reject file/string imports that climb out of the document tree before any
+// checker reads them. Ordinary package imports still use the real resolver.
+SafeImports :: (text: *u8) -> s32 {
+    lexer: IR.ZirLexer = .{}
+    LexerInit(*lexer, cast(*void)text, cast(*void)CStr("<edit>"))
+    importing: s32 = 0
+    while true {
+        token := LexerNextCode(*lexer)
+        if token.kind == TOKEN_EOF { return 1 }
+        token_text := cast(*u8)*token.text
+        if token.kind == TOKEN_DIRECTIVE && strcmp(token_text, CStr("#import")) == 0 {
+            importing = 1
+        } else if importing != 0 && token.kind == TOKEN_STRING {
+            if token.truncated != 0 || token_text[0] == #char "/" ||
+               strstr(token_text, CStr("..")) != null || strchr(token_text, #char "\\") != null {
+                return 0
+            }
+            importing = 0
+        } else if importing != 0 &&
+                  (strcmp(token_text, CStr(";")) == 0 || strcmp(token_text, CStr("{")) == 0) {
+            importing = 0
+        }
+    }
+}
+
+CheckCandidate :: (e: *Edit, text: *u8, count: usize, set: *IR.ProgramSet) -> s32 {
+    if SourceOverlayBegin(e.path, text, count) == 0 {
+        return Fail(CStr("cannot establish source overlay"))
+    }
+    standard := ToolchainStandardDirectory()
+    canonical_standard: *u8 = null
+    if standard != null { canonical_standard = realpath(standard, null) }
+    SourceOverlayRestrict(e.root, canonical_standard)
+    i: s32 = 0
+    while i < e.module_count {
+        if SourceOverlayPermitRoot(e.module_roots[cast(usize)i]) == 0 {
+            SourceOverlayEnd()
+            free(cast(*void)canonical_standard)
+            return Fail(CStr("too many permitted module roots"))
+        }
+        i += 1
+    }
+    input := e.path
+    result := ProgramsLoadWithDefines(set, e.root, e.module_paths, e.module_count,
+        cast(**u8)*e.defines, e.define_count, *input, 1)
+    SourceOverlayEnd()
+    free(cast(*void)canonical_standard)
+    if result != 0 {
+        expected: [65]u8
+        DocumentDigest(text, count, *expected[0])
+        captured: s32 = 0
+        p: s32 = 0
+        while p < set.count {
+            if strcmp(set.paths[cast(usize)p], e.path) == 0 {
+                m: s32 = 0
+                while m < set.programs[cast(usize)p].module_count {
+                    document := cast(*Check.ZirDocument)set.programs[cast(usize)p].modules[cast(usize)m].document
+                    if document != null && document.bytes == count &&
+                       strcmp(cast(*u8)*document.sha256.items, *expected[0]) == 0 {
+                        captured = 1
+                    }
+                    m += 1
+                }
+            }
+            p += 1
+        }
+        if captured == 0 { return Fail(CStr("candidate source overlay was not loaded")) }
+    }
+    if result != 0 { result = CheckCanonicalPrograms(set.programs, set.count, set.paths) }
+    return result
+}
+
+StillCurrent :: (e: *Edit) -> s32 {
+    device: u64 = 0
+    inode: u64 = 0
+    mode: u32 = 0
+    regular: s32 = 0
+    links: u64 = 0
+    size: s64 = 0
+    if EditHostAtInfo(e.parent, e.leaf, *device, *inode, *mode, *regular, *links, *size) != 0 {
+        return 0
+    }
+    if regular == 0 || device != e.source_device || inode != e.source_inode || mode != e.source_mode {
+        return 0
+    }
+    count: usize = 0
+    text := ReadFd(e.fd, *count)
+    same := text != null && count == e.size &&
+        memcmp(cast(*void)text, cast(*void)e.source, e.size) == 0
+    free(cast(*void)text)
+    return cast(s32)same
+}
+
+SameTokens :: (a: *u8, b: *u8) -> s32 {
+    left: IR.ZirLexer = .{}
+    right: IR.ZirLexer = .{}
+    LexerInit(*left, cast(*void)a, cast(*void)CStr("<before>"))
+    LexerInit(*right, cast(*void)b, cast(*void)CStr("<after>"))
+    pair := cast(*TokenPair)malloc(size_of(TokenPair))
+    if pair == null { return 0 }
+    same: s32 = 0
+    while true {
+        pair.a = LexerNext(*left)
+        pair.b = LexerNext(*right)
+        a_text := cast(*u8)*pair.a.text
+        b_text := cast(*u8)*pair.b.text
+        if pair.a.truncated != 0 || pair.b.truncated != 0 ||
+           strcmp(a_text, CStr("#string")) == 0 || strcmp(b_text, CStr("#string")) == 0 ||
+           pair.a.kind != pair.b.kind || strcmp(a_text, b_text) != 0 {
+            break
+        }
+        if pair.a.kind == TOKEN_EOF {
+            same = 1
+            break
+        }
+    }
+    free(cast(*void)pair)
+    return same
+}
+
+#program_export "ZiranEditValidate"
+Validate :: (handle: *void) -> s32 {
+    e := cast(*Edit)handle
+    if e == null || e.candidate == null || SafeImports(e.candidate) == 0 {
+        return Fail(CStr("invalid candidate or import escape"))
+    }
+    if SameTokens(e.source, e.candidate) != 0 {
+        return Fail(CStr("edit changes formatting only"))
+    }
+    set: IR.ProgramSet = .{}
+    valid := CheckCandidate(e, e.candidate, e.candidate_size, *set)
+    ProgramsFree(*set)
+    return valid
+}
+
+#program_export "ZiranEditFinish"
+Finish :: (handle: *void, formatted: string, apply: s32) -> s32 {
+    e := cast(*Edit)handle
+    if e == null || e.candidate == null || formatted.count > EDIT_BYTES ||
+       Utf8(Raw(formatted), cast(usize)formatted.count) == 0 {
+        return Fail(CStr("invalid formatted candidate"))
+    }
+    text := Copy(formatted)
+    if text == null { return Fail(CStr("out of memory")) }
+    if SafeImports(text) == 0 {
+        free(cast(*void)text)
+        return Fail(CStr("import escapes the permitted source tree"))
+    }
+    set: IR.ProgramSet = .{}
+    valid := CheckCandidate(e, text, cast(usize)formatted.count, *set)
+    ProgramsFree(*set)
+    if valid == 0 || StillCurrent(e) == 0 {
+        free(cast(*void)text)
+        if valid != 0 { unused Fail(CStr("document changed during validation")) }
+        return 0
+    }
+    if apply == 0 {
+        free(cast(*void)text)
+        return 1
+    }
+    temporary: [64]u8
+    descriptor: s32 = -1
+    /* O_EXCL creates one private sibling; no predictable file is overwritten. */
+    index: u32 = 0
+    while index < 128 && descriptor < 0 {
+        unused snprintf(*temporary[0], 64, CStr(".zi-edit-%ld-%u"), cast(isize)getpid(), index)
+        descriptor = EditHostCreatePrivate(e.parent, *temporary[0])
+        index += 1
+    }
+    if descriptor < 0 {
+        free(cast(*void)text)
+        return Fail(CStr("cannot create replacement"))
+    }
+    length := cast(usize)formatted.count
+    at: usize = 0
+    while at < length {
+        written := write(descriptor, cast(*void)(cast(usize)text + at), length - at)
+        if written <= 0 { break }
+        at += cast(usize)written
+    }
+    wrote := at == length && fchmod(descriptor, e.source_mode & 4095) == 0 && fsync(descriptor) == 0
+    if close(descriptor) != 0 { wrote = false }
+    if wrote { wrote = StillCurrent(e) != 0 }
+    if wrote { wrote = renameat(e.parent, *temporary[0], e.parent, e.leaf) == 0 }
+    if !wrote { unused unlinkat(e.parent, *temporary[0], 0) }
+    free(cast(*void)text)
+    if !wrote { return Fail(CStr("cannot replace current document")) }
+    return 1
+}

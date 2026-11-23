@@ -1,0 +1,242 @@
+// Command-line mechanics shared by the compiler tool drivers: bounded option
+// parsing, target selection, program merging and whole-file reads. Compiling
+// lowers this process's niceness; ZIRAN_NICE selects 0..19 instead of 10.
+
+IR :: #import "compiler_ir"
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+StaticText :: struct { data: *u8; count: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+
+ExitHandler :: #type () #c_call;
+OptionValid :: #type (name: *u8) -> s32 #c_call;
+
+getenv :: (name: *u8) -> *u8 #foreign libc "getenv";
+strtol :: (text: *u8, end: **u8, base: s32) -> isize #foreign libc "strtol";
+calloc :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+malloc :: (size: usize) -> *void #foreign libc "malloc";
+free :: (memory: *void) #foreign libc "free";
+atexit :: (handler: ExitHandler) -> s32 #foreign libc "atexit";
+fopen :: (path: *u8, mode: *u8) -> *void #foreign libc "fopen";
+fclose :: (stream: *void) -> s32 #foreign libc "fclose";
+fseek :: (stream: *void, offset: isize, whence: s32) -> s32 #foreign libc "fseek";
+ftell :: (stream: *void) -> isize #foreign libc "ftell";
+fread :: (output: *void, size: usize, count: usize, stream: *void) -> usize #foreign libc "fread";
+fgetc :: (stream: *void) -> s32 #foreign libc "fgetc";
+ferror :: (stream: *void) -> s32 #foreign libc "ferror";
+strcmp :: (a: *u8, b: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (a: *u8, b: *u8, count: usize) -> s32 #foreign libc "strncmp";
+strlen :: (text: *u8) -> usize #foreign libc "strlen";
+strcpy :: (output: *u8, text: *u8) -> *u8 #foreign libc "strcpy";
+strrchr :: (text: *u8, byte: s32) -> *u8 #foreign libc "strrchr";
+memcpy :: (output: *void, input: *void, count: usize) -> *void #foreign libc "memcpy";
+isalpha :: (byte: s32) -> s32 #foreign libc "isalpha";
+isalnum :: (byte: s32) -> s32 #foreign libc "isalnum";
+SetDiagnosticFormat :: (format: *u8) -> s32 #foreign compiler "SetDiagnosticFormat";
+DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+CompilerHostOS :: () -> s32 #foreign compiler "CompilerHostOS";
+CompilerHostCPU :: () -> s32 #foreign compiler "CompilerHostCPU";
+CompilerParseTargetOS :: (name: *u8, os: *s32) -> s32 #foreign compiler "CompilerParseTargetOS";
+CompilerParseTargetCPU :: (name: *u8, cpu: *s32) -> s32 #foreign compiler "CompilerParseTargetCPU";
+CompilerConfigureTarget :: (backend: s32, os: s32, cpu: s32) #foreign compiler "CompilerConfigureTarget";
+CommandPriorityAvailable :: () -> s32 #foreign compiler "ZiranCommandPriorityAvailable";
+CommandPriorityGet :: (error: *s32) -> s32 #foreign compiler "ZiranCommandPriorityGet";
+CommandPrioritySet :: (value: s32) #foreign compiler "ZiranCommandPrioritySet";
+CommandPriorityIo :: (value: s32) #foreign compiler "ZiranCommandPriorityIo";
+
+CliTargetZX :: 3
+CliOSWeb :: 5
+CliCPUWasm32 :: 3
+
+// Options belong to each command; only their bounded argv mechanics are
+// shared. A value consumes the next word even when it starts with '-'.
+CommandOption :: struct {
+    name: *u8
+    value: **u8
+    flag: *s32
+    count: *s32
+    capacity: s32
+    valid: OptionValid
+}
+
+command_module_paths: **u8;
+
+CommandModulePathsRelease :: () {
+    free(cast(*void)command_module_paths)
+}
+
+CommandLowerPriority :: () {
+    if CommandPriorityAvailable() == 0 { return }
+    target: s32 = 10
+    text := getenv(CStr("ZIRAN_NICE"))
+    if text != null && text[0] != 0 {
+        end: *u8 = null
+        value := strtol(text, *end, 10)
+        if end != null && end[0] == 0 && value >= 0 && value <= 19 { target = cast(s32)value }
+    }
+    error: s32 = 0
+    current := CommandPriorityGet(*error)
+    if error == 0 && current < target { CommandPrioritySet(target) }
+    CommandPriorityIo(target)
+}
+
+// A command-lifetime arena for argv-sized collections. atexit also releases
+// storage on usage/error returns before a compiler context is opened.
+CommandModulePaths :: (argc: s32) -> **u8 {
+    if argc < 1 { return null }
+    if command_module_paths != null { return command_module_paths }
+    paths := cast(**u8)calloc(cast(usize)argc, size_of(*u8))
+    if paths == null { return null }
+    if atexit(CommandModulePathsRelease) != 0 {
+        free(cast(*void)paths)
+        return null
+    }
+    command_module_paths = paths
+    return paths
+}
+
+// Return the first input index, zero if there is none, or -1 for a usage
+// error. Stop at the first input: subsequent words are filenames.
+ReadCommandOptions :: (argc: s32, argv: **u8, options: *CommandOption, option_count: usize) -> s32 {
+    index: s32 = 1
+    while index < argc {
+        word := argv[cast(usize)index]
+        if strncmp(word, CStr("--diagnostics="), 14) == 0 {
+            if SetDiagnosticFormat(cast(*u8)(cast(usize)word + 14)) == 0 { return -1 }
+            index += 1
+            continue
+        }
+        if word[0] != #char "-" { return index }
+        selected: usize = 0
+        while selected < option_count && strcmp(word, options[selected].name) != 0 { selected += 1 }
+        if selected == option_count { return -1 }
+        item := options[selected]
+        if item.flag != null {
+            item.flag[0] = 1
+            index += 1
+            continue
+        }
+        if index + 1 == argc ||
+           (item.count != null && item.count[0] >= item.capacity) ||
+           (item.valid != null && item.valid(argv[cast(usize)(index + 1)]) == 0) { return -1 }
+        index += 1
+        value := argv[cast(usize)index]
+        if item.count != null {
+            item.value[cast(usize)item.count[0]] = value
+            item.count[0] += 1
+        } else { item.value[0] = value }
+        index += 1
+    }
+    return 0
+}
+
+// A command's entry linker borrows every loaded module. The caller frees
+// only merged->modules; ProgramsFree retains ownership of their contents.
+CommandMergePrograms :: (set: *IR.ProgramSet, merged: *IR.ZirProgram) -> s32 {
+    merged.module_count = 0
+    for index: 0..set.count - 1 {
+        merged.module_count += set.programs[cast(usize)index].module_count
+    }
+    merged.context = set.context
+    merged.modules = cast(*IR.ZirModule)calloc(cast(usize)merged.module_count, size_of(IR.ZirModule))
+    if merged.modules == null { return 0 }
+    position: s32 = 0
+    for index: 0..set.count - 1 {
+        program := set.programs[cast(usize)index]
+        for module: 0..program.module_count - 1 {
+            merged.modules[cast(usize)position] = program.modules[cast(usize)module]
+            position += 1
+        }
+    }
+    return 1
+}
+
+// Configure the translation target from --target-os and --target-cpu: the
+// host's by default, none for portable ZX, and wasm32 for a web OS named
+// without a CPU. 0 for a name no target has.
+CommandConfigureTarget :: (backend: s32, os_name: *u8, cpu_name: *u8, os: *s32) -> s32 {
+    target_os: s32 = 0
+    target_cpu: s32 = 0
+    if backend != CliTargetZX {
+        target_os = CompilerHostOS()
+        target_cpu = CompilerHostCPU()
+    }
+    if os_name != null {
+        parsed: s32 = target_os
+        if CompilerParseTargetOS(os_name, *parsed) == 0 { return 0 }
+        target_os = parsed
+    }
+    if cpu_name != null {
+        parsed_cpu: s32 = target_cpu
+        if CompilerParseTargetCPU(cpu_name, *parsed_cpu) == 0 { return 0 }
+        target_cpu = parsed_cpu
+    }
+    if target_os == CliOSWeb && cpu_name == null { target_cpu = CliCPUWasm32 }
+    CompilerConfigureTarget(backend, target_os, target_cpu)
+    <<os = target_os
+    return 1
+}
+
+// A whole file of at most LIMIT bytes, NUL-terminated past its end, or NULL.
+CommandReadBounded :: (path: *u8, limit: s64, size: *usize) -> *u8 {
+    stream := fopen(path, CStr("rb"))
+    if stream == null { return null }
+    bytes: *u8 = null
+    length: isize = -1
+    if fseek(stream, 0, 2) == 0 {
+        length = ftell(stream)
+        if length >= 0 && cast(s64)length <= limit && fseek(stream, 0, 0) == 0 {
+            bytes = cast(*u8)malloc(cast(usize)length + 1)
+            if bytes == null {
+                DiagnosticOutOfMemory()
+            } else {
+                count := fread(cast(*void)bytes, 1, cast(usize)length, stream)
+                if count == cast(usize)length && fgetc(stream) == -1 && ferror(stream) == 0 &&
+                   fclose(stream) == 0 {
+                    stream = null
+                    bytes[cast(usize)length] = 0
+                    <<size = cast(usize)length
+                    return bytes
+                }
+            }
+        }
+    }
+    if stream != null { unused fclose(stream) }
+    free(cast(*void)bytes)
+    return null
+}
+
+// --checks: bounds checks in every loaded module.
+CommandEnableChecks :: (set: *IR.ProgramSet) {
+    for index: 0..set.count - 1 {
+        program := set.programs[cast(usize)index]
+        for module: 0..program.module_count - 1 {
+            program.modules[cast(usize)module].checks = 1
+        }
+    }
+}
+
+ValidDefine :: (name: *u8) -> s32 {
+    if name == null || (isalpha(cast(s32)name[0]) == 0 && name[0] != #char "_") ||
+       strlen(name) >= cast(usize)IR.ZIR_NAME_MAX { return 0 }
+    at: usize = 1
+    while name[at] != 0 {
+        if isalnum(cast(s32)name[at]) == 0 && name[at] != #char "_" { return 0 }
+        at += 1
+    }
+    return 1
+}
+
+SplitEntry :: (text: *u8, module: *u8, function: *u8) -> s32 {
+    separator := strrchr(text, #char ":")
+    if separator == null || separator == text || separator[1] == 0 { return 0 }
+    length := cast(usize)(cast(usize)separator - cast(usize)text)
+    if length >= cast(usize)IR.ZIR_NAME_MAX || strlen(cast(*u8)(cast(usize)separator + 1)) >= cast(usize)IR.ZIR_NAME_MAX {
+        return 0
+    }
+    unused memcpy(cast(*void)module, cast(*void)text, length)
+    module[length] = 0
+    unused strcpy(function, cast(*u8)(cast(usize)separator + 1))
+    return 1
+}

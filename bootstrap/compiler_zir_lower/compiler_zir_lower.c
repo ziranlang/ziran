@@ -391,6 +391,20 @@ zir_f_0fe5ce4064831140_CDecodeStringLiteral(uint8_t* source, uint8_t* out, size_
     return zir_foreign_zir_f_0fe5ce4064831140_CDecodeStringLiteral(source, out, capacity, length);
 }
 #endif
+#ifndef ZIR_FOREIGN_zir_f_0fe5ce4064831140_CSameTypeApplication_94c1b47e
+#define ZIR_FOREIGN_zir_f_0fe5ce4064831140_CSameTypeApplication_94c1b47e
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_0fe5ce4064831140_CSameTypeApplication(ZirModule* target_owner, ZirType* target, ZirModule* source_owner, ZirType* source) __asm__("_same_type_application");
+#else
+int32_t zir_foreign_zir_f_0fe5ce4064831140_CSameTypeApplication(ZirModule* target_owner, ZirType* target, ZirModule* source_owner, ZirType* source) __asm__("same_type_application");
+#endif
+static int32_t
+zir_f_0fe5ce4064831140_CSameTypeApplication(ZirModule* target_owner, ZirType* target, ZirModule* source_owner, ZirType* source)
+{
+    return zir_foreign_zir_f_0fe5ce4064831140_CSameTypeApplication(target_owner, target, 
+source_owner, source);
+}
+#endif
 #ifndef ZIR_FOREIGN_zir_f_0fe5ce4064831140_CParseDecimal_04ec6d18
 #define ZIR_FOREIGN_zir_f_0fe5ce4064831140_CParseDecimal_04ec6d18
 #ifdef __APPLE__
@@ -609,13 +623,13 @@ declaration);
 #define ZIRAN_MAYBE_UNUSED
 #endif
 #endif
-static int32_t compiler_zir_lower_zi_kbits(int32_t kind) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_zi_ksigned(int32_t kind) ZIRAN_MAYBE_UNUSED;
-static bool compiler_zir_lower_zi_kfloat(int32_t kind) ZIRAN_MAYBE_UNUSED;
-static uint64_t compiler_zir_lower_zi_kmask(int32_t kind) ZIRAN_MAYBE_UNUSED;
-static int64_t compiler_zir_lower_zi_sx(uint64_t value, int32_t kind) ZIRAN_MAYBE_UNUSED;
-static double compiler_zir_lower_zi_fget(uint64_t bits, int32_t kind) ZIRAN_MAYBE_UNUSED;
-static uint64_t compiler_zir_lower_zi_fput(double value, int32_t kind) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_zir_lower_LowerKindBits(int32_t kind) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_LowerKindSigned(int32_t kind) ZIRAN_MAYBE_UNUSED;
+static bool compiler_zir_lower_LowerKindFloat(int32_t kind) ZIRAN_MAYBE_UNUSED;
+static uint64_t compiler_zir_lower_LowerKindMask(int32_t kind) ZIRAN_MAYBE_UNUSED;
+static int64_t compiler_zir_lower_LowerSignExtend(uint64_t value, int32_t kind) ZIRAN_MAYBE_UNUSED;
+static double compiler_zir_lower_LowerFloatGet(uint64_t bits, int32_t kind) ZIRAN_MAYBE_UNUSED;
+static uint64_t compiler_zir_lower_LowerFloatPut(double value, int32_t kind) ZIRAN_MAYBE_UNUSED;
 static void compiler_zir_lower_Say__overload_1(ZirSourceSpan span, String code, String message) ZIRAN_MAYBE_UNUSED;
 static void compiler_zir_lower_Say__overload_2(ZirSourceSpan span, String code, String message, String subject) ZIRAN_MAYBE_UNUSED;
 static void compiler_zir_lower_SayTarget(ZirSourceSpan span, String code, String message) ZIRAN_MAYBE_UNUSED;
@@ -822,7 +836,7 @@ static void compiler_zir_lower_PrintHex64(void* output, uint64_t value) ZIRAN_MA
 static bool case_signed = false;
 
 static int32_t
-compiler_zir_lower_zi_kbits(int32_t kind)
+compiler_zir_lower_LowerKindBits(int32_t kind)
 {
     if (kind == 8) {
         return 32;
@@ -835,19 +849,19 @@ compiler_zir_lower_zi_kbits(int32_t kind)
 }
 
 static bool
-compiler_zir_lower_zi_ksigned(int32_t kind)
+compiler_zir_lower_LowerKindSigned(int32_t kind)
 {
     return kind <= 7 && ((int32_t)((uint32_t)kind & 1u)) != 0;
 }
 
 static bool
-compiler_zir_lower_zi_kfloat(int32_t kind)
+compiler_zir_lower_LowerKindFloat(int32_t kind)
 {
     return kind >= 8;
 }
 
 static uint64_t
-compiler_zir_lower_zi_kmask(int32_t kind)
+compiler_zir_lower_LowerKindMask(int32_t kind)
 {
     int32_t value_0 = kind;
     int32_t value_1 = 0;
@@ -873,7 +887,7 @@ compiler_zir_lower_zi_kmask(int32_t kind)
 }
 
 static int64_t
-compiler_zir_lower_zi_sx(uint64_t value, int32_t kind)
+compiler_zir_lower_LowerSignExtend(uint64_t value, int32_t kind)
 {
     int32_t value_0 = kind;
     int32_t value_1 = 0;
@@ -960,7 +974,7 @@ compiler_zir_lower_zi_sx(uint64_t value, int32_t kind)
 }
 
 static double
-compiler_zir_lower_zi_fget(uint64_t bits, int32_t kind)
+compiler_zir_lower_LowerFloatGet(uint64_t bits, int32_t kind)
 {
     if (kind == 8) {
         int32_t word = (int32_t)(((uint64_t)((uint64_t)bits & UINT64_C(4294967295))));
@@ -974,7 +988,7 @@ compiler_zir_lower_zi_fget(uint64_t bits, int32_t kind)
 }
 
 static uint64_t
-compiler_zir_lower_zi_fput(double value, int32_t kind)
+compiler_zir_lower_LowerFloatPut(double value, int32_t kind)
 {
     if (kind == 8) {
         float single = (float)(value);
@@ -1925,41 +1939,47 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
         names = program->type_names.data;
         while (index < program->type_names.count) {
             ZirType* known = (names[index]).record;
-            bool value_28 = known == ((void *)0) || known->is_synthetic_application == 0;
+            ZirModule* known_owner = (names[index]).module;
+            ZirModule* found_owner = (void *)0;
+            bool value_28 = known != ((void *)0);
             bool value_29 = value_28;
-            if (!value_29) {
-                String value_30 = compiler_ir_CText(&(known->name[0]));
-                bool value_31 = !StringEqual(value_30, compiler_ir_CText(&(record->name[0])));
-                value_29 = value_31;
+            if (value_29) {
+                ZirModule* value_30 = (names[index]).module;
+                ZirType* value_31 = compiler_services_FindType(value_30, compiler_ir_CText((names[index]).name), &(found_owner));
+                value_29 = (value_31 == known);
             }
-            bool value_32 = value_29;
+            if (value_29 && found_owner != ((void *)0)) {
+                known_owner = found_owner;
+            }
+            bool value_32 = known == ((void *)0) || known->is_synthetic_application == 0;
             bool value_33 = value_32;
             if (!value_33) {
-                String value_34 = compiler_ir_CText(&(known->body[0]));
-                bool value_35 = !StringEqual(value_34, compiler_ir_CText(&(record->body[0])));
+                String value_34 = compiler_ir_CText(&(known->name[0]));
+                bool value_35 = !StringEqual(value_34, compiler_ir_CText(&(record->name[0])));
                 value_33 = value_35;
             }
-            if (value_33) {
+            bool value_36 = value_33;
+            if (value_36 || zir_f_0fe5ce4064831140_CSameTypeApplication(known_owner, known, owner, record) == 0) {
                 index = (int32_t)((uint32_t)index + 1u);
                 continue;
             }
-            AssemblyType value_36 = {0};
-            value_36.module = module;
-            uint8_t* value_37 = compiler_zir_lower_Text(program, name);
-            value_36.name = value_37;
-            value_36.record = record;
-            value_36.identity = (names[index]).identity;
-            AssemblyType alias = value_36;
-            AssemblyProgram* value_38 = program;
-            __type_ebdb196ca6e54c46* value_39 = &(program->type_names);
-            bool value_40 = false;
+            AssemblyType value_37 = {0};
+            value_37.module = module;
+            uint8_t* value_38 = compiler_zir_lower_Text(program, name);
+            value_37.name = value_38;
+            value_37.record = record;
+            value_37.identity = (names[index]).identity;
+            AssemblyType alias = value_37;
+            AssemblyProgram* value_39 = program;
+            __type_ebdb196ca6e54c46* value_40 = &(program->type_names);
+            bool value_41 = false;
             {
-                AssemblyProgram* program = value_38;
-                __type_ebdb196ca6e54c46* vector = value_39;
+                AssemblyProgram* program = value_39;
+                __type_ebdb196ca6e54c46* vector = value_40;
                 AssemblyType value = alias;
-                value_40 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
+                value_41 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
             }
-            if (value_40) {
+            if (value_41) {
                 return alias.identity;
             }
             return -1;
@@ -1976,31 +1996,31 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
             if (program->failed != 0) {
                 return -1;
             }
-            AssemblyProgram* value_42 = program;
-            LirType* value_43 = (void *)0;
+            AssemblyProgram* value_43 = program;
+            LirType* value_44 = (void *)0;
             {
-                AssemblyProgram* program = value_42;
+                AssemblyProgram* program = value_43;
                 int32_t identity = member;
-                value_43 = &(program->types.data[identity]);
+                value_44 = &(program->types.data[identity]);
             }
-            LirType* shape = value_43;
+            LirType* shape = value_44;
             if (((LirTypeKind)(shape->kind)) != ((LirTypeKind)(3)) && ((LirTypeKind)(shape->kind)) != ((LirTypeKind)(4))) {
-                AssemblyProgram* value_45 = program;
-                ZirSourceSpan value_46 = span;
-                String value_47 = StringLiteral("portable unions support scalar fields only");
-                int32_t value_48 = 0;
+                AssemblyProgram* value_46 = program;
+                ZirSourceSpan value_47 = span;
+                String value_48 = StringLiteral("portable unions support scalar fields only");
+                int32_t value_49 = 0;
                 {
-                    AssemblyProgram* program = value_45;
-                    ZirSourceSpan span = value_46;
-                    String message = value_47;
+                    AssemblyProgram* program = value_46;
+                    ZirSourceSpan span = value_47;
+                    String message = value_48;
                     if (program->failed == 0) {
                         compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                     }
-                    int32_t* value_50 = &(program->failed);
-                    (*value_50) = 1;
-                    value_48 = -1;
+                    int32_t* value_51 = &(program->failed);
+                    (*value_51) = 1;
+                    value_49 = -1;
                 }
-                return value_48;
+                return value_49;
             }
             if (shape->bits > widest) {
                 widest = shape->bits;
@@ -2008,59 +2028,59 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
             status = compiler_services_NextField(record, &(cursor), &(field));
         }
         if (status < 0 || widest == 0) {
-            AssemblyProgram* value_51 = program;
-            ZirSourceSpan value_52 = span;
-            String value_53 = StringLiteral("invalid checked union members");
-            int32_t value_54 = 0;
+            AssemblyProgram* value_52 = program;
+            ZirSourceSpan value_53 = span;
+            String value_54 = StringLiteral("invalid checked union members");
+            int32_t value_55 = 0;
             {
-                AssemblyProgram* program = value_51;
-                ZirSourceSpan span = value_52;
-                String message = value_53;
+                AssemblyProgram* program = value_52;
+                ZirSourceSpan span = value_53;
+                String message = value_54;
                 if (program->failed == 0) {
                     compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                 }
-                int32_t* value_56 = &(program->failed);
-                (*value_56) = 1;
-                value_54 = -1;
+                int32_t* value_57 = &(program->failed);
+                (*value_57) = 1;
+                value_55 = -1;
             }
-            return value_54;
+            return value_55;
         }
-        int32_t value_57 = 0;
+        int32_t value_58 = 0;
         if (widest == 8) {
-            value_57 = 3;
+            value_58 = 3;
         } else {
-            int32_t value_58 = 0;
+            int32_t value_59 = 0;
             if (widest == 16) {
-                value_58 = 5;
+                value_59 = 5;
             } else {
-                int32_t value_59 = 0;
+                int32_t value_60 = 0;
                 if (widest == 32) {
-                    value_59 = 7;
+                    value_60 = 7;
                 } else {
-                    value_59 = 9;
+                    value_60 = 9;
                 }
-                value_58 = value_59;
+                value_59 = value_60;
             }
-            value_57 = value_58;
+            value_58 = value_59;
         }
-        int32_t identity = value_57;
-        AssemblyType value_60 = {0};
-        value_60.module = module;
-        uint8_t* value_61 = compiler_zir_lower_Text(program, name);
-        value_60.name = value_61;
-        value_60.record = (void *)0;
-        value_60.identity = identity;
-        AssemblyType binding = value_60;
-        AssemblyProgram* value_62 = program;
-        __type_ebdb196ca6e54c46* value_63 = &(program->type_names);
-        bool value_64 = false;
+        int32_t identity = value_58;
+        AssemblyType value_61 = {0};
+        value_61.module = module;
+        uint8_t* value_62 = compiler_zir_lower_Text(program, name);
+        value_61.name = value_62;
+        value_61.record = (void *)0;
+        value_61.identity = identity;
+        AssemblyType binding = value_61;
+        AssemblyProgram* value_63 = program;
+        __type_ebdb196ca6e54c46* value_64 = &(program->type_names);
+        bool value_65 = false;
         {
-            AssemblyProgram* program = value_62;
-            __type_ebdb196ca6e54c46* vector = value_63;
+            AssemblyProgram* program = value_63;
+            __type_ebdb196ca6e54c46* vector = value_64;
             AssemblyType value = binding;
-            value_64 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
+            value_65 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
         }
-        if (value_64) {
+        if (value_65) {
             return identity;
         }
         return -1;
@@ -2071,23 +2091,23 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
         if (program->failed != 0) {
             return -1;
         }
-        AssemblyType value_66 = {0};
-        value_66.module = module;
-        uint8_t* value_67 = compiler_zir_lower_Text(program, name);
-        value_66.name = value_67;
-        value_66.record = (void *)0;
-        value_66.identity = identity;
-        AssemblyType binding = value_66;
-        AssemblyProgram* value_68 = program;
-        __type_ebdb196ca6e54c46* value_69 = &(program->type_names);
-        bool value_70 = false;
+        AssemblyType value_67 = {0};
+        value_67.module = module;
+        uint8_t* value_68 = compiler_zir_lower_Text(program, name);
+        value_67.name = value_68;
+        value_67.record = (void *)0;
+        value_67.identity = identity;
+        AssemblyType binding = value_67;
+        AssemblyProgram* value_69 = program;
+        __type_ebdb196ca6e54c46* value_70 = &(program->type_names);
+        bool value_71 = false;
         {
-            AssemblyProgram* program = value_68;
-            __type_ebdb196ca6e54c46* vector = value_69;
+            AssemblyProgram* program = value_69;
+            __type_ebdb196ca6e54c46* vector = value_70;
             AssemblyType value = binding;
-            value_70 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
+            value_71 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
         }
-        if (value_70) {
+        if (value_71) {
             return identity;
         }
         return -1;
@@ -2109,80 +2129,80 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
                 index = (int32_t)((uint32_t)index + 1u);
                 continue;
             }
-            AssemblyProgram* value_72 = program;
-            int32_t value_73 = (names[index]).identity;
-            LirType* value_74 = (void *)0;
+            AssemblyProgram* value_73 = program;
+            int32_t value_74 = (names[index]).identity;
+            LirType* value_75 = (void *)0;
             {
-                AssemblyProgram* program = value_72;
-                int32_t identity = value_73;
-                value_74 = &(program->types.data[identity]);
+                AssemblyProgram* program = value_73;
+                int32_t identity = value_74;
+                value_75 = &(program->types.data[identity]);
             }
-            LirType* known = value_74;
-            bool value_76 = ((LirTypeKind)(known->kind)) == ((LirTypeKind)(7));
-            if (value_76) {
-                int64_t value_77 = (int64_t)(known->fields).length;
-                value_76 = (value_77 == 2LL);
+            LirType* known = value_75;
+            bool value_77 = ((LirTypeKind)(known->kind)) == ((LirTypeKind)(7));
+            if (value_77) {
+                int64_t value_78 = (int64_t)(known->fields).length;
+                value_77 = (value_78 == 2LL);
             }
-            if (value_76 && ((int32_t *)known->fields.data)[0] == pointer) {
-                AssemblyType value_78 = {0};
-                value_78.module = module;
-                uint8_t* value_79 = compiler_zir_lower_Text(program, name);
-                value_78.name = value_79;
-                value_78.record = (void *)0;
-                value_78.identity = (names[index]).identity;
-                AssemblyType alias = value_78;
-                AssemblyProgram* value_80 = program;
-                __type_ebdb196ca6e54c46* value_81 = &(program->type_names);
-                bool value_82 = false;
+            if (value_77 && ((int32_t *)known->fields.data)[0] == pointer) {
+                AssemblyType value_79 = {0};
+                value_79.module = module;
+                uint8_t* value_80 = compiler_zir_lower_Text(program, name);
+                value_79.name = value_80;
+                value_79.record = (void *)0;
+                value_79.identity = (names[index]).identity;
+                AssemblyType alias = value_79;
+                AssemblyProgram* value_81 = program;
+                __type_ebdb196ca6e54c46* value_82 = &(program->type_names);
+                bool value_83 = false;
                 {
-                    AssemblyProgram* program = value_80;
-                    __type_ebdb196ca6e54c46* vector = value_81;
+                    AssemblyProgram* program = value_81;
+                    __type_ebdb196ca6e54c46* vector = value_82;
                     AssemblyType value = alias;
-                    value_82 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
+                    value_83 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
                 }
-                if (value_82) {
+                if (value_83) {
                     return alias.identity;
                 }
                 return -1;
             }
             index = (int32_t)((uint32_t)index + 1u);
         }
-        void* value_84 = compiler_zir_lower_Allocate(program, 2, sizeof(int32_t));
-        int32_t* fields = (int32_t*)(value_84);
+        void* value_85 = compiler_zir_lower_Allocate(program, 2, sizeof(int32_t));
+        int32_t* fields = (int32_t*)(value_85);
         if (program->failed != 0 || fields == ((void *)0)) {
             return -1;
         }
-        int32_t* value_85 = &(fields[0]);
-        (*value_85) = pointer;
-        int32_t* value_86 = &(fields[1]);
-        (*value_86) = 8;
-        LirType value_87 = {0};
-        value_87.kind = (LirTypeKind)(7);
-        Slice value_88 = compiler_zir_lower_S32Items(fields, 2LL);
-        value_87.fields = value_88;
-        LirType view = value_87;
+        int32_t* value_86 = &(fields[0]);
+        (*value_86) = pointer;
+        int32_t* value_87 = &(fields[1]);
+        (*value_87) = 8;
+        LirType value_88 = {0};
+        value_88.kind = (LirTypeKind)(7);
+        Slice value_89 = compiler_zir_lower_S32Items(fields, 2LL);
+        value_88.fields = value_89;
+        LirType view = value_88;
         int32_t identity = program->types.count;
-        AssemblyType value_89 = {0};
-        value_89.module = module;
-        uint8_t* value_90 = compiler_zir_lower_Text(program, name);
-        value_89.name = value_90;
-        value_89.record = (void *)0;
-        value_89.identity = identity;
-        AssemblyType binding = value_89;
-        bool value_91 = compiler_zir_lower_PushLirType(program, &(program->types), view);
-        if (value_91 == false) {
+        AssemblyType value_90 = {0};
+        value_90.module = module;
+        uint8_t* value_91 = compiler_zir_lower_Text(program, name);
+        value_90.name = value_91;
+        value_90.record = (void *)0;
+        value_90.identity = identity;
+        AssemblyType binding = value_90;
+        bool value_92 = compiler_zir_lower_PushLirType(program, &(program->types), view);
+        if (value_92 == false) {
             return -1;
         }
-        AssemblyProgram* value_92 = program;
-        __type_ebdb196ca6e54c46* value_93 = &(program->type_names);
-        bool value_94 = false;
+        AssemblyProgram* value_93 = program;
+        __type_ebdb196ca6e54c46* value_94 = &(program->type_names);
+        bool value_95 = false;
         {
-            AssemblyProgram* program = value_92;
-            __type_ebdb196ca6e54c46* vector = value_93;
+            AssemblyProgram* program = value_93;
+            __type_ebdb196ca6e54c46* vector = value_94;
             AssemblyType value = binding;
-            value_94 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
+            value_95 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
         }
-        if (value_94 == false) {
+        if (value_95 == false) {
             return -1;
         }
         return identity;
@@ -2196,21 +2216,21 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
         int32_t identity = -1;
         index = 0;
         while (index < program->types.count && identity < 0) {
-            AssemblyProgram* value_96 = program;
-            LirType* value_97 = (void *)0;
+            AssemblyProgram* value_97 = program;
+            LirType* value_98 = (void *)0;
             {
-                AssemblyProgram* program = value_96;
+                AssemblyProgram* program = value_97;
                 int32_t identity = index;
-                value_97 = &(program->types.data[identity]);
+                value_98 = &(program->types.data[identity]);
             }
-            LirType* known = value_97;
-            bool value_99 = ((LirTypeKind)(known->kind)) == ((LirTypeKind)(6)) && known->element == lane;
-            if (value_99) {
-                int64_t value_100 = known->count;
-                int64_t value_101 = (int64_t)(vector.lanes);
-                value_99 = (value_100 == value_101);
+            LirType* known = value_98;
+            bool value_100 = ((LirTypeKind)(known->kind)) == ((LirTypeKind)(6)) && known->element == lane;
+            if (value_100) {
+                int64_t value_101 = known->count;
+                int64_t value_102 = (int64_t)(vector.lanes);
+                value_100 = (value_101 == value_102);
             }
-            if (value_99) {
+            if (value_100) {
                 identity = index;
             }
             index = (int32_t)((uint32_t)index + 1u);
@@ -2218,81 +2238,81 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
         if (identity < 0) {
             LirType lanes = {.kind = (LirTypeKind)(6), .element = lane, .count = (int64_t)(vector.lanes)};
             identity = program->types.count;
-            bool value_102 = compiler_zir_lower_PushLirType(program, &(program->types), lanes);
-            if (value_102 == false) {
+            bool value_103 = compiler_zir_lower_PushLirType(program, &(program->types), lanes);
+            if (value_103 == false) {
                 return -1;
             }
         }
-        AssemblyType value_103 = {0};
-        value_103.module = module;
-        uint8_t* value_104 = compiler_zir_lower_Text(program, name);
-        value_103.name = value_104;
-        value_103.record = (void *)0;
-        value_103.identity = identity;
-        AssemblyType binding = value_103;
-        AssemblyProgram* value_105 = program;
-        __type_ebdb196ca6e54c46* value_106 = &(program->type_names);
-        bool value_107 = false;
+        AssemblyType value_104 = {0};
+        value_104.module = module;
+        uint8_t* value_105 = compiler_zir_lower_Text(program, name);
+        value_104.name = value_105;
+        value_104.record = (void *)0;
+        value_104.identity = identity;
+        AssemblyType binding = value_104;
+        AssemblyProgram* value_106 = program;
+        __type_ebdb196ca6e54c46* value_107 = &(program->type_names);
+        bool value_108 = false;
         {
-            AssemblyProgram* program = value_105;
-            __type_ebdb196ca6e54c46* vector = value_106;
+            AssemblyProgram* program = value_106;
+            __type_ebdb196ca6e54c46* vector = value_107;
             AssemblyType value = binding;
-            value_107 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
+            value_108 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
         }
-        if (value_107) {
+        if (value_108) {
             return identity;
         }
         return -1;
     }
     LirType held = {0};
     if (StringEqual(spelled, StringLiteral("float32")) || StringEqual(spelled, StringLiteral("float64")) || StringEqual(spelled, StringLiteral("real"))) {
-        int32_t value_109 = 0;
+        int32_t value_110 = 0;
         if (StringEqual(spelled, StringLiteral("float32"))) {
-            value_109 = 32;
+            value_110 = 32;
         } else {
-            value_109 = 64;
+            value_110 = 64;
         }
-        int32_t bits = value_109;
+        int32_t bits = value_110;
         index = 0;
         while (index < program->types.count) {
-            AssemblyProgram* value_110 = program;
-            LirType* value_111 = (void *)0;
+            AssemblyProgram* value_111 = program;
+            LirType* value_112 = (void *)0;
             {
-                AssemblyProgram* program = value_110;
+                AssemblyProgram* program = value_111;
                 int32_t identity = index;
-                value_111 = &(program->types.data[identity]);
+                value_112 = &(program->types.data[identity]);
             }
-            LirType* known = value_111;
+            LirType* known = value_112;
             if (((LirTypeKind)(known->kind)) == ((LirTypeKind)(4)) && known->bits == bits) {
                 return index;
             }
             index = (int32_t)((uint32_t)index + 1u);
         }
-        LirTypeKind* value_113 = &(held.kind);
-        (*value_113) = (LirTypeKind)(4);
-        int32_t* value_114 = &(held.bits);
-        (*value_114) = bits;
+        LirTypeKind* value_114 = &(held.kind);
+        (*value_114) = (LirTypeKind)(4);
+        int32_t* value_115 = &(held.bits);
+        (*value_115) = bits;
     } else if (zir_f_0fe5ce4064831140_CArrayValueType(name) != 0) {
         uint8_t element[128] = {0};
         int32_t count = 0;
-        bool value_115 = zir_f_0fe5ce4064831140_CArrayElementType(name, &(element[0]), 128, &(count)) == 0;
-        if (value_115 || count < 0) {
-            AssemblyProgram* value_116 = program;
-            ZirSourceSpan value_117 = span;
-            String value_118 = StringLiteral("invalid checked fixed-array type");
-            int32_t value_119 = 0;
+        bool value_116 = zir_f_0fe5ce4064831140_CArrayElementType(name, &(element[0]), 128, &(count)) == 0;
+        if (value_116 || count < 0) {
+            AssemblyProgram* value_117 = program;
+            ZirSourceSpan value_118 = span;
+            String value_119 = StringLiteral("invalid checked fixed-array type");
+            int32_t value_120 = 0;
             {
-                AssemblyProgram* program = value_116;
-                ZirSourceSpan span = value_117;
-                String message = value_118;
+                AssemblyProgram* program = value_117;
+                ZirSourceSpan span = value_118;
+                String message = value_119;
                 if (program->failed == 0) {
                     compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                 }
-                int32_t* value_121 = &(program->failed);
-                (*value_121) = 1;
-                value_119 = -1;
+                int32_t* value_122 = &(program->failed);
+                (*value_122) = 1;
+                value_120 = -1;
             }
-            return value_119;
+            return value_120;
         }
         int32_t element_type = compiler_zir_lower_TypeIn(program, module, &(element[0]), span, (int32_t)((uint32_t)depth + 1u));
         if (program->failed != 0) {
@@ -2301,105 +2321,105 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
         int32_t identity = -1;
         index = 0;
         while (index < program->types.count && identity < 0) {
-            AssemblyProgram* value_122 = program;
-            LirType* value_123 = (void *)0;
+            AssemblyProgram* value_123 = program;
+            LirType* value_124 = (void *)0;
             {
-                AssemblyProgram* program = value_122;
+                AssemblyProgram* program = value_123;
                 int32_t identity = index;
-                value_123 = &(program->types.data[identity]);
+                value_124 = &(program->types.data[identity]);
             }
-            LirType* known = value_123;
-            bool value_125 = ((LirTypeKind)(known->kind)) == ((LirTypeKind)(6)) && known->element == element_type;
-            if (value_125) {
-                int64_t value_126 = known->count;
-                int64_t value_127 = (int64_t)(count);
-                value_125 = (value_126 == value_127);
+            LirType* known = value_124;
+            bool value_126 = ((LirTypeKind)(known->kind)) == ((LirTypeKind)(6)) && known->element == element_type;
+            if (value_126) {
+                int64_t value_127 = known->count;
+                int64_t value_128 = (int64_t)(count);
+                value_126 = (value_127 == value_128);
             }
-            if (value_125) {
+            if (value_126) {
                 identity = index;
             }
             index = (int32_t)((uint32_t)index + 1u);
         }
         if (identity < 0) {
-            LirTypeKind* value_128 = &(held.kind);
-            (*value_128) = (LirTypeKind)(6);
-            int32_t* value_129 = &(held.element);
-            (*value_129) = element_type;
-            int64_t* value_130 = &(held.count);
-            (*value_130) = (int64_t)(count);
+            LirTypeKind* value_129 = &(held.kind);
+            (*value_129) = (LirTypeKind)(6);
+            int32_t* value_130 = &(held.element);
+            (*value_130) = element_type;
+            int64_t* value_131 = &(held.count);
+            (*value_131) = (int64_t)(count);
             identity = program->types.count;
-            bool value_131 = compiler_zir_lower_PushLirType(program, &(program->types), held);
-            if (value_131 == false) {
+            bool value_132 = compiler_zir_lower_PushLirType(program, &(program->types), held);
+            if (value_132 == false) {
                 return -1;
             }
         }
-        AssemblyType value_132 = {0};
-        value_132.module = module;
-        uint8_t* value_133 = compiler_zir_lower_Text(program, name);
-        value_132.name = value_133;
-        value_132.record = record;
-        value_132.identity = identity;
-        AssemblyType binding = value_132;
-        AssemblyProgram* value_134 = program;
-        __type_ebdb196ca6e54c46* value_135 = &(program->type_names);
-        bool value_136 = false;
+        AssemblyType value_133 = {0};
+        value_133.module = module;
+        uint8_t* value_134 = compiler_zir_lower_Text(program, name);
+        value_133.name = value_134;
+        value_133.record = record;
+        value_133.identity = identity;
+        AssemblyType binding = value_133;
+        AssemblyProgram* value_135 = program;
+        __type_ebdb196ca6e54c46* value_136 = &(program->type_names);
+        bool value_137 = false;
         {
-            AssemblyProgram* program = value_134;
-            __type_ebdb196ca6e54c46* vector = value_135;
+            AssemblyProgram* program = value_135;
+            __type_ebdb196ca6e54c46* vector = value_136;
             AssemblyType value = binding;
-            value_136 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
+            value_137 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
         }
-        if (value_136) {
+        if (value_137) {
             return identity;
         }
         return -1;
     } else if (record != ((void *)0) && record->is_procedure_type != 0 && record->is_c_call == 0) {
-        LirTypeKind* value_138 = &(held.kind);
-        (*value_138) = (LirTypeKind)(9);
+        LirTypeKind* value_139 = &(held.kind);
+        (*value_139) = (LirTypeKind)(9);
     } else {
-        bool value_139 = record != ((void *)0) && record->is_procedure_type == 0 && record->is_union == 0 && record->is_record_template == 0;
-        if (value_139 && record->is_map == 0 && record->is_extern == 0 && (record->foreign_target)[0] == 0) {
-            LirTypeKind* value_140 = &(held.kind);
-            (*value_140) = (LirTypeKind)(7);
+        bool value_140 = record != ((void *)0) && record->is_procedure_type == 0 && record->is_union == 0 && record->is_record_template == 0;
+        if (value_140 && record->is_map == 0 && record->is_extern == 0 && (record->foreign_target)[0] == 0) {
+            LirTypeKind* value_141 = &(held.kind);
+            (*value_141) = (LirTypeKind)(7);
         } else {
-            AssemblyProgram* value_141 = program;
-            ZirSourceSpan value_142 = span;
-            String value_143 = StringLiteral("this type has no portable lowered representation yet");
-            int32_t value_144 = 0;
+            AssemblyProgram* value_142 = program;
+            ZirSourceSpan value_143 = span;
+            String value_144 = StringLiteral("this type has no portable lowered representation yet");
+            int32_t value_145 = 0;
             {
-                AssemblyProgram* program = value_141;
-                ZirSourceSpan span = value_142;
-                String message = value_143;
+                AssemblyProgram* program = value_142;
+                ZirSourceSpan span = value_143;
+                String message = value_144;
                 if (program->failed == 0) {
                     compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                 }
-                int32_t* value_146 = &(program->failed);
-                (*value_146) = 1;
-                value_144 = -1;
+                int32_t* value_147 = &(program->failed);
+                (*value_147) = 1;
+                value_145 = -1;
             }
-            return value_144;
+            return value_145;
         }
     }
     if (record != ((void *)0) && record->is_owned_vec != 0) {
         size_t cursor = 0;
         ZirTypeField data_field = {0};
         if (compiler_services_NextField(record, &(cursor), &(data_field)) != 1) {
-            AssemblyProgram* value_147 = program;
-            ZirSourceSpan value_148 = span;
-            String value_149 = StringLiteral("owned vector has an unexpected record shape");
-            int32_t value_150 = 0;
+            AssemblyProgram* value_148 = program;
+            ZirSourceSpan value_149 = span;
+            String value_150 = StringLiteral("owned vector has an unexpected record shape");
+            int32_t value_151 = 0;
             {
-                AssemblyProgram* program = value_147;
-                ZirSourceSpan span = value_148;
-                String message = value_149;
+                AssemblyProgram* program = value_148;
+                ZirSourceSpan span = value_149;
+                String message = value_150;
                 if (program->failed == 0) {
                     compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                 }
-                int32_t* value_152 = &(program->failed);
-                (*value_152) = 1;
-                value_150 = -1;
+                int32_t* value_153 = &(program->failed);
+                (*value_153) = 1;
+                value_151 = -1;
             }
-            return value_150;
+            return value_151;
         }
         int32_t data = compiler_zir_lower_TypeIn(program, owner, &(data_field.type[0]), span, (int32_t)((uint32_t)depth + 1u));
         if (program->failed != 0) {
@@ -2412,38 +2432,38 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
                 index = (int32_t)((uint32_t)index + 1u);
                 continue;
             }
-            AssemblyProgram* value_153 = program;
-            int32_t value_154 = (names[index]).identity;
-            LirType* value_155 = (void *)0;
+            AssemblyProgram* value_154 = program;
+            int32_t value_155 = (names[index]).identity;
+            LirType* value_156 = (void *)0;
             {
-                AssemblyProgram* program = value_153;
-                int32_t identity = value_154;
-                value_155 = &(program->types.data[identity]);
+                AssemblyProgram* program = value_154;
+                int32_t identity = value_155;
+                value_156 = &(program->types.data[identity]);
             }
-            LirType* known = value_155;
-            bool value_157 = ((LirTypeKind)(known->kind)) == ((LirTypeKind)(7));
-            if (value_157) {
-                int64_t value_158 = (int64_t)(known->fields).length;
-                value_157 = (value_158 == 3LL);
+            LirType* known = value_156;
+            bool value_158 = ((LirTypeKind)(known->kind)) == ((LirTypeKind)(7));
+            if (value_158) {
+                int64_t value_159 = (int64_t)(known->fields).length;
+                value_158 = (value_159 == 3LL);
             }
-            if (value_157 && ((int32_t *)known->fields.data)[0] == data) {
-                AssemblyType value_159 = {0};
-                value_159.module = module;
-                uint8_t* value_160 = compiler_zir_lower_Text(program, name);
-                value_159.name = value_160;
-                value_159.record = record;
-                value_159.identity = (names[index]).identity;
-                AssemblyType alias = value_159;
-                AssemblyProgram* value_161 = program;
-                __type_ebdb196ca6e54c46* value_162 = &(program->type_names);
-                bool value_163 = false;
+            if (value_158 && ((int32_t *)known->fields.data)[0] == data) {
+                AssemblyType value_160 = {0};
+                value_160.module = module;
+                uint8_t* value_161 = compiler_zir_lower_Text(program, name);
+                value_160.name = value_161;
+                value_160.record = record;
+                value_160.identity = (names[index]).identity;
+                AssemblyType alias = value_160;
+                AssemblyProgram* value_162 = program;
+                __type_ebdb196ca6e54c46* value_163 = &(program->type_names);
+                bool value_164 = false;
                 {
-                    AssemblyProgram* program = value_161;
-                    __type_ebdb196ca6e54c46* vector = value_162;
+                    AssemblyProgram* program = value_162;
+                    __type_ebdb196ca6e54c46* vector = value_163;
                     AssemblyType value = alias;
-                    value_163 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
+                    value_164 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
                 }
-                if (value_163) {
+                if (value_164) {
                     return alias.identity;
                 }
                 return -1;
@@ -2452,67 +2472,67 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
         }
     }
     int32_t identity = program->types.count;
-    AssemblyType value_165 = {0};
-    value_165.module = module;
-    uint8_t* value_166 = compiler_zir_lower_Text(program, name);
-    value_165.name = value_166;
-    value_165.record = record;
-    value_165.identity = identity;
-    AssemblyType binding = value_165;
-    bool value_167 = compiler_zir_lower_PushLirType(program, &(program->types), held);
-    if (value_167 == false) {
+    AssemblyType value_166 = {0};
+    value_166.module = module;
+    uint8_t* value_167 = compiler_zir_lower_Text(program, name);
+    value_166.name = value_167;
+    value_166.record = record;
+    value_166.identity = identity;
+    AssemblyType binding = value_166;
+    bool value_168 = compiler_zir_lower_PushLirType(program, &(program->types), held);
+    if (value_168 == false) {
         return -1;
     }
-    AssemblyProgram* value_168 = program;
-    __type_ebdb196ca6e54c46* value_169 = &(program->type_names);
-    bool value_170 = false;
+    AssemblyProgram* value_169 = program;
+    __type_ebdb196ca6e54c46* value_170 = &(program->type_names);
+    bool value_171 = false;
     {
-        AssemblyProgram* program = value_168;
-        __type_ebdb196ca6e54c46* vector = value_169;
+        AssemblyProgram* program = value_169;
+        __type_ebdb196ca6e54c46* vector = value_170;
         AssemblyType value = binding;
-        value_170 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
+        value_171 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(AssemblyType), (void*)(&(value)));
     }
-    if (value_170 == false) {
+    if (value_171 == false) {
         return -1;
     }
     if (((LirTypeKind)(held.kind)) == ((LirTypeKind)(9))) {
         ZirParameters* parameters = zir_f_0fe5ce4064831140_CParametersOf(&(record->body[0]));
-        void* value_172 = compiler_zir_lower_Allocate(program, (size_t)(parameters->count), sizeof(int32_t));
-        int32_t* types = (int32_t*)(value_172);
+        void* value_173 = compiler_zir_lower_Allocate(program, (size_t)(parameters->count), sizeof(int32_t));
+        int32_t* types = (int32_t*)(value_173);
         if (parameters->count > 0 && types == ((void *)0)) {
             return -1;
         }
         int32_t at = 0;
         while (at < parameters->count && program->failed == 0) {
-            ZirParameters* value_173 = parameters;
-            ZirParameter* value_174 = (void *)0;
+            ZirParameters* value_174 = parameters;
+            ZirParameter* value_175 = (void *)0;
             {
-                ZirParameters* parameters = value_173;
+                ZirParameters* parameters = value_174;
                 int32_t index = at;
                 ZirParameter* items = (ZirParameter*)(((size_t)(parameters) + 8));
-                value_174 = &(items[index]);
+                value_175 = &(items[index]);
             }
-            ZirParameter* parameter = value_174;
-            int32_t* value_176 = &(types[at]);
-            int32_t value_177 = compiler_zir_lower_TypeIn(program, owner, parameter->value_type, span, (int32_t)((uint32_t)depth + 1u));
-            (*value_176) = value_177;
+            ZirParameter* parameter = value_175;
+            int32_t* value_177 = &(types[at]);
+            int32_t value_178 = compiler_zir_lower_TypeIn(program, owner, parameter->value_type, span, (int32_t)((uint32_t)depth + 1u));
+            (*value_177) = value_178;
             at = (int32_t)((uint32_t)at + 1u);
         }
         int32_t returns = compiler_zir_lower_TypeIn(program, owner, &(record->procedure_return_type[0]), span, (int32_t)((uint32_t)depth + 1u));
-        AssemblyProgram* value_178 = program;
-        int32_t value_179 = identity;
-        LirType* value_180 = (void *)0;
+        AssemblyProgram* value_179 = program;
+        int32_t value_180 = identity;
+        LirType* value_181 = (void *)0;
         {
-            AssemblyProgram* program = value_178;
-            int32_t identity = value_179;
-            value_180 = &(program->types.data[identity]);
+            AssemblyProgram* program = value_179;
+            int32_t identity = value_180;
+            value_181 = &(program->types.data[identity]);
         }
-        LirType* saved = value_180;
-        Slice* value_182 = &(saved->parameters);
-        Slice value_183 = compiler_zir_lower_S32Items(types, (int64_t)(parameters->count));
-        (*value_182) = value_183;
-        int32_t* value_184 = &(saved->result);
-        (*value_184) = returns;
+        LirType* saved = value_181;
+        Slice* value_183 = &(saved->parameters);
+        Slice value_184 = compiler_zir_lower_S32Items(types, (int64_t)(parameters->count));
+        (*value_183) = value_184;
+        int32_t* value_185 = &(saved->result);
+        (*value_185) = returns;
     } else if (((LirTypeKind)(held.kind)) == ((LirTypeKind)(7))) {
         __type_0c8c2c2a7dfdc73a fields = {0};
         size_t cursor = 0;
@@ -2520,80 +2540,80 @@ compiler_zir_lower_TypeIn(AssemblyProgram* program, ZirModule* module, uint8_t* 
         int32_t status = compiler_services_NextField(record, &(cursor), &(field));
         while (status == 1 && program->failed == 0) {
             int32_t field_type = compiler_zir_lower_TypeIn(program, owner, &(field.type[0]), span, (int32_t)((uint32_t)depth + 1u));
-            AssemblyProgram* value_185 = program;
-            __type_0c8c2c2a7dfdc73a* value_186 = &(fields);
-            bool value_187 = false;
+            AssemblyProgram* value_186 = program;
+            __type_0c8c2c2a7dfdc73a* value_187 = &(fields);
+            bool value_188 = false;
             {
-                AssemblyProgram* program = value_185;
-                __type_0c8c2c2a7dfdc73a* vector = value_186;
+                AssemblyProgram* program = value_186;
+                __type_0c8c2c2a7dfdc73a* vector = value_187;
                 int32_t value = field_type;
-                value_187 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(int32_t), (void*)(&(value)));
+                value_188 = compiler_zir_lower_Push(program, (RawVector*)(vector), sizeof(int32_t), (void*)(&(value)));
             }
-            (void)value_187;
+            (void)value_188;
             status = compiler_services_NextField(record, &(cursor), &(field));
         }
         if (status < 0) {
-            AssemblyProgram* value_189 = program;
-            ZirSourceSpan value_190 = span;
-            String value_191 = StringLiteral("invalid checked record fields");
-            int32_t value_192 = 0;
+            AssemblyProgram* value_190 = program;
+            ZirSourceSpan value_191 = span;
+            String value_192 = StringLiteral("invalid checked record fields");
+            int32_t value_193 = 0;
             {
-                AssemblyProgram* program = value_189;
-                ZirSourceSpan span = value_190;
-                String message = value_191;
+                AssemblyProgram* program = value_190;
+                ZirSourceSpan span = value_191;
+                String message = value_192;
                 if (program->failed == 0) {
                     compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                 }
-                int32_t* value_194 = &(program->failed);
-                (*value_194) = 1;
-                value_192 = -1;
+                int32_t* value_195 = &(program->failed);
+                (*value_195) = 1;
+                value_193 = -1;
             }
-            return value_192;
+            return value_193;
         }
-        AssemblyProgram* value_195 = program;
-        int32_t value_196 = identity;
-        LirType* value_197 = (void *)0;
+        AssemblyProgram* value_196 = program;
+        int32_t value_197 = identity;
+        LirType* value_198 = (void *)0;
         {
-            AssemblyProgram* program = value_195;
-            int32_t identity = value_196;
-            value_197 = &(program->types.data[identity]);
+            AssemblyProgram* program = value_196;
+            int32_t identity = value_197;
+            value_198 = &(program->types.data[identity]);
         }
-        LirType* saved = value_197;
-        Slice* value_199 = &(saved->fields);
-        Slice value_200 = compiler_zir_lower_S32Items(fields.data, (int64_t)(fields.count));
-        (*value_199) = value_200;
+        LirType* saved = value_198;
+        Slice* value_200 = &(saved->fields);
+        Slice value_201 = compiler_zir_lower_S32Items(fields.data, (int64_t)(fields.count));
+        (*value_200) = value_201;
         if (record->is_owned_vec != 0) {
             int32_t* members = fields.data;
-            bool value_201 = fields.count != 3;
-            bool value_202 = value_201;
-            if (!value_202) {
-                AssemblyProgram* value_203 = program;
-                int32_t value_204 = members[0];
-                LirType* value_205 = (void *)0;
+            bool value_202 = fields.count != 3;
+            bool value_203 = value_202;
+            if (!value_203) {
+                AssemblyProgram* value_204 = program;
+                int32_t value_205 = members[0];
+                LirType* value_206 = (void *)0;
                 {
-                    AssemblyProgram* program = value_203;
-                    int32_t identity = value_204;
-                    value_205 = &(program->types.data[identity]);
+                    AssemblyProgram* program = value_204;
+                    int32_t identity = value_205;
+                    value_206 = &(program->types.data[identity]);
                 }
-                value_202 = (((LirTypeKind)(value_205->kind)) != ((LirTypeKind)(5)));
+                value_203 = (((LirTypeKind)(value_206->kind)) != ((LirTypeKind)(5)));
             }
-            if (value_202 || members[1] != 8 || members[2] != 8) {
-                AssemblyProgram* value_207 = program;
-                ZirSourceSpan value_208 = span;
-                String value_209 = StringLiteral("owned vector has an unexpected record shape");
-                int32_t value_210 = 0;
+            if (value_203 || members[1] != 8 || members[2] != 8) {
+                AssemblyProgram* value_208 = program;
+                ZirSourceSpan value_209 = span;
+                String value_210 = StringLiteral("owned vector has an unexpected record shape");
+                int32_t value_211 = 0;
                 {
-                    AssemblyProgram* program = value_207;
-                    ZirSourceSpan span = value_208;
-                    String message = value_209;
+                    AssemblyProgram* program = value_208;
+                    ZirSourceSpan span = value_209;
+                    String message = value_210;
                     if (program->failed == 0) {
                         compiler_zir_lower_SayTarget(span, StringLiteral("assembly.lower"), message);
                     }
-                    int32_t* value_212 = &(program->failed);
-                    (*value_212) = 1;
-                    value_210 = -1;
+                    int32_t* value_213 = &(program->failed);
+                    (*value_213) = 1;
+                    value_211 = -1;
                 }
-                return value_210;
+                return value_211;
             }
         }
     }

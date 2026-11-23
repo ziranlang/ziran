@@ -3558,43 +3558,66 @@ private_check_callback_type_equal(ZirModule* left_module, uint8_t* left, ZirModu
         zir_f_6d0830be4da0a0ed_CompilerFree((void*)(left_element_storage_0));
         return cleanup_return_1;
     }
-    ZirType* left_type = zir_f_6d0830be4da0a0ed_FindType(left_module, left, (void *)0);
-    ZirType* right_type = zir_f_6d0830be4da0a0ed_FindType(right_module, right, (void *)0);
+    ZirModule* left_owner = (void *)0;
+    ZirModule* right_owner = (void *)0;
+    ZirType* left_type = zir_f_6d0830be4da0a0ed_FindType(left_module, left, &(left_owner));
+    ZirType* right_type = zir_f_6d0830be4da0a0ed_FindType(right_module, right, &(right_owner));
     if (left_type != ((void *)0) || right_type != ((void *)0)) {
-        bool value_11 = left_type != ((void *)0) && right_type != ((void *)0);
-        bool value_12 = value_11;
-        if (value_12) {
-            bool value_13 = left_type == right_type;
-            bool value_14 = value_13;
-            if (!value_14) {
-                bool value_15 = (left_type->foreign_target)[0] != 0;
-                bool value_16 = value_15;
-                if (value_16) {
-                    bool value_17 = zir_f_6d0830be4da0a0ed_strcmp((uint8_t*)(&(left_type->foreign_target)), (uint8_t*)(&(right_type->foreign_target))) != 0;
-                    value_16 = !value_17;
-                }
-                value_14 = value_16;
+        if (left_type == ((void *)0) || right_type == ((void *)0)) {
+            int32_t cleanup_return_2 = 0;
+            zir_f_6d0830be4da0a0ed_CompilerFree((void*)(right_element_storage_1));
+            zir_f_6d0830be4da0a0ed_CompilerFree((void*)(left_element_storage_0));
+            return cleanup_return_2;
+        }
+        if (left_type == right_type) {
+            int32_t cleanup_return_3 = 1;
+            zir_f_6d0830be4da0a0ed_CompilerFree((void*)(right_element_storage_1));
+            zir_f_6d0830be4da0a0ed_CompilerFree((void*)(left_element_storage_0));
+            return cleanup_return_3;
+        }
+        bool value_11 = (left_type->foreign_target)[0] != 0;
+        if (value_11 && zir_f_6d0830be4da0a0ed_strcmp(&(left_type->foreign_target[0]), &(right_type->foreign_target[0])) == 0) {
+            int32_t cleanup_return_4 = 1;
+            zir_f_6d0830be4da0a0ed_CompilerFree((void*)(right_element_storage_1));
+            zir_f_6d0830be4da0a0ed_CompilerFree((void*)(left_element_storage_0));
+            return cleanup_return_4;
+        }
+        bool value_12 = zir_f_6d0830be4da0a0ed_strcmp(&(left_type->name[0]), &(right_type->name[0])) == 0;
+        bool value_13 = value_12;
+        if (value_13) {
+            ZirModule* value_14 = (void *)0;
+            if (left_owner != ((void *)0)) {
+                value_14 = left_owner;
+            } else {
+                value_14 = left_module;
             }
-            value_12 = value_14;
+            ZirModule* value_15 = (void *)0;
+            if (right_owner != ((void *)0)) {
+                value_15 = right_owner;
+            } else {
+                value_15 = right_module;
+            }
+            bool value_16 = zir_f_6d0830be4da0a0ed_same_type_application(value_14, left_type, value_15, right_type) != 0;
+            value_13 = value_16;
         }
-        int32_t value_18 = 0;
-        if (value_12) {
-            value_18 = 1;
+        int32_t value_17 = 0;
+        if (value_13) {
+            value_17 = 1;
         }
-        int32_t cleanup_return_2 = value_18;
+        int32_t cleanup_return_5 = value_17;
         zir_f_6d0830be4da0a0ed_CompilerFree((void*)(right_element_storage_1));
         zir_f_6d0830be4da0a0ed_CompilerFree((void*)(left_element_storage_0));
-        return cleanup_return_2;
+        return cleanup_return_5;
     }
-    bool value_19 = zir_f_6d0830be4da0a0ed_strcmp(left, right) != 0;
-    int32_t value_20 = 0;
-    if (!value_19) {
-        value_20 = 1;
+    bool value_18 = zir_f_6d0830be4da0a0ed_strcmp(left, right) != 0;
+    int32_t value_19 = 0;
+    if (!value_18) {
+        value_19 = 1;
     }
-    int32_t cleanup_return_3 = value_20;
+    int32_t cleanup_return_6 = value_19;
     zir_f_6d0830be4da0a0ed_CompilerFree((void*)(right_element_storage_1));
     zir_f_6d0830be4da0a0ed_CompilerFree((void*)(left_element_storage_0));
-    return cleanup_return_3;
+    return cleanup_return_6;
 }
 
 void

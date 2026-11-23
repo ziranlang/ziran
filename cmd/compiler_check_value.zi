@@ -1563,10 +1563,19 @@ callback_type_equal :: (left_module: *IR.ZirModule, left: *u8, right_module: *IR
     if ((ArrayElementType(left, cast(*u8)(*((left_element_storage_0[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), *(left_count)) != 0) && (ArrayElementType(right, cast(*u8)(*((right_element_storage_1[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), *(right_count)) != 0)) {
         return cast(s32)((left_count == right_count) && (callback_type_equal(left_module, cast(*u8)(*((left_element_storage_0[0]).items)), right_module, cast(*u8)(*((right_element_storage_1[0]).items)), (depth + 1)) != 0))
     }
-    left_type: *IR.ZirType = FindType(left_module, left, null)
-    right_type: *IR.ZirType = FindType(right_module, right, null)
+    left_owner: *IR.ZirModule = null
+    right_owner: *IR.ZirModule = null
+    left_type: *IR.ZirType = FindType(left_module, left, *left_owner)
+    right_type: *IR.ZirType = FindType(right_module, right, *right_owner)
     if ((left_type != null) || (right_type != null)) {
-        return cast(s32)(((left_type != null) && (right_type != null)) && ((left_type == right_type) || ((((left_type).foreign_target)[0] != 0) && !(strcmp(cast(*u8)(*((left_type).foreign_target)), cast(*u8)(*((right_type).foreign_target))) != 0))))
+        if left_type == null || right_type == null { return 0 }
+        if left_type == right_type { return 1 }
+        if left_type.foreign_target[0] != 0 && strcmp(*left_type.foreign_target[0], *right_type.foreign_target[0]) == 0 { return 1 }
+        // Each module keeps its own copy of an application such as Vec(Item);
+        // copies under one name are one type, as in same_declared_type.
+        return cast(s32)(strcmp(*left_type.name[0], *right_type.name[0]) == 0 &&
+            same_type_application(ifx left_owner != null then left_owner else left_module, left_type,
+                ifx right_owner != null then right_owner else right_module, right_type) != 0)
     }
     return cast(s32)(!(strcmp(left, right) != 0))
 }

@@ -48,6 +48,8 @@ EvaluateCompileExpression :: (module: *IR.ZirModule, text: *u8, span: IR.ZirSour
 CZirIntegerLiteral :: (text: *u8, value: *u64) -> s32 #foreign compiler "ZirIntegerLiteral";
 CZirSignedIntegerLiteral :: (text: *u8, value: *u64, negative: *s32) -> s32 #foreign compiler "ZirSignedIntegerLiteral";
 CDecodeStringLiteral :: (source: *u8, out: *u8, capacity: usize, length: *usize) -> s32 #foreign compiler "DecodeStringLiteral";
+CSameTypeApplication :: (target_owner: *IR.ZirModule, target: *IR.ZirType,
+                         source_owner: *IR.ZirModule, source: *IR.ZirType) -> s32 #foreign compiler "same_type_application";
 CParseDecimal :: (text: *u8, end: **u8) -> float64 #foreign compiler "ParseDecimal";
 CEnumMemberValue :: (type: *IR.ZirType, name: *u8, value: *s64) -> s32 #foreign compiler "EnumMemberValue";
 CArrayValueType :: (type: *u8) -> s32 #foreign compiler "ArrayValueType";
@@ -835,15 +837,20 @@ TypeIn :: (program: *AssemblyProgram, module: *IR.ZirModule, name: *u8,
     }
     // Each module that applies a generic record gets its own copy of the
     // instance, named by the record and its arguments; copies with one name
-    // and one body are one type.
+    // and the same template and argument types are one type. Vec(State) of
+    // two modules' own State records is two types under one name.
     if record != null && record.is_synthetic_application != 0 {
         index = 0
         names = program.type_names.data
         while index < program.type_names.count {
             known := names[index].record
+            known_owner := names[index].module
+            found_owner: *IR.ZirModule = null
+            if known != null && SVC.FindType(names[index].module, IR.CText(names[index].name), *found_owner) == known &&
+               found_owner != null { known_owner = found_owner }
             if known == null || known.is_synthetic_application == 0 ||
                IR.CText(*known.name[0]) != IR.CText(*record.name[0]) ||
-               IR.CText(*known.body[0]) != IR.CText(*record.body[0]) {
+               CSameTypeApplication(known_owner, known, owner, record) == 0 {
                 index += 1
                 continue
             }

@@ -6,32 +6,12 @@ its replacement.
 
 ## Open
 
-- `go_codegen`: merge `tests/go_assembly.sh` and `tests/go_direct_assembly.sh`
-  into one check that runs `go_assembly_cases.zi` and
-  `go_direct_assembly_cases.zi` through `RunCases` (`tests/case_pool.zi`),
-  264 -> 263 checks. Blocked on the compiler: `ziran features --json`
-  (`cmd/package_features.zi`, mirrored in `docs/FEATURES.json`) names both
-  wrappers as evidence and `tests/compiler_inventory_cases.zi` requires every
-  evidence path to exist. First point that evidence at the two `_cases.zi`
-  files (they exist today), then delete the wrappers and register the check in
-  `tests/check_plan.zi`; test with `make check CHECK_FILTER=go_` and
-  `CHECK_FILTER=compiler_inventory`. Prose that names the wrapper:
-  docs/USAGE.md, ASSEMBLY/feature-matrix.md.
-- `make check-incremental` pays for itself only after more checks are audited
-  in `tests/check_cache_audits.json`. Measured on Omega: computing the input
-  fingerprint takes 12-15 s per run, and the one audited check
-  (`fuzz_regressions.sh`) runs in under 0.1 s, so today the target is slower
-  than `make check`. The checks that set the suite's wall time compile C, run
-  Go, Wine or a browser, none of which the fingerprint covers, so they stay
-  unaudited and always run. To make it useful: hash the inputs in one pass in
-  `tests/check_cache.zi`, then audit the checks that use only the toolchain and
-  the fingerprinted shell tools; test with `check-runner --self-test`.
-- Twelve shell files only launch one Ziran check program and could become
-  rows of `check_programs` in `tests/check_plan.zi` (same check count, twelve
-  fewer shell files): constant_time, executable_bundle, float_integer_casts,
-  go_assembly, go_direct_assembly, gzip, native_cache_parallel, native_entry,
-  packages, queue, regalloc, transport_view. Each needs its extra arguments
-  and environment kept; test each with `make check CHECK_FILTER=<name>`.
+- Ten shell files only launch one Ziran check program and could become rows
+  of `check_programs` in `tests/check_plan.zi` (same check count, ten fewer
+  shell files): constant_time, executable_bundle, float_integer_casts, gzip,
+  native_cache_parallel, native_entry, packages, queue, regalloc,
+  transport_view. Each needs its extra arguments and environment kept; test
+  each with `make check CHECK_FILTER=<name>`.
 - `tests/generic_multiple_results.sh` and `tests/proofs.sh` still compile
   `tests/saved_ir_mutations.zi` for each saved IR edit; once they are Ziran
   check programs they import `tests/saved_ir.zi` directly.
@@ -41,9 +21,10 @@ its replacement.
 Every fixture moved file to file into `tests/fixtures/go/<case>/` (sources as
 `.zi`, Go and C hosts with an `.in` suffix). Every command and rejection table
 moved into the case procedure named below; the shared steps are in
-`tests/go_case_support.zi`.
+`tests/go_case_support.zi`. `go_codegen` runs the two existing assembly
+programs, whose `main` became `GoAssemblyMain` and `GoDirectAssemblyMain`.
 
-| Removed check | Replacement check | Case procedure |
+| Removed check | Replacement check | Case |
 | --- | --- | --- |
 | `go_bind.sh` | `go_semantics` | `GoBind` |
 | `go_defer.sh` | `go_semantics` | `GoDefer` |
@@ -59,6 +40,8 @@ moved into the case procedure named below; the shared steps are in
 | `go_method_exports.sh` | `go_exports` | `GoMethodExports` |
 | `go_named_exports.sh` | `go_exports` | `GoNamedExports` |
 | `go_package_init.sh` | `go_exports` | `GoPackageInit` |
+| `go_assembly.sh` | `go_codegen` | `GoAssemblyMain` (`tests/go_assembly_cases.zi`) |
+| `go_direct_assembly.sh` | `go_codegen` | `GoDirectAssemblyMain` (`tests/go_direct_assembly_cases.zi`) |
 
 Two assertions became stricter: a command that must be rejected now has to
 exit with a diagnostic (a crash or a timeout no longer counts as a
@@ -68,11 +51,20 @@ rejection), and a command whose output is compared must also exit 0.
 
 | | Before | After |
 | --- | --- | --- |
-| Checks in the suite | 276 | 264 |
-| The 14 Go checks, one run on an idle machine, 18 jobs | 93.7 s summed over 14 wrappers (semantics 55.2 s, exports 38.5 s) | 17.5 s summed over 2 checks (`go_semantics` 6.9 s, `go_exports` 10.6 s) |
-| Full suite wall time, 32 jobs | 93.7 s (2026-11-22, 276 checks) | 121.2 s (2026-11-23, 264 of 264 passed, private `BUILD_DIR`, load average 58 from other lanes) |
+| Checks in the suite | 276 | 263 |
+| The 16 Go checks, summed | 192.2 s (2026-11-22 full suite, 16 wrappers) | 156.7 s (3 checks in the full suite below: `go_codegen` 86.4 s, `go_exports` 45.0 s, `go_semantics` 25.3 s) |
+| Full suite wall time, 32 jobs | 93.7 s (2026-11-22, 276 checks) | 136.4 s (2026-11-23, 263 of 263 passed, private `BUILD_DIR`, load average 64 from other lanes) |
+| Input fingerprint of `check-runner --incremental` | 11.0-12.1 s per run | 0.6-0.8 s per run |
 
-The suite's wall time is set by its slowest checks (`zx_web_lifecycle.sh` took
-121.2 s in the second run), so grouping the Go checks removes work and
-startup, not wall time. The two full-suite runs were a day apart under
-different machine load and are not a like-for-like comparison.
+The suite's wall time is set by its slowest checks (`zx_web_lifecycle.sh` and
+`zx_wasm.sh`), so grouping the Go checks removes work and startup, not wall
+time. The full-suite runs were on different days under different machine
+load and are not a like-for-like comparison.
+
+The fingerprint now hashes its inputs with one `sha256sum` per 256 files
+instead of one per file, and drops duplicate paths after sorting. A
+`make check-incremental` target was added and removed again the same day:
+the fingerprint covers every input, so after any one-file edit no result is
+reused (measured: `1 executed, 0 reused`), and only `fuzz_regressions.sh` is
+audited for reuse. The target could not be faster than `make check` after an
+edit; `make check CHECK_FILTER=<name>` serves that rerun.

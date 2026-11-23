@@ -10,9 +10,33 @@
 #import "std/json_document"
 using Vectors :: #import "std/vec"
 
-CheckAddPath :: (paths: *Vec(string), value: string) {
-    for index: cast(s64)0..paths.count - 1 { if (<<paths)[index] == value { return } }
-    VecPush(<<paths, value)
+// Duplicates are dropped once the paths are sorted.
+CheckAddPath :: (paths: *Vec(string), value: string) { VecPush(<<paths, value) }
+
+// The SHA-256 digests of the files in order, from one sha256sum run for
+// each batch of files rather than one for each file; empty on any failure.
+CheckHashFiles :: (paths: []string) -> Vec(string) {
+    digests: Vec(string)
+    zero: [1]u8
+    at: s64 = 0
+    while at < paths.count {
+        end := ifx at + 256 < paths.count then at + 256 else paths.count
+        command: Vec(string)
+        VecPush(command, "sha256sum"); VecPush(command, "-z"); VecPush(command, "--")
+        for index: at..end - 1 { VecPush(command, paths[index]) }
+        output, code := CheckCapture(command[:])
+        // Each record is "DIGEST  PATH"; -z ends it with a zero byte and
+        // leaves the path unescaped.
+        records := TextSplit(output, TextFromBytes(zero[:]))
+        if code != 0 || records.count < end - at { return .{} }
+        for index: at..end - 1 {
+            record := records[index - at]
+            if record.count != 66 + paths[index].count || record[64:66] != "  " || record[66:] != paths[index] { return .{} }
+            VecPush(digests, TextDetach(TextCopy(record[:64])))
+        }
+        at = end
+    }
+    return digests
 }
 
 CheckWalkInputs :: (directory: string, paths: *Vec(string)) -> bool {
@@ -124,16 +148,27 @@ CheckInputFingerprint :: (repo: string, bin: string, logs: string, environment: 
     BuilderAppend(metadata, env_hash[:64]); BuilderAppend(metadata, "\n")
     BuilderAppend(metadata, system); BuilderAppend(metadata, repo)
     SortText(paths[:])
+    inputs: Vec(string)
+    modes: Vec(s32)
+    files: Vec(string)
     for path: paths {
+        if inputs.count > 0 && inputs[inputs.count - 1] == path { continue }
         status := PathStatus(path, false)
         if status.kind == .Link { return "" }
-        BuilderAppend(metadata, "\n"); BuilderAppend(metadata, path)
-        BuilderAppend(metadata, "\n"); BuilderAppend(metadata, CheckNumber(cast(s64)status.mode))
-        if status.kind == .Missing { BuilderAppend(metadata, "\nmissing"); continue }
-        if status.kind != .File { return "" }
-        digest := CheckHash(path)
-        if digest == "" { return "" }
-        BuilderAppend(metadata, "\n"); BuilderAppend(metadata, digest)
+        if status.kind != .File && status.kind != .Missing { return "" }
+        VecPush(inputs, path)
+        VecPush(modes, ifx status.kind == .Missing then cast(s32)-1 else status.mode)
+        if status.kind == .File { VecPush(files, path) }
+    }
+    digests := CheckHashFiles(files[:])
+    if digests.count != files.count { return "" }
+    file: s64 = 0
+    for index: cast(s64)0..inputs.count - 1 {
+        BuilderAppend(metadata, "\n"); BuilderAppend(metadata, inputs[index])
+        if modes[index] < 0 { BuilderAppend(metadata, "\n0\nmissing"); continue }
+        BuilderAppend(metadata, "\n"); BuilderAppend(metadata, CheckNumber(cast(s64)modes[index]))
+        BuilderAppend(metadata, "\n"); BuilderAppend(metadata, digests[file])
+        file += 1
     }
     destination := CheckPath(logs, "fingerprint.inputs")
     if !WriteEntireFile(destination, BuilderFinish(metadata)) { return "" }

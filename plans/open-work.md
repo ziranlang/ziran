@@ -66,12 +66,9 @@ line when the work lands. Keep detail in the referenced plan.
 - Several parse errors per file: a recovery point around each top-level declaration, added where the parser port puts recovery (today ParserWithRecovery in cmd/zir/zir_parse.c covers a whole parse).
 - Exact caret columns inside a declaration's value: re-land the PartSpan span change (reverted in 527c3d0b) once the saved-IR codec stores literal values instead of reparsing statement-text slices.
 - `ziran init` keeps a project's floating `[toolchain] ref` rather than adopting a template's exact pin (as `kryon init` does): the merge rule keeps the project's own values, it already prints "kept ref = ...; the template has ...", and `ziran.lock` pins the commit either way.
-- Checks: merge the two Go assembly wrappers into `go_codegen` once the
-  feature evidence names their `_cases.zi` programs, make
-  `make check-incremental` cheaper than `make check`, and turn the twelve
-  one-line shell launchers into `check_programs` rows; test with
-  `make check CHECK_FILTER=go_`. Detail and the removed-check mapping:
-  plans/2026-11-23-go-check-groups.md.
+- Checks: turn the ten one-line shell launchers of Ziran check programs into
+  `check_programs` rows; test each with `make check CHECK_FILTER=<name>`.
+  Detail and the removed-check mapping: plans/2026-11-23-go-check-groups.md.
 - Owner-gated: a persistent `ziran serve` session (owner-started, explicit
   Exit, never a daemon), only after the check cache lands.
 - Deferred Lean-study proposals: polymorphic-default postponement,

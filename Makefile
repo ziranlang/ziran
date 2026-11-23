@@ -359,8 +359,6 @@ ENGINE_FACADE_OBJECT := $(BUILD_DIR)/obj/compiler-zx-exec.o
 # generated assembly headers), and engine_names.h does not exist yet there.
 $(foreach object,$(call obj,$(HOST_EXEC_SOURCES)),$(eval $(object)_CFLAGS += -iquote $(ENGINE_C) -include $(ENGINE_NAMES)))
 $(call obj,$(HOST_EXEC_SOURCES)): $(ENGINE_NAMES)
-$(call obj,cmd/zx2wasm/main.c)_CFLAGS += -iquote $(ENGINE_C) -include $(ENGINE_NAMES)
-$(call obj,cmd/zx2wasm/main.c): $(ENGINE_NAMES)
 endif
 LIB_OBJECTS := $(call obj,$(LIB_SOURCES) $(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS) $(ENGINE_FACADE_OBJECT) $(call compiler-port-object,host_api) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(CHECK_PORT_OBJECTS) \
     $(BUILD_DIR)/obj/parse.o $(RANGE_OBJECTS) $(NATIVE_NAMES_OBJECT) \
@@ -468,7 +466,6 @@ $(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY) $(NATIVE_NAME
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $($@_CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 
-$(call obj,cmd/zi2c/main.c): $(BACKEND_PROCESS_READY)
 $(SCANNER_OBJECT): $(SCANNER_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SCANNER_C)/compiler_scan.c
@@ -559,7 +556,7 @@ $(PROOF_KERNEL_OBJECT): $(PROOF_KERNEL_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(PROOF_KERNEL_C)/compiler_proof_kernel.c
 
-$(call obj,cmd/zi2c/main.c cmd/zi2zx/main.c tests/bundle_link_test.c): $(BUNDLE_READY)
+$(call obj,cmd/zi2zx/main.c tests/bundle_link_test.c): $(BUNDLE_READY)
 $(BUNDLE_MODULE_OBJECT): $(BUNDLE_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(BUNDLE_C)/compiler_bundle.c
@@ -788,10 +785,29 @@ $(RANGE_C)/.generated: $(patsubst %,cmd/%.zi,$(RANGE_MODULES)) cmd/compiler_ir.z
 	    -o $(RANGE_C) cmd/compiler_c_range.zi
 	touch $@
 
-$(call obj,cmd/zi2c/main.c): $(C_BACKEND_READY) $(C_EMIT_READY) $(C_EMIT_VALUE_READY) $(C_EMIT_CALL_READY) $(SIMD_METADATA_READY) $(RANGE_READY)
-$(BIN_DIR)/zi2c: $(call obj,cmd/zi2c/main.c) $(C_BACKEND_OBJECT) $(C_PRUNE_OBJECTS) \
+# zi2c's driver is Ziran too (cmd/zi2c.zi). The ordinary build generates it
+# with the bootstrap compiler; BOOTSTRAP=1 links the checked-in seed.
+ZI2C_C := $(BUILD_DIR)/zi2c-c
+ifeq ($(BOOTSTRAP),1)
+ZI2C_DRIVER := bootstrap/zi2c/zi2c.c
+ZI2C_INCLUDE :=
+else
+ZI2C_DRIVER := $(ZI2C_C)/zi2c.c
+ZI2C_INCLUDE := -I$(ZI2C_C)
+$(ZI2C_C)/.generated: cmd/zi2c.zi cmd/compiler_cli.zi cmd/compiler_ir.zi \
+    cmd/compiler_c_backend.zi cmd/compiler_runtime_emit.zi \
+    $(C_BACKEND_READY) $(C_EMIT_READY) $(C_EMIT_VALUE_READY) $(C_EMIT_CALL_READY) \
+    $(SIMD_METADATA_READY) $(RANGE_READY) $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --entry zi2c:main --root cmd --module-path std \
+	    -o $(ZI2C_C) cmd/zi2c.zi
+	touch $@
+$(ZI2C_C)/%.c: $(ZI2C_C)/.generated
+	@test -f $@
+endif
+$(BIN_DIR)/zi2c: $(ZI2C_DRIVER) $(C_BACKEND_OBJECT) $(C_PRUNE_OBJECTS) \
     $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ -lm
+	$(NICE) $(CC) $(CFLAGS) $(ZI2C_INCLUDE) -o $@ $(ZI2C_DRIVER) $(C_BACKEND_OBJECT) $(C_PRUNE_OBJECTS) \
+	    $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) -lm
 	chmod 755 $@
 
 ZI2GO_C := $(BUILD_DIR)/zi2go-c
@@ -807,9 +823,13 @@ $(BIN_DIR)/zi2zx: $(call obj,cmd/zi2zx/main.c) $(BUILD_DIR)/obj/assembly-core.o 
 	chmod 755 $@
 
 # zx2wasm accepts only verified revision-28 ZX and uses the same lowerer object
-# as the embedding Wasm tier in libziran.
-$(BIN_DIR)/zx2wasm: $(call obj,cmd/zx2wasm/main.c) $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
+# as the embedding Wasm tier in libziran. The driver names the engine-prefixed
+# lowering entry points directly, so it needs no engine_names.h.
+ZX2WASM_C := $(BUILD_DIR)/zx2wasm-c
+$(BIN_DIR)/zx2wasm: cmd/zx2wasm.zi cmd/compiler_cli.zi cmd/compiler_ir.zi \
+    cmd/compiler_zx_wasm_types.zi $(BIN_DIR)/zi2c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
+	$(BIN_DIR)/zi2c --entry zx2wasm:main $(ZIRAN_DEFINES) --root cmd --module-path std -o $(ZX2WASM_C) cmd/zx2wasm.zi
+	$(NICE) $(CC) $(CFLAGS) -I$(ZX2WASM_C) -o $@ $(ZX2WASM_C)/zx2wasm.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 	chmod 755 $@
 
 ifneq ($(BOOTSTRAP),1)
@@ -817,7 +837,7 @@ $(BOOTSTRAP_BIN): $(BUILD_DIR)/runtime_headers.c
 $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(PERSISTENCE_HOST) \
     $(foreach module,$(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES) $(FRONTEND_PORT_MODULES),$(call compiler-port-seed,$(module))) \
     cmd/compiler_runtime_emit.zi std/file.zi std/file_linux.zi std/c_string.zi std/result.zi std/vec.zi \
-    cmd/zi2c/main.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
+    bootstrap/zi2c/zi2c.c $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \
     $(BACKEND_BOOTSTRAP_FILES) cmd/compiler_backend_cache.zi cmd/compiler_backend_process.zi \
     cmd/compiler_native_names.zi cmd/compiler_portable_body.zi \
     bootstrap/compiler_portable_body/compiler_portable_body.c \
@@ -1155,7 +1175,11 @@ check-bootstrap: $(BIN_DIR)/zi2c
 	done; \
 	$(GENERATE_SIMD_BOOTSTRAP); \
 	diff -rq -x 'zir_*.h' -x .build.lock bootstrap/simd $(BUILD_DIR)/bootstrap-check-simd; \
-	echo "bootstrap matches: $(BOOTSTRAP_MODULES); darwin: $(DARWIN_BOOTSTRAP_MODULES); simd"
+	rm -rf $(BUILD_DIR)/bootstrap-check-zi2c; \
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --entry zi2c:main --root cmd --module-path std \
+	    -o $(BUILD_DIR)/bootstrap-check-zi2c cmd/zi2c.zi; \
+	cmp bootstrap/zi2c/zi2c.c $(BUILD_DIR)/bootstrap-check-zi2c/zi2c.c; \
+	echo "bootstrap matches: $(BOOTSTRAP_MODULES); darwin: $(DARWIN_BOOTSTRAP_MODULES); simd; zi2c driver"
 
 update-bootstrap: $(BIN_DIR)/zi2c
 	@set -e; for module in $(BOOTSTRAP_MODULES); do \
@@ -1188,7 +1212,12 @@ update-bootstrap: $(BIN_DIR)/zi2c
 	$(GENERATE_SIMD_BOOTSTRAP); \
 	rm -rf bootstrap/simd; mkdir bootstrap/simd; \
 	cp $(BUILD_DIR)/bootstrap-check-simd/*.c $(BUILD_DIR)/bootstrap-check-simd/*.h bootstrap/simd/; \
-	rm -f bootstrap/simd/zir_*.h
+	rm -f bootstrap/simd/zir_*.h; \
+	rm -rf $(BUILD_DIR)/bootstrap-check-zi2c; \
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --entry zi2c:main --root cmd --module-path std \
+	    -o $(BUILD_DIR)/bootstrap-check-zi2c cmd/zi2c.zi; \
+	mkdir -p bootstrap/zi2c; \
+	cp $(BUILD_DIR)/bootstrap-check-zi2c/zi2c.c bootstrap/zi2c/
 
 endif
 

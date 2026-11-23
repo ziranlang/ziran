@@ -620,15 +620,21 @@ No step commits before its implementation and proof are complete.
   POSIX open flags and `struct stat` fields stay in `zir_edit_host.c`, so one
   seed serves every host. `semantic_edit.sh` exercises the generated module
   through the same `--wrap` boundaries and passes; the seed matches.
-- Done 2026-11-23: `cmd/zi2zir.zi` and `cmd/zi2go.zi` replace their C
-  drivers. Both take the option tables, program loading, linking, target
-  checks and output decisions from the generated modules; `go_lower`,
-  `NativeGoFunctionName` and the generated-output recorder keep their C
-  entry points. A 133-file `tests/spec` differential against the previous
-  binaries has identical diagnostics, exit codes and emitted `.zir`/`.go`
-  bytes, including `--exe`, `--minify`, `--checks` and `--prune-stale`.
-  `compile_targets.sh`, `simd_go.sh`, `go_codegen`, `go_semantics`,
-  `go_exports`, `tool_*` and `cli_*` pass.
+- Done 2026-11-23: `cmd/zi2c.zi`, `cmd/zx2wasm.zi`, `cmd/zi2zir.zi` and
+  `cmd/zi2go.zi` replace their C drivers. They take the option tables,
+  program loading, linking, target checks and output decisions from the
+  generated modules; `go_lower`, `NativeGoFunctionName`, the generated-output
+  recorder and the engine-prefixed Wasm lowering keep their C entry points.
+  zi2c's driver is generated with the bootstrap compiler and checked in as
+  `bootstrap/zi2c/zi2c.c`; `check-bootstrap`/`update-bootstrap` compare and
+  refresh it. `zi2c` emission workers keep fork/pipe/wait errno handling in
+  `zir_command_host.c`. A 133-file `tests/spec` differential against the
+  previous binaries has identical diagnostics, exit codes and emitted
+  `.zir`/`.go`/C bytes, plus a 48-file worker batch, `--exe`, `--release`,
+  `--checks`, `--prune-stale`, bind and bad-input cases; `zx2wasm` matches on
+  the retained ZX corpus, stdout, `--unbounded` and defaults. `zx_wasm.sh`,
+  `compile_*`, `c99_target`, `go_*`, `simd_go`, `tool_names`, `cli_defines`
+  pass.
 - Change Makefile tool targets and editor links to Ziran drivers. The `ziran`
   package driver is already Ziran; no change beyond imports.
 - Delete `cmd/zir/zir_profile.c/.h`,

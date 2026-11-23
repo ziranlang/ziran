@@ -54,3 +54,76 @@ void ZiranCommandPriorityIo(int value)
     (void)value;
 #endif
 }
+
+/* Emission workers: pipe, fork, read/write and waitpid with EINTR retried,
+ * so the generated driver never reads errno. */
+#include <string.h>
+#include <sys/wait.h>
+#if !defined(_WIN32)
+#include <unistd.h>
+#endif
+
+int ZiranCommandPipe(int *descriptors, int *error)
+{
+    if(pipe(descriptors) == 0) return 0;
+    if(error) *error = errno;
+    return -1;
+}
+
+int ZiranCommandFork(int *error)
+{
+    int process = fork();
+    if(process >= 0) return process;
+    if(error) *error = errno;
+    return -1;
+}
+
+/* Bytes read, 0 at end of file, or -1 with *error set. */
+long ZiranCommandReadRetry(int descriptor, void *output, size_t count, int *error)
+{
+    for(;;) {
+        ssize_t got = read(descriptor, output, count);
+        if(got >= 0) return (long)got;
+        if(errno != EINTR) {
+            if(error) *error = errno;
+            return -1;
+        }
+    }
+}
+
+/* 1 after writing count bytes, 0 on failure. */
+int ZiranCommandWriteAll(int descriptor, const void *bytes, size_t count)
+{
+    const unsigned char *at = bytes;
+    while(count > 0) {
+        ssize_t wrote = write(descriptor, at, count);
+        if(wrote < 0 && errno == EINTR) continue;
+        if(wrote <= 0) return 0;
+        at += wrote;
+        count -= (size_t)wrote;
+    }
+    return 1;
+}
+
+/* The waited process, or -1 after a non-EINTR failure. */
+long ZiranCommandWaitRetry(int process, int *status, int *error)
+{
+    for(;;) {
+        pid_t waited = waitpid((pid_t)process, status, 0);
+        if(waited >= 0) return (long)waited;
+        if(errno != EINTR) {
+            if(error) *error = errno;
+            return -1;
+        }
+    }
+}
+
+const char *ZiranCommandErrorText(int error)
+{
+    return strerror(error);
+}
+
+int ZiranCommandLastError(void)
+{
+    return errno;
+}

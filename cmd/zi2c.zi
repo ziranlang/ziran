@@ -1,0 +1,706 @@
+// zi2c - .zi -> C. Parses every input, checks the canonical programs, links
+// one entry when asked, and lowers to C, optionally in forked emission
+// workers. The frontend, checker, linker and C backend are generated modules
+// behind their C entry points; this file holds the command decisions.
+
+IR :: #import "compiler_ir"
+CLI :: #import "compiler_cli"
+Backend :: #import "compiler_c_backend"
+Runtime :: #import "compiler_runtime_emit"
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+StaticText :: struct { data: *u8; count: usize }
+
+TARGET_C :: 0
+OS_WEB :: 5
+MAX_EMIT_WORKERS :: 16
+PROGRAMS_PER_WORKER :: 16
+TEXT_LIMIT :: 2147483647
+
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, arguments: ..any) #foreign compiler "Diagnostic";
+DiagnosticTarget :: (span: IR.ZirSourceSpan, code: *u8, target: *u8, capability: *u8,
+                     format: *u8, arguments: ..any) #foreign compiler "DiagnosticTarget";
+DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
+DiagnosticCountReportedError :: () #foreign compiler "DiagnosticCountReportedError";
+DiagnosticEnsureFailureReported :: (status: s32, command: *u8) -> s32 #foreign compiler "DiagnosticEnsureFailureReported";
+DiagnosticJsonEnabled :: () -> s32 #foreign compiler "DiagnosticJsonEnabled";
+SetFormatArguments :: (argc: s32, argv: **u8) #foreign compiler "SetDiagnosticFormatFromArguments";
+ProgramsLoadWithDefines :: (set: *IR.ProgramSet, root: *u8, module_paths: **u8, module_path_count: s32,
+                            defines: **u8, define_count: s32, inputs: **u8, input_count: s32) -> s32 #foreign compiler "ProgramsLoadWithDefines";
+ProgramsFree :: (set: *IR.ProgramSet) #foreign compiler "ProgramsFree";
+ProgramFree :: (program: *IR.ZirProgram) #foreign compiler "ProgramFree";
+CheckCanonicalPrograms :: (programs: **IR.ZirProgram, count: s32, paths: **u8) -> s32 #foreign compiler "CheckCanonicalPrograms";
+CheckTargetCapabilities :: (program: *IR.ZirProgram, target: *u8) -> s32 #foreign compiler "CheckTargetCapabilities";
+LinkImports :: (programs: **IR.ZirProgram, count: s32) -> s32 #foreign compiler "LinkImports";
+BindHostProvider :: (program: *IR.ZirProgram, binding: *u8) -> s32 #foreign compiler "BindHostProvider";
+BindHostModule :: (program: *IR.ZirProgram, module: *u8) -> s32 #foreign compiler "BindHostModule";
+NativeLink :: (program: *IR.ZirProgram, module: *u8, function: *u8) -> *IR.ZirProgram #foreign compiler "NativeLink";
+NativeExportsUnique :: (program: *IR.ZirProgram) -> s32 #foreign compiler "NativeExportsUnique";
+NativeProgramMain :: (module: *IR.ZirModule, function: *IR.ZirFunction) -> s32 #foreign compiler "NativeProgramMain";
+ProgramUsesFunction :: (program: *IR.ZirProgram, function: *IR.ZirFunction) -> s32 #foreign compiler "ProgramUsesFunction";
+CheckNativeEntry :: (function: *IR.ZirFunction, target: *u8) -> s32 #foreign compiler "CheckNativeEntry";
+EmitNativeMain :: (out: *void, module: *IR.ZirModule, function: *IR.ZirFunction, target: s32) #foreign compiler "EmitNativeMain";
+c_build_syms :: (program: *IR.ZirProgram, output: *Backend.ZirCModuleSyms) -> s32 #foreign compiler "c_build_syms";
+c_free_syms :: (syms: *Backend.ZirCModuleSyms, count: s32) #foreign compiler "c_free_syms";
+c_lower :: (program: *IR.ZirProgram, root: *u8, out_dir: *u8, syms: *Backend.ZirCModuleSyms,
+            sym_count: s32, entry: *IR.ZirFunction, main_function: *IR.ZirFunction) -> s32 #foreign compiler "c_lower";
+copy_text :: (output: *u8, size: usize, source: *u8) -> s32 #foreign compiler "copy_text";
+GeneratedOutputPrune :: (out_dir: *u8, marker: *u8) -> s32 #foreign compiler "GeneratedOutputPrune";
+RecordPathC :: (path: *u8) -> bool #foreign compiler "compiler_runtime_emit_RecordPathC";
+GeneratedPathCount :: () -> s64 #foreign compiler "compiler_runtime_emit_GeneratedPathCount";
+GeneratedPath :: (index: s64) -> *u8 #foreign compiler "compiler_runtime_emit_GeneratedPath";
+IsRuntimeHeader :: (name: string) -> bool #foreign compiler "compiler_runtime_emit_IsRuntimeHeader";
+EmitSimdOps :: (out_dir: StaticText, uses: *Runtime.ZirSimdUses) -> bool #foreign compiler "compiler_runtime_emit_EmitSimdOps";
+CollectNativeSimdUses :: (text: *u8, uses: *Runtime.ZirSimdUses) #foreign compiler "CollectNativeSimdUses";
+SimdUsesFree :: (uses: *Runtime.ZirSimdUses) #foreign compiler "SimdUsesFree";
+WorkerLimit :: () -> s32 #foreign compiler "compiler_backend_process_WorkerLimit";
+BuildLock :: (directory: string) -> s32 #foreign compiler "compiler_backend_process_BuildLock";
+CompileExecutable :: (out: string, name: string, threads: s32, release: s32) -> bool #foreign compiler "compiler_backend_process_CompileExecutable";
+CompilerContextOpen :: () -> *void #foreign compiler "CompilerContextOpen";
+CompilerContextSelect :: (context: *void) -> *void #foreign compiler "CompilerContextSelect";
+CompilerContextClose :: (context: *void) -> s32 #foreign compiler "CompilerContextClose";
+ProfileStart :: () -> u64 #foreign compiler "ProfileStart";
+ProfileEnd :: (phase: *u8, started: u64) #foreign compiler "ProfileEnd";
+StandardError :: () -> *void #foreign compiler "CompilerStandardError";
+StandardOutput :: () -> *void #foreign compiler "CompilerStandardOutput";
+
+strlen :: (text: *u8) -> usize #foreign libc "strlen";
+strcmp :: (left: *u8, right: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (left: *u8, right: *u8, count: usize) -> s32 #foreign libc "strncmp";
+strrchr :: (text: *u8, byte: s32) -> *u8 #foreign libc "strrchr";
+strchr :: (text: *u8, byte: s32) -> *u8 #foreign libc "strchr";
+snprintf :: (output: *u8, capacity: usize, format: *u8, arguments: ..any) -> s32 #foreign libc "snprintf";
+fprintf :: (file: *void, format: *u8, arguments: ..any) -> s32 #foreign libc "fprintf";
+fopen :: (path: *u8, mode: *u8) -> *void #foreign libc "fopen";
+fclose :: (file: *void) -> s32 #foreign libc "fclose";
+fseek :: (file: *void, offset: isize, whence: s32) -> s32 #foreign libc "fseek";
+ftell :: (file: *void) -> isize #foreign libc "ftell";
+fread :: (output: *void, size: usize, count: usize, file: *void) -> usize #foreign libc "fread";
+fflush :: (file: *void) -> s32 #foreign libc "fflush";
+remove :: (path: *u8) -> s32 #foreign libc "remove";
+calloc :: (count: usize, size: usize) -> *void #foreign libc "calloc";
+malloc :: (size: usize) -> *void #foreign libc "malloc";
+realloc :: (memory: *void, size: usize) -> *void #foreign libc "realloc";
+free :: (memory: *void) #foreign libc "free";
+close :: (descriptor: s32) -> s32 #foreign libc "close";
+ExitChild :: (code: s32) #foreign libc "_exit";
+Pipe :: (descriptors: *s32, error: *s32) -> s32 #foreign compiler "ZiranCommandPipe";
+Fork :: (error: *s32) -> s32 #foreign compiler "ZiranCommandFork";
+ReadRetry :: (descriptor: s32, output: *void, count: usize, error: *s32) -> isize #foreign compiler "ZiranCommandReadRetry";
+WriteAll :: (descriptor: s32, bytes: *void, count: usize) -> s32 #foreign compiler "ZiranCommandWriteAll";
+WaitRetry :: (process: s32, status: *s32, error: *s32) -> isize #foreign compiler "ZiranCommandWaitRetry";
+LastError :: () -> s32 #foreign compiler "ZiranCommandLastError";
+ErrorText :: (error: s32) -> *u8 #foreign compiler "ZiranCommandErrorText";
+
+NoSpan :: () -> IR.ZirSourceSpan {
+    span: IR.ZirSourceSpan = .{}
+    return span
+}
+
+Usage :: () {
+    Diagnostic(NoSpan(), CStr("command.arguments"),
+        CStr("usage: zi2c [--no-main] [--prune-stale] [--checks] [--entry module:function [--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] [--diagnostics=text|json] [--module-path DIR] [--define NAME] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.zir ...\n"))
+}
+
+LockOutput :: (directory: *u8) -> s32 {
+    descriptor := BuildLock(IR.CText(directory))
+    if descriptor < 0 {
+        Diagnostic(NoSpan(), CStr("zir_c.global"), CStr("cannot prepare output directory: %s"), directory)
+    }
+    return descriptor
+}
+
+// The procedure a closed program writes as C's main itself: its --exe
+// entry, or else its exported main. It keeps a name of its own, and a
+// separate C main calls it, when other code calls it or takes it as a
+// value, when it is exported under another symbol, or when it carries
+// assembly or per-CPU clones.
+InPlaceMain :: (program: *IR.ZirProgram, entry_owner: *IR.ZirModule,
+                entry_fn: *IR.ZirFunction, exe: s32) -> *IR.ZirFunction {
+    owner := entry_owner
+    function := entry_fn
+    if exe == 0 {
+        owner = null
+        function = null
+    }
+    m: s32 = 0
+    while function == null && m < program.module_count {
+        module := *program.modules[cast(usize)m]
+        f: s32 = 0
+        while function == null && f < module.function_count {
+            candidate := *module.functions[cast(usize)f]
+            if candidate.is_template == 0 && NativeProgramMain(module, candidate) != 0 {
+                owner = module
+                function = candidate
+            }
+            f += 1
+        }
+        m += 1
+    }
+    if function == null ||
+       (function.exported != 0 && NativeProgramMain(owner, function) == 0) ||
+       (function.assembly_text != null && function.assembly_text[0] != 0) ||
+       function.simd_target != 0 || ProgramUsesFunction(program, function) != 0 {
+        return null
+    }
+    return function
+}
+
+// The C main that runs the entry procedure, when the entry is neither an
+// exported main nor written as C's main itself. The entry takes nothing or
+// (argc, argv) and returns nothing or an integer.
+WriteEntryMain :: (module: *IR.ZirModule, function: *IR.ZirFunction, path: *u8) -> s32 {
+    if NativeProgramMain(module, function) != 0 { return 1 }
+    stem: [IR.ZIR_PATH_MAX]u8
+    unused copy_text(*stem[0], cast(usize)stem.count, cast(*u8)*module.source_path)
+    length := strlen(*stem[0])
+    if length > 3 && strcmp(cast(*u8)(cast(usize)*stem[0] + length - 3), CStr(".zi")) == 0 {
+        stem[length - 3] = 0
+    }
+    out := fopen(path, CStr("w"))
+    if out == null {
+        Diagnostic(function.span, CStr("zir.output"), CStr("cannot write %s: %s"), path, ErrorText(LastError()))
+        return 0
+    }
+    unused fprintf(out, CStr("/* zi2c --exe: runs %s:%s as the program. */\n"),
+                   cast(*u8)*module.name, cast(*u8)*function.name)
+    unused fprintf(out, CStr("#include \"%s.h\"\n"), *stem[0])
+    EmitNativeMain(out, module, function, 0)
+    if fclose(out) != 0 {
+        Diagnostic(function.span, CStr("zir.output"), CStr("cannot finish %s: %s"), path, ErrorText(LastError()))
+        return 0
+    }
+    return 1
+}
+
+// Record the newline-separated paths one emission worker wrote.
+ReadWorkerOutputs :: (descriptor: s32) -> s32 {
+    used: usize = 0
+    capacity: usize = 0
+    text: *u8 = null
+    ok: s32 = 1
+    while true {
+        if used + 4096 > capacity {
+            grown_capacity: usize = 65536
+            if capacity != 0 { grown_capacity = capacity * 2 }
+            grown := cast(*u8)realloc(cast(*void)text, grown_capacity)
+            if grown == null {
+                ok = 0
+                break
+            }
+            text = grown
+            capacity = grown_capacity
+        }
+        error: s32 = 0
+        length := ReadRetry(descriptor, cast(*void)(cast(usize)text + used),
+                            capacity - used - 1, *error)
+        if length < 0 {
+            ok = 0
+            break
+        }
+        if length == 0 { break }
+        used += cast(usize)length
+    }
+    unused close(descriptor)
+    if ok != 0 && text != null {
+        text[used] = 0
+        line := text
+        while line[0] != 0 {
+            end := strchr(line, #char "\n")
+            if end == null {
+                ok = 0
+                break
+            }
+            end[0] = 0
+            if !RecordPathC(line) {
+                ok = 0
+                break
+            }
+            line = cast(*u8)(cast(usize)end + 1)
+        }
+    }
+    free(cast(*void)text)
+    return ok
+}
+
+// Unlinked programs lower separately, possibly in forked workers. Their
+// pruned SIMD header must contain the union of helpers, not the last module's
+// subset. Collect only this invocation's recorded outputs after workers finish.
+FinishSimdHelpers :: (out_dir: *u8) -> s32 {
+    simd: s32 = 0
+    i: s64 = 0
+    count := GeneratedPathCount()
+    while i < count {
+        path := GeneratedPath(i)
+        name := strrchr(path, #char "/")
+        leaf := path
+        if name != null { leaf = cast(*u8)(cast(usize)name + 1) }
+        if strcmp(leaf, CStr("ziran_simd_ops.h")) == 0 {
+            simd = 1
+            break
+        }
+        i += 1
+    }
+    if simd == 0 { return 1 }
+    uses: Runtime.ZirSimdUses = .{}
+    ok: s32 = 1
+    i = 0
+    count = GeneratedPathCount()
+    while ok != 0 && i < count {
+        path := GeneratedPath(i)
+        length := strlen(path)
+        if length < 2 || path[length - 2] != #char "." ||
+           (path[length - 1] != #char "c" && path[length - 1] != #char "h") {
+            i += 1
+            continue
+        }
+        name := strrchr(path, #char "/")
+        leaf := path
+        if name != null { leaf = cast(*u8)(cast(usize)name + 1) }
+        runtime := IsRuntimeHeader(IR.CText(leaf))
+        if runtime {
+            i += 1
+            continue
+        }
+        // Scan public headers too: an inline body may be the only user of
+        // a helper. Embedded runtime headers are deliberately excluded.
+        file := fopen(path, CStr("rb"))
+        if file == null {
+            ok = 0
+            break
+        }
+        size: isize = -1
+        if fseek(file, 0, 2) == 0 { size = ftell(file) }
+        text: *u8 = null
+        if size >= 0 && cast(s64)size <= TEXT_LIMIT {
+            text = cast(*u8)malloc(cast(usize)size + 1)
+        }
+        if text == null || fseek(file, 0, 0) != 0 ||
+           fread(cast(*void)text, 1, cast(usize)size, file) != cast(usize)size {
+            ok = 0
+        }
+        if fclose(file) != 0 { ok = 0 }
+        if ok != 0 {
+            text[cast(usize)size] = 0
+            CollectNativeSimdUses(text, *uses)
+        }
+        free(cast(*void)text)
+        i += 1
+    }
+    if ok != 0 && uses.names.count > 0 {
+        directory: StaticText = .{data = out_dir, count = strlen(out_dir)}
+        ok = ifx EmitSimdOps(directory, *uses) then 1 else 0
+    }
+    SimdUsesFree(*uses)
+    if ok == 0 {
+        Diagnostic(NoSpan(), CStr("zir_c.global"), CStr("cannot finish shared SIMD helpers in %s"), out_dir)
+    }
+    return ok
+}
+
+ShutdownWorkers :: (started: s32, reports: *s32, pids: *s32, ok: *s32) {
+    w: s32 = 0
+    while w < started {
+        collected := ReadWorkerOutputs(reports[cast(usize)w])
+        status: s32 = 0
+        error: s32 = 0
+        waited := WaitRetry(pids[cast(usize)w], *status, *error)
+        exited := waited == cast(isize)pids[cast(usize)w] && (status & 127) == 0
+        if exited && ((status >> 8) & 255) != 0 {
+            // The worker reported its own failure before exiting.
+            DiagnosticCountReportedError()
+            <<ok = 0
+        } else if waited != cast(isize)pids[cast(usize)w] {
+            <<ok = 0
+            Diagnostic(NoSpan(), CStr("zir_c.global"),
+                       CStr("cannot wait for C emission worker %d: %s"), w, ErrorText(error))
+        } else if !exited {
+            signal_number: s32 = 0
+            if ((((status & 127) + 1) >> 1) > 0) { signal_number = status & 127 }
+            <<ok = 0
+            Diagnostic(NoSpan(), CStr("zir_c.global"),
+                       CStr("C emission worker %d stopped by signal %d"), w, signal_number)
+        } else if collected == 0 {
+            <<ok = 0
+            Diagnostic(NoSpan(), CStr("zir_c.global"),
+                       CStr("cannot collect the files C emission worker %d wrote"), w)
+        }
+        w += 1
+    }
+}
+
+// Emission only reads the checked programs and writes each module's own
+// files, so forked workers share the programs copy-on-write and lower
+// disjoint sets of them on the CPUs the build may use. Each reports the
+// paths it wrote, which pruning and the native build need. Machine-readable
+// diagnostics stay serial so that every record stays whole.
+LowerPrograms :: (progs: **IR.ZirProgram, count: s32, root: *u8, out_dir: *u8,
+                  syms: *Backend.ZirCModuleSyms, symbol_count: s32) -> s32 {
+    workers := WorkerLimit()
+    if workers > count / PROGRAMS_PER_WORKER { workers = count / PROGRAMS_PER_WORKER }
+    if workers > MAX_EMIT_WORKERS { workers = MAX_EMIT_WORKERS }
+    if workers < 2 || DiagnosticJsonEnabled() != 0 {
+        i: s32 = 0
+        while i < count {
+            if c_lower(progs[cast(usize)i], root, out_dir, syms, symbol_count, null, null) == 0 {
+                return 0
+            }
+            i += 1
+        }
+        return FinishSimdHelpers(out_dir)
+    }
+    recorded := GeneratedPathCount()
+    pids: [MAX_EMIT_WORKERS]s32
+    reports: [MAX_EMIT_WORKERS]s32
+    started: s32 = 0
+    ok: s32 = 1
+    start_error: s32 = 0
+    profile_started := ProfileStart()
+    unused fflush(StandardOutput())
+    unused fflush(StandardError())
+    while started < workers {
+        descriptors: [2]s32
+        if Pipe(*descriptors[0], *start_error) != 0 {
+            ok = 0
+            break
+        }
+        pid := Fork(*start_error)
+        if pid < 0 {
+            unused close(descriptors[0])
+            unused close(descriptors[1])
+            ok = 0
+            break
+        }
+        if pid == 0 {
+            unused close(descriptors[0])
+            w: s32 = 0
+            while w < started {
+                unused close(reports[cast(usize)w])
+                w += 1
+            }
+            lowered: s32 = 1
+            i := started
+            while lowered != 0 && i < count {
+                if c_lower(progs[cast(usize)i], root, out_dir, syms, symbol_count, null, null) == 0 {
+                    lowered = 0
+                }
+                i += workers
+            }
+            k := recorded
+            while lowered != 0 && k < GeneratedPathCount() {
+                path := GeneratedPath(k)
+                if WriteAll(descriptors[1], cast(*void)path, strlen(path)) == 0 ||
+                   WriteAll(descriptors[1], cast(*void)CStr("\n"), 1) == 0 {
+                    lowered = 0
+                }
+                k += 1
+            }
+            if close(descriptors[1]) != 0 && lowered != 0 {
+                Diagnostic(NoSpan(), CStr("zir_c.global"),
+                           CStr("cannot report C emission worker results: %s"), ErrorText(LastError()))
+                lowered = 0
+            }
+            if lowered == 0 { unused DiagnosticEnsureFailureReported(1, CStr("C emission worker")) }
+            unused fflush(StandardOutput())
+            unused fflush(StandardError())
+            /* The parent owns every exit handler and cleanup. */
+            exit_code: s32 = 1
+            if lowered != 0 { exit_code = 0 }
+            ExitChild(exit_code)
+        }
+        unused close(descriptors[1])
+        pids[cast(usize)started] = pid
+        reports[cast(usize)started] = descriptors[0]
+        started += 1
+    }
+    ShutdownWorkers(started, *reports[0], *pids[0], *ok)
+    ProfileEnd(CStr("emit.c.workers"), profile_started)
+    if start_error != 0 {
+        Diagnostic(NoSpan(), CStr("zir_c.global"),
+                   CStr("cannot start C emission workers: %s"), ErrorText(start_error))
+    }
+    if ok == 0 { return 0 }
+    return FinishSimdHelpers(out_dir)
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    root: *u8 = null
+    out_dir: *u8 = null
+    prune_stale: s32 = 0
+    entry: *u8 = null
+    entry_module: [IR.ZIR_NAME_MAX]u8
+    entry_function: [IR.ZIR_NAME_MAX]u8
+    no_main: s32 = 0
+    exe: s32 = 0
+    release: s32 = 0
+    checks: s32 = 0
+    output_lock: s32 = -1
+    result: s32 = 1
+    first_file: s32 = 0
+    target_os_name: *u8 = null
+    target_cpu_name: *u8 = null
+    command_context: *void = null
+    previous_context: *void = null
+    defer {
+        CompilerContextSelect(previous_context)
+        if command_context != null && CompilerContextClose(command_context) == 0 {
+            Diagnostic(NoSpan(), CStr("compiler.context"),
+                       CStr("compiler operation retained live programs"))
+            result = 1
+        }
+    }
+    defer { if output_lock >= 0 { unused close(output_lock) } }
+    defer {
+        if result == 0 && prune_stale != 0 &&
+           GeneratedOutputPrune(out_dir, CStr("/* Generated by zi2c from ")) != 0 {
+            Diagnostic(NoSpan(), CStr("zir.output"),
+                       CStr("cannot remove stale generated files in %s"), out_dir)
+            result = 1
+        }
+    }
+    set: IR.ProgramSet = .{}
+    merged: IR.ZirProgram = .{}
+    defer { free(cast(*void)merged.modules) }
+    linked: *IR.ZirProgram = null
+    defer { ProgramFree(linked) }
+    syms: *Backend.ZirCModuleSyms = null
+    syms_count: s32 = 0
+    defer {
+        if syms != null { c_free_syms(syms, syms_count) }
+        free(cast(*void)syms)
+    }
+    defer { ProgramsFree(*set) }
+    module_paths := CLI.CommandModulePaths(argc)
+    if module_paths == null { return 1 }
+    module_path_count: s32 = 0
+    defines: [65]*u8
+    define_count: s32 = 0
+    bindings: [64]*u8
+    binding_count: s32 = 0
+    host_modules: [16]*u8
+    host_module_count: s32 = 0
+    target_os: s32 = 0
+
+    SetFormatArguments(argc, argv)
+    CLI.CommandLowerPriority()
+    options: [14]CLI.CommandOption = .{
+        .{name = CStr("--root"), value = *root},
+        .{name = CStr("--module-path"), value = module_paths, count = *module_path_count, capacity = argc},
+        .{name = CStr("--define"), value = cast(**u8)*defines, count = *define_count, capacity = 64,
+          valid = CLI.ValidDefine},
+        .{name = CStr("--target-os"), value = *target_os_name},
+        .{name = CStr("--target-cpu"), value = *target_cpu_name},
+        .{name = CStr("-o"), value = *out_dir},
+        .{name = CStr("--entry"), value = *entry},
+        .{name = CStr("--bind"), value = cast(**u8)*bindings, count = *binding_count, capacity = 64},
+        .{name = CStr("--bind-host"), value = cast(**u8)*host_modules, count = *host_module_count, capacity = 16},
+        .{name = CStr("--prune-stale"), flag = *prune_stale},
+        .{name = CStr("--no-main"), flag = *no_main},
+        .{name = CStr("--exe"), flag = *exe},
+        .{name = CStr("--release"), flag = *release},
+        .{name = CStr("--checks"), flag = *checks},
+    }
+    first_file = CLI.ReadCommandOptions(argc, argv, *options[0], cast(usize)options.count)
+    if first_file < 0 {
+        Usage()
+        return 1
+    }
+    if release != 0 && exe == 0 {
+        Diagnostic(NoSpan(), CStr("command.arguments"), CStr("--release needs --exe"))
+        return 1
+    }
+    if root == null || out_dir == null || first_file == 0 ||
+       (entry != null && CLI.SplitEntry(entry, *entry_module[0], *entry_function[0]) == 0) ||
+       ((binding_count > 0 || host_module_count > 0) && entry == null) ||
+       (exe != 0 && entry == null) {
+        if exe != 0 && entry == null {
+            Diagnostic(NoSpan(), CStr("command.arguments"), CStr("--exe needs --entry module:function"))
+            return 1
+        }
+        Usage()
+        return 1
+    }
+    if CLI.CommandConfigureTarget(TARGET_C, target_os_name, target_cpu_name, *target_os) == 0 {
+        Usage()
+        return 1
+    }
+    /* POSIX_THREADS is a true adapter capability. The selected web target
+     * lacks it; PLATFORM_WEB is no longer interpreted as a target proxy. */
+    posix_threads := target_os != OS_WEB
+    threads_defined: s32 = 0
+    d: s32 = 0
+    while d < define_count {
+        threads_defined |= cast(s32)(strcmp(defines[cast(usize)d], CStr("POSIX_THREADS")) == 0)
+        d += 1
+    }
+    if posix_threads && threads_defined == 0 {
+        if define_count == 64 {
+            Diagnostic(NoSpan(), CStr("command.arguments"),
+                       CStr("no define slot left for native thread capability"))
+            return 1
+        }
+        defines[cast(usize)define_count] = CStr("POSIX_THREADS")
+        define_count += 1
+    }
+    command_context = CompilerContextOpen()
+    if command_context == null {
+        DiagnosticOutOfMemory()
+        return 1
+    }
+    previous_context = CompilerContextSelect(command_context)
+    inputs := cast(**u8)(cast(usize)argv + cast(usize)first_file * size_of(*u8))
+    if ProgramsLoadWithDefines(*set, root, module_paths, module_path_count,
+                               cast(**u8)*defines, define_count, inputs, argc - first_file) == 0 {
+        return 1
+    }
+    if checks != 0 { CLI.CommandEnableChecks(*set) }
+    file_count := set.count
+    progs := set.programs
+    if CheckCanonicalPrograms(progs, file_count, cast(**u8)set.paths) == 0 { return result }
+    if entry == null {
+        i: s32 = 0
+        while i < file_count {
+            if CheckTargetCapabilities(progs[cast(usize)i], CStr("c")) == 0 { return result }
+            i += 1
+        }
+    }
+    if entry != null {
+        if CLI.CommandMergePrograms(*set, *merged) == 0 { return result }
+        merged_ptr := *merged
+        if LinkImports(*merged_ptr, 1) == 0 { return result }
+        b: s32 = 0
+        while b < binding_count {
+            if BindHostProvider(*merged, bindings[cast(usize)b]) == 0 { return result }
+            b += 1
+        }
+        b = 0
+        while b < host_module_count {
+            if BindHostModule(*merged, host_modules[cast(usize)b]) == 0 { return result }
+            b += 1
+        }
+        linked = NativeLink(*merged, *entry_module[0], *entry_function[0])
+        if linked == null { return result }
+        if CheckTargetCapabilities(linked, CStr("c")) == 0 || NativeExportsUnique(linked) == 0 {
+            return result
+        }
+        output_lock = LockOutput(out_dir)
+        if output_lock < 0 { return result }
+        syms = cast(*Backend.ZirCModuleSyms)calloc(cast(usize)linked.module_count,
+                                                   size_of(Backend.ZirCModuleSyms))
+        if syms == null { return result }
+        syms_count = linked.module_count
+        i: s32 = 0
+        while i < linked.module_count {
+            view: IR.ZirProgram = .{context = linked.context,
+                modules = *linked.modules[cast(usize)i], module_count = 1}
+            if c_build_syms(*view, *syms[cast(usize)i]) == 0 { return result }
+            i += 1
+        }
+        entry_owner: *IR.ZirModule = null
+        entry_fn: *IR.ZirFunction = null
+        i = 0
+        while i < linked.module_count && entry_fn == null {
+            module := *linked.modules[cast(usize)i]
+            if strcmp(cast(*u8)*module.name, *entry_module[0]) == 0 {
+                f: s32 = 0
+                while f < module.function_count {
+                    function := *module.functions[cast(usize)f]
+                    if strcmp(cast(*u8)*function.name, *entry_function[0]) == 0 {
+                        entry_owner = module
+                        entry_fn = function
+                        break
+                    }
+                    f += 1
+                }
+            }
+            i += 1
+        }
+        /* A program with its own C main is closed: only its generated files
+         * include its headers, so they keep just what those files use. A
+         * library keeps its whole interface for the C code that hosts it. */
+        closed := exe
+        if closed == 0 {
+            m: s32 = 0
+            while closed == 0 && m < linked.module_count {
+                module := *linked.modules[cast(usize)m]
+                f: s32 = 0
+                while closed == 0 && f < module.function_count {
+                    function := *module.functions[cast(usize)f]
+                    closed = cast(s32)(function.is_template == 0 &&
+                                       NativeProgramMain(module, function) != 0)
+                    f += 1
+                }
+                m += 1
+            }
+        }
+        if exe != 0 && entry_fn == null {
+            DiagnosticTarget(NoSpan(), CStr("zir_c.entry"), CStr("c"), CStr("entry.signature"),
+                             CStr("--exe cannot find %s"), entry)
+            return result
+        }
+        if exe != 0 && CheckNativeEntry(entry_fn, CStr("c")) == 0 { return result }
+        /* --no-main writes every procedure under its own name. */
+        main_fn: *IR.ZirFunction = null
+        if closed != 0 && no_main == 0 { main_fn = InPlaceMain(linked, entry_owner, entry_fn, exe) }
+        entry_argument: *IR.ZirFunction = null
+        if closed != 0 { entry_argument = entry_fn }
+        if c_lower(linked, root, out_dir, syms, linked.module_count,
+                   entry_argument, main_fn) == 0 {
+            return result
+        }
+        wrapper: [IR.ZIR_PATH_MAX]u8
+        unused snprintf(*wrapper[0], cast(usize)wrapper.count, CStr("%s/ziran_exe_main.c"), out_dir)
+        unused remove(*wrapper[0])
+        if exe != 0 && entry_fn != main_fn &&
+           WriteEntryMain(entry_owner, entry_fn, *wrapper[0]) == 0 {
+            return result
+        }
+        result = 0
+    } else {
+        output_lock = LockOutput(out_dir)
+        if output_lock < 0 { return result }
+        symbol_count: s32 = 0
+        i: s32 = 0
+        while i < file_count {
+            symbol_count += progs[cast(usize)i].module_count
+            i += 1
+        }
+        syms = cast(*Backend.ZirCModuleSyms)calloc(cast(usize)symbol_count,
+                                                   size_of(Backend.ZirCModuleSyms))
+        if syms == null { return result }
+        syms_count = symbol_count
+        /* Pass 1: build the cross-module symbol table. */
+        position: s32 = 0
+        i = 0
+        while i < file_count {
+            m: s32 = 0
+            while m < progs[cast(usize)i].module_count {
+                view: IR.ZirProgram = .{context = progs[cast(usize)i].context,
+                    modules = *progs[cast(usize)i].modules[cast(usize)m], module_count = 1}
+                if c_build_syms(*view, *syms[cast(usize)position]) == 0 { return result }
+                position += 1
+                m += 1
+            }
+            i += 1
+        }
+        /* Pass 2: lower with full cross-module resolution. */
+        if LowerPrograms(progs, file_count, root, out_dir, syms, symbol_count) == 0 {
+            return result
+        }
+        result = 0
+    }
+    if exe != 0 {
+        name := strrchr(*entry_module[0], #char "/")
+        leaf := cast(*u8)*entry_module[0]
+        if name != null { leaf = cast(*u8)(cast(usize)name + 1) }
+        if !CompileExecutable(IR.CText(out_dir), IR.CText(leaf),
+                              cast(s32)posix_threads, release) {
+            result = 1
+        }
+    }
+    return DiagnosticEnsureFailureReported(result, CStr("zi2c"))
+}

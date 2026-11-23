@@ -1,0 +1,148 @@
+// zx2wasm - verified revision-28 ZX -> WebAssembly. The lowering is part of
+// the portable instruction engine; this command only parses its options,
+// reads the bounded input, lowers and writes the module atomically.
+
+IR :: #import "compiler_ir"
+Wasm :: #import "compiler_zx_wasm_types"
+CLI :: #import "compiler_cli"
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+StaticText :: struct { data: *u8; count: usize }
+
+LowerExecutable :: (zx: *u8, size: usize, image: *Wasm.ZxWasmImage) -> bool #foreign compiler "ziran_engine_compiler_zx_wasm_LowerExecutable";
+LowerExecutableUnbounded :: (zx: *u8, size: usize, image: *Wasm.ZxWasmImage) -> bool #foreign compiler "ziran_engine_compiler_zx_wasm_LowerExecutableUnbounded";
+ImageFree :: (image: *Wasm.ZxWasmImage) #foreign compiler "ziran_engine_compiler_zx_wasm_ImageFree";
+Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, arguments: ..any) #foreign compiler "Diagnostic";
+SetFormatArguments :: (argc: s32, argv: **u8) #foreign compiler "SetDiagnosticFormatFromArguments";
+SetFormat :: (format: *u8) -> s32 #foreign compiler "SetDiagnosticFormat";
+StandardOutput :: () -> *void #foreign compiler "CompilerStandardOutput";
+GeneratedOutputOpen :: (path: *u8, temp: *u8, size: usize) -> *void #foreign compiler "GeneratedOutputOpen";
+GeneratedOutputReplace :: (temp: *u8, path: *u8) -> s32 #foreign compiler "GeneratedOutputReplace";
+
+strlen :: (text: *u8) -> usize #foreign libc "strlen";
+strcmp :: (left: *u8, right: *u8) -> s32 #foreign libc "strcmp";
+strncmp :: (left: *u8, right: *u8, count: usize) -> s32 #foreign libc "strncmp";
+memcpy :: (output: *void, input: *void, count: usize) -> *void #foreign libc "memcpy";
+fwrite :: (bytes: *void, size: usize, count: usize, file: *void) -> usize #foreign libc "fwrite";
+fflush :: (file: *void) -> s32 #foreign libc "fflush";
+fclose :: (file: *void) -> s32 #foreign libc "fclose";
+remove :: (path: *u8) -> s32 #foreign libc "remove";
+free :: (memory: *void) #foreign libc "free";
+
+NoSpan :: () -> IR.ZirSourceSpan {
+    span: IR.ZirSourceSpan = .{}
+    return span
+}
+
+Usage :: () -> s32 {
+    Diagnostic(NoSpan(), CStr("command.arguments"),
+               CStr("usage: zx2wasm [--unbounded] [-o FILE] INPUT.zx"))
+    return 2
+}
+
+DefaultOutput :: (input: *u8, output: *u8, capacity: usize) -> s32 {
+    length := strlen(input)
+    stem := length
+    if length > 3 && strcmp(cast(*u8)(cast(usize)input + length - 3), CStr(".zx")) == 0 {
+        stem = length - 3
+    }
+    if stem + 6 > capacity { return 0 }
+    unused memcpy(cast(*void)output, cast(*void)input, stem)
+    unused memcpy(cast(*void)(cast(usize)output + stem), cast(*void)CStr(".wasm"), 5)
+    output[stem + 5] = 0
+    return 1
+}
+
+ReadZx :: (path: *u8, size: *usize) -> *u8 {
+    bytes := CLI.CommandReadBounded(path, 268435456, size)
+    if bytes == null {
+        Diagnostic(NoSpan(), CStr("wasm.input"),
+                   CStr("cannot read bounded verified ZX input: %s"), path)
+    }
+    return bytes
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    output: *u8 = null
+    input: *u8 = null
+    unbounded: s32 = 0
+    SetFormatArguments(argc, argv)
+    index: s32 = 1
+    while index < argc {
+        argument := argv[cast(usize)index]
+        if strcmp(argument, CStr("-o")) == 0 && index + 1 < argc {
+            index += 1
+            output = argv[cast(usize)index]
+        } else if strcmp(argument, CStr("--unbounded")) == 0 {
+            unbounded = 1
+        } else if strncmp(argument, CStr("--diagnostics="), 14) == 0 {
+            if SetFormat(cast(*u8)(cast(usize)argument + 14)) == 0 { return Usage() }
+        } else if argument[0] == #char "-" || input != null {
+            return Usage()
+        } else {
+            input = argument
+        }
+        index += 1
+    }
+    if input == null { return Usage() }
+    input_length := strlen(input)
+    if input_length <= 3 || strcmp(cast(*u8)(cast(usize)input + input_length - 3), CStr(".zx")) != 0 {
+        return Usage()
+    }
+    derived: [IR.ZIR_PATH_MAX]u8
+    if output == null {
+        if DefaultOutput(input, *derived[0], cast(usize)derived.count) == 0 {
+            Diagnostic(NoSpan(), CStr("wasm.output"),
+                       CStr("derived output path is too long: %s"), input)
+            return 1
+        }
+        output = *derived[0]
+    }
+    size: usize = 0
+    bytes := ReadZx(input, *size)
+    if bytes == null { return 1 }
+    image: Wasm.ZxWasmImage = .{}
+    status: s32 = 1
+    lowered: bool = false
+    /* An unbounded module is for a run with no step budget: no fuel, no zx.budget. */
+    if unbounded != 0 {
+        lowered = LowerExecutableUnbounded(bytes, size, *image)
+    } else {
+        lowered = LowerExecutable(bytes, size, *image)
+    }
+    if lowered {
+        if strcmp(output, CStr("-")) == 0 {
+            if fwrite(cast(*void)image.bytes, 1, image.size, StandardOutput()) == image.size &&
+               fflush(StandardOutput()) == 0 {
+                status = 0
+            } else {
+                Diagnostic(NoSpan(), CStr("wasm.output"),
+                           CStr("cannot write WebAssembly to standard output"))
+            }
+        } else {
+            temporary: [IR.ZIR_PATH_MAX]u8
+            stream := GeneratedOutputOpen(output, *temporary[0], cast(usize)temporary.count)
+            if stream == null {
+                Diagnostic(NoSpan(), CStr("wasm.output"),
+                           CStr("cannot create output: %s"), output)
+            } else {
+                written := fwrite(cast(*void)image.bytes, 1, image.size, stream) == image.size
+                if fclose(stream) != 0 { written = false }
+                if !written || GeneratedOutputReplace(*temporary[0], output) != 0 {
+                    unused remove(*temporary[0])
+                    Diagnostic(NoSpan(), CStr("wasm.output"),
+                               CStr("cannot finish output: %s"), output)
+                } else {
+                    status = 0
+                }
+            }
+        }
+    }
+    ImageFree(*image)
+    free(cast(*void)bytes)
+    return status
+}

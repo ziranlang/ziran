@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish a tested Ziran version from its Gitea master push."""
+"""Publish the tested VERSION from a Gitea master check when no release tag holds it yet."""
 import json
 import os
 from pathlib import Path
@@ -54,22 +54,43 @@ def release_notes(changelog, version):
     raise ValueError('The new VERSION needs a populated CHANGELOG.md section')
 
 
-def publish(api, previous, version, revision, changelog):
-    if not VERSION.fullmatch(previous) or not VERSION.fullmatch(version) or not REVISION.fullmatch(revision):
+def released_versions(api):
+    """The versions that already have a v* tag at Gitea."""
+    versions, page = set(), 1
+    while True:
+        tags = api('GET', f'/tags?page={page}&limit=50')
+        for tag in tags:
+            if tag['name'].startswith('v') and VERSION.fullmatch(tag['name'][1:]):
+                versions.add(tuple(map(int, tag['name'][1:].split('.'))))
+        if len(tags) < 50:
+            return versions
+        page += 1
+
+
+def publish(api, version, revision, changelog):
+    """Release VERSION at the tested commit unless a tag already holds that version.
+
+    The decision rests on Gitea's tags, not on what one push changed. A cancelled or
+    superseded check therefore loses nothing: the next passing master check publishes it.
+    """
+    if not VERSION.fullmatch(version) or not REVISION.fullmatch(revision):
         raise ValueError('Expected a numeric release version and an exact source commit')
-    if version == previous:
+    number = tuple(map(int, version.split('.')))
+    released = released_versions(api)
+    if number in released:
         return None
-    if tuple(map(int, version.split('.'))) <= tuple(map(int, previous.split('.'))):
-        raise ValueError('VERSION must advance to publish a release')
+    if released and number < max(released):
+        raise ValueError(f'VERSION {version} is below the newest release tag')
     notes = release_notes(changelog, version)
-    if api('GET', '/branches/master')['commit']['id'] != revision:
-        return None
+    # Later pushes may be on master already; the tested commit only has to be part of it.
+    if api('GET', '/compare/master...'+revision)['total_commits'] != 0:
+        raise ValueError('The tested commit is no longer on master')
     tag = 'v'+version
     tag_path = '/tags/'+tag
     release_path = '/releases/tags/'+tag
     existing_tag = get_optional(api, tag_path)
     if existing_tag is not None and existing_tag['commit']['sha'] != revision:
-        raise ValueError(f'{tag} is already attached to a different commit')
+        return None
     release = get_optional(api, release_path)
     if release is None:
         try:
@@ -95,21 +116,15 @@ def main():
             REPOSITORY, 'push', 'refs/heads/master'):
         raise ValueError('Release requires the Ziran master push job')
     revision = env['GITHUB_SHA']
-    before = env['ZIRAN_RELEASE_BEFORE']
-    if not REVISION.fullmatch(before) or before == '0'*40 or checked_git('rev-parse', 'HEAD') != revision:
-        raise ValueError('Release requires the checked master push and its preceding commit')
-    previous = checked_git('show', before+':VERSION')
+    if checked_git('rev-parse', 'HEAD') != revision:
+        raise ValueError('Release requires the checked master commit')
     version = Path('VERSION').read_text().strip()
-    if previous == version:
-        print('VERSION is unchanged.')
-        return
-    subprocess.run(['git', 'merge-base', '--is-ancestor', before, revision], check=True, timeout=15)
     api = api_client(env['BUILD_NATIVE_GIT_ORIGIN'], env.pop('ZIRAN_RELEASE_TOKEN'))
-    tag = publish(api, previous, version, revision, Path('CHANGELOG.md').read_text())
+    tag = publish(api, version, revision, Path('CHANGELOG.md').read_text())
     if tag:
         print(f'Published and verified https://git.waozi.xyz/{REPOSITORY}/releases/tag/{tag}')
     else:
-        print('A newer master commit is already at Gitea.')
+        print(f'Ziran {version} is already released.')
 
 
 if __name__ == '__main__':

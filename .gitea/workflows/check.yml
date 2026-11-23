@@ -11,6 +11,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   check:
     name: check
@@ -137,6 +140,5 @@ jobs:
         run: /usr/local/libexec/gitea-native-build checkout
       - name: Publish the tested VERSION to Gitea
         env:
-          ZIRAN_RELEASE_BEFORE: ${{ github.event.before }}
           ZIRAN_RELEASE_TOKEN: ${{ github.token }}
         run: /usr/local/libexec/gitea-native-build run python3 scripts/release_gitea.py

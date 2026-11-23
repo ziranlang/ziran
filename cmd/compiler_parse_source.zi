@@ -34,6 +34,7 @@ ModuleAddUsing :: (module: *IR.ZirModule, path: *u8, span: IR.ZirSourceSpan) -> 
 NormalizeJaiBodies :: (fn: *IR.ZirFunction) -> s32 #foreign compiler "NormalizeJaiBodies";
 ParseProofDeclaration :: (module: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan) -> s32 #foreign compiler "ParseProofDeclaration";
 ParserWithRecovery :: (path: *u8, root: *u8, source: *u8, resolver: ZirCompileImportResolver, context: *void, defines: **u8, define_count: s32, site: *IR.ZirImport) -> *IR.ZirProgram #foreign compiler "private_parse_ParserWithRecovery";
+ParseRememberSource :: (text: *u8) #foreign compiler "private_parse_ParseRememberSource";
 PathIsAbsolute :: (path: *u8) -> s32 #foreign compiler "PathIsAbsolute";
 ProgramAddModule :: (program: *IR.ZirProgram, name: *u8, source_path: *u8, span: IR.ZirSourceSpan) -> *IR.ZirModule #foreign compiler "ProgramAddModule";
 ProgramFree :: (program: *IR.ZirProgram) #foreign compiler "ProgramFree";
@@ -2506,6 +2507,8 @@ ParserParseOperationBody :: (path: *u8, root: *u8, source: *u8, resolver: ZirCom
         unreachable
     }
     lowered := ifx source != null then lower_jai_multiline_strings(source, path) else read_lowered_source(path)
+    // Recovery blanks declarations in the text the spans refer to.
+    ParseRememberSource(lowered)
     imports := ImportResolver.{resolve = resolver, context = context}
     callback: ZirCompileImportResolver = cast(ZirCompileImportResolver)null
     if resolver != cast(ZirCompileImportResolver)null { callback = resolve_imports_outside_operation }

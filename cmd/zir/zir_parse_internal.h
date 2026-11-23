@@ -10,6 +10,7 @@ int *ZirLawEvaluationAddress(void);
 double ParseDecimalRange(const char *text, char **end, int *range_error);
 void *ParseCacheEnter(void);
 void ParseCacheLeave(void *previous);
+void ParseRememberSource(const char *text);
 ZirProgram *ParserWithRecovery(const char *path, const char *root, const char *source,
                                ZirCompileImportResolver resolver, void *context,
                                const char *const *defines, int define_count, const ZirImport *site);

@@ -506,7 +506,18 @@ main :: () -> s32 {
         expected_tool = 'p' + hashlib.sha256(f'{tool_url}\n{tool_revision}'.encode()).hexdigest()[:16]
         assert good_metadata == f'2\t{identity}\t{expected_tool}\tdefault\t{archive_digest}\n'.encode()
         add = [ziran, 'add', repository, '--name', 'state', '--ref', checked_revision]
+        # A library checked under another toolchain leaves the package on its
+        # source: no archive is fetched and the add goes on to the Git
+        # checkout, which this registry-only fixture server cannot serve.
         server.images[descriptor] = good_metadata.replace(expected_tool.encode(), b'p0000000000000000')
+        before = len(server.requests)
+        env['XDG_CACHE_HOME'] = str(root / 'other-toolchain-cache')
+        command(*add, failure='cannot check out', cwd=automatic)
+        env['XDG_CACHE_HOME'] = str(auto_cache)
+        assert ('GET', checked_artifact) not in server.requests[before:]
+        assert automatic_manifest.read_text() == bare_manifest and not (automatic / 'ziran.lock').exists()
+        # A descriptor naming another package is still refused.
+        server.images[descriptor] = good_metadata.replace(identity.encode(), identity.encode()[:-1] + b'0')
         command(*add, failure='metadata does not match its repository revision, toolchain or profile', cwd=automatic)
         assert automatic_manifest.read_text() == bare_manifest and not (automatic / 'ziran.lock').exists()
         server.images[descriptor] = good_metadata

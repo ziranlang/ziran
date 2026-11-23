@@ -387,6 +387,26 @@ OpenDevelopment :: (pins: *PkgCheckedPins, item: *PkgLocked, locked: *PkgLock,
     return true
 }
 
+// Whether METADATA is a well-formed descriptor for package ID and PROFILE
+// whose library was checked under a toolchain other than TOOL.
+CheckedForOtherToolchain :: (metadata: string, id: string, tool: string, profile: string) -> bool {
+    fields: [5]string
+    count: s64 = 0
+    start: s64 = 0
+    end := metadata.count - 1
+    if end <= 0 || metadata[end] != #char "\n" { return false }
+    for at: 0..end {
+        if at == end || metadata[at] == #char "\t" {
+            if count == 5 { return false }
+            fields[count] = metadata[start:at]
+            count += 1
+            start = at + 1
+        }
+    }
+    return count == 5 && fields[0] == "2" && fields[1] == id && fields[2] != tool &&
+        PkgRegistrySegment(fields[2]) && fields[3] == profile && HexDigest(fields[4])
+}
+
 // The descriptor and image share the repository, immutable revision and
 // profile address. A missing descriptor for an unpinned package leaves it
 // on the source workflow. Any advertised or saved artifact must verify.
@@ -434,6 +454,10 @@ PkgDiscoverChecked :: (context: *void, item: *PkgLocked, locked: *PkgLock, offli
             return false
         }
         metadata := PkgReadLimited(descriptor, 4096)
+        // A library checked under another toolchain is valid for that one
+        // only; an unpinned package then builds from source, so a new Ziran
+        // commit never needs every package republished first.
+        if !replacing && metadata.valid && CheckedForOtherToolchain(metadata.text, item.id, tool, profile) { return true }
         expected := PkgJoin(CheckedDescriptorPrefix(item.id, tool, profile), "\t")
         if !metadata.valid || metadata.text.count != expected.count + 65 ||
             metadata.text[0:expected.count] != expected ||

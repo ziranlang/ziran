@@ -614,9 +614,11 @@ and save their exact profile, digest and toolchain identity in the package
 entry in `ziran.lock`. For a different Gitea server, set `ZIRAN_ZX_REGISTRY`
 to its HTTPS origin. Discovery uses the `default` profile unless
 `ZIRAN_ZX_PROFILE` selects another. Set `ZIRAN_PACKAGE_NETRC`
-for authenticated reads. A missing discovery record for an unpinned package
-allows ordinary source resolution. Invalid metadata, an incompatible
-toolchain, or a missing advertised library stops resolution. A saved pin
+for authenticated reads. A missing discovery record for an unpinned package,
+or one for a library checked under another toolchain, allows ordinary source
+resolution, so a new Ziran commit does not wait for every package to be
+republished. Invalid metadata or a missing advertised library stops
+resolution. A saved pin
 continues to identify the same exact library.
 
 ```sh

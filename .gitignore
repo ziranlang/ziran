@@ -3,6 +3,8 @@
 /tests/build/
 /.fuse_hidden*
 /work/
+# zi2c locks the directory it writes, including a seed directory
+.build.lock
 __pycache__/
 /.wrangler/
 /site/assets/playground-runtime.js

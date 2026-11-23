@@ -72,8 +72,10 @@ do not import a UI library.
   Exclude anomalies with the symmetric 1.5xIQR rule (inclusive interpolated
   quartiles) for every target and platform; keep raw samples and excluded
   indices.
-- Shared checkout: stage only your own files through a private
-  `GIT_INDEX_FILE`; never `git add -A`; never reset or refresh the shared
-  index; never touch files another lane is editing.
+- Shared checkout: commit on master through the shared index. `git add` only
+  your own paths, then `git commit -- <those paths>`, so other lanes' staged
+  paths stay out. Never `git add -A`, a private `GIT_INDEX_FILE`, plumbing
+  that writes commits or moves HEAD, a rebase, reset or stash; never touch
+  files another lane is editing.
 - Deploy the website only through `.github/workflows/site.yml` on CI. Never
   invoke Wrangler directly from a local terminal.

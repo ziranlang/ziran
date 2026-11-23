@@ -1,4 +1,5 @@
 #import "package_common"
+#import "package_artifact"
 #import "package_process"
 #import "file_linux"
 #import "byte_text_linux"
@@ -8,7 +9,25 @@ using Vectors :: #import "vec"
 // Packages install providers; bundles cannot name an executable. A .host
 // registration contains one absolute path. --check must validate without
 // running application globals or opening a display.
-TryDirectory :: (directory: string, bundle: string,
+// The last provider skipped because it was built by another toolchain.
+foreign_provider: string;
+foreign_identity: string;
+
+// A registration names its provider's build on an optional second line,
+// `ziran IDENTITY`, as `ziran version --identity` prints it for the toolchain
+// that built the provider. Only a provider of this ziran's own build may run
+// its bundles; any other runtime could misread them.
+RecordedIdentity :: (registration: string) -> string {
+    newline: s64 = 0
+    while newline < registration.count && registration[newline] != #char "\n" { newline += 1 }
+    if newline >= registration.count { return "" }
+    rest := PkgTrim(registration[newline + 1:])
+    prefix := "ziran "
+    if rest.count <= prefix.count || rest[0:prefix.count] != prefix { return "" }
+    return PkgTrim(rest[prefix.count:])
+}
+
+TryDirectory :: (directory: string, bundle: string, identity: string,
     names: []string, values: []string) -> s32 {
     cursor := OpenDirectory(directory)
     if !cursor.valid { return -2 }
@@ -40,11 +59,20 @@ TryDirectory :: (directory: string, bundle: string,
         registration_index += 1
         registration := PkgReadLimited(PkgJoin3(directory, "/", name), 16384)
         if !registration.valid { continue }
-        executable := PkgTrim(registration.text)
+        first := registration.text
+        line_end: s64 = 0
+        while line_end < first.count && first[line_end] != #char "\n" { line_end += 1 }
+        executable := PkgTrim(first[0:line_end])
         valid := executable.count > 0
         if valid { valid = executable[0] == #char "/" }
         for byte: executable { if byte < 32 || byte == 127 { valid = false } }
         if !valid { continue }
+        recorded := RecordedIdentity(registration.text)
+        if recorded != identity {
+            foreign_provider = executable
+            foreign_identity = ifx recorded == "" then "unrecorded" else recorded
+            continue
+        }
         probe: [3]string = .{executable, "--check", bundle}
         output: [4096]u8
         if RunProcess(probe[:], "", names, values, output[:]) != 0 { continue }
@@ -58,7 +86,7 @@ TryDirectory :: (directory: string, bundle: string,
     return provider_result
 }
 
-TryDirectories :: (paths: string, suffix: string, bundle: string,
+TryDirectories :: (paths: string, suffix: string, bundle: string, identity: string,
     names: []string, values: []string) -> s32 {
     start: s64 = 0
     while start < paths.count {
@@ -66,7 +94,7 @@ TryDirectories :: (paths: string, suffix: string, bundle: string,
         while end < paths.count && paths[end] != #char ":" { end += 1 }
         // Empty and relative search entries never select the launch cwd.
         if end > start && paths[start] == #char "/" {
-            code := TryDirectory(PkgJoin(paths[start:end], suffix), bundle,
+            code := TryDirectory(PkgJoin(paths[start:end], suffix), bundle, identity,
                 names, values)
             if code != -2 { return code }
         }
@@ -76,6 +104,14 @@ TryDirectories :: (paths: string, suffix: string, bundle: string,
 }
 
 #scope_export
+// This toolchain build's runtime: a digest of the zx runner beside ziran,
+// which carries the engine and runtime the build produced.
+PkgRuntimeIdentity :: (runner: string) -> string {
+    digest := PkgArtifactHashFile(runner)
+    if digest.count < 16 { return "" }
+    return PkgJoin("zx-", digest[0:16])
+}
+
 PkgRunBundle :: (child: []string, arguments: []string,
     names: []string, values: []string) -> s32 {
     // An installed provider cannot receive the exact image map through the
@@ -95,9 +131,11 @@ PkgRunBundle :: (child: []string, arguments: []string,
     if code != 3 { return code }
     bundle = PkgCanonical(bundle)
     if bundle == "" { return PkgFail("cannot find the bundle") }
+    identity := PkgRuntimeIdentity(child[0])
+    if identity == "" { return PkgFail("cannot identify this toolchain's zx runner") }
     paths := PkgGetenv("ZIRAN_HOST_PATH")
     if paths != "" {
-        code = TryDirectories(paths, "", bundle, names, values)
+        code = TryDirectories(paths, "", bundle, identity, names, values)
     } else {
         data := PkgGetenv("XDG_DATA_HOME")
         if data == "" {
@@ -106,15 +144,21 @@ PkgRunBundle :: (child: []string, arguments: []string,
         }
         code = -2
         if data.count > 0 && data[0] == #char "/" {
-            code = TryDirectory(PkgJoin(data, "/ziran/hosts"), bundle,
+            code = TryDirectory(PkgJoin(data, "/ziran/hosts"), bundle, identity,
                 names, values)
         }
         if code == -2 {
             paths = PkgGetenv("XDG_DATA_DIRS")
             if paths == "" { paths = "/usr/local/share:/usr/share" }
-            code = TryDirectories(paths, "/ziran/hosts", bundle, names, values)
+            code = TryDirectories(paths, "/ziran/hosts", bundle, identity, names, values)
         }
     }
     if code != -2 { return code }
+    if foreign_provider != "" {
+        message: Vec(u8)
+        BuilderPrint(*message, "the installed runtime provider % belongs to ziran build %, but this ziran is build %; reinstall the provider with this toolchain (its registration records `ziran version --identity`) or set ZIRAN_HOST_PATH to a provider of this build",
+            foreign_provider, foreign_identity, identity)
+        return PkgFail(BuilderFinish(message))
+    }
     return PkgFail("no installed runtime provider supports this bundle; install its platform provider or set ZIRAN_HOST_PATH")
 }

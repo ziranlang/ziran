@@ -221,8 +221,13 @@ Platform effects such as windows and input are supplied by an installed runtime
 provider. Ziran discovers providers generically, without UI-library names or
 widget-specific startup behavior. A console bundle with no required host
 capabilities runs directly and never starts a graphical provider.</p>
-<p>Packages install a <code>.host</code> registration containing one absolute executable path
-under <code>share/ziran/hosts</code>. Discovery searches <code>$XDG_DATA_HOME/ziran/hosts</code>
+<p>Packages install a <code>.host</code> registration under <code>share/ziran/hosts</code>: one
+absolute executable path, then a line <code>ziran IDENTITY</code> holding what
+<code>ziran version --identity</code> prints for the toolchain that built the provider.
+<code>ziran run</code> hands a bundle only to a provider of its own build; when only
+providers of another or an unrecorded build are installed it names both
+identities and exits non-zero without running anything, because another
+runtime could misread the bundle. Discovery searches <code>$XDG_DATA_HOME/ziran/hosts</code>
 (default <code>$HOME/.local/share/ziran/hosts</code>), then each <code>$XDG_DATA_DIRS</code> entry
 (default <code>/usr/local/share:/usr/share</code>). Registrations are tried in filename
 order within each directory. <code>ZIRAN_HOST_PATH</code> overrides these locations with

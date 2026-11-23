@@ -898,6 +898,12 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     }
     if command == "guide" { return Guide(arguments[1:]) }
     if command == "std" { return StdModules(launcher, arguments[1:]) }
+    if command == "version" && arguments.count == 2 && arguments[1] == "--identity" {
+        identity := PkgRuntimeIdentity(PkgJoin(PkgLauncherDirectory(launcher), "/zi2zx"))
+        if identity == "" { return PkgFail("cannot identify this toolchain's zx runner") }
+        print("%\n", identity)
+        return 0
+    }
     if command == "features" { return Features(arguments[1:]) }
     if command == "capabilities" { return Capabilities(arguments[1:]) }
     if command == "explain" { return Explain(arguments[1:]) }

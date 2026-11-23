@@ -226,7 +226,9 @@ main :: () -> s32 {
         marker = hosts / 'invoked'
         fake_host.write_text(f'#!/bin/sh\ntouch "{marker}"\nexit 0\n')
         fake_host.chmod(0o755)
-        (hosts / 'fake.host').write_text(str(fake_host) + '\n')
+        identity = subprocess.run([ziran, 'version', '--identity'], env=env, check=True,
+                                  capture_output=True, text=True).stdout.strip()
+        (hosts / 'fake.host').write_text(f'{fake_host}\nziran {identity}\n')
         env['ZIRAN_HOST_PATH'] = str(hosts)
         app.write_text('''host_api :: #system_library "host_api";
 External :: () -> s32 #foreign host_api;

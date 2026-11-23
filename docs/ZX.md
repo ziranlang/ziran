@@ -251,8 +251,13 @@ provider. Ziran discovers providers generically, without UI-library names or
 widget-specific startup behavior. A console bundle with no required host
 capabilities runs directly and never starts a graphical provider.
 
-Packages install a `.host` registration containing one absolute executable path
-under `share/ziran/hosts`. Discovery searches `$XDG_DATA_HOME/ziran/hosts`
+Packages install a `.host` registration under `share/ziran/hosts`: one
+absolute executable path, then a line `ziran IDENTITY` holding what
+`ziran version --identity` prints for the toolchain that built the provider.
+`ziran run` hands a bundle only to a provider of its own build; when only
+providers of another or an unrecorded build are installed it names both
+identities and exits non-zero without running anything, because another
+runtime could misread the bundle. Discovery searches `$XDG_DATA_HOME/ziran/hosts`
 (default `$HOME/.local/share/ziran/hosts`), then each `$XDG_DATA_DIRS` entry
 (default `/usr/local/share:/usr/share`). Registrations are tried in filename
 order within each directory. `ZIRAN_HOST_PATH` overrides these locations with

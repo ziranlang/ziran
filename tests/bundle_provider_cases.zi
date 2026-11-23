@@ -60,11 +60,26 @@ ProviderTests :: (test: *NativeTest, self: string) -> bool {
     if !NativeWrite(test, CheckPath(registry, "00-relative.host"), "./untrusted-program\n") { return false }
     unused NativeRun(test, hosted_args[:], test.work, 2)
     if !NativeAssert(test, !test.failed && !PathExists(log), "relative provider registry entry was executed") { return false }
+    // A registration records the build of the toolchain that installed it.
+    identify := string.[test.ziran, "version", "--identity"]; build := TextTrim(NativeRun(test, identify[:], test.work).output)
+    if !NativeAssert(test, TextHasPrefix(build, "zx-"), "ziran version --identity printed no build identity") { return false }
+    stamp := CheckConcat("\nziran ", CheckConcat(build, "\n"))
     names := string.["reject provider", "accepted provider", "later provider"]; records := string.["10-reject.host", "20-accept.host", "30-later.host"]
     for index: cast(s64)0..names.count - 1 {
         path := CheckPath(test.work, names[index]); parts := string.["#!/bin/sh\nexec ", CheckQuote(self), " --provider ", CheckQuote(names[index]), " \"$@\"\n"]
-        if !NativeWrite(test, path, TextJoin(parts[:], "")) || !NativeAssert(test, SetPathMode(path, 493), "make native provider fixture executable") || !NativeWrite(test, CheckPath(registry, records[index]), CheckConcat(path, "\n")) { return false }
+        if !NativeWrite(test, path, TextJoin(parts[:], "")) || !NativeAssert(test, SetPathMode(path, 493), "make native provider fixture executable") || !NativeWrite(test, CheckPath(registry, records[index]), CheckConcat(path, stamp)) { return false }
     }
+    // Only a provider of this build runs: an unrecorded or other build is
+    // refused with both identities and nothing executes.
+    foreign := CheckPath(test.work, "foreign hosts"); foreign_path := CheckPath(test.work, "accepted provider")
+    if !NativeAssert(test, CreateDirectories(foreign), "create foreign provider registry") ||
+        !NativeWrite(test, CheckPath(foreign, "old.host"), CheckConcat(foreign_path, "\n")) { return false }
+    NativeSet(test, "ZIRAN_HOST_PATH", foreign); unrecorded := NativeRun(test, hosted_args[:], test.work, 2)
+    if !NativeWrite(test, CheckPath(foreign, "old.host"), CheckConcat(foreign_path, "\nziran zx-0000000000000000\n")) { return false }
+    other := NativeRun(test, hosted_args[:], test.work, 2); NativeSet(test, "ZIRAN_HOST_PATH", registry)
+    if !NativeAssert(test, !test.failed && TextContains(unrecorded.error, "belongs to ziran build unrecorded") && TextContains(unrecorded.error, build) &&
+        TextContains(other.error, "build zx-0000000000000000") && TextContains(other.error, build) && !PathExists(log),
+        "a provider of another toolchain build ran or its refusal lost an identity") { return false }
     accepted := NativeRun(test, hosted_args[:], test.work)
     if !NativeAssert(test, !test.failed && accepted.output == "provider ran\n", "accepted provider did not run exclusively") || !ProviderCalls(test, hosted) || !NativeAssert(test, RemoveFile(log), "reset provider log") { return false }
     NativeSet(test, "PROVIDER_STATUS", "23"); unused NativeRun(test, hosted_args[:], test.work, 23); NativeUnset(test, "PROVIDER_STATUS")
@@ -74,7 +89,7 @@ ProviderTests :: (test: *NativeTest, self: string) -> bool {
     bad_args := string.[test.ziran, "run", bad]; unused NativeRun(test, bad_args[:], test.work, 1)
     if !NativeAssert(test, !test.failed && !PathExists(log), "malformed bundle reached providers") { return false }
     data := CheckPath(test.work, "user:data with spaces"); installed := CheckPath(data, "ziran/hosts")
-    if !NativeWrite(test, CheckPath(installed, "sample.host"), CheckConcat(CheckPath(test.work, "accepted provider"), "\n")) { return false }
+    if !NativeWrite(test, CheckPath(installed, "sample.host"), CheckConcat(CheckPath(test.work, "accepted provider"), stamp)) { return false }
     NativeSet(test, "ZIRAN_HOST_PATH", ""); NativeSet(test, "XDG_DATA_HOME", data); NativeSet(test, "XDG_DATA_DIRS", CheckPath(test.work, "empty-system"))
     xdg := NativeRun(test, hosted_args[:], test.work); rows := TextLines(TextTrimEnd(NativeRead(test, log))); last := string.["accepted provider", hosted]
     if !NativeAssert(test, !test.failed && xdg.output == "provider ran\n" && rows.count > 0, "XDG provider registry with spaces/colon was not discovered") || !ProviderCall(test, rows[rows.count - 1], last[:]) { return false }

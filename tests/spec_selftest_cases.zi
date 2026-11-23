@@ -1,0 +1,56 @@
+// Standard modules whose check is a bundle of one entry that prints its result.
+// The launchers these replace compared that printed text, so each case bundles
+// both the source and the saved checked IR and runs both bundles.
+#import "native_test"
+#import "check_support"
+#import "std/text_tools"
+
+SpecSelfTestCase :: struct {
+    module: string
+    source: string
+    entry: string
+}
+
+// The saved module drops the .zi extension and adds .zir.
+SpecSavedPath :: (root: string, source: string) -> string {
+    stem_count := ifx TextHasSuffix(source, ".zi") then 3 else 0
+    return CheckConcat(CheckPath(root, source[0:source.count - stem_count]), ".zir")
+}
+
+SpecSelfTest :: (test: *NativeTest, item: SpecSelfTestCase) -> bool {
+    root := CheckPath(test.repo, "tests/spec")
+    std := CheckPath(test.repo, "std")
+    source := CheckPath(root, item.source)
+    saved := CheckPath(test.work, CheckConcat(item.module, "-ir"))
+    check := string.[test.ziran, "check", "--root", root, "--module-path", std, source]
+    save := string.[test.ziran, "ir", "--root", root, "--module-path", std, "-o", saved, source]
+    source_bundle := CheckPath(test.work, CheckConcat(item.module, "-source.zx"))
+    saved_bundle := CheckPath(test.work, CheckConcat(item.module, "-saved.zx"))
+    source_build := string.[test.ziran, "bundle", "--root", root, "--module-path", std,
+        "--entry", item.entry, "-o", source_bundle, source]
+    saved_build := string.[test.ziran, "bundle", "--root", saved, "--module-path", std,
+        "--entry", item.entry, "-o", saved_bundle, SpecSavedPath(saved, item.source)]
+    unused NativeRun(test, check[:])
+    unused NativeRun(test, save[:])
+    unused NativeRun(test, source_build[:])
+    unused NativeRun(test, saved_build[:])
+    if test.failed || !NativeAssert(test, NativeSameFile(source_bundle, saved_bundle),
+        CheckConcat(item.module, " source and saved IR bundles differ")) { return false }
+    run_source := string.[test.ziran, "run", source_bundle]
+    run_saved := string.[test.ziran, "run", saved_bundle]
+    return NativeExpect(test, run_source[:], "42\n") && NativeExpect(test, run_saved[:], "42\n")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "spec-selftest-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    cases: [2]SpecSelfTestCase = .{
+        .{module = "constant_time", source = "constant_time_test.zi", entry = "constant_time_test:SelfTest"},
+        .{module = "queue", source = "queue_test.zi", entry = "queue_test:SelfTest"},
+    }
+    passed := true
+    for item: cases { if !SpecSelfTest(*test, item) { passed = false } }
+    return ifx passed && !test.failed then 0 else 1
+}

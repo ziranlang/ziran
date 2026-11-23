@@ -879,5 +879,6 @@ Run the focused native fixture independently before adopting provider recipes:
 env -u DISPLAY -u WAYLAND_DISPLAY build/bin/ziran run --target=c --root tests tests/package_artifacts_cases.zi -- build/bin/ziran
 ```
 
-The regular `sh tests/packages.sh build/bin/ziran` runner includes this fixture.
+The regular `make CHECK_FILTER=packages check` row runs `tests/packages_cases.zi`
+and includes this fixture.
 It creates only disposable miniature input repositories under `build/tests/`.

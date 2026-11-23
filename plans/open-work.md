@@ -14,9 +14,6 @@ line when the work lands. Keep detail in the referenced plan.
   files and clock platform services, a real Windows host run, and an
   in-process loader; test with `tests/zx_windows_parity.sh` plus per-row
   tests. Landed slice: `zx2native --platform windows` writes PE32+.
-- Optional, owner-deferred: the loader refuses an unchecked `.zx` bundle the
-  user marks untrusted (`cmd/compiler_exec_link.zi`); test with a
-  marked-bundle load case.
 - M6 inspection and cutover: unwind, debug and profiler mapping, then the
   owner's full before/after ZX comparison on Alpha's physical host.
 - Native code quality: warm native ZX remains slower than the M0 TinyCC tier
@@ -25,9 +22,6 @@ line when the work lands. Keep detail in the referenced plan.
 - Explicit gaps kept as named diagnostics: resizable-collection ownership,
   reentrant callbacks, general native string and arbitrary-host instructions
   (ASSEMBLY/gap-policy.md).
-- Deferred metaprogramming until self-hosting reaches S5: `#modify` notes,
-  `type_info`, the compiler message loop, build-as-Ziran-program,
-  `#bake_arguments`, SOA layout.
 
 ## Compiler and tools
 
@@ -71,15 +65,20 @@ line when the work lands. Keep detail in the referenced plan.
 - Several parse errors per file: a recovery point around each top-level declaration, added where the parser port puts recovery (today ParserWithRecovery in cmd/zir/zir_parse.c covers a whole parse).
 - Exact caret columns inside a declaration's value: re-land the PartSpan span change (reverted in 527c3d0b) once the saved-IR codec stores literal values instead of reparsing statement-text slices.
 - `ziran init` keeps a project's floating `[toolchain] ref` rather than adopting a template's exact pin (as `kryon init` does): the merge rule keeps the project's own values, it already prints "kept ref = ...; the template has ...", and `ziran.lock` pins the commit either way.
-- Checks: turn the ten one-line shell launchers of Ziran check programs into
-  `check_programs` rows; test each with `make check CHECK_FILTER=<name>`.
-  Detail and the removed-check mapping: plans/2026-11-23-go-check-groups.md.
-- Owner-gated: a persistent `ziran serve` session (owner-started, explicit
-  Exit, never a daemon), only after the check cache lands.
-- Deferred Lean-study proposals: polymorphic-default postponement,
-  `using ... in` scopes, zi2c reuse of optimizer facts, bounded translation
-  validation, `partial`/`unsafe` tainting, co-located structural laws
-  (rejected alternatives: see Rejected research below).
+- Check control: one documented switch builds the most thorough program
+  (runtime checks plus every optional compile-time verification) and another
+  the quickest build (skipping optional verification such as inter-pass
+  optimizer verification, re-proving unchanged laws and allocated-program
+  verification for self-built code). List what is optional today and what each
+  costs, timed on Alpha only, then wire both modes and document them in
+  docs/USAGE.md. The `.zx` loader's verification of bytes it receives is
+  unchanged.
+- A persistent `ziran serve` session (owner-started, explicit Exit, never a
+  daemon) that keeps the compiler warm for fast rebuilds; owner approved it
+  after the check cache lands.
+- Metaprogramming, unblocked now that self-hosting is past S5: `#modify`
+  notes, `type_info`, the compiler message loop, build-as-a-Ziran-program,
+  `#bake_arguments` and SOA layout. Do these last.
 
 ## Rejected research (do not adopt)
 
@@ -136,9 +135,3 @@ intra-command incremental elaboration, and remote artifact caches.
 
 - `zstd_go` needs Go 1.25; Omega defaults to 1.24.4, so that check fails
   locally until the toolchain updates.
-
-## Unstarted design (awaiting owner decision)
-
-- Shared canonical Ziran/Kryon checkouts with a cross-project
-  content-addressed output cache, leases, telemetry and a Projects manifest
-  index (plans/2026-11-12-shared-ziran-kryon-builds.md).

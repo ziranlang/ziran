@@ -6,15 +6,20 @@ its replacement.
 
 ## Open
 
-- Ten shell files only launch one Ziran check program and could become rows
-  of `check_programs` in `tests/check_plan.zi` (same check count, ten fewer
-  shell files): constant_time, executable_bundle, float_integer_casts, gzip,
-  native_cache_parallel, native_entry, packages, queue, regalloc,
-  transport_view. Each needs its extra arguments and environment kept; test
-  each with `make check CHECK_FILTER=<name>`.
 - `tests/generic_multiple_results.sh` and `tests/proofs.sh` still compile
   `tests/saved_ir_mutations.zi` for each saved IR edit; once they are Ziran
   check programs they import `tests/saved_ir.zi` directly.
+
+## Done: one-line launchers are `check_programs` rows (2026-11-23)
+
+The ten launchers became nine rows: `constant_time.sh` and `queue.sh` share
+`spec_selftest`, which bundles both source and saved checked IR for each module
+and compares the printed result, so each is a stricter check than the launcher
+it replaces. `regalloc`, `executable_bundle`, `float_integer_casts`, `gzip`,
+`native_cache_parallel`, `native_entry`, `packages` and `transport_view` are
+plain rows taking the compiler path exactly as their launcher did, with
+`gzip` passing `zi2c` (the `compiler` field) and `executable_bundle` keeping the
+`LDLIBS` library and `cmd` module path. The suite is 263 checks, down from 273.
 
 ## Removed checks and their replacements
 

@@ -18,7 +18,7 @@ The retained suite exercises these production commands directly:
 ```sh
 sh tests/zir_api.sh build/bin/ziran
 sh tests/semantic_edit.sh build/bin/ziran
-sh tests/transport_view.sh build/bin/ziran
+make CHECK_FILTER=transport_view check
 make CHECK_FILTER=tool_diagnostics check
 ```
 

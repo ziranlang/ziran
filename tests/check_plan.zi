@@ -73,9 +73,11 @@ CheckProgram :: struct {
     module_path: string
     no_compiler_argument: bool
     compiler_library: bool
+    // The tool the program takes as its first argument; empty means `ziran`.
+    compiler: string
 }
 
-check_programs: [60]CheckProgram = .[
+check_programs: [70]CheckProgram = .[
     .{name = "json_conformance", source = "json_cases.zi", cost = 8},
     .{name = "simd_string", source = "simd_string_cases.zi", cost = 5},
     .{name = "module_parameters_cases.zi", cost = 2},
@@ -136,6 +138,15 @@ check_programs: [60]CheckProgram = .[
     .{name = "zx_module_compiler", source = "zx_module_compiler_cases.zi"},
     .{name = "zx_module_runtime", source = "zx_module_runtime_cases.zi", module_path = "cmd", compiler_library = true},
     .{name = "zx_windows_parity", source = "zx_windows_parity_cases.zi", cost = 4},
+    .{name = "regalloc", source = "regalloc_cases.zi", cost = 2, module_path = "cmd", no_compiler_argument = true},
+    .{name = "executable_bundle", source = "executable_bundle_cases.zi", module_path = "cmd", compiler_library = true},
+    .{name = "float_integer_casts", source = "float_integer_casts_cases.zi", cost = 110},
+    .{name = "gzip", source = "gzip_cases.zi", compiler = "zi2c"},
+    .{name = "native_cache_parallel", source = "native_build_parallel_cases.zi"},
+    .{name = "native_entry", source = "native_entry_cases.zi"},
+    .{name = "packages", source = "packages_cases.zi", cost = 290},
+    .{name = "transport_view", source = "transport_view_cases.zi"},
+    .{name = "spec_selftest", source = "spec_selftest_cases.zi"},
 ];
 
 FindCheckProgram :: (name: string) -> CheckProgram {
@@ -167,7 +178,7 @@ CheckArguments :: (name: string, bin: string, repo: string) -> Vec(string) {
         VecPush(result, CheckPath(tests, ifx check.source == "" then check.name else check.source))
         if !check.no_compiler_argument {
             VecPush(result, "--")
-            VecPush(result, ziran)
+            VecPush(result, ifx check.compiler == "" then ziran else CheckPath(bin, check.compiler))
         }
         return result
     }

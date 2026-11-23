@@ -26,6 +26,28 @@ density := FastNoise.Noise3D(*state, x, y, z)
 <p><code>NoiseCreate()</code> returns FastNoiseLite's defaults. <code>Noise2D</code> and <code>Noise3D</code> only
 read the state, so one state can be shared between threads.</p>
 <p><code>make test</code> compares 2112 values captured from FastNoiseLite C.</p>
+<h2 id="zx-library">ZX library</h2>
+<p><code>make check-binary</code> packs a development library from the working tree and
+runs the same 2112 comparisons in native C and the ZX engine. The isolated
+consumer imports <code>noise/fast_noise</code> with an empty source cache. An ignored
+<code>ziran.local.toml</code> toolchain override can select a local compiler for this test.</p>
+<p>The <code>default</code> profile sets no feature defines. It supports the portable ZX
+engine and uses no package-specific native libraries or host bindings. The
+producer and consumer tests run on Linux.</p>
+<p>The Gitea workflow runs <code>make test check-binary-production</code> before publishing
+<code>default.zx</code> and its descriptor <code>default.zx.tsv</code> under the full Git revision
+in the <code>noise-zx-library</code> Generic Package Registry. The production target packs
+the clean committed revision with the exact toolchain pinned in <code>ziran.lock</code>
+and verifies registry discovery before running the offline consumer.</p>
+<p>Use the full published revision when adding the dependency. Ziran records the
+library profile, digest and toolchain identity in the consumer lock. The import
+and types in the example above are the same with either dependency source or a
+ZX library. The compiler can use the library's checked modules during application
+lowering.</p>
+<pre><code class="language-sh">ziran add https://git.waozi.xyz/ziranlang/noise.git --ref &quot;$commit&quot;
+ziran bundle --project --locked --entry app:main -o app.zx app.zi
+ziran bundle --project --locked --offline --entry app:main -o app.zx app.zi
+</code></pre>
 <p>License: MIT, including the FastNoiseLite notice (see <code>LICENSE</code>).</p></section>
 <section id="module-fast_noise"><p class="eyebrow">noise/src/fast_noise.zi</p><h2>fast_noise</h2><p>FastNoiseLite gradient noise in pure Ziran: OpenSimplex2, OpenSimplex2S, Perlin, ValueCubic and Value, with FBm, Ridged and PingPong fractals. Ported from FastNoiseLite 1.1 (MIT, Copyright (c) 2023 Jordan Peck and contributors, see LICENSE). Every call reads the state only, so one state can be shared between threads. Results follow the C float32 implementation.</p><p>Import with <code>#import "noise/fast_noise"</code>.</p><div class="api-list">
 <div><code>NoiseType :: enum { OpenSimplex2 = 0; OpenSimplex2S = 1; Perlin = 2; ValueCubic = 3; Value = 4; }</code></div>

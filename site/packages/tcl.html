@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="A headless Tcl interpreter written in Ziran, based on the Inferno Limbo Tcl interpreter."><title>Tcl for Ziran · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/tcl"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>Tcl for Ziran</h1><p>A headless Tcl interpreter written in Ziran, based on the Inferno Limbo Tcl interpreter. It runs as a library in native programs and compiled ZX modules. The interpreter needs only Ziran's standard library; the host supplies file, channel, and clock services through callbacks.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tcl">Repository ↗</a></p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-interpreter">interpreter</a><a href="#module-calc">calc</a><a href="#module-decimal">decimal</a><a href="#module-io">io</a><a href="#module-lists">lists</a><a href="#module-math">math</a><a href="#module-packages">packages</a><a href="#module-strings">strings</a><a href="#module-types">types</a><a href="#module-variables">variables</a></aside><div class="article-body api-body">
+<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.tcl]
+git = "https://git.waozi.xyz/ziranlang/tcl.git"
+ref = "master"</code></pre></section>
+<section id="overview" class="prose"><h2>Overview</h2><h2 id="use-it-in-a-ziran-project">Use it in a Ziran project</h2>
+<pre><code class="language-sh">ziran add https://git.waozi.xyz/ziranlang/tcl.git
+</code></pre>
+<pre><code class="language-zi">#import &quot;std/vec&quot;
+using Tcl :: #import &quot;tcl/interpreter&quot;
+
+main :: () -&gt; s32 {
+    interpreter: Tcl.Interpreter;
+    result := Tcl.Eval(*interpreter, &quot;set width 6; expr {$width * 7}&quot;);
+    print(&quot;%\n&quot;, TextView(result.value));
+    return ifx result.code == .OK then 0 else 1;
+}
+</code></pre>
+<p>A zero-initialized <code>Interpreter</code> is ready to use. <code>Eval</code> retains variables and
+procedure definitions. <code>TakeOutput</code> takes and clears the text accumulated by
+<code>puts</code>, including output written before an error. Results own their text.
+Each top-level evaluation has a 10,000-command budget that also charges loop
+iterations and permits up to 48 nested script levels.</p>
+<p>Host extension points:</p>
+<ul>
+<li><code>RegisterCommand</code> adds a single host command, <code>RegisterPrefix</code> handles
+  commands whose names are allocated at runtime, and <code>RegisterLibrary</code>
+  provides command bundles activated by Tcl's <code>load</code>.</li>
+<li><code>tcl/types</code> holds text values and result types, <code>tcl/packages</code> adds versioned
+  script packages, <code>tcl/io</code> adds channel backends. All exports are listed in
+  <a href="https://git.waozi.xyz/ziranlang/tcl/src/branch/master/ziran.toml"><code>ziran.toml</code></a>.</li>
+</ul>
+<h2 id="supported-tcl">Supported Tcl</h2>
+<ul>
+<li>Syntax: command separators, comments, nested braces, quoted and empty words,
+  basic backslash escapes and line continuations, <code>$name</code>, <code>${name}</code>, and
+  <code>$array(key)</code> substitution (including inside parentheses), and nested
+  <code>[script]</code> substitution.</li>
+<li>Core commands: <code>set</code>, <code>unset</code>, <code>incr</code>, <code>append</code>, <code>lappend</code>, <code>proc</code>, <code>return</code>,
+  <code>if</code>, <code>while</code>, <code>for</code>, <code>foreach</code>, <code>break</code>, <code>continue</code>, <code>catch</code>, <code>error</code>,
+  <code>eval</code>. Procedures accept defaults and a trailing <code>args</code>; <code>foreach</code> takes a
+  variable list and one value list; <code>catch</code> takes an optional result variable.</li>
+<li>Frames and scope: <code>array names</code>, <code>array size</code>, <code>global</code>, <code>upvar</code> for one
+  linked variable, <code>uplevel</code>, <code>level</code>, <code>switch</code> with exact patterns, <code>-</code>
+  fallthrough and a final <code>default</code>, <code>info args</code>, <code>body</code>, <code>commands</code>,
+  <code>exists</code>, <code>procs</code>. Frame selection accepts absolute levels (<code>#0</code>) and
+  relative levels (<code>-1</code>, <code>1</code> for the caller). <code>info commands</code> and <code>info procs</code>
+  accept the optional Limbo pattern argument without filtering. Prefix
+  extensions supply command names dynamically and cannot be enumerated.</li>
+<li>Lists: <code>list</code>, <code>llength</code>, <code>lindex</code>, <code>lrange</code>, <code>join</code>, <code>concat</code>, <code>linsert</code>,
+  <code>lreplace</code>, exact <code>lsearch</code>, <code>lsort</code> with optional <code>-decreasing</code>, <code>split</code>.
+  One-argument <code>split</code> preserves the string, following Limbo.</li>
+<li>Strings: <code>string compare</code>, <code>equal</code>, <code>length</code>, <code>index</code>, <code>range</code>, <code>first</code>,
+  <code>last</code>, <code>tolower</code>, <code>toupper</code>, <code>trim</code>, <code>trimleft</code>, <code>trimright</code>. Lengths and
+  indexes count UTF-8 characters; case conversion and trim use ASCII rules.
+  Indexes accept decimal integers, <code>end</code>, and <code>end-N</code>. A numeric last index in
+  <code>string range</code> is exclusive, following Limbo; <code>end</code> and <code>end-N</code> are
+  inclusive.</li>
+<li><code>format</code>: <code>%%</code>, <code>%s</code>, <code>%d</code>, <code>%x</code>, <code>%f</code> with width, left alignment, zero
+  padding, and precision; literal text between fields is preserved. Following
+  Limbo, <code>%f</code> defaults to one decimal place and <code>%Nf</code> sets precision; <code>%W.Nf</code>
+  sets both. Fixed formatting rounds binary64 values to nearest with ties to
+  even; precision and width are limited to 4096. Invalid real arguments return
+  Tcl errors; nonfinite reals format as <code>Inf</code>, <code>-Inf</code>, <code>NaN</code>.</li>
+<li><code>expr</code> and <code>calc</code> accept signed 32-bit decimal, leading-zero octal, and <code>0x</code>
+  hexadecimal integers, decimal and scientific real literals, and the boolean
+  words <code>true</code>/<code>false</code>, <code>yes</code>/<code>no</code>, <code>on</code>/<code>off</code>. Operators: parentheses, unary
+  <code>+ - ! ~</code>, binary <code>+ - * / %</code>, comparisons <code>== != &lt; &lt;= &gt; &gt;=</code>, and
+  <code>&lt;&lt; &gt;&gt; &amp; ^ | &amp;&amp; || ?:</code>. Remainder, bitwise, and logical operators take
+  integers; logical and conditional operands evaluate eagerly. A substitution
+  inside braces must yield one numeric or boolean literal. Integer overflow and
+  division by zero return errors; real arithmetic can return <code>NaN</code> or
+  <code>Infinity</code>.</li>
+<li>Real functions: <code>abs</code>, <code>acos</code>, <code>asin</code>, <code>atan</code>, <code>atan2</code>, <code>ceil</code>, <code>cos</code>,
+  <code>cosh</code>, <code>exp</code>, <code>floor</code>, <code>fmod</code>, <code>hypot</code>, <code>log</code>, <code>log10</code>, <code>pow</code>, <code>sin</code>,
+  <code>sinh</code>, <code>sqrt</code>, <code>tan</code>, <code>tanh</code>.</li>
+<li><code>time script ?count?</code> runs the script repeatedly in the calling frame and
+  reports milliseconds per iteration; it shares the script command limit.
+  Script errors are reported after the requested repetitions, and control flow
+  such as <code>return</code> or <code>exit</code> propagates immediately. Supply a monotonic clock
+  with <code>SetClock</code>; the callback receives a context ID and returns milliseconds
+  or a negative value on failure.</li>
+<li><code>dumpstack</code> writes the scalar, array, and alias tables of the frames visible
+  from the current frame to the output buffer, in variable insertion order,
+  with no Limbo hash slot numbers.</li>
+<li><code>load libname</code> activates a bundle registered with <code>RegisterLibrary</code> (a slice
+  of <code>LibraryCommand</code> descriptors plus one context ID). Loaded commands are
+  visible to <code>info commands</code> and callable; loads are idempotent, and a command
+  conflict rejects the whole bundle. <code>calc</code>, <code>io</code>, <code>list</code>, and <code>string</code> are
+  available by default.</li>
+<li><code>puts string</code> and <code>puts -nonewline string</code> write to the output buffer.</li>
+<li><code>exit</code> stops the current evaluation, including from a procedure, source file,
+  or <code>catch</code> body; <code>Eval</code> returns <code>.Exit</code> to the embedding application. As in
+  Limbo, <code>exit</code> ignores its arguments.</li>
+<li><code>source ?-encoding utf-8? fileName</code> evaluates the loaded script in the
+  current frame and shares the command and nesting budgets. Library callers
+  supply the reader with <code>SetSourceLoader</code>; the callback receives its context
+  ID, the path, and a pointer to a <code>Result</code>, sets the result's owned value to
+  the script on success, or returns an error with <code>code = .Error</code>.</li>
+</ul>
+<p>Unsupported: namespaces, <code>{*}</code> word expansion, numeric and Unicode backslash
+escapes, wide expression integers, expression string operands, and lazy
+expression operators. Several commands follow Inferno Tcl semantics as noted
+above. Compare a library's requirements against this command set before use.</p>
+<h3 id="tcl-script-packages">Tcl script packages</h3>
+<p>Import <code>tcl/packages</code> and call <code>Packages.Attach(*interpreter)</code> to enable the
+<code>package</code> command; each interpreter has its own registry. Available
+subcommands: <code>provide</code>, <code>require</code>, <code>present</code>, <code>ifneeded</code>, <code>names</code>, <code>versions</code>,
+<code>forget</code>, <code>vcompare</code>, <code>vsatisfies</code>, <code>prefer</code>, <code>unknown</code>. <code>require</code> executes the
+chosen initialization script in the global frame with the caller's command
+budget and detects circular loads. Version checks include <code>-exact</code>, multiple
+requirements, ranges, and alpha and beta versions.</p>
+<p>List directories that contain <code>pkgIndex.tcl</code> files in <code>auto_path</code>; Tcl reads
+them through the registered <code>SetSourceLoader</code> callback. An index sees its own
+directory in the local variable <code>dir</code>:</p>
+<pre><code class="language-tcl"># /path/to/sample/pkgIndex.tcl
+package ifneeded sample 1.0 [list source [file join $dir sample.tcl]]
+</code></pre>
+<pre><code class="language-tcl">lappend auto_path /path/to/sample
+package require sample 1.0
+</code></pre>
+<p>Discovery checks the <code>auto_path</code> directories directly and runs scripts with
+the interpreter's supported commands. Tcl's standard library and Tcllib are
+separate dependencies; C extension loading and <code>.tm</code> discovery are
+unsupported. <code>package unknown</code> can supply a custom discovery command, and
+registrations also work entirely in memory. After initializing a Ziran
+extension, an embedder can call <code>Packages.Provide(*interpreter, name, version)</code>
+and check the returned <code>Result</code>; an <code>ifneeded</code> script can also call
+<code>load name</code> for a bundle supplied by <code>RegisterLibrary</code>.</p>
+<h3 id="channels-and-files">Channels and files</h3>
+<ul>
+<li><code>open</code> supports Limbo <code>OREAD</code> (the default), <code>OWRITE</code>, and <code>ORDWR</code> on
+  existing files; <code>r</code> and <code>r+</code> are aliases. <code>w</code> and <code>w+</code> create or truncate a
+  file, with optional octal or decimal permissions (default <code>0666</code>). <code>OWRITE</code>
+  preserves unwritten bytes. Append modes are unsupported.</li>
+<li><code>close</code>, <code>eof</code>, <code>flush</code>, <code>gets</code>, <code>read</code>, <code>seek</code>, <code>tell</code>, and channel
+  <code>puts ?-nonewline? fileId string</code> are available. <code>seek</code> accepts <code>SEEKSTART</code>,
+  <code>SEEKRELA</code>, and <code>SEEKEND</code>, as well as <code>start</code>, <code>current</code>, and <code>end</code>. Offsets
+  and file sizes are signed 64-bit integers; failed seeks return Tcl errors.</li>
+<li>Counted <code>read</code> returns up to the requested number of bytes. The Limbo line
+  forms read one line; bare <code>read</code> appends a newline and <code>read -nonewline</code>
+  returns the original line. <code>gets</code> strips the last character and accepts the
+  legacy optional variable name without setting it. EOF becomes sticky after
+  an empty read. Reads and lines are bounded to 1 MiB per command.</li>
+<li><code>file join name ?name ...?</code> joins POSIX paths without a file backend.
+  <code>file exists</code>, <code>file size</code>, <code>file isfile</code>, and <code>file isdirectory</code> use the
+  configured backend. Writes take effect immediately, so <code>flush</code> validates the
+  channel and returns success without sending another write.</li>
+</ul>
+<p>Install a channel backend with <code>SetChannelBackend</code> and <code>tcl/io.Backend</code>;
+callbacks receive the backend's context ID. File channels persist between
+<code>Eval</code> calls, and <code>CloseChannels</code> releases them, including after <code>.Exit</code>.
+Explicit <code>stdout</code> and implicit <code>puts</code> share <code>TakeOutput</code>.</p>
+<h2 id="local-tests">Local tests</h2>
+<p>Run from the package root with <code>ziran</code>, <code>zi2zx</code>, and Python 3 on <code>PATH</code>:</p>
+<pre><code class="language-sh">python3 tests/run.py
+</code></pre>
+<p>Set <code>ZIRAN</code> and <code>ZI2ZX</code> to use specific toolchain binaries. For a checkout of
+Ziran at <code>../../ziran</code>, use an ignored <code>ziran.local.toml</code> with this override:</p>
+<pre><code class="language-toml">[overrides]
+ziran = &quot;../../ziran&quot;
+</code></pre>
+<p>The suite runs the same fixtures as a native executable and a portable <code>.zx</code>
+image. It checks parsing, control flow, error handling, numeric expressions,
+fixed-point formatting, registered commands, script package discovery, and
+injected I/O. The package discovery and channel fixtures use in-memory host
+callbacks.</p>
+<h2 id="relocatable-tcl-libraries">Relocatable Tcl libraries</h2>
+<p>The <code>default</code> profile includes every manifest export and uses no feature
+defines. It ships as <code>default.zx</code>, with a <code>default.json</code> receipt recording the
+source commit, package and toolchain identities, dependency lock, exports, and
+SHA-256. Consumers import <code>tcl/interpreter</code> as usual, and Ziran uses the
+relocatable library when bundling the application, so the consumer can build
+without a Tcl source checkout.</p>
+<p>For a production build, use a clean Tcl checkout without overrides and a
+cached build of the exact compiler revision recorded in <code>ziran.lock</code>. The
+compiler must support <code>.zx</code> objects with <code>ziran pkg zx pack-ir</code> and inspection
+with <code>ziran pkg zx inspect-ir</code>. The Gitea workflow builds the locked compiler
+before running these targets.</p>
+<pre><code class="language-sh">make check artifact artifact-smoke
+</code></pre>
+<p>The library and receipt land in <code>build/artifacts/</code>. The smoke runs <code>ziran add</code>
+against a local fixture registry and a fresh cache, then runs <code>ziran lock</code>,
+builds the consumer offline, and compares the output of
+<code>tests/fixtures/core.tcl</code> byte for byte. Development targets use the usual
+ignored <code>ziran.local.toml</code> overrides: <code>pack-dev</code> emits a local <code>.zx</code> library
+with a source fingerprint and receipt in <code>build/artifacts-dev/</code>, and a
+source-free consumer can load it from <code>ZIRAN_DEV_ZX_DIR</code> as <code>&lt;package-id&gt;.zx</code>.</p>
+<pre><code class="language-sh">make artifact-dev artifact-smoke ARTIFACT_FLAGS=--development
+</code></pre>
+<p>Once the library is published, <code>ziran add</code> and <code>ziran lock</code> discover its
+<code>default</code> profile and record the digest in the consumer's <code>ziran.lock</code>. Run
+<code>ziran bundle --project --locked</code> to build the application, adding <code>--offline</code>
+once the library is cached. The consumer can also specify the same package ID,
+profile, and digest explicitly in <code>ziran.zx.lock</code>. Native source development
+continues to use the standard package imports and overrides.</p>
+<p>The Gitea master workflow publishes the verified <code>default.zx</code> and its
+<code>default.zx.tsv</code> descriptor through <code>ziran pkg zx publish-ir</code> to the
+<code>tcl-zx-library</code> Generic package, using the <code>TCL_PACKAGE_USER</code> and
+<code>TCL_PACKAGE_TOKEN</code> secrets for an account with package-write access. After
+publication the workflow repeats discovery and the offline test from a fresh
+cache against Gitea. Repeat that check with
+<code>make artifact-smoke ARTIFACT_FLAGS=--registry</code>.</p>
+<h2 id="license">License</h2>
+<p>MIT. See <a href="https://git.waozi.xyz/ziranlang/tcl/src/branch/master/LICENSE">LICENSE</a> and <a href="https://git.waozi.xyz/ziranlang/tcl/src/branch/master/NOTICE">NOTICE</a> for the original Inferno and
+TaijiOS attribution.</p></section>
+<section id="module-interpreter"><p class="eyebrow">tcl/src/interpreter.zi</p><h2>interpreter</h2><p>Ported from Inferno's Tcl_Core, TclLib and Tcl_Stack. See ../NOTICE (MIT).</p><p>Import with <code>#import "tcl/interpreter"</code>.</p><div class="api-list">
+<div><code>Parameter :: struct { name: Text; fallback: Text; optional: bool; }</code></div>
+<div><code>Procedure :: struct { name: Text; parameters: Vec(Parameter); body: Text; variadic: bool; }</code><p>Command words exclude the command name. A handler fills an owned result.</p></div>
+<div><code>CommandHandler :: #type (context: s64, args: []Text, result: *Result)</code><p>Command words exclude the command name. A handler fills an owned result. The client can use the context ID as a lookup key for its own widget state.</p></div>
+<div><code>Extension :: struct { name: Text; context: s64; handler: CommandHandler; }</code></div>
+<div><code>LibraryCommand :: struct { name: string; handler: CommandHandler; }</code></div>
+<div><code>Library :: struct { name: Text; commands: Vec(Extension); loaded: bool; }</code></div>
+<div><code>MonotonicClock :: #type (context: s64) -&gt; s64</code><p>A prefix can supply dynamically named commands. A nonempty script is</p></div>
+<div><code>PrefixHandler :: #type (context: s64, name: string, args: []Text, result: *Result, script: *Text)</code><p>A prefix can supply dynamically named commands. A nonempty script is evaluated in the current frame and its result becomes the command result.</p></div>
+<div><code>CommandPrefix :: struct { name: Text; context: s64; handler: PrefixHandler; }</code></div>
+<div><code>SourceLoader :: #type (context: s64, path: string, result: *Result)</code></div>
+<div><code>PackageScript :: struct { version: Text; script: Text; }</code></div>
+<div><code>Package :: struct { name: Text; provided: Text; scripts: Vec(PackageScript); }</code></div>
+<div><code>PackageTable :: struct { entries: Vec(Package); loading: Vec(Text); unknown: Text; custom_unknown: bool; discovering: bool; prefer_latest: bool; }</code></div>
+<div><code>PackageRunner :: #type (interpreter: *Interpreter, args: []Text, depth: s32, result: *Result)</code></div>
+<div><code>Interpreter :: struct { globals: Frame; procedures: Vec(Procedure); extensions: Vec(Extension); libraries: Vec(Library); prefixes: Vec(CommandPrefix); source_loader: SourceLoader; source_context: s64; clock: MonotonicClock; clock_context: s64; output: Text; channels: Io.ChannelTable; steps: s64; packages: PackageTable; package_runner: PackageRunner; }</code></div>
+<div><code>Eval :: (interpreter: *Interpreter, script: string) -&gt; Result</code><p>A zero-initialized Interpreter is ready to use. Eval keeps globals and procedures between calls. Break/continue outside a loop are script errors.</p></div>
+<div><code>TakeOutput :: (interpreter: *Interpreter) -&gt; Text</code></div>
+<div><code>SetSourceLoader :: (interpreter: *Interpreter, loader: SourceLoader, context: s64)</code></div>
+<div><code>SetClock :: (interpreter: *Interpreter, clock: MonotonicClock, context: s64)</code><p>The callback returns monotonic milliseconds, or a negative value on failure.</p></div>
+<div><code>SetChannelBackend :: (interpreter: *Interpreter, backend: Io.Backend) -&gt; Result</code><p>Reconfiguration closes any channels previously opened by the interpreter.</p></div>
+<div><code>CloseChannels :: (interpreter: *Interpreter) -&gt; Result</code></div>
+<div><code>RegisterCommand :: (interpreter: *Interpreter, name: string, handler: CommandHandler, context: s64) -&gt; bool</code></div>
+<div><code>FindLibrary :: (interpreter: *Interpreter, name: string) -&gt; *Library</code></div>
+<div><code>FindExtension :: (interpreter: *Interpreter, name: string) -&gt; *Extension</code></div>
+<div><code>BUILTIN_LIBRARIES :: "calc io list string"</code><p>A named bundle supplies commands when the script loads it. Copy each name so</p></div>
+<div><code>RegisterLibrary :: (interpreter: *Interpreter, name: string, commands: []LibraryCommand, context: s64) -&gt; bool</code><p>A named bundle supplies commands when the script loads it. Copy each name so callers can pass short-lived descriptors. Activation is local to an interpreter.</p></div>
+<div><code>RegisterPrefix :: (interpreter: *Interpreter, prefix: string, handler: PrefixHandler, context: s64) -&gt; bool</code></div>
+<div><code>OutsideLoop :: (result: Result) -&gt; Result</code></div>
+<div><code>CopyResult :: (result: *Result) -&gt; Result</code></div>
+<div><code>CORE_COMMANDS :: "append array break calc catch continue dumpstack error eval exit expr for foreach format global if incr info lappend level load proc return set source string switch time unset uplevel upvar while"</code></div>
+<div><code>IsBuiltin :: (name: string) -&gt; bool</code></div>
+<div><code>VariableSubstitution :: (interpreter: *Interpreter, frame: *Frame, cursor: *Cursor, depth: s32) -&gt; Result</code></div>
+<div><code>AtEnd :: (cursor: *Cursor, nested: bool) -&gt; bool</code></div>
+<div><code>SkipWordSpace :: (cursor: *Cursor)</code></div>
+<div><code>ReadWord :: (interpreter: *Interpreter, frame: *Frame, cursor: *Cursor, depth: s32, nested: bool) -&gt; Result</code></div>
+<div><code>Substitute :: (interpreter: *Interpreter, frame: *Frame, cursor: *Cursor, depth: s32, out: *Vec(u8)) -&gt; Result</code></div>
+<div><code>SubstitutionValue :: (interpreter: *Interpreter, frame: *Frame, cursor: *Cursor, depth: s32) -&gt; Result</code></div>
+<div><code>EvalScript :: (interpreter: *Interpreter, frame: *Frame, script: string, depth: s32) -&gt; Result</code></div>
+<div><code>EvalCursor :: (interpreter: *Interpreter, frame: *Frame, cursor: *Cursor, depth: s32, nested: bool) -&gt; Result</code></div>
+<div><code>ExpressionValue :: (interpreter: *Interpreter, frame: *Frame, text: string, depth: s32) -&gt; Result</code></div>
+<div><code>FindProcedure :: (interpreter: *Interpreter, name: string) -&gt; s64</code></div>
+<div><code>DefineProcedure :: (interpreter: *Interpreter, args: []Text) -&gt; Result</code></div>
+<div><code>CallProcedure :: (interpreter: *Interpreter, caller: *Frame, index: s64, args: []Text, depth: s32) -&gt; Result</code></div>
+<div><code>RunIf :: (interpreter: *Interpreter, frame: *Frame, args: []Text, depth: s32) -&gt; Result</code></div>
+<div><code>RunLoop :: (interpreter: *Interpreter, frame: *Frame, test_source: string, body: string, next: string, depth: s32) -&gt; Result</code></div>
+<div><code>RunFor :: (interpreter: *Interpreter, frame: *Frame, args: []Text, depth: s32) -&gt; Result</code></div>
+<div><code>RunForeach :: (interpreter: *Interpreter, frame: *Frame, args: []Text, depth: s32) -&gt; Result</code></div>
+<div><code>Increment :: (frame: *Frame, args: []Text) -&gt; Result</code></div>
+<div><code>AppendVariable :: (frame: *Frame, args: []Text, as_list: bool) -&gt; Result</code></div>
+<div><code>JoinWords :: (args: []Text) -&gt; Text</code></div>
+<div><code>SelectSwitch :: (interpreter: *Interpreter, frame: *Frame, value: string, pairs: []Text, depth: s32) -&gt; Result</code></div>
+<div><code>RunSwitch :: (interpreter: *Interpreter, frame: *Frame, args: []Text, depth: s32) -&gt; Result</code></div>
+<div><code>RunInfo :: (interpreter: *Interpreter, frame: *Frame, args: []Text) -&gt; Result</code></div>
+<div><code>FrameLevel :: (frame: *Frame, word: string) -&gt; (*Frame, bool)</code></div>
+<div><code>RunFrameCommand :: (interpreter: *Interpreter, frame: *Frame, name: string, args: []Text, depth: s32) -&gt; Result</code></div>
+<div><code>RunSource :: (interpreter: *Interpreter, frame: *Frame, args: []Text, depth: s32) -&gt; Result</code></div>
+<div><code>RunLoad :: (interpreter: *Interpreter, args: []Text) -&gt; Result</code></div>
+<div><code>RunTime :: (interpreter: *Interpreter, frame: *Frame, args: []Text, depth: s32) -&gt; Result</code></div>
+<div><code>Dispatch :: (interpreter: *Interpreter, frame: *Frame, words: []Text, depth: s32) -&gt; Result</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tcl/src/branch/master/src/interpreter.zi">Source ↗</a></p></section>
+<section id="module-calc"><p class="eyebrow">tcl/src/calc.zi</p><h2>calc</h2><p>Numeric expression parser adapted from Inferno tcl_calc.b. See ../NOTICE (MIT).</p><p>Import with <code>#import "tcl/calc"</code>.</p><div class="api-list">
+<div><code>Value :: struct { integer: s64; real: float64; floating: bool; }</code></div>
+<div><code>Parser :: struct { cursor: Cursor; problem: string; }</code></div>
+<div><code>Int :: (value: s64) -&gt; Value</code></div>
+<div><code>Real :: (value: float64) -&gt; Value</code></div>
+<div><code>Boolean :: (value: bool) -&gt; Value</code></div>
+<div><code>ToReal :: (value: Value) -&gt; float64</code></div>
+<div><code>Truth :: (value: Value) -&gt; bool</code></div>
+<div><code>SkipSpaces :: (cursor: *Cursor)</code></div>
+<div><code>Fail :: (parser: *Parser, message: string) -&gt; Value</code></div>
+<div><code>Checked :: (parser: *Parser, value: s64) -&gt; Value</code></div>
+<div><code>RadixDigit :: (byte: u8) -&gt; s64</code></div>
+<div><code>IntegerLiteral :: (parser: *Parser, word: string, base: s64, negative: bool) -&gt; Value</code></div>
+<div><code>Number :: (parser: *Parser, negative: bool) -&gt; Value</code></div>
+<div><code>NamedValue :: (word: string) -&gt; (Value, bool)</code></div>
+<div><code>Function :: (parser: *Parser, name: string, arity: s32, depth: s32) -&gt; Value</code></div>
+<div><code>Operand :: (parser: *Parser, depth: s32) -&gt; Value</code></div>
+<div><code>Operator :: (cursor: *Cursor) -&gt; (string, s32)</code></div>
+<div><code>ApplyReal :: (parser: *Parser, op: string, a: float64, b: float64) -&gt; Value</code></div>
+<div><code>ApplyInteger :: (parser: *Parser, op: string, a: s64, b: s64) -&gt; Value</code></div>
+<div><code>Apply :: (parser: *Parser, op: string, left: Value, right: Value) -&gt; Value</code></div>
+<div><code>Binary :: (parser: *Parser, minimum: s32, depth: s32) -&gt; Value</code></div>
+<div><code>Conditional :: (parser: *Parser, depth: s32) -&gt; Value</code></div>
+<div><code>Evaluate :: (text: string) -&gt; (Value, string)</code></div>
+<div><code>ScalarOperand :: (text: string) -&gt; bool</code><p>Substitution accepts one literal, preventing text values from becoming operators.</p></div>
+<div><code>Format :: (value: Value) -&gt; Result</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tcl/src/branch/master/src/calc.zi">Source ↗</a></p></section>
+<section id="module-decimal"><p class="eyebrow">tcl/src/decimal.zi</p><h2>decimal</h2><p>Fixed-point conversion for the Inferno Tcl format command. See ../NOTICE (MIT).</p><p>Import with <code>#import "tcl/decimal"</code>.</p><div class="api-list">
+<div><code>DecimalDigits :: (value: float64, digits: []u8) -&gt; (s64, s64)</code><p>The exact finite value is significand * 2^exponent. When the exponent is negative, represent it instead as significand * 5^-exponent / 10^-exponent. Base 10^9 limbs keep the longest binary64 expansion small.</p></div>
+<div><code>Round :: (digits: []u8, count: s64, discard: s64) -&gt; s64</code><p>Drop decimal places using round-to-nearest, ties-to-even. Digits are least significant first. Caller storage is zero-filled past count.</p></div>
+<div><code>Fixed :: (input: string, precision: s64) -&gt; (Text, bool, bool)</code><p>Return the sign separately so format can place zero padding after it.</p></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tcl/src/branch/master/src/decimal.zi">Source ↗</a></p></section>
+<section id="module-io"><p class="eyebrow">tcl/src/io.zi</p><h2>io</h2><p>Tcl channel behavior adapted from Inferno tcl_io.b. See ../NOTICE (MIT).</p><p>Import with <code>#import "tcl/io"</code>.</p><div class="api-list">
+<div><code>OpenCallback :: #type (context: s64, path: string, mode: s32) -&gt; s32</code></div>
+<div><code>CreateCallback :: #type (context: s64, path: string, mode: s32, permissions: s32) -&gt; s32</code></div>
+<div><code>ReadCallback :: #type (context: s64, handle: s32, buffer: []u8) -&gt; s32</code></div>
+<div><code>WriteCallback :: #type (context: s64, handle: s32, data: string) -&gt; s32</code></div>
+<div><code>CloseCallback :: #type (context: s64, handle: s32) -&gt; s32</code></div>
+<div><code>SeekCallback :: #type (context: s64, handle: s32, offset: s64, origin: s32) -&gt; s64</code></div>
+<div><code>StatCallback :: #type (context: s64, path: string, metadata: []u8) -&gt; s32</code></div>
+<div><code>ErrorCallback :: #type (context: s64) -&gt; string</code></div>
+<div><code>Backend :: struct { context: s64; open: OpenCallback; create: CreateCallback; read: ReadCallback; write: WriteCallback; close: CloseCallback; seek: SeekCallback; stat: StatCallback; error: ErrorCallback; stdin: bool; }</code></div>
+<div><code>Channel :: struct { active: bool; handle: s32; mode: s32; eof: bool; pending: Vec(u8); next: s64; end: s64; }</code></div>
+<div><code>ChannelTable :: struct { backend: Backend; files: Vec(Channel); input: Channel; stdout_closed: bool; }</code></div>
+<div><code>COMMANDS :: "close eof file flush gets open puts read seek tell"</code></div>
+<div><code>CHUNK :: 4096</code></div>
+<div><code>MAX_READ :: 1048576</code></div>
+<div><code>BackendError :: (table: *ChannelTable, operation: string) -&gt; Result</code></div>
+<div><code>ChannelError :: (name: string) -&gt; Result</code></div>
+<div><code>FindChannel :: (table: *ChannelTable, name: string) -&gt; *Channel</code></div>
+<div><code>OpenMode :: (name: string) -&gt; (s32, bool)</code></div>
+<div><code>Permissions :: (text: string) -&gt; s32</code></div>
+<div><code>OpenChannel :: (table: *ChannelTable, args: []Text) -&gt; Result</code></div>
+<div><code>CloseChannel :: (table: *ChannelTable, channel: *Channel) -&gt; bool</code></div>
+<div><code>CloseAll :: (table: *ChannelTable) -&gt; Result</code></div>
+<div><code>AppendPending :: (channel: *Channel, output: *Text, limit: s64, line: bool) -&gt; (bool, bool)</code></div>
+<div><code>ReadChannel :: (table: *ChannelTable, channel: *Channel, count: s64, line: bool) -&gt; Result</code></div>
+<div><code>WriteChannel :: (table: *ChannelTable, channel: *Channel, text: string, newline: bool) -&gt; Result</code></div>
+<div><code>RunPuts :: (table: *ChannelTable, output: *Text, args: []Text) -&gt; Result</code></div>
+<div><code>RunRead :: (table: *ChannelTable, command: string, args: []Text) -&gt; Result</code></div>
+<div><code>Origin :: (name: string) -&gt; s32</code></div>
+<div><code>RunSeek :: (table: *ChannelTable, channel: *Channel, args: []Text) -&gt; Result</code></div>
+<div><code>ParseFileOffset :: (text: string) -&gt; (s64, bool)</code></div>
+<div><code>AppendPath :: (path: *Text, part: string) -&gt; bool</code></div>
+<div><code>RunFile :: (table: *ChannelTable, args: []Text) -&gt; Result</code></div>
+<div><code>Run :: (table: *ChannelTable, output: *Text, name: string, args: []Text) -&gt; Result</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tcl/src/branch/master/src/io.zi">Source ↗</a></p></section>
+<section id="module-lists"><p class="eyebrow">tcl/src/lists.zi</p><h2>lists</h2><p>Ported from the Inferno Limbo tcl_list.b and tcl_utils.b. See ../NOTICE (MIT).</p><p>Import with <code>#import "tcl/lists"</code>.</p><div class="api-list">
+<div><code>List :: struct { words: Vec(Text); problem: string; }</code></div>
+<div><code>ParseList :: (source: string) -&gt; List</code></div>
+<div><code>AppendElement :: (output: *Vec(u8), value: string, separate: bool)</code><p>Favor brace quoting for ordinary grouped items. Unbalanced braces and a trailing backslash require backslash quoting instead for a round trip.</p></div>
+<div><code>Index :: (word: string, length: s64) -&gt; (s64, bool)</code></div>
+<div><code>LIST_COMMANDS :: "concat join lindex linsert list llength lrange lreplace lsearch lsort split"</code></div>
+<div><code>IsListCommand :: (name: string) -&gt; bool</code></div>
+<div><code>AppendWords :: (output: *Text, words: []Text)</code></div>
+<div><code>Split :: (args: []Text) -&gt; Result</code></div>
+<div><code>Sort :: (args: []Text) -&gt; Result</code></div>
+<div><code>RunList :: (name: string, args: []Text) -&gt; Result</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tcl/src/branch/master/src/lists.zi">Source ↗</a></p></section>
+<section id="module-math"><p class="eyebrow">tcl/src/math.zi</p><h2>math</h2><p>Real-valued function vocabulary from Inferno tcl_calc.b. See ../NOTICE (MIT).</p><p>Import with <code>#import "tcl/math"</code>.</p><div class="api-list">
+<div><code>Arity :: (name: string) -&gt; s32</code></div>
+<div><code>Absolute :: (value: float64) -&gt; float64</code></div>
+<div><code>Finite :: (value: float64) -&gt; bool</code></div>
+<div><code>RoundDirected :: (value: float64, upward: bool) -&gt; float64</code></div>
+<div><code>Hypot :: (first: float64, second: float64) -&gt; float64</code></div>
+<div><code>Remainder :: (first: float64, second: float64) -&gt; float64</code></div>
+<div><code>Call :: (name: string, first: float64, second: float64) -&gt; float64</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tcl/src/branch/master/src/math.zi">Source ↗</a></p></section>
+<section id="module-packages"><p class="eyebrow">tcl/src/packages.zi</p><h2>packages</h2><p>Versioned Tcl script libraries for the headless Inferno Tcl port. See ../NOTICE (MIT).</p><p>Import with <code>#import "tcl/packages"</code>.</p><div class="api-list">
+<div><code>Attach :: (interpreter: *Tcl.Interpreter)</code></div>
+<div><code>Find :: (table: *Tcl.PackageTable, name: string) -&gt; s64</code></div>
+<div><code>Ensure :: (table: *Tcl.PackageTable, name: string) -&gt; s64</code></div>
+<div><code>Forget :: (table: *Tcl.PackageTable, name: string)</code></div>
+<div><code>ValidVersion :: (version: string) -&gt; bool</code><p>Alpha and beta markers occupy their own version component and sort below 0. Comparing decimal component text avoids truncating large version components.</p></div>
+<div><code>NextComponent :: (version: string, at: *s64) -&gt; string</code></div>
+<div><code>CompareComponent :: (left: string, right: string) -&gt; s64</code></div>
+<div><code>Compare :: (left: string, right: string) -&gt; s64</code></div>
+<div><code>Prerelease :: (version: string) -&gt; bool</code></div>
+<div><code>CompareBound :: (version: string, bound: string) -&gt; s64</code><p>Range endpoints use an implicit a0 on a stable version, so for example 1.2b1 is included at the lower bound 1.2 and excluded at the upper bound 1.2.</p></div>
+<div><code>SplitRequirement :: (word: string) -&gt; (string, string, bool)</code></div>
+<div><code>BadVersion :: (version: string) -&gt; Result</code></div>
+<div><code>Validate :: (requirements: []Text, exact: bool) -&gt; Result</code></div>
+<div><code>Matches :: (version: string, requirements: []Text, exact: bool) -&gt; bool</code></div>
+<div><code>Provided :: (table: *Tcl.PackageTable, name: string) -&gt; Result</code></div>
+<div><code>Conflict :: (name: string, have: string, requirements: []Text, wanted: string) -&gt; Result</code></div>
+<div><code>Provide :: (interpreter: *Tcl.Interpreter, name: string, version: string) -&gt; Result</code><p>An embedder calls Provide after it has attached its own implementation.</p></div>
+<div><code>IfNeeded :: (table: *Tcl.PackageTable, name: string, version: string, args: []Text) -&gt; Result</code></div>
+<div><code>Choose :: (table: *Tcl.PackageTable, name: string, requirements: []Text, exact: bool) -&gt; (s64, s64)</code></div>
+<div><code>ScanIndexes :: (interpreter: *Tcl.Interpreter, depth: s32) -&gt; Result</code></div>
+<div><code>Discover :: (interpreter: *Tcl.Interpreter, name: string, requirements: []Text, exact: bool, depth: s32) -&gt; Result</code></div>
+<div><code>Require :: (interpreter: *Tcl.Interpreter, name: string, requirements: []Text, exact: bool, present: bool, depth: s32) -&gt; Result</code></div>
+<div><code>Run :: (interpreter: *Tcl.Interpreter, args: []Text, depth: s32) -&gt; Result</code></div>
+<div><code>Dispatch :: (interpreter: *Tcl.Interpreter, args: []Text, depth: s32, result: *Result)</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tcl/src/branch/master/src/packages.zi">Source ↗</a></p></section>
+<section id="module-strings"><p class="eyebrow">tcl/src/strings.zi</p><h2>strings</h2><p>Ported string operations from Inferno tcl_string.b. See ../NOTICE (MIT).</p><p>Import with <code>#import "tcl/strings"</code>.</p><div class="api-list">
+<div><code>RunString :: (args: []Text) -&gt; Result</code></div>
+<div><code>FormatNumber :: (cursor: *Cursor) -&gt; s64</code></div>
+<div><code>AppendField :: (output: *Text, value: string, width: s64, zeros: s64, negative: bool, left: bool, numeric: bool)</code></div>
+<div><code>RunFormat :: (args: []Text) -&gt; Result</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tcl/src/branch/master/src/strings.zi">Source ↗</a></p></section>
+<section id="module-types"><p class="eyebrow">tcl/src/types.zi</p><h2>types</h2><p>Ported from the Inferno Limbo Tcl interpreter. See ../NOTICE (MIT).</p><p>Import with <code>#import "tcl/types"</code>.</p><div class="api-list">
+<div><code>Code :: enum { OK = 0; Error = 1; Return = 2; Break = 3; Continue = 4; Exit = 5; }</code></div>
+<div><code>Result :: struct { code: Code; value: Text; }</code></div>
+<div><code>Success :: (value: string) -&gt; Result</code></div>
+<div><code>Failure :: (message: string) -&gt; Result</code></div>
+<div><code>WrongArgs :: (usage: string) -&gt; Result</code></div>
+<div><code>QuotedError :: (prefix: string, word: string, suffix: string) -&gt; Result</code></div>
+<div><code>Integer :: (value: s64) -&gt; Result</code></div>
+<div><code>Space :: (byte: u8) -&gt; bool</code></div>
+<div><code>InlineSpace :: (byte: u8) -&gt; bool</code></div>
+<div><code>Digit :: (byte: u8) -&gt; bool</code></div>
+<div><code>NameByte :: (byte: u8) -&gt; bool</code></div>
+<div><code>NextCharacter :: (text: string, at: s64) -&gt; s64</code></div>
+<div><code>CharacterOffset :: (text: string, count: s64) -&gt; s64</code></div>
+<div><code>CharacterCount :: (text: string) -&gt; s64</code></div>
+<div><code>CompareText :: (left: string, right: string) -&gt; s64</code></div>
+<div><code>INT_MIN :: -2147483648</code><p>The legacy interpreter's int is signed 32-bit. Wider intermediates let us detect overflow before returning an expression result.</p></div>
+<div><code>INT_MAX :: 2147483647</code></div>
+<div><code>InRange :: (value: s64) -&gt; bool</code></div>
+<div><code>ParseInteger :: (text: string) -&gt; (s64, bool)</code></div>
+<div><code>Cursor :: struct { text: string; at: s64; }</code></div>
+<div><code>Has :: (cursor: *Cursor) -&gt; bool</code></div>
+<div><code>Peek :: (cursor: *Cursor) -&gt; u8</code></div>
+<div><code>Take :: (cursor: *Cursor) -&gt; u8</code></div>
+<div><code>WordIn :: (words: string, target: string) -&gt; bool</code></div>
+<div><code>ContinuesLine :: (cursor: *Cursor) -&gt; bool</code></div>
+<div><code>SkipContinuation :: (cursor: *Cursor)</code></div>
+<div><code>Unescape :: (cursor: *Cursor) -&gt; u8</code></div>
+<div><code>Braced :: (cursor: *Cursor) -&gt; Result</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tcl/src/branch/master/src/types.zi">Source ↗</a></p></section>
+<section id="module-variables"><p class="eyebrow">tcl/src/variables.zi</p><h2>variables</h2><p>Tcl variables and stack links adapted from Inferno tcl_core.b and tcl_stack.b. See ../NOTICE.</p><p>Import with <code>#import "tcl/variables"</code>.</p><div class="api-list">
+<div><code>Variable :: struct { name: Text; value: Text; }</code></div>
+<div><code>VariableTable :: struct { entries: Vec(Variable); }</code></div>
+<div><code>ArrayVariable :: struct { name: Text; elements: VariableTable; }</code></div>
+<div><code>Alias :: struct { name: Text; target: Text; frame: *Frame; }</code></div>
+<div><code>Frame :: struct { variables: VariableTable; arrays: Vec(ArrayVariable); aliases: Vec(Alias); parent: *Frame; level: s64; }</code></div>
+<div><code>VariableRef :: struct { frame: *Frame; base: Text; key: Text; element: bool; valid: bool; }</code></div>
+<div><code>Parts :: (frame: *Frame, name: string) -&gt; VariableRef</code></div>
+<div><code>ScalarName :: (name: string) -&gt; bool</code></div>
+<div><code>FindAlias :: (frame: *Frame, name: string) -&gt; s64</code></div>
+<div><code>ResolveVariable :: (frame: *Frame, name: string) -&gt; VariableRef</code></div>
+<div><code>FindVariable :: (variables: *VariableTable, name: string) -&gt; s64</code></div>
+<div><code>FindArray :: (frame: *Frame, name: string) -&gt; s64</code></div>
+<div><code>VariableExists :: (frame: *Frame, name: string) -&gt; bool</code></div>
+<div><code>ReadVariable :: (frame: *Frame, name: string) -&gt; Result</code></div>
+<div><code>StoreValue :: (values: *VariableTable, name: string, value: string) -&gt; bool</code></div>
+<div><code>StoreVariable :: (frame: *Frame, name: string, value: string) -&gt; Result</code></div>
+<div><code>RemoveValue :: (values: *VariableTable, name: string) -&gt; bool</code></div>
+<div><code>RemoveVariable :: (frame: *Frame, name: string) -&gt; Result</code></div>
+<div><code>RunArray :: (frame: *Frame, args: []Text) -&gt; Result</code></div>
+<div><code>LinkVariable :: (frame: *Frame, name: string, target: *Frame, target_name: string) -&gt; Result</code></div>
+<div><code>AppendDumpHeader :: (out: *Text, label: string, level: s64) -&gt; bool</code></div>
+<div><code>AppendDumpValues :: (out: *Text, table: *VariableTable, indent: string) -&gt; bool</code></div>
+<div><code>AppendStackDump :: (out: *Text, frame: *Frame) -&gt; bool</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tcl/src/branch/master/src/variables.zi">Source ↗</a></p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

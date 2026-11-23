@@ -7,7 +7,7 @@
 <section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.sqlite]
 git = "https://github.com/ziranlang/sqlite.git"
 ref = "master"</code></pre></section>
-<section id="overview" class="prose"><h2>Overview</h2><pre><code class="language-sh">ziran add https://github.com/ziranlang/sqlite.git
+<section id="overview" class="prose"><h2>Overview</h2><pre><code class="language-sh">ziran add https://git.waozi.xyz/ziranlang/sqlite.git
 </code></pre>
 <pre><code class="language-zi">#import &quot;sqlite/SQLite&quot;
 
@@ -27,7 +27,10 @@ bindings, integer and floating-point values, NULLs, error reporting, busy
 timeouts, change counts and database backup. <code>SqliteOpenText</code> opens a path
 from a Ziran string; <code>SqliteBindBlob</code> copies bytes including embedded NULs,
 and an empty slice binds an empty BLOB. Column pointers and error messages
-are borrowed from SQLite; consume or copy them before their owner changes.</p>
+are borrowed from SQLite; consume or copy them before their owner changes.
+<code>SqliteColumnName</code> returns the prepared query's column label, including an
+explicit <code>AS</code> alias. Copy the label before another name call for that column,
+automatic reprepare or finalization.</p>
 <p><code>SqliteGetAutocommit(database)</code> reports whether the live connection has no
 active transaction, following SQLite's <code>sqlite3_get_autocommit</code>. It returns
 false for a null handle. Keep the connection alive while calling it.</p>
@@ -44,6 +47,19 @@ Do not free the same data again after an error. <code>SqliteUserData</code> retu
 pointer inside the registered callback; each connection has its own
 registration. See the <a href="https://www.sqlite.org/c3ref/create_function.html">function registration contract</a>
 and <a href="https://www.sqlite.org/c3ref/user_data.html">user data contract</a>.</p>
+<p><code>SqliteProgressHandler(database, instructions, callback, data)</code> registers a C
+callback for one connection. Return a nonzero value to interrupt work with
+<code>SQLITE_INTERRUPT</code>. Pass zero instructions to clear the handler before freeing
+caller-owned data. Keep <code>data</code> alive while the handler is registered and avoid
+preparing statements, stepping them or modifying the connection in the
+callback. SQLite can also call the handler during statement preparation.
+See <a href="https://www.sqlite.org/c3ref/progress_handler.html">SQLite's progress handler contract</a>.</p>
+<p><code>SqliteBusyHandler(database, callback, data)</code> installs a connection-local
+callback for lock contention. The callback receives the number of retries for
+the current lock and returns zero to stop waiting. SQLite then reports
+<code>SQLITE_BUSY</code>. Use a null callback or <code>SqliteBusyTimeout</code> to replace the handler
+before freeing its data. The callback must leave the invoking connection and
+its statements untouched. <a href="https://sqlite.org/c3ref/busy_handler.html">SQLite busy handler</a></p>
 <p><code>SqliteValueType</code>, <code>SqliteValueBytes</code> and <code>SqliteValueBlob</code> inspect callback
 arguments; blob bytes are borrowed and may be null for empty values. Inspect
 the type before conversions and consume bytes within the callback, following
@@ -68,8 +84,8 @@ call arbitrary native libraries.</p>
 <pre><code class="language-sh">make check             # available backends, source and saved IR; native C callbacks
 make check TARGET=go   # one backend
 </code></pre>
-<p>The current toolchain check needs a C compiler, Python and Go. Older toolchains
-also provide C++, Rust and Python backends and require their build tools. It tests
+<p>The current toolchain check needs a C compiler and Go. Older toolchains use a
+Python test driver and also provide C++, Rust and Python backends. It tests
 Unicode text, statement reuse, large integers, binary data, empty BLOBs,
 floating-point values, NULLs, invalid SQL and database backup. This is a
 binding for the documented API above, rather than every SQLite extension.
@@ -84,6 +100,7 @@ destructor calls, without requiring callback support from Go.</p></section>
 <div><code>SQLITE_TRANSIENT :: -1</code></div>
 <div><code>SQLITE_LOCKED :: 6</code></div>
 <div><code>SQLITE_NOMEM :: 7</code></div>
+<div><code>SQLITE_INTERRUPT :: 9</code></div>
 <div><code>SQLITE_TOOBIG :: 18</code></div>
 <div><code>SQLITE_MISUSE :: 21</code></div>
 <div><code>SQLITE_OPEN_READWRITE :: 0x2</code></div>
@@ -94,8 +111,10 @@ destructor calls, without requiring callback support from Go.</p></section>
 <div><code>SQLITE_TEXT :: 3</code></div>
 <div><code>SQLITE_BLOB :: 4</code></div>
 <div><code>SQLITE_NULL :: 5</code></div>
-<div><code>SqliteScalar :: #type (context: *void, argc: s32, argv: **void)</code><p>C callbacks. The caller keeps data alive until SQLite invokes destroy.</p></div>
+<div><code>SqliteScalar :: #type (context: *void, argc: s32, argv: **void)</code><p>C callbacks. Keep caller-owned data alive while its callback is registered.</p></div>
 <div><code>SqliteDestructor :: #type (data: *void)</code></div>
+<div><code>SqliteProgress :: #type (data: *void) -&gt; s32</code></div>
+<div><code>SqliteBusy :: #type (data: *void, retries: s32) -&gt; s32</code></div>
 <div><code>SqlitePrepare :: (db: *void, sql: *u8, length: s32, statement: **void, tail: **u8) -&gt; s32</code></div>
 <div><code>SqlitePrepareText :: (db: *void, sql: string, length: s32, statement: **void, tail: **u8) -&gt; s32</code></div>
 <div><code>SqliteBindTextString :: (statement: *void, index: s32, value: string, length: s32) -&gt; s32</code></div>
@@ -123,6 +142,8 @@ destructor calls, without requiring callback support from Go.</p></section>
 <div><code>SqliteErrorCode :: (database: *void) -&gt; s32</code></div>
 <div><code>SqliteErrorMessage :: (database: *void) -&gt; *u8</code><p>The message is borrowed until another operation changes the connection.</p></div>
 <div><code>SqliteBusyTimeout :: (database: *void, milliseconds: s32) -&gt; s32</code></div>
+<div><code>SqliteBusyHandler :: (database: *void, callback: SqliteBusy, data: *void) -&gt; s32</code><p>A nonzero callback result permits another attempt. A null callback removes the handler. The callback must leave this connection and statement untouched.</p></div>
+<div><code>SqliteProgressHandler :: (database: *void, instructions: s32, callback: SqliteProgress, data: *void)</code></div>
 <div><code>SqliteChanges :: (database: *void) -&gt; s32</code></div>
 <div><code>SqliteBindNull :: (statement: *void, index: s32) -&gt; s32</code></div>
 <div><code>SqliteBindDouble :: (statement: *void, index: s32, value: float64) -&gt; s32</code></div>
@@ -132,6 +153,7 @@ destructor calls, without requiring callback support from Go.</p></section>
 <div><code>SqliteColumnDouble :: (statement: *void, column: s32) -&gt; float64</code></div>
 <div><code>SqliteColumnType :: (statement: *void, column: s32) -&gt; s32</code></div>
 <div><code>SqliteColumnCount :: (statement: *void) -&gt; s32</code></div>
+<div><code>SqliteColumnName :: (statement: *void, column: s32) -&gt; *u8</code><p>SQLite owns the NUL-terminated name. Copy before a subsequent name call for this column, automatic statement reprepare or finalize.</p></div>
 <div><code>SqliteCreateFunction :: (database: *void, name: *u8, argc: s32, flags: s32, data: *void, callback: SqliteScalar, step: *void, final: *void, destroy: SqliteDestructor) -&gt; s32</code><p>Direct SQLite lifetime: destroy also runs when registration fails.</p></div>
 <div><code>SqliteUserData :: (context: *void) -&gt; *void</code></div>
 <div><code>SqliteValueType :: (value: *void) -&gt; s32</code></div>

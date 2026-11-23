@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Tk provides an Inferno-compatible Tcl widget model, layout, input dispatch, and an RGBA renderer for Ziran programs."><title>Tk for Ziran · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/tk"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>Tk for Ziran</h1><p>Tk provides an Inferno-compatible Tcl widget model, layout, input dispatch, and an RGBA renderer for Ziran programs. The host supplies events and presents the renderer's pixels. The package uses Ziran's standard library and the standalone Tcl interpreter.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tk">Repository ↗</a></p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-bitmap">bitmap</a><a href="#module-canvas">canvas</a><a href="#module-check">check</a><a href="#module-font">font</a><a href="#module-image">image</a><a href="#module-listbox">listbox</a><a href="#module-menu">menu</a><a href="#module-paint">paint</a><a href="#module-scale">scale</a><a href="#module-scrollbar">scrollbar</a><a href="#module-text">text</a><a href="#module-view">view</a><a href="#module-widgets">widgets</a></aside><div class="article-body api-body">
+<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.tk]
+git = "https://git.waozi.xyz/ziranlang/tk.git"
+ref = "master"</code></pre></section>
+<section id="overview" class="prose"><h2>Overview</h2><h2 id="use-tk">Use Tk</h2>
+<p>Add the package with <code>ziran add https://git.waozi.xyz/ziranlang/tk.git</code>. If the
+application also imports <code>tcl/interpreter</code>, add Tcl at the revision selected by
+Tk so both packages share one interpreter type; read that revision from
+<code>ziran.lock</code> so this works with source checkouts and relocatable libraries:</p>
+<pre><code class="language-sh">tcl_revision=$(python3 - &lt;&lt;'PY'
+import json
+from pathlib import Path
+
+lock = json.loads(Path(&quot;ziran.lock&quot;).read_text())
+packages = {package[&quot;id&quot;]: package for package in lock[&quot;packages&quot;]}
+tk = packages[lock[&quot;root&quot;][&quot;dependencies&quot;][&quot;tk&quot;]]
+print(packages[tk[&quot;dependencies&quot;][&quot;tcl&quot;]][&quot;commit&quot;])
+PY
+)
+ziran add https://git.waozi.xyz/ziranlang/tcl.git --ref &quot;$tcl_revision&quot;
+</code></pre>
+<pre><code class="language-zi">using Tcl :: #import &quot;tcl/interpreter&quot;;
+using Tk :: #import &quot;tk/widgets&quot;;
+using Paint :: #import &quot;tk/paint&quot;;
+
+Initialize :: (interpreter: *Tcl.Interpreter) -&gt; bool {
+    if !Tk.Attach(interpreter) { return false }
+    result := Tcl.Eval(interpreter, &quot;label .ready -text Ready; pack .ready&quot;);
+    return result.code == .OK;
+}
+
+Draw :: (pixels: []u8, width: s32, height: s32) {
+    Tk.Layout(width, height);
+    Paint.Render(pixels, width, height);
+}
+</code></pre>
+<p>Attach once per application and keep the interpreter alive for the root's
+lifetime. Call <code>Layout</code> when the window size or widget geometry changes.
+<code>Paint.Render</code> takes a row-major RGBA buffer with four bytes per pixel; its
+optional <code>first</code> argument paints rows <code>first</code> through <code>height - 1</code>, with the
+buffer beginning at that row. Feed pointer and keyboard events to <code>tk/widgets</code>
+and evaluate any returned Tcl script with the same interpreter.</p>
+<h2 id="widgets-and-feature-defines">Widgets and feature defines</h2>
+<p>The default widget set includes Canvas, labels, buttons, frames, entries,
+text, scales, panels, checkbuttons, radiobuttons, and scrollbars. Compiler
+defines select additional features or a smaller build:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Define</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TK_BITMAP</code></td>
+<td>Enable image commands, bitmap labels and, with Canvas, Canvas images and bitmap fonts.</td>
+</tr>
+<tr>
+<td><code>TK_LISTBOX</code></td>
+<td>Enable listboxes.</td>
+</tr>
+<tr>
+<td><code>TK_MENU</code></td>
+<td>Enable menus and menubuttons.</td>
+</tr>
+<tr>
+<td><code>TK_NO_CANVAS</code></td>
+<td>Omit the Canvas widget and painting.</td>
+</tr>
+</tbody>
+</table></div>
+<p>With <code>TK_BITMAP</code>, <code>Tk.SetImageLoader</code> registers a callback that returns bytes
+for images and fonts, from in-memory data or the host's own resource lookup.
+<code>@name</code> bitmap references request <code>name</code> directly; plain bitmap names use the
+Inferno-compatible <code>/icons/tk/</code> lookup prefix. Fallback stroke lettering
+covers ordinary text.</p>
+<p><code>tk/widgets</code> and <code>tk/paint</code> are the main entry points. The package also
+exports <code>tk/bitmap</code>, <code>tk/canvas</code>, <code>tk/check</code>, <code>tk/font</code>, <code>tk/image</code>,
+<code>tk/listbox</code>, <code>tk/menu</code>, <code>tk/scale</code>, <code>tk/scrollbar</code>, <code>tk/text</code>, and <code>tk/view</code>
+for direct access to their models and helpers. This is a subset of Inferno
+Tk: multiple root windows, grabs, grid layout, and embedded text widgets are
+outside the current implementation.</p>
+<h2 id="local-tests">Local tests</h2>
+<p><code>make test</code> needs a Ziran toolchain and a C compiler. It checks the default
+and feature-enabled exports, including the bitmap profile with Canvas off,
+and runs the same widget test as native C and as a <code>.zx</code> bundle in the
+instruction engine, comparing command results and the rendered pixel
+checksum. The test uses a bitmap supplied from memory and runs without a
+window server.</p>
+<p>To develop against the sibling Tcl and Ziran source trees, create the ignored
+<code>ziran.local.toml</code> with these canonical overrides:</p>
+<pre><code class="language-toml">[overrides]
+ziran = &quot;../../ziran&quot;
+tcl = &quot;../tcl&quot;
+</code></pre>
+<h2 id="relocatable-zx-libraries">Relocatable ZX libraries</h2>
+<p>With the exact compiler and Tcl <code>default</code> ZX library from <code>ziran.lock</code>
+cached, run <code>make test artifact</code> from a clean Tk checkout. Use
+<code>ziran pkg zx fetch-ir</code> with the Tcl repository, revision, profile, and
+digest from <code>ziran.lock</code> to populate the cache. This writes seven relocatable
+<code>.zx</code> libraries and <code>build/artifacts/manifest.json</code>, which records the
+provider and toolchain identities, the locked Tcl dependency, the exports,
+the defines, and each archive's SHA-256 digest.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Profile</th>
+<th>Defines</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>default</code></td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>no-canvas</code></td>
+<td><code>TK_NO_CANVAS</code></td>
+</tr>
+<tr>
+<td><code>bitmap</code></td>
+<td><code>TK_BITMAP</code></td>
+</tr>
+<tr>
+<td><code>bitmap-no-canvas</code></td>
+<td><code>TK_BITMAP</code>, <code>TK_NO_CANVAS</code></td>
+</tr>
+<tr>
+<td><code>bitmap-menu</code></td>
+<td><code>TK_BITMAP</code>, <code>TK_MENU</code></td>
+</tr>
+<tr>
+<td><code>full</code></td>
+<td><code>TK_BITMAP</code>, <code>TK_LISTBOX</code>, <code>TK_MENU</code></td>
+</tr>
+<tr>
+<td><code>listbox-no-canvas</code></td>
+<td><code>TK_LISTBOX</code>, <code>TK_NO_CANVAS</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>A relocatable <code>.zx</code> library supplies typed code and metadata for ordinary
+imports such as <code>tk/widgets</code> and <code>tk/paint</code>; the consumer compiler links and
+lowers it for the selected target. The consumer's <code>ziran.lock</code> pins Tk, Tcl,
+and the exact Ziran toolchain. Once both default libraries are published,
+<code>ziran add</code> or <code>ziran lock</code> discovers them and records their profile, digest,
+and toolchain under each package's <code>checked</code> field. For explicit selection,
+add entries for the Tcl <code>default</code> and the selected Tk profiles in
+<code>ziran.zx.lock</code> under <code>packages</code>, with the <code>package</code> ID, <code>profile</code>, and
+<code>sha256</code> for each. Keep the Tk profile consistent with the app's feature
+defines.</p>
+<p><code>make artifact-smoke</code> verifies all seven Tk libraries: it builds and runs the
+widget fixture offline as a native executable and as portable ZX, using the
+<code>full</code> Tk library and the locked default Tcl library; compares widget output
+and pixel checksum; confirms the provider source cache stays empty; and tests
+<code>ziran add</code>, <code>ziran lock --offline</code>, and an offline bundle with the two
+default libraries. Pass <code>TCL_ZX_LIBRARY=&lt;path&gt;</code> to supply a local copy of the
+locked Tcl library.</p>
+<p>For working-tree changes, <code>make artifact DEVELOPMENT=1</code> writes development
+libraries to <code>build/artifacts-dev/</code>. Test them with
+<code>make artifact-smoke DEVELOPMENT=1 TCL_ZX_LIBRARY=&lt;path&gt; TCL_ZX_SHA256=&lt;digest&gt;</code>
+using a Tcl development library built with the same compiler.</p>
+<p>After local tests pass, the Gitea master job publishes <code>&lt;profile&gt;.zx</code> and
+<code>&lt;profile&gt;.zx.tsv</code> under <code>tk-zx-library</code> at the full Tk revision, then runs
+<code>make artifact-smoke REGISTRY=1</code> against Gitea with empty consumer caches.
+Local publication uses <code>make artifact-publish NETRC_FILE=&lt;path&gt;</code> with a
+private Gitea netrc.</p></section>
+<section id="module-bitmap"><p class="eyebrow">tk/src/bitmap.zi</p><h2>bitmap</h2><p>Inferno bitmap pixels follow libmemdraw/cread.c, cload.c, and libdraw/rgb.c. See LICENSE (MIT).</p><p>Import with <code>#import "tk/bitmap"</code>.</p><div class="api-list">
+<div><code>MAX_PIXELS :: 262144</code></div>
+<div><code>Encoding :: enum { Palette = 0; Mask = 1; }</code></div>
+<div><code>Bitmap :: struct { pixels: Vec(u8); left: s32; top: s32; width: s32; height: s32; pitch: s32; start_bit: s32; encoding: Encoding; }</code></div>
+<div><code>Bit :: (bitmap: *Bitmap, x: s64, y: s64) -&gt; bool</code></div>
+<div><code>DecodeBlock :: (input: string, pixels: []u8, row_bytes: s64) -&gt; bool</code></div>
+<div><code>Coordinate :: (field: string) -&gt; (s64, bool)</code><p>Each coordinate is a signed 32-bit Inferno rectangle endpoint. Keep span arithmetic in s64 until the allocation and renderer bounds are known.</p></div>
+<div><code>DecodePrefix :: (bytes: string, bitmap: *Bitmap, font: bool) -&gt; s64</code><p>Subfonts append glyph metrics after the image and use legacy depth zero.</p></div>
+<div><code>Decode :: (bytes: string, bitmap: *Bitmap) -&gt; bool</code></div>
+<div><code>Color :: (index: s32) -&gt; u32</code><p>RGBA byte order on the hosted Linux/386 surface.</p></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tk/src/branch/master/src/bitmap.zi">Source ↗</a></p></section>
+<section id="module-canvas"><p class="eyebrow">tk/src/canvas.zi</p><h2>canvas</h2><p>Canvas item geometry and commands, following Inferno libtk/canvs.c.</p><p>Import with <code>#import "tk/canvas"</code>.</p><div class="api-list">
+<div><code>NONE :: -1</code></div>
+<div><code>BLACK :: 0x000000</code></div>
+<div><code>WHITE :: 0xffffff</code></div>
+<div><code>RED :: 0xff0000</code></div>
+<div><code>CELL_WIDTH :: 12</code></div>
+<div><code>TEXT_HEIGHT :: 14</code></div>
+<div><code>MAX_CELLS :: 512</code></div>
+<div><code>FRACTION :: 10000</code></div>
+<div><code>PIXELS_PER_INCH :: 100</code></div>
+<div><code>MAX_COORDINATE :: 1000000</code></div>
+<div><code>Anchor :: enum { Center = 0; North = 1; Northeast = 2; East = 3; Southeast = 4; South = 5; Southwest = 6; West = 7; Northwest = 8; }</code></div>
+<div><code>Kind :: enum { Rectangle = 0; Label = 1; Line = 2; Oval = 3; Image = 4; }</code></div>
+<div><code>Coordinates :: struct { x0: s32; y0: s32; x1: s32; y1: s32; }</code></div>
+<div><code>PathPoint :: struct { x: s64; y: s64; }</code></div>
+<div><code>FixedCoordinates :: struct { x0: s64; y0: s64; x1: s64; y1: s64; }</code></div>
+<div><code>Binding :: struct { event: s32; script: Text; }</code></div>
+<div><code>CanvasTag :: struct { name: Text; members: Vec(s64); bindings: Vec(Binding); }</code></div>
+<div><code>Item :: struct { id: s64; tags: Vec(s64); bindings: Vec(Binding); kind: Kind; coordinates: Coordinates; anchor: Anchor; fill: s32; outline: s32; text: Text; precise: FixedCoordinates; path: Vec(PathPoint); stroke: s64; marker_radius: s64; }</code></div>
+<div><code>Viewport :: struct { region: FixedCoordinates; width: s32; height: s32; x: s32; y: s32; increment: s64; resized: bool; }</code></div>
+<div><code>State :: struct { viewport: Viewport; yscroll: Text; width: s32; height: s32; precise_width: s64; precise_height: s64; background: s32; border: s32; sunken: bool; items: Vec(Item); last_id: s64; tags: Vec(CanvasTag); all_bindings: Vec(Binding); current: s64; }</code></div>
+<div><code>Default :: () -&gt; State</code></div>
+<div><code>Minimum :: (a: s32, b: s32) -&gt; s32</code></div>
+<div><code>Maximum :: (a: s32, b: s32) -&gt; s32</code></div>
+<div><code>Rectangle :: (coordinates: Coordinates) -&gt; Coordinates</code></div>
+<div><code>AnchoredBounds :: (coordinates: Coordinates, anchor: Anchor, width: s32, height: s32) -&gt; Coordinates</code></div>
+<div><code>Bounds :: (item: *Item, state: *State) -&gt; Coordinates</code></div>
+<div><code>TextBounds :: (item: *Item) -&gt; Coordinates</code></div>
+<div><code>Add :: (state: *State, kind: Kind, coordinates: Coordinates, fill: s32, outline: s32, anchor: Anchor) -&gt; s64</code></div>
+<div><code>AddRectangle :: (state: *State, coordinates: Coordinates, fill: s32, outline: s32) -&gt; s64</code></div>
+<div><code>AddPolyline :: (state: *State, count: s64, bounds: Coordinates, fill: s32, stroke: s64, marker_radius: s64) -&gt; *Item</code></div>
+<div><code>IncludePoint :: (bounds: Coordinates, x: s64, y: s64, first: bool) -&gt; Coordinates</code></div>
+<div><code>Find :: (state: *State, id: s64) -&gt; *Item</code></div>
+<div><code>SetCoordinates :: (state: *State, id: s64, coordinates: Coordinates) -&gt; bool</code></div>
+<div><code>SetText :: (state: *State, id: s64, text: string) -&gt; bool</code></div>
+<div><code>AddText :: (state: *State, x: s32, y: s32, anchor: Anchor, text: string, fill: s32) -&gt; s64</code></div>
+<div><code>Clear :: (state: *State)</code></div>
+<div><code>DeleteAll :: (state: *State)</code></div>
+<div><code>FindTag :: (state: *State, name: string) -&gt; s64</code></div>
+<div><code>EnsureTag :: (state: *State, name: string) -&gt; s64</code></div>
+<div><code>HasTag :: (item: *Item, tag: s64) -&gt; bool</code></div>
+<div><code>AttachTag :: (state: *State, item: *Item, tag: s64) -&gt; bool</code></div>
+<div><code>RemoveNumber :: (values: *Vec(s64), value: s64)</code></div>
+<div><code>DiscardNewItem :: (state: *State)</code></div>
+<div><code>MoveItem :: (destination: *Item, source: *Item)</code><p>Stable compaction preserves draw order and keeps IDs in search order.</p></div>
+<div><code>TopItem :: (state: *State, name: string) -&gt; *Item</code></div>
+<div><code>Delete :: (state: *State, name: string) -&gt; bool</code></div>
+<div><code>Error :: (result: *T.Result, message: string)</code></div>
+<div><code>Configure :: (state: *State, args: []Text, result: *T.Result) -&gt; bool</code></div>
+<div><code>Pixel :: (number: s64) -&gt; s32</code></div>
+<div><code>SetInteger :: (item: *Item, coordinates: Coordinates)</code></div>
+<div><code>ReadCoordinate :: (word: string) -&gt; (s64, bool)</code></div>
+<div><code>ReadDistance :: (text: string) -&gt; (s64, bool)</code><p>Inferno uses a fixed 100 dpi and truncates the per-unit ratios for cm and mm.</p></div>
+<div><code>ReadRegion :: (word: string) -&gt; (FixedCoordinates, bool)</code></div>
+<div><code>ClampOrigin :: (origin: s64, first: s32, last: s32) -&gt; s32</code></div>
+<div><code>ClampViewport :: (view: *Viewport)</code></div>
+<div><code>Resize :: (state: *State, width: s32, height: s32)</code></div>
+<div><code>YSpan :: (view: *Viewport) -&gt; s32</code></div>
+<div><code>YFractions :: (view: *Viewport, callback: bool) -&gt; Scroll.State</code></div>
+<div><code>YView :: (view: *Viewport, args: []Text, result: *T.Result)</code></div>
+<div><code>CanvasY :: (state: *State, args: []Text, result: *T.Result, top: s32)</code></div>
+<div><code>SetFixed :: (item: *Item, args: []Text, count: s64) -&gt; bool</code></div>
+<div><code>SetLine :: (item: *Item, args: []Text, allow_options: bool) -&gt; (s64, bool)</code></div>
+<div><code>ParseAnchor :: (word: string) -&gt; (Anchor, bool)</code></div>
+<div><code>ParseColor :: (word: string) -&gt; (s32, bool)</code></div>
+<div><code>TagName :: (name: string) -&gt; bool</code></div>
+<div><code>UpdateItem :: (state: *State, id: s64, args: []Text, creating: bool) -&gt; string</code></div>
+<div><code>Create :: (state: *State, args: []Text, result: *T.Result)</code></div>
+<div><code>Append :: (result: *T.Result, number: s64)</code></div>
+<div><code>AppendCoordinates :: (result: *T.Result, coordinates: Coordinates, count: s64)</code></div>
+<div><code>AppendFixed :: (result: *T.Result, value: s64)</code></div>
+<div><code>BAD_TAG :: "bad/no matching tag"</code></div>
+<div><code>WithTag :: (state: *State, name: string, ids: *Vec(s64)) -&gt; bool</code></div>
+<div><code>FindOrAddTags :: (state: *State, args: []Text, adding: bool, result: *T.Result)</code></div>
+<div><code>RemoveTag :: (state: *State, args: []Text, result: *T.Result)</code></div>
+<div><code>GetTags :: (state: *State, name: string, result: *T.Result)</code></div>
+<div><code>PRESS_MASK :: 7</code></div>
+<div><code>RELEASE_MASK :: 56</code></div>
+<div><code>MOTION :: 64</code></div>
+<div><code>ENTER :: 128</code></div>
+<div><code>LEAVE :: 256</code></div>
+<div><code>DOUBLE :: 512</code></div>
+<div><code>ButtonBit :: (button: s32) -&gt; s32</code></div>
+<div><code>ParseEvent :: (sequence: string) -&gt; s32</code></div>
+<div><code>Bind :: (state: *State, args: []Text, result: *T.Result)</code></div>
+<div><code>PointerEvent :: struct { mask: s32; x: s32; y: s32; screen_x: s32; screen_y: s32; }</code></div>
+<div><code>AppendAction :: (result: *Text, script: string, event: PointerEvent, widget: string)</code></div>
+<div><code>AppendActions :: (result: *Text, actions: *Vec(Binding), event: PointerEvent, widget: string)</code></div>
+<div><code>PointerActions :: (state: *State, event: PointerEvent, widget: string) -&gt; Text</code></div>
+<div><code>Abs :: (value: s64) -&gt; s64</code></div>
+<div><code>Hit :: (state: *State, item: *Item, x: s32, y: s32) -&gt; bool</code></div>
+<div><code>TopHit :: (state: *State, x: s32, y: s32) -&gt; s64</code></div>
+<div><code>AppendRequestedSize :: (result: *T.Result, pixels: s32, precise: s64)</code></div>
+<div><code>Command :: (state: *State, args: []Text, result: *T.Result, top: s32)</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tk/src/branch/master/src/canvas.zi">Source ↗</a></p></section>
+<section id="module-check"><p class="eyebrow">tk/src/check.zi</p><h2>check</h2><p>Selection values live in the Tk root, following Inferno libtk/varbl.c.</p><p>Import with <code>#import "tk/check"</code>.</p><div class="api-list">
+<div><code>DEFAULT_VARIABLE :: "selectedButton"</code></div>
+<div><code>MAX_VARIABLES :: 1024</code></div>
+<div><code>variables: V.VariableTable</code></div>
+<div><code>versions: [1024]u64</code></div>
+<div><code>revision: u64</code></div>
+<div><code>State :: struct { variable: Text; on: Text; off: Text; selected: bool; radio: bool; indicator: s32; observed: u64; }</code></div>
+<div><code>Find :: (name: string) -&gt; s64</code></div>
+<div><code>Read :: (name: string, output: *Text)</code></div>
+<div><code>Put :: (name: string, value: string) -&gt; bool</code></div>
+<div><code>Option :: (state: *State, name: string, output: *Text) -&gt; bool</code></div>
+<div><code>Indicator :: (value: string) -&gt; s32</code></div>
+<div><code>CopyOption :: (args: []Text, name: string, fallback: string, target: *Text) -&gt; bool</code></div>
+<div><code>Configure :: (state: *State, args: []Text, path: string, in_menu: bool) -&gt; bool</code></div>
+<div><code>Swap :: (a: *State, b: *State)</code></div>
+<div><code>Value :: (value: string, radio: bool, fallback: string) -&gt; string</code></div>
+<div><code>Selected :: (state: *State) -&gt; bool</code></div>
+<div><code>Select :: (state: *State, selected: bool) -&gt; bool</code></div>
+<div><code>Invoke :: (state: *State) -&gt; bool</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tk/src/branch/master/src/check.zi">Source ↗</a></p></section>
+<section id="module-font"><p class="eyebrow">tk/src/font.zi</p><h2>font</h2><p>Inferno font descriptors and packed one-bit subfonts. See libdraw/readsubfont.c.</p><p>Import with <code>#import "tk/font"</code>.</p><div class="api-list">
+<div><code>MAX_FONTS :: 32</code></div>
+<div><code>MAX_SUBFONTS :: 64</code></div>
+<div><code>MAX_FONT_BYTES :: 524288</code></div>
+<div><code>Subfont :: struct { first: s32; last: s32; offset: s32; ascent: s32; atlas: Bitmap.Bitmap; metrics: Text; }</code></div>
+<div><code>Font :: struct { name: Text; references: s64; height: s32; ascent: s32; subfonts: Vec(Subfont); }</code></div>
+<div><code>Store :: struct { fonts: Vec(Font); open: Images.Loader; }</code></div>
+<div><code>Glyph :: struct { atlas: *Bitmap.Bitmap; x: s32; width: s32; top: s32; bottom: s32; left: s32; rise: s32; advance: s32; }</code></div>
+<div><code>Token :: (source: string, at: *s64) -&gt; string</code></div>
+<div><code>Number :: (word: string) -&gt; (s32, bool)</code></div>
+<div><code>RelativePath :: (font: string, name: string) -&gt; Text</code></div>
+<div><code>MetricX :: (metrics: string, at: s64) -&gt; s32</code></div>
+<div><code>ReadSubfont :: (sub: *Subfont, bytes: string) -&gt; bool</code></div>
+<div><code>Load :: (font: *Font, path: string, open: Images.Loader) -&gt; bool</code></div>
+<div><code>Get :: (store: *Store, font: s64) -&gt; *Font</code></div>
+<div><code>Acquire :: (store: *Store, path: string) -&gt; s64</code></div>
+<div><code>Retain :: (store: *Store, font: s64)</code></div>
+<div><code>Release :: (store: *Store, font: s64)</code></div>
+<div><code>Lookup :: (font: *Font, rune: s32) -&gt; Glyph</code></div>
+<div><code>Character :: (font: *Font, rune: s32) -&gt; Glyph</code></div>
+<div><code>Line :: (text: string, start: s64) -&gt; (s64, s64)</code><p>Inferno Canvas passes the line's byte length to Draw, which counts runes.</p></div>
+<div><code>Measure :: (font: *Font, text: string) -&gt; (s32, s32)</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tk/src/branch/master/src/font.zi">Source ↗</a></p></section>
+<section id="module-image"><p class="eyebrow">tk/src/image.zi</p><h2>image</h2><p>A Tk root owns its names; widgets can retain images after a name is deleted. File loading is supplied by the application using the current namespace.</p><p>Import with <code>#import "tk/image"</code>.</p><div class="api-list">
+<div><code>MAX_IMAGES :: 32</code></div>
+<div><code>Loader :: #type (path: string, bytes: *Text) -&gt; bool</code></div>
+<div><code>Entry :: struct { name: Text; pixels: Bitmap.Bitmap; mask: Bitmap.Bitmap; refs: s32; order: s64; }</code></div>
+<div><code>Store :: struct { items: Vec(Entry); open: Loader; next_name: s64; order: s64; }</code></div>
+<div><code>SetError :: (result: *T.Result, reason: string)</code></div>
+<div><code>Find :: (store: *Store, name: string) -&gt; s64</code></div>
+<div><code>Read :: (store: *Store, source: string, bitmap: *Bitmap.Bitmap) -&gt; bool</code></div>
+<div><code>SetBitmap :: (target: *Bitmap.Bitmap, source: *Bitmap.Bitmap)</code></div>
+<div><code>Allocate :: (store: *Store, bitmap: *Bitmap.Bitmap, mask: *Bitmap.Bitmap, existing: s64) -&gt; s64</code></div>
+<div><code>Retain :: (store: *Store, handle: s64)</code></div>
+<div><code>Release :: (store: *Store, handle: s64)</code></div>
+<div><code>Forget :: (store: *Store, index: s64)</code></div>
+<div><code>Create :: (store: *Store, args: []Text, result: *T.Result)</code></div>
+<div><code>Names :: (store: *Store, result: *T.Result)</code></div>
+<div><code>Command :: (store: *Store, args: []Text, result: *T.Result)</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tk/src/branch/master/src/image.zi">Source ↗</a></p></section>
+<section id="module-listbox"><p class="eyebrow">tk/src/listbox.zi</p><h2>listbox</h2><p>Listbox commands and vertical viewport, following Inferno libtk/listb.c.</p><p>Import with <code>#import "tk/listbox"</code>.</p><div class="api-list">
+<div><code>ROW_HEIGHT :: View.ROW_HEIGHT</code></div>
+<div><code>INSET :: 2</code></div>
+<div><code>Row :: struct { text: Text; selected: bool; }</code></div>
+<div><code>State :: struct { rows: Vec(Row); width: s32; height: s32; visible: s64; top: s64; active: s64; anchor: s64; browse: bool; }</code></div>
+<div><code>Error :: (result: *T.Result, message: string)</code></div>
+<div><code>Integer :: (result: *T.Result, value: s64)</code></div>
+<div><code>Default :: () -&gt; State</code></div>
+<div><code>Clamp :: (value: s64, upper: s64) -&gt; s64</code></div>
+<div><code>Move :: (list: *State, top: s64)</code></div>
+<div><code>Layout :: (list: *State, height: s32)</code></div>
+<div><code>Fractions :: (list: *State) -&gt; Scroll.State</code></div>
+<div><code>See :: (list: *State, row: s64)</code></div>
+<div><code>Activate :: (list: *State, row: s64)</code></div>
+<div><code>Choose :: (list: *State, row: s64)</code></div>
+<div><code>Press :: (list: *State, y: s32)</code></div>
+<div><code>Drag :: (list: *State, y: s32)</code></div>
+<div><code>Step :: (list: *State, step: s64)</code></div>
+<div><code>Index :: (list: *State, word: string) -&gt; (s64, bool)</code></div>
+<div><code>Range :: (list: *State, args: []Text) -&gt; (s64, s64, bool)</code></div>
+<div><code>Reverse :: (list: *State, first: s64, end: s64)</code></div>
+<div><code>Insert :: (list: *State, index: s64, values: []Text) -&gt; bool</code></div>
+<div><code>AfterDelete :: (index: s64, first: s64, last: s64) -&gt; s64</code></div>
+<div><code>Delete :: (list: *State, first: s64, last: s64)</code></div>
+<div><code>Yview :: (list: *State, args: []Text, result: *T.Result)</code></div>
+<div><code>Selection :: (list: *State, args: []Text, result: *T.Result)</code></div>
+<div><code>Command :: (list: *State, args: []Text, result: *T.Result)</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tk/src/branch/master/src/listbox.zi">Source ↗</a></p></section>
+<section id="module-menu"><p class="eyebrow">tk/src/menu.zi</p><h2>menu</h2><p>Menu entries and indices follow Inferno libtk/menus.c. See ../NOTICE.</p><p>Import with <code>#import "tk/menu"</code>.</p><div class="api-list">
+<div><code>COMMAND_HEIGHT :: 16</code><p>The stock font's 14-pixel row and one-pixel borders determine default y positions.</p></div>
+<div><code>SEPARATOR_HEIGHT :: 6</code></div>
+<div><code>MAX_ROWS :: 128</code></div>
+<div><code>RowKind :: enum { Command = 0; Separator = 1; Checkbutton = 2; Radiobutton = 3; }</code></div>
+<div><code>MenuRow :: struct { label: Text; command: Text; check: Check.State; kind: RowKind; disabled: bool; }</code></div>
+<div><code>State :: struct { rows: Vec(MenuRow); active: s64; border: s32; }</code></div>
+<div><code>Initialize :: (menu: *State)</code></div>
+<div><code>Clear :: (menu: *State)</code></div>
+<div><code>Error :: (result: *T.Result, message: string)</code></div>
+<div><code>WriteInteger :: (result: *T.Result, value: s64)</code></div>
+<div><code>SelectionEntry :: (row: *MenuRow) -&gt; bool</code></div>
+<div><code>IndicatorWidth :: (row: *MenuRow) -&gt; s32</code></div>
+<div><code>Height :: (row: *MenuRow) -&gt; s32</code></div>
+<div><code>RowTop :: (menu: *State, index: s64) -&gt; s32</code></div>
+<div><code>AtY :: (menu: *State, y: s32) -&gt; s64</code></div>
+<div><code>Index :: (menu: *State, word: string) -&gt; (s64, bool)</code></div>
+<div><code>Selectable :: (menu: *State, index: s64) -&gt; bool</code></div>
+<div><code>Activate :: (menu: *State, index: s64)</code></div>
+<div><code>Invoke :: (menu: *State, index: s64, script: *Text)</code></div>
+<div><code>Configure :: (menu: *State, args: []Text, result: *T.Result) -&gt; bool</code></div>
+<div><code>ConfigureRow :: (row: *MenuRow, args: []Text, result: *T.Result) -&gt; bool</code></div>
+<div><code>SwapRows :: (a: *MenuRow, b: *MenuRow)</code></div>
+<div><code>Insert :: (menu: *State, index: s64, args: []Text, result: *T.Result)</code></div>
+<div><code>Delete :: (menu: *State, first: s64, last: s64)</code></div>
+<div><code>EntryOption :: (row: *MenuRow, option: string, result: *T.Result)</code></div>
+<div><code>Command :: (menu: *State, args: []Text, result: *T.Result, script: *Text)</code><p>The root dispatch handles posting, since it owns the popup bounds and pointer grab.</p></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tk/src/branch/master/src/menu.zi">Source ↗</a></p></section>
+<section id="module-paint"><p class="eyebrow">tk/src/paint.zi</p><h2>paint</h2><p>A small, host-independent RGBA renderer and original stroke lettering.</p><p>Import with <code>#import "tk/paint"</code>.</p><div class="api-list">
+<div><code>Canvas :: struct { pixels: []u8; width: s32; height: s32; first: s32; clipped: bool; clip: Tk.Box; }</code></div>
+<div><code>Ink :: struct { r: u8; g: u8; b: u8; }</code></div>
+<div><code>PAPER :: Ink.{r = 244, g = 246, b = 247}</code></div>
+<div><code>BUTTON :: Ink.{r = 224, g = 234, b = 242}</code></div>
+<div><code>PRESSED :: Ink.{r = 188, g = 213, b = 231}</code></div>
+<div><code>BORDER :: Ink.{r = 119, g = 149, b = 173}</code></div>
+<div><code>LETTER :: Ink.{r = 25, g = 47, b = 67}</code></div>
+<div><code>MUTED :: Ink.{r = 112, g = 123, b = 132}</code></div>
+<div><code>ENTRY :: Ink.{r = 255, g = 255, b = 255}</code></div>
+<div><code>SELECTION :: Ink.{r = 255, g = 228, b = 145}</code></div>
+<div><code>LINK :: Ink.{r = 30, g = 98, b = 145}</code></div>
+<div><code>Fill :: (canvas: *Canvas, box: Tk.Box, ink: Ink)</code></div>
+<div><code>Strokes :: (rune: s32) -&gt; string</code><p>Each group is x0,y0,x1,y1 on a 5 by 7 grid. Lowercase uses the same glyphs.</p></div>
+<div><code>Magnitude :: (value: s32) -&gt; s32</code></div>
+<div><code>Stroke :: (canvas: *Canvas, origin_x: s32, origin_y: s32, segment: string, ink: Ink)</code></div>
+<div><code>DrawText :: (canvas: *Canvas, box: Tk.Box, text: string, center: bool, ink: Ink)</code></div>
+<div><code>TextRow :: (canvas: *Canvas, view: *View.State, box: Tk.Box, line: string, start: s64)</code></div>
+<div><code>DrawEntry :: (canvas: *Canvas, widget: *Tk.Widget, active: bool)</code></div>
+<div><code>RenderFocusedEntry :: (pixels: []u8, width: s32, height: s32)</code></div>
+<div><code>Render :: (pixels: []u8, width: s32, height: s32, first: s32)</code><p>Paint the rows from first (inclusive) through height (exclusive).</p></div>
+<div><code>Color :: (rgb: s32) -&gt; Ink</code></div>
+<div><code>DrawCanvas :: (canvas: *Canvas, widget: *Tk.Widget)</code></div>
+<div><code>Vertex :: struct { x: float64; y: float64; }</code></div>
+<div><code>CeilPixel :: (value: float64) -&gt; s32</code></div>
+<div><code>DrawLine :: (canvas: *Canvas, x0: s32, y0: s32, x1: s32, y1: s32, half: s32, ink: Ink)</code></div>
+<div><code>EllipseSpan :: (rx: s32, ry: s32, offset: s32) -&gt; s32</code></div>
+<div><code>DrawOval :: (canvas: *Canvas, x: s32, y: s32, rx: s32, ry: s32, half: s32, fill: s32, outline: s32)</code></div>
+<div><code>DrawIndicator :: (canvas: *Canvas, x: s32, y: s32, radio: bool, selected: bool, ink: Ink)</code></div>
+<div><code>DrawCheck :: (canvas: *Canvas, widget: *Tk.Widget)</code></div>
+<div><code>ScrollSegment :: (box: Tk.Box, horizontal: bool, first: s32, last: s32, inset: s32) -&gt; Tk.Box</code></div>
+<div><code>DrawScroll :: (canvas: *Canvas, widget: *Tk.Widget, index: s64)</code></div>
+<div><code>DrawScale :: (canvas: *Canvas, widget: *Tk.Widget, index: s64)</code></div>
+<div><code>DrawPanel :: (canvas: *Canvas, widget: *Tk.Widget)</code></div>
+<div><code>RenderPanels :: (pixels: []u8, width: s32, height: s32)</code><p>Animated panels can refresh their existing rectangles between layout changes.</p></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tk/src/branch/master/src/paint.zi">Source ↗</a></p></section>
+<section id="module-scale"><p class="eyebrow">tk/src/scale.zi</p><h2>scale</h2><p>Fixed-point scale values and slider geometry, following Inferno libtk/scale.c.</p><p>Import with <code>#import "tk/scale"</code>.</p><div class="api-list">
+<div><code>UNIT :: 1000</code></div>
+<div><code>SLIDER :: 16</code></div>
+<div><code>INSET :: 3</code></div>
+<div><code>MINOR :: 18</code></div>
+<div><code>VALUE_HEIGHT :: 20</code></div>
+<div><code>State :: struct { first: s64; last: s64; value: s64; resolution: s64; big_increment: s64; length: s32; horizontal: bool; show_value: bool; }</code></div>
+<div><code>Default :: () -&gt; State</code></div>
+<div><code>Parse :: (text: string, unit: s64) -&gt; (s64, bool)</code></div>
+<div><code>Append :: (target: *Text, value: s64, unit: s64)</code></div>
+<div><code>Bound :: (scale: *State, value: s64) -&gt; s64</code></div>
+<div><code>Step :: (scale: *State, direction: s64) -&gt; s64</code></div>
+<div><code>Travel :: (length: s32) -&gt; s32</code></div>
+<div><code>Position :: (scale: *State, length: s32) -&gt; s32</code></div>
+<div><code>Drag :: (scale: *State, length: s32, delta: s32, base: s64) -&gt; s64</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tk/src/branch/master/src/scale.zi">Source ↗</a></p></section>
+<section id="module-scrollbar"><p class="eyebrow">tk/src/scrollbar.zi</p><h2>scrollbar</h2><p>Fractional scrollbar geometry and pointer hit testing.</p><p>Import with <code>#import "tk/scrollbar"</code>.</p><div class="api-list">
+<div><code>UNIT :: 10000</code></div>
+<div><code>WIDTH :: 18</code></div>
+<div><code>LENGTH :: 54</code></div>
+<div><code>MIN_THUMB :: 8</code></div>
+<div><code>State :: struct { first: s64; last: s64; horizontal: bool; }</code></div>
+<div><code>Geometry :: struct { arrow: s32; travel: s32; first: s32; last: s32; }</code></div>
+<div><code>Clamp :: (fraction: s64) -&gt; s64</code></div>
+<div><code>Track :: (state: *State, length: s32) -&gt; Geometry</code></div>
+<div><code>Hit :: (track: Geometry, offset: s32, length: s32) -&gt; string</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tk/src/branch/master/src/scrollbar.zi">Source ↗</a></p></section>
+<section id="module-text"><p class="eyebrow">tk/src/text.zi</p><h2>text</h2><p>UTF-8 character boundaries shared by entry editing and stroke rendering.</p><p>Import with <code>#import "tk/text"</code>.</p><div class="api-list">
+<div><code>Decode :: (text: string, at: s64) -&gt; (s32, s64)</code></div>
+<div><code>Next :: (text: string, at: s64) -&gt; s64</code></div>
+<div><code>Previous :: (text: string, at: s64) -&gt; s64</code></div>
+<div><code>Offset :: (text: string, count: s64) -&gt; (s64, bool)</code></div>
+<div><code>Count :: (text: string, limit: s32) -&gt; s32</code></div>
+<div><code>SingleLine :: (text: string) -&gt; bool</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tk/src/branch/master/src/text.zi">Source ↗</a></p></section>
+<section id="module-view"><p class="eyebrow">tk/src/view.zi</p><h2>view</h2><p>Reusable line wrapping and vertical viewport for a Tk text widget.</p><p>Import with <code>#import "tk/view"</code>.</p><div class="api-list">
+<div><code>ROW_HEIGHT :: 19</code></div>
+<div><code>INSET :: 6</code></div>
+<div><code>FRACTION :: 1000000</code></div>
+<div><code>Tag :: struct { name: Text; release: Text; underline: bool; }</code></div>
+<div><code>Range :: struct { tag: s64; first: s64; last: s64; }</code></div>
+<div><code>State :: struct { rows: Vec(s64); tags: Vec(Tag); ranges: Vec(Range); columns: s32; visible: s32; top: s32; appended: bool; }</code></div>
+<div><code>FindTag :: (view: *State, name: string) -&gt; s64</code></div>
+<div><code>EnsureTag :: (view: *State, name: string) -&gt; s64</code></div>
+<div><code>AddRange :: (view: *State, tag: s64, first: s64, last: s64) -&gt; bool</code></div>
+<div><code>ClearRanges :: (view: *State, tag: s64)</code></div>
+<div><code>Reset :: (view: *State)</code></div>
+<div><code>Clamp :: (view: *State)</code></div>
+<div><code>Reflow :: (view: *State, source: string, columns: s32, visible: s32)</code></div>
+<div><code>Row :: (view: *State, source: string, row: s32) -&gt; string</code></div>
+<div><code>Point :: (view: *State, source: string, x: s32, y: s32, width: s32) -&gt; (s64, bool)</code><p>Coordinates are relative to the wrapped content, after the widget inset.</p></div>
+<div><code>See :: (view: *State, at: s64)</code></div>
+<div><code>Offset :: (source: string, line: s64, column: s64) -&gt; s64</code></div>
+<div><code>Index :: (source: string, at: s64, output: *Vec(u8))</code></div>
+<div><code>Match :: (source: string, pattern: string, start: s64, stop: s64, backwards: bool) -&gt; s64</code></div>
+<div><code>Move :: (view: *State, lines: s64)</code></div>
+<div><code>PageSize :: (view: *State) -&gt; s32</code></div>
+<div><code>AddFraction :: (output: *Vec(u8), value: s64)</code></div>
+<div><code>Position :: (view: *State, output: *Vec(u8))</code></div>
+<div><code>Moveto :: (view: *State, fraction: string) -&gt; bool</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tk/src/branch/master/src/view.zi">Source ↗</a></p></section>
+<section id="module-widgets"><p class="eyebrow">tk/src/widgets.zi</p><h2>widgets</h2><p>Optional Tk command model, following Inferno libtk and tcl_tk.b. See ../NOTICE.</p><p>Import with <code>#import "tk/widgets"</code>.</p><div class="api-list">
+<div><code>MAX_WIDGETS :: 32</code></div>
+<div><code>MAX_ENTRY_BYTES :: 16384</code></div>
+<div><code>LABEL :: 0</code></div>
+<div><code>BUTTON :: 1</code></div>
+<div><code>FRAME :: 2</code></div>
+<div><code>ENTRY :: 3</code></div>
+<div><code>TEXT :: 4</code></div>
+<div><code>SCALE :: 5</code></div>
+<div><code>PANEL :: 6</code></div>
+<div><code>CHECKBUTTON :: 7</code></div>
+<div><code>SCROLLBAR :: 8</code></div>
+<div><code>CANVAS :: 9</code></div>
+<div><code>LISTBOX :: 10</code></div>
+<div><code>MENU :: 11</code></div>
+<div><code>MENUBUTTON :: 12</code></div>
+<div><code>RADIOBUTTON :: 13</code></div>
+<div><code>SelectionButton :: (kind: s64) -&gt; bool</code></div>
+<div><code>MAX_PANEL_BYTES :: 16777216</code></div>
+<div><code>CHAR_WIDTH :: Canvas.CELL_WIDTH</code></div>
+<div><code>ENTRY_INSET :: 8</code></div>
+<div><code>ROOT_INSET :: 12</code></div>
+<div><code>DEFAULT_PAD_X :: 8</code></div>
+<div><code>DEFAULT_PAD_Y :: 5</code></div>
+<div><code>Box :: struct { x: s32; y: s32; w: s32; h: s32; }</code></div>
+<div><code>Packing :: struct { side: s32; padx: s32; pady: s32; fill: s32; expand: s32; anchor_x: s32; anchor_y: s32; }</code></div>
+<div><code>Panel :: struct { pixels: Vec(u8); width: s32; height: s32; border: s32; }</code></div>
+<div><code>Widget :: struct { name: Text; text: Text; command: Text; box: Box; kind: s64; parent: s64; cursor: s64; view: View.State; scale: Scale.State; panel: Panel; check: Check.State; scroll: Scroll.State; canvas: Canvas.State; text_height: s32; last_scroll: Scroll.State; sent_scroll: bool; disabled: bool; requested: Box; order: s32; pack: Packing; }</code></div>
+<div><code>widgets: Vec(Widget)</code><p>One root per application.</p></div>
+<div><code>attached: bool</code></div>
+<div><code>closed: bool</code></div>
+<div><code>pressed: s64</code></div>
+<div><code>pressed_range: s64</code></div>
+<div><code>focused: s64</code></div>
+<div><code>sequence: s32</code></div>
+<div><code>drag_start: s32</code></div>
+<div><code>drag_value: s64</code></div>
+<div><code>canvas_hover: s64</code></div>
+<div><code>canvas_buttons: s32</code></div>
+<div><code>canvas_x: s32</code></div>
+<div><code>canvas_y: s32</code></div>
+<div><code>canvas_pointer_known: bool</code></div>
+<div><code>last_canvas_button: s32</code></div>
+<div><code>last_canvas_press: s64</code></div>
+<div><code>Attach :: (interpreter: *Tcl.Interpreter) -&gt; bool</code></div>
+<div><code>Find :: (name: string) -&gt; s64</code></div>
+<div><code>ParentEnd :: (path: string) -&gt; s64</code></div>
+<div><code>SetError :: (result: *Result, message: string)</code></div>
+<div><code>Configure :: (widget: *Widget, args: []Text, result: *Result, path: string) -&gt; bool</code></div>
+<div><code>Create :: (kind: s64, args: []Text, result: *Result)</code></div>
+<div><code>Pack :: (_: s64, args: []Text, result: *Result)</code></div>
+<div><code>Destroy :: (_: s64, args: []Text, result: *Result)</code></div>
+<div><code>WidgetCommand :: (_: s64, name: string, args: []Text, result: *Result, script: *Text)</code></div>
+<div><code>Focus :: (_: s64, args: []Text, result: *Result)</code></div>
+<div><code>Bind :: (_: s64, args: []Text, result: *Result)</code></div>
+<div><code>EntryOffset :: (widget: *Widget, index: string) -&gt; (s64, bool)</code></div>
+<div><code>Insert :: (widget: *Widget, at: s64, value: string) -&gt; bool</code></div>
+<div><code>Delete :: (widget: *Widget, first: s64, last: s64)</code></div>
+<div><code>EntryCommand :: (widget: *Widget, args: []Text, result: *Result)</code></div>
+<div><code>TextLayout :: (widget: *Widget)</code></div>
+<div><code>TextOffset :: (widget: *Widget, name: string) -&gt; (s64, bool)</code></div>
+<div><code>TextSearch :: (widget: *Widget, args: []Text, result: *Result)</code></div>
+<div><code>TextTag :: (widget: *Widget, args: []Text, result: *Result)</code></div>
+<div><code>AppendText :: (widget: *Widget, value: string) -&gt; bool</code></div>
+<div><code>TextCommand :: (widget: *Widget, args: []Text, result: *Result)</code></div>
+<div><code>EntryKey :: enum { Return = 0; Backspace = 1; Delete = 2; Left = 3; Right = 4; Home = 5; End = 6; Up = 7; Down = 8; PageUp = 9; PageDown = 10; }</code></div>
+<div><code>KeyDown :: (key: EntryKey) -&gt; Text</code></div>
+<div><code>TextInput :: (value: string)</code></div>
+<div><code>Minimum :: (a: s32, b: s32) -&gt; s32</code></div>
+<div><code>Maximum :: (a: s32, b: s32) -&gt; s32</code></div>
+<div><code>NonNegative :: (x: s32) -&gt; s32</code></div>
+<div><code>NextChild :: (parent: s64, after: s32) -&gt; s64</code></div>
+<div><code>Horizontal :: (pack: Packing) -&gt; bool</code></div>
+<div><code>EntryWidth :: (widget: *Widget) -&gt; s32</code></div>
+<div><code>Measure :: (parent: s64) -&gt; Box</code></div>
+<div><code>Expansion :: (index: s64, cavity: s32, horizontal: bool) -&gt; s32</code><p>Reserve room for later siblings before sharing the cavity among expanders.</p></div>
+<div><code>Place :: (parent: s64, cavity: Box)</code></div>
+<div><code>Layout :: (width: s32, height: s32)</code></div>
+<div><code>EntrySlots :: (box: Box) -&gt; s32</code></div>
+<div><code>EntryStart :: (widget: *Widget) -&gt; s64</code></div>
+<div><code>Over :: (x: s32, y: s32, kind: s64) -&gt; s64</code></div>
+<div><code>BoundRange :: (widget: *Widget, x: s32, y: s32) -&gt; s64</code></div>
+<div><code>PointerDown :: (x: s32, y: s32)</code></div>
+<div><code>PointerUp :: (x: s32, y: s32) -&gt; Text</code></div>
+<div><code>PointerScript :: (script: string, local_x: s32, local_y: s32) -&gt; Text</code></div>
+<div><code>Closed :: () -&gt; bool</code></div>
+<div><code>MenuPosted :: () -&gt; bool</code></div>
+<div><code>ConfigureScale :: (widget: *Widget, args: []Text, result: *Result) -&gt; bool</code></div>
+<div><code>ScaleCommand :: (widget: *Widget, args: []Text, result: *Result)</code></div>
+<div><code>ScaleLength :: (widget: *Widget) -&gt; s32</code></div>
+<div><code>ScaleCoordinate :: (widget: *Widget, x: s32, y: s32) -&gt; s32</code></div>
+<div><code>ScaleInput :: (widget: *Widget, value: s64) -&gt; Text</code></div>
+<div><code>ScaleTrack :: (widget: *Widget) -&gt; Box</code></div>
+<div><code>PointerPress :: (x: s32, y: s32) -&gt; Text</code></div>
+<div><code>Dragging :: () -&gt; bool</code></div>
+<div><code>PointerMove :: (x: s32, y: s32) -&gt; Text</code></div>
+<div><code>CanvasPointerKind :: enum { Move = 0; Press = 1; Release = 2; }</code></div>
+<div><code>CanvasCallback :: #type (tcl: *Tcl.Interpreter, script: Text) -&gt; bool</code></div>
+<div><code>CanvasDispatch :: (tcl: *Tcl.Interpreter, index: s64, x: s32, y: s32, mask: s32, callback: CanvasCallback) -&gt; bool</code></div>
+<div><code>CanvasTarget :: (index: s64, x: s32, y: s32) -&gt; s64</code></div>
+<div><code>CanvasPointer :: (tcl: *Tcl.Interpreter, x: s32, y: s32, kind: CanvasPointerKind, button: s32, time: s64, callback: CanvasCallback) -&gt; bool</code></div>
+<div><code>ScaleDrag :: (widget: *Widget, x: s32, y: s32) -&gt; Text</code></div>
+<div><code>ConfigurePanel :: (widget: *Widget, args: []Text, result: *Result) -&gt; bool</code></div>
+<div><code>PanelCommand :: (widget: *Widget, args: []Text, result: *Result)</code></div>
+<div><code>PanelImage :: (name: string, width: s32, height: s32) -&gt; s64</code><p>Allocate a writable RGBA8 image for the panel and return its widget index. Callers take a fresh pixel view while the widget is alive.</p></div>
+<div><code>VariableCommand :: (_: s64, args: []Text, result: *Result)</code></div>
+<div><code>CheckCommand :: (widget: *Widget, args: []Text, result: *Result, script: *Text)</code></div>
+<div><code>Distance :: (value: string) -&gt; (s32, bool)</code></div>
+<div><code>ConfigureScroll :: (widget: *Widget, args: []Text, result: *Result) -&gt; bool</code></div>
+<div><code>ScrollCommand :: (widget: *Widget, args: []Text, result: *Result)</code></div>
+<div><code>ScrollLength :: (widget: *Widget) -&gt; s32</code></div>
+<div><code>ScrollOffset :: (widget: *Widget, x: s32, y: s32) -&gt; s32</code></div>
+<div><code>ScrollPress :: (index: s64, x: s32, y: s32) -&gt; Text</code></div>
+<div><code>ScrollDrag :: (widget: *Widget, x: s32, y: s32) -&gt; Text</code></div>
+<div><code>TextScroll :: (widget: *Widget, script: *Text)</code></div>
+<div><code>AppendScroll :: (widget: *Widget, script: *Text, fractions: Scroll.State)</code></div>
+<div><code>AppendScrollCommand :: (command: string, script: *Text, fractions: Scroll.State)</code></div>
+<div><code>CanvasScroll :: (canvas: *Canvas.State, script: *Text) -&gt; bool</code></div>
+<div><code>CollectScroll :: (script: *Text)</code></div>
+<div><code>Update :: (_: s64, name: string, args: []Text, result: *Result, script: *Text)</code></div>
+</div><p><a class="text-link" href="https://git.waozi.xyz/ziranlang/tk/src/branch/master/src/widgets.zi">Source ↗</a></p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

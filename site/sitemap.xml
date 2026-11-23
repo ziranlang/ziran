@@ -43,7 +43,9 @@
   <url><loc>https://ziran-lang.org/packages/qrcode</loc></url>
   <url><loc>https://ziran-lang.org/packages/sqlite</loc></url>
   <url><loc>https://ziran-lang.org/packages/syntax</loc></url>
+  <url><loc>https://ziran-lang.org/packages/tcl</loc></url>
   <url><loc>https://ziran-lang.org/packages/telegram</loc></url>
+  <url><loc>https://ziran-lang.org/packages/tk</loc></url>
   <url><loc>https://ziran-lang.org/packages/webp</loc></url>
   <url><loc>https://ziran-lang.org/std/atomic_go</loc></url>
   <url><loc>https://ziran-lang.org/std/audio</loc></url>

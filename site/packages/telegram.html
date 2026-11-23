@@ -3,14 +3,14 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Telegram account authorization and MTProto 2.0 requests implemented in Ziran."><title>Telegram for Ziran · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/telegram"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>Telegram for Ziran</h1><p>Telegram account authorization and MTProto 2.0 requests implemented in Ziran. The package uses the Ziran crypto and compression packages; native sockets, entropy and private file operations use operating-system bindings. It does not load TDLib, run a Python bridge, or depend on a Telegram C/C++ implementation.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/telegram">Repository ↗</a></p></div>
-<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-tl">tl</a><a href="#module-encoding">encoding</a><a href="#module-mtproto">mtproto</a><a href="#module-client">client</a><a href="#module-auth">auth</a><a href="#module-messages">messages</a><a href="#module-members">members</a><a href="#module-session">session</a></aside><div class="article-body api-body">
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-tl">tl</a><a href="#module-encoding">encoding</a><a href="#module-mtproto">mtproto</a><a href="#module-client">client</a><a href="#module-auth">auth</a><a href="#module-messages">messages</a><a href="#module-members">members</a><a href="#module-folders">folders</a><a href="#module-session">session</a></aside><div class="article-body api-body">
 <section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.telegram]
 git = "https://github.com/ziranlang/telegram.git"
 ref = "master"</code></pre></section>
 <section id="overview" class="prose"><h2>Overview</h2><p>Exports are package-qualified: <code>telegram/tl</code>, <code>telegram/mtproto</code>,
 <code>telegram/client</code>, <code>telegram/auth</code>, <code>telegram/messages</code>, <code>telegram/members</code> and
 <code>telegram/session</code>.
-Use <code>ziran add https://github.com/ziranlang/telegram.git</code> once this repository
+Use <code>ziran add https://git.waozi.xyz/ziranlang/telegram.git</code> once this repository
 is published. For development, resolve the canonical checkout through an
 ignored <code>ziran.local.toml</code> override and commit the generated lock file.</p>
 <p><code>client</code> owns an authenticated encrypted connection and accepts TL objects as
@@ -26,6 +26,12 @@ history, bot membership, text sends, exact callback bytes, reactions, read
 receipts, edits, deletions and service messages are normalized in Ziran. The
 same connection receives updates and recovers account and channel sequence
 gaps. It does not start a bot-token poller.</p>
+<p><code>getChatFolders</code> reads the account's saved dialog filters. Its <code>chatFolders</code>
+reply preserves folder order, titles, emoji, explicit peer membership and
+type/read/mute/archive rules, with an All chats entry. Access hashes stay
+inside the account session. <code>telegram/folders</code> also exposes pure <code>Normalize</code>,
+<code>Matches</code> and pinned-peer <code>Position</code> helpers; dialog announcements include
+contact and unread-marker/mention/reaction metadata for cached filtering.</p>
 <p>Before <code>setTdlibParameters</code>, create an owner-controlled directory with mode
 0700 and provide its path as <code>database_directory</code>. That historical request name
 initializes this package, without TDLib. The session pins the directory and
@@ -64,7 +70,8 @@ account or sending a message.</p>
 <p>Protocol references: <a href="https://core.telegram.org/api/auth">authorization</a>,
 <a href="https://core.telegram.org/api/updates">update sequences</a>,
 <a href="https://core.telegram.org/api/srp">SRP</a>, and
-<a href="https://core.telegram.org/mtproto/description">MTProto 2.0</a>.</p></section>
+<a href="https://core.telegram.org/mtproto/description">MTProto 2.0</a>.</p>
+<p>Forum dialogs expose <code>is_forum</code>; <code>getForumTopics</code> returns normalized titles, pins and unread counts. Topic history, read receipts and sends preserve <code>message_thread_id</code>, including reply targets. These paths are covered by offline native normalization and TL serialization tests.</p></section>
 <section id="module-tl"><p class="eyebrow">telegram/src/tl.zi</p><h2>tl</h2><p>Bounded, schema-driven TL binary serialization. It preserves signed 64-bit integers and optional fields without a JavaScript/JSON-number round trip.</p><p>Import with <code>#import "telegram/tl"</code>.</p><div class="api-list">
 <div><code>Definition :: struct { name: string; id: u32; fields: string; result: string; }</code></div>
 <div><code>definitions: [4096]Definition</code></div>
@@ -184,6 +191,17 @@ account or sending a message.</p>
 <div><code>CountQuery :: (peer: string, filter: string) -&gt; string</code></div>
 <div><code>Count :: (reply: string) -&gt; string</code><p>One search counter, from the vector messages.getSearchCounters returns.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/telegram/blob/HEAD/src/members.zi">Source ↗</a></p></section>
+<section id="module-folders"><p class="eyebrow">telegram/src/folders.zi</p><h2>folders</h2><p>Telegram's saved dialog filters, without account access hashes.</p><p>Import with <code>#import "telegram/folders"</code>.</p><div class="api-list">
+<div><code>Query :: "{\"@type\":\"messages.getDialogFilters\"}"</code></div>
+<div><code>Chat :: struct { id: s64; contact: bool; bot: bool; group: bool; channel: bool; muted: bool; read: bool; archived: bool; }</code></div>
+<div><code>Flag :: (json: string, at: s32, name: string) -&gt; bool</code></div>
+<div><code>Peer :: (value: string, self: s64) -&gt; s64</code></div>
+<div><code>Peers :: (out: *Vec(u8), reply: string, at: s32, name: string, self: s64)</code></div>
+<div><code>Normalize :: (reply: string, self: s64) -&gt; string</code></div>
+<div><code>Position :: (folder: string, name: string, id: s64) -&gt; s32</code></div>
+<div><code>Matches :: (folder: string, chat: Chat) -&gt; bool</code></div>
+<div><code>DialogFields :: (reply: string, dialog: s32, chat: s64) -&gt; string</code><p>Dialog metadata needed to evaluate folders in clients with a cached list.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/telegram/blob/HEAD/src/folders.zi">Source ↗</a></p></section>
 <section id="module-session"><p class="eyebrow">telegram/src/session.zi</p><h2>session</h2><p>One account connection, sign-in state and event queue for CLI/native clients. This small JSON interface is implemented entirely over Ziran MTProto/TL.</p><p>Import with <code>#import "telegram/session"</code>.</p><div class="api-list">
 <div><code>Join :: (a: string, b: string) -&gt; string</code></div>
 <div><code>account: Auth.Account</code></div>
@@ -251,6 +269,8 @@ account or sending a message.</p>
 <div><code>upload_error: string</code><p>Uploads a local file in 512 KiB parts and returns its InputFile.</p></div>
 <div><code>Upload :: (path: string, name: string) -&gt; string</code></div>
 <div><code>ReplyTo :: (request: string) -&gt; string</code></div>
+<div><code>ForumTopics :: (request: string, chat: s64, peer: string) -&gt; string</code></div>
+<div><code>ForumTopicsView :: (reply: string, chat: s64) -&gt; string</code></div>
 <div><code>SentId :: (reply: string) -&gt; s64</code><p>The new message's ID from a send reply; other updates apply as usual.</p></div>
 <div><code>Pending :: (chat: s64, id: s64) -&gt; string</code></div>
 <div><code>Media :: (content: string, file: string, name: string) -&gt; string</code><p>Uploaded voice notes carry Telegram's audio/voice attribute instead of arriving as a downloadable document. Photo and document behavior stays.</p></div>

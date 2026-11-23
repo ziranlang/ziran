@@ -17,7 +17,9 @@
     "qrcode": {"url": "https://github.com/ziranlang/qrcode", "public": true},
     "sqlite": {"url": "https://github.com/ziranlang/sqlite", "public": true},
     "syntax": {"url": "https://github.com/ziranlang/syntax", "public": true},
+    "tcl": {"url": "https://git.waozi.xyz/ziranlang/tcl", "public": true},
     "telegram": {"url": "https://github.com/ziranlang/telegram", "public": true},
+    "tk": {"url": "https://git.waozi.xyz/ziranlang/tk", "public": true},
     "webp": {"url": "https://github.com/ziranlang/webp", "public": true}
   }
 }

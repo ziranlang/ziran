@@ -17,11 +17,12 @@ guide document appears on the next run without editing HTML by hand:
   site/sitemap.xml         every page of the site.
 
 Packages are read from --packages (default: the ziranlang/packages directory
-next to this repository). A package whose GitHub repository is private is
-left out. The standard-library release inventory records shipped modules, including in
-source archives and shallow checkouts. Package status follows each package's
-v* release tags; modules added between releases remain in progress. An
-inventory entry can declare an ``api_target`` to check exports under that target.
+next to this repository). The package inventory lists public repositories for
+the package pages. The standard-library release inventory records shipped
+modules, including in source archives and shallow checkouts. Package status
+follows each package's v* release tags. Modules added between releases remain
+in progress. An inventory entry can declare an ``api_target`` to check the
+package's exports under that target.
 
     python3 scripts/site_pages.py --ziran build/bin/ziran [--site DIR] [--check]
 
@@ -479,8 +480,6 @@ def read_packages(ziran, packages, *, strict_inventory):
         directory = os.path.join(packages, name)
         manifest_path = os.path.join(directory, 'ziran.toml')
         manifest = tomllib.load(open(manifest_path, 'rb'))
-        origin = published_remote(directory)
-        url = github_url(origin)
         expected = entries[name]
         if (not isinstance(expected, dict) or
                 not isinstance(expected.get('url'), str) or
@@ -489,8 +488,15 @@ def read_packages(ziran, packages, *, strict_inventory):
         target = expected.get('api_target')
         if target is not None and target not in ('c', 'go', 'zx'):
             sys.exit(f'{PACKAGE_INVENTORY}: invalid API target for {name}: {target!r}')
-        if not url or url != expected['url']:
-            sys.exit(f'{directory}: origin {origin or "<missing>"} does not match {expected["url"]}')
+        url = expected['url']
+        if url.startswith('https://git.waozi.xyz/'):
+            origin = git(directory, 'remote', 'get-url', 'origin')
+            repository = origin.rstrip('/').removesuffix('.git')
+        else:
+            origin = published_remote(directory)
+            repository = github_url(origin)
+        if not repository or repository != url:
+            sys.exit(f'{directory}: origin {origin or "<missing>"} does not match {url}')
         if not expected['public']:
             skipped.append(f'{name} (private repository)')
             continue
@@ -519,12 +525,15 @@ def read_packages(ziran, packages, *, strict_inventory):
 
 def package_page(package):
     name, url = package['name'], package['url']
+    gitea = url.startswith('https://git.waozi.xyz/')
+    source_root = f'{url}/src/branch/master' if gitea else f'{url}/blob/HEAD'
+    provider = 'Gitea' if gitea else 'GitHub'
 
     def link(href):
         path, _, fragment = href.partition('#')
         if not url:
             return None
-        return f'{url}/blob/HEAD/{path}' + (f'#{fragment}' if fragment else '')
+        return f'{source_root}/{path}' + (f'#{fragment}' if fragment else '')
     readme, _ = render_markdown(package['readme'], link) if package['readme'].strip() else ('', [])
     if package['status'] == 'stable':
         status = f'Latest release {code(package["release"])}.'
@@ -544,7 +553,7 @@ def package_page(package):
         sections.append(f'<section id="overview" class="prose"><h2>Overview</h2>{readme}</section>\n')
     for module in package['modules']:
         anchor = 'module-' + module['name']
-        source = (f'<p><a class="text-link" href="{url}/blob/HEAD/{attr(module["file"])}">Source ↗</a></p>'
+        source = (f'<p><a class="text-link" href="{source_root}/{attr(module["file"])}">Source ↗</a></p>'
                   if url else '')
         sections.append(
             f'<section id="{attr(anchor)}"><p class="eyebrow">{code(name)}/{code(module["file"])}</p>'
@@ -553,7 +562,7 @@ def package_page(package):
             + f'<p>Import with <code>#import "{code(package["dependency"])}/{code(module["name"])}"</code>.</p>'
             + api_list(module['entries']) + source + '</section>\n')
     if package['docs'] and url:
-        docs = ''.join(f'<a href="{url}/blob/HEAD/docs/{attr(d)}">{code(d)}<span>GitHub ↗</span></a>'
+        docs = ''.join(f'<a href="{source_root}/docs/{attr(d)}">{code(d)}<span>{provider} ↗</span></a>'
                        for d in package['docs'])
         sections.append(f'<section id="documents"><h2>Documents</h2><div class="link-list">{docs}</div></section>\n')
     toc = (('<a href="#install">Install</a>' if url else '')
@@ -654,8 +663,7 @@ def modules_page(std, release, packages):
         '<div class="table-scroll"><table class="module-table"><thead><tr><th scope="col">Module</th>'
         '<th scope="col">Summary</th><th scope="col">Needs</th><th scope="col">Status</th></tr></thead>'
         f'<tbody>\n{rows}</tbody></table></div></section>\n'
-        '<section id="packages"><h2>Packages</h2><p>Packages live in their own repositories under '
-        '<a href="https://github.com/ziranlang">github.com/ziranlang</a> and are added as '
+        '<section id="packages"><h2>Packages</h2><p>Packages live in their own repositories and are added as '
         '<code>ziran.toml</code> dependencies; see the <a href="guide/packages.html">package guide</a>.</p>'
         '<div class="table-scroll"><table class="module-table"><thead><tr><th scope="col">Package</th>'
         '<th scope="col">Summary</th><th scope="col">Modules</th><th scope="col">Status</th></tr></thead>'

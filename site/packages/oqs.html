@@ -7,7 +7,7 @@
 <section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.oqs]
 git = "https://github.com/ziranlang/oqs.git"
 ref = "master"</code></pre></section>
-<section id="overview" class="prose"><h2>Overview</h2><pre><code class="language-sh">ziran add https://github.com/ziranlang/oqs.git
+<section id="overview" class="prose"><h2>Overview</h2><pre><code class="language-sh">ziran add https://git.waozi.xyz/ziranlang/oqs.git
 </code></pre>
 <pre><code class="language-jai">#import &quot;oqs/Oqs&quot;
 
@@ -70,15 +70,13 @@ package system.</p>
 <pre><code class="language-sh">make native
 </code></pre>
 <p>Then link with <code>LDFLAGS=-L/path/to/build/native LDLIBS=-loqs</code>. Go uses cgo
-(<code>CGO_ENABLED=1</code>); Rust carries the flags in its generated Cargo project.
-Python uses ctypes and the shared <code>liboqs.so</code>; add that directory to
-<code>LD_LIBRARY_PATH</code> when running it. C and C++ call the same native ABI.</p>
+(<code>CGO_ENABLED=1</code>). Both native backends call the same C ABI. Add the library
+directory to <code>LD_LIBRARY_PATH</code> when using the shared <code>liboqs.so</code>.</p>
 <p><code>make check</code> builds the libraries and exercises signing, tamper rejection,
 empty messages, key exchange, random bytes, cleansing and short-buffer
-rejection on C, C++, Go, Rust and Python, from source and saved <code>.zir</code>.
-<code>make check TARGET=go</code> selects one backend. A C compiler, CMake, Python,
-Go and Cargo are required for the full check. The portable <code>.zib</code> VM does
-not call arbitrary C libraries; this package requires a native backend.</p></section>
+rejection on C and Go, from source and saved <code>.zir</code>. <code>make check TARGET=go</code>
+selects one backend. A C compiler, CMake and Go are required for the full check.
+The package requires a native backend to call liboqs.</p></section>
 <section id="module-Oqs"><p class="eyebrow">oqs/src/Oqs.zi</p><h2>Oqs</h2><p>Post-quantum signatures and key exchange from liboqs for Ziran.  The package pins liboqs as a source dependency; a build links the static library it builds from `ziran pkg path liboqs`. The Makefile enables ML-DSA-44 signatures and ML-KEM-768 key exchange. Lengths cross into C as size_t, which is 32 bits on some targets, so the wrappers take slices and refuse lengths that do not fit.</p><p>Import with <code>#import "oqs/Oqs"</code>.</p><div class="api-list">
 <div><code>MlDsa44PublicKeyBytes :: 1312</code><p>Sizes of ML-DSA-44 (FIPS 204) keys and signatures, in bytes.</p></div>
 <div><code>MlDsa44SecretKeyBytes :: 2560</code></div>

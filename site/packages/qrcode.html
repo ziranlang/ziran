@@ -11,7 +11,7 @@ ref = "master"</code></pre></section>
 <a href="https://www.nayuki.io/page/qr-code-generator-library">QR Code generator library</a>
 (MIT License), and its tests match that library module for module.</p>
 <h2 id="use-it">Use it</h2>
-<pre><code class="language-sh">ziran add https://github.com/ziranlang/qrcode.git
+<pre><code class="language-sh">ziran add https://git.waozi.xyz/ziranlang/qrcode.git
 </code></pre>
 <pre><code class="language-zi">#import &quot;qrcode/qrcode&quot;
 
@@ -35,6 +35,29 @@ Draw :: (text: string) {
 on a small thread stack.</p>
 <h2 id="check-it">Check it</h2>
 <pre><code class="language-sh">make
+</code></pre>
+<h2 id="zx-library">ZX library</h2>
+<p><code>make check-binary</code> packs a development library from the working tree and
+runs the same matrix hashes and input validation cases in native C and the ZX
+engine. The isolated consumer imports <code>qrcode/qrcode</code> with an empty source
+cache. An ignored <code>ziran.local.toml</code> toolchain override can select a local
+compiler for this test.</p>
+<p>The <code>default</code> profile sets no feature defines. It supports the portable ZX
+engine and uses no package-specific native libraries or host bindings. The
+producer and consumer tests run on Linux.</p>
+<p>The Gitea workflow runs <code>make check check-binary-production</code> before publishing
+<code>default.zx</code> and its descriptor <code>default.zx.tsv</code> under the full Git revision
+in the <code>qrcode-zx-library</code> Generic Package Registry. The production target packs
+the clean committed revision with the exact toolchain pinned in <code>ziran.lock</code>
+and verifies registry discovery before running the offline consumer.</p>
+<p>Use the full published revision when adding the dependency. Ziran records the
+library profile, digest and toolchain identity in the consumer lock. The import
+and types in the example above are the same with either dependency source or a
+ZX library. The compiler can use the library's checked modules during application
+lowering.</p>
+<pre><code class="language-sh">ziran add https://git.waozi.xyz/ziranlang/qrcode.git --ref &quot;$commit&quot;
+ziran bundle --project --locked --entry app:main -o app.zx app.zi
+ziran bundle --project --locked --offline --entry app:main -o app.zx app.zi
 </code></pre></section>
 <section id="module-qrcode"><p class="eyebrow">qrcode/src/qrcode.zi</p><h2>qrcode</h2><p>QR Code Model 2 encoding of text as one byte-mode segment, for versions 1 to 40, the four error correction levels and an automatically chosen mask. A port of Project Nayuki's QR Code generator library (MIT License, see LICENSE). It allocates nothing: a QrCode holds its modules and the working space the encoder needs.</p><p>Import with <code>#import "qrcode/qrcode"</code>.</p><div class="api-list">
 <div><code>QrEcc :: enum { QrEccLow = 0; QrEccMedium = 1; QrEccQuartile = 2; QrEccHigh = 3; }</code></div>

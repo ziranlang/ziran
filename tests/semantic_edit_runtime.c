@@ -1,6 +1,6 @@
-#include "zir_edit.h"
-#include "zir_document.h"
-#include "zir_overlay.h"
+#include "compiler_edit.h"
+#include "compiler_document.h"
+#include "compiler_overlay.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>

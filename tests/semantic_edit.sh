@@ -7,8 +7,10 @@ mkdir -p "$work/tmp"
 export TMPDIR="$work/tmp" ZIRAN_DESKTOP_RECOVERY=0 HARMONY_DESKTOP_RECOVERY=0 YUE_DESKTOP_RECOVERY=0
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 "$ziran" run --target=c --root "$repo/tests" "$repo/tests/semantic_edit_cases.zi" -- "$ziran" "$work"
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
-    -I"$repo/bootstrap/compiler_ir" -I"$repo/bootstrap/compiler_scan" \
+toolchain=$(CDPATH= cd -- "$(dirname "$ziran")/.." && pwd)
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" \
+    -I"$toolchain/compiler-document" -I"$toolchain/compiler-edit" \
+    -I"$toolchain/compiler-overlay" \
     "$repo/tests/semantic_edit_runtime.c" "$(dirname "$ziran")/../libziran.a" \
     -Wl,--wrap=renameat -Wl,--wrap=fstat -lm -pthread -ldl -o "$work/runtime"
 (cd "$work/source" && ../runtime) 2> "$work/runtime.err"

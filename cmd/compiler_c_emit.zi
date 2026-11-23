@@ -1671,7 +1671,61 @@ NativeProgramMain :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> s32 {
     return ifx strcmp(*module.name[0], CStr("main")) == 0 && strcmp(*fn.name[0], CStr("main")) == 0 then 1 else 0
 }
 
+// Generated C gives a #program_export procedure one linker symbol, where ZX
+// qualifies it by module. Reports the first symbol two modules of the linked
+// PROGRAM define, most often two revisions of one package that different
+// dependencies pin, instead of leaving it to the C compiler.
+#program_export
+NativeExportsUnique :: (program: *IR.ZirProgram) -> s32 {
+    for m: cast(s32)0..program.module_count - 1 {
+        module := *program.modules[m]
+        for f: cast(s32)0..module.function_count - 1 {
+            fn := *module.functions[f]
+            if !NativeLinkerExport(module, fn) { continue }
+            for n: cast(s32)0..m - 1 {
+                other := *program.modules[n]
+                for g: cast(s32)0..other.function_count - 1 {
+                    candidate := *other.functions[g]
+                    if !NativeLinkerExport(other, candidate) || strcmp(NativeExportSymbol(fn), NativeExportSymbol(candidate)) != 0 { continue }
+                    if strcmp(NativePackageStem(*module.name[0]), NativePackageStem(*other.name[0])) == 0 &&
+                    strcmp(*module.name[0], *other.name[0]) != 0 {
+                        Diagnostic(fn.span, CStr("zir_c.global"),
+                                   CStr("#program_export %s is one symbol in generated C, but two revisions of this package define it (modules %s and %s); ziran.lock pins both, so make the dependencies that pin the package agree on one revision"),
+                                   NativeExportSymbol(fn), *other.name[0], *module.name[0])
+                    } else {
+                        Diagnostic(fn.span, CStr("zir_c.global"),
+                                   CStr("#program_export %s is one symbol in generated C, but modules %s and %s both define it"),
+                                   NativeExportSymbol(fn), *other.name[0], *module.name[0])
+                    }
+                    return 0
+                }
+            }
+        }
+    }
+    return 1
+}
+
 #scope_file
+
+// Whether FN becomes a C symbol under its exported name.
+NativeLinkerExport :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> bool {
+    return fn.exported != 0 && fn.is_template == 0 && NativeProgramMain(module, fn) == 0
+}
+
+NativeExportSymbol :: (fn: *IR.ZirFunction) -> *u8 {
+    return ifx fn.export_symbol[0] != 0 then *fn.export_symbol[0] else *fn.name[0]
+}
+
+// A package module is named pHEX16_STEM, with HEX16 from its repository and
+// commit: the stem after that prefix, or the whole name of any other module.
+NativePackageStem :: (name: *u8) -> *u8 {
+    if name[0] != #char "p" { return name }
+    for i: 1..16 {
+        byte := name[i]
+        if !((byte >= #char "0" && byte <= #char "9") || (byte >= #char "a" && byte <= #char "f")) { return name }
+    }
+    return ifx name[17] == #char "_" then PtrAdd(name, 18) else name
+}
 
 NativeEntryError :: (fn: *IR.ZirFunction, target: *u8, reason: *u8) {
     DiagnosticTarget(fn.span, CStr("zir_c.entry"), target, CStr("entry.signature"),

@@ -245,6 +245,7 @@ void zir_emit_number_prefix(ZirModule* module, uint8_t* out, size_t size);
 void EmitNumbers(void* out, ZirModule* module, ZirTarget target);
 void EmitGoPrintSupport(void* out);
 int32_t NativeProgramMain(ZirModule* module, ZirFunction* fn);
+int32_t NativeExportsUnique(ZirProgram* program);
 int32_t CheckNativeEntry(ZirFunction* fn, uint8_t* target);
 void EmitNativeMainDeclaration(void* out);
 void EmitSymbolDeclaration(void* out, uint8_t* result, uint8_t* name, uint8_t* parameters, uint8_t* symbol);

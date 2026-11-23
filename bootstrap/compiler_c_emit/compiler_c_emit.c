@@ -693,6 +693,9 @@ static bool compiler_c_emit_SameFoldedName(uint8_t* left, uint8_t* right) ZIRAN_
 static void compiler_c_emit_ModuleIdentityUncached(ZirProgram** programs, int32_t count, ZirModule* module, uint8_t* file_stem, size_t file_size, uint8_t* guard, size_t guard_size) ZIRAN_MAYBE_UNUSED;
 static size_t compiler_c_emit_ModuleIdentitySlot(ModuleIdentities* id, ZirModule* module, size_t capacity) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_ResetModuleIdentities(ModuleIdentities* id, ZirProgram** programs, int32_t count) ZIRAN_MAYBE_UNUSED;
+static bool compiler_c_emit_NativeLinkerExport(ZirModule* module, ZirFunction* fn) ZIRAN_MAYBE_UNUSED;
+static uint8_t* compiler_c_emit_NativeExportSymbol(ZirFunction* fn) ZIRAN_MAYBE_UNUSED;
+static uint8_t* compiler_c_emit_NativePackageStem(uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_NativeEntryError(ZirFunction* fn, uint8_t* target, uint8_t* reason) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_CNumberHelpers(HelperEntry array_result_0_0[23]) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_GoNumberHelpers(HelperEntry array_result_0_0[8]) ZIRAN_MAYBE_UNUSED;
@@ -4858,6 +4861,218 @@ NativeProgramMain(ZirModule* module, ZirFunction* fn)
         value_16 = 0;
     }
     return value_16;
+}
+
+int32_t
+NativeExportsUnique(ZirProgram* program)
+{
+    {
+        int32_t range_first_0 = 0;
+        int32_t range_last_0 = (int32_t)((uint32_t)(program->module_count) - 1u);
+        int32_t m = range_first_0;
+        if (m <= range_last_0) for (;;) {
+            ZirModule* module = &(program->modules[m]);
+            {
+                int32_t range_first_2 = 0;
+                int32_t range_last_2 = (int32_t)((uint32_t)(module->function_count) - 1u);
+                int32_t f = range_first_2;
+                if (f <= range_last_2) for (;;) {
+                    ZirFunction* fn = &(module->functions[f]);
+                    ZirModule* value_0 = module;
+                    ZirFunction* value_1 = fn;
+                    bool value_2 = false;
+                    {
+                        ZirModule* module = value_0;
+                        ZirFunction* fn = value_1;
+                        bool value_4 = fn->exported != 0 && fn->is_template == 0;
+                        value_2 = value_4 && NativeProgramMain(module, fn) == 0;
+                    }
+                    if (!value_2) {
+                        if (f == range_last_2) {
+                            break;
+                        }
+                        f = (int32_t)((uint32_t)f + 1u);
+                        continue;
+                    }
+                    {
+                        int32_t range_first_7 = 0;
+                        int32_t range_last_7 = (int32_t)((uint32_t)m - 1u);
+                        int32_t n = range_first_7;
+                        if (n <= range_last_7) for (;;) {
+                            ZirModule* other = &(program->modules[n]);
+                            {
+                                int32_t range_first_9 = 0;
+                                int32_t range_last_9 = (int32_t)((uint32_t)(other->function_count) - 1u);
+                                int32_t g = range_first_9;
+                                if (g <= range_last_9) for (;;) {
+                                    ZirFunction* candidate = &(other->functions[g]);
+                                    bool value_5 = false;
+                                    {
+                                        ZirModule* module = other;
+                                        ZirFunction* fn = candidate;
+                                        bool value_7 = fn->exported != 0 && fn->is_template == 0;
+                                        value_5 = value_7 && NativeProgramMain(module, fn) == 0;
+                                    }
+                                    bool value_8 = !value_5;
+                                    if (!value_8) {
+                                        ZirFunction* value_9 = fn;
+                                        uint8_t* value_10 = (void *)0;
+                                        {
+                                            ZirFunction* fn = value_9;
+                                            uint8_t* value_12 = (void *)0;
+                                            if ((fn->export_symbol)[0] != 0) {
+                                                value_12 = &(fn->export_symbol[0]);
+                                            } else {
+                                                value_12 = &(fn->name[0]);
+                                            }
+                                            value_10 = value_12;
+                                        }
+                                        uint8_t* value_13 = (void *)0;
+                                        {
+                                            ZirFunction* fn = candidate;
+                                            uint8_t* value_15 = (void *)0;
+                                            if ((fn->export_symbol)[0] != 0) {
+                                                value_15 = &(fn->export_symbol[0]);
+                                            } else {
+                                                value_15 = &(fn->name[0]);
+                                            }
+                                            value_13 = value_15;
+                                        }
+                                        bool value_16 = zir_f_88c96d1f737973e0_strcmp(value_10, value_13) != 0;
+                                        value_8 = value_16;
+                                    }
+                                    if (value_8) {
+                                        if (g == range_last_9) {
+                                            break;
+                                        }
+                                        g = (int32_t)((uint32_t)g + 1u);
+                                        continue;
+                                    }
+                                    uint8_t* value_17 = compiler_c_emit_NativePackageStem(&(module->name[0]));
+                                    bool value_18 = zir_f_88c96d1f737973e0_strcmp(value_17, compiler_c_emit_NativePackageStem(&(other->name[0]))) == 0;
+                                    if (value_18 && zir_f_88c96d1f737973e0_strcmp(&(module->name[0]), &(other->name[0])) != 0) {
+                                        ZirSourceSpan value_19 = fn->span;
+                                        String value_20 = StringLiteral("zir_c.global");
+                                        uint8_t* value_21 = (void *)0;
+                                        {
+                                            String s = value_20;
+                                            value_21 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
+                                        }
+                                        String value_23 = StringLiteral("#program_export %s is one symbol in generated C, but two revisions of this package define it (modules %s and %s); ziran.lock pins both, so make the dependencies that pin the package agree on one revision");
+                                        uint8_t* value_24 = (void *)0;
+                                        {
+                                            String s = value_23;
+                                            value_24 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
+                                        }
+                                        ZirFunction* value_26 = fn;
+                                        uint8_t* value_27 = (void *)0;
+                                        {
+                                            ZirFunction* fn = value_26;
+                                            uint8_t* value_29 = (void *)0;
+                                            if ((fn->export_symbol)[0] != 0) {
+                                                value_29 = &(fn->export_symbol[0]);
+                                            } else {
+                                                value_29 = &(fn->name[0]);
+                                            }
+                                            value_27 = value_29;
+                                        }
+                                        zir_f_88c96d1f737973e0_Diagnostic(value_19, value_21, value_24, value_27, &(other->name[0]), &(module->name[0]));
+                                    } else {
+                                        ZirSourceSpan value_30 = fn->span;
+                                        String value_31 = StringLiteral("zir_c.global");
+                                        uint8_t* value_32 = (void *)0;
+                                        {
+                                            String s = value_31;
+                                            value_32 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
+                                        }
+                                        String value_34 = StringLiteral("#program_export %s is one symbol in generated C, but modules %s and %s both define it");
+                                        uint8_t* value_35 = (void *)0;
+                                        {
+                                            String s = value_34;
+                                            value_35 = ((zir_9d57101922f2e428_StaticText*)(&(s)))->data;
+                                        }
+                                        ZirFunction* value_37 = fn;
+                                        uint8_t* value_38 = (void *)0;
+                                        {
+                                            ZirFunction* fn = value_37;
+                                            uint8_t* value_40 = (void *)0;
+                                            if ((fn->export_symbol)[0] != 0) {
+                                                value_40 = &(fn->export_symbol[0]);
+                                            } else {
+                                                value_40 = &(fn->name[0]);
+                                            }
+                                            value_38 = value_40;
+                                        }
+                                        zir_f_88c96d1f737973e0_Diagnostic(value_30, value_32, value_35, value_38, &(other->name[0]), &(module->name[0]));
+                                    }
+                                    return 0;
+                                }
+                            }
+                            if (n == range_last_7) {
+                                break;
+                            }
+                            n = (int32_t)((uint32_t)n + 1u);
+                        }
+                    }
+                    if (f == range_last_2) {
+                        break;
+                    }
+                    f = (int32_t)((uint32_t)f + 1u);
+                }
+            }
+            if (m == range_last_0) {
+                break;
+            }
+            m = (int32_t)((uint32_t)m + 1u);
+        }
+    }
+    return 1;
+}
+
+static bool
+compiler_c_emit_NativeLinkerExport(ZirModule* module, ZirFunction* fn)
+{
+    bool value_0 = fn->exported != 0 && fn->is_template == 0;
+    return value_0 && NativeProgramMain(module, fn) == 0;
+}
+
+static uint8_t*
+compiler_c_emit_NativeExportSymbol(ZirFunction* fn)
+{
+    uint8_t* value_0 = (void *)0;
+    if ((fn->export_symbol)[0] != 0) {
+        value_0 = &(fn->export_symbol[0]);
+    } else {
+        value_0 = &(fn->name[0]);
+    }
+    return value_0;
+}
+
+static uint8_t*
+compiler_c_emit_NativePackageStem(uint8_t* name)
+{
+    if (name[0] != 112) {
+        return name;
+    }
+    for (int64_t i = 1LL; i <= 16LL; i++) {
+        uint8_t byte = name[i];
+        if (!((byte >= 48 && byte <= 57) || (byte >= 97 && byte <= 102))) {
+            return name;
+        }
+    }
+    uint8_t* value_0 = (void *)0;
+    if (name[17] == 95) {
+        uint8_t* value_1 = (void *)0;
+        {
+            uint8_t* p = name;
+            size_t n = 18;
+            value_1 = (uint8_t*)(((size_t)(p) + n));
+        }
+        value_0 = value_1;
+    } else {
+        value_0 = name;
+    }
+    return value_0;
 }
 
 static void

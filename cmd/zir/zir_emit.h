@@ -152,6 +152,9 @@ int GoSimdWrite(const char *out_dir, const char *pkg);
 int GoSimdWriteCheck(const char *out_dir, const char *pkg);
 /* A native program entry has a typed Ziran body plus a standard main adapter. */
 int NativeProgramMain(const ZirModule *module, const ZirFunction *fn);
+/* Nonzero when no two modules of the linked program define one
+ * #program_export C symbol; reports the first clash otherwise. */
+int NativeExportsUnique(const ZirProgram *program);
 /* The module whose constant NAME a read in module names: its own, or a
  * public one of an import; NULL for none. */
 const ZirModule *NativeConstantOwner(const ZirModule *module, const char *name);

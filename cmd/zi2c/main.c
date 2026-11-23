@@ -423,7 +423,7 @@ main(int argc, char **argv)
         linked = NativeLink(&merged, entry_module, entry_function);
         if(linked == NULL)
             goto done;
-        if(!CheckTargetCapabilities(linked, "c"))
+        if(!CheckTargetCapabilities(linked, "c") || !NativeExportsUnique(linked))
             goto done;
         output_lock = lock_output(out_dir);
         if(output_lock < 0) goto done;

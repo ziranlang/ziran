@@ -192,10 +192,11 @@ manifests so fresh clones and CI can fetch without an SSH key.</p>
 <p>Package modules receive an internal identity derived from their repository
 and commit. Two versions of a transitive dependency can coexist in one build.
 A <code>#program_export</code> procedure is the exception in generated C, where it is
-one linker symbol: when both versions define it the C build fails with
-conflicting or duplicate definitions, so the dependencies that pin the
-package must agree on one revision (or, while developing, one root override
-can select a single checkout for all of them).
+one linker symbol: when the program uses one that both versions define,
+<code>ziran build</code> names the procedure and both modules before any C is written.
+The dependencies that pin the package must then agree on one revision (or,
+while developing, one root override can select a single checkout for all of
+them).
 The identity is carried through ZIR, saved <code>.zir</code>, portable bundles,
 and native output names.</p>
 <h2 id="commands">Commands</h2>

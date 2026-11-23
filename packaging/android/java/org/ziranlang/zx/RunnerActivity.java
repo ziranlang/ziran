@@ -99,6 +99,12 @@ public class RunnerActivity extends NativeActivity {
         });
     }
 
+    /** End the runner process after an error; the launcher has its own. */
+    private void closeAfterError() {
+        finish();
+        System.exit(0);
+    }
+
     /** A failed run with no terminal: show its output, then close. */
     public void showError(final String message) {
         runOnUiThread(new Runnable() {
@@ -106,7 +112,7 @@ public class RunnerActivity extends NativeActivity {
                 DialogInterface.OnClickListener close =
                     new DialogInterface.OnClickListener() {
                         @Override public void onClick(DialogInterface dialog, int which) {
-                            finish();
+                            closeAfterError();
                         }
                     };
                 new AlertDialog.Builder(RunnerActivity.this)
@@ -114,7 +120,7 @@ public class RunnerActivity extends NativeActivity {
                     .setMessage(message)
                     .setPositiveButton("OK", close)
                     .setOnCancelListener(new DialogInterface.OnCancelListener() {
-                        @Override public void onCancel(DialogInterface dialog) { finish(); }
+                        @Override public void onCancel(DialogInterface dialog) { closeAfterError(); }
                     })
                     .show();
             }

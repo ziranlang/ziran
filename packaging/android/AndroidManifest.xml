@@ -23,6 +23,7 @@
         android:name=".RunnerActivity"
         android:exported="true"
         android:label="ZX Runner"
+        android:process=":runner"
         android:screenOrientation="fullSensor"
         android:configChanges="orientation|keyboardHidden|screenSize|keyboard|navigation|uiMode|density">
       <meta-data android:name="android.app.lib_name" android:value="zxrunner"/>

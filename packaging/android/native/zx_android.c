@@ -41,6 +41,7 @@ typedef struct {
     int surface_width;
     int surface_height;
     int ready;
+    int presented;
     int closed;
     GLuint program;
     GLuint texture;
@@ -505,10 +506,12 @@ static void call_runner_finished(void) {
     detach_env(attached);
 }
 
-// A failure can happen before the bundle ever opens a window. The activity's
-// starting window stays up until it draws, so paint one plain frame first;
-// the dialog then has a real window to sit on.
-static void paint_error_background(void) {
+// A console bundle and a failure before the first frame both leave the
+// activity without a drawn window; its starting window then waits, and input
+// dispatch times out. Paint one plain frame when the bundle never did, so the
+// activity is visible and can finish, and a dialog has a real window.
+static void paint_plain_frame(void) {
+    if (zx.presented) return;
     for (int waited = 0; waited < 5000 && !zx.ready && !zx.closed; waited += 20) pump(20);
     if (!zx.ready || zx.display == EGL_NO_DISPLAY) return;
     eglMakeCurrent(zx.display, zx.surface, zx.surface, zx.context);
@@ -516,6 +519,7 @@ static void paint_error_background(void) {
     glClearColor(0.12f, 0.12f, 0.13f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     eglSwapBuffers(zx.display, zx.surface);
+    zx.presented = 1;
 }
 
 static void call_show_error(const char* message) {
@@ -567,12 +571,17 @@ void android_main(struct android_app* app) {
     LOGI("exit %d, %zu error bytes", status, error_length);
     if (status != 0 && error_length > 0) {
         // The dialog closes the activity after the user reads it.
-        paint_error_background();
+        paint_plain_frame();
         usleep(150000);
         call_show_error(error_text);
     } else {
+        paint_plain_frame();
+        usleep(100000);
         call_runner_finished();
         ANativeActivity_finish(app->activity);
+        // The runner process starts one program and then ends, so the next
+        // launch gets a fresh NativeActivity and engine.
+        _exit(0);
     }
 }
 
@@ -628,6 +637,7 @@ int32_t zx_android_present(const uint8_t* pixels, int32_t width, int32_t height)
     glDisableVertexAttribArray((GLuint)zx.position);
     glDisableVertexAttribArray((GLuint)zx.texcoord);
     eglSwapBuffers(zx.display, zx.surface);
+    zx.presented = 1;
     return 1;
 }
 

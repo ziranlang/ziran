@@ -786,6 +786,10 @@ The key names each checkout by its checked-out content (a tree id, committed
 or not), not by where HEAD points: a commit that records files already in
 place, such as another lane committing to a local override mid-build, keeps
 the key, while any change to the files during the build refuses publication.
+The command then says what changed (a recipe input, the package's
+`ziran.toml`, or the source of a package in the graph, such as a local
+override another task is editing) and asks to run it again; it is not a
+provider failure.
 
 ### Python build-tool consumers
 

@@ -233,6 +233,16 @@ Artifacts :: (test: *NativeTest) -> bool {
     wide_first := ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:wide")
     if !NativeAssert(test, IsFile(wide_first) && ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:wide") == wide_first,
         "wide-input artifact did not build or reuse") || !ArtifactCount(test, provider, wide_count + 1) { return false }
+    // An edit to the provider checkout during its build changes the content
+    // that keys the artifact: nothing is published, and the message says a
+    // source changed rather than blaming the provider.
+    edit_options := string.["Provider:mode=edit"]
+    NativeSet(test, "EDIT_DURING_BUILD", "1")
+    edited := ArtifactBuild(test, app, "linux-x86_64-gnu", false, "Provider:object", edit_options[:])
+    NativeUnset(test, "EDIT_DURING_BUILD")
+    if !NativeAssert(test, TextContains(edited, "artifact not published: the source of a package in its dependency graph") &&
+        TextContains(edited, "changed while the provider ran") && !TextContains(edited, "provider failed"),
+        CheckConcat("an edit during the artifact build was not named as the reason:\n", edited)) { return false }
     // A commit to the provider checkout during its build moves HEAD but not
     // its content, which keys the artifact, so the build still publishes.
     // Last: the extra commit stays in the provider checkout.

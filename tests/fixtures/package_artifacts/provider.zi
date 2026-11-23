@@ -20,6 +20,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
             "-c", "user.email=fixture@example.invalid", "commit", "--allow-empty", "-q", "-m", "during the build"]
         if PkgRun(commit[:], "", empty[:], empty[:]) != 0 { return 7 }
     }
+    // Another lane editing this checkout's sources while the artifact builds.
+    if PkgGetenv("EDIT_DURING_BUILD") == "1" &&
+        !PkgWrite(PkgJoin(PkgGetenv("ZIRAN_PACKAGE_ROOT"), "/during.zi"), "Edited :: 1;\n") { return 8 }
     if !PkgWrite(PkgJoin(output, "/resource.txt"), PkgGetenv("ZIRAN_ARTIFACT_TARGET")) { return 4 }
     return 0
 }

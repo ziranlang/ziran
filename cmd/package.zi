@@ -1514,9 +1514,14 @@ PkgArtifactVisit :: (root: string, locked: *PkgLock, current: *PkgManifest,
     values: [5]string = .[transaction.stage, target, dependency_file, "-j1", "1"]
     args: [6]string = .["artifact", artifact, "--platform", target, "--output", transaction.stage]
     code := PkgRunSelectedToolOptions(root, locked, current, selected, alias, args[:], names[:], values[:], options)
-    // Refuse publication if recipe inputs changed while the provider ran.
+    // Refuse publication if recipe inputs changed while the provider ran,
+    // and say that this, not the provider, is why nothing was published.
+    changed := ""
     for i: 0..recipe.input_count - 1 {
-        if PkgArtifactHashFile(PkgJoin3(item.path, "/", recipe.inputs[i])) != input_hashes[i] { code = 2 }
+        if PkgArtifactHashFile(PkgJoin3(item.path, "/", recipe.inputs[i])) != input_hashes[i] {
+            code = 2
+            if changed == "" { changed = PkgJoin("recipe input ", recipe.inputs[i]) }
+        }
     }
     graph_after := PkgDigest("ziran-artifact-v1")
     PkgArtifactMix(*graph_after, identity)
@@ -1524,9 +1529,19 @@ PkgArtifactVisit :: (root: string, locked: *PkgLock, current: *PkgManifest,
     PkgArtifactMix(*graph_after, PkgRead(options).text)
     after_reusable := true
     PkgArtifactGraphKey(locked, *graph_after, *after_reusable)
-    if graph_after != graph_before || (reusable && !after_reusable) ||
-        recipe_hash != PkgArtifactHashFile(PkgJoin(item.path, "/ziran.toml")) { code = 2 }
+    if recipe_hash != PkgArtifactHashFile(PkgJoin(item.path, "/ziran.toml")) {
+        code = 2
+        if changed == "" { changed = "the package's ziran.toml" }
+    }
+    if graph_after != graph_before || (reusable && !after_reusable) {
+        code = 2
+        if changed == "" { changed = "the source of a package in its dependency graph, such as a local override being edited or committed," }
+    }
     if !PkgArtifactFinish(*transaction, *recipe, code) {
+        if changed != "" {
+            PkgFail(PkgJoin3("artifact not published: ", changed, " changed while the provider ran; run the command again when the sources are still"))
+            return ""
+        }
         PkgFail("artifact provider failed or omitted a declared output"); return ""
     }
     return PkgJoin(transaction.directory, "/artifact.tsv")

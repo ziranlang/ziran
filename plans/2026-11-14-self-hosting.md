@@ -266,7 +266,7 @@ C ABI/storage boundary:
 | `zir_parse_internal.h` | private parser records and host recovery bridge | `compiler_parse_s14_types` plus bootstrap recovery runtime | S14 / S18 |
 | `zir_parse_source.c` | source, file and import parsing | `compiler_parse_source` | S13 |
 | `zir_parse_typed.c` | typed expression compilation and caches | `compiler_parse_typed` | S14 |
-| `zir_profile.c` / `.h` | counters/RSS/time from `:35` | `compiler_profile`; OS callbacks may remain | S17 |
+| `compiler_profile.zi` / `zir_profile.h` | opt-in phase, allocation and counter profiling; the monotonic clock, peak RSS, pid, one-append record write and exit hook stay in `zir_profile_host.c` | `compiler_profile` | S17 |
 | `zir_proof.h` | proof ABI | covered by `compiler_proof`/`compiler_proof_kernel` | S15 |
 | `zir_scalar.h` | scalar width/mask helpers `:8-41` | `compiler_scalar` | S4 |
 | `zir_scratch.h` | recoverable scratch helper | Ziran allocator/exceptions; no separate module | S15 |
@@ -601,9 +601,13 @@ No step commits before its implementation and proof are complete.
   register, clobber and template checks, block bindings, and GNU C emission
   with feature helpers, runtime selection and the `ZIRAN_ASM_CHECK` build.
   Its C names are unchanged for the Ziran callers.
-- Add `cmd/compiler_profile.zi`, `cmd/compiler_cli.zi`, `cmd/compiler_edit.zi`,
-  `cmd/zi2c.zi`, `cmd/zi2go.zi`, and `cmd/zi2zx.zi`; port `zir_profile.c`,
-  `zir_command.h`, `zir_edit.c`, and the remaining `main.c` drivers. Native
+- `compiler_profile` (`cmd/compiler_profile.zi`) replaces `zir_profile.c`;
+  `zir_profile_host.c` keeps only the OS clock, RSS, pid, append and exit
+  hook. Its phase names, call counts, counters and allocation counts match
+  the C build for the same run, and the seed matches in `check-bootstrap`.
+- Add `cmd/compiler_cli.zi`, `cmd/compiler_edit.zi`, `cmd/zi2c.zi`,
+  `cmd/zi2go.zi`, and `cmd/zi2zx.zi`; port `zir_command.h`, `zir_edit.c`, and
+  the remaining `main.c` drivers. Native
   names are already `cmd/compiler_native_names.zi`. Keep the existing tool names and flags
   until the separate naming-cutover item lands.
 - Change Makefile tool targets and editor links to Ziran drivers. The `ziran`

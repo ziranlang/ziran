@@ -1,0 +1,219 @@
+// Opt-in process-local profiling for the compiler. Phase times are
+// inclusive, not additive. The environment's ZIRAN_PROFILE names an
+// append-only JSON-lines file; the OS clock, RSS, pid, append and exit hook
+// stay in zir_profile_host.c.
+
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+getenv :: (name: *u8) -> *u8 #foreign libc "getenv";
+fopen :: (path: *u8, mode: *u8) -> *void #foreign libc "fopen";
+fclose :: (file: *void) -> s32 #foreign libc "fclose";
+strcmp :: (a: *u8, b: *u8) -> s32 #foreign libc "strcmp";
+snprintf :: (out: *u8, size: usize, format: *u8, args: ..any) -> s32 #foreign libc "snprintf";
+exit :: (code: s32) #foreign libc "exit";
+Diagnostic :: (span: ZirSourceSpan, code: *u8, fmt: *u8, args: ..any) #foreign compiler "Diagnostic";
+Span :: (path: *u8, line: s32, column: s32) -> ZirSourceSpan #foreign compiler "Span";
+ProfileNow :: () -> u64 #foreign compiler "ProfileNow";
+ProfileMaxRssKib :: () -> s64 #foreign compiler "ProfileMaxRssKib";
+ProfilePid :: () -> s64 #foreign compiler "ProfilePid";
+ProfileRegister :: () #foreign compiler "ProfileRegister";
+ProfileWrite :: (file: *void, record: *u8, size: usize) -> s64 #foreign compiler "ProfileWrite";
+S15FlagTake :: (arg0: *void) -> s32 #foreign compiler "S15FlagTake";
+S15FlagClear :: (arg0: *void) #foreign compiler "S15FlagClear";
+S15IntStore :: (arg0: *void, value: s32) #foreign compiler "S15IntStore";
+S15IntLoad :: (arg0: *void) -> s32 #foreign compiler "S15IntLoad";
+
+PROFILE_SAMPLES :: 32
+PROFILE_RECORD :: 8192
+
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+StaticText :: struct { data: *u8; count: usize }
+
+ZirSourceSpan :: struct {
+    context: *u8
+    file: s32
+    line: s32
+    column: s32
+    end_line: s32
+    end_column: s32
+}
+
+ProfileSample :: struct {
+    name: *u8
+    calls: u64
+    elapsed_ns: u64
+}
+
+profile_output: *void;
+profile_started: u64;
+profile_allocation_calls: u64;
+profile_allocation_bytes: u64;
+profile_phases: [PROFILE_SAMPLES]ProfileSample;
+profile_counters: [PROFILE_SAMPLES]ProfileSample;
+profile_phase_count: usize;
+profile_counter_count: usize;
+profile_lock: s32;
+// 0: not initialized, 1: enabled, 2: disabled. Disabled profiling stays cheap.
+profile_state: s32;
+
+LockProfile :: () {
+    while S15FlagTake(cast(*void)*profile_lock) != 0 {}
+}
+
+UnlockProfile :: () {
+    S15FlagClear(cast(*void)*profile_lock)
+}
+
+Disabled :: () -> bool {
+    return S15IntLoad(cast(*void)*profile_state) == 2
+}
+
+Report :: () {
+    LockProfile()
+    if profile_output == null {
+        UnlockProfile()
+        return
+    }
+    record: [PROFILE_RECORD]u8
+    rss := ProfileMaxRssKib()
+    finished := ProfileNow()
+    elapsed: u64 = 0
+    if finished >= profile_started { elapsed = finished - profile_started }
+    used: s32 = snprintf(*record[0], PROFILE_RECORD,
+        CStr("{\"schema_version\":1,\"pid\":%lld,\"profile_elapsed_ms\":%.6f,"),
+        ProfilePid(), cast(float64)elapsed / 1000000.0)
+    narrow: usize = PROFILE_RECORD - 1
+    if used > 0 && cast(usize)used < PROFILE_RECORD {
+        used += snprintf(*record[cast(usize)used], narrow - cast(usize)used,
+            CStr("\"max_rss_kib\":%lld,\"workspace_allocation_calls\":%llu,"),
+            rss, profile_allocation_calls)
+    }
+    if used > 0 && cast(usize)used < PROFILE_RECORD {
+        used += snprintf(*record[cast(usize)used], narrow - cast(usize)used,
+            CStr("\"workspace_allocation_bytes\":%llu,\"phases\":["),
+            profile_allocation_bytes)
+    }
+    for i: 0..cast(s64)profile_phase_count - 1 {
+        if used <= 0 || cast(usize)used >= PROFILE_RECORD { break }
+        value := *profile_phases[cast(usize)i]
+        separator := CStr("")
+        if i != 0 { separator = CStr(",") }
+        used += snprintf(*record[cast(usize)used], narrow - cast(usize)used,
+            CStr("%s{\"name\":\"%s\",\"calls\":%llu,\"inclusive_ms\":%.6f}"),
+            separator, value.name, value.calls, cast(float64)value.elapsed_ns / 1000000.0)
+    }
+    if used > 0 && cast(usize)used < PROFILE_RECORD {
+        used += snprintf(*record[cast(usize)used], narrow - cast(usize)used, CStr("],\"counters\":{"))
+    }
+    for i: 0..cast(s64)profile_counter_count - 1 {
+        if used <= 0 || cast(usize)used >= PROFILE_RECORD { break }
+        value := *profile_counters[cast(usize)i]
+        separator := CStr("")
+        if i != 0 { separator = CStr(",") }
+        used += snprintf(*record[cast(usize)used], narrow - cast(usize)used,
+            CStr("%s\"%s\":%llu"), separator, value.name, value.calls)
+    }
+    if used > 0 && cast(usize)used < PROFILE_RECORD {
+        used += snprintf(*record[cast(usize)used], narrow - cast(usize)used, CStr("}}\n"))
+    }
+    failed: bool = false
+    if used > 0 && cast(usize)used < PROFILE_RECORD {
+        // One append keeps concurrent compiler processes' JSON lines intact.
+        written := ProfileWrite(profile_output, *record[0], cast(usize)used)
+        failed = written != cast(s64)used
+    }
+    unused fclose(profile_output)
+    profile_output = null
+    S15IntStore(cast(*void)*profile_state, 2)
+    UnlockProfile()
+    if failed {
+        Diagnostic(Span(CStr(""), 0, 0), CStr("zir.output"), CStr("cannot finish compiler profile"))
+    }
+}
+
+// The exit hook the C host registers; kept as its own plain symbol.
+#program_export
+ProfileReport :: () {
+    Report()
+}
+
+// Called only with profile_lock held.
+Enabled :: () -> bool {
+    if S15IntLoad(cast(*void)*profile_state) == 0 {
+        path := getenv(CStr("ZIRAN_PROFILE"))
+        if path != null && path[0] != 0 {
+            profile_output = fopen(path, CStr("ab"))
+            if profile_output == null {
+                // Reporting the failure can allocate a diagnostic buffer.
+                // Disable first so that allocation cannot retry initialization.
+                S15IntStore(cast(*void)*profile_state, 2)
+                UnlockProfile()
+                Diagnostic(Span(path, 1, 1), CStr("zir.output"), CStr("cannot open compiler profile"))
+                exit(1)
+            }
+            profile_started = ProfileNow()
+            ProfileRegister()
+        }
+        state: s32 = 2
+        if profile_output != null { state = 1 }
+        S15IntStore(cast(*void)*profile_state, state)
+    }
+    return profile_output != null
+}
+
+#program_export
+ProfileStart :: () -> u64 {
+    if Disabled() { return 0 }
+    LockProfile()
+    started: u64 = 0
+    if Enabled() { started = ProfileNow() }
+    UnlockProfile()
+    return started
+}
+
+Sample :: (items: *ProfileSample, count: *usize, name: *u8) -> *ProfileSample {
+    for i: 0..cast(s64)count[0] - 1 {
+        if strcmp(items[cast(usize)i].name, name) == 0 { return *items[cast(usize)i] }
+    }
+    if count[0] == cast(usize)PROFILE_SAMPLES { return null }
+    index := count[0]
+    <<count = index + cast(usize)1
+    items[index].name = name
+    return *items[index]
+}
+
+#program_export
+ProfileEnd :: (phase: *u8, started: u64) {
+    if started == 0 || Disabled() { return }
+    LockProfile()
+    value: *ProfileSample = null
+    if Enabled() { value = Sample(*profile_phases[0], *profile_phase_count, phase) }
+    if value != null {
+        finished := ProfileNow()
+        value.calls += 1
+        if finished >= started { value.elapsed_ns += finished - started }
+    }
+    UnlockProfile()
+}
+
+#program_export
+ProfileAllocation :: (bytes: usize) {
+    if Disabled() { return }
+    LockProfile()
+    if Enabled() {
+        profile_allocation_calls += 1
+        profile_allocation_bytes += cast(u64)bytes
+    }
+    UnlockProfile()
+}
+
+#program_export
+ProfileCount :: (counter: *u8) {
+    if Disabled() { return }
+    LockProfile()
+    value: *ProfileSample = null
+    if Enabled() { value = Sample(*profile_counters[0], *profile_counter_count, counter) }
+    if value != null { value.calls += 1 }
+    UnlockProfile()
+}

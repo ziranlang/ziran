@@ -274,7 +274,7 @@ CHECK_PORT_MODULES := check_types $(CHECK_CORE_MODULES) check_s12_types $(CHECK_
 S14_PARSE_MODULES := parse_declaration parse_eval parse_typed ir_cleanup
 PARSE_PORT_MODULES := parse_types parse_condition parse_discover parse_source \
     frontend_parse parse_s14_types $(S14_PARSE_MODULES)
-SUPPORT_PORT_MODULES := context document diagnostic files source_store overlay semantic sha256
+SUPPORT_PORT_MODULES := context document diagnostic files source_store overlay semantic sha256 profile
 PERSISTENCE_PORT_MODULES := zir_serial load package_resolve zx_assets
 FRONTEND_PORT_MODULES := context_types $(SUPPORT_PORT_MODULES) frontend_ir law_runtime target_bridge $(PERSISTENCE_PORT_MODULES) zx_link inline_asm
 compiler-port-dir = $(if $(filter 1,$(BOOTSTRAP)),bootstrap/compiler_$(1),$(BUILD_DIR)/compiler-$(subst _,-,$(1)))
@@ -312,7 +312,7 @@ RANGE_MODULES := compiler_c_range compiler_c_range_facts compiler_c_range_values
     compiler_c_range_callers compiler_c_range_fill
 RANGE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/c-range/%.o,$(RANGE_MODULES))
 override CFLAGS += -I$(RANGE_C)
-FRONTEND := cmd/zir/zir_memory.c cmd/zir/zir_profile.c cmd/zir/zir_services.c \
+FRONTEND := cmd/zir/zir_memory.c cmd/zir/zir_profile_host.c cmd/zir/zir_services.c \
     cmd/zir/zir_atomics.c cmd/zir/zir_diagnostic_host.c \
     cmd/zir/zir_files_host.c cmd/zir/zir_sha256_host.c
 PERSISTENCE_HOST := cmd/zir/zir_persistence_host.c

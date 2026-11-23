@@ -1,0 +1,46 @@
+// Simple arena-backed singly-linked list for Limbo `list of T` ports.
+// Node links use 1-based indices into `nodes` so zero-initialized List(T)
+// starts empty with head == 0.
+using Vectors :: #import "vec"
+
+ListNode :: struct($T: Type) {
+    value: T;
+    next: s32;
+}
+
+List :: struct($T: Type) {
+    nodes: Vec(ListNode(T));
+    head: s32;
+}
+
+ListIsEmpty :: (list: *List($T)) -> bool {
+    return list.head <= 0 || cast(s64)list.head > list.nodes.count
+}
+
+ListCons :: (list: *List($T), value: T) {
+    node: ListNode(T) = .{value = value, next = list.head}
+    unused VecPush(list.nodes, node)
+    list.head = cast(s32)list.nodes.count
+}
+
+ListHead :: (list: *List($T), out: *T) -> bool {
+    if ListIsEmpty(list) { return false }
+    <<out = list.nodes[list.head - 1].value
+    return true
+}
+
+ListTail :: (list: *List($T)) -> bool {
+    if ListIsEmpty(list) { return false }
+    list.head = list.nodes[list.head - 1].next
+    return true
+}
+
+ListLen :: (list: *List($T)) -> s64 {
+    count: s64 = 0
+    cursor := list.head
+    while cursor > 0 && cast(s64)cursor <= list.nodes.count {
+        count += 1
+        cursor = list.nodes[cursor - 1].next
+    }
+    return count
+}

@@ -1,0 +1,71 @@
+// Generational slot pool backed by Vec storage and a free list so cyclic and
+// reference-graph structures can be represented safely without a garbage
+// collector. Live slots always carry generation >= 1, so a zero-initialized
+// PoolHandle is never valid.
+using Vectors :: #import "vec"
+
+PoolHandle :: struct {
+    index: s32;
+    generation: u32;
+}
+
+Pool :: struct($T: Type) {
+    items: Vec(T);
+    generations: Vec(u32);
+    occupied: Vec(u8);
+    free_list: Vec(s32);
+    live_count: s64;
+}
+
+PoolValid :: (pool: *Pool($T), handle: PoolHandle) -> bool {
+    if handle.index < 0 || cast(s64)handle.index >= pool.items.count { return false }
+    if handle.generation == 0 { return false }
+    return pool.occupied[handle.index] == 1 && pool.generations[handle.index] == handle.generation
+}
+
+PoolAlloc :: (pool: *Pool($T), value: T) -> PoolHandle {
+    if pool.free_list.count > 0 {
+        last := pool.free_list.count - 1
+        index := pool.free_list[last]
+        unused VecResize(pool.free_list, last)
+        pool.items[index] = value
+        pool.occupied[index] = 1
+        pool.live_count += 1
+        return .{index = index, generation = pool.generations[index]}
+    }
+    index := cast(s32)pool.items.count
+    generation: u32 = 1
+    unused VecPush(pool.items, value)
+    unused VecPush(pool.generations, generation)
+    unused VecPush(pool.occupied, cast(u8)1)
+    pool.live_count += 1
+    return .{index = index, generation = generation}
+}
+
+PoolGet :: (pool: *Pool($T), handle: PoolHandle, out: *T) -> bool {
+    if !PoolValid(pool, handle) { return false }
+    <<out = pool.items[handle.index]
+    return true
+}
+
+PoolGetMut :: (pool: *Pool($T), handle: PoolHandle) -> *T {
+    if !PoolValid(pool, handle) { return null }
+    return *pool.items[handle.index]
+}
+
+PoolFree :: (pool: *Pool($T), handle: PoolHandle) -> bool {
+    if !PoolValid(pool, handle) { return false }
+    empty: T
+    pool.items[handle.index] = empty
+    pool.occupied[handle.index] = 0
+    next_generation := pool.generations[handle.index] + 1
+    if next_generation == 0 { next_generation = 1 }
+    pool.generations[handle.index] = next_generation
+    unused VecPush(pool.free_list, handle.index)
+    pool.live_count -= 1
+    return true
+}
+
+PoolLiveCount :: (pool: *Pool($T)) -> s64 {
+    return pool.live_count
+}

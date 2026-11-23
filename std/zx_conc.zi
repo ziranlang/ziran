@@ -1,0 +1,24 @@
+// Portable concurrency host services for a ZX application or library.
+// Channel handles belong to the running instance; zero denotes failure.
+#scope_file
+host_api :: #system_library "host_api";
+HostChanNew :: (elem_bytes: s32, capacity: s32) -> u64 #foreign host_api;
+HostChanSend :: (handle: u64, data: []u8) -> s32 #foreign host_api;
+HostChanRecv :: (handle: u64, out: []u8) -> s32 #foreign host_api;
+HostChanClose :: (handle: u64) -> bool #foreign host_api;
+HostAltSelect :: (ops: []s32, handles: []u64, buffers: []u8, strides: []s32, nonblock: bool) -> s32 #foreign host_api;
+HostSpawn :: (entry_id: s32, arg: u64) -> s32 #foreign host_api;
+HostFile2Chan :: (dir: string, file: string, out_handles: []u64) -> s32 #foreign host_api;
+
+#scope_export
+ChanNew :: (elem_bytes: s32, capacity: s32) -> u64 { return HostChanNew(elem_bytes, capacity) }
+ChanSend :: (handle: u64, data: []u8) -> s32 { return HostChanSend(handle, data) }
+ChanRecv :: (handle: u64, out: []u8) -> s32 { return HostChanRecv(handle, out) }
+ChanClose :: (handle: u64) -> bool { return HostChanClose(handle) }
+AltSelect :: (ops: []s32, handles: []u64, buffers: []u8, strides: []s32, nonblock: bool) -> s32 {
+    return HostAltSelect(ops, handles, buffers, strides, nonblock)
+}
+Spawn :: (entry_id: s32, arg: u64) -> s32 { return HostSpawn(entry_id, arg) }
+File2Chan :: (dir: string, file: string, out_handles: []u64) -> s32 {
+    return HostFile2Chan(dir, file, out_handles)
+}

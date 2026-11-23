@@ -1,0 +1,17 @@
+Tuple2 :: struct($A: Type, $B: Type) {
+    first: A;
+    second: B;
+}
+
+Tuple3 :: struct($A: Type, $B: Type, $C: Type) {
+    first: A;
+    second: B;
+    third: C;
+}
+
+Tuple4 :: struct($A: Type, $B: Type, $C: Type, $D: Type) {
+    first: A;
+    second: B;
+    third: C;
+    fourth: D;
+}

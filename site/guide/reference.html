@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Ziran reference for a first program: the Ziran guide, rendered from docs/REFERENCE.md."><title>Ziran reference for a first program · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/reference"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Ziran reference for a first program</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/REFERENCE.md">docs/REFERENCE.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#1-declarations">1. Declarations</a><a href="#2-types">2. Types</a><a href="#3-control-flow-and-ranges">3. Control flow and ranges</a><a href="#4-string-versus-text">4. string versus Text</a><a href="#5-vec-and-hashmap">5. Vec and HashMap</a><a href="#6-multiple-results-and-errors">6. Multiple results and errors</a><a href="#7-moves-and-views">7. Moves and views</a><a href="#8-pointers">8. Pointers</a><a href="#9-modules-and-imports">9. Modules and imports</a><a href="#10-formatting">10. Formatting</a><a href="#11-tests">11. Tests</a><a href="#12-a-command-line-program">12. A command-line program</a><a href="#13-commands">13. Commands</a><a href="#14-you-would-guess-x-ziran-is-y">14. You would guess X; Ziran is Y</a><a href="#15-standard-library">15. Standard library</a><a href="#16-edges">16. Edges</a></aside><div class="article-body">
+<section class="prose"><p>A short, complete reference for writing Ziran you have never seen before. Every
+<code>zi</code> block below is a whole file and passes <code>ziran check</code> in the
+<code>site_pages</code> check, so the syntax shown is current. A block whose first line is
+<code>// file: NAME.zi</code> is a module that later blocks import.</p>
+<p>Ziran is low level and manually safe like C: no garbage collector, no hidden
+allocation, no exceptions, no runtime checks unless you build with <code>--checks</code>.
+Owned values (<code>Vec</code>, <code>Text</code>) free themselves at scope exit and move on
+assignment.</p>
+<h2 id="1-declarations">1. Declarations</h2>
+<p><code>::</code> declares something that never changes (constant, procedure, type);
+<code>:=</code> declares a local with an inferred type; <code>name: Type</code> declares with a type.</p>
+<pre><code class="language-zi">LIMIT :: 10;                 // constant (s64)
+Pi :: 3.14159;               // constant (float64)
+greeting :: &quot;hello&quot;;         // constant string
+counter: s64;                // file-scope variable: ends with ';', starts at zero
+total: s32 = 5;              // file-scope variable with a value
+
+Add :: (a: s32, b: s32) -&gt; s32 {
+    return a + b
+}
+
+// A parameter default; callers may name arguments: Scale(factor = 3, value = 2).
+Scale :: (value: s64, factor: s64 = 2) -&gt; s64 { return value * factor }
+
+Log :: (message: string) {   // no result type: returns nothing
+    print(&quot;%\n&quot;, message)
+}
+
+main :: () -&gt; s32 {
+    x := 1                   // s64
+    y: s64 = 2
+    z: float64               // zero until assigned
+    z = 1.5
+    sum := cast(s32)y + Add(1, 2)
+    counter += 1             // no ++ or --
+    Log(greeting)
+    print(&quot;% % % %\n&quot;, x, z, sum, Scale(factor = 3, value = 2))
+    return 0
+}
+</code></pre>
+<p>Statements end at the newline; <code>;</code> only separates several on one line and ends
+file-scope variables and constants.</p>
+<h2 id="2-types">2. Types</h2>
+<p>Scalars: <code>bool</code>, <code>s8 s16 s32 s64</code>, <code>u8 u16 u32 u64</code>, <code>int</code> (= <code>s64</code>),
+<code>float32 float64</code>, <code>string</code> (borrowed UTF-8 bytes with <code>.count</code>). Composite:
+<code>[4]s32</code> fixed array, <code>[]s32</code> slice (view), <code>*T</code> pointer, <code>Vec(T)</code> growable
+owned array, <code>Text</code> owned string, records, enums, unions.</p>
+<p>Integer widths never mix silently: <code>a_u64 &lt; b_s64</code> is an error; write
+<code>cast(s64)a_u64 &lt; b_s64</code>. Untyped literals take the type their context needs.</p>
+<pre><code class="language-zi">Point :: struct {
+    x: s32
+    y: s32
+}
+
+Shape :: enum u8 { Circle; Square; Triangle :: 7; }
+
+Box :: struct($T: Type) { value: T; }    // generic record
+IntBox :: Box(s32)
+
+Identity :: (value: $T) -&gt; T { return value }   // generic procedure
+
+Describe :: (shape: Shape) -&gt; string {
+    if shape == {                       // the switch statement
+        case .Circle; return &quot;circle&quot;
+        case .Square; return &quot;square&quot;
+        case; return &quot;other&quot;            // default case
+    }
+    return &quot;&quot;
+}
+
+main :: () -&gt; s32 {
+    p := Point.{x = 3}                  // fields not named are zero
+    q: Point = .{x = 1, y = 2}          // type known from the declaration
+    box: IntBox = .{value = Identity(5)}
+    s := Shape.Square
+    t: Shape = .Circle                  // `.Member` when the type is known
+    grid: [3]s64 = .[1, 2, 3]
+    ones := s32.[1, 1]
+    view: []s64 = grid[:]
+    print(&quot;% % % % % %\n&quot;, p.x + q.y, box.value, Describe(s), Describe(t), view.count, ones.count)
+    return 0
+}
+</code></pre>
+<p>Records have no methods: write <code>Area(rect)</code>, not <code>rect.Area()</code>. Field
+defaults are not supported; every field starts at zero.</p>
+<h2 id="3-control-flow-and-ranges">3. Control flow and ranges</h2>
+<pre><code class="language-zi">main :: () -&gt; s32 {
+    x: s64 = 0
+    if x &gt; 0 &amp;&amp; !(x == 3) || false { x += 1 } else if x == 0 { x = 1 } else { x -= 1 }
+    if x == 1 then x = 2                     // one-statement body
+    while x &lt; 10 { x += 1 }
+    for i: 0..3 { x += i }                   // inclusive: 0, 1, 2, 3
+    for 1..3 { x += it + it_index }          // unnamed value is `it`, position `it_index`
+    for &lt; i: 0..3 { x -= i }                 // reverse: 3, 2, 1, 0
+    values := s64.[1, 2, 3]
+    for values { x += it }                   // element copy
+    for v, index: values { x += v * index }
+    for * values { &lt;&lt;it = 0 }                // `it` is a pointer: modify in place
+    for outer: 0..3 {
+        for inner: 0..3 {
+            if inner == 2 { continue outer }
+            if outer == 3 { break outer }
+        }
+    }
+    y := ifx x &gt; 5 then 1 else 2             // the ?: operator
+    defer print(&quot;runs at scope exit\n&quot;)
+    print(&quot;% %\n&quot;, x, y)
+    return 0
+}
+</code></pre>
+<p>There is no <code>for (;;)</code>, no <code>for i in a..b</code>, no <code>switch</code>/<code>match</code>, no <code>goto</code>.
+A range <code>0..n</code> includes <code>n</code>: loop over indexes with <code>for i: 0..values.count - 1</code>.</p>
+<h2 id="4-string-versus-text">4. string versus Text</h2>
+<p><code>string</code> is a borrowed view (pointer + <code>.count</code>). <code>Text</code> owns its bytes and is
+freed at scope exit. Use <code>string</code> for parameters; return <code>Text</code> when you build
+new text.</p>
+<pre><code class="language-zi">#import &quot;std/text_tools&quot;
+
+Shout :: (name: string) -&gt; Text {
+    out: Vec(u8)
+    BuilderPrint(*out, &quot;HELLO, %! (% bytes, 100%%)\n&quot;, name, name.count)
+    return BuilderFinish(out)
+}
+
+main :: () -&gt; s32 {
+    s := &quot;hello world&quot;
+    first := s[0:5]                       // view of bytes 0..4
+    if s[0] == #char &quot;h&quot; &amp;&amp; s.count == 11 &amp;&amp; first == &quot;hello&quot; { print(&quot;yes\n&quot;) }
+    owned: Text = TextCopy(s)             // owned copy
+    BuilderAppend(owned.bytes, &quot;!&quot;)       // grow it
+    view := TextView(owned)               // borrow it as a string
+    message: Text = Shout(view)
+    print(&quot;%&quot;, TextView(message))
+    at := TextFind(s, &quot;world&quot;)            // -1 when absent
+    trimmed := TextTrim(&quot;  x  &quot;)
+    joined: Text = TextReplace(s, &quot;world&quot;, &quot;there&quot;)
+    print(&quot;% % %\n&quot;, at, trimmed, TextView(joined))
+    return 0
+}
+</code></pre>
+<p>Strings compare with <code>==</code>; there is no <code>+</code> for strings: build with
+<code>BuilderPrint</code>/<code>BuilderAppend</code> or <code>TextJoin</code>.</p>
+<h2 id="5-vec-and-hashmap">5. Vec and HashMap</h2>
+<pre><code class="language-zi">#import &quot;std/option&quot;
+#import &quot;std/hash_map&quot;
+
+main :: () -&gt; s32 {
+    numbers: Vec(s64)                  // empty; no constructor call
+    VecPush(numbers, 4)
+    VecPush(numbers, 5)
+    numbers[0] = 3
+    sum: s64 = 0
+    for numbers { sum += it }
+    last := VecPop(numbers)            // Option(s64), needs std/option
+    if last.has_value { sum += last.value }
+    {
+        head := numbers[0:1]           // []s64 view; VecSlice(numbers, 0, 1) is the same
+        print(&quot;% %\n&quot;, sum, head.count)
+    }                                  // the view ends with its block; numbers may grow again
+    if !VecReserve(numbers, 100) { return 1 }
+    VecClear(numbers)
+
+    ages: HashMap(string, s32)
+    HashMapSet(*ages, &quot;ada&quot;, 36)
+    age: s32
+    if HashMapGet(*ages, &quot;ada&quot;, *age) { print(&quot;% %\n&quot;, age, ages.count) }
+    unused HashMapRemove(*ages, &quot;ada&quot;)
+    HashMapFree(*ages)
+    return 0
+}
+</code></pre>
+<p><code>Vec(T)</code> and <code>Text</code> need no import. Vec operations are compiler builtins:
+<code>VecPush(v, x)</code>, <code>VecPop(v) -&gt; Option(T)</code>, <code>VecClear(v)</code>, <code>VecFree(v)</code>,
+<code>VecSwap(a, b)</code> (two Vecs), <code>VecSlice(v, low, high) -&gt; []T</code>,
+<code>VecReserve(v, capacity) -&gt; bool</code>, <code>VecResize(v, count) -&gt; bool</code>.</p>
+<h2 id="6-multiple-results-and-errors">6. Multiple results and errors</h2>
+<p>No exceptions. A procedure that can fail returns its value and a <code>bool</code>.</p>
+<pre><code class="language-zi">Divide :: (a: s64, b: s64) -&gt; (quotient: s64, ok: bool) {
+    if b == 0 { return 0, false }
+    return a / b, true
+}
+
+Half :: (value: s64) -&gt; s64 #must { return value / 2 }
+
+main :: () -&gt; s32 {
+    value, ok := Divide(10, 2)
+    if !ok { return 1 }
+    _, zero_ok := Divide(1, 0)          // `_` drops a result
+    other, other_ok := Divide(9, 3)     // new names: `ok` is already bound here
+    half := Half(value)                 // #must: the result has to be used
+    _ := Half(4)                        // explicit discard
+    print(&quot;% % % % %\n&quot;, value, zero_ok, other, other_ok, half)
+    return 0
+}
+</code></pre>
+<p>Result names (<code>quotient</code>, <code>ok</code>) are documentation only: they are not locals.
+Assign your own locals and <code>return a, b</code>. Two <code>:=</code> of one name in one block is
+an error; pick a new name or assign with <code>=</code>.</p>
+<h2 id="7-moves-and-views">7. Moves and views</h2>
+<p>The rules that trip newcomers most. All are checked at compile time.</p>
+<ol>
+<li><strong>Owned values move.</strong> <code>b := a</code> for a <code>Vec</code>/<code>Text</code> moves <code>a</code>; using <code>a</code>
+   afterwards is "Vec binding is used after moving". Passing a Vec to a
+   <code>Vec(T)</code> parameter or returning it moves it too.</li>
+<li><strong>Mutate through a pointer instead of moving.</strong> Take <code>v: *Vec(T)</code> and call
+   <code>VecPush(&lt;&lt;v, x)</code>; the caller writes <code>Grow(*items)</code>.</li>
+<li><strong>A view borrows its owner.</strong> <code>string</code>, <code>[]T</code>, <code>TextView(t)</code> and <code>v[a:b]</code>
+   point into storage. Until the block holding the view ends, the owner
+   cannot grow, move or free ("cannot mutate a Vec with a live borrowed
+   view"); put a short-lived view in its own <code>{ }</code> block.</li>
+<li><strong>Loop over a call directly; bind it to slice it.</strong> <code>for TextLines(x) { }</code>
+   binds the result for the loop and frees it when the loop ends. A slice of
+   a call result, <code>TextLines(x)[0:2]</code>, needs <code>lines := TextLines(x)</code> first.</li>
+<li><strong>Owned results: <code>:=</code> keeps a string, <code>: Text</code> keeps ownership.</strong>
+   <code>name := Name()</code> holds the bytes as a <code>string</code> for the rest of the
+   program; <code>name: Text = Name()</code> frees them with <code>name</code>. <code>TextView</code> works
+   on either.</li>
+<li><strong>Never return a view of a local.</strong> <code>return TextView(local_text)</code> is
+   "returned text view borrows local or temporary storage": return the <code>Text</code>.</li>
+<li><strong>Owned elements stay in place.</strong> For a <code>Vec</code> of records that own Vecs,
+   iterate <code>for * items</code> and index <code>items[i].parts</code>; <code>for items</code> would copy.</li>
+</ol>
+<pre><code class="language-zi">#import &quot;std/text_tools&quot;
+
+Group :: struct { name: string; parts: Vec(string); }
+
+Grow :: (values: *Vec(s64), x: s64) { VecPush(&lt;&lt;values, x) }
+
+Name :: () -&gt; Text { return TextCopy(&quot;ada&quot;) }
+
+Take :: (values: Vec(s64)) -&gt; s64 { return values.count }   // consumes `values`
+
+main :: () -&gt; s32 {
+    items: Vec(s64)
+    Grow(*items, 1)                      // pointer: items stays usable
+    Grow(*items, 2)
+    for TextLines(&quot;a\nb&quot;) { print(&quot;%\n&quot;, it) }   // freed when the loop ends
+    name: Text = Name()                  // typed: stays owned, freed at scope exit
+    print(&quot;%\n&quot;, TextView(name))
+    groups: Vec(Group)
+    group: Group
+    VecPush(group.parts, &quot;x&quot;)
+    VecPush(groups, group)               // moves `group` into the Vec
+    for * groups { VecPush(it.parts, &quot;y&quot;) }
+    groups[0].parts[0] = &quot;z&quot;
+    count := Take(items)                 // `items` is moved: do not use it again
+    print(&quot;% %\n&quot;, count, groups[0].parts.count)
+    return 0
+}
+</code></pre>
+<h2 id="8-pointers">8. Pointers</h2>
+<p><code>*x</code> takes an address, <code>&lt;&lt;p</code> reads or writes through it (<code>p.*</code> reads too),
+<code>p.field</code> dereferences automatically, <code>null</code> is the null pointer. There is
+no <code>&amp;x</code>, no <code>*p = v</code>, no <code>p-&gt;field</code>.</p>
+<pre><code class="language-zi">Point :: struct { x: s32; y: s32; }
+
+Move :: (p: *Point, dx: s32) {
+    p.x += dx                            // field through a pointer
+    &lt;&lt;p = Point.{x = p.x, y = 2}         // store the whole value
+}
+
+main :: () -&gt; s32 {
+    point := Point.{x = 1}
+    Move(*point, 4)
+    n: s64 = 1
+    pn := *n
+    &lt;&lt;pn = 5
+    read := pn.*
+    missing: *Point = null
+    if missing == null { print(&quot;% % %\n&quot;, point.x, n, read) }
+    return 0
+}
+</code></pre>
+<p><code>&lt;&lt;</code> and <code>&amp;</code> between two values are still shift and bitwise and.</p>
+<h2 id="9-modules-and-imports">9. Modules and imports</h2>
+<p>A file is a module named after the file. <code>#import "name"</code> searches <code>--root</code>
+and the module paths; <code>std/...</code> names the standard library.</p>
+<pre><code class="language-zi">// file: geometry.zi
+Rect :: struct { width: s64; height: s64; }
+
+Area :: (r: Rect) -&gt; s64 { return r.width * r.height }
+
+#scope_file
+Helper :: () -&gt; s64 { return 1 }         // private to this file
+</code></pre>
+<pre><code class="language-zi">#import &quot;geometry&quot;                       // names come in unqualified
+Geo :: #import &quot;geometry&quot;;               // or qualified: Geo.Area
+Op :: #type (s64, s64) -&gt; s64;           // procedure type
+
+Add :: (a: s64, b: s64) -&gt; s64 { return a + b }
+Apply :: (op: Op, a: s64, b: s64) -&gt; s64 { return op(a, b) }
+
+main :: () -&gt; s32 {
+    r := Rect.{width = 2, height = 3}
+    g := Geo.Rect.{width = 1, height = 1}
+    print(&quot;%\n&quot;, Area(r) + Geo.Area(g) + Apply(Add, 1, 2))
+    return 0
+}
+</code></pre>
+<p>Procedure values cannot capture locals (no closures); pass state explicitly.</p>
+<h2 id="10-formatting">10. Formatting</h2>
+<p><code>print(format, args...)</code> writes to standard output with no import.
+<code>BuilderPrint(*bytes, format, args...)</code> appends to a <code>Vec(u8)</code>. Each <code>%</code>
+takes the next argument whatever its type; <code>%%</code> is one <code>%</code>. There is no
+<code>%s</code>, <code>%d</code> or <code>{}</code>. The format must be a literal string.</p>
+<pre><code class="language-zi">main :: () -&gt; s32 {
+    out: Vec(u8)
+    name := &quot;ada&quot;
+    BuilderPrint(*out, &quot;% is % years, % done\n&quot;, name, 36, 0.5)
+    BuilderPrint(*out, &quot;%&quot;, 90)          // to print &quot;90%&quot;: the number, then the sign
+    Append(*out, &quot;%\n&quot;)
+    Append(*out, &quot;raw text &quot;)
+    Append(*out, cast(s64)42)
+    Append(*out, &quot;\n&quot;)
+    print(&quot;%&quot;, BuilderFinish(out))
+    return 0
+}
+</code></pre>
+<p><code>%%</code> is matched before <code>%</code>, left to right, so <code>"%%%"</code> is a literal <code>%</code> and
+then an argument, never an argument and then <code>%</code>. Floats print up to six
+digits after the point.</p>
+<h2 id="11-tests">11. Tests</h2>
+<p>A test is an ordinary program whose <code>main</code> returns nonzero on failure.
+<code>#assert</code> checks constant facts at compile time.</p>
+<pre><code class="language-zi">// file: tally.zi
+Tally :: (values: []s64) -&gt; s64 {
+    total: s64 = 0
+    for values { total += it }
+    return total
+}
+</code></pre>
+<pre><code class="language-zi">#import &quot;tally&quot;
+
+failures: s32;
+
+Expect :: (ok: bool, what: string) {
+    if !ok { failures += 1; print(&quot;FAIL: %\n&quot;, what) }
+}
+
+#assert size_of(s64) == 8;
+
+main :: () -&gt; s32 {
+    values := s64.[1, 2, 3]
+    Expect(Tally(values[:]) == 6, &quot;sum of 1, 2, 3&quot;)
+    empty: []s64
+    Expect(Tally(empty) == 0, &quot;empty sum&quot;)
+    if failures == 0 { print(&quot;all checks passed\n&quot;) }
+    return ifx failures == 0 then 0 else 1
+}
+</code></pre>
+<h2 id="12-a-command-line-program">12. A command-line program</h2>
+<pre><code class="language-zi">// Arguments, standard input, files, JSON and sorting.
+#import &quot;std/byte_text_linux&quot;
+#import &quot;std/stdio_linux&quot;
+#import &quot;std/file&quot;
+#import &quot;std/json_document&quot;
+#import &quot;std/sort&quot;
+#import &quot;std/text_tools&quot;
+
+main :: (argc: s32, argv: **u8) -&gt; s32 {
+    if argc &lt; 2 { unused PrintError(&quot;usage: tool FILE\n&quot;); return 2 }
+    path := TextFromCString(argv[1])
+    text, ok := ReadEntireFile(path)
+    if !ok { unused PrintError(&quot;cannot read file\n&quot;); return 1 }
+    document: JsonDocument
+    if !JsonRead(*document, text) { unused PrintError(&quot;bad JSON\n&quot;); return 1 }
+    name: Text = JsonString(*document, JsonMember(*document, document.root, &quot;name&quot;))
+    age, has_age := JsonInteger(*document, JsonMember(*document, document.root, &quot;age&quot;))
+    input: Text = ReadStandardInput()
+    words := TextSplit(TextView(input), &quot; &quot;)
+    SortText(words[:])
+    out: Vec(u8)
+    BuilderPrint(*out, &quot;% % % %\n&quot;, TextView(name), age, has_age, words.count)
+    unused WriteOutput(BuilderFinish(out))
+    unused WriteEntireFile(&quot;build/out.txt&quot;, &quot;done\n&quot;)
+    return 0
+}
+</code></pre>
+<h2 id="13-commands">13. Commands</h2>
+<pre><code class="language-sh">ziran check main.zi                          # type-check one file; its folder is the root
+ziran check --lint --root . main.zi          # also warn on needless casts and -1 divisors
+ziran check --diagnostics=json --root . main.zi
+ziran run --target=c --root . main.zi -- ARGS   # build natively and run
+ziran build --target=c --exe --entry main:main --root . -o build main.zi
+ziran explain check.type                     # explain a diagnostic code
+ziran api --root . main.zi                   # checked signatures, Vec builtins included
+ziran std --list                             # every standard module and its purpose
+ziran new hello &amp;&amp; cd hello &amp;&amp; ziran lock &amp;&amp; ziran run   # a project
+</code></pre>
+<p>In a project (<code>ziran.toml</code>), run <code>ziran lock</code> once, then <code>ziran check</code>,
+<code>ziran build</code> and <code>ziran run</code> without a file. Two dependencies may pin different
+revisions of one package and both are linked, unless both define one
+<code>#program_export</code> name: <code>ziran check</code> reports that, and the pins must agree. Plain <code>ziran run file.zi</code>
+uses the portable engine, which has no <code>std/*_linux</code> modules: use
+<code>--target=c</code> for programs that touch files, input or processes.</p>
+<h2 id="14-you-would-guess-x-ziran-is-y">14. You would guess X; Ziran is Y</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>You would write (C, Go, Rust, JS)</th>
+<th>Ziran</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>let x = 1</code>, <code>var x = 1</code>, <code>const x = 1</code>, <code>x := 1</code> at file scope</td>
+<td>local <code>x := 1</code>; file scope <code>x: s64 = 1;</code>; constant <code>X :: 1;</code></td>
+</tr>
+<tr>
+<td><code>fn f(a: i32) -&gt; i32</code>, <code>func f(a int) int</code>, <code>def f(a)</code>, <code>function f(a)</code></td>
+<td><code>F :: (a: s32) -&gt; s32 { ... }</code></td>
+</tr>
+<tr>
+<td><code>int</code>, <code>i32</code>, <code>i64</code>, <code>f64</code>, <code>double</code>, <code>usize</code></td>
+<td><code>s32</code>, <code>s32</code>, <code>s64</code>, <code>float64</code>, <code>float64</code>, <code>u64</code></td>
+</tr>
+<tr>
+<td><code>for (i = 0; i &lt; n; i++)</code>, <code>for i in 0..n</code>, <code>for i := range n</code></td>
+<td><code>for i: 0..n - 1 { }</code> (inclusive)</td>
+</tr>
+<tr>
+<td><code>for x in xs</code>, <code>for _, x := range xs</code>, <code>xs.forEach</code></td>
+<td><code>for xs { it }</code> or <code>for x: xs { }</code>, <code>for x, i: xs { }</code></td>
+</tr>
+<tr>
+<td><code>switch</code>, <code>match</code></td>
+<td><code>if value == { case .A; ... case; ... }</code></td>
+</tr>
+<tr>
+<td><code>c ? a : b</code></td>
+<td><code>ifx c then a else b</code></td>
+</tr>
+<tr>
+<td><code>i++</code>, <code>i--</code></td>
+<td><code>i += 1</code>, <code>i -= 1</code></td>
+</tr>
+<tr>
+<td><code>nil</code>, <code>NULL</code>, <code>None</code>, <code>undefined</code></td>
+<td><code>null</code> (pointers only)</td>
+</tr>
+<tr>
+<td><code>&amp;x</code>, <code>*p = v</code>, <code>p-&gt;f</code></td>
+<td><code>*x</code>, <code>&lt;&lt;p = v</code>, <code>p.f</code></td>
+</tr>
+<tr>
+<td><code>(int)x</code>, <code>int(x)</code>, <code>x as i32</code></td>
+<td><code>cast(s32)x</code></td>
+</tr>
+<tr>
+<td><code>s.len()</code>, <code>len(s)</code>, <code>s.length</code>, <code>strlen(s)</code></td>
+<td><code>s.count</code></td>
+</tr>
+<tr>
+<td><code>printf("%d %s", a, b)</code>, <code>fmt.Printf</code>, <code>`${a}`</code></td>
+<td><code>print("% %\n", a, b)</code></td>
+</tr>
+<tr>
+<td><code>a + b</code> on strings</td>
+<td><code>BuilderAppend(out, a); BuilderAppend(out, b)</code> on <code>out: Vec(u8)</code>, then <code>BuilderFinish(out)</code></td>
+</tr>
+<tr>
+<td><code>'a'</code></td>
+<td><code>#char "a"</code></td>
+</tr>
+<tr>
+<td><code>struct P { int x; }</code>, <code>type P struct { x int }</code></td>
+<td><code>P :: struct { x: s32 }</code></td>
+</tr>
+<tr>
+<td><code>P{x: 1}</code>, <code>P { x: 1 }</code>, <code>{x: 1}</code></td>
+<td><code>P.{x = 1}</code> or <code>.{x = 1}</code></td>
+</tr>
+<tr>
+<td><code>enum E { A, B }</code></td>
+<td><code>E :: enum { A; B; }</code>, values <code>E.A</code> or <code>.A</code></td>
+</tr>
+<tr>
+<td><code>[]int{1, 2}</code>, <code>vec![1, 2]</code>, <code>[1, 2]</code></td>
+<td><code>s64.[1, 2]</code> (fixed array), or a <code>Vec(s64)</code> with <code>VecPush</code></td>
+</tr>
+<tr>
+<td><code>v.push(x)</code>, <code>append(v, x)</code>, <code>v.pop()</code></td>
+<td><code>VecPush(v, x)</code>, <code>VecPop(v)</code></td>
+</tr>
+<tr>
+<td><code>map[string]int</code>, <code>HashMap&lt;String, i32&gt;</code>, <code>new Map()</code></td>
+<td><code>HashMap(string, s32)</code> from <code>std/hash_map</code></td>
+</tr>
+<tr>
+<td><code>x.method()</code></td>
+<td><code>Method(x)</code> or <code>Method(*x)</code></td>
+</tr>
+<tr>
+<td><code>try</code>/<code>catch</code>, <code>?</code>, <code>Result&lt;T, E&gt;</code>, <code>if err != nil</code></td>
+<td><code>value, ok := F()</code>; <code>if !ok { ... }</code></td>
+</tr>
+<tr>
+<td><code>import x from "y"</code>, <code>use y::x</code>, <code>#include "y.h"</code></td>
+<td><code>#import "y"</code> or <code>Y :: #import "y";</code></td>
+</tr>
+<tr>
+<td><code>T&lt;U&gt;</code>, <code>Vec&lt;T&gt;</code>, <code>func F[T any]</code></td>
+<td><code>Vec(T)</code>, <code>F :: (x: $T) -&gt; T</code></td>
+</tr>
+<tr>
+<td>closures <code>x =&gt; x + 1</code></td>
+<td>named procedure plus explicit state</td>
+</tr>
+<tr>
+<td><code>free(p)</code>, <code>delete</code>, <code>drop(v)</code></td>
+<td>automatic at scope exit; <code>VecFree(v)</code> early</td>
+</tr>
+<tr>
+<td><code>goto</code>, <code>do { } while</code></td>
+<td><code>while</code>, <code>break</code>, labeled <code>continue name</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="15-standard-library">15. Standard library</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Import</th>
+<th>Signatures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>(none)</td>
+<td><code>print(format: string, ..)</code>, <code>Vec(T)</code>, <code>Text</code>, <code>TextCopy(s: string) -&gt; Text</code>, <code>TextView(t: Text) -&gt; string</code>, <code>TextDetach(t: Text) -&gt; string</code>, <code>BuilderPrint(out: *Vec(u8), format, ..)</code>, <code>BuilderFinish(bytes: Vec(u8)) -&gt; string</code>, <code>BuilderAppend(bytes: Vec(u8), s: string)</code></td>
+</tr>
+<tr>
+<td><code>std/format</code></td>
+<td><code>Append(out: *Vec(u8), value: string or s64 or u64 or bool or float64)</code></td>
+</tr>
+<tr>
+<td><code>std/option</code></td>
+<td><code>Option(T)</code> with <code>has_value</code>, <code>value</code>; needed by <code>VecPop</code></td>
+</tr>
+<tr>
+<td><code>std/text_tools</code></td>
+<td><code>TextFind(text, needle, from := 0) -&gt; s64</code>, <code>TextSplit(text, sep) -&gt; Vec(string)</code>, <code>TextLines(text) -&gt; Vec(string)</code>, <code>TextTrim(text) -&gt; string</code>, <code>TextHasPrefix(text, prefix) -&gt; bool</code>, <code>TextReplace(text, old, new) -&gt; Text</code>, <code>TextJoin(parts: []string, sep) -&gt; Text</code>, <code>TextInteger(text) -&gt; (value: s64, ok: bool)</code></td>
+</tr>
+<tr>
+<td><code>std/unicode</code></td>
+<td><code>Lower(text) -&gt; Text</code>, <code>CaseFold(text) -&gt; Text</code>, <code>SplitWhitespace(text) -&gt; Vec(string)</code></td>
+</tr>
+<tr>
+<td><code>std/hash_map</code></td>
+<td><code>HashMap(K, V)</code>, <code>HashMapSet(*m, key, value)</code>, <code>HashMapGet(*m, key, *value) -&gt; bool</code>, <code>HashMapHas(*m, key) -&gt; bool</code>, <code>HashMapRemove(*m, key) -&gt; bool</code>, <code>HashMapFree(*m)</code></td>
+</tr>
+<tr>
+<td><code>std/sort</code></td>
+<td><code>Sort(values: []$T)</code>, <code>SortText(values: []string)</code>, <code>BinarySearch(values: []$T, target: T) -&gt; s64</code></td>
+</tr>
+<tr>
+<td><code>std/file</code></td>
+<td><code>ReadEntireFile(path) -&gt; (text: string, ok: bool)</code>, <code>WriteEntireFile(path, text) -&gt; bool</code></td>
+</tr>
+<tr>
+<td><code>std/file_linux</code></td>
+<td><code>PathExists(path) -&gt; bool</code>, <code>CreateDirectory(path) -&gt; bool</code>, <code>RemoveFile(path) -&gt; bool</code></td>
+</tr>
+<tr>
+<td><code>std/file_tree_linux</code></td>
+<td><code>ListDirectory(path, names: *Vec(string)) -&gt; bool</code></td>
+</tr>
+<tr>
+<td><code>std/stdio_linux</code></td>
+<td><code>WriteOutput(text) -&gt; bool</code>, <code>PrintError(text) -&gt; bool</code>, <code>ReadStandardInput() -&gt; Text</code></td>
+</tr>
+<tr>
+<td><code>std/byte_text_linux</code></td>
+<td><code>TextFromCString(value: *u8) -&gt; string</code>, <code>TextFromBytes(bytes: []u8) -&gt; string</code></td>
+</tr>
+<tr>
+<td><code>std/environment_linux</code></td>
+<td><code>EnvironmentText(name) -&gt; string</code>, <code>EnvironmentNumber(name, fallback: s64) -&gt; s64</code></td>
+</tr>
+<tr>
+<td><code>std/json_document</code></td>
+<td><code>JsonRead(*doc, text) -&gt; bool</code>, <code>JsonMember(*doc, node, key) -&gt; s32</code>, <code>JsonElement(*doc, node, index) -&gt; s32</code>, <code>JsonString(*doc, node) -&gt; Text</code>, <code>JsonInteger(*doc, node) -&gt; (value: s64, ok: bool)</code>, <code>JsonWrite(*doc, node, style) -&gt; Text</code></td>
+</tr>
+<tr>
+<td><code>std/process_run_linux</code></td>
+<td><code>RunProcess(options: ProcessOptions, run: *ProcessRun) -&gt; bool</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="16-edges">16. Edges</h2>
+<ul>
+<li>Arithmetic is C's: division by zero traps; <code>S64_MIN / -1</code> and <code>S64_MIN % -1</code>
+  wrap. Check the divisor yourself; <code>ziran check --lint</code> warns on a constant <code>-1</code>.</li>
+<li>A constant may name its type with a cast, <code>LIMIT :: cast(s64)9223372036854775807;</code>;
+  a value the type cannot hold is "invalid or ambiguous constant".</li>
+<li><code>VecSlice</code> and <code>v[a:b]</code> need the Vec variable or a field of one, not
+  <code>&lt;&lt;pointer</code>: take a slice parameter (<code>Rest(items[:])</code>) instead.</li>
+<li>A call cannot move a global Vec (it would empty the global): pass <code>*items</code>
+  or move it into a local first.</li>
+<li><code>BuilderPrint</code> needs a literal format; branch around the call instead of
+  choosing the format with <code>ifx</code>.</li>
+</ul>
+<pre><code class="language-zi">Rest :: (values: []s64) -&gt; []s64 { return values[1:] }   // view of caller storage
+
+Count :: (values: *Vec(s64)) -&gt; s64 { return values.count }
+
+SafeDivide :: (a: s64, b: s64) -&gt; (value: s64, ok: bool) {
+    if b == 0 || (b == -1 &amp;&amp; a == -9223372036854775807 - 1) { return 0, false }
+    return a / b, true
+}
+
+items: Vec(s64);
+
+main :: () -&gt; s32 {
+    VecPush(items, 1)
+    VecPush(items, 2)
+    rest := Rest(items[:])
+    q, ok := SafeDivide(7, 2)
+    print(&quot;% % % %\n&quot;, rest.count, Count(*items), q, ok)
+    return 0
+}
+</code></pre>
+<p>Where several modules cover one job, use: <code>std/text_tools</code> to find, split,
+trim and replace, <code>std/unicode</code> when case or whitespace must follow Unicode
+(<code>std/text</code> folds ASCII only); <code>std/json_document</code> to read, change and write
+JSON, <code>std/json_scan</code> only to pick values out of large input without a tree;
+<code>std/date_time_linux</code> for clocks in a native Linux program, <code>std/date_time</code>
+in a portable bundle, <code>std/calendar</code> for date arithmetic; <code>std/net_http</code> for
+HTTP through a host, <code>std/net_http_curl_linux</code> or <code>std/net_http_linux</code> in a
+native Linux program; <code>std/audio</code> with its <code>std/audio_decode_*</code> decoders.</p>
+<p><code>ziran api --root DIR FILE.zi</code> prints every checked signature of a module and
+its imports; <code>ziran explain CODE</code> explains any diagnostic code.</p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

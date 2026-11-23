@@ -1,0 +1,814 @@
+// The embedding API (include/ziran_host.h) over revision-28 executable ZX:
+// bundles, instances, module state and hot-swapped components. A bundle runs
+// on the portable instruction engine (cmd/zir/zir_host_exec.c), on native
+// code (cmd/zir/zir_host_native.c), or on the host's installed wasm provider.
+//
+// This file holds bundles, instances and run control;
+// compiler_host_api_state.zi holds module state and components. The records
+// below mirror include/ziran_host.h field for field, so C hosts pass them
+// unchanged.
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+
+#load "compiler_host_api_state.zi";
+
+malloc :: (size: usize) -> *u8 #foreign libc "malloc";
+calloc :: (count: usize, size: usize) -> *u8 #foreign libc "calloc";
+free :: (memory: *u8) #foreign libc "free";
+memcpy :: (dst: *u8, src: *u8, count: usize) -> *u8 #foreign libc "memcpy";
+memset :: (dst: *u8, value: s32, count: usize) -> *u8 #foreign libc "memset";
+strlen :: (s: *u8) -> usize #foreign libc "strlen";
+strcmp :: (a: *u8, b: *u8) -> s32 #foreign libc "strcmp";
+fopen :: (path: *u8, mode: *u8) -> *void #foreign libc "fopen";
+fclose :: (file: *void) -> s32 #foreign libc "fclose";
+// C long is pointer-sized on every target libziran builds for, wasm32 included.
+fseek :: (file: *void, offset: isize, whence: s32) -> s32 #foreign libc "fseek";
+ftell :: (file: *void) -> isize #foreign libc "ftell";
+fread :: (data: *u8, size: usize, count: usize, file: *void) -> usize #foreign libc "fread";
+BindingOrder :: #type (left: *void, right: *void) -> s32 #c_call;
+qsort :: (base: *u8, count: usize, size: usize, order: BindingOrder) #foreign libc "qsort";
+
+ZirSourceSpan :: struct {
+    context: *u8
+    file: s32
+    line: s32
+    column: s32
+    end_line: s32
+    end_column: s32
+}
+Diagnostic :: (span: ZirSourceSpan, code: *u8, fmt: *u8, args: ..any) #foreign compiler "Diagnostic";
+Span :: (path: *u8, line: s32, column: s32) -> ZirSourceSpan #foreign compiler "Span";
+ProfileStart :: () -> u64 #foreign compiler "ProfileStart";
+ProfileEnd :: (phase: *u8, started: u64) #foreign compiler "ProfileEnd";
+SliceElementType :: (type: *u8, element: *u8, size: usize) -> s32 #foreign compiler "SliceElementType";
+IntStore :: (slot: *void, value: s32) #foreign compiler "S15IntStore";
+IntLoad :: (slot: *void) -> s32 #foreign compiler "S15IntLoad";
+
+Sha256 :: struct {
+    state: [8]u32
+    length: u64
+    block: [64]u8
+    used: usize
+}
+Sha256Begin :: (hash: *Sha256) #foreign compiler "Sha256Begin";
+Sha256Add :: (hash: *Sha256, data: *u8, size: usize) #foreign compiler "Sha256Add";
+Sha256End :: (hash: *Sha256, digest: *u8) #foreign compiler "Sha256End";
+
+StaticText :: struct { data: *u8; length: usize }
+CStr :: (s: string) -> *u8 { return (cast(*StaticText)(*s)).data }
+Same :: (a: *u8, b: *u8) -> bool { return strcmp(a, b) == 0 }
+// The largest size, as C spells SizeMax().
+SizeMax :: () -> usize {
+    zero: usize = 0
+    return zero - 1
+}
+HostSpan :: () -> ZirSourceSpan { return Span(CStr("<host>"), 1, 1) }
+
+// ziran_host.h's HostValueKind.
+HostKind :: enum s32 { Void; Integer; Unsigned; Real; String; Record; Slice; Pointer; Array; BorrowedSlice }
+
+HostValue :: struct {
+    kind: HostKind
+    type: *u8
+    integer: s64
+    bits: u64
+    real: float64
+    data: *u8
+    length: usize
+    fields: *HostField
+    field_count: usize
+    elements: *HostValue
+    pointer: *void
+}
+
+HostField :: struct {
+    name: *u8
+    value: HostValue
+}
+
+// The call is the host's HostCall; only the engines invoke it.
+HostBinding :: struct {
+    module: *u8
+    function: *u8
+    call: *void
+    context: *void
+}
+
+BundleCapabilityAbi :: struct {
+    module: *u8
+    function: *u8
+    signature: *u8
+    arguments: *u8
+    return_type: *u8
+    variable_arguments: s32
+    reads_arguments: s32
+}
+
+// ziran_host.h's BundleBackendPolicy and BundleExecutionBackend.
+POLICY_AUTO :: 0
+POLICY_ENGINE :: 1
+POLICY_NATIVE :: 2
+EXECUTION_NONE :: 0
+EXECUTION_ENGINE :: 1
+EXECUTION_WASM :: 2
+
+BundleInstanceOptions :: struct {
+    backend: s32
+    max_steps: s32
+    unbounded: s32
+}
+
+// ziran_host.h's ZxRunStatus.
+RUN_ERROR :: 0
+RUN_OK :: 1
+RUN_CANCELLED :: 2
+
+BundleImageRelease :: #type (context: *void, data: *u8, size: usize) #c_call;
+BundleReadAt :: #type (context: *void, offset: u64, output: *void, size: usize) -> usize #c_call;
+BundleShrink :: #type (storage: *void, size: usize) -> *void #c_call;
+BundleConsoleWrite :: #type (context: *void, descriptor: s32, bytes: *void, size: usize) -> s32 #c_call;
+FindBinding :: #type (context: *void, module: *u8, function: *u8) -> *HostBinding #c_call;
+
+// zir_host_native.h's NativeBundleSlot, held by value in each bundle.
+NativeBundleSlot :: struct {
+    code: *void
+    ready: s32
+    problem: [512]u8
+}
+
+// The engine, native and wasm layers below this API; their records stay
+// opaque here.
+ExecBundleOpenWithRelease :: (bytes: *u8, size: usize, name: *u8, consumed: BundleImageRelease, context: *void) -> *void #foreign compiler "ExecBundleOpenWithRelease";
+ExecBundleOpenReadAt :: (size: u64, read_at: BundleReadAt, context: *void, digest: *u8, unsupported: *s32, engine_only: s32,
+                         shrink: BundleShrink) -> *void #foreign compiler "ExecBundleOpenReadAt";
+ExecBundleClose :: (bundle: *void) #foreign compiler "ExecBundleClose";
+ExecBundleCapabilityCount :: (bundle: *void) -> usize #foreign compiler "ExecBundleCapabilityCount";
+ExecBundleCapabilityModule :: (bundle: *void, index: usize) -> *u8 #foreign compiler "ExecBundleCapabilityModule";
+ExecBundleCapabilityFunction :: (bundle: *void, index: usize) -> *u8 #foreign compiler "ExecBundleCapabilityFunction";
+ExecBundleCapabilityAbi :: (bundle: *void, index: usize, abi: *BundleCapabilityAbi) -> s32 #foreign compiler "ExecBundleCapabilityAbi";
+ExecBundleEntryArguments :: (bundle: *void) -> *u8 #foreign compiler "ExecBundleEntryArguments";
+ExecBundleEntryReturnType :: (bundle: *void) -> *u8 #foreign compiler "ExecBundleEntryReturnType";
+ExecBundleEntryModule :: (bundle: *void) -> *u8 #foreign compiler "ExecBundleEntryModule";
+ExecBundleEntryFunction :: (bundle: *void) -> *u8 #foreign compiler "ExecBundleEntryFunction";
+ExecBundleAssetCount :: (bundle: *void) -> usize #foreign compiler "ExecBundleAssetCount";
+ExecBundleAssetName :: (bundle: *void, index: usize) -> *u8 #foreign compiler "ExecBundleAssetName";
+ExecBundleAssetData :: (bundle: *void, index: usize) -> *u8 #foreign compiler "ExecBundleAssetData";
+ExecBundleAssetSize :: (bundle: *void, index: usize) -> usize #foreign compiler "ExecBundleAssetSize";
+ExecInstanceOpen :: (bundle: *void, find: FindBinding, context: *void, max_steps: s64, write: BundleConsoleWrite,
+                     console_context: *void, control: *ZxRunControl, status: *s32) -> *void #foreign compiler "ExecInstanceOpen";
+ExecInstanceRun :: (instance: *void, result: *s64, has_result: *s32, control: *ZxRunControl) -> s32 #foreign compiler "ExecInstanceRun";
+ExecInstanceLimitSteps :: (instance: *void, max_steps: s64) #foreign compiler "ExecInstanceLimitSteps";
+ExecInstanceMatchFieldsByName :: (instance: *void, enabled: s32) #foreign compiler "ExecInstanceMatchFieldsByName";
+ExecInstanceBorrowHostView :: (instance: *void, module: *u8, function: *u8, parameter: usize, string_view: s32) -> s32 #foreign compiler "ExecInstanceBorrowHostView";
+ExecInstanceClose :: (instance: *void) #foreign compiler "ExecInstanceClose";
+ZxWasmOpenExec :: (bundle: *void, find: FindBinding, context: *void, max_steps: s64) -> *void #foreign compiler "ZxWasmOpenExec";
+ZxWasmRun :: (wasm: *void, result: *s64, has_result: *s32) -> s32 #foreign compiler "ZxWasmRun";
+ZxWasmLimitSteps :: (wasm: *void, max_steps: s64) #foreign compiler "ZxWasmLimitSteps";
+ZxWasmMatchFieldsByName :: (wasm: *void, enabled: s32) #foreign compiler "ZxWasmMatchFieldsByName";
+ZxWasmClose :: (wasm: *void) #foreign compiler "ZxWasmClose";
+ZxWasmPlatformActive :: () -> *void #foreign compiler "ZxWasmPlatformActive";
+NativeBundleSlotCode :: (slot: *NativeBundleSlot, bundle: *void, digest: *u8, unbounded: s32) -> *void #foreign compiler "NativeBundleSlotCode";
+NativeBundleSlotProblem :: (slot: *NativeBundleSlot, bundle: *void, digest: *u8) -> *u8 #foreign compiler "NativeBundleSlotProblem";
+NativeBundleSlotClose :: (slot: *NativeBundleSlot) #foreign compiler "NativeBundleSlotClose";
+NativeInstanceOpen :: (code: *void, bundle: *void, find: FindBinding, context: *void, max_steps: s64) -> *void #foreign compiler "NativeInstanceOpen";
+NativeInstanceRun :: (instance: *void, result: *s64, has_result: *s32) -> s32 #foreign compiler "NativeInstanceRun";
+NativeInstanceLimitSteps :: (instance: *void, max_steps: s64) #foreign compiler "NativeInstanceLimitSteps";
+NativeInstanceMatchFieldsByName :: (instance: *void, enabled: s32) #foreign compiler "NativeInstanceMatchFieldsByName";
+NativeInstanceClose :: (instance: *void) #foreign compiler "NativeInstanceClose";
+// The platform's native backend and the backend Auto selects; a platform
+// decision kept beside the native loader, never a per-bundle probe.
+NativePlatformBackend :: () -> s32 #foreign compiler "BundleNativePlatformBackend";
+AutoPlatformBackend :: () -> s32 #foreign compiler "BundleAutoPlatformBackend";
+
+Bundle :: struct {
+    exec: *void
+    // Native code, compiled the first time an instance or the preflight
+    // query asks for it.
+    native: NativeBundleSlot
+    // The same code without fuel checks, for unbounded instances.
+    unbounded: NativeBundleSlot
+    references: usize
+    engine_only: s32
+    // SHA-256 of the file's bytes.
+    digest: [32]u8
+}
+
+#program_export
+BundleVerifiedExec :: (bundle: *Bundle) -> *void {
+    return ifx bundle != null then bundle.exec else null
+}
+
+BundleImageOwner :: struct {
+    release: BundleImageRelease
+    context: *void
+    digest: *u8
+    pending: bool
+}
+
+BundleDigest :: (bytes: *u8, size: usize, digest: *u8) {
+    hash: Sha256
+    Sha256Begin(*hash)
+    Sha256Add(*hash, bytes, size)
+    Sha256End(*hash, digest)
+}
+
+BundleImageConsumed :: (context: *void, bytes: *u8, size: usize) {
+    owner := cast(*BundleImageOwner)context
+    BundleDigest(bytes, size, owner.digest)
+    owner.release(owner.context, bytes, size)
+    owner.pending = false
+}
+
+NewBundle :: () -> *Bundle {
+    bundle := cast(*Bundle)calloc(1, size_of(Bundle))
+    if bundle != null { bundle.references = 1 }
+    return bundle
+}
+
+// RELEASE, when OWNED, is called once with the bytes after verification.
+OpenBundle :: (bytes: *u8, size: usize, name: *u8, release: BundleImageRelease, context: *void, owned: bool) -> *Bundle {
+    bundle := NewBundle()
+    if bundle == null {
+        if owned { release(context, bytes, size) }
+        return null
+    }
+    owner: BundleImageOwner
+    owner.release = release
+    owner.context = context
+    owner.digest = *bundle.digest[0]
+    owner.pending = owned
+    started := ProfileStart()
+    if owned {
+        bundle.exec = ExecBundleOpenWithRelease(bytes, size, name, BundleImageConsumed, cast(*void)*owner)
+    } else {
+        keep: BundleImageRelease = cast(BundleImageRelease)null
+        bundle.exec = ExecBundleOpenWithRelease(bytes, size, name, keep, null)
+    }
+    if owner.pending { owner.release(owner.context, bytes, size) }
+    if bundle.exec == null {
+        free(cast(*u8)bundle)
+        return null
+    }
+    if !owned { BundleDigest(bytes, size, *bundle.digest[0]) }
+    ProfileEnd(CStr("zx.bundle.open"), started)
+    return bundle
+}
+
+FreeBundleImage :: (context: *void, bytes: *u8, size: usize) { free(bytes) }
+
+// The whole file at PATH, or null.
+ReadBundleFile :: (path: *u8, size: *isize) -> *u8 {
+    file := fopen(path, CStr("rb"))
+    if file == null { return null }
+    bytes: *u8 = null
+    length: isize = -1
+    if fseek(file, 0, 2) == 0 {
+        length = ftell(file)
+        if length >= 0 && fseek(file, 0, 0) == 0 {
+            bytes = malloc(ifx length != 0 then cast(usize)length else 1)
+            if bytes != null && fread(bytes, 1, cast(usize)length, file) != cast(usize)length {
+                free(bytes)
+                bytes = null
+            }
+        }
+    }
+    fclose(file)
+    <<size = length
+    return bytes
+}
+
+#program_export
+BundleOpen :: (path: *u8) -> *Bundle {
+    if path == null { return null }
+    size: isize = -1
+    bytes := ReadBundleFile(path, *size)
+    if bytes == null {
+        Diagnostic(Span(path, 1, 1), CStr("zx.input"), CStr("cannot open bundle"))
+        return null
+    }
+    return OpenBundle(bytes, cast(usize)size, path, FreeBundleImage, null, true)
+}
+
+#program_export
+BundleOpenBytes :: (data: *u8, size: usize) -> *Bundle {
+    if data == null || size == 0 { return null }
+    keep: BundleImageRelease = cast(BundleImageRelease)null
+    return OpenBundle(data, size, CStr("<embedded bundle>"), keep, null, false)
+}
+
+#program_export
+BundleOpenOwnedBytes :: (data: *u8, size: usize, release: BundleImageRelease, context: *void) -> *Bundle {
+    if cast(*void)release == null { return null }
+    if data == null || size == 0 {
+        release(context, data, size)
+        return null
+    }
+    return OpenBundle(data, size, CStr("<embedded bundle>"), release, context, true)
+}
+
+OpenBundleReadAt :: (size: u64, read_at: BundleReadAt, context: *void, unsupported: *s32, engine_only: s32, shrink: BundleShrink) -> *Bundle {
+    if unsupported != null { <<unsupported = 0 }
+    bundle := NewBundle()
+    if bundle == null { return null }
+    started := ProfileStart()
+    bundle.engine_only = engine_only
+    bundle.exec = ExecBundleOpenReadAt(size, read_at, context, *bundle.digest[0], unsupported, engine_only, shrink)
+    if bundle.exec == null {
+        free(cast(*u8)bundle)
+        return null
+    }
+    ProfileEnd(CStr("zx.bundle.open"), started)
+    return bundle
+}
+
+#program_export
+BundleOpenReadAt :: (size: u64, read_at: BundleReadAt, context: *void, unsupported: *s32) -> *Bundle {
+    no_shrink: BundleShrink = cast(BundleShrink)null
+    return OpenBundleReadAt(size, read_at, context, unsupported, 0, no_shrink)
+}
+
+#program_export
+BundleOpenEngineReadAt :: (size: u64, read_at: BundleReadAt, context: *void, unsupported: *s32, shrink: BundleShrink) -> *Bundle {
+    return OpenBundleReadAt(size, read_at, context, unsupported, 1, shrink)
+}
+
+#program_export
+BundleClose :: (bundle: *Bundle) {
+    if bundle == null { return }
+    bundle.references -= 1
+    if bundle.references != 0 { return }
+    NativeBundleSlotClose(*bundle.native)
+    NativeBundleSlotClose(*bundle.unbounded)
+    ExecBundleClose(bundle.exec)
+    free(cast(*u8)bundle)
+}
+
+#program_export
+BundleCapabilityCount :: (bundle: *Bundle) -> usize {
+    return ifx bundle != null then ExecBundleCapabilityCount(bundle.exec) else 0
+}
+
+#program_export
+BundleCapabilityModule :: (bundle: *Bundle, index: usize) -> *u8 {
+    return ifx bundle != null then ExecBundleCapabilityModule(bundle.exec, index) else null
+}
+
+#program_export
+BundleCapabilityFunction :: (bundle: *Bundle, index: usize) -> *u8 {
+    return ifx bundle != null then ExecBundleCapabilityFunction(bundle.exec, index) else null
+}
+
+#program_export
+BundleCapabilityAbiAt :: (bundle: *Bundle, index: usize, abi: *BundleCapabilityAbi) -> s32 {
+    if bundle == null || abi == null { return 0 }
+    return ifx ExecBundleCapabilityAbi(bundle.exec, index, abi) != 0 then 1 else 0
+}
+
+OptionalText :: (text: *u8) -> *u8 { return ifx text != null then text else CStr("") }
+SameOptionalText :: (left: *u8, right: *u8) -> bool { return Same(OptionalText(left), OptionalText(right)) }
+
+// Whether CANDIDATE declares capability INDEX of BUNDLE the same way.
+SameCapabilityAbi :: (bundle: *Bundle, index: usize, candidate: *Bundle) -> bool {
+    left: BundleCapabilityAbi
+    right: BundleCapabilityAbi
+    if BundleCapabilityAbiAt(bundle, index, *left) == 0 { return false }
+    count := BundleCapabilityCount(candidate)
+    i: usize = 0
+    while i < count {
+        if BundleCapabilityAbiAt(candidate, i, *right) == 0 { return false }
+        if Same(left.module, right.module) && Same(left.function, right.function) &&
+           SameOptionalText(left.signature, right.signature) && SameOptionalText(left.arguments, right.arguments) &&
+           SameOptionalText(left.return_type, right.return_type) &&
+           left.variable_arguments == right.variable_arguments && left.reads_arguments == right.reads_arguments { return true }
+        i += 1
+    }
+    return false
+}
+
+#program_export
+BundleAbiCompatible :: (left: *Bundle, right: *Bundle) -> s32 {
+    if left == null || right == null ||
+       !SameOptionalText(BundleEntryModuleName(left), BundleEntryModuleName(right)) ||
+       !SameOptionalText(BundleEntryFunctionName(left), BundleEntryFunctionName(right)) ||
+       !SameOptionalText(ExecBundleEntryArguments(left.exec), ExecBundleEntryArguments(right.exec)) ||
+       !SameOptionalText(ExecBundleEntryReturnType(left.exec), ExecBundleEntryReturnType(right.exec)) { return 0 }
+    count := BundleCapabilityCount(left)
+    i: usize = 0
+    while i < count {
+        if !SameCapabilityAbi(left, i, right) { return 0 }
+        i += 1
+    }
+    count = BundleCapabilityCount(right)
+    i = 0
+    while i < count {
+        if !SameCapabilityAbi(right, i, left) { return 0 }
+        i += 1
+    }
+    return 1
+}
+
+#program_export
+BundleEntryModuleName :: (bundle: *Bundle) -> *u8 {
+    return ifx bundle != null then ExecBundleEntryModule(bundle.exec) else null
+}
+
+#program_export
+BundleEntryFunctionName :: (bundle: *Bundle) -> *u8 {
+    return ifx bundle != null then ExecBundleEntryFunction(bundle.exec) else null
+}
+
+#program_export
+BundleEntryReturnType :: (bundle: *Bundle) -> *u8 {
+    type: *u8 = null
+    if bundle != null { type = ExecBundleEntryReturnType(bundle.exec) }
+    return OptionalText(type)
+}
+
+#program_export
+BundleCodeIdentity :: (bundle: *Bundle, identity: *u8) {
+    if identity == null { return }
+    if bundle == null {
+        memset(identity, 0, 32)
+    } else {
+        memcpy(identity, *bundle.digest[0], 32)
+    }
+}
+
+#program_export
+BundleAssetCount :: (bundle: *Bundle) -> usize {
+    return ifx bundle != null then ExecBundleAssetCount(bundle.exec) else 0
+}
+
+#program_export
+BundleAssetName :: (bundle: *Bundle, index: usize) -> *u8 {
+    return ifx bundle != null then ExecBundleAssetName(bundle.exec, index) else null
+}
+
+#program_export
+BundleAssetData :: (bundle: *Bundle, index: usize) -> *u8 {
+    return ifx bundle != null then ExecBundleAssetData(bundle.exec, index) else null
+}
+
+#program_export
+BundleAssetSize :: (bundle: *Bundle, index: usize) -> usize {
+    return ifx bundle != null then ExecBundleAssetSize(bundle.exec, index) else 0
+}
+
+BindingSet :: struct {
+    bindings: *HostBinding
+    count: usize
+}
+
+BundleInstance :: struct {
+    set: BindingSet
+    owned_bindings: *HostBinding
+    backend: s32
+    // One of these runs the bundle.
+    exec: *void
+    wasm: *void
+    native: *void
+}
+
+// A flag another thread sets to stop a run at its next fuel check.
+ZxRunControl :: struct {
+    requested: s32
+}
+
+#program_export
+ZxRunControlCreate :: () -> *ZxRunControl {
+    control := cast(*ZxRunControl)malloc(size_of(ZxRunControl))
+    if control != null { IntStore(cast(*void)*control.requested, 0) }
+    return control
+}
+
+#program_export
+ZxRunControlRequest :: (control: *ZxRunControl) {
+    if control != null { IntStore(cast(*void)*control.requested, 1) }
+}
+
+#program_export
+ZxRunControlRequested :: (control: *ZxRunControl) -> s32 {
+    if control == null { return 0 }
+    return ifx IntLoad(cast(*void)*control.requested) != 0 then 1 else 0
+}
+
+#program_export
+ZxRunControlFree :: (control: *ZxRunControl) { free(cast(*u8)control) }
+
+BindingAt :: (bindings: *HostBinding, index: usize) -> *HostBinding {
+    return cast(*HostBinding)(cast(usize)bindings + index * size_of(HostBinding))
+}
+
+CompareBindingRecords :: (a: *HostBinding, b: *HostBinding) -> s32 {
+    module := strcmp(a.module, b.module)
+    return ifx module != 0 then module else strcmp(a.function, b.function)
+}
+
+CompareBindings :: (left: *void, right: *void) -> s32 {
+    return CompareBindingRecords(cast(*HostBinding)left, cast(*HostBinding)right)
+}
+
+FindBindingIn :: (context: *void, module: *u8, function: *u8) -> *HostBinding {
+    set := cast(*BindingSet)context
+    key: HostBinding
+    key.module = module
+    key.function = function
+    key.call = null
+    key.context = null
+    low: usize = 0
+    high := set.count
+    while low < high {
+        middle := low + (high - low) / 2
+        candidate := BindingAt(set.bindings, middle)
+        order := CompareBindingRecords(*key, candidate)
+        if order == 0 { return candidate }
+        if order < 0 {
+            high = middle
+        } else {
+            low = middle + 1
+        }
+    }
+    return null
+}
+
+ValidateBindings :: (bundle: *Bundle, set: *BindingSet) -> bool {
+    i: usize = 1
+    while i < set.count {
+        current := BindingAt(set.bindings, i)
+        if CompareBindingRecords(BindingAt(set.bindings, i - 1), current) == 0 {
+            Diagnostic(HostSpan(), CStr("zx.capability"), CStr("duplicate host capability binding: %s:%s"), current.module, current.function)
+            return false
+        }
+        i += 1
+    }
+    count := BundleCapabilityCount(bundle)
+    i = 0
+    while i < count {
+        module := BundleCapabilityModule(bundle, i)
+        function := BundleCapabilityFunction(bundle, i)
+        if FindBindingIn(cast(*void)set, module, function) == null {
+            Diagnostic(HostSpan(), CStr("zx.capability"),
+                CStr("missing host capability: %s:%s; this host does not provide it, so bundle with --bind %s:%s=MODULE:FUNCTION (an exported Ziran function with the same signature) or --bind-host MODULE, or run the bundle in a host that grants %s"),
+                module, function, module, function, module)
+            return false
+        }
+        i += 1
+    }
+    return true
+}
+
+// The bytes a sorted copy of BINDINGS and their names takes, or 0 when one
+// is incomplete or the total does not fit.
+BindingCopyBytes :: (bindings: *HostBinding, count: usize) -> usize {
+    if count > SizeMax() / size_of(HostBinding) { return 0 }
+    bytes := count * size_of(HostBinding)
+    i: usize = 0
+    while i < count {
+        binding := BindingAt(bindings, i)
+        if binding.module == null || binding.function == null || binding.call == null { return 0 }
+        length := strlen(binding.module)
+        if length >= SizeMax() - bytes { return 0 }
+        bytes += length + 1
+        length = strlen(binding.function)
+        if length >= SizeMax() - bytes { return 0 }
+        bytes += length + 1
+        i += 1
+    }
+    return bytes
+}
+
+// Copies BINDINGS and their names into INSTANCE, sorted for lookup.
+CopyBindings :: (instance: *BundleInstance, bindings: *HostBinding, count: usize, bytes: usize) -> bool {
+    instance.set.count = count
+    if count > 0 {
+        instance.owned_bindings = cast(*HostBinding)malloc(bytes)
+        if instance.owned_bindings == null { return false }
+        name := cast(*u8)(cast(usize)instance.owned_bindings + count * size_of(HostBinding))
+        i: usize = 0
+        while i < count {
+            source := BindingAt(bindings, i)
+            copy := BindingAt(instance.owned_bindings, i)
+            <<copy = <<source
+            length := strlen(source.module) + 1
+            memcpy(name, source.module, length)
+            copy.module = name
+            name = cast(*u8)(cast(usize)name + length)
+            length = strlen(source.function) + 1
+            memcpy(name, source.function, length)
+            copy.function = name
+            name = cast(*u8)(cast(usize)name + length)
+            i += 1
+        }
+        if count > 1 { qsort(cast(*u8)instance.owned_bindings, count, size_of(HostBinding), CompareBindings) }
+    }
+    instance.set.bindings = instance.owned_bindings
+    return true
+}
+
+// Opens the selected backend's instance; false when it cannot run here.
+OpenBackend :: (instance: *BundleInstance, bundle: *Bundle, selected: s32, max_steps: s32, unbounded: s32, write: BundleConsoleWrite,
+                console_context: *void, has_console: bool, control: *ZxRunControl, status: *s32) -> bool {
+    context := cast(*void)*instance.set
+    if selected == EXECUTION_WASM {
+        if ZxWasmPlatformActive() == null { return false }
+        instance.wasm = ZxWasmOpenExec(bundle.exec, FindBindingIn, context, cast(s64)max_steps)
+        instance.backend = EXECUTION_WASM
+    } else if selected == NativePlatformBackend() {
+        slot := ifx unbounded != 0 then *bundle.unbounded else *bundle.native
+        code := NativeBundleSlotCode(slot, bundle.exec, *bundle.digest[0], unbounded)
+        if code == null { return false }
+        instance.native = NativeInstanceOpen(code, bundle.exec, FindBindingIn, context, cast(s64)max_steps)
+        instance.backend = selected
+    } else {
+        instance.exec = ExecInstanceOpen(bundle.exec, FindBindingIn, context, cast(s64)max_steps, write, console_context, control, status)
+        instance.backend = EXECUTION_ENGINE
+    }
+    return instance.exec != null || instance.wasm != null || instance.native != null
+}
+
+// Binding names and the array are copied, sorted for lookup.
+InstantiateWithPolicy :: (bundle: *Bundle, bindings: *HostBinding, binding_count: usize, max_steps: s32, policy: s32,
+                          unbounded: s32, write: BundleConsoleWrite, console_context: *void, has_console: bool,
+                          control: *ZxRunControl, status: *s32) -> *BundleInstance {
+    if status != null { <<status = RUN_ERROR }
+    if control != null && policy != POLICY_ENGINE {
+        Diagnostic(HostSpan(), CStr("zx.capability"), CStr("run cancellation requires the instruction engine"))
+        return null
+    }
+    if ZxRunControlRequested(control) != 0 {
+        if status != null { <<status = RUN_CANCELLED }
+        return null
+    }
+    if bundle == null || (binding_count != 0 && bindings == null) || (unbounded != 0 && max_steps > 0) ||
+       (policy != POLICY_AUTO && policy != POLICY_ENGINE && policy != POLICY_NATIVE) { return null }
+    bytes := BindingCopyBytes(bindings, binding_count)
+    if binding_count != 0 && bytes == 0 { return null }
+    instance := cast(*BundleInstance)calloc(1, size_of(BundleInstance))
+    if instance == null { return null }
+    if !CopyBindings(instance, bindings, binding_count, bytes) || !ValidateBindings(bundle, *instance.set) {
+        BundleInstanceClose(instance)
+        return null
+    }
+    // Selection is complete before initializers run. Rejection never retries
+    // another backend, and Auto does not inspect this bundle's native result.
+    selected := AutoPlatformBackend()
+    if policy == POLICY_ENGINE { selected = EXECUTION_ENGINE }
+    if policy == POLICY_NATIVE { selected = NativePlatformBackend() }
+    if bundle.engine_only != 0 && selected != EXECUTION_ENGINE {
+        Diagnostic(HostSpan(), CStr("zx.capability"), CStr("this bundle requires the instruction engine"))
+        BundleInstanceClose(instance)
+        return null
+    }
+    if has_console && selected != EXECUTION_ENGINE {
+        Diagnostic(HostSpan(), CStr("zx.capability"), CStr("a console callback requires the instruction engine"))
+        BundleInstanceClose(instance)
+        return null
+    }
+    if !OpenBackend(instance, bundle, selected, max_steps, unbounded, write, console_context, has_console, control, status) {
+        BundleInstanceClose(instance)
+        return null
+    }
+    if status != null { <<status = RUN_OK }
+    return instance
+}
+
+Instantiate :: (bundle: *Bundle, bindings: *HostBinding, binding_count: usize, max_steps: s32) -> *BundleInstance {
+    none: BundleConsoleWrite = cast(BundleConsoleWrite)null
+    return InstantiateWithPolicy(bundle, bindings, binding_count, max_steps, POLICY_AUTO, 0, none, null, false, null, null)
+}
+
+#program_export
+BundleInstantiate :: (bundle: *Bundle, bindings: *HostBinding, binding_count: usize) -> *BundleInstance {
+    return Instantiate(bundle, bindings, binding_count, 0)
+}
+
+#program_export
+BundleInstantiateLimited :: (bundle: *Bundle, bindings: *HostBinding, binding_count: usize, max_steps: s32) -> *BundleInstance {
+    return ifx max_steps > 0 then Instantiate(bundle, bindings, binding_count, max_steps) else null
+}
+
+#program_export
+BundleInstantiateWithOptions :: (bundle: *Bundle, bindings: *HostBinding, binding_count: usize, options: *BundleInstanceOptions) -> *BundleInstance {
+    none: BundleConsoleWrite = cast(BundleConsoleWrite)null
+    return Controlled(bundle, bindings, binding_count, options, none, null, false, null, null)
+}
+
+#program_export
+BundleInstantiateWithOptionsAndConsole :: (bundle: *Bundle, bindings: *HostBinding, binding_count: usize, options: *BundleInstanceOptions,
+                                           write: BundleConsoleWrite, context: *void) -> *BundleInstance {
+    return Controlled(bundle, bindings, binding_count, options, write, context, cast(*void)write != null, null, null)
+}
+
+Controlled :: (bundle: *Bundle, bindings: *HostBinding, binding_count: usize, options: *BundleInstanceOptions,
+               write: BundleConsoleWrite, context: *void, has_console: bool, control: *ZxRunControl, status: *s32) -> *BundleInstance {
+    if options == null || options.max_steps < 0 {
+        if status != null { <<status = RUN_ERROR }
+        return null
+    }
+    return InstantiateWithPolicy(bundle, bindings, binding_count, options.max_steps, options.backend, options.unbounded,
+                                 write, context, has_console, control, status)
+}
+
+#program_export
+BundleInstantiateControlled :: (bundle: *Bundle, bindings: *HostBinding, binding_count: usize, options: *BundleInstanceOptions,
+                                write: BundleConsoleWrite, context: *void, control: *ZxRunControl, status: *s32) -> *BundleInstance {
+    return Controlled(bundle, bindings, binding_count, options, write, context, cast(*void)write != null, control, status)
+}
+
+#program_export
+BundleInstantiateWithConsole :: (bundle: *Bundle, bindings: *HostBinding, binding_count: usize, max_steps: s32,
+                                 write: BundleConsoleWrite, context: *void) -> *BundleInstance {
+    if cast(*void)write == null { return null }
+    options: BundleInstanceOptions
+    options.backend = POLICY_ENGINE
+    options.max_steps = max_steps
+    options.unbounded = 0
+    return Controlled(bundle, bindings, binding_count, *options, write, context, true, null, null)
+}
+
+#program_export
+BundleInstanceBackend :: (instance: *BundleInstance) -> s32 {
+    return ifx instance != null then instance.backend else EXECUTION_NONE
+}
+
+#program_export
+BundleNativeProblem :: (bundle: *Bundle) -> *u8 {
+    if bundle == null { return CStr("assembly.native.input: no bundle") }
+    if bundle.engine_only != 0 { return CStr("assembly.native.input: this bundle requires the instruction engine") }
+    return NativeBundleSlotProblem(*bundle.native, bundle.exec, *bundle.digest[0])
+}
+
+#program_export
+BundleInstanceRun :: (instance: *BundleInstance, result: *s64, has_result: *s32) -> s32 {
+    return ifx BundleInstanceRunControlled(instance, result, has_result, null) == RUN_OK then 1 else 0
+}
+
+#program_export
+BundleInstanceRunControlled :: (instance: *BundleInstance, result: *s64, has_result: *s32, control: *ZxRunControl) -> s32 {
+    if instance == null { return RUN_ERROR }
+    if instance.exec != null { return ExecInstanceRun(instance.exec, result, has_result, control) }
+    if control != null { return RUN_ERROR }
+    ran: s32 = 0
+    if instance.wasm != null {
+        ran = ZxWasmRun(instance.wasm, result, has_result)
+    } else {
+        ran = NativeInstanceRun(instance.native, result, has_result)
+    }
+    return ifx ran != 0 then RUN_OK else RUN_ERROR
+}
+
+#program_export
+BundleInstanceLimitSteps :: (instance: *BundleInstance, max_steps: s32) {
+    if instance == null { return }
+    if instance.wasm != null {
+        ZxWasmLimitSteps(instance.wasm, cast(s64)max_steps)
+    } else if instance.native != null {
+        NativeInstanceLimitSteps(instance.native, cast(s64)max_steps)
+    } else {
+        ExecInstanceLimitSteps(instance.exec, cast(s64)max_steps)
+    }
+}
+
+#program_export
+BundleInstanceMatchFieldsByName :: (instance: *BundleInstance, enabled: s32) {
+    if instance == null { return }
+    if instance.wasm != null {
+        ZxWasmMatchFieldsByName(instance.wasm, enabled)
+    } else if instance.native != null {
+        NativeInstanceMatchFieldsByName(instance.native, enabled)
+    } else if instance.exec != null {
+        ExecInstanceMatchFieldsByName(instance.exec, enabled)
+    }
+}
+
+#program_export
+BundleInstanceBorrowHostString :: (instance: *BundleInstance, module: *u8, function: *u8, parameter: usize) -> s32 {
+    if instance == null || instance.exec == null { return 0 }
+    return ifx ExecInstanceBorrowHostView(instance.exec, module, function, parameter, 1) != 0 then 1 else 0
+}
+
+#program_export
+BundleInstanceBorrowHostSlice :: (instance: *BundleInstance, module: *u8, function: *u8, parameter: usize) -> s32 {
+    if instance == null || instance.exec == null { return 0 }
+    return ifx ExecInstanceBorrowHostView(instance.exec, module, function, parameter, 0) != 0 then 1 else 0
+}
+
+#program_export
+BundleInstanceClose :: (instance: *BundleInstance) {
+    if instance == null { return }
+    ExecInstanceClose(instance.exec)
+    ZxWasmClose(instance.wasm)
+    NativeInstanceClose(instance.native)
+    free(cast(*u8)instance.owned_bindings)
+    free(cast(*u8)instance)
+}
+
+#program_export
+BundleRun :: (bundle: *Bundle, bindings: *HostBinding, binding_count: usize, result: *s64, has_result: *s32) -> s32 {
+    if result == null || has_result == null { return 0 }
+    instance := BundleInstantiate(bundle, bindings, binding_count)
+    if instance == null { return 0 }
+    ok := BundleInstanceRun(instance, result, has_result)
+    BundleInstanceClose(instance)
+    return ok
+}

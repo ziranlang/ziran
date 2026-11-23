@@ -1,0 +1,624 @@
+// Module state export and import, and hot-swapped components, for the
+// embedding API. Loaded by compiler_host_api.zi.
+
+BundleStateValue :: struct {
+    module: *u8
+    name: *u8
+    type: *u8
+    value: HostValue
+}
+
+BundleStateMigrate :: #type (context: *void, old_state: *BundleState, new_state: *BundleState) -> s32 #c_call;
+BundleComponentVerify :: #type (context: *void, instance: *BundleInstance) -> s32 #c_call;
+
+ExecInstanceStateCount :: (instance: *void) -> usize #foreign compiler "ExecInstanceStateCount";
+ExecInstanceStateAt :: (instance: *void, index: usize, module: **u8, name: **u8, type: **u8, value: *HostValue) -> s32 #foreign compiler "ExecInstanceStateAt";
+ExecInstanceStateStore :: (instance: *void, values: **HostValue) -> s32 #foreign compiler "ExecInstanceStateStore";
+ExecInstanceLiveBytes :: (instance: *void) -> usize #foreign compiler "ExecInstanceLiveBytes";
+ZxWasmStateCount :: (wasm: *void) -> usize #foreign compiler "ZxWasmStateCount";
+ZxWasmStateAt :: (wasm: *void, index: usize, module: **u8, name: **u8, type: **u8, value: *HostValue) -> s32 #foreign compiler "ZxWasmStateAt";
+ZxWasmStateStore :: (wasm: *void, values: **HostValue) -> s32 #foreign compiler "ZxWasmStateStore";
+ZxWasmLiveBytes :: (wasm: *void) -> usize #foreign compiler "ZxWasmLiveBytes";
+NativeInstanceStateCount :: (instance: *void) -> usize #foreign compiler "NativeInstanceStateCount";
+NativeInstanceStateAt :: (instance: *void, index: usize, module: **u8, name: **u8, type: **u8, value: *HostValue) -> s32 #foreign compiler "NativeInstanceStateAt";
+NativeInstanceStateStore :: (instance: *void, values: **HostValue) -> s32 #foreign compiler "NativeInstanceStateStore";
+NativeInstanceLiveBytes :: (instance: *void) -> usize #foreign compiler "NativeInstanceLiveBytes";
+
+BundleState :: struct {
+    values: *BundleStateValue
+    count: usize
+    bytes: usize
+}
+
+BUNDLE_STATE_MAX_BYTES :: 16777216
+STATE_DEPTH :: 128
+
+StateBudget :: struct {
+    used: usize
+    failed: bool
+}
+
+StateBudgetAdd :: (budget: *StateBudget, bytes: usize) {
+    if budget.used > BUNDLE_STATE_MAX_BYTES || bytes > BUNDLE_STATE_MAX_BYTES - budget.used {
+        budget.failed = true
+    } else {
+        budget.used += bytes
+    }
+}
+
+ValueAt :: (values: *HostValue, index: usize) -> *HostValue {
+    return cast(*HostValue)(cast(usize)values + index * size_of(HostValue))
+}
+
+FieldAt :: (fields: *HostField, index: usize) -> *HostField {
+    return cast(*HostField)(cast(usize)fields + index * size_of(HostField))
+}
+
+StateValueAt :: (state: *BundleState, index: usize) -> *BundleStateValue {
+    return cast(*BundleStateValue)(cast(usize)state.values + index * size_of(BundleStateValue))
+}
+
+ReleaseOwnedStateValue :: (value: *HostValue, depth: s32) {
+    if depth >= STATE_DEPTH { return }
+    if value.kind == .Array {
+        i: usize = 0
+        while i < value.length && value.elements != null {
+            ReleaseOwnedStateValue(ValueAt(value.elements, i), depth + 1)
+            i += 1
+        }
+        free(cast(*u8)value.elements)
+        value.elements = null
+    } else if value.kind == .Record && value.fields != null {
+        i: usize = 0
+        while i < value.field_count {
+            field := FieldAt(value.fields, i)
+            ReleaseOwnedStateValue(*field.value, depth + 1)
+            i += 1
+        }
+        i = 0
+        while i < value.field_count {
+            field := FieldAt(value.fields, i)
+            free(field.name)
+            i += 1
+        }
+        free(cast(*u8)value.fields)
+        value.fields = null
+    } else if value.kind == .String {
+        free(value.data)
+    }
+    value.data = null
+    free(value.type)
+    value.type = null
+}
+
+StateTypePortable :: (type: *u8) -> bool {
+    return type != null && type[0] != #char "*" && SliceElementType(type, null, 0) == 0
+}
+
+CloneStateName :: (name: *u8, budget: *StateBudget) -> *u8 {
+    if name == null { return null }
+    length := strlen(name)
+    if length == SizeMax() { return null }
+    if budget != null {
+        StateBudgetAdd(budget, length + 1)
+        if budget.failed { return null }
+    }
+    copied := malloc(length + 1)
+    if copied == null { return null }
+    memcpy(copied, name, length + 1)
+    return copied
+}
+
+// Whether VALUE is owned state a component can carry: no pointers, no
+// slices and no string without its bytes, at any depth.
+StateKindPortable :: (value: *HostValue) -> bool {
+    return value.kind != .Pointer && value.kind != .Slice && !(value.kind == .String && value.data == null && value.length != 0)
+}
+
+StateValuePortable :: (value: *HostValue, depth: s32) -> bool {
+    if depth >= STATE_DEPTH || !StateTypePortable(value.type) || !StateKindPortable(value) { return false }
+    if value.kind == .Array {
+        if value.length != 0 && value.elements == null { return false }
+        i: usize = 0
+        while i < value.length {
+            if !StateValuePortable(ValueAt(value.elements, i), depth + 1) { return false }
+            i += 1
+        }
+        return true
+    }
+    if value.kind == .Record {
+        if value.field_count != 0 && value.fields == null { return false }
+        i: usize = 0
+        while i < value.field_count {
+            field := FieldAt(value.fields, i)
+            if !StateValuePortable(*field.value, depth + 1) { return false }
+            i += 1
+        }
+    }
+    return true
+}
+
+// Copies a string value's bytes into OUTPUT.
+CloneStateString :: (input: *HostValue, output: *HostValue, budget: *StateBudget) -> bool {
+    if input.length == 0 {
+        output.data = null
+        return true
+    }
+    if input.length == SizeMax() { return false }
+    StateBudgetAdd(budget, input.length + 1)
+    if budget.failed { return false }
+    data := malloc(input.length + 1)
+    if data == null { return false }
+    memcpy(data, input.data, input.length)
+    data[input.length] = 0
+    output.data = data
+    return true
+}
+
+CloneStateArray :: (input: *HostValue, output: *HostValue, depth: s32, budget: *StateBudget) -> bool {
+    if input.length == 0 {
+        output.elements = null
+        return true
+    }
+    if input.elements == null || input.length > SizeMax() / size_of(HostValue) { return false }
+    StateBudgetAdd(budget, input.length * size_of(HostValue))
+    if budget.failed { return false }
+    output.elements = cast(*HostValue)calloc(input.length, size_of(HostValue))
+    if output.elements == null { return false }
+    i: usize = 0
+    while i < input.length {
+        if !CloneStateValue(ValueAt(input.elements, i), ValueAt(output.elements, i), depth + 1, budget) { return false }
+        i += 1
+    }
+    return true
+}
+
+CloneStateRecord :: (input: *HostValue, output: *HostValue, depth: s32, budget: *StateBudget) -> bool {
+    if input.field_count == 0 {
+        output.fields = null
+        return true
+    }
+    if input.fields == null || input.field_count > SizeMax() / size_of(HostField) { return false }
+    StateBudgetAdd(budget, input.field_count * size_of(HostField))
+    if budget.failed { return false }
+    output.fields = cast(*HostField)calloc(input.field_count, size_of(HostField))
+    if output.fields == null { return false }
+    i: usize = 0
+    while i < input.field_count {
+        source := FieldAt(input.fields, i)
+        copy := FieldAt(output.fields, i)
+        name := CloneStateName(source.name, budget)
+        if name == null { return false }
+        copy.name = name
+        if !CloneStateValue(*source.value, *copy.value, depth + 1, budget) { return false }
+        i += 1
+    }
+    return true
+}
+
+CloneStateValue :: (input: *HostValue, output: *HostValue, depth: s32, budget: *StateBudget) -> bool {
+    if depth >= STATE_DEPTH || !StateTypePortable(input.type) || !StateKindPortable(input) { return false }
+    <<output = <<input
+    output.type = CloneStateName(input.type, budget)
+    output.data = null
+    output.elements = null
+    output.fields = null
+    if output.type == null { return false }
+    cloned := true
+    if input.kind == .String {
+        cloned = CloneStateString(input, output, budget)
+    } else if input.kind == .Array {
+        cloned = CloneStateArray(input, output, depth, budget)
+    } else if input.kind == .Record {
+        cloned = CloneStateRecord(input, output, depth, budget)
+    }
+    if !cloned { ReleaseOwnedStateValue(output, depth) }
+    return cloned
+}
+
+#program_export
+BundleCopyHostValue :: (input: *HostValue, output: *HostValue) -> s32 {
+    budget: StateBudget
+    budget.used = 0
+    budget.failed = false
+    return ifx CloneStateValue(input, output, 0, *budget) then 1 else 0
+}
+
+#program_export
+BundleFreeHostValue :: (value: *HostValue) {
+    ReleaseOwnedStateValue(value, 0)
+    memset(cast(*u8)value, 0, size_of(HostValue))
+}
+
+StateClose :: (state: *BundleState) {
+    if state == null { return }
+    i: usize = 0
+    while i < state.count {
+        entry := StateValueAt(state, i)
+        ReleaseOwnedStateValue(*entry.value, 0)
+        free(entry.module)
+        free(entry.name)
+        free(entry.type)
+        i += 1
+    }
+    free(cast(*u8)state.values)
+    free(cast(*u8)state)
+}
+
+CloneStateMetadata :: (value: *BundleStateValue, budget: *StateBudget) -> bool {
+    module := CloneStateName(value.module, budget)
+    name := CloneStateName(value.name, budget)
+    type := CloneStateName(value.type, budget)
+    if module == null || name == null || type == null {
+        free(module)
+        free(name)
+        free(type)
+        ReleaseOwnedStateValue(*value.value, 0)
+        return false
+    }
+    value.module = module
+    value.name = name
+    value.type = type
+    return true
+}
+
+// Module globals the interface section names, on whichever backend runs.
+StateCount :: (instance: *BundleInstance) -> usize {
+    if instance.native != null { return NativeInstanceStateCount(instance.native) }
+    if instance.wasm != null { return ZxWasmStateCount(instance.wasm) }
+    return ExecInstanceStateCount(instance.exec)
+}
+
+StateAt :: (instance: *BundleInstance, index: usize, module: **u8, name: **u8, type: **u8, value: *HostValue) -> bool {
+    found: s32 = 0
+    if instance.native != null {
+        found = NativeInstanceStateAt(instance.native, index, module, name, type, value)
+    } else if instance.wasm != null {
+        found = ZxWasmStateAt(instance.wasm, index, module, name, type, value)
+    } else {
+        found = ExecInstanceStateAt(instance.exec, index, module, name, type, value)
+    }
+    return found != 0
+}
+
+StateStore :: (instance: *BundleInstance, values: **HostValue) -> bool {
+    stored: s32 = 0
+    if instance.native != null {
+        stored = NativeInstanceStateStore(instance.native, values)
+    } else if instance.wasm != null {
+        stored = ZxWasmStateStore(instance.wasm, values)
+    } else {
+        stored = ExecInstanceStateStore(instance.exec, values)
+    }
+    return stored != 0
+}
+
+#program_export
+BundleInstanceExportState :: (instance: *BundleInstance, state: **BundleState) -> s32 {
+    if state == null { return 0 }
+    <<state = null
+    if instance == null { return 0 }
+    count := StateCount(instance)
+    exported := cast(*BundleState)calloc(1, size_of(BundleState))
+    if exported == null { return 0 }
+    exported.values = cast(*BundleStateValue)calloc(ifx count != 0 then count else 1, size_of(BundleStateValue))
+    if exported.values == null {
+        free(cast(*u8)exported)
+        return 0
+    }
+    budget: StateBudget
+    budget.used = 0
+    budget.failed = false
+    i: usize = 0
+    while i < count {
+        module := CStr("")
+        name := CStr("")
+        type := CStr("")
+        borrowed: HostValue
+        memset(cast(*u8)*borrowed, 0, size_of(HostValue))
+        if !StateAt(instance, i, *module, *name, *type, *borrowed) || !StateTypePortable(type) || !StateValuePortable(*borrowed, 0) {
+            Diagnostic(HostSpan(), CStr("zx.state"), CStr("component state %s:%s is not owned portable state"), module, name)
+            StateClose(exported)
+            return 0
+        }
+        value: BundleStateValue
+        value.module = module
+        value.name = name
+        value.type = type
+        if !CloneStateValue(*borrowed, *value.value, 0, *budget) {
+            Diagnostic(HostSpan(), CStr("zx.state"), CStr("component state %s:%s exceeds portable state limits"), module, name)
+            StateClose(exported)
+            return 0
+        }
+        if !CloneStateMetadata(*value, *budget) {
+            StateClose(exported)
+            return 0
+        }
+        slot := StateValueAt(exported, exported.count)
+        <<slot = value
+        exported.count += 1
+        i += 1
+    }
+    exported.bytes = budget.used
+    <<state = exported
+    return 1
+}
+
+// The slot of the global MODULE:NAME in INSTANCE, or COUNT when it has
+// none; TYPE is set to the slot's type.
+StateSlot :: (instance: *BundleInstance, count: usize, module_name: *u8, global_name: *u8, type: **u8) -> usize {
+    g: usize = 0
+    while g < count {
+        module: *u8 = null
+        name: *u8 = null
+        no_value: *HostValue = null
+        if StateAt(instance, g, *module, *name, type, no_value) && Same(module, module_name) && Same(name, global_name) { return g }
+        g += 1
+    }
+    return count
+}
+
+#program_export
+BundleInstanceImportState :: (instance: *BundleInstance, state: *BundleState) -> s32 {
+    if instance == null || state == null { return 0 }
+    count := StateCount(instance)
+    values := cast(**HostValue)calloc(ifx count != 0 then count else 1, size_of(*HostValue))
+    if values == null { return 0 }
+    i: usize = 0
+    while i < state.count {
+        value := StateValueAt(state, i)
+        type: *u8 = null
+        slot := StateSlot(instance, count, value.module, value.name, *type)
+        if slot == count || !Same(type, value.type) || !StateTypePortable(type) || !StateValuePortable(*value.value, 0) {
+            message := ifx slot == count then CStr("component state %s:%s is absent from the replacement") else CStr("component state %s:%s is incompatible with the replacement")
+            Diagnostic(HostSpan(), CStr("zx.state"), message, value.module, value.name)
+            free(cast(*u8)values)
+            return 0
+        }
+        values[slot] = *value.value
+        i += 1
+    }
+    stored := StateStore(instance, values)
+    free(cast(*u8)values)
+    if !stored { Diagnostic(HostSpan(), CStr("zx.state"), CStr("component state is incompatible with the replacement")) }
+    return ifx stored then 1 else 0
+}
+
+#program_export
+BundleStateCount :: (state: *BundleState) -> usize {
+    return ifx state != null then state.count else 0
+}
+
+#program_export
+BundleStateValueBytes :: (state: *BundleState) -> usize {
+    return ifx state != null then state.bytes else 0
+}
+
+#program_export
+BundleStateValueAt :: (state: *BundleState, index: usize, value: *BundleStateValue) -> s32 {
+    if state == null || index >= state.count || value == null { return 0 }
+    entry := StateValueAt(state, index)
+    <<value = <<entry
+    return 1
+}
+
+#program_export
+BundleStateValueRef :: (state: *BundleState, index: usize) -> *BundleStateValue {
+    return ifx state != null && index < state.count then StateValueAt(state, index) else null
+}
+
+#program_export
+BundleStateFind :: (state: *BundleState, module: *u8, name: *u8, index: *usize) -> s32 {
+    if state == null || module == null || name == null || index == null { return 0 }
+    i: usize = 0
+    while i < state.count {
+        entry := StateValueAt(state, i)
+        if Same(entry.module, module) && Same(entry.name, name) {
+            <<index = i
+            return 1
+        }
+        i += 1
+    }
+    return 0
+}
+
+// The state value at INDEX when it holds KIND, or null.
+StateValueOfKind :: (state: *BundleState, index: usize, kind: HostKind) -> *HostValue {
+    if state == null || index >= state.count { return null }
+    entry := StateValueAt(state, index)
+    return ifx entry.value.kind == kind then *entry.value else null
+}
+
+#program_export
+BundleStateSetInteger :: (state: *BundleState, index: usize, value: s64) -> s32 {
+    target := StateValueOfKind(state, index, .Integer)
+    if target == null { return 0 }
+    target.integer = value
+    target.bits = cast(u64)value
+    return 1
+}
+
+#program_export
+BundleStateSetUnsigned :: (state: *BundleState, index: usize, value: u64) -> s32 {
+    target := StateValueOfKind(state, index, .Unsigned)
+    if target == null { return 0 }
+    target.bits = value
+    target.integer = cast(s64)value
+    return 1
+}
+
+#program_export
+BundleStateSetReal :: (state: *BundleState, index: usize, value: float64) -> s32 {
+    target := StateValueOfKind(state, index, .Real)
+    if target == null { return 0 }
+    target.real = value
+    return 1
+}
+
+#program_export
+BundleStateSetString :: (state: *BundleState, index: usize, data: *u8, length: usize) -> s32 {
+    target := StateValueOfKind(state, index, .String)
+    if target == null || (data == null && length != 0) || length == SizeMax() { return 0 }
+    copied: *u8 = null
+    if length != 0 {
+        copied = malloc(length + 1)
+        if copied == null { return 0 }
+        memcpy(copied, data, length)
+        copied[length] = 0
+    }
+    free(target.data)
+    target.data = copied
+    target.length = length
+    return 1
+}
+
+#program_export
+BundleStateClose :: (state: *BundleState) { StateClose(state) }
+
+BundleComponent :: struct {
+    bundle: *Bundle
+    instance: *BundleInstance
+    max_steps: s32
+    generation: u64
+    closed: s32
+    references: usize
+}
+
+BundleComponentHandle :: struct {
+    component: *BundleComponent
+    generation: u64
+}
+
+ComponentRelease :: (component: *BundleComponent) {
+    if component == null { return }
+    component.references -= 1
+    if component.references == 0 { free(cast(*u8)component) }
+}
+
+#program_export
+BundleComponentOpen :: (bundle: *Bundle, bindings: *HostBinding, binding_count: usize, max_steps: s32) -> *BundleComponent {
+    if bundle == null || max_steps <= 0 || bundle.references == SizeMax() { return null }
+    bundle.references += 1
+    component := cast(*BundleComponent)calloc(1, size_of(BundleComponent))
+    if component == null {
+        BundleClose(bundle)
+        return null
+    }
+    component.bundle = bundle
+    component.references = 1
+    component.max_steps = max_steps
+    component.instance = Instantiate(bundle, bindings, binding_count, max_steps)
+    if component.instance == null {
+        BundleClose(bundle)
+        free(cast(*u8)component)
+        return null
+    }
+    return component
+}
+
+#program_export
+BundleComponentAcquire :: (component: *BundleComponent) -> *BundleComponentHandle {
+    if component == null || component.closed != 0 || component.references == SizeMax() { return null }
+    component.references += 1
+    handle := cast(*BundleComponentHandle)malloc(size_of(BundleComponentHandle))
+    if handle == null {
+        ComponentRelease(component)
+        return null
+    }
+    handle.component = component
+    handle.generation = component.generation
+    return handle
+}
+
+#program_export
+BundleComponentHandleValid :: (handle: *BundleComponentHandle) -> s32 {
+    if handle == null || handle.component == null { return 0 }
+    component := handle.component
+    return ifx component.closed == 0 && handle.generation == component.generation then 1 else 0
+}
+
+#program_export
+BundleComponentRun :: (handle: *BundleComponentHandle, result: *s64, has_result: *s32) -> s32 {
+    if BundleComponentHandleValid(handle) == 0 { return 0 }
+    return BundleInstanceRun(handle.component.instance, result, has_result)
+}
+
+// Whether CANDIDATE takes over COMPONENT's state: both export it, MIGRATE
+// (when given) accepts it, the candidate imports it and VERIFY (when given)
+// accepts the candidate.
+MigrateComponent :: (component: *BundleComponent, candidate: *BundleInstance, migrate: BundleStateMigrate,
+                     verify: BundleComponentVerify, context: *void, old_state: **BundleState, new_state: **BundleState) -> bool {
+    if candidate == null { return false }
+    if BundleInstanceExportState(component.instance, old_state) == 0 { return false }
+    if BundleInstanceExportState(candidate, new_state) == 0 { return false }
+    if cast(*void)migrate != null && migrate(context, <<old_state, <<new_state) == 0 { return false }
+    if BundleInstanceImportState(candidate, <<new_state) == 0 { return false }
+    return cast(*void)verify == null || verify(context, candidate) != 0
+}
+
+#program_export
+BundleComponentReplace :: (component: *BundleComponent, replacement: *Bundle, migrate: BundleStateMigrate,
+                           verify: BundleComponentVerify, context: *void, new_handle: **BundleComponentHandle) -> s32 {
+    if component == null || component.closed != 0 || replacement == null || BundleAbiCompatible(component.bundle, replacement) == 0 { return 0 }
+    if new_handle != null { <<new_handle = null }
+    if replacement.references == SizeMax() { return 0 }
+    handle: *BundleComponentHandle = null
+    if new_handle != null {
+        handle = cast(*BundleComponentHandle)malloc(size_of(BundleComponentHandle))
+        if handle == null { return 0 }
+    }
+    replacement.references += 1
+    old_state: *BundleState = null
+    new_state: *BundleState = null
+    current := component.instance
+    candidate := Instantiate(replacement, current.set.bindings, current.set.count, component.max_steps)
+    ok := MigrateComponent(component, candidate, migrate, verify, context, *old_state, *new_state)
+    if ok {
+        BundleInstanceClose(component.instance)
+        BundleClose(component.bundle)
+        component.bundle = replacement
+        component.instance = candidate
+        component.generation += 1
+        if new_handle != null {
+            component.references += 1
+            handle.component = component
+            handle.generation = component.generation
+            <<new_handle = handle
+            handle = null
+        }
+    } else {
+        BundleInstanceClose(candidate)
+        BundleClose(replacement)
+    }
+    BundleStateClose(old_state)
+    BundleStateClose(new_state)
+    free(cast(*u8)handle)
+    return ifx ok then 1 else 0
+}
+
+#program_export
+BundleComponentLiveValueBytes :: (component: *BundleComponent) -> usize {
+    if component == null || component.closed != 0 || component.instance == null { return 0 }
+    instance := component.instance
+    if instance.wasm != null { return ZxWasmLiveBytes(instance.wasm) }
+    if instance.native != null { return NativeInstanceLiveBytes(instance.native) }
+    return ExecInstanceLiveBytes(instance.exec)
+}
+
+#program_export
+BundleComponentClose :: (component: *BundleComponent) {
+    if component == null || component.closed != 0 { return }
+    component.closed = 1
+    BundleInstanceClose(component.instance)
+    component.instance = null
+    BundleClose(component.bundle)
+    component.bundle = null
+    ComponentRelease(component)
+}
+
+#program_export
+BundleComponentHandleClose :: (handle: *BundleComponentHandle) {
+    if handle == null { return }
+    ComponentRelease(handle.component)
+    free(cast(*u8)handle)
+}

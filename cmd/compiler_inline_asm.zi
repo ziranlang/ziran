@@ -28,7 +28,8 @@ strncmp :: (a: *u8, b: *u8, n: usize) -> s32 #foreign libc "strncmp";
 strchr :: (s: *u8, c: s32) -> *u8 #foreign libc "strchr";
 strstr :: (s: *u8, needle: *u8) -> *u8 #foreign libc "strstr";
 strcpy :: (dst: *u8, src: *u8) -> *u8 #foreign libc "strcpy";
-strtol :: (s: *u8, end: **u8, base: s32) -> s64 #foreign libc "strtol";
+// C long is pointer-sized on every target, wasm32 included.
+strtol :: (s: *u8, end: **u8, base: s32) -> isize #foreign libc "strtol";
 snprintf :: (out: *u8, size: usize, fmt: *u8, args: ..any) -> s32 #foreign libc "snprintf";
 fprintf :: (stream: *void, fmt: *u8, args: ..any) -> s32 #foreign libc "fprintf";
 fputs :: (s: *u8, stream: *void) -> s32 #foreign libc "fputs";

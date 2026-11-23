@@ -27,6 +27,42 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(__EMSCRIPTEN__)
+#include "zir_zx_wasm_platform.h"
+#endif
+
+/* The native backend this build carries; elsewhere native code is a named
+ * gap from the loader. The embedding API (cmd/compiler_host_api.zi) asks. */
+BundleExecutionBackend
+BundleNativePlatformBackend(void)
+{
+#if defined(__aarch64__) && defined(__linux__)
+    return BUNDLE_EXECUTION_NATIVE_AARCH64;
+#elif defined(__arm__) && defined(__linux__)
+    return BUNDLE_EXECUTION_NATIVE_ARMV7;
+#else
+    return BUNDLE_EXECUTION_NATIVE_X86_64;
+#endif
+}
+
+/* Auto is a platform decision, never a per-bundle probe: a web runtime that
+ * installed the wasm provider runs bundles on it; linux-x86_64,
+ * linux-aarch64 and linux-armv7 (Android included), which have a native
+ * backend, run native code, and a bundle native code cannot run fails instead
+ * of moving to another engine; every other host, including 64-bit and JSPI
+ * web runtimes such as the playground's, runs the instruction engine. */
+BundleExecutionBackend
+BundleAutoPlatformBackend(void)
+{
+#if defined(__EMSCRIPTEN__)
+    if(ZxWasmPlatformActive() != NULL)
+        return BUNDLE_EXECUTION_WASM;
+#elif (defined(__x86_64__) || defined(__aarch64__) || defined(__arm__)) && defined(__linux__)
+    return BundleNativePlatformBackend();
+#endif
+    return BUNDLE_EXECUTION_ENGINE;
+}
+
 #if defined(ZIRAN_NO_ENGINE) || !(defined(__x86_64__) || defined(__aarch64__) || defined(__arm__)) || \
     !defined(__linux__)
 

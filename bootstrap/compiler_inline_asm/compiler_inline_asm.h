@@ -29,7 +29,7 @@ typedef struct BlockBinding BlockBinding;
 typedef struct BlockBindings BlockBindings;
 typedef struct Parameter Parameter;
 typedef struct Parameters Parameters;
-typedef struct zir_4df9e9d4d181242c_StaticText zir_4df9e9d4d181242c_StaticText;
+typedef struct zir_6ef47adc72fd532d_StaticText zir_6ef47adc72fd532d_StaticText;
 typedef struct AssemblyOperand AssemblyOperand;
 typedef struct AssemblyVariant AssemblyVariant;
 typedef struct Assembly Assembly;
@@ -75,7 +75,7 @@ struct Parameters {
     Parameter items[1];
 };
 
-struct zir_4df9e9d4d181242c_StaticText {
+struct zir_6ef47adc72fd532d_StaticText {
     uint8_t* data;
     size_t length;
 };
@@ -312,14 +312,14 @@ zir_f_b231ca7561351ed8_strcpy(uint8_t* dst, uint8_t* src)
     return zir_foreign_zir_f_b231ca7561351ed8_strcpy(dst, src);
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_b231ca7561351ed8_strtol_25255c81
-#define ZIR_FOREIGN_zir_f_b231ca7561351ed8_strtol_25255c81
+#ifndef ZIR_FOREIGN_zir_f_b231ca7561351ed8_strtol_d4d7a55f
+#define ZIR_FOREIGN_zir_f_b231ca7561351ed8_strtol_d4d7a55f
 #ifdef __APPLE__
-int64_t zir_foreign_zir_f_b231ca7561351ed8_strtol(uint8_t* s, uint8_t** end, int32_t base) __asm__("_strtol");
+ptrdiff_t zir_foreign_zir_f_b231ca7561351ed8_strtol(uint8_t* s, uint8_t** end, int32_t base) __asm__("_strtol");
 #else
-int64_t zir_foreign_zir_f_b231ca7561351ed8_strtol(uint8_t* s, uint8_t** end, int32_t base) __asm__("strtol");
+ptrdiff_t zir_foreign_zir_f_b231ca7561351ed8_strtol(uint8_t* s, uint8_t** end, int32_t base) __asm__("strtol");
 #endif
-static int64_t
+static ptrdiff_t
 zir_f_b231ca7561351ed8_strtol(uint8_t* s, uint8_t** end, int32_t base)
 {
     return zir_foreign_zir_f_b231ca7561351ed8_strtol(s, end, base);
@@ -1164,7 +1164,7 @@ compiler_inline_asm_UnmappedOperand_ziran_inline(void* context, int32_t operand,
 static inline uint8_t*
 compiler_inline_asm_CStr_ziran_inline(String s)
 {
-    return ((zir_4df9e9d4d181242c_StaticText*)(&(s)))->data;
+    return ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
 }
 
 static inline uint8_t*
@@ -1284,7 +1284,7 @@ compiler_inline_asm_FeatureOption_ziran_inline(int32_t architecture, int32_t fea
                 uint8_t* value_4 = (void *)0;
                 {
                     String s = value_3;
-                    value_4 = ((zir_4df9e9d4d181242c_StaticText*)(&(s)))->data;
+                    value_4 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
                 }
                 value_1 = value_4;
                 goto value_2;
@@ -1294,7 +1294,7 @@ compiler_inline_asm_FeatureOption_ziran_inline(int32_t architecture, int32_t fea
                 uint8_t* value_7 = (void *)0;
                 {
                     String s = value_6;
-                    value_7 = ((zir_4df9e9d4d181242c_StaticText*)(&(s)))->data;
+                    value_7 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
                 }
                 value_1 = value_7;
                 goto value_2;
@@ -1304,7 +1304,7 @@ compiler_inline_asm_FeatureOption_ziran_inline(int32_t architecture, int32_t fea
                 uint8_t* value_10 = (void *)0;
                 {
                     String s = value_9;
-                    value_10 = ((zir_4df9e9d4d181242c_StaticText*)(&(s)))->data;
+                    value_10 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
                 }
                 value_1 = value_10;
                 goto value_2;
@@ -1314,7 +1314,7 @@ compiler_inline_asm_FeatureOption_ziran_inline(int32_t architecture, int32_t fea
                 uint8_t* value_13 = (void *)0;
                 {
                     String s = value_12;
-                    value_13 = ((zir_4df9e9d4d181242c_StaticText*)(&(s)))->data;
+                    value_13 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
                 }
                 value_1 = value_13;
                 goto value_2;
@@ -1324,7 +1324,7 @@ compiler_inline_asm_FeatureOption_ziran_inline(int32_t architecture, int32_t fea
                 uint8_t* value_16 = (void *)0;
                 {
                     String s = value_15;
-                    value_16 = ((zir_4df9e9d4d181242c_StaticText*)(&(s)))->data;
+                    value_16 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
                 }
                 value_1 = value_16;
                 goto value_2;
@@ -1345,7 +1345,7 @@ compiler_inline_asm_FeatureOption_ziran_inline(int32_t architecture, int32_t fea
                 uint8_t* value_23 = (void *)0;
                 {
                     String s = value_22;
-                    value_23 = ((zir_4df9e9d4d181242c_StaticText*)(&(s)))->data;
+                    value_23 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
                 }
                 value_21 = value_23;
             } else {
@@ -1366,7 +1366,7 @@ compiler_inline_asm_FeatureOption_ziran_inline(int32_t architecture, int32_t fea
                 uint8_t* value_30 = (void *)0;
                 {
                     String s = value_29;
-                    value_30 = ((zir_4df9e9d4d181242c_StaticText*)(&(s)))->data;
+                    value_30 = ((zir_6ef47adc72fd532d_StaticText*)(&(s)))->data;
                 }
                 value_28 = value_30;
             } else {

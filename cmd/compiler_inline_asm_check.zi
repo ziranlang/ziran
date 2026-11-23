@@ -958,7 +958,7 @@ AssemblyTiedOutput :: (source: *AssemblyVariant, constraint: *u8) -> s32 {
     if IsDigit(constraint[0]) {
         end: *u8 = null
         index := strtol(constraint, *end, 10)
-        if end[0] == 0 && index >= 0 && index < cast(s64)source.outputs { return cast(s32)index }
+        if end[0] == 0 && index >= 0 && index < cast(isize)source.outputs { return cast(s32)index }
         return -1
     }
     if constraint[0] == #char "[" {

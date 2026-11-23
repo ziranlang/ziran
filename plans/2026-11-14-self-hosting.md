@@ -54,7 +54,9 @@ preserves the existing C signatures. The checked IR format remains version 66.
 Entry linking for the C, Go and native backends, `compiler_zx_link`, replaces
 `zir_link.c` with the same exported C entry points. From S17, inline assembly
 checking and C emission, `compiler_inline_asm`, replaces `zir_asm.c` and
-`zir_asm.h`.
+`zir_asm.h`. The embedding API, `compiler_host_api`, replaces `zir_host.c`
+with the same C interface; only the platform backend probe stays in C beside
+the native loader.
 
 S16–S18 remain open for the remaining portable ZX and host interfaces, inline
 assembly and tool drivers, and the stage-0 through stage-2 fixed-point proof.
@@ -244,7 +246,7 @@ C ABI/storage boundary:
 | `zir_exec_console.h` | portable failure text | `compiler_zx_run` | S16 |
 | `zir_expr.h` | C adapters to the Ziran expression IR parser used by portable linking and retained tests | `compiler_expr_ir` | S16 |
 | `zir_files.c` / `.h` | filesystem/path policy `PathIsAbsolute:19`, status `:7` | `compiler_files` | S15 |
-| `zir_host.c` | embedding API `BundleOpen:46`, instances `:335`, run `:348`, state/components `:653`, `:868` | `compiler_host_api` | S16 |
+| `compiler_host_api.zi` / `include/ziran_host.h` | embedding API: bundles, instances, run control, module state and components, read with `compiler_host_api_state.zi` | `compiler_host_api` | S16 |
 | `zir_host_exec.c` / `.h` | executable ZX engine facade; bundle open `ExecBundleOpen:421`, host instances `:1399`; no-engine stubs `:1396` onward | `compiler_zx_exec` | S16 |
 | `zir_law.c` / `.h` | laws and parallel-region checks `CheckLawGates:877`, `CheckParallelRegions:1856` | `compiler_law_runtime` | S15 |
 | `compiler_zx_link.zi` / `zir_link.h` | entry linking and host binding; C declarations in `zir_link.h` | `compiler_zx_link` | S16 |
@@ -547,10 +549,17 @@ No step commits before its implementation and proof are complete.
   record field pruning, and entry reachability. It exports `BindHostProvider`,
   `BindHostModule`, `NativeLink`, `NativeGoLink` and `ProgramUsesFunction`
   for the C tool drivers.
-- Port the portable command runner, the native embedding and execution APIs,
-  the hosted module runtime, and the Wasm provider and web bridges. Preserve
-  the public embedding and executable APIs and add their modules to bootstrap.
-- Retire the replaced `zir_host.c`, `zir_host_exec.c`, `zir_zx_module.c`,
+- `compiler_host_api` (`cmd/compiler_host_api.zi` with the loaded
+  `compiler_host_api_state.zi`) replaces `zir_host.c`: bundle opening and
+  identity, capability ABI comparison, binding validation and backend
+  selection, instances and run control, module state export and import, and
+  hot-swapped components. Its records mirror `include/ziran_host.h` field for
+  field. `zir_host_native.c` keeps `BundleNativePlatformBackend` and
+  `BundleAutoPlatformBackend`, the target `#if` checks.
+- Port the portable command runner, the engine execution facade, the hosted
+  module runtime, and the Wasm provider and web bridges. Preserve the public
+  embedding and executable APIs and add their modules to bootstrap.
+- Retire the replaced `zir_host_exec.c`, `zir_zx_module.c`,
   `zir_zx_wasm.c`, `zir_zx_wasm_web.c`, `zir_exec_console.h`, and
   `cmd/zi2zx/zx_exec_run.c` as those ports land.
 - Verify saved bytes and diagnostics against the previous compiler, then run

@@ -324,7 +324,7 @@ SIMD_DIR ?= $(BUILD_DIR)/simd
 SIMD_HEADERS := $(SIMD_DIR)/ziran_simd_ops.h $(SIMD_DIR)/ziran_simd_types.h $(SIMD_DIR)/zir_simd_go_bodies.h
 HEADERS += $(SIMD_HEADERS)
 override CFLAGS += -I$(SIMD_DIR)
-LIB_SOURCES := $(FRONTEND) cmd/zir/zir_host.c cmd/zir/zir_native_memory.c cmd/zir/zir_zx_module.c
+LIB_SOURCES := $(FRONTEND) cmd/zir/zir_native_memory.c cmd/zir/zir_zx_module.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
@@ -359,7 +359,7 @@ $(call obj,$(HOST_EXEC_SOURCES)): $(ENGINE_NAMES)
 $(call obj,cmd/zx2wasm/main.c)_CFLAGS += -iquote $(ENGINE_C) -include $(ENGINE_NAMES)
 $(call obj,cmd/zx2wasm/main.c): $(ENGINE_NAMES)
 endif
-LIB_OBJECTS := $(call obj,$(LIB_SOURCES) $(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(CHECK_PORT_OBJECTS) \
+LIB_OBJECTS := $(call obj,$(LIB_SOURCES) $(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS) $(call compiler-port-object,host_api) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(CHECK_PORT_OBJECTS) \
     $(BUILD_DIR)/obj/parse.o $(RANGE_OBJECTS) $(NATIVE_NAMES_OBJECT) \
     $(call obj,cmd/zir/zir_zx_wasm_web.c)
 NATIVE_HOST_ENABLED := 1
@@ -886,6 +886,10 @@ $(eval $(call compiler-port-rules,law_runtime,$(PARSE_PORT_HEADERS) $(CHECK_PORT
 $(eval $(call compiler-port-rules,target_bridge,$(PARSE_PORT_HEADERS) $(CHECK_PORT_HEADERS) $(TYPE_READY),$(PARSE_PORT_IMPORTS) cmd/compiler_check_types.zi cmd/compiler_type.zi))
 $(call obj,cmd/zir/zir_memory.c): $(FRONTEND_SUPPORT_HEADERS) $(call compiler-port-ready,context_types)
 
+# The embedding API (include/ziran_host.h): one module read from two files,
+# linked into libziran beside the engine, native and wasm layers it calls.
+$(eval $(call compiler-port-rules,host_api,,cmd/compiler_host_api_state.zi))
+
 # Inline assembly: one module read from three source files.
 $(eval $(call compiler-port-rules,inline_asm,$(IR_READY) $(NATIVE_NAMES_READY),$(GO_PORT_IMPORTS) \
     cmd/compiler_inline_asm_check.zi cmd/compiler_inline_asm_emit.zi))
@@ -1074,7 +1078,7 @@ BOOTSTRAP_MODULES := scan text source declaration enum type expression statement
 GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
     -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
 BOOTSTRAP_MODULES += parse portable_body scalar c_emit c_emit_value c_emit_statement c_emit_call c_emit_expr simd_metadata c_emit_simd go_simd c_backend
-BOOTSTRAP_MODULES += $(GO_PORT_MODULES) $(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES) $(FRONTEND_PORT_MODULES)
+BOOTSTRAP_MODULES += $(GO_PORT_MODULES) $(CHECK_PORT_MODULES) $(PARSE_PORT_MODULES) $(FRONTEND_PORT_MODULES) host_api
 # Darwin's seed copies of the platform modules, generated with the defines a
 # Darwin host passes; one copy serves Apple Silicon and Intel.
 DARWIN_BOOTSTRAP_MODULES := runtime_emit backend_cache backend_process

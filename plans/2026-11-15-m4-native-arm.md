@@ -56,18 +56,20 @@ pass, from a private index on origin/master.
    `bench/results/zx-android-parity-moto-2026-11-23.json` (armv7) and
    `bench/results/zx-android-parity-pixel-2026-11-23.json` (aarch64), both
    81/81.
-7. **Standalone ELFs for AArch64 and ARMv7** (`zx2native --target`). This
-   needs a per-architecture runtime with a maintained source instead of a
-   byte blob (the x86 runtime split of the Windows PE lane is the model). AArch64
-   is done (2026-11-23): `compiler_aarch64_runtime.zi` emits the exit and
-   write-all routines as AArch64 words, and `compiler_aarch64_elf.zi` writes a
-   static ELF64 (EM_AARCH64) whose entry stub sets the stack limit, calls the
-   initializers and the entry, and ends through the runtime, resolving every
-   image relocation at link time. `zx2native --target aarch64 --platform
-   linux|android` writes it; the Pixel runs both, recorded in
-   `bench/results/zx-aarch64-elf-pixel-2026-11-23.json`. A program that calls
-   a formatter or a host capability is still a named gap. ARMv7 remains: it
-   needs the same runtime and an EM_ARM ELF32 container.
+7. **Standalone ELFs for AArch64 and ARMv7** (`zx2native --target`). Done
+   (2026-11-23). Each row has its own runtime as Ziran source, not a byte
+   blob: `compiler_aarch64_runtime.zi` and `compiler_armv7_runtime.zi` emit
+   the exit and write-all routines in their own instructions, reaching the
+   operating system through `svc 0`. `compiler_aarch64_elf.zi` writes a static
+   ELF64 (EM_AARCH64) and `compiler_armv7_elf.zi` a static ELF32 (EM_ARM,
+   EABI5); both place an entry stub that sets the stack limit, calls the
+   initializers and the entry, and ends through the runtime, and both resolve
+   every image relocation at link time, so the image needs no loader. Device
+   receipts: `bench/results/zx-aarch64-elf-pixel-2026-11-23.json` (Pixel 4a)
+   and `bench/results/zx-armv7-elf-moto-2026-11-23.json` (Moto e6 play). A
+   program that calls a formatter, a host capability or the resize allocator
+   fails before output with
+   `assembly.gap.machine-platform-service-unavailable` naming the row.
 
 No row adds an engine fallback. Anything native code cannot run on these
 targets fails preflight with a named gap, as on x86-64.

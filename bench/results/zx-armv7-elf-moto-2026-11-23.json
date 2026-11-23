@@ -1,0 +1,53 @@
+{
+  "test": "zx_armv7_standalone_elf",
+  "date": "2026-11-23T13:19:48Z",
+  "revision": "cd43ef46107d138dabb68cc64554e5bf4822c937",
+  "worktree_clean": false,
+  "host": {
+    "name": "omega",
+    "machine": "x86_64"
+  },
+  "device": {
+    "serial": "ZE2223BQZT",
+    "adb_host": "local",
+    "model": "moto e6 play",
+    "abi": "armeabi-v7a",
+    "sdk": 28
+  },
+  "note": "Every image is a static ELF32 EM_ARM EABI5 from zx2native; each ran on the Moto and printed its expected text.",
+  "cases": [
+    {
+      "program": "raw2",
+      "platform": "linux",
+      "bytes": 4112,
+      "sha256": "90924233e0793f6990e1bf53c1d4b759faa799af898c1257ef171ef61df4768f",
+      "stdout": "Hello, World!",
+      "passed": true
+    },
+    {
+      "program": "loop",
+      "platform": "linux",
+      "bytes": 4112,
+      "sha256": "5b6aeb7a20596c72e74c220d95a247166e7de7dd9ef11901b6ba4559bd920a6c",
+      "stdout": "Sum ok",
+      "passed": true
+    },
+    {
+      "program": "raw2",
+      "platform": "android",
+      "bytes": 4112,
+      "sha256": "90924233e0793f6990e1bf53c1d4b759faa799af898c1257ef171ef61df4768f",
+      "stdout": "Hello, World!",
+      "passed": true
+    },
+    {
+      "program": "loop",
+      "platform": "android",
+      "bytes": 4112,
+      "sha256": "5b6aeb7a20596c72e74c220d95a247166e7de7dd9ef11901b6ba4559bd920a6c",
+      "stdout": "Sum ok",
+      "passed": true
+    }
+  ],
+  "passed": true
+}

@@ -5,11 +5,6 @@ line when the work lands. Keep detail in the referenced plan.
 
 ## Native assembly target (ASSEMBLY/)
 
-- M4 ARM row 7: the ARMv7 half of standalone ELFs (`zx2native --target`); the
-  AArch64 ELF and runtime are done and run on the Pixel, so what remains is
-  the EM_ARM ELF32 container and its runtime. Rows 5 (ARMv7 unchecked forms)
-  and 6 (linear image relocations on ARM) are done. Detail:
-  plans/2026-11-15-m4-native-arm.md.
 - M5 objects and linking: x64 unwind data (`.pdata`/`.xdata`), Mach-O and
   archives, the external C ABI with foreign libraries, a console line mode,
   files and clock platform services, a real Windows host run, and an

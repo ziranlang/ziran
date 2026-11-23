@@ -350,12 +350,12 @@ TargetRowAt :: (index: s32) -> TargetRow {
             note = "No Apple x86-64 Mach-O output or signing."}
     }
     if index == 4 {
-        return .{arch = .ArmV7, os = .Linux, state = .Gap, milestone = "M4",
-            note = "Bundles run natively in process by default; standalone executables are pending."}
+        return .{arch = .ArmV7, os = .Linux, state = .Gap, executable = "elf", milestone = "M4",
+            note = "Bundles run natively in process by default; zx2native writes a static ELF for a program with no host capability, and other programs fail with a named gap."}
     }
     if index == 5 {
-        return .{arch = .ArmV7, os = .Android, state = .Gap, milestone = "M4",
-            note = "Bundles run natively in process by default, with Moto parity recorded; standalone executables are pending."}
+        return .{arch = .ArmV7, os = .Android, state = .Gap, executable = "elf", milestone = "M4",
+            note = "Bundles run natively in process by default, with Moto parity recorded; zx2native writes a static ELF for a program with no host capability, and other programs fail with a named gap."}
     }
     if index == 6 {
         return .{arch = .AArch64, os = .Linux, state = .Gap, executable = "elf", milestone = "M4",

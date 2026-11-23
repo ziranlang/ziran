@@ -121,30 +121,40 @@ if grep -Eq '(^|[[:space:]])(INTERP|DYNAMIC)([[:space:]]|$)' "$work/hello.progra
     exit 1
 fi
 
-# AArch64 writes a static ELF: EM_AARCH64 (183), one RX segment and no
-# interpreter. The program it carries calls no platform service, so nothing
-# links against a foreign object.
+# Both ARM rows write a static ELF of their own: EM_AARCH64 (183) as ELF64 and
+# EM_ARM (40) as ELF32 EABI5. The program carries no platform service, so
+# nothing links against a foreign object.
 "$zx2native" --target aarch64 --platform linux -o "$work/aarch64-linux.elf" "$work/app.zx"
-python3 - "$work/aarch64-linux.elf" <<'PYCHECK'
+"$zx2native" --target armv7 --platform android -o "$work/armv7-android.elf" "$work/app.zx"
+python3 - "$work/aarch64-linux.elf" "$work/armv7-android.elf" <<'PYCHECK'
 import struct, sys
-data = open(sys.argv[1], 'rb').read()
-assert data[:4] == b'\x7fELF' and data[4] == 2 and data[5] == 1, 'not an ELF64 little-endian image'
-assert struct.unpack_from('<H', data, 18)[0] == 183, 'not an AArch64 image'
-assert struct.unpack_from('<H', data, 16)[0] == 2, 'not an ET_EXEC image'
+a64 = open(sys.argv[1], 'rb').read()
+assert a64[:4] == b'\x7fELF' and a64[4] == 2 and a64[5] == 1, 'AArch64 image is not ELF64 little-endian'
+assert struct.unpack_from('<H', a64, 18)[0] == 183, 'AArch64 image has the wrong machine'
+assert struct.unpack_from('<H', a64, 16)[0] == 2, 'AArch64 image is not ET_EXEC'
+v7 = open(sys.argv[2], 'rb').read()
+assert v7[:4] == b'\x7fELF' and v7[4] == 1 and v7[5] == 1, 'ARMv7 image is not ELF32 little-endian'
+assert struct.unpack_from('<H', v7, 18)[0] == 40, 'ARMv7 image has the wrong machine'
+assert struct.unpack_from('<H', v7, 16)[0] == 2, 'ARMv7 image is not ET_EXEC'
 PYCHECK
 
-# ARMv7 has no standalone container yet, so the row stays a named gap and the
-# output is untouched.
-row=armv7-android
+# A facility the ARM rows do not carry is a named gap, and the output stays
+# untouched.
+cat > "$work/format.zi" <<'ZI'
+main :: () -> s32 {
+    print("n=%\n", 42)
+    return 0
+}
+ZI
+"$zi2zx" --root "$work" --module-path "$repo/std" --entry format:main -o "$work/format.zx" "$work/format.zi"
+row=armv7-format-gap
 printf 'preserve-output\n' > "$work/$row.elf"
 if ZIRAN_DIAGNOSTICS=json "$zx2native" --target armv7 --platform android \
-    -o "$work/$row.elf" "$work/app.zx" > "$work/$row.log" 2>&1; then
-    echo "native ELF accepted unsupported target row $row" >&2
+    -o "$work/$row.elf" "$work/format.zx" > "$work/$row.log" 2>&1; then
+    echo "ARM ELF accepted a formatter the row does not carry" >&2
     exit 1
 fi
 grep -Fq 'assembly.gap.machine-platform-service-unavailable' "$work/$row.log"
-grep -Fq 'armv7' "$work/$row.log"
-grep -Fq 'android' "$work/$row.log"
 printf 'preserve-output\n' | cmp - "$work/$row.elf"
 
 compile_native "$work/source-a" "$work" app:Answer "$work/app.zi"

@@ -1,0 +1,209 @@
+using Bytes :: #import "compiler_arm_bytes"
+using Target :: #import "compiler_target"
+
+// Runtime routines an ARMv7 (A32) Linux or Android native executable carries,
+// emitted with the ARM writer, each only when the program calls it.
+// Positions are virtual offsets in the image, so a relative field reaches any
+// runtime state through its position. Linux and Android reach the operating
+// system through the EABI `svc 0`, with the call number in r7.
+//
+// Exit(r0 = status) ends the process.
+//
+// Console: the encoder's pair ABI gives write_all(fd, bytes, count) its
+// arguments as pair 0 (fd in r0, r1 high), pair 1 (the byte pointer in r2, r3
+// high) and the first 8-byte stack slot at [sp] (the count). The routine
+// touches no callee-saved register: only r0-r3, r7 and r12, which the ABI
+// already lets a call clobber.
+
+MachineV7RuntimeTrapExit :: 125
+
+// The EABI call numbers: write (4), exit_group (248).
+MachineV7SysWrite :: 4
+MachineV7SysExit :: 248
+
+// What the routines use, as image positions.
+MachineV7RuntimePlaces :: struct {
+    trap: s64
+    os: TargetOS
+}
+
+MachineV7RuntimeUses :: struct {
+    // Exit, for the trap stub and a failed write.
+    exit: bool
+    // The console writer.
+    write_all: bool
+}
+
+// Entry offsets of the emitted routines and the end of their code.
+MachineV7RuntimeEntries :: struct {
+    exit: s64
+    write_all: s64
+    end: s64
+}
+
+Label :: enum s32 {
+    Exit; WriteAll; WriteLoop; WriteAgain; WriteDone; WriteFail
+}
+
+LabelCount :: 6
+
+Emitter :: struct {
+    writer: Bytes.ArmWriter
+    places: MachineV7RuntimePlaces
+    labels: [LabelCount]s64
+}
+
+Mark :: (emitter: *Emitter, label: Label) { emitter.labels[cast(s64)label] = emitter.writer.at }
+
+At :: (emitter: *Emitter, label: Label) -> s64 { return emitter.labels[cast(s64)label] }
+
+Op :: (emitter: *Emitter, word: u32) { Bytes.ArmWord(*emitter.writer, word) }
+
+// The signed word delta from the branch field at the current position to
+// TARGET, zero while measuring.
+Delta :: (emitter: *Emitter, target: s64) -> s64 {
+    return Bytes.ArmBranchDelta(*emitter.writer, target)
+}
+
+// B or BL to LABEL in the 24-bit word field. A32 reads pc as the instruction
+// plus eight, so the word delta is measured from there.
+BranchTo :: (emitter: *Emitter, label: Label, link: bool) {
+    delta := Delta(emitter, At(emitter, label))
+    if emitter.writer.output.count != 0 { delta -= 2 }
+    field := Bytes.ArmField(*emitter.writer, delta, 24)
+    base: u32 = 0xEA000000
+    if link { base = 0xEB000000 }
+    Op(emitter, base | cast(u32)field)
+}
+
+// B.cond to LABEL: the condition is the top four bits of the word, and the
+// delta is measured from pc + 8.
+BranchConditionTo :: (emitter: *Emitter, condition: s32, label: Label) {
+    delta := Delta(emitter, At(emitter, label))
+    if emitter.writer.output.count != 0 { delta -= 2 }
+    field := Bytes.ArmField(*emitter.writer, delta, 24)
+    Op(emitter, cast(u32)(0x0A000000 | cast(u64)condition << 28 | field))
+}
+
+// MOVW/MOVT of a 32-bit VALUE into R<rd>.
+MoveWord :: (emitter: *Emitter, rd: s32, value: u32) {
+    low := value & 0xffff
+    high := value >> 16
+    Op(emitter, 0xe3000000 | (low >> 12) << 16 | cast(u32)rd << 12 | (low & 0xfff))
+    Op(emitter, 0xe3400000 | (high >> 12) << 16 | cast(u32)rd << 12 | (high & 0xfff))
+}
+
+// MOV R<rd>, R<rm>.
+MoveRegister :: (emitter: *Emitter, rd: s32, rm: s32) {
+    Op(emitter, 0xe1a00000 | cast(u32)rm | cast(u32)rd << 12)
+}
+
+// LDR/STR a word at [R<rn>, #OFFSET].
+LoadWord :: (emitter: *Emitter, rd: s32, rn: s32, offset: s64) {
+    Op(emitter, 0xe5900000 | cast(u32)rd << 12 | cast(u32)rn << 16 | cast(u32)offset)
+}
+
+StoreWord :: (emitter: *Emitter, rd: s32, rn: s32, offset: s64) {
+    Op(emitter, 0xe5800000 | cast(u32)rd << 12 | cast(u32)rn << 16 | cast(u32)offset)
+}
+
+// ADD/SUB a 12-bit immediate.
+AddSubImmediate :: (emitter: *Emitter, rd: s32, rn: s32, value: s64, subtract: bool) {
+    word: u32 = 0xe2800000
+    if subtract { word = 0xe2400000 }
+    Op(emitter, word | cast(u32)rd << 12 | cast(u32)rn << 16 | cast(u32)value)
+}
+
+// ADD/SUB a register operand.
+AddSubRegister :: (emitter: *Emitter, rd: s32, rn: s32, rm: s32, subtract: bool) {
+    word: u32 = 0xe0800000
+    if subtract { word = 0xe0400000 }
+    Op(emitter, word | cast(u32)rd << 12 | cast(u32)rn << 16 | cast(u32)rm)
+}
+
+// CMP R<rn>, R<rm>.
+CompareRegister :: (emitter: *Emitter, rn: s32, rm: s32) {
+    Op(emitter, 0xe1500000 | cast(u32)rn << 16 | cast(u32)rm)
+}
+
+// CMP R<rn>, #VALUE.
+CompareImmediate :: (emitter: *Emitter, rn: s32, value: s64) {
+    Op(emitter, 0xe3500000 | cast(u32)rn << 16 | cast(u32)value)
+}
+
+// CMN R<rn>, #VALUE: the carry-flag addition the EINTR test needs.
+CompareNegative :: (emitter: *Emitter, rn: s32, value: s64) {
+    Op(emitter, 0xe3700000 | cast(u32)rn << 16 | cast(u32)value)
+}
+
+// The EABI call: the number in r7, then svc 0.
+Syscall :: (emitter: *Emitter, number: u32) {
+    MoveWord(emitter, 7, number)
+    Op(emitter, 0xef000000)
+}
+
+// Exit(r0 = status).
+EmitExit :: (emitter: *Emitter) {
+    Mark(emitter, .Exit)
+    Syscall(emitter, MachineV7SysExit)
+    Op(emitter, 0xe7f000f0)   // udf #0, never reached
+}
+
+// write_all: fd in r0, bytes in r2, count at [sp]. It is called, so it
+// returns with BX lr.
+EmitWrite :: (emitter: *Emitter) {
+    Mark(emitter, .WriteAll)
+    // Across the calls: fd in r12, the byte pointer in r1 and the count in r3.
+    // Every register here is one a call may clobber, so nothing saved is lost.
+    MoveRegister(emitter, 12, 0)             // mov r12, r0    (fd)
+    MoveRegister(emitter, 1, 2)              // mov r1, r2     (bytes)
+    LoadWord(emitter, 3, 13, 0)              // ldr r3, [sp]   (count)
+    Mark(emitter, .WriteLoop)
+    CompareImmediate(emitter, 3, 0)
+    BranchConditionTo(emitter, 0, .WriteDone)
+    Mark(emitter, .WriteAgain)
+    MoveRegister(emitter, 0, 12)             // fd
+    MoveRegister(emitter, 2, 3)              // count
+    Syscall(emitter, MachineV7SysWrite)
+    // CMN r0, #4 sets Z when r0 == -4 (EINTR).
+    CompareNegative(emitter, 0, 4)
+    BranchConditionTo(emitter, 0, .WriteAgain)
+    // A zero or negative result is a failed write: LE is condition 13.
+    CompareImmediate(emitter, 0, 0)
+    BranchConditionTo(emitter, 13, .WriteFail)
+    AddSubRegister(emitter, 1, 1, 0, false)     // bytes += written
+    AddSubRegister(emitter, 3, 3, 0, true)      // count -= written
+    BranchTo(emitter, .WriteLoop, false)
+    Mark(emitter, .WriteDone)
+    Op(emitter, 0xe12fff1e)                     // bx lr
+    Mark(emitter, .WriteFail)
+    MoveWord(emitter, 0, MachineV7RuntimeTrapExit)
+    BranchTo(emitter, .Exit, false)
+}
+
+Emit :: (emitter: *Emitter, uses: MachineV7RuntimeUses) {
+    if uses.exit { EmitExit(emitter) }
+    if uses.write_all { EmitWrite(emitter) }
+}
+
+#scope_export
+
+// Measures, then with a non-empty OUTPUT writes, the routines USES names at
+// position AT. Writing reproduces the measured positions exactly.
+MachineV7RuntimeEmit :: (output: []u8, at: s64, uses: MachineV7RuntimeUses,
+    places: MachineV7RuntimePlaces, entries: *MachineV7RuntimeEntries) -> bool {
+    if cast(s64)Label.WriteFail + 1 != LabelCount { return false }
+    measure: Emitter
+    measure.writer = .{at = at, limit = 9223372036854775807}
+    measure.places = places
+    Emit(*measure, uses)
+    if measure.writer.failed { return false }
+    labels := measure.labels
+    <<entries = .{exit = labels[cast(s64)Label.Exit], write_all = labels[cast(s64)Label.WriteAll],
+        end = measure.writer.at}
+    if output.count == 0 { return true }
+    write := measure
+    write.writer = .{output = output, at = at, limit = output.count}
+    Emit(*write, uses)
+    return !write.writer.failed && write.writer.at == measure.writer.at
+}

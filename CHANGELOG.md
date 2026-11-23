@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- `zx2native --target armv7 --platform linux|android` writes a static ARMv7 ELF32 (EM_ARM, EABI5) with its own runtime, matching the AArch64 writer: the entry stub sets the stack limit, calls the initializers and the entry, and ends through the runtime's exit; the console writer is A32 machine code emitted from Ziran source. Both ARM rows run on their devices (Pixel 4a and Moto e6 play) and both report a named gap for a facility they do not carry.
 - `zx2native --target aarch64 --platform linux|android` writes a static AArch64 ELF with its own runtime: the entry stub sets the stack limit, calls the initializers and the entry, and ends through the runtime's exit; the console writer is AArch64 machine code emitted from Ziran source. The image resolves every relocation at link time, so it needs no loader. A program that calls a formatter or a host capability is still a named gap.
 ## [0.8.0] - 2026-11-23
 

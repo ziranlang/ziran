@@ -12,6 +12,7 @@ using X64 :: #import "compiler_x86_64"
 using X64Image :: #import "compiler_x86_image"
 using A64 :: #import "compiler_aarch64"
 using A64Elf :: #import "compiler_aarch64_elf"
+using V7Elf :: #import "compiler_armv7_elf"
 using V7 :: #import "compiler_armv7"
 
 // Owner for one complete direct machine pipeline. The borrowed executable
@@ -301,8 +302,31 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
                     if diagnostic.problem == .None && written.size != measured.size { diagnostic = Problem(.Relocation) }
                 }
             } else {
-                // No ARMv7 standalone container yet: the row stays a named gap.
-                diagnostic = Problem(.UnsupportedTarget)
+                encoded := MachineV7View(*built.encoded_v7)
+                extents: Vec(V7Elf.MachineV7ElfFunction)
+                if !VecResizeBounded(extents, encoded.functions.count, encoded.functions.count) {
+                    MachineNativeFree(*built)
+                    return Problem(.Allocation)
+                }
+                for index: cast(s64)0..encoded.functions.count - 1 {
+                    extents[index] = .{begin = encoded.functions[index].begin,
+                        body = encoded.functions[index].body, end = encoded.functions[index].end}
+                }
+                defer VecFree(extents)
+                code := V7Elf.MachineV7ElfCode.{code = encoded.code, functions = extents[:],
+                    relocations = V7.MachineV7MachineView(*built.encoded_v7).relocations,
+                    entry = encoded.entry}
+                result := V7Elf.MachineV7ElfEncode(program, code, empty[:])
+                diagnostic = result.diagnostic
+                if diagnostic.problem == .None && (result.size <= 0 || result.size > limits.bytes ||
+                    !VecResizeBounded(built.executable, result.size, limits.bytes)) {
+                    diagnostic = Problem(ifx result.size > limits.bytes then MachineProblem.Limit else MachineProblem.Allocation)
+                }
+                if diagnostic.problem == .None {
+                    written := V7Elf.MachineV7ElfEncode(program, code, built.executable[:])
+                    diagnostic = written.diagnostic
+                    if diagnostic.problem == .None && written.size != result.size { diagnostic = Problem(.Relocation) }
+                }
             }
             if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
             built.image = built.executable[:]

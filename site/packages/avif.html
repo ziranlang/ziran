@@ -17,8 +17,8 @@ The manifest pins libavif, dav1d (the default engine) and libaom (the oracle) so
 av1 package with the authored AV1 decoder. Local
 canonical checkout overrides belong in ignored <code>ziran.local.toml</code>. Production lockfiles resolve committed package and toolchain revisions.</p>
 <p>Run the package suite in this checkout:</p>
-<pre><code class="language-sh">build-queue -- sh tests/avif.sh
-build-queue -- sh tests/bmff.sh
+<pre><code class="language-sh">sh tests/avif.sh
+sh tests/bmff.sh
 </code></pre>
 <p>The test harness uses the canonical sibling Ziran checkout when available;
 otherwise set <code>ZIRAN_ROOT</code> to a built current toolchain. It builds a real

@@ -28,10 +28,10 @@ modular arcihetcuer".
 ## Stages
 
 1. Done: the generic runner for console bundles (cmd/zx_runner*.zi), the
-   `.zx` file type, desktop entry, default opener and failure dialog
-   (`packaging/linux`, `make install-user`), checked by `install_user`.
-   Open: generated app and file-type icons, exported to hicolor 16-512 and
-   Android adaptive layers.
+   `.zx` file type, desktop entry, default opener, failure dialog, and
+   generated app and file-type icons exported to hicolor 16-512 and Android
+   adaptive layers (`packaging/linux`, `packaging/android`, `make install-user`),
+   checked by `install_user`.
 2. Capabilities through the runner, with no compiler change. A capability is
    a `#foreign host_api` function in a Ziran std module; a bundle lists the
    ones it imports (`module:function`), and `zx` binds each from its own table

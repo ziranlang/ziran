@@ -29,6 +29,13 @@ CheckZxRunner :: (test: *NativeTest, share: string, data: string) -> bool {
     exec := CheckConcat(CheckConcat("\nExec=", runner), " %f\n")
     if !NativeAssert(test, TextContains(text, exec) && TextContains(text, "\nMimeType=application/x-ziran-bundle;\n"), "desktop entry does not open .zx files with the installed zx") { return false }
     if !NativeAssert(test, TextContains(NativeRead(test, CheckPath(data, "mime/globs2")), "application/x-ziran-bundle:*.zx\n"), "update-mime-database did not register *.zx") { return false }
+    icon_sizes := string.["16x16", "22x22", "24x24", "32x32", "48x48", "64x64", "128x128", "256x256", "512x512"]
+    for size: icon_sizes {
+        app_icon := NativeRead(test, CheckPath(CheckPath(CheckPath(data, "icons/hicolor"), size), "apps/org.ziran_lang.zx.png"))
+        mime_icon := NativeRead(test, CheckPath(CheckPath(CheckPath(data, "icons/hicolor"), size), "mimetypes/application-x-ziran-bundle.png"))
+        if !NativeAssert(test, app_icon.count > 8 && app_icon[0] == 137 && app_icon[1] == #char "P" && app_icon[2] == #char "N" && app_icon[3] == #char "G", "installed app icon is not a PNG") { return false }
+        if !NativeAssert(test, mime_icon.count > 8 && mime_icon[0] == 137 && mime_icon[1] == #char "P" && mime_icon[2] == #char "N" && mime_icon[3] == #char "G", "installed .zx mime icon is not a PNG") { return false }
+    }
     // The header alone identifies a .zx program that lost its extension.
     unnamed := CheckPath(test.work, "hello-copy")
     if !NativeWrite(test, unnamed, NativeRead(test, hello)) { return false }

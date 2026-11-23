@@ -434,14 +434,16 @@ install-user: all
 			chmod 755 "$(USER_BIN)/$$tool"; \
 		fi; \
 	done
-	mkdir -p $(USER_DATA)/applications $(USER_DATA)/mime/packages
+	mkdir -p $(USER_DATA)/applications $(USER_DATA)/mime/packages $(USER_DATA)/icons/hicolor
 	@# The entry runs the installed runner itself, whatever zx PATH finds.
 	sed 's|@ZX@|$(abspath $(USER_SHARE))/build/bin/zx|g' packaging/linux/$(ZX_DESKTOP) > $(USER_DATA)/applications/.$(ZX_DESKTOP).new
 	mv -f $(USER_DATA)/applications/.$(ZX_DESKTOP).new $(USER_DATA)/applications/$(ZX_DESKTOP)
 	cp packaging/linux/ziran-zx.xml $(USER_DATA)/mime/packages/ziran-zx.xml
+	cp -r packaging/linux/icons/hicolor/. $(USER_DATA)/icons/hicolor/
 	@# Refresh the caches the desktop reads, where its tools are installed.
 	@if command -v update-mime-database >/dev/null; then update-mime-database $(USER_DATA)/mime; fi
 	@if command -v update-desktop-database >/dev/null; then update-desktop-database -q $(USER_DATA)/applications; fi
+	@if command -v gtk-update-icon-cache >/dev/null && test -f $(USER_DATA)/icons/hicolor/index.theme; then gtk-update-icon-cache -q -f -t $(USER_DATA)/icons/hicolor; fi
 	@# xdg-mime writes mimeapps.list there but does not create the folder.
 	@if command -v xdg-mime >/dev/null; then mkdir -p "$${XDG_CONFIG_HOME:-$$HOME/.config}" && \
 		XDG_DATA_HOME=$(USER_DATA) xdg-mime default $(ZX_DESKTOP) $(ZX_MIME); fi

@@ -574,6 +574,28 @@ still checks typed imports and requires the host grants used by the image.
 This workflow uses ZX runtime interfaces. Checked packages support source
 imports and generics. Platform-native dependencies use native artifacts.
 
+### Standard library (`std`) modules
+
+`std` stays **source-linked** by default through `#import "std/NAME"` and is
+pinned by the toolchain commit in `ziran.lock`. Generic containers and
+utilities (`std/vec`, `std/hash_map`, `std/option`, `std/result`, `std/list`,
+`std/queue`, `std/pool`, `std/sort`), platform/host modules (`std/*_linux`,
+`std/*_go`, `std/guest_*`), and procedures taking borrowed slices or pointers
+(`[]u8`, `*Vec(u8)`, such as `std/base64`, `std/json_document`, `std/jpeg`,
+`std/png_linux`) cannot cross the ZX runtime `HostValue` ABI and are compiled
+into each consumer from the toolchain's `std/`.
+
+Value-ABI portable `std` procedures (taking and returning scalars, `string`,
+plain records, or fixed arrays, such as `std/utf8`, `std/calendar`,
+`std/date_parse`, `std/path`, and `std/constant_time`) can optionally be built
+as shared runtime `.zx` libraries and pinned in `ziran.zx.lock` using the same
+`ziran bundle --library` and `ziran pkg zx publish`/`fetch` workflow:
+
+```sh
+ziran bundle --library std/utf8 --export utf8:Valid --export utf8:Count \
+    -o modules/std/utf8.zx std/utf8.zi
+```
+
 ## Prebuilt Ziran toolchains
 
 The canonical Gitea check job packages the Ziran executables, standard

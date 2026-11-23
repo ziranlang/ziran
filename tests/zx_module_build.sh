@@ -101,6 +101,36 @@ test "$result" = 42 || {
     exit 1
 }
 
+# A value-ABI portable std module (std/utf8) can also be built as a shared ZX
+# library and loaded by a consumer from a module root.
+mkdir -p "$modules/std"
+"$ziran" bundle --library std/utf8 --export utf8:Valid --export utf8:Count \
+    -o "$modules/std/utf8.zx" "$repo/std/utf8.zi"
+test -s "$modules/std/utf8.zx"
+cat >"$work/std_app.zi" <<'ZI'
+using Modules :: #import "std/zx_module"
+host_api :: #system_library "host_api";
+Utf8Valid :: (handle: u64, text: string) -> bool #foreign host_api;
+Utf8Count :: (handle: u64, text: string) -> s32 #foreign host_api;
+main :: () -> s32 {
+    handle := Modules.Load("StdUtf8.v1")
+    if handle == 0 { return 1 }
+    if !Utf8Valid(handle, "taiji") { return 2 }
+    count := Utf8Count(handle, "taiji")
+    if !Modules.Release(handle) { return 3 }
+    return count
+}
+ZI
+"$ziran" bundle --root "$work" --require-module StdUtf8.v1=std/utf8 \
+    --import std_app:Utf8Valid=StdUtf8.v1:Valid \
+    --import std_app:Utf8Count=StdUtf8.v1:Count \
+    --entry std_app:main -o "$work/std_app.zx" "$work/std_app.zi"
+std_result=$(cd "$work" && "$ziran" run --module-root "$modules" std_app.zx)
+test "$std_result" = 5 || {
+    echo "zx-module-build: std consumer printed '$std_result'"
+    exit 1
+}
+
 # A library build that names an entry is refused once, by zi2zx, naming both
 # flags; the front end adds no input or second error of its own.
 refuse() {

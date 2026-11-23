@@ -461,6 +461,23 @@ download, digest, image format or module name stops the command. The loader
 still checks typed imports and requires the host grants used by the image.
 This workflow uses ZX runtime interfaces. Checked packages support source
 imports and generics. Platform-native dependencies use native artifacts.</p>
+<h3 id="standard-library-std-modules">Standard library (<code>std</code>) modules</h3>
+<p><code>std</code> stays <strong>source-linked</strong> by default through <code>#import "std/NAME"</code> and is
+pinned by the toolchain commit in <code>ziran.lock</code>. Generic containers and
+utilities (<code>std/vec</code>, <code>std/hash_map</code>, <code>std/option</code>, <code>std/result</code>, <code>std/list</code>,
+<code>std/queue</code>, <code>std/pool</code>, <code>std/sort</code>), platform/host modules (<code>std/*_linux</code>,
+<code>std/*_go</code>, <code>std/guest_*</code>), and procedures taking borrowed slices or pointers
+(<code>[]u8</code>, <code>*Vec(u8)</code>, such as <code>std/base64</code>, <code>std/json_document</code>, <code>std/jpeg</code>,
+<code>std/png_linux</code>) cannot cross the ZX runtime <code>HostValue</code> ABI and are compiled
+into each consumer from the toolchain's <code>std/</code>.</p>
+<p>Value-ABI portable <code>std</code> procedures (taking and returning scalars, <code>string</code>,
+plain records, or fixed arrays, such as <code>std/utf8</code>, <code>std/calendar</code>,
+<code>std/date_parse</code>, <code>std/path</code>, and <code>std/constant_time</code>) can optionally be built
+as shared runtime <code>.zx</code> libraries and pinned in <code>ziran.zx.lock</code> using the same
+<code>ziran bundle --library</code> and <code>ziran pkg zx publish</code>/<code>fetch</code> workflow:</p>
+<pre><code class="language-sh">ziran bundle --library std/utf8 --export utf8:Valid --export utf8:Count \
+    -o modules/std/utf8.zx std/utf8.zi
+</code></pre>
 <h2 id="prebuilt-ziran-toolchains">Prebuilt Ziran toolchains</h2>
 <p>The canonical Gitea check job packages the Ziran executables, standard
 library, headers, and native archive from the build it just tested. Each

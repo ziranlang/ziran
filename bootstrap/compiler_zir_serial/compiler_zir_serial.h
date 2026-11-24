@@ -266,10 +266,26 @@ struct ParserArray2560_u8 {
 };
 #endif
 int32_t compiler_zir_serial_ProgramWrite(ZirProgram* program, void* out);
+int32_t compiler_zir_serial_ProgramWriteQuiet(ZirProgram* program, void* out);
+int32_t compiler_zir_serial_ZirFormatVersion(void);
 int32_t compiler_zir_serial_PathIsIR(uint8_t* path);
 ZirProgram* compiler_zir_serial_ProgramLoad(uint8_t* path, uint8_t* root);
 int32_t compiler_zir_serial_CheckCanonicalPrograms(ZirProgram** programs, int32_t count, uint8_t** input_paths);
 ZirProgram* compiler_zir_serial_ProgramRead(void* in, uint8_t* path);
+ZirProgram* compiler_zir_serial_ProgramReadUnvalidated(void* in, uint8_t* path);
+
+/* Small procedures other modules inline; compiler_zir_serial.c defines them. */
+#if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_ZIR_SERIAL_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
+#include <stdint.h>
+static inline int32_t compiler_zir_serial_ZirFormatVersion_ziran_inline(void);
+#define compiler_zir_serial_ZirFormatVersion(...) compiler_zir_serial_ZirFormatVersion_ziran_inline(__VA_ARGS__)
+
+static inline int32_t
+compiler_zir_serial_ZirFormatVersion_ziran_inline(void)
+{
+    return 66;
+}
+#endif
 
 #ifdef __cplusplus
 }

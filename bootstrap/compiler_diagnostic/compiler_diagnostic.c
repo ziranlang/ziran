@@ -14,6 +14,19 @@ void zir_foreign_zir_f_489b2bb91408caf2_Diagnostic(ZirSourceSpan span, uint8_t* 
 #endif
 #define zir_f_489b2bb91408caf2_Diagnostic zir_foreign_zir_f_489b2bb91408caf2_Diagnostic
 #endif
+#ifndef ZIR_FOREIGN_zir_f_489b2bb91408caf2_FrontendCacheDiagnostic_50c2e39e
+#define ZIR_FOREIGN_zir_f_489b2bb91408caf2_FrontendCacheDiagnostic_50c2e39e
+#ifdef __APPLE__
+void zir_foreign_zir_f_489b2bb91408caf2_FrontendCacheDiagnostic(void) __asm__("_FrontendCacheDiagnostic");
+#else
+void zir_foreign_zir_f_489b2bb91408caf2_FrontendCacheDiagnostic(void) __asm__("FrontendCacheDiagnostic");
+#endif
+static void
+zir_f_489b2bb91408caf2_FrontendCacheDiagnostic(void)
+{
+    zir_foreign_zir_f_489b2bb91408caf2_FrontendCacheDiagnostic();
+}
+#endif
 #ifndef ZIR_FOREIGN_zir_f_489b2bb91408caf2_DocumentOffset_2a546b28
 #define ZIR_FOREIGN_zir_f_489b2bb91408caf2_DocumentOffset_2a546b28
 #ifdef __APPLE__
@@ -962,6 +975,7 @@ compiler_diagnostic_report(ZirSourceSpan span, uint8_t* severity, uint8_t* code,
         value_3 = 1;
     }
     int32_t warning = value_3;
+    zir_f_489b2bb91408caf2_FrontendCacheDiagnostic();
     if (!(warning != 0)) {
         zir_f_489b2bb91408caf2_S15IntAdd((void*)(&(diagnostic_diagnostic_errors)), 1);
     }

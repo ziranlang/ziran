@@ -370,6 +370,19 @@ zir_f_157b8ce5776e0448_ParserWithRecovery(uint8_t* path, uint8_t* root, uint8_t*
     return zir_foreign_zir_f_157b8ce5776e0448_ParserWithRecovery(path, root, source, resolver, context, defines, define_count, site);
 }
 #endif
+#ifndef ZIR_FOREIGN_zir_f_157b8ce5776e0448_ParseRememberSource_0d8eba36
+#define ZIR_FOREIGN_zir_f_157b8ce5776e0448_ParseRememberSource_0d8eba36
+#ifdef __APPLE__
+void zir_foreign_zir_f_157b8ce5776e0448_ParseRememberSource(uint8_t* text) __asm__("_private_parse_ParseRememberSource");
+#else
+void zir_foreign_zir_f_157b8ce5776e0448_ParseRememberSource(uint8_t* text) __asm__("private_parse_ParseRememberSource");
+#endif
+static void
+zir_f_157b8ce5776e0448_ParseRememberSource(uint8_t* text)
+{
+    zir_foreign_zir_f_157b8ce5776e0448_ParseRememberSource(text);
+}
+#endif
 #ifndef ZIR_FOREIGN_zir_f_157b8ce5776e0448_PathIsAbsolute_6cb5b62a
 #define ZIR_FOREIGN_zir_f_157b8ce5776e0448_PathIsAbsolute_6cb5b62a
 #ifdef __APPLE__
@@ -6797,6 +6810,7 @@ private_parse_ParserParseOperationBody(uint8_t* path, uint8_t* root, uint8_t* so
         value_4 = value_6;
     }
     uint8_t* lowered = value_4;
+    zir_f_157b8ce5776e0448_ParseRememberSource(lowered);
     ImportResolver imports = {.resolve = resolver, .context = context};
     ZirCompileImportResolver callback = (ZirCompileImportResolver)(((void *)0));
     if (resolver != (ZirCompileImportResolver)(((void *)0))) {

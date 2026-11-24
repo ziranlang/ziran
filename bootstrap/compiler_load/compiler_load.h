@@ -3,6 +3,7 @@
 #define ZIRAN_COMPILER_LOAD_H
 
 #include <stdint.h>
+#include <stddef.h>
 #include "compiler_ir.h"
 #include "compiler_parse_types.h"
 #include "compiler_package_resolve.h"
@@ -19,7 +20,7 @@ typedef struct ParserArray32__u8 ParserArray32__u8;
 typedef struct LoadContext LoadContext;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct zir_3c3cd922a390b1a9_ParserArray2048_u8 zir_3c3cd922a390b1a9_ParserArray2048_u8;
+typedef struct zir_02c4f0f4088375c0_ParserArray2048_u8 zir_02c4f0f4088375c0_ParserArray2048_u8;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 typedef struct ParserArray3072_u8 ParserArray3072_u8;
@@ -28,10 +29,10 @@ typedef struct ParserArray3072_u8 ParserArray3072_u8;
 typedef struct LoadImportBuffers LoadImportBuffers;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct zir_698b659c68fe74da_ParserArray1024_u8 zir_698b659c68fe74da_ParserArray1024_u8;
+typedef struct zir_3413116afb0b02b1_ParserArray1024_u8 zir_3413116afb0b02b1_ParserArray1024_u8;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct zir_bca59b2a4a1f3286_ParserArray128_u8 zir_bca59b2a4a1f3286_ParserArray128_u8;
+typedef struct zir_a7d465d77e427c3d_ParserArray128_u8 zir_a7d465d77e427c3d_ParserArray128_u8;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 typedef struct ParserArray3__u8 ParserArray3__u8;
@@ -43,10 +44,49 @@ typedef struct ParserArray2__u8 ParserArray2__u8;
 typedef struct ParserArray5__IR_ZirModule ParserArray5__IR_ZirModule;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
-typedef struct zir_ccf92a999b2a9076_ParserArray4096_u8 zir_ccf92a999b2a9076_ParserArray4096_u8;
+typedef struct zir_f43d3c0f02c572ed_ParserArray4096_u8 zir_f43d3c0f02c572ed_ParserArray4096_u8;
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 typedef struct ParserArray14_u8 ParserArray14_u8;
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+typedef struct CacheDigits CacheDigits;
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+typedef struct CacheLine CacheLine;
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+typedef struct CacheSuffix CacheSuffix;
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+typedef struct CacheDigest CacheDigest;
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+typedef struct CacheHex CacheHex;
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+typedef struct CachePath CachePath;
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+typedef struct CacheHash CacheHash;
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+typedef struct CacheUsingLine CacheUsingLine;
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+typedef struct CacheMeta CacheMeta;
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+typedef struct CacheCursor CacheCursor;
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+typedef struct CacheSink CacheSink;
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+typedef struct CachePending CachePending;
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+typedef void (*CacheExitHandler)(void);
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 
@@ -72,7 +112,7 @@ struct LoadContext {
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 
-struct zir_3c3cd922a390b1a9_ParserArray2048_u8 {
+struct zir_02c4f0f4088375c0_ParserArray2048_u8 {
     uint8_t items[2048];
 };
 #endif
@@ -85,7 +125,7 @@ struct ParserArray3072_u8 {
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 
 struct LoadImportBuffers {
-    zir_3c3cd922a390b1a9_ParserArray2048_u8 directory;
+    zir_02c4f0f4088375c0_ParserArray2048_u8 directory;
     ParserArray3072_u8 owner_file;
     ParserArray3072_u8 mapped_path;
     ParserArray3072_u8 parent;
@@ -95,13 +135,13 @@ struct LoadImportBuffers {
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 
-struct zir_698b659c68fe74da_ParserArray1024_u8 {
+struct zir_3413116afb0b02b1_ParserArray1024_u8 {
     uint8_t items[1024];
 };
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 
-struct zir_bca59b2a4a1f3286_ParserArray128_u8 {
+struct zir_a7d465d77e427c3d_ParserArray128_u8 {
     uint8_t items[128];
 };
 #endif
@@ -125,7 +165,7 @@ struct ParserArray5__IR_ZirModule {
 #endif
 #ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
 
-struct zir_ccf92a999b2a9076_ParserArray4096_u8 {
+struct zir_f43d3c0f02c572ed_ParserArray4096_u8 {
     uint8_t items[4096];
 };
 #endif
@@ -135,11 +175,93 @@ struct ParserArray14_u8 {
     uint8_t items[14];
 };
 #endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+
+struct CacheDigits {
+    uint8_t items[17];
+};
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+
+struct CacheLine {
+    uint8_t items[160];
+};
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+
+struct CacheSuffix {
+    uint8_t items[32];
+};
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+
+struct CacheDigest {
+    uint8_t bytes[32];
+};
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+
+struct CacheHex {
+    uint8_t items[65];
+};
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+
+struct CachePath {
+    uint8_t items[4096];
+};
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+
+struct CacheHash {
+    uint8_t bytes[128];
+};
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+
+struct CacheUsingLine {
+    uint8_t items[2048];
+};
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+
+struct CacheMeta {
+    uint8_t* text;
+    uint8_t* lines;
+    int32_t rewritten;
+    int32_t count;
+};
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+
+struct CacheCursor {
+    uint8_t* at;
+    uint8_t delimiter;
+};
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+
+struct CacheSink {
+    uint8_t* text;
+    size_t capacity;
+    size_t used;
+};
+#endif
+#ifdef ZIRAN_COMPILER_LOAD_H_PRIVATE
+
+struct CachePending {
+    CacheHex key;
+    CachePath tmp;
+    CacheHex digest;
+    uint8_t* meta;
+};
+#endif
 uint8_t* compiler_load_ToolchainStandardDirectory(void);
 uint8_t* compiler_load_ToolchainIncludeDirectory(void);
 void ProgramsFree(ProgramSet* set);
 int32_t compiler_load_ProgramsLoad(ProgramSet* set, uint8_t* root, uint8_t** module_paths, int32_t module_path_count, uint8_t** inputs, int32_t input_count);
 int32_t compiler_load_ProgramsLoadWithDefines(ProgramSet* set, uint8_t* root, uint8_t** module_paths, int32_t module_path_count, uint8_t** defines, int32_t define_count, uint8_t** inputs, int32_t input_count);
+void FrontendCacheDiagnostic(void);
 
 /* Small procedures other modules inline; compiler_load.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_LOAD_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)

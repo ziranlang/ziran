@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "compiler_ir.h"
-#include "compiler_scalar.h"
 #include "compiler_runtime_emit.h"
 
 #ifdef __cplusplus

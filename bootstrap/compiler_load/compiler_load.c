@@ -263,6 +263,19 @@ zir_f_9e03f7cd143abb1d_PathIsAbsolute(uint8_t* path)
     return zir_foreign_zir_f_9e03f7cd143abb1d_PathIsAbsolute(path);
 }
 #endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_ProfileCount_c5a6224b
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_ProfileCount_c5a6224b
+#ifdef __APPLE__
+void zir_foreign_zir_f_9e03f7cd143abb1d_ProfileCount(uint8_t* counter) __asm__("_ProfileCount");
+#else
+void zir_foreign_zir_f_9e03f7cd143abb1d_ProfileCount(uint8_t* counter) __asm__("ProfileCount");
+#endif
+static void
+zir_f_9e03f7cd143abb1d_ProfileCount(uint8_t* counter)
+{
+    zir_foreign_zir_f_9e03f7cd143abb1d_ProfileCount(counter);
+}
+#endif
 #ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_ProfileEnd_ae202c81
 #define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_ProfileEnd_ae202c81
 #ifdef __APPLE__
@@ -584,6 +597,275 @@ zir_f_9e03f7cd143abb1d_isspace(int32_t byte)
     return zir_foreign_zir_f_9e03f7cd143abb1d_isspace(byte);
 }
 #endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_Sha256Add_a910f077
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_Sha256Add_a910f077
+#ifdef __APPLE__
+void zir_foreign_zir_f_9e03f7cd143abb1d_Sha256Add(void* hash, uint8_t* bytes, size_t count) __asm__("_Sha256Add");
+#else
+void zir_foreign_zir_f_9e03f7cd143abb1d_Sha256Add(void* hash, uint8_t* bytes, size_t count) __asm__("Sha256Add");
+#endif
+static void
+zir_f_9e03f7cd143abb1d_Sha256Add(void* hash, uint8_t* bytes, size_t count)
+{
+    zir_foreign_zir_f_9e03f7cd143abb1d_Sha256Add(hash, bytes, count);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_Sha256Begin_6c69662e
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_Sha256Begin_6c69662e
+#ifdef __APPLE__
+void zir_foreign_zir_f_9e03f7cd143abb1d_Sha256Begin(void* hash) __asm__("_Sha256Begin");
+#else
+void zir_foreign_zir_f_9e03f7cd143abb1d_Sha256Begin(void* hash) __asm__("Sha256Begin");
+#endif
+static void
+zir_f_9e03f7cd143abb1d_Sha256Begin(void* hash)
+{
+    zir_foreign_zir_f_9e03f7cd143abb1d_Sha256Begin(hash);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_Sha256End_1d78bba0
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_Sha256End_1d78bba0
+#ifdef __APPLE__
+void zir_foreign_zir_f_9e03f7cd143abb1d_Sha256End(void* hash, uint8_t* output) __asm__("_Sha256End");
+#else
+void zir_foreign_zir_f_9e03f7cd143abb1d_Sha256End(void* hash, uint8_t* output) __asm__("Sha256End");
+#endif
+static void
+zir_f_9e03f7cd143abb1d_Sha256End(void* hash, uint8_t* output)
+{
+    zir_foreign_zir_f_9e03f7cd143abb1d_Sha256End(hash, output);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_SourceOverlayRead_8e814320
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_SourceOverlayRead_8e814320
+#ifdef __APPLE__
+uint8_t* zir_foreign_zir_f_9e03f7cd143abb1d_SourceOverlayRead(uint8_t* path, size_t* count) __asm__("_SourceOverlayRead");
+#else
+uint8_t* zir_foreign_zir_f_9e03f7cd143abb1d_SourceOverlayRead(uint8_t* path, size_t* count) __asm__("SourceOverlayRead");
+#endif
+static uint8_t*
+zir_f_9e03f7cd143abb1d_SourceOverlayRead(uint8_t* path, size_t* count)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_SourceOverlayRead(path, count);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_CompilerFclose_aa9f8094
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_CompilerFclose_aa9f8094
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_CompilerFclose(void* file) __asm__("_CompilerFclose");
+#else
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_CompilerFclose(void* file) __asm__("CompilerFclose");
+#endif
+static int32_t
+zir_f_9e03f7cd143abb1d_CompilerFclose(void* file)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_CompilerFclose(file);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_CompilerFopen_170a7b6e
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_CompilerFopen_170a7b6e
+#ifdef __APPLE__
+void* zir_foreign_zir_f_9e03f7cd143abb1d_CompilerFopen(uint8_t* path, uint8_t* mode) __asm__("_CompilerFopen");
+#else
+void* zir_foreign_zir_f_9e03f7cd143abb1d_CompilerFopen(uint8_t* path, uint8_t* mode) __asm__("CompilerFopen");
+#endif
+static void*
+zir_f_9e03f7cd143abb1d_CompilerFopen(uint8_t* path, uint8_t* mode)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_CompilerFopen(path, mode);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_CompilerTargetFacts_f7fea695
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_CompilerTargetFacts_f7fea695
+#ifdef __APPLE__
+ZirTargetFacts zir_foreign_zir_f_9e03f7cd143abb1d_CompilerTargetFacts(void) __asm__("_CompilerTargetFacts");
+#else
+ZirTargetFacts zir_foreign_zir_f_9e03f7cd143abb1d_CompilerTargetFacts(void) __asm__("CompilerTargetFacts");
+#endif
+static ZirTargetFacts
+zir_f_9e03f7cd143abb1d_CompilerTargetFacts(void)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_CompilerTargetFacts();
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_atexit_f1618d9a
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_atexit_f1618d9a
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_atexit(CacheExitHandler handler) __asm__("_atexit");
+#else
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_atexit(CacheExitHandler handler) __asm__("atexit");
+#endif
+static int32_t
+zir_f_9e03f7cd143abb1d_atexit(CacheExitHandler handler)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_atexit(handler);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_ferror_384a3a69
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_ferror_384a3a69
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_ferror(void* stream) __asm__("_ferror");
+#else
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_ferror(void* stream) __asm__("ferror");
+#endif
+static int32_t
+zir_f_9e03f7cd143abb1d_ferror(void* stream)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_ferror(stream);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_fprintf_83feebb0
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_fprintf_83feebb0
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("_fprintf");
+#else
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_fprintf(void* ziran_keyword___stream_0, uint8_t* ziran_keyword___format_0, ...) __asm__("fprintf");
+#endif
+#define zir_f_9e03f7cd143abb1d_fprintf zir_foreign_zir_f_9e03f7cd143abb1d_fprintf
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_fread_9f1323cb
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_fread_9f1323cb
+#ifdef __APPLE__
+size_t zir_foreign_zir_f_9e03f7cd143abb1d_fread(void* output, size_t size, size_t count, void* stream) __asm__("_fread");
+#else
+size_t zir_foreign_zir_f_9e03f7cd143abb1d_fread(void* output, size_t size, size_t count, void* stream) __asm__("fread");
+#endif
+static size_t
+zir_f_9e03f7cd143abb1d_fread(void* output, size_t size, size_t count, void* stream)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_fread(output, size, count, stream);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_getpid_bd88b581
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_getpid_bd88b581
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_getpid(void) __asm__("_getpid");
+#else
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_getpid(void) __asm__("getpid");
+#endif
+static int32_t
+zir_f_9e03f7cd143abb1d_getpid(void)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_getpid();
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_memcmp_ce1296ae
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_memcmp_ce1296ae
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_memcmp(void* left, void* right, size_t count) __asm__("_memcmp");
+#else
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_memcmp(void* left, void* right, size_t count) __asm__("memcmp");
+#endif
+static int32_t
+zir_f_9e03f7cd143abb1d_memcmp(void* left, void* right, size_t count)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_memcmp(left, right, count);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_mkdir_9266eb24
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_mkdir_9266eb24
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_mkdir(uint8_t* path, uint32_t mode) __asm__("_mkdir");
+#else
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_mkdir(uint8_t* path, uint32_t mode) __asm__("mkdir");
+#endif
+static int32_t
+zir_f_9e03f7cd143abb1d_mkdir(uint8_t* path, uint32_t mode)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_mkdir(path, mode);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_remove_d044dcbc
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_remove_d044dcbc
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_remove(uint8_t* path) __asm__("_remove");
+#else
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_remove(uint8_t* path) __asm__("remove");
+#endif
+static int32_t
+zir_f_9e03f7cd143abb1d_remove(uint8_t* path)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_remove(path);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_rename_c18b8a8c
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_rename_c18b8a8c
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_rename(uint8_t* old_path, uint8_t* new_path) __asm__("_rename");
+#else
+int32_t zir_foreign_zir_f_9e03f7cd143abb1d_rename(uint8_t* old_path, uint8_t* new_path) __asm__("rename");
+#endif
+static int32_t
+zir_f_9e03f7cd143abb1d_rename(uint8_t* old_path, uint8_t* new_path)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_rename(old_path, new_path);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_DocumentRecord_bb1d8ce8
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_DocumentRecord_bb1d8ce8
+#ifdef __APPLE__
+ZirDocument* zir_foreign_zir_f_9e03f7cd143abb1d_DocumentRecord(uint8_t* path, uint8_t* bytes, size_t count) __asm__("_DocumentRecord");
+#else
+ZirDocument* zir_foreign_zir_f_9e03f7cd143abb1d_DocumentRecord(uint8_t* path, uint8_t* bytes, size_t count) __asm__("DocumentRecord");
+#endif
+static ZirDocument*
+zir_f_9e03f7cd143abb1d_DocumentRecord(uint8_t* path, uint8_t* bytes, size_t count)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_DocumentRecord(path, bytes, count);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_DocumentFind_04270d41
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_DocumentFind_04270d41
+#ifdef __APPLE__
+ZirDocument* zir_foreign_zir_f_9e03f7cd143abb1d_DocumentFind(uint8_t* path) __asm__("_DocumentFind");
+#else
+ZirDocument* zir_foreign_zir_f_9e03f7cd143abb1d_DocumentFind(uint8_t* path) __asm__("DocumentFind");
+#endif
+static ZirDocument*
+zir_f_9e03f7cd143abb1d_DocumentFind(uint8_t* path)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_DocumentFind(path);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_DocumentMarkRewritten_8567e0e9
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_DocumentMarkRewritten_8567e0e9
+#ifdef __APPLE__
+void zir_foreign_zir_f_9e03f7cd143abb1d_DocumentMarkRewritten(uint8_t* path) __asm__("_DocumentMarkRewritten");
+#else
+void zir_foreign_zir_f_9e03f7cd143abb1d_DocumentMarkRewritten(uint8_t* path) __asm__("DocumentMarkRewritten");
+#endif
+static void
+zir_f_9e03f7cd143abb1d_DocumentMarkRewritten(uint8_t* path)
+{
+    zir_foreign_zir_f_9e03f7cd143abb1d_DocumentMarkRewritten(path);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_ModuleAddUsing_087f6f34
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_ModuleAddUsing_087f6f34
+#ifdef __APPLE__
+ZirUsing* zir_foreign_zir_f_9e03f7cd143abb1d_ModuleAddUsing(ZirModule* module, uint8_t* path, ZirSourceSpan span) __asm__("_ModuleAddUsing");
+#else
+ZirUsing* zir_foreign_zir_f_9e03f7cd143abb1d_ModuleAddUsing(ZirModule* module, uint8_t* path, ZirSourceSpan span) __asm__("ModuleAddUsing");
+#endif
+static ZirUsing*
+zir_f_9e03f7cd143abb1d_ModuleAddUsing(ZirModule* module, uint8_t* path, ZirSourceSpan span)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_ModuleAddUsing(module, path, span);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_SpanEnd_bac4bcd0
+#define ZIR_FOREIGN_zir_f_9e03f7cd143abb1d_SpanEnd_bac4bcd0
+#ifdef __APPLE__
+ZirSourceSpan zir_foreign_zir_f_9e03f7cd143abb1d_SpanEnd(uint8_t* path, int32_t line, int32_t column, int32_t end_line, int32_t end_column) __asm__("_SpanEnd");
+#else
+ZirSourceSpan zir_foreign_zir_f_9e03f7cd143abb1d_SpanEnd(uint8_t* path, int32_t line, int32_t column, int32_t end_line, int32_t end_column) __asm__("SpanEnd");
+#endif
+static ZirSourceSpan
+zir_f_9e03f7cd143abb1d_SpanEnd(uint8_t* path, int32_t line, int32_t column, int32_t end_line, int32_t end_column)
+{
+    return zir_foreign_zir_f_9e03f7cd143abb1d_SpanEnd(path, line, column, end_line, end_column);
+}
+#endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
 #define ZIRAN_MAYBE_UNUSED __attribute__((unused))
@@ -634,13 +916,53 @@ static int32_t compiler_load_condition_needs_import(uint8_t* condition, ZirImpor
 static int32_t compiler_load_early_resolve_imports(void* opaque, ZirProgram* program, ZirModule* module, uint8_t* source_path, uint8_t* root, uint8_t* condition) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_load_promote_input(ProgramSet* set, uint8_t* path, int32_t position) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_load_ProgramsLoadWithDefines_in_context(ProgramSet* set, uint8_t* root, uint8_t** module_paths, int32_t module_path_count, uint8_t** defines, int32_t define_count, uint8_t** inputs, int32_t input_count) ZIRAN_MAYBE_UNUSED;
+static void compiler_load_cache_hex_encode(CacheDigest* digest, CacheHex* hex) ZIRAN_MAYBE_UNUSED;
+static void compiler_load_cache_hash_text(CacheHash* hash, uint8_t* text) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_load_cache_hash_file(CacheHash* hash, uint8_t* path) ZIRAN_MAYBE_UNUSED;
+static uint8_t** compiler_load_cache_sorted_defines(uint8_t** defines, int32_t count) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_load_cache_entry_path(CachePath* output, CacheHex* key, uint8_t* suffix) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_load_frontend_cache_lint_argument(void) ZIRAN_MAYBE_UNUSED;
+static void compiler_load_cache_mkdir_parents(uint8_t* path) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_load_frontend_cache_directory_resolve(void) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_load_frontend_cache_enabled(void) ZIRAN_MAYBE_UNUSED;
+static void compiler_load_frontend_cache_executable_prepare(void) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_load_frontend_cache_prepare(LoadContext* context_local, uint8_t* source, uint8_t* canonical, uint8_t* root, uint8_t* text, CacheHex* key) ZIRAN_MAYBE_UNUSED;
+static uint8_t* compiler_load_cache_read_text(uint8_t* path, size_t limit) ZIRAN_MAYBE_UNUSED;
+static uint8_t* compiler_load_cache_source_text(uint8_t* source, uint8_t* canonical) ZIRAN_MAYBE_UNUSED;
+static uint8_t* compiler_load_cache_field(CacheCursor* cursor) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_load_cache_field_separator(CacheCursor* cursor) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_load_cache_field_line_end(CacheCursor* cursor) ZIRAN_MAYBE_UNUSED;
+static int64_t compiler_load_cache_parse_number(uint8_t* text) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_load_cache_text_field(uint8_t* text) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_load_cache_sink_append(CacheSink* sink, uint8_t* text) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_load_cache_using_line(ZirUsing* using, CacheUsingLine* line) ZIRAN_MAYBE_UNUSED;
+static uint8_t* compiler_load_frontend_cache_sidecar(ZirProgram* program) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_load_cache_read_meta(CachePath* path, CacheMeta* meta, CacheHex* expected) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_load_frontend_cache_restore_module(ZirModule* module, uint8_t* source, uint8_t* root, uint8_t* text, CacheMeta* meta) ZIRAN_MAYBE_UNUSED;
+static ZirProgram* compiler_load_frontend_cache_load(CacheHex* key, uint8_t* source, uint8_t* root, uint8_t* text) ZIRAN_MAYBE_UNUSED;
+static void compiler_load_frontend_cache_reset_parsed(ZirProgram* program) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_load_cache_write_meta(CachePath* path, CacheHex* digest, uint8_t* body) ZIRAN_MAYBE_UNUSED;
+static void compiler_load_frontend_cache_discard(void) ZIRAN_MAYBE_UNUSED;
+static void compiler_load_frontend_cache_commit(void) ZIRAN_MAYBE_UNUSED;
+static void compiler_load_frontend_cache_store(CacheHex* key, ZirProgram* program) ZIRAN_MAYBE_UNUSED;
+static ZirProgram* compiler_load_frontend_load(LoadContext* context_local, uint8_t* lexical, uint8_t* root, size_t length, uint8_t* canonical) ZIRAN_MAYBE_UNUSED;
 static int32_t ToolchainStandardDirectory_resolved = {0};
-static zir_698b659c68fe74da_ParserArray1024_u8 ToolchainStandardDirectory_directory = {0};
+static zir_3413116afb0b02b1_ParserArray1024_u8 ToolchainStandardDirectory_directory = {0};
 static int32_t ToolchainIncludeDirectory_resolved = {0};
-static zir_698b659c68fe74da_ParserArray1024_u8 ToolchainIncludeDirectory_directory = {0};
+static zir_3413116afb0b02b1_ParserArray1024_u8 ToolchainIncludeDirectory_directory = {0};
 static int32_t canonical_standard_directory_resolved = {0};
 static uint8_t* canonical_standard_directory_directory = {0};
 static uint8_t load_import_frame = {0};
+static CacheDigits cache_hex_digits = {.items = {48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 97, 98, 99, 100, 101, 102, 0}};
+static int32_t frontend_cache_state = {0};
+static CachePath frontend_cache_directory = {0};
+static int32_t frontend_cache_diagnostics = {0};
+static int32_t frontend_cache_exit_registered = {0};
+static CachePending* frontend_cache_pending = {0};
+static int32_t frontend_cache_pending_count = {0};
+static CacheDigest frontend_cache_executable = {0};
+static int32_t frontend_cache_executable_state = {0};
+static int32_t frontend_cache_resolves = {0};
 
 static uint8_t
 compiler_load_PersistenceSet0(uint8_t* p, uint8_t value)
@@ -715,8 +1037,8 @@ compiler_load_load_import_scratch(LoadContext* context_local, uint8_t* owner_sou
 static int32_t
 compiler_load_toolchain_directory_usable(uint8_t* path, uint8_t* probe_file)
 {
-    zir_698b659c68fe74da_ParserArray1024_u8 probe = {0};
-    bool value_0 = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(probe.items)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s/%s")), path, probe_file) < (int32_t)((size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)));
+    zir_3413116afb0b02b1_ParserArray1024_u8 probe = {0};
+    bool value_0 = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(probe.items)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s/%s")), path, probe_file) < (int32_t)((size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)));
     bool value_1 = value_0 && zir_f_9e03f7cd143abb1d_CompilerPathIsRegular((uint8_t*)(&(probe.items))) != 0;
     int32_t value_2 = 0;
     if (value_1) {
@@ -737,8 +1059,8 @@ compiler_load_toolchain_directory(uint8_t* name, uint8_t* probe_file, uint8_t* v
         }
         return;
     }
-    zir_698b659c68fe74da_ParserArray1024_u8 executable = {0};
-    int32_t length = zir_f_9e03f7cd143abb1d_ExecutablePath((uint8_t*)(&(executable.items)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)));
+    zir_3413116afb0b02b1_ParserArray1024_u8 executable = {0};
+    int32_t length = zir_f_9e03f7cd143abb1d_ExecutablePath((uint8_t*)(&(executable.items)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)));
     if (length > 0) {
         uint8_t* value_1 = &(executable.items[length]);
         (*value_1) = 0;
@@ -776,8 +1098,8 @@ compiler_load_toolchain_directory(uint8_t* name, uint8_t* probe_file, uint8_t* v
                         (void)value_6;
                         goto zir_loop_continue_1;
                     }
-                    zir_698b659c68fe74da_ParserArray1024_u8 candidate = {0};
-                    bool value_9 = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(candidate.items)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s/%s")), (uint8_t*)(&(executable.items)), name) < (int32_t)((size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)));
+                    zir_3413116afb0b02b1_ParserArray1024_u8 candidate = {0};
+                    bool value_9 = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(candidate.items)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s/%s")), (uint8_t*)(&(executable.items)), name) < (int32_t)((size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)));
                     if (value_9 && compiler_load_toolchain_directory_usable((uint8_t*)(&(candidate.items)), probe_file) != 0) {
                         zir_f_9e03f7cd143abb1d_copy_text(directory, size, (uint8_t*)(&(candidate.items)));
                         return;
@@ -811,7 +1133,7 @@ compiler_load_ToolchainStandardDirectory(void)
         uint8_t* value_0 = compiler_parse_types_ParserCString(StringLiteral("std"));
         uint8_t* value_1 = compiler_parse_types_ParserCString(StringLiteral("text.zi"));
         uint8_t* value_2 = compiler_parse_types_ParserCString(StringLiteral("ZIRAN_STD"));
-        compiler_load_toolchain_directory(value_0, value_1, value_2, zir_f_9e03f7cd143abb1d_CompilerBuiltinDirectory(0), (uint8_t*)(&(ToolchainStandardDirectory_directory.items)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)));
+        compiler_load_toolchain_directory(value_0, value_1, value_2, zir_f_9e03f7cd143abb1d_CompilerBuiltinDirectory(0), (uint8_t*)(&(ToolchainStandardDirectory_directory.items)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)));
     }
     ToolchainStandardDirectory_resolved = 1;
     uint8_t* value_3 = (void *)0;
@@ -830,7 +1152,7 @@ compiler_load_ToolchainIncludeDirectory(void)
         uint8_t* value_0 = compiler_parse_types_ParserCString(StringLiteral("include"));
         uint8_t* value_1 = compiler_parse_types_ParserCString(StringLiteral("zir_string.h"));
         uint8_t* value_2 = compiler_parse_types_ParserCString(StringLiteral("ZIRAN_INCLUDE"));
-        compiler_load_toolchain_directory(value_0, value_1, value_2, zir_f_9e03f7cd143abb1d_CompilerBuiltinDirectory(1), (uint8_t*)(&(ToolchainIncludeDirectory_directory.items)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)));
+        compiler_load_toolchain_directory(value_0, value_1, value_2, zir_f_9e03f7cd143abb1d_CompilerBuiltinDirectory(1), (uint8_t*)(&(ToolchainIncludeDirectory_directory.items)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)));
     }
     ToolchainIncludeDirectory_resolved = 1;
     uint8_t* value_3 = (void *)0;
@@ -951,12 +1273,12 @@ compiler_load_module_loaded(ProgramSet* set, uint8_t* target)
                             break;
                         }
                         ZirModule* module = (ZirModule*)(((size_t)((set->programs[i])->modules) + ((size_t)(m) * sizeof(ZirModule))));
-                        zir_698b659c68fe74da_ParserArray1024_u8 stem = {0};
+                        zir_3413116afb0b02b1_ParserArray1024_u8 stem = {0};
                         size_t length = 0;
                         if (zir_f_9e03f7cd143abb1d_strcmp((uint8_t*)(&(module->name)), target) == 0) {
                             return 1;
                         }
-                        if (zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(stem.items)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(module->source_path))) >= (int32_t)((size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)))) {
+                        if (zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(stem.items)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(module->source_path))) >= (int32_t)((size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)))) {
                             int32_t* value_0 = &(m);
                             int32_t value_1 = 0;
                             {
@@ -1145,7 +1467,7 @@ compiler_load_import_loaded(LoadContext* context_local, ZirImport* import_local,
                 }
                 bool value_0 = zir_f_9e03f7cd143abb1d_strcmp(((uint8_t**)(((uint8_t**)set->paths)))[i], canonical) == 0;
                 if (value_0 && (set->programs[i])->module_count == 1) {
-                    zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(import_local->target)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&((((set->programs[i])->modules)[0]).name)));
+                    zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(import_local->target)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&((((set->programs[i])->modules)[0]).name)));
                 }
                 int32_t* value_1 = &(i);
                 int32_t value_2 = 0;
@@ -1340,130 +1662,115 @@ compiler_load_add_program_named(LoadContext* context_local, uint8_t* path, uint8
     if (lexical == (uint8_t*)(((void *)0))) {
         value_46 = (void *)0;
     } else {
-        bool value_47 = lexical_length > (size_t)(3LL);
-        bool value_48 = value_47;
-        if (value_48) {
-            size_t value_49 = (size_t)((uint8_t*)(((size_t)(lexical) + ((size_t)(lexical_length) * sizeof(uint8_t))))) - ((size_t)(3LL) * sizeof(uint8_t));
-            uint8_t* value_50 = (uint8_t*)(value_49);
-            bool value_51 = zir_f_9e03f7cd143abb1d_strcmp(value_50, compiler_parse_types_ParserCString(StringLiteral(".zi"))) == 0;
-            value_48 = value_51;
-        }
-        ZirProgram* value_52 = (void *)0;
-        if (value_48) {
-            ZirProgram* value_53 = zir_f_9e03f7cd143abb1d_parse_module_with_imports(lexical, root, (ZirCompileImportResolver)(compiler_load_early_resolve_imports), (void*)(context_local), context_local->defines, context_local->define_count, context_local->site);
-            value_52 = value_53;
-        } else {
-            ZirProgram* value_54 = compiler_zir_serial_ProgramLoad(lexical, root);
-            value_52 = value_54;
-        }
-        value_46 = value_52;
+        ZirProgram* value_47 = compiler_load_frontend_load(context_local, lexical, root, lexical_length, canonical);
+        value_46 = value_47;
     }
     program = value_46;
-    int32_t* value_55 = &(context_local->active_count);
-    int32_t value_56 = 0;
+    int32_t* value_48 = &(context_local->active_count);
+    int32_t value_49 = 0;
     {
-        int32_t* p = value_55;
+        int32_t* p = value_48;
         int32_t old = p[0];
-        int32_t* value_58 = &(p[0]);
-        (*value_58) = (int32_t)((uint32_t)(p[0]) - 1u);
-        value_56 = old;
+        int32_t* value_51 = &(p[0]);
+        (*value_51) = (int32_t)((uint32_t)(p[0]) - 1u);
+        value_49 = old;
     }
-    (void)value_56;
+    (void)value_49;
     zir_f_9e03f7cd143abb1d_CompilerFree((void*)(lexical));
     if (program == (ZirProgram*)(((void *)0))) {
         zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
         return 0;
     }
     if (identity != (uint8_t*)(((void *)0))) {
-        bool value_59 = program->module_count != 1;
-        bool value_60 = value_59;
-        if (!value_60) {
-            uint8_t* value_61 = compiler_parse_types_ParserCString(StringLiteral("%s.zi"));
-            bool value_62 = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&((program->modules[0]).source_path)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), value_61, identity) >= (int32_t)((size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)));
-            value_60 = value_62;
+        bool value_52 = program->module_count != 1;
+        bool value_53 = value_52;
+        if (!value_53) {
+            uint8_t* value_54 = compiler_parse_types_ParserCString(StringLiteral("%s.zi"));
+            bool value_55 = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&((program->modules[0]).source_path)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), value_54, identity) >= (int32_t)((size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)));
+            value_53 = value_55;
         }
-        if (value_60) {
-            ZirSourceSpan value_63 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
-            uint8_t* value_64 = compiler_parse_types_ParserCString(StringLiteral("module.identity"));
-            uint8_t* value_65 = compiler_parse_types_ParserCString(StringLiteral("directory module has an invalid identity: %s"));
-            zir_f_9e03f7cd143abb1d_Diagnostic(value_63, value_64, value_65, identity);
+        if (value_53) {
+            ZirSourceSpan value_56 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
+            uint8_t* value_57 = compiler_parse_types_ParserCString(StringLiteral("module.identity"));
+            uint8_t* value_58 = compiler_parse_types_ParserCString(StringLiteral("directory module has an invalid identity: %s"));
+            zir_f_9e03f7cd143abb1d_Diagnostic(value_56, value_57, value_58, identity);
             zir_f_9e03f7cd143abb1d_ProgramFree(program);
             zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
             return 0;
         }
-        uint8_t* value_66 = compiler_parse_types_ParserCString(StringLiteral("%s"));
-        zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&((program->modules[0]).name)), (size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8)), value_66, identity);
+        uint8_t* value_59 = compiler_parse_types_ParserCString(StringLiteral("%s"));
+        zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&((program->modules[0]).name)), (size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8)), value_59, identity);
     }
     uint8_t* scope = compiler_load_module_path_package(context_local, canonical);
-    bool value_67 = compiler_zir_serial_PathIsIR(path) != 0;
-    if (!value_67 && compiler_load_package_scoped(context_local, scope) != 0) {
-        zir_bca59b2a4a1f3286_ParserArray128_u8 scoped = {0};
-        bool value_68 = program->module_count != 1;
-        bool value_69 = value_68;
-        if (!value_69) {
-            bool value_70 = compiler_load_package_identity(scope, (uint8_t*)(&((program->modules[0]).name)), (uint8_t*)(&(scoped.items)), (size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8))) != 0;
-            value_69 = !value_70;
+    bool value_60 = compiler_zir_serial_PathIsIR(path) != 0;
+    if (!value_60 && compiler_load_package_scoped(context_local, scope) != 0) {
+        zir_a7d465d77e427c3d_ParserArray128_u8 scoped = {0};
+        bool value_61 = program->module_count != 1;
+        bool value_62 = value_61;
+        if (!value_62) {
+            bool value_63 = compiler_load_package_identity(scope, (uint8_t*)(&((program->modules[0]).name)), (uint8_t*)(&(scoped.items)), (size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8))) != 0;
+            value_62 = !value_63;
         }
-        bool value_71 = value_69;
-        if (value_71 || zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&((program->modules[0]).source_path)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s.zi")), (uint8_t*)(&(scoped.items))) >= (int32_t)((size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)))) {
-            ZirSourceSpan value_72 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
-            uint8_t* value_73 = compiler_parse_types_ParserCString(StringLiteral("module.identity"));
-            uint8_t* value_74 = compiler_parse_types_ParserCString(StringLiteral("package module has an invalid identity: %s"));
-            zir_f_9e03f7cd143abb1d_Diagnostic(value_72, value_73, value_74, path);
+        bool value_64 = value_62;
+        if (value_64 || zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&((program->modules[0]).source_path)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s.zi")), (uint8_t*)(&(scoped.items))) >= (int32_t)((size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)))) {
+            ZirSourceSpan value_65 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
+            uint8_t* value_66 = compiler_parse_types_ParserCString(StringLiteral("module.identity"));
+            uint8_t* value_67 = compiler_parse_types_ParserCString(StringLiteral("package module has an invalid identity: %s"));
+            zir_f_9e03f7cd143abb1d_Diagnostic(value_65, value_66, value_67, path);
             zir_f_9e03f7cd143abb1d_ProgramFree(program);
             zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
             return 0;
         }
-        zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&((program->modules[0]).name)), (size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(scoped.items)));
+        zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&((program->modules[0]).name)), (size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(scoped.items)));
     }
-    bool value_75 = context_local->packages != (ZirPackageMap*)(((void *)0));
-    bool value_76 = value_75;
-    if (value_76) {
-        bool value_77 = compiler_zir_serial_PathIsIR(path) != 0;
-        value_76 = !value_77;
+    bool value_68 = context_local->packages != (ZirPackageMap*)(((void *)0));
+    bool value_69 = value_68;
+    if (value_69) {
+        bool value_70 = compiler_zir_serial_PathIsIR(path) != 0;
+        value_69 = !value_70;
     }
-    if (value_76) {
+    if (value_69) {
         uint8_t* mapped = compiler_package_resolve_PackageModuleName(context_local->packages, canonical);
         uint8_t* owner = compiler_package_resolve_PackageOwner(context_local->packages, canonical);
         if (owner == (uint8_t*)(((void *)0))) {
-            ZirSourceSpan value_78 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
-            uint8_t* value_79 = compiler_parse_types_ParserCString(StringLiteral("package.scope"));
-            uint8_t* value_80 = compiler_parse_types_ParserCString(StringLiteral("source file is outside the package graph: %s"));
-            zir_f_9e03f7cd143abb1d_Diagnostic(value_78, value_79, value_80, path);
+            ZirSourceSpan value_71 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
+            uint8_t* value_72 = compiler_parse_types_ParserCString(StringLiteral("package.scope"));
+            uint8_t* value_73 = compiler_parse_types_ParserCString(StringLiteral("source file is outside the package graph: %s"));
+            zir_f_9e03f7cd143abb1d_Diagnostic(value_71, value_72, value_73, path);
             zir_f_9e03f7cd143abb1d_ProgramFree(program);
             zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
             return 0;
         }
-        uint8_t* value_81 = owner;
-        bool value_82 = zir_f_9e03f7cd143abb1d_strcmp(value_81, compiler_parse_types_ParserCString(StringLiteral("root"))) != 0;
-        if (value_82 && mapped == (uint8_t*)(((void *)0))) {
-            ZirSourceSpan value_83 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
-            uint8_t* value_84 = compiler_parse_types_ParserCString(StringLiteral("package.module"));
-            uint8_t* value_85 = compiler_parse_types_ParserCString(StringLiteral("source file is not a declared package module: %s"));
-            zir_f_9e03f7cd143abb1d_Diagnostic(value_83, value_84, value_85, path);
+        uint8_t* value_74 = owner;
+        bool value_75 = zir_f_9e03f7cd143abb1d_strcmp(value_74, compiler_parse_types_ParserCString(StringLiteral("root"))) != 0;
+        if (value_75 && mapped == (uint8_t*)(((void *)0))) {
+            ZirSourceSpan value_76 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
+            uint8_t* value_77 = compiler_parse_types_ParserCString(StringLiteral("package.module"));
+            uint8_t* value_78 = compiler_parse_types_ParserCString(StringLiteral("source file is not a declared package module: %s"));
+            zir_f_9e03f7cd143abb1d_Diagnostic(value_76, value_77, value_78, path);
             zir_f_9e03f7cd143abb1d_ProgramFree(program);
             zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
             return 0;
         }
         if (mapped != (uint8_t*)(((void *)0))) {
-            bool value_86 = program->module_count != 1;
-            bool value_87 = value_86;
-            if (!value_87) {
-                uint8_t* value_88 = compiler_parse_types_ParserCString(StringLiteral("%s"));
-                bool value_89 = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&((program->modules[0]).name)), (size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8)), value_88, mapped) >= (int32_t)((size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8)));
-                value_87 = value_89;
+            bool value_79 = program->module_count != 1;
+            bool value_80 = value_79;
+            if (!value_80) {
+                uint8_t* value_81 = compiler_parse_types_ParserCString(StringLiteral("%s"));
+                bool value_82 = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&((program->modules[0]).name)), (size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8)), value_81, mapped) >= (int32_t)((size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8)));
+                value_80 = value_82;
             }
-            bool value_90 = value_87;
-            bool value_91 = value_90;
-            if (!value_91) {
-                uint8_t* value_92 = compiler_parse_types_ParserCString(StringLiteral("%s.zi"));
-                bool value_93 = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&((program->modules[0]).source_path)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), value_92, mapped) >= (int32_t)((size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)));
-                value_91 = value_93;
+            bool value_83 = value_80;
+            bool value_84 = value_83;
+            if (!value_84) {
+                uint8_t* value_85 = compiler_parse_types_ParserCString(StringLiteral("%s.zi"));
+                bool value_86 = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&((program->modules[0]).source_path)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), value_85, mapped) >= (int32_t)((size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)));
+                value_84 = value_86;
             }
-            if (value_91) {
-                ZirSourceSpan value_94 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
-                uint8_t* value_95 = compiler_parse_types_ParserCString(StringLiteral("package.identity"));
-                zir_f_9e03f7cd143abb1d_Diagnostic(value_94, value_95, compiler_parse_types_ParserCString(StringLiteral("invalid mapped module identity")));
+            if (value_84) {
+                ZirSourceSpan value_87 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
+                uint8_t* value_88 = compiler_parse_types_ParserCString(StringLiteral("package.identity"));
+                zir_f_9e03f7cd143abb1d_Diagnostic(value_87, value_88, compiler_parse_types_ParserCString(StringLiteral("invalid mapped module identity")));
                 zir_f_9e03f7cd143abb1d_ProgramFree(program);
                 zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
                 return 0;
@@ -1472,18 +1779,18 @@ compiler_load_add_program_named(LoadContext* context_local, uint8_t* path, uint8
     } else {
         if (context_local->packages != (ZirPackageMap*)(((void *)0))) {
             uint8_t* mapped = compiler_package_resolve_PackageModuleName(context_local->packages, canonical);
-            bool value_96 = mapped != (uint8_t*)(((void *)0));
-            bool value_97 = value_96;
-            if (value_97) {
-                bool value_98 = program->module_count != 1;
-                bool value_99 = value_98 || zir_f_9e03f7cd143abb1d_strcmp((uint8_t*)(&((program->modules[0]).name)), mapped) != 0;
-                value_97 = value_99;
+            bool value_89 = mapped != (uint8_t*)(((void *)0));
+            bool value_90 = value_89;
+            if (value_90) {
+                bool value_91 = program->module_count != 1;
+                bool value_92 = value_91 || zir_f_9e03f7cd143abb1d_strcmp((uint8_t*)(&((program->modules[0]).name)), mapped) != 0;
+                value_90 = value_92;
             }
-            if (value_97) {
-                ZirSourceSpan value_100 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
-                uint8_t* value_101 = compiler_parse_types_ParserCString(StringLiteral("package.identity"));
-                uint8_t* value_102 = compiler_parse_types_ParserCString(StringLiteral("saved package module does not declare its mapped identity %s"));
-                zir_f_9e03f7cd143abb1d_Diagnostic(value_100, value_101, value_102, mapped);
+            if (value_90) {
+                ZirSourceSpan value_93 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
+                uint8_t* value_94 = compiler_parse_types_ParserCString(StringLiteral("package.identity"));
+                uint8_t* value_95 = compiler_parse_types_ParserCString(StringLiteral("saved package module does not declare its mapped identity %s"));
+                zir_f_9e03f7cd143abb1d_Diagnostic(value_93, value_94, value_95, mapped);
                 zir_f_9e03f7cd143abb1d_ProgramFree(program);
                 zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
                 return 0;
@@ -1491,7 +1798,7 @@ compiler_load_add_program_named(LoadContext* context_local, uint8_t* path, uint8
         }
     }
     if (program->module_count == 1) {
-        compiler_load_standard_module_name(context_local, canonical, (uint8_t*)(&((program->modules[0]).standard_name)), (size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8)));
+        compiler_load_standard_module_name(context_local, canonical, (uint8_t*)(&((program->modules[0]).standard_name)), (size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8)));
     }
     {
         int32_t m = 0;
@@ -1501,83 +1808,83 @@ compiler_load_add_program_named(LoadContext* context_local, uint8_t* path, uint8
                 break;
             }
             if (compiler_load_module_named(set, (uint8_t*)(&((program->modules[m]).name))) != 0) {
-                ZirSourceSpan value_103 = (program->modules[m]).span;
-                uint8_t* value_104 = compiler_parse_types_ParserCString(StringLiteral("module.duplicate"));
-                zir_f_9e03f7cd143abb1d_Diagnostic(value_103, value_104, compiler_parse_types_ParserCString(StringLiteral("duplicate module identity: %s")), (uint8_t*)(&((program->modules[m]).name)));
+                ZirSourceSpan value_96 = (program->modules[m]).span;
+                uint8_t* value_97 = compiler_parse_types_ParserCString(StringLiteral("module.duplicate"));
+                zir_f_9e03f7cd143abb1d_Diagnostic(value_96, value_97, compiler_parse_types_ParserCString(StringLiteral("duplicate module identity: %s")), (uint8_t*)(&((program->modules[m]).name)));
                 zir_f_9e03f7cd143abb1d_ProgramFree(program);
                 zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
                 return 0;
             }
-            int32_t* value_105 = &(m);
-            int32_t value_106 = 0;
+            int32_t* value_98 = &(m);
+            int32_t value_99 = 0;
             {
-                int32_t* p = value_105;
+                int32_t* p = value_98;
                 int32_t old = p[0];
-                int32_t* value_108 = &(p[0]);
-                (*value_108) = (int32_t)((uint32_t)(p[0]) + 1u);
-                value_106 = old;
+                int32_t* value_101 = &(p[0]);
+                (*value_101) = (int32_t)((uint32_t)(p[0]) + 1u);
+                value_99 = old;
             }
-            (void)value_106;
+            (void)value_99;
         }
     }
-    bool value_109 = set->count == 2147483647 || (size_t)(set->count) >= (size_t)(-1LL) / (size_t)(sizeof(void *)) || (size_t)(set->count) >= (size_t)(-1LL) / (size_t)(sizeof(void *));
-    if (value_109 || (size_t)(set->count) >= (size_t)(-1LL) / (size_t)(sizeof(void *))) {
-        ZirSourceSpan value_110 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
-        uint8_t* value_111 = compiler_parse_types_ParserCString(StringLiteral("module.limit"));
-        zir_f_9e03f7cd143abb1d_Diagnostic(value_110, value_111, compiler_parse_types_ParserCString(StringLiteral("module graph exceeds addressable storage")));
+    bool value_102 = set->count == 2147483647 || (size_t)(set->count) >= (size_t)(-1LL) / (size_t)(sizeof(void *)) || (size_t)(set->count) >= (size_t)(-1LL) / (size_t)(sizeof(void *));
+    if (value_102 || (size_t)(set->count) >= (size_t)(-1LL) / (size_t)(sizeof(void *))) {
+        ZirSourceSpan value_103 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
+        uint8_t* value_104 = compiler_parse_types_ParserCString(StringLiteral("module.limit"));
+        zir_f_9e03f7cd143abb1d_Diagnostic(value_103, value_104, compiler_parse_types_ParserCString(StringLiteral("module graph exceeds addressable storage")));
         zir_f_9e03f7cd143abb1d_ProgramFree(program);
         zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
         return 0;
     }
-    void* value_112 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(set->programs), (size_t)(((int32_t)((uint32_t)(set->count) + 1u))) * (size_t)(sizeof(void *)));
-    ZirProgram** programs = (ZirProgram**)(value_112);
+    void* value_105 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(set->programs), (size_t)(((int32_t)((uint32_t)(set->count) + 1u))) * (size_t)(sizeof(void *)));
+    ZirProgram** programs = (ZirProgram**)(value_105);
     if (programs == (ZirProgram**)(((void *)0))) {
         zir_f_9e03f7cd143abb1d_ProgramFree(program);
         zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
         return 0;
     }
-    ZirProgram*** value_113 = &(set->programs);
-    (*value_113) = programs;
-    void* value_114 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(((uint8_t**)set->paths)), (size_t)(((int32_t)((uint32_t)(set->count) + 1u))) * (size_t)(sizeof(void *)));
-    uint8_t** paths = (uint8_t**)(value_114);
+    ZirProgram*** value_106 = &(set->programs);
+    (*value_106) = programs;
+    void* value_107 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(((uint8_t**)set->paths)), (size_t)(((int32_t)((uint32_t)(set->count) + 1u))) * (size_t)(sizeof(void *)));
+    uint8_t** paths = (uint8_t**)(value_107);
     if (paths == (uint8_t**)(((void *)0))) {
         zir_f_9e03f7cd143abb1d_ProgramFree(program);
         zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
         return 0;
     }
-    char *** value_115 = &(set->paths);
-    (*value_115) = (char **)(paths);
-    void* value_116 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(((uint8_t**)set->roots)), (size_t)(((int32_t)((uint32_t)(set->count) + 1u))) * (size_t)(sizeof(void *)));
-    uint8_t** roots = (uint8_t**)(value_116);
+    char *** value_108 = &(set->paths);
+    (*value_108) = (char **)(paths);
+    void* value_109 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(((uint8_t**)set->roots)), (size_t)(((int32_t)((uint32_t)(set->count) + 1u))) * (size_t)(sizeof(void *)));
+    uint8_t** roots = (uint8_t**)(value_109);
     if (roots == (uint8_t**)(((void *)0))) {
         zir_f_9e03f7cd143abb1d_ProgramFree(program);
         zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
         return 0;
     }
-    char *** value_117 = &(set->roots);
-    (*value_117) = (char **)(roots);
+    char *** value_110 = &(set->roots);
+    (*value_110) = (char **)(roots);
     uint8_t* saved_root = zir_f_9e03f7cd143abb1d_CompilerStrdup(root);
     if (saved_root == (uint8_t*)(((void *)0))) {
         zir_f_9e03f7cd143abb1d_ProgramFree(program);
         zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
         return 0;
     }
-    ZirProgram** value_118 = &(set->programs[set->count]);
-    (*value_118) = program;
-    uint8_t** value_119 = &(paths[set->count]);
-    (*value_119) = canonical;
-    uint8_t** value_120 = &(roots[set->count]);
-    (*value_120) = saved_root;
-    int32_t* value_121 = &(set->count);
-    int32_t value_122 = 0;
+    ZirProgram** value_111 = &(set->programs[set->count]);
+    (*value_111) = program;
+    uint8_t** value_112 = &(paths[set->count]);
+    (*value_112) = canonical;
+    uint8_t** value_113 = &(roots[set->count]);
+    (*value_113) = saved_root;
+    int32_t* value_114 = &(set->count);
+    int32_t value_115 = 0;
     {
-        int32_t* p = value_121;
+        int32_t* p = value_114;
         int32_t old = p[0];
-        int32_t* value_124 = &(p[0]);
-        (*value_124) = (int32_t)((uint32_t)(p[0]) + 1u);
-        value_122 = old;
+        int32_t* value_117 = &(p[0]);
+        (*value_117) = (int32_t)((uint32_t)(p[0]) + 1u);
+        value_115 = old;
     }
-    (void)value_122;
+    (void)value_115;
     return 1;
 }
 
@@ -1599,7 +1906,7 @@ compiler_load_standard_search_path(LoadContext* context_local, int32_t i)
 {
     uint8_t* directory = context_local->module_paths[i];
     uint8_t* base = zir_f_9e03f7cd143abb1d_strrchr(directory, 47);
-    zir_3c3cd922a390b1a9_ParserArray2048_u8 probe = {0};
+    zir_02c4f0f4088375c0_ParserArray2048_u8 probe = {0};
     if (context_local->module_path_names[i] != (uint8_t*)(((void *)0))) {
         uint8_t* value_0 = context_local->module_path_names[i];
         bool value_1 = zir_f_9e03f7cd143abb1d_strcmp(value_0, compiler_parse_types_ParserCString(StringLiteral("std"))) == 0;
@@ -1612,7 +1919,7 @@ compiler_load_standard_search_path(LoadContext* context_local, int32_t i)
     bool value_3 = base != (uint8_t*)(((void *)0));
     bool value_4 = value_3 && zir_f_9e03f7cd143abb1d_strcmp((uint8_t*)(((size_t)(base) + ((size_t)(1LL) * sizeof(uint8_t)))), compiler_parse_types_ParserCString(StringLiteral("std"))) == 0;
     bool value_5 = value_4;
-    bool value_6 = value_5 && zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(probe.items)), (size_t)(sizeof(zir_3c3cd922a390b1a9_ParserArray2048_u8)), compiler_parse_types_ParserCString(StringLiteral("%s/text.zi")), directory) < (int32_t)((size_t)(sizeof(zir_3c3cd922a390b1a9_ParserArray2048_u8)));
+    bool value_6 = value_5 && zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(probe.items)), (size_t)(sizeof(zir_02c4f0f4088375c0_ParserArray2048_u8)), compiler_parse_types_ParserCString(StringLiteral("%s/text.zi")), directory) < (int32_t)((size_t)(sizeof(zir_02c4f0f4088375c0_ParserArray2048_u8)));
     bool value_7 = value_6;
     bool value_8 = value_7 && zir_f_9e03f7cd143abb1d_CompilerPathIsRegular((uint8_t*)(&(probe.items))) != 0;
     int32_t value_9 = 0;
@@ -1792,12 +2099,12 @@ compiler_load_loaded_module_path(ProgramSet* set, uint8_t* target)
                             break;
                         }
                         ZirModule* module = (ZirModule*)(((size_t)((set->programs[i])->modules) + ((size_t)(m) * sizeof(ZirModule))));
-                        zir_698b659c68fe74da_ParserArray1024_u8 stem = {0};
+                        zir_3413116afb0b02b1_ParserArray1024_u8 stem = {0};
                         size_t length = 0;
                         if (zir_f_9e03f7cd143abb1d_strcmp((uint8_t*)(&(module->name)), target) == 0) {
                             return ((uint8_t**)(((uint8_t**)set->paths)))[i];
                         }
-                        if (zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(stem.items)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(module->source_path))) >= (int32_t)((size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)))) {
+                        if (zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(stem.items)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(module->source_path))) >= (int32_t)((size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)))) {
                             int32_t* value_0 = &(m);
                             int32_t value_1 = 0;
                             {
@@ -1975,7 +2282,7 @@ compiler_load_module_target(uint8_t* target)
 static int32_t
 compiler_load_try_module(LoadContext* context_local, uint8_t* directory, uint8_t* load_root, uint8_t* target, int32_t prefer_ir, ZirImport* import_local)
 {
-    zir_3c3cd922a390b1a9_ParserArray2048_u8 candidate = {0};
+    zir_02c4f0f4088375c0_ParserArray2048_u8 candidate = {0};
     ParserArray2__u8 value_0 = {0};
     uint8_t* value_1[2] = {0};
     uint8_t* value_2 = (void *)0;
@@ -2007,7 +2314,7 @@ compiler_load_try_module(LoadContext* context_local, uint8_t* directory, uint8_t
                     break;
                 }
                 uint8_t* value_8 = compiler_parse_types_ParserCString(StringLiteral("%s/%s%s"));
-                if (zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(candidate.items)), (size_t)(sizeof(zir_3c3cd922a390b1a9_ParserArray2048_u8)), value_8, directory, target, (extensions.items)[i]) >= (int32_t)((size_t)(sizeof(zir_3c3cd922a390b1a9_ParserArray2048_u8)))) {
+                if (zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(candidate.items)), (size_t)(sizeof(zir_02c4f0f4088375c0_ParserArray2048_u8)), value_8, directory, target, (extensions.items)[i]) >= (int32_t)((size_t)(sizeof(zir_02c4f0f4088375c0_ParserArray2048_u8)))) {
                     int32_t* value_9 = &(i);
                     int32_t value_10 = 0;
                     {
@@ -2053,10 +2360,10 @@ compiler_load_try_module(LoadContext* context_local, uint8_t* directory, uint8_t
         }
         zir_loop_break_1: ;
     }
-    if (zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(candidate.items)), (size_t)(sizeof(zir_3c3cd922a390b1a9_ParserArray2048_u8)), compiler_parse_types_ParserCString(StringLiteral("%s/%s/module.zi")), directory, target) < (int32_t)((size_t)(sizeof(zir_3c3cd922a390b1a9_ParserArray2048_u8)))) {
+    if (zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(candidate.items)), (size_t)(sizeof(zir_02c4f0f4088375c0_ParserArray2048_u8)), compiler_parse_types_ParserCString(StringLiteral("%s/%s/module.zi")), directory, target) < (int32_t)((size_t)(sizeof(zir_02c4f0f4088375c0_ParserArray2048_u8)))) {
         if (zir_f_9e03f7cd143abb1d_CompilerPathIsRegular((uint8_t*)(&(candidate.items))) != 0) {
-            zir_3c3cd922a390b1a9_ParserArray2048_u8 module_root = {0};
-            if (zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(module_root.items)), (size_t)(sizeof(zir_3c3cd922a390b1a9_ParserArray2048_u8)), compiler_parse_types_ParserCString(StringLiteral("%s/%s")), directory, target) >= (int32_t)((size_t)(sizeof(zir_3c3cd922a390b1a9_ParserArray2048_u8)))) {
+            zir_02c4f0f4088375c0_ParserArray2048_u8 module_root = {0};
+            if (zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(module_root.items)), (size_t)(sizeof(zir_02c4f0f4088375c0_ParserArray2048_u8)), compiler_parse_types_ParserCString(StringLiteral("%s/%s")), directory, target) >= (int32_t)((size_t)(sizeof(zir_02c4f0f4088375c0_ParserArray2048_u8)))) {
                 return -1;
             }
             bool value_22 = compiler_load_add_program_named(context_local, (uint8_t*)(&(candidate.items)), (uint8_t*)(&(module_root.items)), target) != 0;
@@ -2076,7 +2383,7 @@ compiler_load_plain_candidate(LoadContext* context_local, uint8_t* owner_path, u
     uint8_t* slash = zir_f_9e03f7cd143abb1d_strrchr(owner_path, 47);
     uint8_t* path = (uint8_t*)(&(buffers->mapped_path.items));
     size_t size = (size_t)(sizeof(ParserArray3072_u8));
-    if (slash != (uint8_t*)(((void *)0)) && (size_t)(((ptrdiff_t)(((size_t)(slash) - (size_t)(owner_path))) / (ptrdiff_t)(sizeof(uint8_t)))) < (size_t)(sizeof(zir_3c3cd922a390b1a9_ParserArray2048_u8))) {
+    if (slash != (uint8_t*)(((void *)0)) && (size_t)(((ptrdiff_t)(((size_t)(slash) - (size_t)(owner_path))) / (ptrdiff_t)(sizeof(uint8_t)))) < (size_t)(sizeof(zir_02c4f0f4088375c0_ParserArray2048_u8))) {
         zir_f_9e03f7cd143abb1d_memcpy((void*)((uint8_t*)(&(buffers->directory.items))), (void*)(owner_path), (size_t)(((ptrdiff_t)(((size_t)(slash) - (size_t)(owner_path))) / (ptrdiff_t)(sizeof(uint8_t)))));
         uint8_t* value_0 = &(buffers->directory.items[((ptrdiff_t)(((size_t)(slash) - (size_t)(owner_path))) / (ptrdiff_t)(sizeof(uint8_t)))]);
         (*value_0) = 0;
@@ -2119,8 +2426,8 @@ compiler_load_load_standard_import(LoadContext* context_local, uint8_t* owner_pa
 {
     ProgramSet* set = context_local->set;
     uint8_t* home = (void *)0;
-    zir_bca59b2a4a1f3286_ParserArray128_u8 name = {0};
-    if (zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(name.items)), (size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(import_local->target))) >= (int32_t)((size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8)))) {
+    zir_a7d465d77e427c3d_ParserArray128_u8 name = {0};
+    if (zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(name.items)), (size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(import_local->target))) >= (int32_t)((size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8)))) {
         return -1;
     }
     {
@@ -2201,7 +2508,7 @@ compiler_load_load_standard_import(LoadContext* context_local, uint8_t* owner_pa
             }
             if (zir_f_9e03f7cd143abb1d_strcmp(((uint8_t**)(((uint8_t**)set->paths)))[i], canonical) == 0) {
                 if ((set->programs[i])->module_count == 1) {
-                    zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(import_local->target)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&((((set->programs[i])->modules)[0]).name)));
+                    zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(import_local->target)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&((((set->programs[i])->modules)[0]).name)));
                 }
                 zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
                 return 1;
@@ -2266,8 +2573,8 @@ compiler_load_load_standard_import(LoadContext* context_local, uint8_t* owner_pa
         }
         return value_34;
     }
-    zir_bca59b2a4a1f3286_ParserArray128_u8 identity = {0};
-    if (zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(identity.items)), (size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8)), compiler_parse_types_ParserCString(StringLiteral("std_%s")), (uint8_t*)(&(name.items))) >= (int32_t)((size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8)))) {
+    zir_a7d465d77e427c3d_ParserArray128_u8 identity = {0};
+    if (zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(identity.items)), (size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8)), compiler_parse_types_ParserCString(StringLiteral("std_%s")), (uint8_t*)(&(name.items))) >= (int32_t)((size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8)))) {
         ZirSourceSpan value_35 = import_local->span;
         uint8_t* value_36 = compiler_parse_types_ParserCString(StringLiteral("module.identity"));
         zir_f_9e03f7cd143abb1d_Diagnostic(value_35, value_36, compiler_parse_types_ParserCString(StringLiteral("standard module identity is too long: std/%s")), (uint8_t*)(&(name.items)));
@@ -2292,7 +2599,7 @@ compiler_load_load_standard_import(LoadContext* context_local, uint8_t* owner_pa
     if (!value_44) {
         return 0;
     }
-    zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(import_local->target)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(identity.items)));
+    zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(import_local->target)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(identity.items)));
     return 1;
 }
 
@@ -2380,11 +2687,11 @@ compiler_load_load_import_with_buffers(LoadContext* context_local, uint8_t* owne
             return 1;
         }
         uint8_t* owner = compiler_package_resolve_PackageOwner(context_local->packages, owner_source);
-        zir_bca59b2a4a1f3286_ParserArray128_u8 mapped_name = {0};
+        zir_a7d465d77e427c3d_ParserArray128_u8 mapped_name = {0};
         bool value_17 = owner == (uint8_t*)(((void *)0));
         bool value_18 = value_17;
         if (!value_18) {
-            bool value_19 = compiler_package_resolve_PackageResolve(context_local->packages, owner, target, (uint8_t*)(&(buffers->mapped_path.items)), (size_t)(sizeof(ParserArray3072_u8)), (uint8_t*)(&(mapped_name.items)), (size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8))) != 0;
+            bool value_19 = compiler_package_resolve_PackageResolve(context_local->packages, owner, target, (uint8_t*)(&(buffers->mapped_path.items)), (size_t)(sizeof(ParserArray3072_u8)), (uint8_t*)(&(mapped_name.items)), (size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8))) != 0;
             value_18 = !value_19;
         }
         if (value_18) {
@@ -2425,7 +2732,7 @@ compiler_load_load_import_with_buffers(LoadContext* context_local, uint8_t* owne
             }
             return 0;
         }
-        zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(import_local->target)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(mapped_name.items)));
+        zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(import_local->target)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(mapped_name.items)));
         if (compiler_load_module_loaded(set, (uint8_t*)(&(mapped_name.items))) != 0) {
             return 1;
         }
@@ -2509,9 +2816,9 @@ compiler_load_load_import_with_buffers(LoadContext* context_local, uint8_t* owne
             zir_f_9e03f7cd143abb1d_Diagnostic(value_58, value_59, value_61, target, (int32_t)(prefix), target);
             return 0;
         }
-        zir_bca59b2a4a1f3286_ParserArray128_u8 package = {0};
+        zir_a7d465d77e427c3d_ParserArray128_u8 package = {0};
         uint8_t* value_62 = compiler_parse_types_ParserCString(StringLiteral("%.*s"));
-        zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(package.items)), (size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8)), value_62, (int32_t)(prefix), target);
+        zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(package.items)), (size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8)), value_62, (int32_t)(prefix), target);
         size_t value_63 = (size_t)((uint8_t*)(((size_t)(target) + ((size_t)(prefix) * sizeof(uint8_t))))) + ((size_t)(1LL) * sizeof(uint8_t));
         void* value_64 = (void*)((uint8_t*)(value_63));
         size_t value_65 = (size_t)((uint8_t*)(((size_t)(target) + ((size_t)(prefix) * sizeof(uint8_t))))) + ((size_t)(1LL) * sizeof(uint8_t));
@@ -2528,13 +2835,13 @@ compiler_load_load_import_with_buffers(LoadContext* context_local, uint8_t* owne
         }
         standard_import = value_69;
         if (named != 0 && !(standard_import != 0)) {
-            zir_bca59b2a4a1f3286_ParserArray128_u8 identity = {0};
+            zir_a7d465d77e427c3d_ParserArray128_u8 identity = {0};
             uint8_t* value_70 = compiler_parse_types_ParserCString(StringLiteral("%s"));
-            zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(identity.items)), (size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8)), value_70, target);
+            zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(identity.items)), (size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8)), value_70, target);
             bool value_71 = compiler_load_package_scoped(context_local, (uint8_t*)(&(package.items))) != 0;
             bool value_72 = value_71;
             if (value_72) {
-                bool value_73 = compiler_load_package_identity((uint8_t*)(&(package.items)), target, (uint8_t*)(&(identity.items)), (size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8))) != 0;
+                bool value_73 = compiler_load_package_identity((uint8_t*)(&(package.items)), target, (uint8_t*)(&(identity.items)), (size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8))) != 0;
                 value_72 = !value_73;
             }
             if (value_72) {
@@ -2545,7 +2852,7 @@ compiler_load_load_import_with_buffers(LoadContext* context_local, uint8_t* owne
                 return 0;
             }
             if (compiler_load_module_loaded(set, (uint8_t*)(&(identity.items))) != 0) {
-                zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(import_local->target)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(identity.items)));
+                zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(import_local->target)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(identity.items)));
                 return 1;
             }
             {
@@ -2748,8 +3055,8 @@ compiler_load_load_import_with_buffers(LoadContext* context_local, uint8_t* owne
     uint8_t* owner_package = compiler_load_module_path_package(context_local, owner_source);
     bool value_134 = !(prefer_ir != 0);
     if (value_134 && compiler_load_package_scoped(context_local, owner_package) != 0) {
-        zir_bca59b2a4a1f3286_ParserArray128_u8 identity = {0};
-        bool value_135 = compiler_load_package_identity(owner_package, target, (uint8_t*)(&(identity.items)), (size_t)(sizeof(zir_bca59b2a4a1f3286_ParserArray128_u8))) != 0;
+        zir_a7d465d77e427c3d_ParserArray128_u8 identity = {0};
+        bool value_135 = compiler_load_package_identity(owner_package, target, (uint8_t*)(&(identity.items)), (size_t)(sizeof(zir_a7d465d77e427c3d_ParserArray128_u8))) != 0;
         if (!value_135) {
             ZirSourceSpan value_136 = import_local->span;
             uint8_t* value_137 = compiler_parse_types_ParserCString(StringLiteral("module.identity"));
@@ -2758,7 +3065,7 @@ compiler_load_load_import_with_buffers(LoadContext* context_local, uint8_t* owne
             return 0;
         }
         int32_t result = compiler_load_module_loaded(set, (uint8_t*)(&(identity.items)));
-        if (result == 0 && slash != (uint8_t*)(((void *)0)) && (size_t)(((ptrdiff_t)(((size_t)(slash) - (size_t)(owner_path))) / (ptrdiff_t)(sizeof(uint8_t)))) < (size_t)(sizeof(zir_3c3cd922a390b1a9_ParserArray2048_u8))) {
+        if (result == 0 && slash != (uint8_t*)(((void *)0)) && (size_t)(((ptrdiff_t)(((size_t)(slash) - (size_t)(owner_path))) / (ptrdiff_t)(sizeof(uint8_t)))) < (size_t)(sizeof(zir_02c4f0f4088375c0_ParserArray2048_u8))) {
             zir_f_9e03f7cd143abb1d_memcpy((void*)((uint8_t*)(&(buffers->directory.items))), (void*)(owner_path), (size_t)(((ptrdiff_t)(((size_t)(slash) - (size_t)(owner_path))) / (ptrdiff_t)(sizeof(uint8_t)))));
             uint8_t* value_139 = &(buffers->directory.items[((ptrdiff_t)(((size_t)(slash) - (size_t)(owner_path))) / (ptrdiff_t)(sizeof(uint8_t)))]);
             (*value_139) = 0;
@@ -2788,7 +3095,7 @@ compiler_load_load_import_with_buffers(LoadContext* context_local, uint8_t* owne
             }
         }
         if (result > 0) {
-            zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(import_local->target)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(identity.items)));
+            zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(import_local->target)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(identity.items)));
         }
         if (result != 0) {
             int32_t value_145 = 0;
@@ -2803,7 +3110,7 @@ compiler_load_load_import_with_buffers(LoadContext* context_local, uint8_t* owne
     }
     if (slash != (uint8_t*)(((void *)0))) {
         size_t length = (size_t)(((ptrdiff_t)(((size_t)(slash) - (size_t)(owner_path))) / (ptrdiff_t)(sizeof(uint8_t))));
-        if (length < (size_t)(sizeof(zir_3c3cd922a390b1a9_ParserArray2048_u8))) {
+        if (length < (size_t)(sizeof(zir_02c4f0f4088375c0_ParserArray2048_u8))) {
             zir_f_9e03f7cd143abb1d_memcpy((void*)((uint8_t*)(&(buffers->directory.items))), (void*)(owner_path), length);
             uint8_t* value_146 = &(buffers->directory.items[length]);
             (*value_146) = 0;
@@ -3031,8 +3338,8 @@ compiler_load_loaded_import_target(ProgramSet* set, ZirProgram* program, ZirImpo
                         break;
                     }
                     ZirModule* candidate = (ZirModule*)(((size_t)(candidates->modules) + ((size_t)(m) * sizeof(ZirModule))));
-                    zir_698b659c68fe74da_ParserArray1024_u8 stem = {0};
-                    zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(stem.items)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(candidate->source_path)));
+                    zir_3413116afb0b02b1_ParserArray1024_u8 stem = {0};
+                    zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(stem.items)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(candidate->source_path)));
                     size_t length = zir_f_9e03f7cd143abb1d_strlen((uint8_t*)(&(stem.items)));
                     bool value_1 = length > (size_t)(3LL);
                     bool value_2 = value_1;
@@ -3439,9 +3746,9 @@ compiler_load_early_target(LoadContext* context_local, ZirProgram* current, ZirI
                             break;
                         }
                         ZirModule* candidate = (ZirModule*)(((size_t)(program->modules) + ((size_t)(m) * sizeof(ZirModule))));
-                        zir_698b659c68fe74da_ParserArray1024_u8 stem = {0};
+                        zir_3413116afb0b02b1_ParserArray1024_u8 stem = {0};
                         size_t length = 0;
-                        zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(stem.items)), (size_t)(sizeof(zir_698b659c68fe74da_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(candidate->source_path)));
+                        zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(stem.items)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8)), compiler_parse_types_ParserCString(StringLiteral("%s")), (uint8_t*)(&(candidate->source_path)));
                         length = zir_f_9e03f7cd143abb1d_strlen((uint8_t*)(&(stem.items)));
                         bool value_1 = length > (size_t)(3LL);
                         bool value_2 = value_1;
@@ -3534,7 +3841,7 @@ compiler_load_early_target(LoadContext* context_local, ZirProgram* current, ZirI
         }
     }
     if (total > 1) {
-        zir_ccf92a999b2a9076_ParserArray4096_u8 listing = {0};
+        zir_f43d3c0f02c572ed_ParserArray4096_u8 listing = {0};
         size_t used = (size_t)(0LL);
         uint8_t* value_33 = &(listing.items[0]);
         (*value_33) = 0;
@@ -3547,7 +3854,7 @@ compiler_load_early_target(LoadContext* context_local, ZirProgram* current, ZirI
                         break;
                     }
                     uint8_t* value_34 = (uint8_t*)(((size_t)((uint8_t*)(&(listing.items))) + ((size_t)(used) * sizeof(uint8_t))));
-                    size_t value_35 = (size_t)(sizeof(zir_ccf92a999b2a9076_ParserArray4096_u8)) - used;
+                    size_t value_35 = (size_t)(sizeof(zir_f43d3c0f02c572ed_ParserArray4096_u8)) - used;
                     uint8_t* value_36 = compiler_parse_types_ParserCString(StringLiteral("%s%s"));
                     uint8_t* value_37 = (void *)0;
                     if (i != 0) {
@@ -3558,7 +3865,7 @@ compiler_load_early_target(LoadContext* context_local, ZirProgram* current, ZirI
                         value_37 = value_39;
                     }
                     int32_t written = zir_f_9e03f7cd143abb1d_snprintf(value_34, value_35, value_36, value_37, (uint8_t*)(&((candidates.items[i])->source_path)));
-                    if (written < 0 || (size_t)(written) >= (size_t)(sizeof(zir_ccf92a999b2a9076_ParserArray4096_u8)) - used) {
+                    if (written < 0 || (size_t)(written) >= (size_t)(sizeof(zir_f43d3c0f02c572ed_ParserArray4096_u8)) - used) {
                         goto zir_loop_break_3;
                     }
                     used = used + (size_t)(written);
@@ -3577,12 +3884,12 @@ compiler_load_early_target(LoadContext* context_local, ZirProgram* current, ZirI
             }
             zir_loop_break_3: ;
         }
-        if (total > candidate_count && used + (size_t)(sizeof(ParserArray14_u8)) < (size_t)(sizeof(zir_ccf92a999b2a9076_ParserArray4096_u8))) {
+        if (total > candidate_count && used + (size_t)(sizeof(ParserArray14_u8)) < (size_t)(sizeof(zir_f43d3c0f02c572ed_ParserArray4096_u8))) {
             uint8_t* value_44 = (uint8_t*)(((size_t)((uint8_t*)(&(listing.items))) + ((size_t)(used) * sizeof(uint8_t))));
-            size_t value_45 = (size_t)(sizeof(zir_ccf92a999b2a9076_ParserArray4096_u8)) - used;
+            size_t value_45 = (size_t)(sizeof(zir_f43d3c0f02c572ed_ParserArray4096_u8)) - used;
             uint8_t* value_46 = compiler_parse_types_ParserCString(StringLiteral(" (%d more)"));
             int32_t written = zir_f_9e03f7cd143abb1d_snprintf(value_44, value_45, value_46, (int32_t)((uint32_t)total - (uint32_t)candidate_count));
-            if (written > 0 && (size_t)(written) < (size_t)(sizeof(zir_ccf92a999b2a9076_ParserArray4096_u8)) - used) {
+            if (written > 0 && (size_t)(written) < (size_t)(sizeof(zir_f43d3c0f02c572ed_ParserArray4096_u8)) - used) {
                 used = used + (size_t)(written);
             }
         }
@@ -3667,7 +3974,7 @@ compiler_load_condition_needs_open_layout(ZirModule* module, uint8_t* condition)
                     cursor = (uint8_t*)(((size_t)(cursor) + ((size_t)(8LL) * sizeof(uint8_t))));
                     goto zir_loop_continue_1;
                 }
-                zir_ccf92a999b2a9076_ParserArray4096_u8 type = {0};
+                zir_f43d3c0f02c572ed_ParserArray4096_u8 type = {0};
                 zir_f_9e03f7cd143abb1d_memcpy((void*)((uint8_t*)(&(type.items))), (void*)(start_local), (size_t)(((ptrdiff_t)(((size_t)(end_local) - (size_t)(start_local))) / (ptrdiff_t)(sizeof(uint8_t)))));
                 uint8_t* value_18 = &(type.items[((ptrdiff_t)(((size_t)(end_local) - (size_t)(start_local))) / (ptrdiff_t)(sizeof(uint8_t)))]);
                 (*value_18) = 0;
@@ -3865,6 +4172,7 @@ static int32_t
 compiler_load_early_resolve_imports(void* opaque, ZirProgram* program, ZirModule* module, uint8_t* source_path, uint8_t* root, uint8_t* condition)
 {
     LoadContext* context_local = (LoadContext*)(opaque);
+    frontend_cache_resolves = (int32_t)((uint32_t)frontend_cache_resolves + 1u);
     int32_t value_0 = 0;
     if (condition == (uint8_t*)(((void *)0))) {
         value_0 = 1;
@@ -4366,4 +4674,1464 @@ compiler_load_ProgramsLoadWithDefines(ProgramSet* set, uint8_t* root, uint8_t** 
         }
     }
     return result;
+}
+
+void
+FrontendCacheDiagnostic(void)
+{
+    frontend_cache_diagnostics = (int32_t)((uint32_t)frontend_cache_diagnostics + 1u);
+}
+
+static void
+compiler_load_cache_hex_encode(CacheDigest* digest, CacheHex* hex)
+{
+    for (int64_t i = 0LL; i <= 31LL; i++) {
+        size_t at = (size_t)(i) * (size_t)(2LL);
+        uint8_t* value_0 = &(hex->items[at]);
+        (*value_0) = (cache_hex_digits.items)[(int32_t)(((uint8_t)((digest->bytes)[i] >> 4)))];
+        uint8_t* value_1 = &(hex->items[(at + 1)]);
+        (*value_1) = (cache_hex_digits.items)[(int32_t)(((uint8_t)((uint32_t)((digest->bytes)[i]) & 15u)))];
+    }
+    uint8_t* value_2 = &(hex->items[64]);
+    (*value_2) = 0;
+}
+
+static void
+compiler_load_cache_hash_text(CacheHash* hash, uint8_t* text)
+{
+    if (text == ((void *)0)) {
+        return;
+    }
+    zir_f_9e03f7cd143abb1d_Sha256Add((void*)(hash), text, zir_f_9e03f7cd143abb1d_strlen(text));
+}
+
+static int32_t
+compiler_load_cache_hash_file(CacheHash* hash, uint8_t* path)
+{
+    void* file = zir_f_9e03f7cd143abb1d_CompilerFopen(path, compiler_parse_types_ParserCString(StringLiteral("rb")));
+    if (file == ((void *)0)) {
+        return 0;
+    }
+    void* value_0 = zir_f_9e03f7cd143abb1d_CompilerMalloc((size_t)(65536LL));
+    uint8_t* buffer = (uint8_t*)(value_0);
+    if (buffer == ((void *)0)) {
+        int32_t cleanup_return_0 = 0;
+        zir_f_9e03f7cd143abb1d_CompilerFclose(file);
+        return cleanup_return_0;
+    }
+    while (true) {
+        size_t read = zir_f_9e03f7cd143abb1d_fread((void*)(buffer), 1, (size_t)(65536LL), file);
+        if (read == 0) {
+            break;
+        }
+        zir_f_9e03f7cd143abb1d_Sha256Add((void*)(hash), buffer, read);
+    }
+    bool value_1 = zir_f_9e03f7cd143abb1d_ferror(file) == 0;
+    int32_t value_2 = 0;
+    if (value_1) {
+        value_2 = 1;
+    }
+    int32_t cleanup_return_1 = value_2;
+    zir_f_9e03f7cd143abb1d_CompilerFree((void*)(buffer));
+    zir_f_9e03f7cd143abb1d_CompilerFclose(file);
+    return cleanup_return_1;
+}
+
+static uint8_t**
+compiler_load_cache_sorted_defines(uint8_t** defines, int32_t count)
+{
+    void* value_0 = zir_f_9e03f7cd143abb1d_CompilerMalloc((size_t)(((int32_t)((uint32_t)count + 1u))) * sizeof(void *));
+    uint8_t** order = (uint8_t**)(value_0);
+    if (order == ((void *)0)) {
+        return (void *)0;
+    }
+    {
+        int32_t range_first_4 = 0;
+        int32_t range_last_4 = (int32_t)((uint32_t)count - 1u);
+        int32_t i = range_first_4;
+        if (i <= range_last_4) for (;;) {
+            uint8_t** value_1 = &(order[i]);
+            (*value_1) = defines[i];
+            if (i == range_last_4) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
+    {
+        int32_t range_first_7 = 1;
+        int32_t range_last_7 = (int32_t)((uint32_t)count - 1u);
+        int32_t i = range_first_7;
+        if (i <= range_last_7) for (;;) {
+            int32_t at = i;
+            while (at > 0 && zir_f_9e03f7cd143abb1d_strcmp(order[((int32_t)((uint32_t)at - 1u))], order[at]) > 0) {
+                uint8_t* moved = order[((int32_t)((uint32_t)at - 1u))];
+                uint8_t** value_2 = &(order[((int32_t)((uint32_t)at - 1u))]);
+                (*value_2) = order[at];
+                uint8_t** value_3 = &(order[at]);
+                (*value_3) = moved;
+                at = (int32_t)((uint32_t)at - 1u);
+            }
+            if (i == range_last_7) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
+    return order;
+}
+
+static int32_t
+compiler_load_cache_entry_path(CachePath* output, CacheHex* key, uint8_t* suffix)
+{
+    uint8_t* value_0 = compiler_parse_types_ParserCString(StringLiteral("%s/%s%s"));
+    int32_t written = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(output->items)), (size_t)(sizeof(CachePath)), value_0, (uint8_t*)(&(frontend_cache_directory.items)), (uint8_t*)(&(key->items)), suffix);
+    int32_t value_1 = 0;
+    if (written > 0 && (size_t)(written) < (size_t)(sizeof(CachePath))) {
+        value_1 = 1;
+    }
+    return value_1;
+}
+
+static int32_t
+compiler_load_frontend_cache_lint_argument(void)
+{
+    uint8_t* value_0 = compiler_parse_types_ParserCString(StringLiteral("/proc/self/cmdline"));
+    void* file = zir_f_9e03f7cd143abb1d_CompilerFopen(value_0, compiler_parse_types_ParserCString(StringLiteral("rb")));
+    if (file == ((void *)0)) {
+        return 1;
+    }
+    void* value_1 = zir_f_9e03f7cd143abb1d_CompilerMalloc((size_t)(65537LL));
+    uint8_t* text = (uint8_t*)(value_1);
+    if (text == ((void *)0)) {
+        int32_t cleanup_return_0 = 1;
+        zir_f_9e03f7cd143abb1d_CompilerFclose(file);
+        return cleanup_return_0;
+    }
+    size_t total = 0;
+    while (total < (size_t)(65536LL)) {
+        size_t read = zir_f_9e03f7cd143abb1d_fread((void*)(((size_t)(text) + total)), 1, (size_t)(65536LL) - total, file);
+        if (read == 0) {
+            break;
+        }
+        total = total + read;
+    }
+    bool value_2 = zir_f_9e03f7cd143abb1d_ferror(file) != 0;
+    if (value_2 || total == (size_t)(65536LL)) {
+        int32_t cleanup_return_1 = 1;
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        zir_f_9e03f7cd143abb1d_CompilerFclose(file);
+        return cleanup_return_1;
+    }
+    uint8_t* value_3 = &(text[total]);
+    (*value_3) = 0;
+    size_t at = 0;
+    while (at < total) {
+        size_t end = at;
+        while (end < total && text[end] != 0) {
+            end = end + 1;
+        }
+        bool value_4 = end - at == (size_t)(6LL);
+        if (value_4) {
+            uint8_t* value_5 = compiler_parse_types_ParserCString(StringLiteral("--lint"));
+            bool value_6 = zir_f_9e03f7cd143abb1d_memcmp((void*)(((size_t)(text) + at)), (void*)(value_5), (size_t)(6LL)) == 0;
+            value_4 = value_6;
+        }
+        if (value_4) {
+            int32_t cleanup_return_2 = 1;
+            zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+            zir_f_9e03f7cd143abb1d_CompilerFclose(file);
+            return cleanup_return_2;
+        }
+        at = end + 1;
+    }
+    int32_t cleanup_return_3 = 0;
+    zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+    zir_f_9e03f7cd143abb1d_CompilerFclose(file);
+    return cleanup_return_3;
+}
+
+static void
+compiler_load_cache_mkdir_parents(uint8_t* path)
+{
+    CachePath partial = {0};
+    zir_f_9e03f7cd143abb1d_copy_text((uint8_t*)(&(partial.items)), (size_t)(sizeof(CachePath)), path);
+    size_t at = 1;
+    while ((partial.items)[at] != 0) {
+        if ((partial.items)[at] == 47) {
+            uint8_t* value_0 = &(partial.items[at]);
+            (*value_0) = 0;
+            zir_f_9e03f7cd143abb1d_mkdir((uint8_t*)(&(partial.items)), 493);
+            uint8_t* value_1 = &(partial.items[at]);
+            (*value_1) = 47;
+        }
+        at = at + 1;
+    }
+    zir_f_9e03f7cd143abb1d_mkdir(path, 493);
+}
+
+static int32_t
+compiler_load_frontend_cache_directory_resolve(void)
+{
+    int32_t written = -1;
+    uint8_t* configured = zir_f_9e03f7cd143abb1d_getenv(compiler_parse_types_ParserCString(StringLiteral("ZIRAN_FRONTEND_CACHE_DIR")));
+    if (configured != ((void *)0) && configured[0] != 0) {
+        written = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(frontend_cache_directory.items)), (size_t)(sizeof(CachePath)), compiler_parse_types_ParserCString(StringLiteral("%s")), configured);
+    } else {
+        uint8_t* base = zir_f_9e03f7cd143abb1d_getenv(compiler_parse_types_ParserCString(StringLiteral("XDG_CACHE_HOME")));
+        if (base != ((void *)0) && base[0] != 0) {
+            written = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(frontend_cache_directory.items)), (size_t)(sizeof(CachePath)), compiler_parse_types_ParserCString(StringLiteral("%s/ziran/frontend")), base);
+        } else {
+            uint8_t* home = zir_f_9e03f7cd143abb1d_getenv(compiler_parse_types_ParserCString(StringLiteral("HOME")));
+            if (home == ((void *)0) || home[0] == 0) {
+                return 0;
+            }
+            written = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(frontend_cache_directory.items)), (size_t)(sizeof(CachePath)), compiler_parse_types_ParserCString(StringLiteral("%s/.cache/ziran/frontend")), home);
+        }
+    }
+    if (written <= 0 || (size_t)(written) >= (size_t)(sizeof(CachePath))) {
+        return 0;
+    }
+    compiler_load_cache_mkdir_parents((uint8_t*)(&(frontend_cache_directory.items)));
+    return 1;
+}
+
+static int32_t
+compiler_load_frontend_cache_enabled(void)
+{
+    if (frontend_cache_state != 0) {
+        int32_t value_0 = 0;
+        if (frontend_cache_state > 0) {
+            value_0 = 1;
+        }
+        return value_0;
+    }
+    frontend_cache_state = -1;
+    uint8_t* disabled = zir_f_9e03f7cd143abb1d_getenv(compiler_parse_types_ParserCString(StringLiteral("ZIRAN_FRONTEND_CACHE")));
+    bool value_1 = disabled != ((void *)0);
+    if (value_1 && zir_f_9e03f7cd143abb1d_strcmp(disabled, compiler_parse_types_ParserCString(StringLiteral("0"))) == 0) {
+        return 0;
+    }
+    if (compiler_load_frontend_cache_lint_argument() != 0) {
+        return 0;
+    }
+    if (compiler_load_frontend_cache_directory_resolve() == 0) {
+        return 0;
+    }
+    frontend_cache_state = 1;
+    return 1;
+}
+
+static void
+compiler_load_frontend_cache_executable_prepare(void)
+{
+    frontend_cache_executable_state = -1;
+    zir_3413116afb0b02b1_ParserArray1024_u8 executable = {0};
+    if (zir_f_9e03f7cd143abb1d_ExecutablePath((uint8_t*)(&(executable.items)), (size_t)(sizeof(zir_3413116afb0b02b1_ParserArray1024_u8))) <= 0) {
+        return;
+    }
+    CacheHash hash = {0};
+    zir_f_9e03f7cd143abb1d_Sha256Begin((void*)(&(hash)));
+    if (compiler_load_cache_hash_file(&(hash), (uint8_t*)(&(executable.items))) == 0) {
+        return;
+    }
+    zir_f_9e03f7cd143abb1d_Sha256End((void*)(&(hash)), (uint8_t*)(&(frontend_cache_executable.bytes)));
+    frontend_cache_executable_state = 1;
+}
+
+static int32_t
+compiler_load_frontend_cache_prepare(LoadContext* context_local, uint8_t* source, uint8_t* canonical, uint8_t* root, uint8_t* text, CacheHex* key)
+{
+    (void)canonical;
+    if (compiler_load_frontend_cache_enabled() == 0) {
+        return 0;
+    }
+    if (text == ((void *)0)) {
+        return 0;
+    }
+    CacheHash hash = {0};
+    zir_f_9e03f7cd143abb1d_Sha256Begin((void*)(&(hash)));
+    compiler_load_cache_hash_text(&(hash), compiler_parse_types_ParserCString(StringLiteral("ziran-frontend-cache/2\n")));
+    CacheSuffix version = {0};
+    uint8_t* value_0 = compiler_parse_types_ParserCString(StringLiteral("%d\n"));
+    zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(version.items)), (size_t)(sizeof(CacheSuffix)), value_0, compiler_zir_serial_ZirFormatVersion());
+    compiler_load_cache_hash_text(&(hash), (uint8_t*)(&(version.items)));
+    compiler_load_cache_hash_text(&(hash), source);
+    compiler_load_cache_hash_text(&(hash), compiler_parse_types_ParserCString(StringLiteral("\n")));
+    compiler_load_cache_hash_text(&(hash), root);
+    compiler_load_cache_hash_text(&(hash), compiler_parse_types_ParserCString(StringLiteral("\n")));
+    if (frontend_cache_executable_state == 0) {
+        compiler_load_frontend_cache_executable_prepare();
+    }
+    if (frontend_cache_executable_state < 0) {
+        return 0;
+    }
+    zir_f_9e03f7cd143abb1d_Sha256Add((void*)(&(hash)), (uint8_t*)(&(frontend_cache_executable.bytes)), (size_t)(32LL));
+    size_t length = zir_f_9e03f7cd143abb1d_strlen(text);
+    zir_f_9e03f7cd143abb1d_Sha256Add((void*)(&(hash)), (uint8_t*)(&(length)), (size_t)(sizeof(size_t)));
+    zir_f_9e03f7cd143abb1d_Sha256Add((void*)(&(hash)), text, length);
+    if (context_local->site != ((void *)0)) {
+        compiler_load_cache_hash_text(&(hash), (uint8_t*)context_local->site->parameters);
+    }
+    compiler_load_cache_hash_text(&(hash), compiler_parse_types_ParserCString(StringLiteral("\n")));
+    uint8_t** defines = compiler_load_cache_sorted_defines(context_local->defines, context_local->define_count);
+    if (defines == ((void *)0)) {
+        return 0;
+    }
+    {
+        int32_t range_first_34 = 0;
+        int32_t range_last_34 = (int32_t)((uint32_t)(context_local->define_count) - 1u);
+        int32_t i = range_first_34;
+        if (i <= range_last_34) for (;;) {
+            compiler_load_cache_hash_text(&(hash), defines[i]);
+            compiler_load_cache_hash_text(&(hash), compiler_parse_types_ParserCString(StringLiteral("\n")));
+            if (i == range_last_34) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
+    compiler_load_cache_hash_text(&(hash), compiler_parse_types_ParserCString(StringLiteral("paths\n")));
+    {
+        int32_t range_first_39 = 0;
+        int32_t range_last_39 = (int32_t)((uint32_t)(context_local->module_path_count) - 1u);
+        int32_t i = range_first_39;
+        if (i <= range_last_39) for (;;) {
+            compiler_load_cache_hash_text(&(hash), context_local->module_paths[i]);
+            compiler_load_cache_hash_text(&(hash), compiler_parse_types_ParserCString(StringLiteral("|")));
+            compiler_load_cache_hash_text(&(hash), context_local->module_path_names[i]);
+            compiler_load_cache_hash_text(&(hash), compiler_parse_types_ParserCString(StringLiteral("\n")));
+            if (i == range_last_39) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
+    compiler_load_cache_hash_text(&(hash), compiler_parse_types_ParserCString(StringLiteral("package\n")));
+    uint8_t* package_path = zir_f_9e03f7cd143abb1d_getenv(compiler_parse_types_ParserCString(StringLiteral("ZIRAN_PACKAGE_MAP")));
+    if (package_path != ((void *)0) && package_path[0] != 0) {
+        compiler_load_cache_hash_text(&(hash), package_path);
+        compiler_load_cache_hash_text(&(hash), compiler_parse_types_ParserCString(StringLiteral("\n")));
+        if (compiler_load_cache_hash_file(&(hash), package_path) == 0) {
+            int32_t cleanup_return_0 = 0;
+            zir_f_9e03f7cd143abb1d_CompilerFree((void*)(defines));
+            return cleanup_return_0;
+        }
+    }
+    compiler_load_cache_hash_text(&(hash), compiler_parse_types_ParserCString(StringLiteral("target\n")));
+    ZirTargetFacts facts = zir_f_9e03f7cd143abb1d_CompilerTargetFacts();
+    compiler_load_cache_hash_text(&(hash), (uint8_t*)facts.options);
+    compiler_load_cache_hash_text(&(hash), compiler_parse_types_ParserCString(StringLiteral("\n")));
+    CacheDigest digest = {0};
+    zir_f_9e03f7cd143abb1d_Sha256End((void*)(&(hash)), (uint8_t*)(&(digest.bytes)));
+    compiler_load_cache_hex_encode(&(digest), key);
+    int32_t cleanup_return_1 = 1;
+    zir_f_9e03f7cd143abb1d_CompilerFree((void*)(defines));
+    return cleanup_return_1;
+}
+
+static uint8_t*
+compiler_load_cache_read_text(uint8_t* path, size_t limit)
+{
+    void* file = zir_f_9e03f7cd143abb1d_CompilerFopen(path, compiler_parse_types_ParserCString(StringLiteral("rb")));
+    if (file == ((void *)0)) {
+        return (void *)0;
+    }
+    size_t capacity = 65536;
+    void* value_0 = zir_f_9e03f7cd143abb1d_CompilerMalloc(capacity);
+    uint8_t* text = (uint8_t*)(value_0);
+    if (text == ((void *)0)) {
+        uint8_t* cleanup_return_0 = (void *)0;
+        zir_f_9e03f7cd143abb1d_CompilerFclose(file);
+        return cleanup_return_0;
+    }
+    size_t used = 0;
+    int32_t failed = 0;
+    while (true) {
+        if (capacity - used < (size_t)(2LL)) {
+            if (capacity >= limit) {
+                failed = 1;
+                break;
+            }
+            void* value_1 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(text), capacity * (size_t)(2LL));
+            uint8_t* grown = (uint8_t*)(value_1);
+            if (grown == ((void *)0)) {
+                failed = 1;
+                break;
+            }
+            text = grown;
+            capacity = capacity * (size_t)(2LL);
+        }
+        size_t read = zir_f_9e03f7cd143abb1d_fread((void*)(((size_t)(text) + used)), 1, (capacity - used) - (size_t)(1LL), file);
+        if (read == (size_t)(0LL)) {
+            break;
+        }
+        used = used + read;
+    }
+    bool value_2 = zir_f_9e03f7cd143abb1d_ferror(file) != 0;
+    bool value_3 = value_2;
+    if (!value_3) {
+        void* value_4 = zir_f_9e03f7cd143abb1d_memchr((void*)(text), 0, used);
+        value_3 = (value_4 != ((void *)0));
+    }
+    if (value_3) {
+        failed = 1;
+    }
+    if (failed != 0) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        uint8_t* cleanup_return_1 = (void *)0;
+        zir_f_9e03f7cd143abb1d_CompilerFclose(file);
+        return cleanup_return_1;
+    }
+    uint8_t* value_5 = &(text[used]);
+    (*value_5) = 0;
+    uint8_t* cleanup_return_2 = text;
+    zir_f_9e03f7cd143abb1d_CompilerFclose(file);
+    return cleanup_return_2;
+}
+
+static uint8_t*
+compiler_load_cache_source_text(uint8_t* source, uint8_t* canonical)
+{
+    if (compiler_load_frontend_cache_enabled() == 0) {
+        return (void *)0;
+    }
+    size_t overlay = 0;
+    uint8_t* value_0 = zir_f_9e03f7cd143abb1d_SourceOverlayRead(canonical, &(overlay));
+    bool value_1 = value_0 != ((void *)0);
+    bool value_2 = value_1;
+    if (!value_2) {
+        uint8_t* value_3 = zir_f_9e03f7cd143abb1d_SourceOverlayRead(source, &(overlay));
+        value_2 = (value_3 != ((void *)0));
+    }
+    if (value_2) {
+        return (void *)0;
+    }
+    uint8_t* text = compiler_load_cache_read_text(source, ((size_t)(64LL) * (size_t)(1024LL)) * (size_t)(1024LL));
+    if (text == ((void *)0)) {
+        return (void *)0;
+    }
+    uint8_t* value_4 = zir_f_9e03f7cd143abb1d_strstr(text, compiler_parse_types_ParserCString(StringLiteral("#load")));
+    bool value_5 = value_4 != ((void *)0);
+    bool value_6 = value_5;
+    if (!value_6) {
+        uint8_t* value_7 = zir_f_9e03f7cd143abb1d_strstr(text, compiler_parse_types_ParserCString(StringLiteral("#insert")));
+        value_6 = (value_7 != ((void *)0));
+    }
+    if (value_6) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        return (void *)0;
+    }
+    return text;
+}
+
+static uint8_t*
+compiler_load_cache_field(CacheCursor* cursor)
+{
+    uint8_t* start = cursor->at;
+    uint8_t* value_0 = &(cursor->delimiter);
+    (*value_0) = 0;
+    if (start == ((void *)0)) {
+        return (void *)0;
+    }
+    uint8_t* at = start;
+    while (at[0] != 0 && at[0] != 124 && at[0] != 10) {
+        at = (uint8_t*)(((size_t)(at) + (size_t)(1LL)));
+    }
+    uint8_t* value_1 = &(cursor->delimiter);
+    (*value_1) = at[0];
+    if (at[0] == 0) {
+        uint8_t** value_2 = &(cursor->at);
+        (*value_2) = (void *)0;
+        return (void *)0;
+    }
+    uint8_t* value_3 = &(at[0]);
+    (*value_3) = 0;
+    uint8_t** value_4 = &(cursor->at);
+    (*value_4) = (uint8_t*)(((size_t)(at) + (size_t)(1LL)));
+    return start;
+}
+
+static int32_t
+compiler_load_cache_field_separator(CacheCursor* cursor)
+{
+    int32_t value_0 = 0;
+    if (cursor->delimiter == 124) {
+        value_0 = 1;
+    }
+    return value_0;
+}
+
+static int32_t
+compiler_load_cache_field_line_end(CacheCursor* cursor)
+{
+    int32_t value_0 = 0;
+    if (cursor->delimiter == 10) {
+        value_0 = 1;
+    }
+    return value_0;
+}
+
+static int64_t
+compiler_load_cache_parse_number(uint8_t* text)
+{
+    if (text == ((void *)0)) {
+        return -1LL;
+    }
+    int64_t value = 0LL;
+    size_t at = 0;
+    if (text[at] == 0) {
+        return -1LL;
+    }
+    while (text[at] != 0) {
+        uint8_t digit = text[at];
+        if (digit < 48 || digit > 57) {
+            return -1LL;
+        }
+        value = (int64_t)(((uint64_t)value * UINT64_C(10)) + (uint64_t)(((uint8_t)((uint32_t)digit - 48u))));
+        if (value > 2147483647LL) {
+            return -1LL;
+        }
+        at = at + 1;
+    }
+    return value;
+}
+
+static int32_t
+compiler_load_cache_text_field(uint8_t* text)
+{
+    if (text == ((void *)0) || text[0] == 0) {
+        return 0;
+    }
+    size_t at = 0;
+    while (text[at] != 0) {
+        if (text[at] == 124 || text[at] == 10) {
+            return 0;
+        }
+        at = at + 1;
+    }
+    return 1;
+}
+
+static int32_t
+compiler_load_cache_sink_append(CacheSink* sink, uint8_t* text)
+{
+    size_t length = zir_f_9e03f7cd143abb1d_strlen(text);
+    size_t needed = (sink->used + length) + (size_t)(1LL);
+    if (needed > sink->capacity) {
+        size_t value_0 = 0;
+        if (sink->capacity != 0) {
+            value_0 = sink->capacity;
+        } else {
+            value_0 = (size_t)(1024LL);
+        }
+        size_t capacity = value_0;
+        while (capacity < needed) {
+            capacity = capacity * (size_t)(2LL);
+        }
+        void* value_1 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(sink->text), capacity);
+        uint8_t* grown = (uint8_t*)(value_1);
+        if (grown == ((void *)0)) {
+            return 0;
+        }
+        uint8_t** value_2 = &(sink->text);
+        (*value_2) = grown;
+        size_t* value_3 = &(sink->capacity);
+        (*value_3) = capacity;
+    }
+    zir_f_9e03f7cd143abb1d_memcpy((void*)(((size_t)(sink->text) + sink->used)), (void*)(text), length + (size_t)(1LL));
+    size_t* value_4 = &(sink->used);
+    (*value_4) = (*value_4) + length;
+    return 1;
+}
+
+static int32_t
+compiler_load_cache_using_line(ZirUsing* using, CacheUsingLine* line)
+{
+    uint8_t* span_path = zir_f_9e03f7cd143abb1d_SpanPath(using->span);
+    uint8_t* path = (uint8_t*)(&(using->path));
+    uint8_t* filter = (uint8_t*)(&(using->filter));
+    bool value_0 = compiler_load_cache_text_field(span_path) == 0;
+    if (value_0 || compiler_load_cache_text_field(path) == 0) {
+        return 0;
+    }
+    if (compiler_load_cache_text_field(filter) == 0) {
+        return 0;
+    }
+    uint8_t* value_1 = compiler_parse_types_ParserCString(StringLiteral("%d|%d|%d|%d|%d|%s|%s|%s\n"));
+    int32_t written = zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(line->items)), (size_t)(sizeof(CacheUsingLine)), value_1, using->is_file_private, using->span.line, using->span.column, using->span.end_line, using->span.end_column, filter, span_path, path);
+    int32_t value_2 = 0;
+    if (written > 0 && (size_t)(written) < (size_t)(sizeof(CacheUsingLine))) {
+        value_2 = 1;
+    }
+    return value_2;
+}
+
+static uint8_t*
+compiler_load_frontend_cache_sidecar(ZirProgram* program)
+{
+    CacheSink sink = {0};
+    uint8_t** value_0 = &(sink.text);
+    (*value_0) = (void *)0;
+    size_t* value_1 = &(sink.capacity);
+    (*value_1) = 0;
+    size_t* value_2 = &(sink.used);
+    (*value_2) = 0;
+    ZirModule* module = program->modules;
+    ZirDocument* document = (ZirDocument*)(((uint8_t*)module->document));
+    int32_t value_3 = 0;
+    if (document != ((void *)0) && document->rewritten != 0) {
+        value_3 = 1;
+    }
+    int32_t rewritten = value_3;
+    CacheLine head = {0};
+    uint8_t* value_4 = compiler_parse_types_ParserCString(StringLiteral("rewritten|%d\nusing|%d\n"));
+    zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(head.items)), (size_t)(sizeof(CacheLine)), value_4, rewritten, module->using_count);
+    if (compiler_load_cache_sink_append(&(sink), (uint8_t*)(&(head.items))) == 0) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(sink.text));
+        return (void *)0;
+    }
+    CacheUsingLine line = {0};
+    {
+        int32_t range_first_14 = 0;
+        int32_t range_last_14 = (int32_t)((uint32_t)(module->using_count) - 1u);
+        int32_t i = range_first_14;
+        if (i <= range_last_14) for (;;) {
+            ZirUsing* using = (ZirUsing*)(((size_t)(module->usings) + ((size_t)(i) * sizeof(ZirUsing))));
+            if (compiler_load_cache_using_line(using, &(line)) == 0) {
+                zir_f_9e03f7cd143abb1d_CompilerFree((void*)(sink.text));
+                return (void *)0;
+            }
+            if (compiler_load_cache_sink_append(&(sink), (uint8_t*)(&(line.items))) == 0) {
+                zir_f_9e03f7cd143abb1d_CompilerFree((void*)(sink.text));
+                return (void *)0;
+            }
+            if (i == range_last_14) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
+    return sink.text;
+}
+
+static int32_t
+compiler_load_cache_read_meta(CachePath* path, CacheMeta* meta, CacheHex* expected)
+{
+    uint8_t** value_0 = &(meta->text);
+    (*value_0) = (void *)0;
+    uint8_t** value_1 = &(meta->lines);
+    (*value_1) = (void *)0;
+    int32_t* value_2 = &(meta->rewritten);
+    (*value_2) = 0;
+    int32_t* value_3 = &(meta->count);
+    (*value_3) = 0;
+    uint8_t* text = compiler_load_cache_read_text((uint8_t*)(&(path->items)), ((size_t)(4LL) * (size_t)(1024LL)) * (size_t)(1024LL));
+    if (text == ((void *)0)) {
+        return 0;
+    }
+    CacheCursor cursor = {.at = text, .delimiter = 0};
+    uint8_t* format = compiler_load_cache_field(&(cursor));
+    bool value_4 = format == ((void *)0);
+    bool value_5 = value_4;
+    if (!value_5) {
+        CacheCursor* value_6 = &(cursor);
+        int32_t value_7 = 0;
+        {
+            CacheCursor* cursor = value_6;
+            int32_t value_9 = 0;
+            if (cursor->delimiter == 10) {
+                value_9 = 1;
+            }
+            value_7 = value_9;
+        }
+        value_5 = (value_7 == 0);
+    }
+    bool value_10 = value_5;
+    bool value_11 = value_10;
+    if (!value_11) {
+        uint8_t* value_12 = format;
+        bool value_13 = zir_f_9e03f7cd143abb1d_strcmp(value_12, compiler_parse_types_ParserCString(StringLiteral("ziran-frontend-cache 2"))) != 0;
+        value_11 = value_13;
+    }
+    if (value_11) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        return 0;
+    }
+    uint8_t* tag = compiler_load_cache_field(&(cursor));
+    bool value_14 = tag == ((void *)0);
+    bool value_15 = value_14;
+    if (!value_15) {
+        CacheCursor* value_16 = &(cursor);
+        int32_t value_17 = 0;
+        {
+            CacheCursor* cursor = value_16;
+            int32_t value_19 = 0;
+            if (cursor->delimiter == 124) {
+                value_19 = 1;
+            }
+            value_17 = value_19;
+        }
+        value_15 = (value_17 == 0);
+    }
+    bool value_20 = value_15;
+    bool value_21 = value_20;
+    if (!value_21) {
+        uint8_t* value_22 = tag;
+        bool value_23 = zir_f_9e03f7cd143abb1d_strcmp(value_22, compiler_parse_types_ParserCString(StringLiteral("zir"))) != 0;
+        value_21 = value_23;
+    }
+    if (value_21) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        return 0;
+    }
+    uint8_t* digest = compiler_load_cache_field(&(cursor));
+    bool value_24 = digest == ((void *)0);
+    bool value_25 = value_24;
+    if (!value_25) {
+        CacheCursor* value_26 = &(cursor);
+        int32_t value_27 = 0;
+        {
+            CacheCursor* cursor = value_26;
+            int32_t value_29 = 0;
+            if (cursor->delimiter == 10) {
+                value_29 = 1;
+            }
+            value_27 = value_29;
+        }
+        value_25 = (value_27 == 0);
+    }
+    bool value_30 = value_25;
+    if (value_30 || zir_f_9e03f7cd143abb1d_strlen(digest) != (size_t)(64LL)) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        return 0;
+    }
+    for (int64_t i = 0LL; i <= 63LL; i++) {
+        uint8_t digit = digest[i];
+        if (!((digit >= 48 && digit <= 57) || (digit >= 97 && digit <= 102))) {
+            zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+            return 0;
+        }
+        uint8_t* value_31 = &(expected->items[i]);
+        (*value_31) = digit;
+    }
+    uint8_t* value_32 = &(expected->items[64]);
+    (*value_32) = 0;
+    tag = compiler_load_cache_field(&(cursor));
+    bool value_33 = tag == ((void *)0);
+    bool value_34 = value_33;
+    if (!value_34) {
+        CacheCursor* value_35 = &(cursor);
+        int32_t value_36 = 0;
+        {
+            CacheCursor* cursor = value_35;
+            int32_t value_38 = 0;
+            if (cursor->delimiter == 124) {
+                value_38 = 1;
+            }
+            value_36 = value_38;
+        }
+        value_34 = (value_36 == 0);
+    }
+    bool value_39 = value_34;
+    bool value_40 = value_39;
+    if (!value_40) {
+        uint8_t* value_41 = tag;
+        bool value_42 = zir_f_9e03f7cd143abb1d_strcmp(value_41, compiler_parse_types_ParserCString(StringLiteral("rewritten"))) != 0;
+        value_40 = value_42;
+    }
+    if (value_40) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        return 0;
+    }
+    uint8_t* value = compiler_load_cache_field(&(cursor));
+    bool value_43 = value == ((void *)0);
+    bool value_44 = value_43;
+    if (!value_44) {
+        CacheCursor* value_45 = &(cursor);
+        int32_t value_46 = 0;
+        {
+            CacheCursor* cursor = value_45;
+            int32_t value_48 = 0;
+            if (cursor->delimiter == 10) {
+                value_48 = 1;
+            }
+            value_46 = value_48;
+        }
+        value_44 = (value_46 == 0);
+    }
+    if (value_44) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        return 0;
+    }
+    int64_t number = compiler_load_cache_parse_number(value);
+    if (number < 0LL || number > 1LL) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        return 0;
+    }
+    int32_t* value_49 = &(meta->rewritten);
+    (*value_49) = (int32_t)(number);
+    tag = compiler_load_cache_field(&(cursor));
+    bool value_50 = tag == ((void *)0);
+    bool value_51 = value_50;
+    if (!value_51) {
+        CacheCursor* value_52 = &(cursor);
+        int32_t value_53 = 0;
+        {
+            CacheCursor* cursor = value_52;
+            int32_t value_55 = 0;
+            if (cursor->delimiter == 124) {
+                value_55 = 1;
+            }
+            value_53 = value_55;
+        }
+        value_51 = (value_53 == 0);
+    }
+    bool value_56 = value_51;
+    bool value_57 = value_56;
+    if (!value_57) {
+        uint8_t* value_58 = tag;
+        bool value_59 = zir_f_9e03f7cd143abb1d_strcmp(value_58, compiler_parse_types_ParserCString(StringLiteral("using"))) != 0;
+        value_57 = value_59;
+    }
+    if (value_57) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        return 0;
+    }
+    value = compiler_load_cache_field(&(cursor));
+    bool value_60 = value == ((void *)0);
+    bool value_61 = value_60;
+    if (!value_61) {
+        CacheCursor* value_62 = &(cursor);
+        int32_t value_63 = 0;
+        {
+            CacheCursor* cursor = value_62;
+            int32_t value_65 = 0;
+            if (cursor->delimiter == 10) {
+                value_65 = 1;
+            }
+            value_63 = value_65;
+        }
+        value_61 = (value_63 == 0);
+    }
+    if (value_61) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        return 0;
+    }
+    number = compiler_load_cache_parse_number(value);
+    if (number < 0LL || number > 65536LL) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        return 0;
+    }
+    int32_t* value_66 = &(meta->count);
+    (*value_66) = (int32_t)(number);
+    uint8_t** value_67 = &(meta->text);
+    (*value_67) = text;
+    uint8_t** value_68 = &(meta->lines);
+    (*value_68) = cursor.at;
+    return 1;
+}
+
+static int32_t
+compiler_load_frontend_cache_restore_module(ZirModule* module, uint8_t* source, uint8_t* root, uint8_t* text, CacheMeta* meta)
+{
+    uint8_t* previous = zir_f_9e03f7cd143abb1d_CompilerContextSelect((uint8_t*)module->context);
+    uint8_t* value_0 = source;
+    uint8_t* value_1 = text;
+    ZirDocument* value_2 = zir_f_9e03f7cd143abb1d_DocumentRecord(value_0, value_1, zir_f_9e03f7cd143abb1d_strlen(text));
+    if (value_2 == ((void *)0)) {
+        int32_t cleanup_return_0 = 0;
+        zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+        return cleanup_return_0;
+    }
+    const struct ZirDocument ** value_3 = &(module->document);
+    ZirDocument* value_4 = zir_f_9e03f7cd143abb1d_DocumentFind(source);
+    (*value_3) = (const struct ZirDocument *)((uint8_t*)(value_4));
+    if (((uint8_t*)module->document) == ((void *)0)) {
+        int32_t cleanup_return_1 = 0;
+        zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+        return cleanup_return_1;
+    }
+    if (meta->rewritten != 0) {
+        zir_f_9e03f7cd143abb1d_DocumentMarkRewritten(source);
+    }
+    CacheCursor cursor = {.at = meta->lines, .delimiter = 0};
+    {
+        int32_t range_first_16 = 0;
+        int32_t range_last_16 = (int32_t)((uint32_t)(meta->count) - 1u);
+        int32_t i = range_first_16;
+        if (i <= range_last_16) for (;;) {
+            uint8_t* private_text = compiler_load_cache_field(&(cursor));
+            bool value_5 = private_text == ((void *)0);
+            bool value_6 = value_5;
+            if (!value_6) {
+                CacheCursor* value_7 = &(cursor);
+                int32_t value_8 = 0;
+                {
+                    CacheCursor* cursor = value_7;
+                    int32_t value_10 = 0;
+                    if (cursor->delimiter == 124) {
+                        value_10 = 1;
+                    }
+                    value_8 = value_10;
+                }
+                value_6 = (value_8 == 0);
+            }
+            if (value_6) {
+                int32_t cleanup_return_2 = 0;
+                zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+                return cleanup_return_2;
+            }
+            uint8_t* line_text = compiler_load_cache_field(&(cursor));
+            bool value_11 = line_text == ((void *)0);
+            bool value_12 = value_11;
+            if (!value_12) {
+                CacheCursor* value_13 = &(cursor);
+                int32_t value_14 = 0;
+                {
+                    CacheCursor* cursor = value_13;
+                    int32_t value_16 = 0;
+                    if (cursor->delimiter == 124) {
+                        value_16 = 1;
+                    }
+                    value_14 = value_16;
+                }
+                value_12 = (value_14 == 0);
+            }
+            if (value_12) {
+                int32_t cleanup_return_3 = 0;
+                zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+                return cleanup_return_3;
+            }
+            uint8_t* column_text = compiler_load_cache_field(&(cursor));
+            bool value_17 = column_text == ((void *)0);
+            bool value_18 = value_17;
+            if (!value_18) {
+                CacheCursor* value_19 = &(cursor);
+                int32_t value_20 = 0;
+                {
+                    CacheCursor* cursor = value_19;
+                    int32_t value_22 = 0;
+                    if (cursor->delimiter == 124) {
+                        value_22 = 1;
+                    }
+                    value_20 = value_22;
+                }
+                value_18 = (value_20 == 0);
+            }
+            if (value_18) {
+                int32_t cleanup_return_4 = 0;
+                zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+                return cleanup_return_4;
+            }
+            uint8_t* end_line_text = compiler_load_cache_field(&(cursor));
+            bool value_23 = end_line_text == ((void *)0);
+            bool value_24 = value_23;
+            if (!value_24) {
+                CacheCursor* value_25 = &(cursor);
+                int32_t value_26 = 0;
+                {
+                    CacheCursor* cursor = value_25;
+                    int32_t value_28 = 0;
+                    if (cursor->delimiter == 124) {
+                        value_28 = 1;
+                    }
+                    value_26 = value_28;
+                }
+                value_24 = (value_26 == 0);
+            }
+            if (value_24) {
+                int32_t cleanup_return_5 = 0;
+                zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+                return cleanup_return_5;
+            }
+            uint8_t* end_column_text = compiler_load_cache_field(&(cursor));
+            bool value_29 = end_column_text == ((void *)0);
+            bool value_30 = value_29;
+            if (!value_30) {
+                CacheCursor* value_31 = &(cursor);
+                int32_t value_32 = 0;
+                {
+                    CacheCursor* cursor = value_31;
+                    int32_t value_34 = 0;
+                    if (cursor->delimiter == 124) {
+                        value_34 = 1;
+                    }
+                    value_32 = value_34;
+                }
+                value_30 = (value_32 == 0);
+            }
+            if (value_30) {
+                int32_t cleanup_return_6 = 0;
+                zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+                return cleanup_return_6;
+            }
+            uint8_t* filter = compiler_load_cache_field(&(cursor));
+            bool value_35 = filter == ((void *)0) || filter[0] == 0;
+            bool value_36 = value_35;
+            if (!value_36) {
+                CacheCursor* value_37 = &(cursor);
+                int32_t value_38 = 0;
+                {
+                    CacheCursor* cursor = value_37;
+                    int32_t value_40 = 0;
+                    if (cursor->delimiter == 124) {
+                        value_40 = 1;
+                    }
+                    value_38 = value_40;
+                }
+                value_36 = (value_38 == 0);
+            }
+            if (value_36) {
+                int32_t cleanup_return_7 = 0;
+                zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+                return cleanup_return_7;
+            }
+            uint8_t* span_path = compiler_load_cache_field(&(cursor));
+            bool value_41 = span_path == ((void *)0) || span_path[0] == 0;
+            bool value_42 = value_41;
+            if (!value_42) {
+                CacheCursor* value_43 = &(cursor);
+                int32_t value_44 = 0;
+                {
+                    CacheCursor* cursor = value_43;
+                    int32_t value_46 = 0;
+                    if (cursor->delimiter == 124) {
+                        value_46 = 1;
+                    }
+                    value_44 = value_46;
+                }
+                value_42 = (value_44 == 0);
+            }
+            if (value_42) {
+                int32_t cleanup_return_8 = 0;
+                zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+                return cleanup_return_8;
+            }
+            uint8_t* path = compiler_load_cache_field(&(cursor));
+            bool value_47 = path == ((void *)0) || path[0] == 0;
+            bool value_48 = value_47;
+            if (!value_48) {
+                CacheCursor* value_49 = &(cursor);
+                int32_t value_50 = 0;
+                {
+                    CacheCursor* cursor = value_49;
+                    int32_t value_52 = 0;
+                    if (cursor->delimiter == 10) {
+                        value_52 = 1;
+                    }
+                    value_50 = value_52;
+                }
+                value_48 = (value_50 == 0);
+            }
+            if (value_48) {
+                int32_t cleanup_return_9 = 0;
+                zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+                return cleanup_return_9;
+            }
+            int64_t private_value = compiler_load_cache_parse_number(private_text);
+            int64_t line_value = compiler_load_cache_parse_number(line_text);
+            int64_t column_value = compiler_load_cache_parse_number(column_text);
+            int64_t end_line_value = compiler_load_cache_parse_number(end_line_text);
+            int64_t end_column_value = compiler_load_cache_parse_number(end_column_text);
+            if (private_value < 0LL || private_value > 1LL) {
+                int32_t cleanup_return_10 = 0;
+                zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+                return cleanup_return_10;
+            }
+            if (line_value < 0LL || column_value < 0LL || end_line_value < 0LL || end_column_value < 0LL) {
+                int32_t cleanup_return_11 = 0;
+                zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+                return cleanup_return_11;
+            }
+            ZirModule* value_53 = module;
+            uint8_t* value_54 = path;
+            ZirSourceSpan value_55 = zir_f_9e03f7cd143abb1d_SpanEnd(span_path, (int32_t)(line_value), (int32_t)(column_value), (int32_t)(end_line_value), (int32_t)(end_column_value));
+            ZirUsing* using = zir_f_9e03f7cd143abb1d_ModuleAddUsing(value_53, value_54, value_55);
+            if (using == ((void *)0)) {
+                int32_t cleanup_return_12 = 0;
+                zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+                return cleanup_return_12;
+            }
+            zir_f_9e03f7cd143abb1d_copy_text((uint8_t*)(&(using->filter)), (size_t)(((160) * (sizeof(uint8_t)))), filter);
+            int32_t* value_56 = &(using->is_file_private);
+            (*value_56) = (int32_t)(private_value);
+            if (i == range_last_16) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
+    if (cursor.at == ((void *)0) || cursor.at[0] != 0) {
+        int32_t cleanup_return_13 = 0;
+        zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+        return cleanup_return_13;
+    }
+    if (root != ((void *)0)) {
+        uint8_t* canonical_root = zir_f_9e03f7cd143abb1d_CanonicalPath(root);
+        uint8_t* value_57 = (void *)0;
+        if (canonical_root != ((void *)0)) {
+            value_57 = canonical_root;
+        } else {
+            value_57 = root;
+        }
+        zir_f_9e03f7cd143abb1d_copy_text((uint8_t*)(&(module->source_root)), (size_t)(((1024) * (sizeof(uint8_t)))), value_57);
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical_root));
+    }
+    int32_t cleanup_return_14 = 1;
+    zir_f_9e03f7cd143abb1d_CompilerContextSelect(previous);
+    return cleanup_return_14;
+}
+
+static ZirProgram*
+compiler_load_frontend_cache_load(CacheHex* key, uint8_t* source, uint8_t* root, uint8_t* text)
+{
+    CachePath meta_path = {0};
+    CachePath zir = {0};
+    CacheMeta meta = {0};
+    CacheHex expected = {0};
+    CacheHex actual = {0};
+    CacheDigest digest = {0};
+    CacheHash hash = {0};
+    int32_t hashed = 0;
+    void* file = (void *)0;
+    ZirProgram* program = (void *)0;
+    if (compiler_load_cache_entry_path(&(meta_path), key, compiler_parse_types_ParserCString(StringLiteral(".meta"))) == 0) {
+        return (void *)0;
+    }
+    if (compiler_load_cache_entry_path(&(zir), key, compiler_parse_types_ParserCString(StringLiteral(".zfc"))) == 0) {
+        return (void *)0;
+    }
+    if (compiler_load_cache_read_meta(&(meta_path), &(meta), &(expected)) == 0) {
+        return (void *)0;
+    }
+    zir_f_9e03f7cd143abb1d_Sha256Begin((void*)(&(hash)));
+    hashed = compiler_load_cache_hash_file(&(hash), (uint8_t*)(&(zir.items)));
+    zir_f_9e03f7cd143abb1d_Sha256End((void*)(&(hash)), (uint8_t*)(&(digest.bytes)));
+    compiler_load_cache_hex_encode(&(digest), &(actual));
+    if (hashed == 0 || zir_f_9e03f7cd143abb1d_memcmp((void*)(&(expected.items)), (void*)(&(actual.items)), (size_t)(64LL)) != 0) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(meta.text));
+        return (void *)0;
+    }
+    file = zir_f_9e03f7cd143abb1d_CompilerFopen((uint8_t*)(&(zir.items)), compiler_parse_types_ParserCString(StringLiteral("rb")));
+    if (file == ((void *)0)) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(meta.text));
+        return (void *)0;
+    }
+    program = compiler_zir_serial_ProgramReadUnvalidated(file, (uint8_t*)(&(zir.items)));
+    zir_f_9e03f7cd143abb1d_CompilerFclose(file);
+    if (program == ((void *)0)) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(meta.text));
+        return (void *)0;
+    }
+    bool value_0 = program->module_count != 1;
+    if (value_0 || compiler_load_frontend_cache_restore_module(program->modules, source, root, text, &(meta)) == 0) {
+        zir_f_9e03f7cd143abb1d_ProgramFree(program);
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(meta.text));
+        return (void *)0;
+    }
+    zir_f_9e03f7cd143abb1d_CompilerFree((void*)(meta.text));
+    compiler_load_frontend_cache_reset_parsed(program);
+    return program;
+}
+
+static void
+compiler_load_frontend_cache_reset_parsed(ZirProgram* program)
+{
+    {
+        int32_t range_first_0 = 0;
+        int32_t range_last_0 = (int32_t)((uint32_t)(program->module_count) - 1u);
+        int32_t m = range_first_0;
+        if (m <= range_last_0) for (;;) {
+            ZirModule* module = (ZirModule*)(((size_t)(program->modules) + ((size_t)(m) * sizeof(ZirModule))));
+            {
+                int32_t range_first_2 = 0;
+                int32_t range_last_2 = (int32_t)((uint32_t)(module->function_count) - 1u);
+                int32_t f = range_first_2;
+                if (f <= range_last_2) for (;;) {
+                    ZirFunction* function = (ZirFunction*)(((size_t)(module->functions) + ((size_t)(f) * sizeof(ZirFunction))));
+                    int32_t* value_0 = &(function->from_ir);
+                    (*value_0) = 0;
+                    if (f == range_last_2) {
+                        break;
+                    }
+                    f = (int32_t)((uint32_t)f + 1u);
+                }
+            }
+            {
+                int32_t range_first_6 = 0;
+                int32_t range_last_6 = (int32_t)((uint32_t)(module->law_count) - 1u);
+                int32_t l = range_first_6;
+                if (l <= range_last_6) for (;;) {
+                    ZirLaw* law = (ZirLaw*)(((size_t)(module->laws) + ((size_t)(l) * sizeof(ZirLaw))));
+                    if (law->claim != ((void *)0)) {
+                        int32_t* value_1 = &(law->claim->from_ir);
+                        (*value_1) = 0;
+                    }
+                    if (l == range_last_6) {
+                        break;
+                    }
+                    l = (int32_t)((uint32_t)l + 1u);
+                }
+            }
+            {
+                int32_t range_first_12 = 0;
+                int32_t range_last_12 = (int32_t)((uint32_t)(module->proof_count) - 1u);
+                int32_t p = range_first_12;
+                if (p <= range_last_12) for (;;) {
+                    ZirProof* proof = (ZirProof*)(((size_t)(module->proofs) + ((size_t)(p) * sizeof(ZirProof))));
+                    int32_t* value_2 = &(proof->terms.from_ir);
+                    (*value_2) = 0;
+                    if (p == range_last_12) {
+                        break;
+                    }
+                    p = (int32_t)((uint32_t)p + 1u);
+                }
+            }
+            if (m == range_last_0) {
+                break;
+            }
+            m = (int32_t)((uint32_t)m + 1u);
+        }
+    }
+}
+
+static int32_t
+compiler_load_cache_write_meta(CachePath* path, CacheHex* digest, uint8_t* body)
+{
+    void* file = zir_f_9e03f7cd143abb1d_CompilerFopen((uint8_t*)(&(path->items)), compiler_parse_types_ParserCString(StringLiteral("wb")));
+    if (file == ((void *)0)) {
+        return 0;
+    }
+    void* value_0 = file;
+    uint8_t* value_1 = compiler_parse_types_ParserCString(StringLiteral("ziran-frontend-cache 2\nzir|%s\n%s"));
+    int32_t written = zir_f_9e03f7cd143abb1d_fprintf(value_0, value_1, (uint8_t*)(&(digest->items)), body);
+    int32_t closed = zir_f_9e03f7cd143abb1d_CompilerFclose(file);
+    int32_t value_2 = 0;
+    if (written > 0 && closed == 0) {
+        value_2 = 1;
+    }
+    return value_2;
+}
+
+static void
+compiler_load_frontend_cache_discard(void)
+{
+    {
+        int32_t range_first_0 = 0;
+        int32_t range_last_0 = (int32_t)((uint32_t)frontend_cache_pending_count - 1u);
+        int32_t i = range_first_0;
+        if (i <= range_last_0) for (;;) {
+            CachePending* entry = (CachePending*)(((size_t)(frontend_cache_pending) + ((size_t)(i) * sizeof(CachePending))));
+            zir_f_9e03f7cd143abb1d_remove((uint8_t*)(&(entry->tmp.items)));
+            zir_f_9e03f7cd143abb1d_CompilerFree((void*)(entry->meta));
+            uint8_t** value_0 = &(entry->meta);
+            (*value_0) = (void *)0;
+            if (i == range_last_0) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
+    frontend_cache_pending_count = 0;
+}
+
+static void
+compiler_load_frontend_cache_commit(void)
+{
+    if (frontend_cache_diagnostics != 0) {
+        compiler_load_frontend_cache_discard();
+        return;
+    }
+    {
+        int32_t range_first_4 = 0;
+        int32_t range_last_4 = (int32_t)((uint32_t)frontend_cache_pending_count - 1u);
+        int32_t i = range_first_4;
+        if (i <= range_last_4) for (;;) {
+            CachePending* entry = (CachePending*)(((size_t)(frontend_cache_pending) + ((size_t)(i) * sizeof(CachePending))));
+            CachePath zir = {0};
+            CachePath meta = {0};
+            CachePath meta_tmp = {0};
+            CacheSuffix suffix = {0};
+            uint8_t* value_0 = compiler_parse_types_ParserCString(StringLiteral(".%d.meta.tmp"));
+            zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(suffix.items)), (size_t)(sizeof(CacheSuffix)), value_0, zir_f_9e03f7cd143abb1d_getpid());
+            bool value_1 = compiler_load_cache_entry_path(&(zir), &(entry->key), compiler_parse_types_ParserCString(StringLiteral(".zfc"))) == 0;
+            bool value_2 = value_1 || compiler_load_cache_entry_path(&(meta), &(entry->key), compiler_parse_types_ParserCString(StringLiteral(".meta"))) == 0;
+            if (value_2 || compiler_load_cache_entry_path(&(meta_tmp), &(entry->key), (uint8_t*)(&(suffix.items))) == 0) {
+                zir_f_9e03f7cd143abb1d_remove((uint8_t*)(&(entry->tmp.items)));
+                zir_f_9e03f7cd143abb1d_CompilerFree((void*)(entry->meta));
+                uint8_t** value_3 = &(entry->meta);
+                (*value_3) = (void *)0;
+                if (i == range_last_4) {
+                    break;
+                }
+                i = (int32_t)((uint32_t)i + 1u);
+                continue;
+            }
+            if (compiler_load_cache_write_meta(&(meta_tmp), &(entry->digest), entry->meta) == 0) {
+                zir_f_9e03f7cd143abb1d_remove((uint8_t*)(&(entry->tmp.items)));
+                zir_f_9e03f7cd143abb1d_remove((uint8_t*)(&(meta_tmp.items)));
+                zir_f_9e03f7cd143abb1d_CompilerFree((void*)(entry->meta));
+                uint8_t** value_4 = &(entry->meta);
+                (*value_4) = (void *)0;
+                if (i == range_last_4) {
+                    break;
+                }
+                i = (int32_t)((uint32_t)i + 1u);
+                continue;
+            }
+            if (zir_f_9e03f7cd143abb1d_rename((uint8_t*)(&(entry->tmp.items)), (uint8_t*)(&(zir.items))) != 0) {
+                zir_f_9e03f7cd143abb1d_remove((uint8_t*)(&(entry->tmp.items)));
+                zir_f_9e03f7cd143abb1d_remove((uint8_t*)(&(meta_tmp.items)));
+                zir_f_9e03f7cd143abb1d_CompilerFree((void*)(entry->meta));
+                uint8_t** value_5 = &(entry->meta);
+                (*value_5) = (void *)0;
+                if (i == range_last_4) {
+                    break;
+                }
+                i = (int32_t)((uint32_t)i + 1u);
+                continue;
+            }
+            if (zir_f_9e03f7cd143abb1d_rename((uint8_t*)(&(meta_tmp.items)), (uint8_t*)(&(meta.items))) != 0) {
+                zir_f_9e03f7cd143abb1d_remove((uint8_t*)(&(meta_tmp.items)));
+            }
+            zir_f_9e03f7cd143abb1d_CompilerFree((void*)(entry->meta));
+            uint8_t** value_6 = &(entry->meta);
+            (*value_6) = (void *)0;
+            if (i == range_last_4) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
+    frontend_cache_pending_count = 0;
+}
+
+static void
+compiler_load_frontend_cache_store(CacheHex* key, ZirProgram* program)
+{
+    uint8_t* body = compiler_load_frontend_cache_sidecar(program);
+    if (body == ((void *)0)) {
+        return;
+    }
+    CacheSuffix suffix = {0};
+    uint8_t* value_0 = compiler_parse_types_ParserCString(StringLiteral(".%d.tmp"));
+    zir_f_9e03f7cd143abb1d_snprintf((uint8_t*)(&(suffix.items)), (size_t)(sizeof(CacheSuffix)), value_0, zir_f_9e03f7cd143abb1d_getpid());
+    CachePath tmp = {0};
+    if (compiler_load_cache_entry_path(&(tmp), key, (uint8_t*)(&(suffix.items))) == 0) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(body));
+        return;
+    }
+    void* file = zir_f_9e03f7cd143abb1d_CompilerFopen((uint8_t*)(&(tmp.items)), compiler_parse_types_ParserCString(StringLiteral("wb")));
+    if (file == ((void *)0)) {
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(body));
+        return;
+    }
+    int32_t written = compiler_zir_serial_ProgramWriteQuiet(program, file);
+    int32_t closed = zir_f_9e03f7cd143abb1d_CompilerFclose(file);
+    if (written == 0 || closed != 0) {
+        zir_f_9e03f7cd143abb1d_remove((uint8_t*)(&(tmp.items)));
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(body));
+        return;
+    }
+    CacheHash hash = {0};
+    CacheDigest digest = {0};
+    zir_f_9e03f7cd143abb1d_Sha256Begin((void*)(&(hash)));
+    int32_t hashed = compiler_load_cache_hash_file(&(hash), (uint8_t*)(&(tmp.items)));
+    zir_f_9e03f7cd143abb1d_Sha256End((void*)(&(hash)), (uint8_t*)(&(digest.bytes)));
+    if (hashed == 0) {
+        zir_f_9e03f7cd143abb1d_remove((uint8_t*)(&(tmp.items)));
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(body));
+        return;
+    }
+    CachePending* entry = (void *)0;
+    {
+        int32_t range_first_34 = 0;
+        int32_t range_last_34 = (int32_t)((uint32_t)frontend_cache_pending_count - 1u);
+        int32_t i = range_first_34;
+        if (i <= range_last_34) for (;;) {
+            CachePending* existing = (CachePending*)(((size_t)(frontend_cache_pending) + ((size_t)(i) * sizeof(CachePending))));
+            if (zir_f_9e03f7cd143abb1d_strcmp((uint8_t*)(&(existing->key.items)), (uint8_t*)(&(key->items))) == 0) {
+                zir_f_9e03f7cd143abb1d_remove((uint8_t*)(&(existing->tmp.items)));
+                zir_f_9e03f7cd143abb1d_CompilerFree((void*)(existing->meta));
+                entry = existing;
+                break;
+            }
+            if (i == range_last_34) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
+    if (entry == ((void *)0)) {
+        void* value_1 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(frontend_cache_pending), (size_t)(((int32_t)((uint32_t)frontend_cache_pending_count + 1u))) * sizeof(CachePending));
+        CachePending* grown = (CachePending*)(value_1);
+        if (grown == ((void *)0)) {
+            zir_f_9e03f7cd143abb1d_remove((uint8_t*)(&(tmp.items)));
+            zir_f_9e03f7cd143abb1d_CompilerFree((void*)(body));
+            return;
+        }
+        frontend_cache_pending = grown;
+        entry = (CachePending*)(((size_t)(grown) + ((size_t)(frontend_cache_pending_count) * sizeof(CachePending))));
+        uint8_t** value_2 = &(entry->meta);
+        (*value_2) = (void *)0;
+        frontend_cache_pending_count = (int32_t)((uint32_t)frontend_cache_pending_count + 1u);
+    }
+    compiler_load_cache_hex_encode(&(digest), &(entry->digest));
+    CacheHex* value_3 = &(entry->key);
+    (*value_3) = key[0];
+    CachePath* value_4 = &(entry->tmp);
+    (*value_4) = tmp;
+    uint8_t** value_5 = &(entry->meta);
+    (*value_5) = body;
+    if (frontend_cache_exit_registered == 0) {
+        if (zir_f_9e03f7cd143abb1d_atexit(compiler_load_frontend_cache_commit) != 0) {
+            compiler_load_frontend_cache_discard();
+            frontend_cache_state = -1;
+            return;
+        }
+        frontend_cache_exit_registered = 1;
+    }
+    zir_f_9e03f7cd143abb1d_ProfileCount(compiler_parse_types_ParserCString(StringLiteral("frontend_cache_store")));
+}
+
+static ZirProgram*
+compiler_load_frontend_load(LoadContext* context_local, uint8_t* lexical, uint8_t* root, size_t length, uint8_t* canonical)
+{
+    bool value_0 = length > (size_t)(3LL) && zir_f_9e03f7cd143abb1d_strcmp((uint8_t*)(((size_t)(lexical) + (length - (size_t)(3LL)))), compiler_parse_types_ParserCString(StringLiteral(".zi"))) == 0;
+    if (!value_0) {
+        return compiler_zir_serial_ProgramLoad(lexical, root);
+    }
+    uint8_t* text = compiler_load_cache_source_text(lexical, canonical);
+    CacheHex key = {0};
+    if (compiler_load_frontend_cache_prepare(context_local, lexical, canonical, root, text, &(key)) == 0) {
+        ZirProgram* cleanup_return_0 = zir_f_9e03f7cd143abb1d_parse_module_with_imports(lexical, root, (ZirCompileImportResolver)(compiler_load_early_resolve_imports), (void*)(context_local), context_local->defines, context_local->define_count, context_local->site);
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        return cleanup_return_0;
+    }
+    ZirProgram* cached = compiler_load_frontend_cache_load(&(key), lexical, root, text);
+    if (cached != ((void *)0)) {
+        zir_f_9e03f7cd143abb1d_ProfileCount(compiler_parse_types_ParserCString(StringLiteral("frontend_cache_hit")));
+        ZirProgram* cleanup_return_1 = cached;
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        return cleanup_return_1;
+    }
+    zir_f_9e03f7cd143abb1d_ProfileCount(compiler_parse_types_ParserCString(StringLiteral("frontend_cache_miss")));
+    int32_t before = frontend_cache_diagnostics;
+    int32_t resolves = frontend_cache_resolves;
+    ZirProgram* program = zir_f_9e03f7cd143abb1d_parse_module_with_imports(lexical, root, (ZirCompileImportResolver)(compiler_load_early_resolve_imports), (void*)(context_local), context_local->defines, context_local->define_count, context_local->site);
+    if (program == ((void *)0) || program->module_count != 1 || frontend_cache_diagnostics != before) {
+        ZirProgram* cleanup_return_2 = program;
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        return cleanup_return_2;
+    }
+    if (frontend_cache_resolves != resolves) {
+        ZirProgram* cleanup_return_3 = program;
+        zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+        return cleanup_return_3;
+    }
+    compiler_load_frontend_cache_store(&(key), program);
+    ZirProgram* cleanup_return_4 = program;
+    zir_f_9e03f7cd143abb1d_CompilerFree((void*)(text));
+    return cleanup_return_4;
 }

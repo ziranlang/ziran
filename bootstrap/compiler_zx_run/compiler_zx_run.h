@@ -115,6 +115,8 @@ struct ZxModuleLoaderConfig {
     void* resolve_context;
     void* write;
     void* console_context;
+    void* library_grants;
+    size_t library_grant_count;
 };
 #endif
 #ifdef ZIRAN_COMPILER_ZX_RUN_H_PRIVATE

@@ -3308,7 +3308,7 @@ compiler_host_api_ImageClose(ModuleImage* image)
 }
 
 HostBinding*
-compiler_host_api_LibraryBinding(ZxModuleLoader* loader, Bundle* bundle, size_t capability)
+compiler_host_api_LibraryBinding(ZxModuleLoader* loader, Bundle* bundle, size_t capability, uint8_t* name)
 {
     uint8_t* module = BundleCapabilityModule(bundle, capability);
     uint8_t* function = BundleCapabilityFunction(bundle, capability);
@@ -3331,6 +3331,32 @@ compiler_host_api_LibraryBinding(ZxModuleLoader* loader, Bundle* bundle, size_t 
             found = binding;
         }
         i = i + 1;
+    }
+    size_t g = 0;
+    while (g < loader->library_grant_count) {
+        ZxModuleLibraryGrant* grant = &(loader->library_grants[g]);
+        if (compiler_host_api_Same(grant->library, name)) {
+            size_t b = 0;
+            while (b < grant->binding_count) {
+                HostBinding* value_4 = grant->bindings;
+                HostBinding* value_5 = (void *)0;
+                {
+                    HostBinding* bindings = value_4;
+                    size_t index = b;
+                    value_5 = (HostBinding*)(((size_t)(bindings) + (index * sizeof(HostBinding))));
+                }
+                HostBinding* binding = value_5;
+                bool value_7 = compiler_host_api_Same(module, binding->module);
+                if (value_7 && compiler_host_api_Same(function, binding->function)) {
+                    if (found != ((void *)0)) {
+                        return (void *)0;
+                    }
+                    found = binding;
+                }
+                b = b + 1;
+            }
+        }
+        g = g + 1;
     }
     return found;
 }
@@ -3407,7 +3433,7 @@ compiler_host_api_OpenImage(ZxModuleLoader* loader, Bundle* bundle, uint8_t* pat
         bool value_21 = ((BindingKind)(value_19->kind)) == BindingKind_External;
         bool value_22 = value_21;
         if (value_22) {
-            HostBinding* value_23 = compiler_host_api_LibraryBinding(loader, bundle, cap);
+            HostBinding* value_23 = compiler_host_api_LibraryBinding(loader, bundle, cap, name);
             value_22 = (value_23 == ((void *)0));
         }
         if (value_22) {
@@ -3863,7 +3889,7 @@ compiler_host_api_ScopeOpen(ModuleScope* scope, HostBinding* external, size_t ex
             compiler_host_api_BindModuleHost(value_27, value_29, i);
             used = used + 1;
         } else if (image->name != ((void *)0)) {
-            HostBinding* library = compiler_host_api_LibraryBinding(loader, image->bundle, i);
+            HostBinding* library = compiler_host_api_LibraryBinding(loader, image->bundle, i, image->name);
             HostBinding* value_31 = bindings;
             HostBinding* value_32 = (void *)0;
             {
@@ -5025,7 +5051,9 @@ ZxModuleLoaderOpenConfigured(ZxModuleLoaderConfig* config)
     size_t binding_count = config->library_binding_count;
     uint8_t** roots = config->roots;
     HostBinding* bindings = config->library_bindings;
-    if ((count != 0 && roots == ((void *)0)) || (binding_count != 0 && bindings == ((void *)0))) {
+    ZxModuleLibraryGrant* grants = config->library_grants;
+    size_t grant_count = config->library_grant_count;
+    if ((count != 0 && roots == ((void *)0)) || (binding_count != 0 && bindings == ((void *)0)) || (grant_count != 0 && grants == ((void *)0))) {
         return (void *)0;
     }
     size_t i = 0;
@@ -5043,31 +5071,58 @@ ZxModuleLoaderOpenConfigured(ZxModuleLoaderConfig* config)
         }
         i = i + 1;
     }
-    uint8_t* value_3 = zir_f_4e8972c89764e104_calloc(1, sizeof(ZxModuleLoader));
-    ZxModuleLoader* loader = (ZxModuleLoader*)(value_3);
+    size_t g = 0;
+    while (g < grant_count) {
+        ZxModuleLibraryGrant* grant = &(grants[g]);
+        if (grant->library == ((void *)0) || grant->library[0] == 0 || (grant->binding_count != 0 && grant->bindings == ((void *)0))) {
+            return (void *)0;
+        }
+        size_t b = 0;
+        while (b < grant->binding_count) {
+            HostBinding* value_3 = grant->bindings;
+            HostBinding* value_4 = (void *)0;
+            {
+                HostBinding* bindings = value_3;
+                size_t index = b;
+                value_4 = (HostBinding*)(((size_t)(bindings) + (index * sizeof(HostBinding))));
+            }
+            HostBinding* binding = value_4;
+            if (binding->module == ((void *)0) || binding->function == ((void *)0) || binding->call == ((void *)0)) {
+                return (void *)0;
+            }
+            b = b + 1;
+        }
+        g = g + 1;
+    }
+    uint8_t* value_6 = zir_f_4e8972c89764e104_calloc(1, sizeof(ZxModuleLoader));
+    ZxModuleLoader* loader = (ZxModuleLoader*)(value_6);
     if (loader == ((void *)0)) {
         return (void *)0;
     }
-    ZxModuleLoader** value_4 = &(loader->root.loader);
-    (*value_4) = loader;
-    HostBinding** value_5 = &(loader->bindings);
-    (*value_5) = bindings;
-    size_t* value_6 = &(loader->binding_count);
-    (*value_6) = binding_count;
-    BundleInstanceOptions* value_7 = &(loader->options);
-    (*value_7) = config->options;
-    ZxModuleResolve* value_8 = &(loader->resolve);
-    (*value_8) = config->resolve;
-    void** value_9 = &(loader->resolve_context);
-    (*value_9) = config->resolve_context;
-    BundleConsoleWrite* value_10 = &(loader->write);
-    (*value_10) = config->write;
-    void** value_11 = &(loader->console_context);
-    (*value_11) = config->console_context;
+    ZxModuleLoader** value_7 = &(loader->root.loader);
+    (*value_7) = loader;
+    HostBinding** value_8 = &(loader->bindings);
+    (*value_8) = bindings;
+    size_t* value_9 = &(loader->binding_count);
+    (*value_9) = binding_count;
+    ZxModuleLibraryGrant** value_10 = &(loader->library_grants);
+    (*value_10) = grants;
+    size_t* value_11 = &(loader->library_grant_count);
+    (*value_11) = grant_count;
+    BundleInstanceOptions* value_12 = &(loader->options);
+    (*value_12) = config->options;
+    ZxModuleResolve* value_13 = &(loader->resolve);
+    (*value_13) = config->resolve;
+    void** value_14 = &(loader->resolve_context);
+    (*value_14) = config->resolve_context;
+    BundleConsoleWrite* value_15 = &(loader->write);
+    (*value_15) = config->write;
+    void** value_16 = &(loader->console_context);
+    (*value_16) = config->console_context;
     if (count != 0) {
-        uint8_t*** value_12 = &(loader->roots);
-        uint8_t* value_13 = zir_f_4e8972c89764e104_calloc(count, sizeof(void *));
-        (*value_12) = (uint8_t**)(value_13);
+        uint8_t*** value_17 = &(loader->roots);
+        uint8_t* value_18 = zir_f_4e8972c89764e104_calloc(count, sizeof(void *));
+        (*value_17) = (uint8_t**)(value_18);
         if (loader->roots == ((void *)0)) {
             ZxModuleLoaderClose(loader);
             return (void *)0;
@@ -5075,22 +5130,22 @@ ZxModuleLoaderOpenConfigured(ZxModuleLoaderConfig* config)
     }
     while (loader->root_count < count) {
         uint8_t* root = roots[loader->root_count];
-        uint8_t* value_14 = (void *)0;
+        uint8_t* value_19 = (void *)0;
         if (root != ((void *)0) && root[0] != 0) {
-            uint8_t* value_15 = zir_f_4e8972c89764e104_strdup(root);
-            value_14 = value_15;
+            uint8_t* value_20 = zir_f_4e8972c89764e104_strdup(root);
+            value_19 = value_20;
         } else {
-            value_14 = (void *)0;
+            value_19 = (void *)0;
         }
-        uint8_t* copy = value_14;
+        uint8_t* copy = value_19;
         if (copy == ((void *)0)) {
             ZxModuleLoaderClose(loader);
             return (void *)0;
         }
-        uint8_t** value_16 = &(loader->roots[loader->root_count]);
-        (*value_16) = copy;
-        size_t* value_17 = &(loader->root_count);
-        (*value_17) = (*value_17) + 1;
+        uint8_t** value_21 = &(loader->roots[loader->root_count]);
+        (*value_21) = copy;
+        size_t* value_22 = &(loader->root_count);
+        (*value_22) = (*value_22) + 1;
     }
     return loader;
 }

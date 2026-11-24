@@ -7,7 +7,6 @@
 #include "compiler_ir.h"
 #include "compiler_native_names.h"
 #include "compiler_c_emit.h"
-#include "compiler_c_emit_value.h"
 #include "compiler_c_emit_call.h"
 #include "compiler_simd_metadata.h"
 #include "compiler_runtime_emit.h"
@@ -110,7 +109,7 @@ typedef struct ZirParameters ZirParameters;
 typedef struct ZirCPruneModule ZirCPruneModule;
 #endif
 #ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
-typedef struct zir_149d388f1a631637_StaticText zir_149d388f1a631637_StaticText;
+typedef struct zir_f3a2a78778e6e736_StaticText zir_f3a2a78778e6e736_StaticText;
 #endif
 #ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
 typedef struct BodySymbols BodySymbols;
@@ -202,7 +201,7 @@ struct ZirCPruneModule {
 #endif
 #ifdef ZIRAN_COMPILER_C_BACKEND_H_PRIVATE
 
-struct zir_149d388f1a631637_StaticText {
+struct zir_f3a2a78778e6e736_StaticText {
     uint8_t* data;
     size_t length;
 };

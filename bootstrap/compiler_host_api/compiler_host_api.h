@@ -43,6 +43,7 @@ typedef int32_t ImageMark;
 typedef struct ModuleImage ModuleImage;
 typedef struct ModuleService ModuleService;
 typedef struct ZxModuleImage ZxModuleImage;
+typedef struct ZxModuleLibraryGrant ZxModuleLibraryGrant;
 typedef struct BundleInstanceOptions BundleInstanceOptions;
 typedef struct ZxModuleLoaderConfig ZxModuleLoaderConfig;
 typedef struct ModuleFrame ModuleFrame;
@@ -222,6 +223,12 @@ struct ZxModuleImage {
     BundleImageRelease release;
 };
 
+struct ZxModuleLibraryGrant {
+    uint8_t* library;
+    HostBinding* bindings;
+    size_t binding_count;
+};
+
 struct BundleInstanceOptions {
     int32_t backend;
     int32_t max_steps;
@@ -238,6 +245,8 @@ struct ZxModuleLoaderConfig {
     void* resolve_context;
     BundleConsoleWrite write;
     void* console_context;
+    ZxModuleLibraryGrant* library_grants;
+    size_t library_grant_count;
 };
 
 struct ModuleFrame {
@@ -282,6 +291,8 @@ struct ZxModuleLoader {
     size_t root_count;
     HostBinding* bindings;
     size_t binding_count;
+    ZxModuleLibraryGrant* library_grants;
+    size_t library_grant_count;
     BundleInstanceOptions options;
     ZxModuleResolve resolve;
     void* resolve_context;
@@ -1599,7 +1610,7 @@ void compiler_host_api_ReleaseImage(ZxModuleLoader* loader, ZxModuleImage* image
 Bundle* compiler_host_api_VerifyGuestImage(ZxModuleLoader* loader, ZxModuleImage* image, uint8_t* path);
 Bundle* compiler_host_api_ResolveGuestBundle(ZxModuleLoader* loader, uint8_t* name, uint8_t** selected_path);
 void compiler_host_api_ImageClose(ModuleImage* image);
-HostBinding* compiler_host_api_LibraryBinding(ZxModuleLoader* loader, Bundle* bundle, size_t capability);
+HostBinding* compiler_host_api_LibraryBinding(ZxModuleLoader* loader, Bundle* bundle, size_t capability, uint8_t* name);
 ModuleImage* compiler_host_api_OpenImage(ZxModuleLoader* loader, Bundle* bundle, uint8_t* path, uint8_t* name);
 uint8_t* compiler_host_api_ReadModuleFile(uint8_t* path, ptrdiff_t limit, size_t* size);
 Bundle* compiler_host_api_OpenPathBundle(ZxModuleLoader* loader, uint8_t* path, uint8_t* name);
@@ -1774,7 +1785,7 @@ static inline size_t compiler_host_api_FindCapability_ziran_inline(Bundle* bundl
 #define compiler_host_api_FindCapability(...) compiler_host_api_FindCapability_ziran_inline(__VA_ARGS__)
 static inline bool compiler_host_api_HasResolver_ziran_inline(ZxModuleLoader* loader);
 #define compiler_host_api_HasResolver(...) compiler_host_api_HasResolver_ziran_inline(__VA_ARGS__)
-static inline HostBinding* compiler_host_api_LibraryBinding_ziran_inline(ZxModuleLoader* loader, Bundle* bundle, size_t capability);
+static inline HostBinding* compiler_host_api_LibraryBinding_ziran_inline(ZxModuleLoader* loader, Bundle* bundle, size_t capability, uint8_t* name);
 #define compiler_host_api_LibraryBinding(...) compiler_host_api_LibraryBinding_ziran_inline(__VA_ARGS__)
 static inline ModuleImage* compiler_host_api_ResolveImage_ziran_inline(ZxModuleLoader* loader, uint8_t* name);
 #define compiler_host_api_ResolveImage(...) compiler_host_api_ResolveImage_ziran_inline(__VA_ARGS__)
@@ -2292,7 +2303,7 @@ compiler_host_api_HasResolver_ziran_inline(ZxModuleLoader* loader)
 }
 
 static inline HostBinding*
-compiler_host_api_LibraryBinding_ziran_inline(ZxModuleLoader* loader, Bundle* bundle, size_t capability)
+compiler_host_api_LibraryBinding_ziran_inline(ZxModuleLoader* loader, Bundle* bundle, size_t capability, uint8_t* name)
 {
     uint8_t* module = BundleCapabilityModule(bundle, capability);
     uint8_t* function = BundleCapabilityFunction(bundle, capability);
@@ -2315,6 +2326,32 @@ compiler_host_api_LibraryBinding_ziran_inline(ZxModuleLoader* loader, Bundle* bu
             found = binding;
         }
         i = i + 1;
+    }
+    size_t g = 0;
+    while (g < loader->library_grant_count) {
+        ZxModuleLibraryGrant* grant = &(loader->library_grants[g]);
+        if (compiler_host_api_Same(grant->library, name)) {
+            size_t b = 0;
+            while (b < grant->binding_count) {
+                HostBinding* value_4 = grant->bindings;
+                HostBinding* value_5 = (void *)0;
+                {
+                    HostBinding* bindings = value_4;
+                    size_t index = b;
+                    value_5 = (HostBinding*)(((size_t)(bindings) + (index * sizeof(HostBinding))));
+                }
+                HostBinding* binding = value_5;
+                bool value_7 = compiler_host_api_Same(module, binding->module);
+                if (value_7 && compiler_host_api_Same(function, binding->function)) {
+                    if (found != ((void *)0)) {
+                        return (void *)0;
+                    }
+                    found = binding;
+                }
+                b = b + 1;
+            }
+        }
+        g = g + 1;
     }
     return found;
 }

@@ -652,8 +652,6 @@ compiler_check_types_CheckSet3_ziran_inline(size_t* p, size_t value)
 static inline int32_t
 compiler_check_types_CheckPre4_ziran_inline(int32_t* p)
 {
-    int32_t old = p[0];
-    (void)old;
     int32_t* value_0 = &(p[0]);
     (*value_0) = (int32_t)((uint32_t)(p[0]) - 1u);
     return p[0];
@@ -738,8 +736,6 @@ compiler_check_types_CheckSet13_ziran_inline(uint8_t* p, uint8_t value)
 static inline int32_t
 compiler_check_types_CheckPre14_ziran_inline(int32_t* p)
 {
-    int32_t old = p[0];
-    (void)old;
     int32_t* value_0 = &(p[0]);
     (*value_0) = (int32_t)((uint32_t)(p[0]) + 1u);
     return p[0];

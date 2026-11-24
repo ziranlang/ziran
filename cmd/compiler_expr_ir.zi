@@ -142,11 +142,11 @@ ExprStructureFunction :: (fn: *IR.ZirFunction, module: *IR.ZirModule) {
         }
         if parts.assignment.count != 0 {
             unused IR.CopyText(statement.assignment_op[:], parts.assignment)
-            statement.lhs_root = ParseSourceExpr(fn, module, parts.lhs, statement.span, "", i, 0)
+            statement.lhs_root = ParseSourceExpr(fn, module, parts.lhs, PartSpan(text, parts.lhs, statement.span), "", i, 0)
         }
         if parts.has_value {
             expected := ifx statement.kind == IR.ZirStmtKind.DECL then IR.CText(statement.type) else ""
-            statement.expr_root = ParseSourceExpr(fn, module, parts.value, statement.span, expected, i, 0)
+            statement.expr_root = ParseSourceExpr(fn, module, parts.value, PartSpan(text, parts.value, statement.span), expected, i, 0)
         }
     }
 }
@@ -245,6 +245,18 @@ ByteIndex :: (text: string, wanted: u8) -> s64 {
 }
 HasPrefix :: (text: string, prefix: string) -> bool {
     return text.count >= prefix.count && text[0:prefix.count] == prefix
+}
+// The span where PART, a view into a statement's TEXT, starts: expression
+// columns count from there, as in `t := TextTrim(42)`.
+PartSpan :: (text: string, part: string, span: IR.ZirSourceSpan) -> IR.ZirSourceSpan {
+    if part.count == 0 || span.line <= 0 || span.column <= 0 { return span }
+    offset := cast(s64)(cast(usize)ExprCString(part) - cast(usize)ExprCString(text))
+    if offset <= 0 || offset > text.count { return span }
+    result := span
+    for i: 0..offset - 1 {
+        if text[i] == 10 { result.line += 1; result.column = 1 } else { result.column += 1 }
+    }
+    return result
 }
 TrimExpression :: (text: string) -> string {
     range := Text.TrimRange(text)

@@ -1251,7 +1251,10 @@ write_expression_text :: (out: *Writer, expression: *IR.ZirExpr) -> s32 {
     best_owner: s32 = (-1)
     best_bias: s64 = cast(s64)(0)
     best_cost: usize = (cast(usize)-1)
-    if ((function != cast(*IR.ZirFunction)((null))) && (size <= cast(usize)((2147483647)))) {
+    // A literal's text is a value, not diagnostic text: sharing its bytes with
+    // the statement text would let an edit of that text change the program.
+    literal: s32 = cast(s32)(((cast(s32)((expression).kind) == cast(s32)(2)) || (cast(s32)((expression).kind) == cast(s32)(3))) || (cast(s32)((expression).kind) == cast(s32)(4)))
+    if ((literal == 0) && ((function != cast(*IR.ZirFunction)((null))) && (size <= cast(usize)((2147483647))))) {
         index: s32 = cast(s32)(((cast(isize)(cast(usize)(expression) - cast(usize)((function).exprs)) / cast(isize)size_of(IR.ZirExpr))))
         candidates: ParserArray2_s32 = .{items = .{(ifx ((out).owners != null) then ((out).owners)[index] else (-1)), (out).last_owner}}
         {

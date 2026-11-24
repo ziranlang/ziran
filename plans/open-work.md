@@ -48,7 +48,6 @@ line when the work lands. Keep detail in the referenced plan.
   `MachineVerify::DirectProven` stays conservative; test with
   `tests/proven_pointer_cases.zi`, `tests/guarded_index_ranges.sh`,
   `tests/trust_boundary_cases.zi`.
-- Exact caret columns inside a declaration's value: re-land the PartSpan span change (reverted in 527c3d0b) once the saved-IR codec stores literal values instead of reparsing statement-text slices.
 - Check control: one documented switch builds the most thorough program
   (runtime checks plus every optional compile-time verification) and another
   the quickest build (skipping optional verification such as inter-pass

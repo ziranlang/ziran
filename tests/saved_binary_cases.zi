@@ -43,15 +43,15 @@ SavedBinaryHeader :: (test: *NativeTest) -> bool {
     return BinaryIRHeader(test, NativeRead(test, CheckPath(test.work, "ir/hello.zir")))
 }
 
-// Each expression's text is a slice of its statement's saved text, so the
-// literal of examples/hello.zi is saved once, and the listing names it on
-// the statement and as the literal's value.
+// A literal's value is saved on its own instead of sharing the statement's
+// source slice, so the literal of examples/hello.zi is saved on the statement
+// and as its own value, and the listing names both.
 SavedBinaryExpressionText :: (test: *NativeTest) -> bool {
     output := CheckPath(test.work, "example-ir"); path := CheckPath(output, "hello.zir")
     build := string.[test.ziran, "ir", "--root", CheckPath(test.repo, "examples"), "--entry", "hello:main", "-o", output, CheckPath(test.repo, "examples/hello.zi")]
     unused NativeRun(test, build[:])
     if test.failed { return false }
-    if !NativeAssert(test, BinaryOccurrences(NativeRead(test, path), "Hello, World!") == 1, "the hello literal must be saved once") { return false }
+    if !NativeAssert(test, BinaryOccurrences(NativeRead(test, path), "Hello, World!") == 2, "the hello literal must be saved on its statement and as its value") { return false }
     inspect := string.[test.ziran, "inspect", path]
     listing := NativeRun(test, inspect[:])
     if test.failed { return false }

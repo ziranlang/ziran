@@ -41,7 +41,7 @@ that remapping include it explicitly.
 
 ## Current state
 
-`cmd/zir` no longer exists. Every host file moved here: `zir_memory.c`,
+Every host file lives here: `zir_memory.c`,
 `zir_services.c`, `zir_atomics.c`, `zir_diagnostic_host.c`,
 `zir_command_host.c`, `zir_edit_host.c`, `zir_files_host.c`,
 `zir_sha256_host.c`, `zir_native_memory.c`, `zir_persistence_host.c`,

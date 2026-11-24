@@ -101,8 +101,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     Put(*report, root, "runtime_archive_sha256", library)
     Put(*report, root, "runner_sha256", Hash(runner, repo))
     source_hashes := JsonNewObject(*report)
-    source_paths: [5]string = .["cmd/zir/zir_vm_eval.c", "cmd/zir/zir_vm_run.c",
-        "cmd/zir/zir_vm_internal.h", "bench/site_target_host.c", "bench/zx_execution.zi"]
+    source_paths: [2]string = .["bench/site_target_host.c", "bench/zx_execution.zi"]
     for path: source_paths { Put(*report, source_hashes, path, Hash(path, repo)) }
     JsonSet(*report, root, "source_sha256", source_hashes)
     results := JsonNewArray(*report)

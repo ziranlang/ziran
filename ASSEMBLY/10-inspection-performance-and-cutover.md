@@ -1,6 +1,6 @@
 # Step 10 — Complete inspectability, validate performance, and cut over
 
-Status: in progress; [lowered instruction dumps, optimization counters and bounded native byte-range maps](README.md). Complete pipeline inspection, profiling, performance validation and cutover remain pending. Depends on all preceding steps. This is the only step that may declare the complete upgrade finished.
+Status: in progress; [lowered instruction dumps, optimization counters and bounded native byte-range maps](README.md), Linux `.eh_frame` with PT_GNU_EH_FRAME and x64 PE unwind data ([machine_elf.sh](../tests/machine_elf.sh), [`compiler_machine_elf.zi`](../cmd/compiler_machine_elf.zi)), `zx2native --emit perf-map`, and JITDUMP publication under `ZIRAN_JIT_DUMP` ([native_load.sh](../tests/native_load.sh)). Complete pipeline inspection, profiling, performance validation and cutover remain pending. Depends on all preceding steps. This is the only step that may declare the complete upgrade finished.
 
 ## Objective
 
@@ -8,7 +8,7 @@ Make bottlenecks traceable from source to executed instructions, validate the co
 
 ## Existing integration points
 
-- [Inspection command](../cmd/inspect.zi), [compiler profiling](../cmd/zir/zir_profile.h), and [package explain](../cmd/package_explain.zi).
+- [Inspection command](../cmd/inspect.zi), [compiler profiling](../bootstrap/runtime/zir_profile.h), and [package explain](../cmd/package_explain.zi).
 - [Compiler command](../cmd/package_entry.zi), [compile-command reporting](../cmd/package_compile_commands.zi), and [feature reporting](../cmd/package_features.zi).
 - [Check discovery](../tests/check_plan.zi), [build/test rules](../Makefile), and [benchmark instructions](../bench/README.md).
 - [Architecture](../docs/ARCHITECTURE.md), [ZIR](../docs/ZIR.md), [ZX](../docs/ZX.md), [usage](../docs/USAGE.md), and [implementation status](../docs/IMPLEMENTATION_STATUS.md).
@@ -17,15 +17,15 @@ Proposed modules: `cmd/compiler_inspect_exec.zi`, `cmd/compiler_debug_map.zi`, a
 
 ## Inspectability deliverables
 
-- [ ] Provide deterministic dumps for ZIR, initial portable IR, optimized portable IR, selected machine IR, allocated machine IR, assembly, object metadata, link map, and final executable disassembly.
+- [ ] Provide deterministic dumps for ZIR, initial portable IR, optimized portable IR, selected machine IR, allocated machine IR, assembly, object metadata, link map, and final executable disassembly. Landed slice: `ziran ir` writes canonical saved ZIR ([zx_executable.sh](../tests/zx_executable.sh) byte-identical source/saved output), `zi2zx --emit lir` with/without `--opt` prints initial and optimized LIR with deterministic counters ([vscode-inspection.md](vscode-inspection.md) artifact set), machine-IR text views are deterministic ([machine_ir_cases.zi](../tests/machine_ir_cases.zi)), and `zx2native --emit map` plus the objdump inspection flow publish object/section/symbol maps and final-ELF disassembly ([machine_elf.sh](../tests/machine_elf.sh)). Selected/allocated machine-IR dumps in the CLI pipeline and an internal encoder-record listing remain open.
 - [ ] Map source spans and inline/generic origin chains to instructions, addresses, symbols, and stack locations. Preserve many-to-many mappings when optimization combines or duplicates operations.
 - [ ] Explain eliminated checks, folded expressions, inlining decisions, missed vectorization, dispatch selection, spills/reloads, frame sizes, call sites, and linker-generated stubs/padding.
 - [ ] Produce human-readable output and structured JSON for each stage. Large programs support bounded function/block/address selection; tools must not require dumping an entire binary to inspect one function.
 - [ ] Keep assembly/listing output tied to the actual encoder and final disassembly tied to actual bytes, including relocated addresses. Label estimated costs separately from measured costs.
 - [ ] Generate source/line and unwind metadata suitable for platform debuggers and profilers. Register JIT functions and address ranges where supported, unregister on retirement, and keep sampled addresses attributable after code moves/unloads.
-- [ ] On Linux, integrate available `perf`/JIT symbol-map facilities; supply the corresponding supported mechanisms on other maintained platforms. Record missing hardware counters explicitly rather than fabricating cycle data.
+- [ ] On Linux, integrate available `perf`/JIT symbol-map facilities; supply the corresponding supported mechanisms on other maintained platforms. Record missing hardware counters explicitly rather than fabricating cycle data. Landed slice: the in-process native loader publishes each instance's loaded code as a JITDUMP file under `ZIRAN_JIT_DUMP` (one JIT_CODE_LOAD record per function extent, written before the code runs), tested in `tests/native_load.sh`. AOT executables keep their function symbols; native block/instruction attribution remains through `zx2native --emit map`.
 - [ ] Attribute samples to functions, instructions, inline frames, CPU variants, and host bridges. Report hot-path execution, spills, cache/branch evidence, and host-call overhead only when measured data supports the claim.
-- [ ] Make stripped and debug artifacts share an explicit build identity and compatible sidecar maps. Inspection output must state the code identity, target, variant, optimization policy, and whether addresses describe AOT or loaded code.
+- [ ] Make stripped and debug artifacts share an explicit build identity and compatible sidecar maps. Inspection output must state the code identity, target, variant, optimization policy, and whether addresses describe AOT or loaded code. Landed slice: the optional debug attachment binds to the program section's identity and is refused on mismatch ([`compiler_exec_debug.zi`](../cmd/compiler_exec_debug.zi), [executable_bundle_cases.zi](../tests/executable_bundle_cases.zi)), and the inspection flow verifies the map names the exact ELF it disassembles ([vscode-inspection.md](vscode-inspection.md)). A unified identity statement across stripped/debug artifacts remains open.
 
 ## Correctness and integration closure
 

@@ -4,8 +4,7 @@ Status: implemented for Linux x86-64 SysV as the verified pre-allocation boundar
 current lowered-IR subset, deterministic [register allocation](#register-allocation), a
 separate allocated-program verifier, and a [direct x86-64 encoder](#machine-code-encoder)
 that turns a verified allocated program into an in-memory code image with relocations.
-`zx2native` selects this encoder for its only native executable path; a native ZX loader
-remains unsupported. The implemented native call ABI is general-register only; float and
+`zx2native` selects this encoder for its native executable path, and the same pipeline compiles verified ZX for the in-process loader on linux-x86_64, linux-aarch64 and linux-armv7 ([`zir_host_native.c`](../bootstrap/runtime/zir_host_native.c), [native_load.sh](../tests/native_load.sh)). The implemented native call ABI is general-register only; float and
 vector call arguments and results and stack-passed arguments are [unsupported
 forms](#supported-call-forms) that fail with a stable diagnostic.
 
@@ -256,7 +255,9 @@ no generated C, external assembler, C compiler or system linker. `zx2native` use
 machine-IR path: it lowers verified ZX through the machine pipeline, writes the resulting
 Linux x86-64 image as an ELF executable, and never reroutes unsupported forms to another
 engine. Source and saved `.zir` first go through optimized ZX serialization and
-verification. In-memory native ZX loading and runtime cutover remain milestone M3.
+verification. In-memory native ZX loading has run through this pipeline since
+milestone M3 (landed 2026-11-15) on the Linux rows; the full registry cutover
+per [step 07](07-architecture-and-platform-coverage.md) stays open.
 
 The C target (generated C compiled by a C toolchain) and the Go target (generated Go built
 by the Go toolchain) also produce runnable binaries, but they are separate exporters with
@@ -274,7 +275,7 @@ env -u DISPLAY -u WAYLAND_DISPLAY HARMONY_DESKTOP_RECOVERY=0 \
 env -u DISPLAY -u WAYLAND_DISPLAY HARMONY_DESKTOP_RECOVERY=0 \
   build-queue -- make CHECK_FILTER=x86_encoder check
 env -u DISPLAY -u WAYLAND_DISPLAY HARMONY_DESKTOP_RECOVERY=0 \
-  build-queue -- sh tests/regalloc.sh build/bin/ziran
+  build-queue -- make CHECK_FILTER=regalloc check
 ```
 
 The machine-IR fixture checks target descriptions, real LIR lowering, ABI constraints, owned

@@ -48,14 +48,14 @@ Assembly listings are views of the instruction stream used for encoding, not a r
 ## Current repository boundaries
 
 - [The shared IR schema](../cmd/compiler_ir.zi) represents typed statements, expression graphs, declarations, source spans, laws, and proofs.
-- [The ZX container](../cmd/compiler_bundle.zi) packages verified instructions, assets and the host interface; [the embedding API](../cmd/zir/zir_host.c) runs them on [the portable instruction engine](../cmd/compiler_exec.zi).
+- [The ZX container](../cmd/compiler_bundle.zi) packages verified instructions, assets and the host interface; [the embedding API](../include/ziran_host.h) runs them on [the portable instruction engine](../cmd/compiler_exec.zi).
 - [The architecture contract](../docs/ARCHITECTURE.md) changes only after replacement paths are verified.
 - Current working-tree changes belong to their existing tasks. Record a baseline and coordinate overlapping files before implementation; never absorb unrelated changes into this feature.
 
 ## Required decisions and deliverables
 
 - [x] Create a [feature-by-target matrix](feature-matrix.md) from current compiler capability reporting, tests, and documented limitations. Name each feature, reference fixture, source/saved-IR behavior, portable behavior, native behavior, and required execution platform.
-- [ ] Separate portable language behavior, native language extensions, CPU requirements, OS services, and foreign-runtime requirements. A Go-only foreign type does not become a portable native type by renaming its representation.
+- [x] Separate portable language behavior, native language extensions, CPU requirements, OS services, and foreign-runtime requirements. A Go-only foreign type does not become a portable native type by renaming its representation. (Implemented: the [feature matrix](feature-matrix.md) separates portable behavior from native extensions and foreign runtimes, the [execution contract](execution-contract.md) layers portable/target/host concerns, the [gap policy](gap-policy.md) keeps host capabilities distinct from CPU features, and [`cmd/compiler_target.zi`](../cmd/compiler_target.zi) rows carry per-OS executable/loader notes; [target_diagnostics.sh](../tests/target_diagnostics.sh) and [compiler_inventory_cases.zi](../tests/compiler_inventory_cases.zi) retain the Go-foreign-type rejection.)
 - [ ] Set the native language coverage target to all currently supported C-native language semantics, plus all currently supported portable ZX semantics. Keep C and Go output available. List legitimate target-specific exclusions explicitly.
 - [x] Cover the maintained Linux, Android, Windows, macOS, and browser/WebAssembly combinations. Derive exact CPU/OS/ABI rows from the live toolchain and repository; include existing 32-bit ARM support. New architectures such as RISC-V are explicit extensions, not an unbounded definition of completion. The [target registry](07-architecture-and-platform-coverage.md#target-registry-and-preflight) lists every row.
 - [x] Specify numeric behavior, memory and pointer rules, ownership, cleanup, initialization, traps, call order, concurrency, fuel checkpoints, and capability contracts before assigning opcodes: the [execution contract](execution-contract.md).
@@ -66,7 +66,11 @@ Assembly listings are views of the instruction stream used for encoding, not a r
 - [x] Record that cross-compilation, successful encoding, a child-agent receipt, or a saved benchmark report does not establish target execution correctness.
 - [ ] Assign every non-Implemented matrix cell a stable Gap diagnostic or a
   deliberate Excluded contract. Verify rejection before output replacement,
-  initialization, host calls or entry execution.
+  initialization, host calls or entry execution. Doubt recorded: the direct
+  target rejects GPU statements with the generic `assembly.lower` diagnostic
+  (`Fail` in [`compiler_zir_lower.zi`](../cmd/compiler_zir_lower.zi)), not a
+  dedicated `assembly.gap.*` code, so not every unimplemented cell yet has a
+  stable assembly gap identifier.
 - [x] Make engine and target selection explicit. Portable, native, Wasm, C and
   Go are separate contracts; none may rescue another after preflight fails.
 

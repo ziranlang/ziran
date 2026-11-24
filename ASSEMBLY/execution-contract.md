@@ -19,7 +19,7 @@ The backend APIs remain distinct: verify portable program, describe target, buil
 
 ## Numeric and scalar semantics
 
-Current fixed integer types are `s8`, `u8`, `s16`, `u16`, `s32`, `u32`, `s64`, and `u64`. Abstract `int`/`integer` and pointer-sized `isize`/`usize` arithmetic use the 64-bit signed/unsigned operation policy on the portable target (matching `size_of(isize) == size_of(usize) == 8`). Bit representations, rather than host signed arithmetic, define operations; [scalar helpers](../cmd/zir/zir_scalar.h) mask to the declared width and reinterpret signed payloads.
+Current fixed integer types are `s8`, `u8`, `s16`, `u16`, `s32`, `u32`, `s64`, and `u64`. Abstract `int`/`integer` and pointer-sized `isize`/`usize` arithmetic use the 64-bit signed/unsigned operation policy on the portable target (matching `size_of(isize) == size_of(usize) == 8`). Bit representations, rather than host signed arithmetic, define operations; [scalar helpers](../bootstrap/runtime/zir_scalar.h) mask to the declared width and reinterpret signed payloads.
 
 - Addition, subtraction, multiplication, signed negation/overflow, and unsigned wraparound wrap at the operand width. Unsigned intermediates are used on all targets so C behavior is defined.
 - Signed minimum divided by `-1` wraps to itself; its remainder is zero. Integer division or remainder by zero is a failed execution/trap, not undefined behavior.
@@ -75,7 +75,7 @@ Runtime failures stop the current run and leave the instance marked failed: out-
 
 Required host services are capability identities, not dynamic imports: module/function pairs with checked ABI and argument-read/effect metadata. A provider check must reject an unsupported program without running initializers, opening a window, or executing the entry. Missing bindings fail before entry. Validated native code is **not an operating-system sandbox**: malformed-input rejection and capability restrictions do not confine memory, syscalls, signals, or bugs in linked OS libraries. Untrusted execution still requires a process or comparable OS boundary.
 
-There is no native ZX engine yet. Every `.zx` runs on the portable instruction engine, or on the WebAssembly tier where a provider is installed; a tier that cannot run a program fails instantiation and never starts another. The planned direct native backend must preserve the same failure and capability model.
+A native ZX backend now exists: `ziran run`/`zi2zx run` execute verified ZX through the in-process native loader on linux-x86_64, linux-aarch64 and linux-armv7, and select the portable instruction engine explicitly elsewhere ([`zir_host_native.c`](../bootstrap/runtime/zir_host_native.c), [native_load.sh](../tests/native_load.sh)); the WebAssembly tier runs where a provider is installed. A tier that cannot run a program fails instantiation and never starts another; nothing falls back after a native gap. The loader preserves the same failure and capability model.
 
 ## Debug and release policy
 

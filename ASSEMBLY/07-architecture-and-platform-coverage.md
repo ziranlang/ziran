@@ -1,6 +1,6 @@
 # Step 07 — Complete architecture, ABI, and platform coverage
 
-Status: planned. Depends on [step 06](06-optimization-and-native-backend.md). Coordinates with [encoding/linking](08-assembler-objects-and-linker.md) and [runtime integration](09-native-runtime-and-integration.md).
+Status: in progress. The x86-64 and ARM (ARMv7/AArch64) rows have direct ELF writers and native in-process loading on the Linux rows, while every row is still a Gap until its gate passes with fresh execution evidence. Depends on [step 06](06-optimization-and-native-backend.md). Coordinates with [encoding/linking](08-assembler-objects-and-linker.md) and [runtime integration](09-native-runtime-and-integration.md).
 
 ## Objective
 
@@ -8,8 +8,8 @@ Run one portable executable program across the maintained platform matrix while 
 
 ## Existing integration points
 
-- [Wasm lowering of verified ZX](../cmd/compiler_zx_wasm.zi) and [wasm bundle integration](../cmd/zir/zir_zx_wasm.c).
-- [Browser execution integration](../cmd/zir/zir_zx_wasm_web.c).
+- [Wasm lowering of verified ZX](../cmd/compiler_zx_wasm.zi) and [wasm bundle integration](../bootstrap/runtime/zir_zx_wasm_install.c).
+- [Browser execution integration](../bootstrap/runtime/zir_zx_wasm_web.c).
 - [Target diagnostics](../tests/target_diagnostics.sh), [ARM/CPU feature tests](../tests/assembly_features.sh), and [wasm tests](../tests/zx_wasm.sh).
 - [Platform and runtime coverage documentation](../docs/IMPLEMENTATION_STATUS.md).
 
@@ -55,13 +55,22 @@ Implemented row passes. `ziran capabilities --json` prints the registry as
 | `wasm32-browser`, `wasm32-wasi` | Wasm | Gap | `assembly.gap.target-unimplemented` | M4 |
 
 No general registry row is Implemented yet. Linux x86-64 machine IR,
-allocation, encoding and opt-in ELF output exist, but the native ZX loader and
-runtime cutover are open, so that row stays a Gap until its M2–M3 gate passes; a partial stage
-such as `TargetMachineLoweringSupported` never implements a row. The
+allocation and encoding exist, `zx2native` writes static ELFs for
+`x86_64-linux`, `armv7-linux`, `armv7-android`, `aarch64-linux` and
+`aarch64-android` ([`compiler_machine_elf.zi`](../cmd/compiler_machine_elf.zi),
+[`compiler_aarch64_elf.zi`](../cmd/compiler_aarch64_elf.zi),
+[`compiler_armv7_elf.zi`](../cmd/compiler_armv7_elf.zi)) and a PE32+ `.exe` for
+`x86_64-windows` ([`compiler_machine_pe.zi`](../cmd/compiler_machine_pe.zi)), and
+`zi2zx run`/`ziran run` load and execute bundles natively in process by default
+on linux-x86_64, linux-aarch64 and linux-armv7
+([`zir_host_native.c`](../bootstrap/runtime/zir_host_native.c),
+[native_load.sh](../tests/native_load.sh)), with nothing falling back to the
+engine. Rows stay Gap until each one's milestone gate passes with fresh
+execution evidence; a partial stage such as
+`TargetMachineLoweringSupported` never implements a row. The
 `zx2native --target ARCH --platform OS`
 selector implements the rows whose registry entry names an `executable`
-container: `x86_64-linux` writes an ELF and `x86_64-windows` a PE32+ `.exe`
-([`compiler_machine_pe.zi`](../cmd/compiler_machine_pe.zi)). A Linux
+container. A Linux
 registration may also name an `ar(1)` archive of ELF64 x86-64 objects; the
 executable links the members its capabilities reach and stays static
 ([`compiler_x86_archive.zi`](../cmd/compiler_x86_archive.zi)), and anything

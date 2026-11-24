@@ -1,6 +1,6 @@
 # Step 04 — Execute the portable instruction set directly
 
-Status: in progress; the [isolated verified-LIR engine](portable-execution.md) executes the current verifier-supported subset through `zi2zx run`. Full memory, host-capability, lifecycle/state and target integration remain required. Depends on [steps 02](02-lowered-ir-and-verifier.md) and [03](03-language-lowering.md). Next: [ZX container integration](05-zx-format-and-linking.md).
+Status: in progress; the [isolated verified-LIR engine](portable-execution.md) executes the current verifier-supported subset through `zi2zx run`, with per-instance state, host bindings, fuel, replacement and retirement implemented. Nested host-to-bundle calls, reentrancy, SIMD/parallel dispatch, snapshots/migration and the remaining memory coverage stay open. Depends on [steps 02](02-lowered-ir-and-verifier.md) and [03](03-language-lowering.md). Next: [ZX container integration](05-zx-format-and-linking.md).
 
 ## Objective
 
@@ -12,15 +12,16 @@ reconstruct source statements during execution.
 
 ## Existing integration points
 
-- [Host-value translation](../cmd/zir/zir_host_exec.c) and [the embedding API](../cmd/zir/zir_host.c).
+- [Host-value translation](../bootstrap/runtime/zir_host_exec.h) and [the embedding API](../include/ziran_host.h).
 - [Portable execution contract](../docs/ZX.md).
 
 Implemented module: `cmd/compiler_exec.zi`. Its immutable storage plan now keeps
 scalars in word slots and aliases a dead aggregate source to its `Insert` result
 only when a complete use count proves the source has no other consumer.
-Proposed additional modules: `cmd/compiler_exec_memory.zi` and
-`cmd/compiler_exec_host.zi`. Keep required embedding exports at the existing C
-API boundary. Current source/saved-IR and serialized-instruction tests cover
+Instance lifecycle lives in `cmd/compiler_zx_exec_instance.zi`; proposed
+additional modules `cmd/compiler_exec_memory.zi` and `cmd/compiler_exec_host.zi`
+remain targets for the open memory and host-adapter work. Keep required
+embedding exports at the existing C API boundary. Current source/saved-IR and serialized-instruction tests cover
 scalar/aggregate operations, direct/indirect calls, instance globals, explicit
 frames, budgets and structured traps; they do not establish completion of every
 item below.
@@ -52,15 +53,20 @@ item below.
   Scalar, structural byte-view and pointer-free record/fixed-array calls now use
   validated adapters. Nested host-to-bundle calls, reentrancy and native host
   trampolines remain open.
-- [ ] Specify and implement fuel at stable semantic checkpoints. Optimizations must preserve when exhaustion becomes observable, especially relative to host side effects and traps. Any batched charging requires a proof that timing is equivalent.
+- [x] Specify and implement fuel at stable semantic checkpoints. Optimizations must preserve when exhaustion becomes observable, especially relative to host side effects and traps. Any batched charging requires a proof that timing is equivalent. (`Fuel` instructions charge function entries and loop iterations with batched region charging proven order-equivalent ([execution-contract.md](execution-contract.md), [`compiler_exec.zi`](../cmd/compiler_exec.zi)); no optimizer pass changes Fuel order or count ([`compiler_opt.zi`](../cmd/compiler_opt.zi)); [compiler_opt_cases.zi](../tests/compiler_opt_cases.zi), [bundle_step_limit.sh](../tests/bundle_step_limit.sh) and [lowered_exec_cases.zi](../tests/lowered_exec_cases.zi) retain it.)
 - [ ] Implement portable SIMD lane behavior and legal parallel runtime operations without assuming native vector instructions or a host thread count.
-- [ ] Keep execution state, host bindings, error state, and mutable globals per instance. Exercise simultaneous instances, nested calls, replacement, and retirement.
+- [x] Keep execution state, host bindings, error state, and mutable globals per instance. Exercise simultaneous instances, nested calls, replacement, and retirement. (Per-instance storage, host bindings and error state in [`compiler_zx_exec_instance.zi`](../cmd/compiler_zx_exec_instance.zi) and [`compiler_exec.zi`](../cmd/compiler_exec.zi); instance isolation, provenance and nested-call limits retained in [lowered_exec_cases.zi](../tests/lowered_exec_cases.zi), replacement/retirement in [zx_web_lifecycle.sh](../tests/zx_web_lifecycle.sh).)
 - [ ] Preserve snapshot/state migration semantics and library composition. Stable persistent identities must survive harmless instruction ordering changes without equating unrelated layouts.
-- [ ] Make debug stepping instruction-based with source mappings and inspectable value slots. Avoid debug-only execution semantics that hide release-mode defects.
-- [ ] Retain any existing `.zir` evaluator needed for compile-time execution, laws, or tooling until those consumers are deliberately migrated. Removing ZX dependence does not authorize deleting unrelated evaluator services.
-- [ ] Reject every unsupported portable opcode/capability with its stable Gap
+- [ ] Make debug stepping instruction-based with source mappings and inspectable value slots. Avoid debug-only execution semantics that hide release-mode defects. Landed slice: the optional debug attachment restores source/line origins and native traps name the function, block and source line ([`compiler_exec_debug.zi`](../cmd/compiler_exec_debug.zi), [executable_bundle_cases.zi](../tests/executable_bundle_cases.zi)); instruction-level stepping itself remains open.
+- [x] Retain any existing `.zir` evaluator needed for compile-time execution, laws, or tooling until those consumers are deliberately migrated. Removing ZX dependence does not authorize deleting unrelated evaluator services. (The evaluator is retained in [`compiler_parse_eval.zi`](../cmd/compiler_parse_eval.zi); [compile_run.sh](../tests/compile_run.sh) and [laws.sh](../tests/laws.sh) keep exercising it.)
+- [x] Reject every unsupported portable opcode/capability with its stable Gap
   diagnostic before side effects. Do not invoke the old VM, native engine,
   generated C, or a target-specific helper to make the run appear successful.
+  (The verifier rejects unsupported forms with `.Unsupported` before plan
+  construction ([`compiler_lowered_verify.zi`](../cmd/compiler_lowered_verify.zi));
+  selection never falls back after a native gap ([zi2zx.zi](../cmd/zi2zx.zi) run
+  policy, [native_load.sh](../tests/native_load.sh),
+  [native_backend_policy_cases.zi](../tests/native_backend_policy_cases.zi)).)
 
 ## Tests
 

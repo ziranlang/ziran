@@ -94,7 +94,7 @@ Current honest selectors are:
 | `direct-aot` | `direct-aot` | Supported only by executing the exact hashed ELF artifact. It is never relabeled as native ZX. |
 | `control-c`, `control-go`, `control-wasm` | matching selector | Supported with an exact absolute command and complete hashed closure. |
 | `old-c-tinycc-native` | — | Missing: the TinyCC route is removed, and its pre-cutover CLI default never gave native-only selection proof. |
-| `new-native` | — | Missing: there is no native ZX engine until milestone M3. |
+| `new-native` | — | Missing: the collector keeps this required cell closed ([`assembly_collect.zi`](../bench/assembly_collect.zi) rejects the selector and keeps the required cell missing). Native ZX executes in process since [M3](milestones.md), but no measurement receipt attests it. |
 
 Requests for either missing execution mode fail plan validation. They may and should remain
 in `required_cells`, where the processor reports them as missing rather than manufacturing

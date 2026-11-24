@@ -233,14 +233,20 @@ entry mismatch, capability, variant, external and symbol failures.
 
 ## Remaining gaps
 
-- One file is one linked program: there are no library or add-on containers,
-  cross-container symbol tables or partial-module composition.
+- Generic cross-container symbol tables and thin/add-on composition remain
+  open. Landed since this text was written: module-linked bundles bind required
+  checked modules through the kind-5 linkage section with one combined
+  verified identity, and [`.zx` libraries](zx-library-format.md) exist as a
+  separate package format; neither creates a general cross-container symbol
+  table.
 - Native target/CPU/OS/ABI variant metadata and template verification are not
   implemented; a required variant rejects, and no arbitrary machine blob is
   accepted.
-- Debug/source attachment codecs, optimization remarks, law witnesses and proof
-  revalidation are not implemented; optional bytes remain non-executable and
-  proof status remains unverified. Laws are checked from source.
+- The optional debug/source attachment codec exists (section `0x80000001`,
+  identity-bound and reader-reverified). Optimization remarks, law witnesses
+  and proof revalidation are not implemented; optional bytes remain
+  non-executable and proof status remains unverified. Laws are checked from
+  source.
 
 The retained focused tests cover deterministic source/saved output, stripped
 portable execution, owned input lifetime, legacy and feature rejection, unknown

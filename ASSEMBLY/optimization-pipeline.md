@@ -1,6 +1,6 @@
 # Verified lowered-IR optimization pipeline
 
-Status: bounded scalar pipeline, mandatory before experimental ZX production.
+Status: bounded verified-LIR pipeline, mandatory before experimental ZX production.
 Source `--opt` selects optimized LIR inspection and source optimization reports;
 ZX input is never reoptimized. This module does not select target
 instructions, allocate registers, or claim a performance result.
@@ -25,8 +25,8 @@ LirOptFree :: (owner: *LirOptOwner)
 `LirOptResult`, and `LirOptProblem` are ordinary named exported records and
 enums. Generated C consumers use normal module-prefixed symbols and records.
 The default options enable constant folding, copy propagation, CFG
-simplification, and dead-instruction elimination with at most eight folding
-rounds.
+simplification, dead-instruction elimination, and call inlining (growth-limited,
+default `inline_calls = 48`) with at most eight folding rounds.
 
 The input is immutable. `LirOptBuild` first verifies it under the supplied
 limits and serializes it through the canonical owning lowered-IR codec before
@@ -43,14 +43,13 @@ returns `Owner`.
 
 ## Pass order and verification boundaries
 
-The order is fixed and deterministic:
-
-1. Verify the immutable input.
-2. Fold exact scalar constants.
-3. Propagate proven identity copies.
-4. Simplify constant control flow and remove newly unreachable blocks.
-5. Remove unused, nontrapping pure instructions.
-6. Verify and expose the final owned program.
+The order is fixed and deterministic. The build verifies the immutable input,
+runs folding, copy-propagation, CFG-simplification and dead-code-elimination
+rounds, then common subexpression elimination, growth-limited inlining, branch
+specialization, loop-invariant motion, induction strengthening, loop rotation,
+jump threading with block merging, and block layout as enabled, re-verifying
+the program after every enabled pass before exposing the final owned program
+([`compiler_opt.zi`](../cmd/compiler_opt.zi)).
 
 Each enabled numbered pass calls `LirVerify`, even when it reports no change.
 The folding pass re-encodes its appended constant table through the canonical
@@ -97,6 +96,15 @@ Dead-instruction elimination reaches a fixed point for unused `Constant`,
 These operations are pure and nontrapping under the current verifier and
 portable engine. Dynamic-index `Extract` and `Insert` stay in the program
 because their bounds checks can trap, including when their result is unused.
+
+Beyond these, the pipeline implements verified common subexpression
+elimination, growth-limited leaf and call-site inlining that keeps source
+origins, guarded branch specialization, loop-invariant motion, induction
+variable strengthening, loop rotation, jump threading with block merging, and
+deterministic block layout. Every pass re-verifies its output and preserves the
+effect order, including `Fuel`; the retained cases in
+[compiler_opt_cases.zi](../tests/compiler_opt_cases.zi) cover cse, inline,
+licm, induction, rotate, thread, layout, devirt and fields behavior.
 
 ## Preserved behavior
 
@@ -149,10 +157,8 @@ giving the optimizer filesystem or terminal ownership.
 The following are not represented by placeholder counters or no-op names:
 
 - float arithmetic folding and float numeric-conversion folding;
-- block-parameter coalescing, jump threading, and general block merging;
-- range propagation, redundant-check removal, common subexpression
-  elimination, and load/store optimization;
-- inlining, loop transformations, vectorization, or fuel-aware code motion;
+- general range propagation and conservative load/store optimization;
+- block-parameter coalescing, vectorization, or fuel-aware code motion;
 - machine IR, instruction selection, register allocation, spilling, and ABI
   lowering.
 
@@ -170,7 +176,7 @@ generated C, generated Go, and bundle execution on the engine:
 
 ```sh
 env -u DISPLAY -u WAYLAND_DISPLAY build-queue -- \
-    sh tests/compiler_opt.sh build/bin/ziran
+    make CHECK_FILTER=compiler_opt check
 ```
 
 Performance compilation and measurement are separate work and run only on

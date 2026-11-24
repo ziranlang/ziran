@@ -41,7 +41,7 @@ blocks through power-of-two size classes instead of mapping and unmapping each
 growth; a block over 1 MiB is its own mapping and grows by `mremap`.
 
 Native ZX loading on linux-x86_64, linux-aarch64 and linux-armv7
-([`zir_host_native.c`](../cmd/zir/zir_host_native.c), with each architecture's
+([`zir_host_native.c`](../bootstrap/runtime/zir_host_native.c), with each architecture's
 veneers and relocation fields in `zir_host_native_<arch>.c`; ARMv7's also
 hold the 64-bit divide and int64/float conversion helpers A32 lacks)
 compiles the bundle's verified program with the same machine pipeline, copies
@@ -88,16 +88,16 @@ so the static executable has no undefined symbols or misleading trap aliases.
 
 ## Existing integration points
 
-- [Embedding API](../include/ziran_host.h), [bundle lifecycle](../cmd/zir/zir_host.c) and the [engine bridge](../cmd/zir/zir_host_exec.c), which translates host values for the [portable instruction engine](../cmd/compiler_exec.zi) and for the [native ZX loader](../cmd/zir/zir_host_native.c).
-- [Wasm lowering](../cmd/compiler_zx_wasm.zi) and [browser integration](../cmd/zir/zir_zx_wasm_web.c).
+- [Embedding API](../include/ziran_host.h), [bundle lifecycle](../cmd/compiler_host_api.zi) and the [engine bridge](../bootstrap/runtime/zir_host_exec.h), which translates host values for the [portable instruction engine](../cmd/compiler_exec.zi) and for the [native ZX loader](../bootstrap/runtime/zir_host_native.c).
+- [Wasm lowering](../cmd/compiler_zx_wasm.zi) and [browser integration](../bootstrap/runtime/zir_zx_wasm_web.c).
 - [Package entry](../cmd/package_entry.zi), [options](../cmd/package_options.zi), [bundle run](../cmd/package_bundle_run.zi), and [capability reporting](../cmd/package_capabilities.zi).
 
 Proposed modules: `cmd/compiler_native_load.zi`, `cmd/compiler_native_cache.zi`, `cmd/compiler_exec_instance.zi`, and a native backend command entry integrated into the existing package driver.
 
 ## Implementation work
 
-- [ ] Expose one compile API taking verified executable IR, target description, optimization policy, and runtime ABI. AOT objects and in-memory images differ in output handling, not instruction semantics.
-- [ ] Implement in-memory layout, symbol resolution, relocations, executable-memory allocation, write/execute transitions, instruction-cache synchronization, unwind registration, and teardown for supported platforms.
+- [x] Expose one compile API taking verified executable IR, target description, optimization policy, and runtime ABI. AOT objects and in-memory images differ in output handling, not instruction semantics. ([`compiler_machine_pipeline.zi`](../cmd/compiler_machine_pipeline.zi) is shared by `zx2native` and the in-process loader ([zir_host_native.c](../bootstrap/runtime/zir_host_native.c)); [native_load.sh](../tests/native_load.sh) and [machine_elf.sh](../tests/machine_elf.sh) retain both routes.)
+- [ ] Implement in-memory layout, symbol resolution, relocations, executable-memory allocation, write/execute transitions, instruction-cache synchronization, unwind registration, and teardown for supported platforms. Landed slice: linux-x86_64, linux-aarch64 and linux-armv7 load in process with RW-then-RX pages, relocations resolved against instance data/veneers/trap stub, content-digest code sharing, teardown after the last close, and optional JITDUMP publication ([zir_host_native.c](../bootstrap/runtime/zir_host_native.c), [native_load.sh](../tests/native_load.sh)). Windows/macOS loaders, explicit icache synchronization and unwind registration beyond `.eh_frame`/PE unwind stay open.
 - [ ] Do not trust persisted executable bytes solely because a neighboring metadata file claims they were verified. Define cache integrity, ownership, atomic installation, invalidation, and refusal behavior explicitly.
 - [ ] Key cache entries by executable content, linked libraries, target/ABI, actual selected CPU features, backend/runtime identities, optimization settings, and instrumentation semantics. Keep mutable instance state outside cached code.
 - [ ] Preserve concurrent compilation, concurrent instantiation, nested calls, independent globals, reentrant host capabilities, cancellation, failures, and lifecycle retirement. Cache cleanup must not unload code still referenced by a live instance.
@@ -109,11 +109,15 @@ Proposed modules: `cmd/compiler_native_load.zi`, `cmd/compiler_native_cache.zi`,
   Floating-point formatting and every unavailable target service remain stable
   named gaps. Other target rows remain unchecked.
 - [ ] Preserve execution budgets, stack checks, source-aware traps, parallel workers, persistent state, migration, snapshots, and module/library initialization across native and interpreted modes.
-- [ ] Make the engine-selection contract explicit. A native request fails
+- [x] Make the engine-selection contract explicit. A native request fails
   clearly if unsupported and never starts the interpreter. A portable request
   never executes native code. A command may have one documented default, but
   preflight failure never changes that selection.
-- [ ] Add direct-native build/run targets to the package driver and target capability reports. Keep existing C/Go/wasm commands and legitimate target-specific bindings usable.
+  (`zi2zx run --backend native|engine` with platform defaults and no fallback
+  ([zi2zx.zi](../cmd/zi2zx.zi) run policy); [native_load.sh](../tests/native_load.sh)
+  and [native_backend_policy_cases.zi](../tests/native_backend_policy_cases.zi)
+  retain the selection and failure behavior.)
+- [x] Add direct-native build/run targets to the package driver and target capability reports. Keep existing C/Go/wasm commands and legitimate target-specific bindings usable. (`ziran build` composes `zi2zx` and `zx2native` and `ziran run` executes bundles natively on the Linux rows ([package.zi](../cmd/package.zi)); `ziran capabilities --assembly-target[+FEATURE]` runs the registry preflight ([package_capabilities.zi](../cmd/package_capabilities.zi), [target_diagnostics.sh](../tests/target_diagnostics.sh)); C/Go/wasm commands remain separate routes.)
 - [ ] Integrate package dependency recipes, native artifact caching, sysroots, host providers, assets, executable entries, libraries, install paths, and incremental rebuild dependencies.
 - [x] Replace the browser's generated-C bundle compilation path with direct wasm output from the same portable IR. Interpreter execution remains an explicit separate mode where browser/runtime policy permits it, never a direct-Wasm fallback.
 - [ ] Build runtime helpers through the new backend and verify self-hosting of the new compiler modules. Retain the established bootstrap mechanism; regeneration must be deterministic and locally checked.

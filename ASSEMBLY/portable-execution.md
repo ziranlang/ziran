@@ -127,9 +127,11 @@ checks for empty arrays and zero-sized elements.
 an identity-checked pointer token bound to that frame and its generation. The
 optional initializer must have the exact pointee type and is copied at
 allocation time; without one, the new storage has the pointee's zero value.
-Accepted pointees are bool, fixed-width integer, `f32`, `f64`, and pointer
-values. Aggregate pointees fail the `Allocate` operand rule, while pointers to
-function types are rejected by the type verifier. Allocated pointers compose
+Accepted pointees are any verified non-void value type: bool, fixed-width
+integer, `f32`, `f64`, pointer, and aggregate/record/fixed-array values
+(the verifier's `ValueType` rule in [`compiler_lowered_verify.zi`](../cmd/compiler_lowered_verify.zi));
+[lowered_exec_cases.zi](../tests/lowered_exec_cases.zi) allocates and reads
+back an aggregate pointee. Allocated pointers compose
 with load and store; a token whose frame has returned, or whose identity no
 longer matches, fails with `.Pointer`. Every execution allocates fresh storage,
 including repeated execution of one instruction in loops and recursion, so
@@ -141,7 +143,7 @@ The conformance cases cover narrowing and wrap, signed-minimum division,
 division by zero, invalid shifts, mixed-width shifts, bool casts, checked float
 casts, float32 rounding, signed zero, NaN comparisons and payload-preserving
 negation, cyclic edge transfers, arrays and records, direct and indirect calls,
-initialized and zero-default scalar allocation, same-site loops and recursion,
+initialized and zero-default scalar and aggregate allocation, same-site loops and recursion,
 active aliases, stale and reused-frame pointer failure, instance isolation,
 pointer provenance, reuse and repeated close, all runtime limits, structured
 origins, repeated failure, and verifier rejection.
@@ -152,11 +154,15 @@ engine.
 
 ## Exact current boundary
 
-The verifier rejects `copy`, `zero`, and `host.call`; it also rejects
-native-width integers, vectors, capabilities,
-external functions, non-portable calling conventions, variadics, and
-non-writable global addresses. Plan construction returns `InvalidProgram` with
-the verifier diagnostic for these forms. They are not silently skipped.
+The verifier rejects `copy` and `zero`; it also rejects native-width integers,
+vectors, capability-typed values, ordinary calls to external functions,
+non-portable calling conventions, variadics, and non-writable global
+addresses. Typed host capability calls (`HostCall` with the declared signature)
+are supported and execute through `LirExecTypedHostCall`
+([`compiler_lowered_verify.zi`](../cmd/compiler_lowered_verify.zi),
+[`compiler_exec.zi`](../cmd/compiler_exec.zi)). Plan construction returns
+`InvalidProgram` with the verifier diagnostic for rejected forms; they are not
+silently skipped.
 
 Heap blocks live in the instance-owned bytes beside host-returned storage. A
 block's address names the block and its generation. `resize` and free end that
@@ -166,7 +172,7 @@ owned bytes grows and shrinks in place; dead blocks at the end are given back.
 Heap bytes count against `value_bytes`, and a request beyond it gives a null
 result instead of a failure, so `VecPush` can report it.
 
-Consequently this slice provides checked frame-local scalar allocation and
+Consequently this slice provides checked frame-local scalar/aggregate allocation and
 typed heap blocks, but does not yet provide arbitrary byte memory,
 host callbacks, native-width or SIMD values,
 capability values, state serialization or

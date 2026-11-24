@@ -45,7 +45,12 @@ line when the work lands. Keep detail in the referenced plan.
   `cmd/compiler_lowered_proven.zi`; route the closure through
   `ProofKernel::DecideOrder` once `compiler_proof_kernel` is in the assembly
   module lists (Makefile, assembly.mk), and let native code consume heap
-  roots, which `LirProvenCovers` only reports. Test with
+  roots, which `LirProvenCovers` only reports. A count-bounded loop
+  (`for i: 0..v.count - 1 { v[i] }`) still keeps its check: the offset edge
+  `count - 1 < count` needs a finite count interval, which a Vec count, a
+  global or a loop-carried value lacks; only an explicit `if i < count`
+  guard proves such a read, and no wasm-tier kernel has one, so the Alpha
+  timing of the elision is still unmeasured. Test with
   `tests/proven_pointer_cases.zi`, `tests/guarded_index_ranges.sh`,
   `tests/trust_boundary_cases.zi`.
 - Metaprogramming, unblocked now that self-hosting is past S5: `#modify`

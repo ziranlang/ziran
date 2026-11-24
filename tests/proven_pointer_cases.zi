@@ -299,6 +299,14 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if test.failed || !Counts(*test, chain, *counts) { return 1 }
     if !NativeAssert(*test, guarded_reads == 2, "the chained guards do not prove the view read in the outline and its inlined copy") ||
         !Runs(*test, tools, chain, "20\n") || !WasmRuns(*test, tools, chain, "20\n") { return 1 }
+
+    // The same chain with an at-or-below link: j <= i < count still places j
+    // below the count, so both copies prove the read.
+    mixed := Bundle(*test, tools, test.work, "mixed",
+        "position: s64 = 3;\nlimit: s64 = 1;\nChain :: (view: []s64, i: s64, j: s64) -> s64 {\n    if 0 <= j && j <= i && i < view.count { return view[j] }\n    return -1\n}\n#program_export\nmain :: () -> s64 {\n    table: [8]s64 = .{10, 20, 30, 40, 50, 60, 70, 80}\n    view := table[0:position]\n    return Chain(view, position - 1, limit)\n}\n")
+    if test.failed || !Counts(*test, mixed, *counts) { return 1 }
+    if !NativeAssert(*test, guarded_reads == 2, "an at-or-below link loses the chain's strictness") ||
+        !Runs(*test, tools, mixed, "20\n") || !WasmRuns(*test, tools, mixed, "20\n") { return 1 }
     loose := Bundle(*test, tools, test.work, "loose",
         "position: s64 = 3;\nLoose :: (view: []s64, i: s64, j: s64) -> s64 {\n    if 0 <= j && j < i { return view[j] }\n    return -1\n}\n#program_export\nmain :: () -> s64 {\n    table: [8]s64 = .{10, 20, 30, 40, 50, 60, 70, 80}\n    view := table[0:position]\n    return Loose(view, 9, 7)\n}\n")
     if test.failed || !Counts(*test, loose, *counts) { return 1 }

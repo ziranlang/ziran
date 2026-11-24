@@ -14,11 +14,20 @@ line when the work lands. Keep detail in the referenced plan.
   ELF64 x86-64 objects, whose reached members link into a static Linux ELF
   with their text, read-only data, writable data, zero fill and relocations,
   each capability's veneer calling its member directly.
-- M6 inspection and cutover: unwind, debug and profiler mapping, then the
-  owner's full before/after ZX comparison on Alpha's physical host.
+- M6 inspection and cutover: the owner's full before/after ZX comparison on
+  Alpha's physical host. Linux `.eh_frame`, the debug attachment and the
+  bounded perf map landed (M6a, ASSEMBLY/10-inspection-performance-and-cutover.md);
+  the loader's JITDUMP publication is an uncommitted in-flight slice.
 - Native code quality: warm native ZX remains slower than the M0 TinyCC tier
-  and the engine on some kernels. Active work: plans/2026-11-15-native-speed.md,
-  measured against `bench/results/` receipts.
+  and the engine on some kernels. Landed: Vec growth storage reuse (Alpha
+  receipt `bench/results/native-resize-alpha-matched.json`, Vectors checksum
+  94905000), unique-use Insert-in-place and record copy sharing in the x86-64
+  machine lowering, and frame-storage sharing in the portable engine. The
+  borrowed-call-argument experiment was rejected
+  (`bench/results/call-borrow-alpha.md`); the machine-native call form, the
+  k-nucleotide and print-heavy kernels, and the Alpha timing of the elision
+  remain. Detail: plans/2026-11-15-native-speed.md, measured against
+  `bench/results/` receipts.
 - Explicit gaps kept as named diagnostics: resizable-collection ownership,
   reentrant callbacks, general native string and arbitrary-host instructions
   (ASSEMBLY/gap-policy.md).

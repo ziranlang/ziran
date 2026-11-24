@@ -176,10 +176,16 @@ assembler, C compiler, or system linker to produce this executable.
   Trapping operations, ordered effects and executed fuel checkpoints remain
   observable. This is not the complete optimization pipeline or register allocator.
 
-This is a stack-slot backend, **not** an optimizing register allocator. It has
-no demonstrated performance advantage. Native `Fuel` records emit no bytes and
-appear as zero-length map ranges: execution is unmetered AOT, not the proposed
-budgeted ZX instruction engine. Explicit native traps terminate with status 125.
+The machine-IR path is register-allocated: liveness and linear-scan allocation
+with splitting and spilling feed the allocated-program verifier and the x86-64
+encoder (`tests/regalloc_cases.zi`, `tests/machine_ir_cases.zi`). Native code
+consumes the same fuel checkpoints as the engine (loop headers and function
+entries); an AOT executable starts with an unbounded budget, as a bundle run
+does, and `zx2native --fuel N` sets one. Explicit native traps terminate with
+status 125. No absolute speedup is claimed: Alpha's physical-host interim
+comparison has native ZX faster than the portable engine but slower than the
+removed TinyCC tier and C on several kernels
+([milestones](milestones.md), [bench results](../bench/zx_compare.md)).
 
 ## Build, inspect, execute
 

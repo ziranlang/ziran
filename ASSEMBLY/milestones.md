@@ -113,6 +113,10 @@ debug attachment (`zi2zx --debug`) gives native maps and native trap
 diagnostics source lines. Wasm lowers the same verified ZX, both for
 `zx2wasm` and for the bundle Wasm tier.
 
+Every Linux x86-64 AOT image carries `.eh_frame` with `PT_GNU_EH_FRAME`, and
+`zx2native --emit perf-map` publishes a bounded profiler map (M6a,
+2026-11-24).
+
 There is one ZX format. Every `.zx` is revision 28; the semantic bundle writer
 and reader, the portable VM with `run --vm`, `BundleUsePortableVm`,
 `BundleInstantiatePortable`, `libziran-vm.a`, bundle libraries, TinyCC and the
@@ -211,18 +215,28 @@ Order the remaining work by the evidence each item can actually produce here:
 1. **M5a** Linux ELF: shared objects (done) and static archives (done). Keep
    each new C ABI shape and each archive subset behind `machine_elf.sh` plus a
    named gap for everything else.
-2. **M6a** inspection closure for rows that are Implemented: Linux unwind
-   registration (`.eh_frame` or an equivalent without libc), the existing
-   debug attachment, and a supported profiler map, with bounded
-   source-to-byte attribution. This is local work and can land now.
+2. **M6a** inspection closure for the Implemented rows landed on 2026-11-24
+   (`bfdf3289`): every Linux x86-64 ELF carries `.eh_frame` with
+   `PT_GNU_EH_FRAME` and one CIE/FDE per generated function extent, and
+   `zx2native --emit perf-map` writes a bounded perf map. The debug
+   attachment predates it. `tests/machine_elf.sh` and
+   `tests/assembly_cases.zi` retain the checks; the other targets' unwind
+   rows and full source-to-byte attribution stay open.
 3. **M5b** a real Windows host run, on hardware or a dedicated CI Windows
    runner: the same `tests/zx_windows_parity_cases.zi`, with its current Wine
    rows kept as the emulated control. Until then the row stays open.
 4. **Native speed** next, because it is the owner-visible deficit and the
-   receipts exist: Vec growth, unique-use Insert-in-place and borrowed call
-   arguments, proof-carried bounds elision, the k-nucleotide copy loop, then
-   the print-heavy examples. These are Alpha-only measurements; do not queue
-   target breadth ahead of them.
+   receipts exist. Landed: Vec growth reuses storage when nothing borrows it
+   (Alpha receipt `bench/results/native-resize-alpha-matched.json`, Vectors
+   checksum 94905000), unique-use Insert-in-place and record copy sharing in
+   the x86-64 machine lowering, frame-storage sharing in the portable engine,
+   and the dominance-scoped proof facts for bounds elision. The
+   borrowed-call-argument experiment was rejected and removed
+   (`bench/results/call-borrow-alpha.md`); the machine-native call form,
+   routing the closure through `ProofKernel::DecideOrder`, the k-nucleotide
+   copy loop, the print-heavy examples and the Alpha timing of the elision
+   remain. These are Alpha-only measurements; do not queue target breadth
+   ahead of them.
 5. **M5c** Mach-O/Apple64 and signing, only when an Apple host and signing
    identity are available. **M5d** the Windows loader follows M5b.
 6. **M6b** the owner's full before/after comparison on Alpha's physical host

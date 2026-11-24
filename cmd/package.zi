@@ -956,7 +956,11 @@ PkgFlagsEnd :: (command: string, arguments: []string) -> s32 {
 // repeated commands reuse the compiler's caches.
 serve_system :: #system_library "libc";
 ServeReadRaw :: (descriptor: s32, output: *u8, count: usize) -> isize #foreign serve_system "read";
-ServeErrno :: () -> *s32 #foreign serve_system "__errno_location";
+#if #defined(__APPLE__) {
+    ServeErrno :: () -> *s32 #foreign serve_system "__error";
+} else {
+    ServeErrno :: () -> *s32 #foreign serve_system "__errno_location";
+}
 serve_launcher: string;
 
 ServeWords :: (line: []u8, words: *Vec(string)) -> bool {

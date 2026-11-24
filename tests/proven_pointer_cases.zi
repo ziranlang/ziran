@@ -19,6 +19,28 @@ using Target :: #import "compiler_target"
 using Verify :: #import "compiler_machine_verify"
 using Vectors :: #import "std/vec"
 
+// The facts of the bundle COUNTS last printed, and its view reads that a
+// guard alone proves.
+last: Proven.LirProvenResult;
+guarded_reads: s64;
+
+// The three-operand element addresses of PROGRAM whose index has no constant
+// bound but a dominating guard: the reads whose check Wasm drops on the
+// guard alone.
+GuardedReads :: (program: Lir.LirProgram, facts: *Proven.LirProvenOwner) -> s64 {
+    count: s64
+    for function, at: program.functions {
+        for block: function.blocks {
+            for source: block.instructions {
+                if source.op != .ElementAddress || source.operands.count != 3 || source.result < 0 { continue }
+                if Proven.LirProvenIndexBound(facts, at, source.result) == 0 &&
+                    Proven.LirProvenGuarded(facts, at, source.result) { count += 1 }
+            }
+        }
+    }
+    return count
+}
+
 // The x86-64 check counts of the bundle at PATH.
 Counts :: (test: *NativeTest, path: string, counts: *Pipeline.MachineChecks) -> bool {
     bytes := NativeRead(test, path)
@@ -39,9 +61,11 @@ Counts :: (test: *NativeTest, path: string, counts: *Pipeline.MachineChecks) -> 
     defer Proven.LirProvenFree(*facts)
     proved := Proven.LirProvenBuild(*facts, Link.ZxExecReadProgram(*owner), Lir.LirDefaultLimits())
     if !NativeAssert(test, proved.problem == .None, CheckConcat("the shared facts failed for ", path)) { return false }
-    print("% rooted=% proven-indices=% resolves=% direct-global=% direct-frame=% index-checks=% index-proven=%\n",
-        PathName(path), proved.rooted, proved.indices, counts.resolves, counts.direct_global, counts.direct_frame,
-        counts.index_checks, counts.index_proven)
+    last = proved
+    guarded_reads = GuardedReads(Link.ZxExecReadProgram(*owner), *facts)
+    print("% rooted=% heaps=% proven-indices=% resolves=% direct-global=% direct-frame=% index-checks=% index-proven=% guard-proven=%\n",
+        PathName(path), proved.rooted, proved.heaps, proved.indices, counts.resolves, counts.direct_global,
+        counts.direct_frame, counts.index_checks, counts.index_proven, guarded_reads)
     return true
 }
 
@@ -247,6 +271,74 @@ main :: (argc: s32, argv: **u8) -> s32 {
         "#program_export\nmain :: () -> s64 {\n    flags: [64]bool\n    count: s64\n    for i: 2..64 { if !flags[i] { count += 1 } }\n    return count\n}\n")
     if test.failed || !Counts(*test, past, *counts) || !Runs(*test, tools, past, "") ||
         !WasmRuns(*test, tools, past, "") { return 1 }
-    print("proven checks: direct global and frame accesses and proven indices run natively and as Wasm, the verifier refuses broken direct proofs, and runtime indices, resized blocks and stale aliases still trap\n")
+    // A view whose count is a runtime value: a guard a dominating if
+    // proves, the loop's index below the view's own count, proves the read
+    // by the guard alone, so Wasm drops its check, while the native form,
+    // which needs a constant bound, keeps it beside the view's own bounds
+    // check. The same loop behind a guard that lets it past the count keeps
+    // both checks and traps on both routes.
+    guarded := Bundle(*test, tools, test.work, "guarded",
+        "position: s64 = 4;\ntable: [8]s64 = .{10, 20, 30, 40, 50, 60, 70, 80};\n#program_export\nmain :: () -> s64 {\n    view := table[0:position]\n    total: s64\n    for i: 0..7 {\n        if i < view.count { total += view[i] }\n    }\n    return total\n}\n")
+    if test.failed || !Counts(*test, guarded, *counts) { return 1 }
+    if !NativeAssert(*test, guarded_reads == 1 && counts.index_checks == 2,
+        "the view read under its count guard is not the one guard-proven index, or the native form lost a check") ||
+        !Runs(*test, tools, guarded, "100\n") || !WasmRuns(*test, tools, guarded, "100\n") { return 1 }
+    unguarded := Bundle(*test, tools, test.work, "unguarded",
+        "position: s64 = 4;\ntable: [8]s64 = .{10, 20, 30, 40, 50, 60, 70, 80};\n#program_export\nmain :: () -> s64 {\n    view := table[0:position]\n    total: s64\n    for i: 0..7 {\n        if i < 7 { total += view[i] }\n    }\n    return total\n}\n")
+    if test.failed || !Counts(*test, unguarded, *counts) { return 1 }
+    if !NativeAssert(*test, guarded_reads == 0 && counts.index_checks == 2,
+        "a view read past its count was proven") ||
+        !Runs(*test, tools, unguarded, "") || !WasmRuns(*test, tools, unguarded, "") { return 1 }
+
+    // A chain of guards relates three runtime values: j below i below the
+    // view's count, a subview's high - low once its record is scalar-replaced.
+    // Both the outlined function and its inlined copy prove the read. Without
+    // the last link the read keeps its check and traps on both routes.
+    chain := Bundle(*test, tools, test.work, "chain",
+        "position: s64 = 3;\nlimit: s64 = 1;\nChain :: (view: []s64, i: s64, j: s64) -> s64 {\n    if 0 <= j && j < i && i < view.count { return view[j] }\n    return -1\n}\n#program_export\nmain :: () -> s64 {\n    table: [8]s64 = .{10, 20, 30, 40, 50, 60, 70, 80}\n    view := table[0:position]\n    return Chain(view, position - 1, limit)\n}\n")
+    if test.failed || !Counts(*test, chain, *counts) { return 1 }
+    if !NativeAssert(*test, guarded_reads == 2, "the chained guards do not prove the view read in the outline and its inlined copy") ||
+        !Runs(*test, tools, chain, "20\n") || !WasmRuns(*test, tools, chain, "20\n") { return 1 }
+    loose := Bundle(*test, tools, test.work, "loose",
+        "position: s64 = 3;\nLoose :: (view: []s64, i: s64, j: s64) -> s64 {\n    if 0 <= j && j < i { return view[j] }\n    return -1\n}\n#program_export\nmain :: () -> s64 {\n    table: [8]s64 = .{10, 20, 30, 40, 50, 60, 70, 80}\n    view := table[0:position]\n    return Loose(view, 9, 7)\n}\n")
+    if test.failed || !Counts(*test, loose, *counts) { return 1 }
+    if !NativeAssert(*test, guarded_reads == 0, "a view read without its count guard was proven") ||
+        !Runs(*test, tools, loose, "") || !WasmRuns(*test, tools, loose, "") { return 1 }
+
+    // A runtime index into a fixed array behind a guard against the array's
+    // count is proven on both routes; the same read behind an or whose other
+    // operand lets it past keeps its check and traps.
+    fixed := Bundle(*test, tools, test.work, "fixed",
+        "table: [8]s64 = .{10, 20, 30, 40, 50, 60, 70, 80};\n#program_export\nmain :: () -> s64 {\n    total: s64\n    for i: 0..9 {\n        if i < 8 { total += table[i] }\n    }\n    return total\n}\n")
+    if test.failed || !Counts(*test, fixed, *counts) { return 1 }
+    if !NativeAssert(*test, last.indices == 1 && counts.index_checks == 0,
+        "the guarded runtime index into the fixed array keeps a check") ||
+        !Runs(*test, tools, fixed, "360\n") || !WasmRuns(*test, tools, fixed, "360\n") { return 1 }
+    either := Bundle(*test, tools, test.work, "either",
+        "limit: s64 = 1;\ntable: [8]s64 = .{10, 20, 30, 40, 50, 60, 70, 80};\n#program_export\nmain :: () -> s64 {\n    total: s64\n    for i: 0..9 {\n        if i < 8 || limit > 0 { total += table[i] }\n    }\n    return total\n}\n")
+    if test.failed || !Counts(*test, either, *counts) { return 1 }
+    if !NativeAssert(*test, counts.index_checks == 1, "the read behind the or lost its check") ||
+        !Runs(*test, tools, either, "") || !WasmRuns(*test, tools, either, "") { return 1 }
+
+    // A heap block from a constant resize roots the pointer and its derived
+    // addresses while every use of each stays in the resize's own block
+    // before any resize, call or trap there; the pointer itself, once freed
+    // in another block, loses its root. Neither gives a direct access: the
+    // verifier re-derives global and frame roots alone, so heap reads keep
+    // their resolves.
+    heap := Bundle(*test, tools, test.work, "heap",
+        "Cells :: struct { cells: [12]s64 }\n#program_export\nmain :: () -> s64 {\n    boxed := New(Cells)\n    boxed.cells[11] = 5\n    return boxed.cells[11]\n}\n")
+    if test.failed || !Counts(*test, heap, *counts) { return 1 }
+    if !NativeAssert(*test, last.heaps == 4 && counts.resolves == 2,
+        "a heap block scoped to its block is not rooted, or lost its resolves") ||
+        !Runs(*test, tools, heap, "5\n") || !WasmRuns(*test, tools, heap, "5\n") { return 1 }
+    freed := Bundle(*test, tools, test.work, "freed",
+        "Cells :: struct { cells: [12]s64 }\n#program_export\nmain :: () -> s64 {\n    boxed := New(Cells)\n    boxed.cells[11] = 5\n    total := boxed.cells[11]\n    free(boxed)\n    return total\n}\n")
+    if test.failed || !Counts(*test, freed, *counts) { return 1 }
+    if !NativeAssert(*test, last.heaps == 3 && counts.resolves == 2,
+        "the freed heap pointer kept its root, or its reads lost their resolves") ||
+        !Runs(*test, tools, freed, "5\n") { return 1 }
+
+    print("proven checks: direct global and frame accesses and proven indices run natively and as Wasm, guard-proven view reads drop their Wasm check, heap roots stay scoped to their block, the verifier refuses broken direct proofs, and runtime indices, resized blocks and stale aliases still trap\n")
     return 0
 }

@@ -11,12 +11,30 @@
 // from it to the end of the root that every execution may reach. A field
 // moves the pointer by its offset; an element whose index is checked (or
 // proven) below a bound moves it by at most bound - 1 elements, the exact
-// index when it is a constant. Parameters, loads, call results, block
-// parameters and heap blocks have no root.
+// index when it is a constant. Parameters, loads, call results and block
+// parameters have no root.
 //
-// Index facts. An `element.address` into a fixed array or a view with a
-// constant count, or a dynamic `extract` or `insert`, whose index an interval
-// analysis proves lies below its bound, so its bounds check is redundant.
+// Heap facts. A `resize` to a constant count roots its result at the heap
+// block it returns, with that many elements of room, while every use of that
+// root lies in the resize's own block after it and before any resize, call
+// or trap there. Such a root is only reported: the machine verifier
+// re-derives a direct access from a global or frame root alone, so
+// LirProvenCovers refuses a heap root.
+//
+// Index facts. An `element.address` into a fixed array or a view, or a
+// dynamic `extract` or `insert`, whose index an interval analysis proves
+// non-negative and below its bound, so its bounds check is redundant. A
+// guard a dominating branch proves (an index below the very count the
+// address checks, directly or through a chain of comparisons) proves it
+// too, whatever defines that count: a view record's field, a subview's high
+// - low once its record is scalar-replaced, or a raw pointer's index + 1.
+// The branch may dominate from another block: a parameter every
+// predecessor edge gives the same value, and one record field extracted
+// twice, are one value, so a guard on either proves the other, and a
+// branch on a comparison a predecessor edge passed down meets what each
+// passing edge proves. That fact rides on LirProvenIndex for backends that
+// compare against the count at runtime; a count with a constant upper end
+// also gives the no-check native form its bound through LirProvenIndexBound.
 //
 // The program must already have passed LirVerify: definitions dominate their
 // uses and every address step is well typed. A backend drops a check only when
@@ -27,7 +45,7 @@ using Vectors :: #import "std/vec"
 
 LirProvenProblem :: enum s32 { None; Owner; Limit; Allocation }
 
-LirProvenRoot :: enum s32 { Unknown; Global; Frame }
+LirProvenRoot :: enum s32 { Unknown; Global; Frame; Heap }
 
 LirProvenPointer :: struct {
     root: LirProvenRoot
@@ -47,13 +65,19 @@ LirProvenOwner :: struct {
     // For the value an indexing instruction defines, the bound its index is
     // proven below, or 0.
     index: Vec(s64)
+    // For the value an indexing instruction defines, whether a dominating
+    // guard proves its index non-negative and below the runtime count the
+    // instruction checks.
+    guard: Vec(u8)
 }
 
 LirProvenResult :: struct {
     problem: LirProvenProblem
     work: s64
-    // Pointer values with a root, and index checks proven redundant.
+    // Pointer values with a root (HEAPS of them at a heap block), and index
+    // checks proven redundant.
     rooted: s64
+    heaps: s64
     indices: s64
 }
 
@@ -68,6 +92,21 @@ NarrowingRounds :: 16
 // The interval work one function may spend; past it, that function alone
 // keeps its index checks.
 FunctionWork :: 67108864
+// Guards: the comparison facts a taken branch edge proves, intersected over
+// a block's ready predecessor edges. A function with more edges, or whose
+// guard sets do not settle in the round budget, keeps every check.
+GuardLimit :: 8
+GuardRounds :: 12
+GuardEdges :: 4096
+// Nodes of one order closure: zero, the index, its bound and the values the
+// guards, intervals and offsets relate.
+OrderNodes :: 32
+// The record extracts one pass of the value classes compares; past it the
+// extracts stay apart.
+SameExtracts :: 256
+
+// LEFT is below RIGHT (kind 1), or at or below it (kind 2).
+Guard :: struct { left: s32; right: s32; kind: u8 }
 
 ProvenState :: struct {
     problem: LirProvenProblem
@@ -193,6 +232,15 @@ PointerStep :: (program: LirProgram, function: LirFunction, definition: []s64,
         if room < 0 { return Unknown() }
         return .{root = .Frame, symbol = source.result, room = room, writable = true}
     }
+    if source.op == .Resize {
+        // A heap block of a constant count of elements.
+        count: s64
+        if source.operands.count != 3 || !ConstantInteger(program, function, definition, source.operands[2], *count) ||
+            count <= 0 { return Unknown() }
+        element := PointeeSize(program, function.values[source.result])
+        if element <= 0 || count > Infinite / element { return Unknown() }
+        return .{root = .Heap, symbol = source.result, room = count * element, writable = true}
+    }
     if base.root == .Unknown || source.operands.count < 1 { return Unknown() }
     pointer := function.values[source.operands[0]]
     if pointer < 0 || pointer >= program.types.count || program.types[pointer].kind != .Pointer { return Unknown() }
@@ -275,7 +323,49 @@ PointerFacts :: (state: *ProvenState, program: LirProgram, function: LirFunction
             facts[current] = PointerStep(program, function, definition, source, base)
         }
     }
+    // A heap root is live only where its block is: every use of a value it
+    // roots must sit in the resize's own block, after it and before any
+    // resize, call or trap there.
+    for value: cast(s32)0..cast(s32)function.values.count - 1 {
+        if facts[value].root != .Heap { continue }
+        if !HeapScoped(function, definition, facts, facts[value].symbol) { facts[value] = Unknown() }
+    }
     return true
+}
+
+// Whether every use of a value rooted at the resize RESULT stays in its
+// block, after it and before the next resize, call or trap there.
+HeapScoped :: (function: LirFunction, definition: []s64, facts: []LirProvenPointer, result: s32) -> bool {
+    if result < 0 || result >= definition.count || definition[result] < 0 { return false }
+    home := definition[result] >> 32
+    birth := definition[result] & 4294967295
+    block := function.blocks[home]
+    barrier := block.instructions.count
+    for at: cast(s64)birth + 1..block.instructions.count - 1 {
+        if HeapBarrier(block.instructions[at]) { barrier = at; break }
+    }
+    for other, block_index: function.blocks {
+        for source, at: other.instructions {
+            for operand: source.operands {
+                if operand < 0 || operand >= facts.count || facts[operand].root != .Heap ||
+                    facts[operand].symbol != result { continue }
+                if block_index != home || at <= birth || at >= barrier { return false }
+            }
+            for edge: source.edges {
+                for argument: edge.arguments {
+                    if argument < 0 || argument >= facts.count || facts[argument].root != .Heap ||
+                        facts[argument].symbol != result { return false }
+                }
+            }
+        }
+    }
+    return true
+}
+
+// An instruction after which a heap block may have moved or gone.
+HeapBarrier :: (source: LirInstruction) -> bool {
+    return source.op == .Resize || source.op == .Call || source.op == .CallIndirect ||
+        source.op == .HostCall || source.op == .Trap
 }
 
 // Intervals over the mathematical value of an integer or bool. An endpoint at
@@ -394,6 +484,25 @@ Flow :: struct {
     work_high: Vec(s64)
     widen_low: s64
     widen_high: s64
+    // Dominance-scoped guards: the comparison facts a taken edge proves,
+    // stored per edge and intersected over a block's ready predecessor edges.
+    guards: bool
+    edge_guard_count: Vec(s64)
+    edge_guard: Vec(Guard)
+    guard_count: s64
+    guard: [GuardLimit]Guard
+    guard_in_count: s64
+    guard_in: [GuardLimit]Guard
+    // The classes of one value: a parameter every predecessor edge gives
+    // the same class, and one field of one record extracted twice. A class
+    // chains to its least member; the comparison or constant its value is,
+    // where one defines it; the index of each block parameter; the record
+    // extracts of one pass.
+    same: Vec(s32)
+    same_compare: Vec(s32)
+    parameter_index: Vec(s64)
+    extract: Vec(s32)
+    guard_changed: bool
     changed: bool
     narrowing: bool
 }
@@ -406,6 +515,8 @@ FlowFree :: (flow: *Flow) {
     VecFree(flow.previous_low); VecFree(flow.previous_high)
     VecFree(flow.top_low); VecFree(flow.top_high)
     VecFree(flow.in_low); VecFree(flow.in_high); VecFree(flow.work_low); VecFree(flow.work_high)
+    VecFree(flow.edge_guard_count); VecFree(flow.edge_guard)
+    VecFree(flow.same); VecFree(flow.same_compare); VecFree(flow.parameter_index); VecFree(flow.extract)
 }
 
 Sized :: (state: *ProvenState, values: *Vec(s64), count: s64) -> bool {
@@ -413,10 +524,34 @@ Sized :: (state: *ProvenState, values: *Vec(s64), count: s64) -> bool {
     return true
 }
 
+Sized32 :: (state: *ProvenState, values: *Vec(s32), count: s64) -> bool {
+    if !VecResizeBounded(<<values, count, state.maximum_bytes / 4) { return Fail(state, .Allocation) }
+    return true
+}
+
 Flags :: (state: *ProvenState, values: *Vec(u8), count: s64) -> bool {
     if !VecResizeBounded(<<values, count, state.maximum_bytes) { return Fail(state, .Allocation) }
     for at: cast(s64)0..count - 1 { (<<values)[at] = 0 }
     return true
+}
+
+GuardsSized :: (state: *ProvenState, values: *Vec(Guard), count: s64) -> bool {
+    if !VecResizeBounded(<<values, count, state.maximum_bytes / size_of(Guard)) { return Fail(state, .Allocation) }
+    for at: cast(s64)0..count - 1 { (<<values)[at] = .{left = 0, right = 0, kind = 0} }
+    return true
+}
+
+// Whether FUNCTION has a dynamic index a guard could prove: a view's element
+// or a dynamic extract or insert.
+GuardsWanted :: (function: LirFunction) -> bool {
+    for block: function.blocks {
+        for source: block.instructions {
+            if source.op == .ElementAddress && source.operands.count == 3 { return true }
+            if source.op == .Extract && source.operands.count == 2 { return true }
+            if source.op == .Insert && source.operands.count == 3 { return true }
+        }
+    }
+    return false
 }
 
 // Lays out the edge slots and predecessors. False with no problem when the
@@ -428,6 +563,10 @@ FlowInit :: (state: *ProvenState, program: LirProgram, function: LirFunction, fl
     flow.narrowing = false
     flow.widen_low = 0
     flow.widen_high = 0
+    flow.guards = false
+    flow.guard_count = 0
+    flow.guard_in_count = 0
+    flow.guard_changed = false
     if flow.blocks < 1 || function.entry < 0 || function.entry >= flow.blocks { return false }
     for block: function.blocks {
         for instruction: block.instructions {
@@ -461,6 +600,20 @@ FlowInit :: (state: *ProvenState, program: LirProgram, function: LirFunction, fl
         !Sized(state, *flow.top_low, flow.values) || !Sized(state, *flow.top_high, flow.values) ||
         !Sized(state, *flow.in_low, flow.values) || !Sized(state, *flow.in_high, flow.values) ||
         !Sized(state, *flow.work_low, flow.values) || !Sized(state, *flow.work_high, flow.values) { return false }
+    if flow.edges <= GuardEdges && GuardsWanted(function) {
+        if !Sized(state, *flow.edge_guard_count, flow.edges) ||
+            !GuardsSized(state, *flow.edge_guard, flow.edges * GuardLimit) ||
+            !Sized32(state, *flow.same, flow.values) || !Sized32(state, *flow.same_compare, flow.values) ||
+            !Sized(state, *flow.parameter_index, flow.values) || !Sized32(state, *flow.extract, flow.values) { return false }
+        for at: cast(s64)0..flow.edges - 1 { flow.edge_guard_count[at] = 0 }
+        for at: cast(s64)0..flow.values - 1 { flow.parameter_index[at] = -1 }
+        for block: function.blocks {
+            for parameter, parameter_index: block.parameters {
+                if parameter >= 0 && parameter < flow.values { flow.parameter_index[parameter] = parameter_index }
+            }
+        }
+        flow.guards = true
+    }
     for at: cast(s64)0..flow.blocks { flow.pred_offset[at] = 0 }
     for value: cast(s64)0..flow.values - 1 {
         top := TypeTop(program, function.values[value])
@@ -634,6 +787,294 @@ StoreEdge :: (state: *ProvenState, flow: *Flow, slot: s64) -> bool {
     return true
 }
 
+// Stores the current guards at edge SLOT.
+StoreGuards :: (state: *ProvenState, flow: *Flow, slot: s64) -> bool {
+    if !Spend(state, GuardLimit) { return false }
+    if flow.edge_guard_count[slot] != flow.guard_count { flow.guard_changed = true }
+    flow.edge_guard_count[slot] = flow.guard_count
+    for at: cast(s64)0..flow.guard_count - 1 {
+        stored := flow.edge_guard[slot * GuardLimit + at]
+        if stored.left != flow.guard[at].left || stored.right != flow.guard[at].right ||
+            stored.kind != flow.guard[at].kind { flow.guard_changed = true }
+        flow.edge_guard[slot * GuardLimit + at] = flow.guard[at]
+    }
+    return true
+}
+
+// Adds LEFT below RIGHT (strictly, or not) to the current guards when there
+// is room; a repeated pair keeps its stronger kind. Each side names its
+// class, so a guard holds for every value the class names.
+GuardAdd :: (flow: *Flow, left: s32, right: s32, kind: u8) {
+    if flow.guard_count >= GuardLimit { return }
+    below := SameRoot(flow, left)
+    above := SameRoot(flow, right)
+    for at: cast(s64)0..flow.guard_count - 1 {
+        if flow.guard[at].left == below && flow.guard[at].right == above {
+            if kind < flow.guard[at].kind { flow.guard[at].kind = kind }
+            return
+        }
+    }
+    flow.guard[flow.guard_count] = .{left = below, right = above, kind = kind}
+    flow.guard_count += 1
+}
+
+// The FACTth fact a branch on OP of LEFT and RIGHT proves when TAKEN: an
+// ordering comparison gives one, an equality gives two, and the rest none
+// (kind 0).
+GuardOf :: (op: LirOp, taken: bool, left: s32, right: s32, fact: s64) -> Guard {
+    if fact == 1 {
+        if op == .Equal && taken || op == .NotEqual && !taken {
+            return Guard.{left = right, right = left, kind = 2}
+        }
+        return Guard.{left = 0, right = 0, kind = 0}
+    }
+    if op == .Less {
+        if taken { return Guard.{left = left, right = right, kind = 1} }
+        return Guard.{left = right, right = left, kind = 2}
+    } else if op == .LessEqual {
+        if taken { return Guard.{left = left, right = right, kind = 2} }
+        return Guard.{left = right, right = left, kind = 1}
+    } else if op == .Greater {
+        if taken { return Guard.{left = right, right = left, kind = 1} }
+        return Guard.{left = left, right = right, kind = 2}
+    } else if op == .GreaterEqual {
+        if taken { return Guard.{left = right, right = left, kind = 2} }
+        return Guard.{left = left, right = right, kind = 1}
+    } else if op == .Equal && taken || op == .NotEqual && !taken {
+        return Guard.{left = left, right = right, kind = 2}
+    }
+    return Guard.{left = 0, right = 0, kind = 0}
+}
+
+// The facts a branch on OP of LEFT and RIGHT proves when TAKEN.
+GuardPush :: (flow: *Flow, op: LirOp, taken: bool, left: s32, right: s32) {
+    for fact: 0..1 {
+        guard := GuardOf(op, taken, left, right, fact)
+        if guard.kind != 0 { GuardAdd(flow, guard.left, guard.right, guard.kind) }
+    }
+}
+
+// GuardAdd over the incoming guards.
+GuardInAdd :: (flow: *Flow, left: s32, right: s32, kind: u8) {
+    if flow.guard_in_count >= GuardLimit { return }
+    below := SameRoot(flow, left)
+    above := SameRoot(flow, right)
+    for at: cast(s64)0..flow.guard_in_count - 1 {
+        if flow.guard_in[at].left == below && flow.guard_in[at].right == above {
+            if kind < flow.guard_in[at].kind { flow.guard_in[at].kind = kind }
+            return
+        }
+    }
+    flow.guard_in[flow.guard_in_count] = .{left = below, right = above, kind = kind}
+    flow.guard_in_count += 1
+}
+
+// The guards a branch on PARAMETER, a value the predecessor edges pass down,
+// proves when TAKEN. Each predecessor edge that can deliver such a value
+// proves the guards it stored and the comparison it passed, when it passed
+// one; the intersection holds on the taken path. A constant argument takes
+// one of the two edges alone, so the other skips it.
+GuardBranch :: (state: *ProvenState, program: LirProgram, function: LirFunction, definition: []s64,
+    flow: *Flow, block_index: s64, parameter: s32, taken: bool) -> bool {
+    flow.guard_in_count = 0
+    if parameter < 0 || parameter >= flow.values { return true }
+    parameter_index := flow.parameter_index[parameter]
+    if parameter_index < 0 { return true }
+    ready := false
+    for at: flow.pred_offset[block_index]..flow.pred_offset[block_index + 1] - 1 {
+        slot := flow.pred_slot[at]
+        if flow.edge_ready[slot] == 0 { continue }
+        if !Spend(state, GuardLimit * 2 + 1) { return false }
+        edge := function.blocks[flow.pred_block[at]].instructions[flow.pred_instruction[at]].edges[flow.pred_edge[at]]
+        comparison: s32 = -1
+        if parameter_index < edge.arguments.count {
+            argument := edge.arguments[parameter_index]
+            if argument >= 0 && argument < flow.values {
+                constant: s64
+                if ConstantInteger(program, function, definition, argument, *constant) {
+                    if (constant != 0) != taken { continue }
+                } else { comparison = flow.same_compare[SameRoot(flow, argument)] }
+            }
+        }
+        extra: [2]Guard
+        for fact: 0..1 { extra[fact] = Guard.{left = 0, right = 0, kind = 0} }
+        if comparison >= 0 {
+            source := function.blocks[definition[comparison] >> 32].instructions[definition[comparison] & 4294967295]
+            for fact: 0..1 { extra[fact] = GuardOf(source.op, taken, source.operands[0], source.operands[1], fact) }
+        }
+        if !ready {
+            for fact: cast(s64)0..flow.edge_guard_count[slot] - 1 {
+                flow.guard_in[fact] = flow.edge_guard[slot * GuardLimit + fact]
+            }
+            flow.guard_in_count = flow.edge_guard_count[slot]
+            ready = true
+            for fact: 0..1 {
+                if extra[fact].kind != 0 { GuardInAdd(flow, extra[fact].left, extra[fact].right, extra[fact].kind) }
+            }
+            continue
+        }
+        keep: s64 = 0
+        for fact: cast(s64)0..flow.guard_in_count - 1 {
+            kind: u8 = 0
+            for other: cast(s64)0..flow.edge_guard_count[slot] - 1 {
+                stored := flow.edge_guard[slot * GuardLimit + other]
+                if stored.left == flow.guard_in[fact].left && stored.right == flow.guard_in[fact].right &&
+                    stored.kind > kind { kind = stored.kind }
+            }
+            for which: 0..1 {
+                stored := extra[which]
+                if stored.left == flow.guard_in[fact].left && stored.right == flow.guard_in[fact].right &&
+                    stored.kind > kind { kind = stored.kind }
+            }
+            if kind == 0 { continue }
+            if kind > flow.guard_in[fact].kind { flow.guard_in[fact].kind = kind }
+            flow.guard_in[keep] = flow.guard_in[fact]
+            keep += 1
+        }
+        flow.guard_in_count = keep
+    }
+    return true
+}
+
+// The guards that hold at BLOCK's entry: those every ready predecessor edge
+// proves, with the weakest kind among them. The function's own start proves
+// none, so the entry block has none.
+GuardEntry :: (state: *ProvenState, flow: *Flow, block_index: s64, entry: bool) -> bool {
+    flow.guard_in_count = 0
+    if entry { return true }
+    ready := false
+    for at: flow.pred_offset[block_index]..flow.pred_offset[block_index + 1] - 1 {
+        slot := flow.pred_slot[at]
+        if flow.edge_ready[slot] == 0 { continue }
+        if !Spend(state, GuardLimit) { return false }
+        if !ready {
+            for fact: cast(s64)0..flow.edge_guard_count[slot] - 1 {
+                flow.guard_in[fact] = flow.edge_guard[slot * GuardLimit + fact]
+            }
+            flow.guard_in_count = flow.edge_guard_count[slot]
+            ready = true
+            continue
+        }
+        keep: s64 = 0
+        for fact: cast(s64)0..flow.guard_in_count - 1 {
+            kind: u8 = 0
+            for other: cast(s64)0..flow.edge_guard_count[slot] - 1 {
+                stored := flow.edge_guard[slot * GuardLimit + other]
+                if stored.left == flow.guard_in[fact].left && stored.right == flow.guard_in[fact].right &&
+                    stored.kind > kind { kind = stored.kind }
+            }
+            if kind == 0 { continue }
+            if kind > flow.guard_in[fact].kind { flow.guard_in[fact].kind = kind }
+            flow.guard_in[keep] = flow.guard_in[fact]
+            keep += 1
+        }
+        flow.guard_in_count = keep
+    }
+    return true
+}
+
+// The least member of VALUE's class, halving the chain on the way down.
+SameRoot :: (flow: *Flow, value: s32) -> s32 {
+    at := value
+    while at >= 0 && at < flow.same.count && flow.same[at] != at {
+        parent := flow.same[at]
+        grand := flow.same[parent]
+        flow.same[at] = grand
+        at = grand
+    }
+    return at
+}
+
+// Makes the lesser of LEFT's and RIGHT's classes the root of both.
+SameUnion :: (flow: *Flow, left: s32, right: s32) {
+    low := SameRoot(flow, left)
+    high := SameRoot(flow, right)
+    if low < high { flow.same[high] = low } else if low > high { flow.same[low] = high }
+}
+
+// The classes of one function. A parameter every predecessor edge gives
+// the same class is that value, and the same field of the same record,
+// extracted twice, is one value: a guard on either proves the other. A
+// class whose value a comparison defines names that comparison, and one
+// a constant defines names the constant. Past the extract budget, or the
+// work budget, the classes stay as far as they got.
+SameBuild :: (state: *ProvenState, program: LirProgram, function: LirFunction,
+    definition: []s64, flow: *Flow) -> bool {
+    for at: cast(s64)0..flow.values - 1 {
+        flow.same[at] = cast(s32)at
+        flow.same_compare[at] = -1
+    }
+    changed := true
+    while changed {
+        if !Spend(state, flow.values + 1) { return false }
+        changed = false
+        for block, block_index: function.blocks {
+            for parameter, parameter_index: block.parameters {
+                if parameter < 0 || parameter >= flow.values { continue }
+                common: s32 = -1
+                first := true
+                for at: flow.pred_offset[block_index]..flow.pred_offset[block_index + 1] - 1 {
+                    slot := flow.pred_slot[at]
+                    edge := function.blocks[flow.pred_block[at]].instructions[flow.pred_instruction[at]].edges[flow.pred_edge[at]]
+                    root: s32 = -1
+                    if parameter_index < edge.arguments.count {
+                        argument := edge.arguments[parameter_index]
+                        if argument >= 0 && argument < flow.values { root = SameRoot(flow, argument) }
+                    }
+                    if root < 0 { common = -1; break }
+                    if first { common = root; first = false } else if common != root { common = -1; break }
+                }
+                if common >= 0 && SameRoot(flow, parameter) != common {
+                    SameUnion(flow, parameter, common)
+                    changed = true
+                }
+            }
+        }
+        count := 0
+        for block: function.blocks {
+            for source: block.instructions {
+                if source.op != .Extract || source.operands.count != 1 || source.result < 0 ||
+                    source.result >= flow.values || count > SameExtracts { continue }
+                flow.extract[count] = source.result
+                count += 1
+            }
+        }
+        if count > SameExtracts { continue }
+        for left: cast(s64)0..count - 1 {
+            for right: cast(s64)left + 1..count - 1 {
+                if !Spend(state, 1) { return false }
+                first := flow.extract[left]
+                second := flow.extract[right]
+                if SameRoot(flow, first) == SameRoot(flow, second) { continue }
+                left_source := function.blocks[definition[first] >> 32].instructions[definition[first] & 4294967295]
+                right_source := function.blocks[definition[second] >> 32].instructions[definition[second] & 4294967295]
+                if left_source.immediate != right_source.immediate || left_source.operands[0] < 0 ||
+                    left_source.operands[0] >= flow.values || right_source.operands[0] < 0 ||
+                    right_source.operands[0] >= flow.values { continue }
+                if SameRoot(flow, left_source.operands[0]) != SameRoot(flow, right_source.operands[0]) { continue }
+                SameUnion(flow, first, second)
+                changed = true
+            }
+        }
+    }
+    for value: cast(s64)0..flow.values - 1 {
+        if definition[value] < 0 { continue }
+        source := function.blocks[definition[value] >> 32].instructions[definition[value] & 4294967295]
+        root := SameRoot(flow, cast(s32)value)
+        constant: s64
+        if ConstantInteger(program, function, definition, cast(s32)value, *constant) {
+            flow.same_compare[root] = cast(s32)value
+            continue
+        }
+        if flow.same_compare[root] >= 0 || !Comparison(source.op) || source.operands.count != 2 { continue }
+        left := program.types[function.values[source.operands[0]]]
+        right := program.types[function.values[source.operands[1]]]
+        if (left.kind != .Integer && left.kind != .Bool) || (right.kind != .Integer && right.kind != .Bool) { continue }
+        flow.same_compare[root] = cast(s32)value
+    }
+    return true
+}
+
 // The instruction of BLOCK that defines VALUE, or -1.
 ConditionOf :: (block: LirBlock, value: s32) -> s64 {
     at := block.instructions.count - 1
@@ -644,17 +1085,171 @@ ConditionOf :: (block: LirBlock, value: s32) -> s64 {
     return -1
 }
 
-// Marks an index proven inside its fixed array at SOURCE.
-Mark :: (program: LirProgram, function: LirFunction, flow: *Flow, source: LirInstruction, index: []s64) {
+// One order closure over the guards, intervals and offsets a use sees. A
+// node is a value or a constant; an edge is below (1) or at or below (2).
+OrderGraph :: struct {
+    keys: [OrderNodes]s64
+    // 0 for a value, 1 for a constant.
+    kinds: [OrderNodes]u8
+    count: s64
+    edges: [1024]u8
+    best: [OrderNodes]u8
+}
+
+OrderNode :: (graph: *OrderGraph, kind: u8, key: s64) -> s64 {
+    for at: cast(s64)0..graph.count - 1 {
+        if graph.kinds[at] == kind && graph.keys[at] == key { return at }
+    }
+    if graph.count >= OrderNodes { return -1 }
+    graph.keys[graph.count] = key
+    graph.kinds[graph.count] = kind
+    graph.count += 1
+    return graph.count - 1
+}
+
+OrderEdge :: (graph: *OrderGraph, from: s64, to: s64, kind: u8) {
+    if from < 0 || to < 0 || from == to || from >= graph.count || to >= graph.count { return }
+    at := from * OrderNodes + to
+    if graph.edges[at] == 0 || kind < graph.edges[at] { graph.edges[at] = kind }
+}
+
+// The node of VALUE: its class's constant when it has one, else its class.
+OrderValue :: (program: LirProgram, function: LirFunction, definition: []s64, flow: *Flow,
+    graph: *OrderGraph, value: s32) -> s64 {
+    root := SameRoot(flow, value)
+    named := flow.same_compare[root]
+    constant: s64
+    if named >= 0 && ConstantInteger(program, function, definition, named, *constant) {
+        return OrderNode(graph, 1, constant)
+    }
+    return OrderNode(graph, 0, root)
+}
+
+// How FROM stands to TO along the strongest path: 0 unknown, 1 below,
+// 2 at or below.
+OrderReach :: (state: *ProvenState, graph: *OrderGraph, from: s64, to: s64) -> u8 {
+    if from < 0 || to < 0 || from >= graph.count || to >= graph.count { return 0 }
+    if from == to { return 2 }
+    if !Spend(state, graph.count * graph.count * graph.count + 1) { return 0 }
+    for at: cast(s64)0..graph.count - 1 { graph.best[at] = 0 }
+    graph.best[from] = 1
+    for round: cast(s64)0..graph.count - 1 {
+        changed := false
+        for left: cast(s64)0..graph.count - 1 {
+            if graph.best[left] == 0 { continue }
+            for right: cast(s64)0..graph.count - 1 {
+                kind := graph.edges[left * OrderNodes + right]
+                if kind == 0 { continue }
+                candidate := ifx kind > graph.best[left] then kind else graph.best[left]
+                if graph.best[right] == 0 || candidate < graph.best[right] {
+                    graph.best[right] = candidate
+                    changed = true
+                }
+            }
+        }
+        if !changed { break }
+    }
+    return graph.best[to]
+}
+
+// The graph in force at a use: every guard, every interval endpoint and
+// every offset from a value that cannot wrap.
+OrderBuild :: (program: LirProgram, function: LirFunction, definition: []s64, flow: *Flow, graph: *OrderGraph) {
+    graph.count = 0
+    for at: cast(s64)0..OrderNodes * OrderNodes - 1 { graph.edges[at] = 0 }
+    zero := OrderNode(graph, 1, 0)
+    for fact: cast(s64)0..flow.guard_count - 1 {
+        guard := flow.guard[fact]
+        OrderEdge(graph, OrderValue(program, function, definition, flow, graph, guard.left),
+            OrderValue(program, function, definition, flow, graph, guard.right), guard.kind)
+    }
+    for node: cast(s64)0..graph.count - 1 {
+        if graph.kinds[node] != 0 { continue }
+        value := cast(s32)graph.keys[node]
+        range := WorkGet(flow, value)
+        if Finite(range) && range.low >= 0 { OrderEdge(graph, zero, node, 2) }
+        if Finite(range) { OrderEdge(graph, node, OrderNode(graph, 1, range.high), 2) }
+        if value < 0 || value >= definition.count || definition[value] < 0 { continue }
+        block := definition[value] >> 32
+        source := function.blocks[block].instructions[definition[value] & 4294967295]
+        constant: s64
+        if source.operands.count != 2 || !ConstantInteger(program, function, definition, source.operands[1], *constant) { continue }
+        other := OrderValue(program, function, definition, flow, graph, source.operands[0])
+        top := TypeTop(program, function.values[value])
+        limit: s64
+        if source.op == .Subtract && constant > 0 {
+            // x - c is below x when x cannot underflow.
+            below := WorkGet(flow, source.operands[0])
+            if Finite(below) && SubtractExact(below.low, constant, *limit) && limit >= top.low { OrderEdge(graph, node, other, 1) }
+        } else if source.op == .Add && constant > 0 {
+            // x is below x + c when x cannot overflow.
+            above := WorkGet(flow, source.operands[0])
+            if Finite(above) && AddExact(above.high, constant, *limit) && limit <= top.high { OrderEdge(graph, other, node, 1) }
+        }
+    }
+    // Constants order by their values.
+    for left: cast(s64)0..graph.count - 1 {
+        if graph.kinds[left] != 1 { continue }
+        for right: cast(s64)0..graph.count - 1 {
+            if graph.kinds[right] != 1 || graph.keys[left] > graph.keys[right] { continue }
+            OrderEdge(graph, left, right, ifx graph.keys[left] < graph.keys[right] then 1 else 2)
+        }
+    }
+}
+
+// Whether the guards in force prove INDEX non-negative and strictly below
+// COUNT, the value the address checks: a view record's count, a subview's
+// high - low once its record is scalar-replaced, or a raw pointer's index +
+// 1. The order closure relates the values themselves, whatever defines them.
+IndexGuarded :: (state: *ProvenState, program: LirProgram, function: LirFunction, definition: []s64,
+    flow: *Flow, index: s32, count: s32) -> bool {
+    if count < 0 || count >= definition.count { return false }
+    graph: OrderGraph
+    OrderBuild(program, function, definition, flow, *graph)
+    zero := OrderNode(*graph, 1, 0)
+    from := OrderValue(program, function, definition, flow, *graph, index)
+    to := OrderValue(program, function, definition, flow, *graph, count)
+    return OrderReach(state, *graph, zero, from) != 0 && OrderReach(state, *graph, from, to) == 1
+}
+
+// Whether the guards in force prove INDEX non-negative and strictly below
+// the constant BOUND.
+ConstantGuarded :: (state: *ProvenState, program: LirProgram, function: LirFunction, definition: []s64,
+    flow: *Flow, index: s32, bound: s64) -> bool {
+    graph: OrderGraph
+    OrderBuild(program, function, definition, flow, *graph)
+    zero := OrderNode(*graph, 1, 0)
+    from := OrderValue(program, function, definition, flow, *graph, index)
+    to := OrderNode(*graph, 1, bound)
+    return OrderReach(state, *graph, zero, from) != 0 && OrderReach(state, *graph, from, to) == 1
+}
+
+// Marks an index proven inside its array at SOURCE: by its interval, or by
+// a guard a dominating branch proves.
+Mark :: (state: *ProvenState, program: LirProgram, function: LirFunction, definition: []s64, flow: *Flow,
+    source: LirInstruction, index: []s64, guard: []u8) {
     if source.result < 0 || source.result >= index.count { return }
     array_type: s32 = LirNoId
     position: s32 = LirNoId
     if source.op == .ElementAddress && source.operands.count == 3 {
-        // A view's element: the index below every value the count can have.
+        // A view's element: the index below every value the count can have,
+        // or below the count itself under a guard. A count with a finite
+        // upper end then bounds the no-check native form too.
         range := WorkGet(flow, source.operands[1])
         count := WorkGet(flow, source.operands[2])
         if Finite(range) && Finite(count) && range.low >= 0 && range.low <= range.high && range.high < count.low {
             index[source.result] = count.low
+        } else if flow.guards {
+            constant: s64
+            if ConstantInteger(program, function, definition, source.operands[2], *constant) {
+                if constant > 0 && ConstantGuarded(state, program, function, definition, flow, source.operands[1], constant) {
+                    index[source.result] = constant
+                    guard[source.result] = 1
+                }
+            } else if IndexGuarded(state, program, function, definition, flow, source.operands[1], source.operands[2]) {
+                guard[source.result] = 1
+                if Finite(count) && count.high > 0 { index[source.result] = count.high }
+            }
         }
         return
     }
@@ -668,13 +1263,17 @@ Mark :: (program: LirProgram, function: LirFunction, flow: *Flow, source: LirIns
     }
     if array_type < 0 || array_type >= program.types.count || program.types[array_type].kind != .Array { return }
     range := WorkGet(flow, position)
-    if Finite(range) && range.low >= 0 && range.low <= range.high && range.high < program.types[array_type].count {
-        index[source.result] = program.types[array_type].count
+    bound := program.types[array_type].count
+    if Finite(range) && range.low >= 0 && range.low <= range.high && range.high < bound {
+        index[source.result] = bound
+    } else if flow.guards && bound > 0 && ConstantGuarded(state, program, function, definition, flow, position, bound) {
+        index[source.result] = bound
+        guard[source.result] = 1
     }
 }
 
 WalkBlock :: (state: *ProvenState, program: LirProgram, function: LirFunction, flow: *Flow,
-    block_index: s64, index: []s64, collect: bool) -> bool {
+    block_index: s64, definition: []s64, index: []s64, guard: []u8, collect: bool) -> bool {
     block := function.blocks[block_index]
     entry := block_index == function.entry
     if !Spend(state, flow.values + 1) { return false }
@@ -703,6 +1302,10 @@ WalkBlock :: (state: *ProvenState, program: LirProgram, function: LirFunction, f
         any = true
     }
     if !any { return true }
+    // The guards in force here: those every ready predecessor edge proves.
+    if flow.guards && !GuardEntry(state, flow, block_index, entry) { return false }
+    flow.guard_count = flow.guard_in_count
+    for fact: cast(s64)0..flow.guard_in_count - 1 { flow.guard[fact] = flow.guard_in[fact] }
     for parameter, parameter_index: block.parameters {
         if parameter < 0 || parameter >= flow.values { continue }
         joined := Interval.{low = flow.top_low[parameter], high = flow.top_high[parameter]}
@@ -748,7 +1351,7 @@ WalkBlock :: (state: *ProvenState, program: LirProgram, function: LirFunction, f
     slot := flow.edge_offset[block_index]
     for source: block.instructions {
         if !Spend(state, 1) { return false }
-        if collect { Mark(program, function, flow, source, index) }
+        if collect { Mark(state, program, function, definition, flow, source, index, guard) }
         Transfer(program, function, flow, source)
         if source.op == .Branch && source.edges.count == 2 && source.operands.count == 1 {
             defined := ConditionOf(block, source.operands[0])
@@ -758,7 +1361,21 @@ WalkBlock :: (state: *ProvenState, program: LirProgram, function: LirFunction, f
                 operand := program.types[function.values[condition.operands[0]]]
                 refined = operand.kind == .Integer || operand.kind == .Bool
             }
+            // A branch on a value the predecessor edges pass down proves, on
+            // each edge, what the edges that can take it prove.
+            passed := flow.guards && !refined && source.operands[0] >= 0 &&
+                source.operands[0] < flow.values && flow.parameter_index[source.operands[0]] >= 0
+            // The entry guards stay the block's: an edge's own guard is dropped
+            // again once the edge has stored it.
+            for fact: cast(s64)0..flow.guard_count - 1 { flow.guard_in[fact] = flow.guard[fact] }
             for edge: 0..1 {
+                if passed {
+                    if !GuardBranch(state, program, function, definition, flow, block_index, source.operands[0], edge == 0) {
+                        return false
+                    }
+                    flow.guard_count = flow.guard_in_count
+                    for fact: cast(s64)0..flow.guard_count - 1 { flow.guard[fact] = flow.guard_in[fact] }
+                }
                 if refined {
                     if !Spend(state, flow.values) { return false }
                     for value: cast(s64)0..flow.values - 1 {
@@ -766,9 +1383,12 @@ WalkBlock :: (state: *ProvenState, program: LirProgram, function: LirFunction, f
                         flow.in_high[value] = flow.work_high[value]
                     }
                     Refine(flow, condition.op, condition.operands[0], condition.operands[1], edge == 0)
+                    if flow.guards { GuardPush(flow, condition.op, edge == 0, condition.operands[0], condition.operands[1]) }
                 }
-                if !StoreEdge(state, flow, slot) { return false }
+                if !StoreEdge(state, flow, slot) || flow.guards && !StoreGuards(state, flow, slot) { return false }
                 slot += 1
+                flow.guard_count = flow.guard_in_count
+                for fact: cast(s64)0..flow.guard_count - 1 { flow.guard[fact] = flow.guard_in[fact] }
                 if refined {
                     for value: cast(s64)0..flow.values - 1 {
                         flow.work_low[value] = flow.in_low[value]
@@ -778,7 +1398,7 @@ WalkBlock :: (state: *ProvenState, program: LirProgram, function: LirFunction, f
             }
         } else {
             for edge: source.edges {
-                if !StoreEdge(state, flow, slot) { return false }
+                if !StoreEdge(state, flow, slot) || flow.guards && !StoreGuards(state, flow, slot) { return false }
                 slot += 1
             }
         }
@@ -787,10 +1407,10 @@ WalkBlock :: (state: *ProvenState, program: LirProgram, function: LirFunction, f
 }
 
 Round :: (state: *ProvenState, program: LirProgram, function: LirFunction, flow: *Flow,
-    index: []s64, collect: bool) -> bool {
+    definition: []s64, index: []s64, guard: []u8, collect: bool) -> bool {
     flow.changed = false
     for block: cast(s64)0..flow.blocks - 1 {
-        if !WalkBlock(state, program, function, flow, block, index, collect) { return false }
+        if !WalkBlock(state, program, function, flow, block, definition, index, guard, collect) { return false }
     }
     return true
 }
@@ -798,34 +1418,46 @@ Round :: (state: *ProvenState, program: LirProgram, function: LirFunction, flow:
 // Proves indices for one function. A function whose intervals do not settle
 // in the round budget or within FunctionWork keeps every check.
 IndexFacts :: (state: *ProvenState, program: LirProgram, function: LirFunction,
-    flow: *Flow, index: []s64) -> bool {
+    flow: *Flow, definition: []s64, index: []s64, guard: []u8) -> bool {
     saved := state.remaining
     budget := ifx saved < FunctionWork then saved else FunctionWork
     state.remaining = budget
-    proved := IndexProof(state, program, function, flow, index)
+    proved := IndexProof(state, program, function, flow, definition, index, guard)
     state.remaining = saved - (budget - state.remaining)
     if proved || state.problem != .Limit { return proved }
     state.problem = .None
-    for at: cast(s64)0..index.count - 1 { index[at] = 0 }
+    for at: cast(s64)0..index.count - 1 { index[at] = 0; guard[at] = 0 }
     return true
 }
 
 IndexProof :: (state: *ProvenState, program: LirProgram, function: LirFunction,
-    flow: *Flow, index: []s64) -> bool {
-    for at: cast(s64)0..index.count - 1 { index[at] = 0 }
+    flow: *Flow, definition: []s64, index: []s64, guard: []u8) -> bool {
+    for at: cast(s64)0..index.count - 1 { index[at] = 0; guard[at] = 0 }
     if !FlowInit(state, program, function, flow) { return state.problem == .None }
+    if flow.guards && !SameBuild(state, program, function, definition, flow) { return false }
     stable := false
     for round: 0..WideningRounds - 1 {
-        if !Round(state, program, function, flow, index, false) { return false }
+        if !Round(state, program, function, flow, definition, index, guard, false) { return false }
         if !flow.changed { stable = true; break }
     }
     if !stable { return true }
     flow.narrowing = true
     for round: 0..NarrowingRounds - 1 {
-        if !Round(state, program, function, flow, index, false) { return false }
+        if !Round(state, program, function, flow, definition, index, guard, false) { return false }
         if !flow.changed { break }
     }
-    return Round(state, program, function, flow, index, true)
+    if flow.guards {
+        // The guards settle after the intervals: each round carries a block's
+        // entry guards one edge further, and from empty a set only grows or
+        // strengthens, so a round that changes none is the fixpoint.
+        for round: 0..GuardRounds - 1 {
+            flow.guard_changed = false
+            if !Round(state, program, function, flow, definition, index, guard, false) { return false }
+            if !flow.guard_changed { break }
+            if round == GuardRounds - 1 { flow.guards = false }
+        }
+    }
+    return Round(state, program, function, flow, definition, index, guard, true)
 }
 
 Scratch :: struct {
@@ -848,14 +1480,18 @@ FunctionFacts :: (state: *ProvenState, program: LirProgram, function: LirFunctio
     count := function.values.count
     facts := owner.pointers[begin:begin + count]
     index := owner.index[begin:begin + count]
-    for at: cast(s64)0..count - 1 { facts[at] = Unknown(); index[at] = 0 }
+    guard := owner.guard[begin:begin + count]
+    for at: cast(s64)0..count - 1 { facts[at] = Unknown(); index[at] = 0; guard[at] = 0 }
     if count == 0 || function.blocks.count == 0 { return true }
     if !Definitions(state, function, *scratch.definition) ||
         !PointerFacts(state, program, function, scratch.definition[:], facts, *scratch.done, *scratch.chain) ||
-        !IndexFacts(state, program, function, *scratch.flow, index) { return false }
+        !IndexFacts(state, program, function, *scratch.flow, scratch.definition[:], index, guard) { return false }
     for at: cast(s64)0..count - 1 {
-        if facts[at].root != .Unknown { result.rooted += 1 }
-        if index[at] != 0 { result.indices += 1 }
+        if facts[at].root != .Unknown {
+            result.rooted += 1
+            if facts[at].root == .Heap { result.heaps += 1 }
+        }
+        if index[at] != 0 || guard[at] != 0 { result.indices += 1 }
     }
     return true
 }
@@ -868,6 +1504,7 @@ LirProvenFree :: (owner: *LirProvenOwner) {
     VecFree(owner.value_begin)
     VecFree(owner.pointers)
     VecFree(owner.index)
+    VecFree(owner.guard)
 }
 
 // Computes the facts of PROGRAM, which has passed LirVerify. Work and scratch
@@ -886,7 +1523,8 @@ LirProvenBuild :: (owner: *LirProvenOwner, program: LirProgram, limits: LirLimit
         total += function.values.count
     }
     if !VecResizeBounded(owner.value_begin, program.functions.count + 1, program.functions.count + 1) ||
-        !VecResizeBounded(owner.pointers, total, total) || !VecResizeBounded(owner.index, total, total) {
+        !VecResizeBounded(owner.pointers, total, total) || !VecResizeBounded(owner.index, total, total) ||
+        !VecResizeBounded(owner.guard, total, total) {
         LirProvenFree(owner)
         return .{problem = .Allocation}
     }
@@ -931,12 +1569,28 @@ LirProvenIndexBound :: (owner: *LirProvenOwner, function: s64, value: s32) -> s6
     return owner.index[at]
 }
 
+// Whether a dominating guard proves the index of the instruction defining
+// VALUE non-negative and below the runtime count that instruction checks.
+LirProvenGuarded :: (owner: *LirProvenOwner, function: s64, value: s32) -> bool {
+    if owner == null || !owner.valid || function < 0 || function + 1 >= owner.value_begin.count || value < 0 {
+        return false
+    }
+    at := owner.value_begin[function] + value
+    if at >= owner.value_begin[function + 1] { return false }
+    return owner.guard[at] != 0
+}
+
+// Whether the index of the instruction defining VALUE needs no runtime check:
+// proven below a constant bound, or below its own count under a guard.
 LirProvenIndex :: (owner: *LirProvenOwner, function: s64, value: s32) -> bool {
-    return LirProvenIndexBound(owner, function, value) > 0
+    return LirProvenIndexBound(owner, function, value) > 0 || LirProvenGuarded(owner, function, value)
 }
 
 // Whether FACT covers an access of WIDTH bytes (a write when WRITE): its
-// root is live and the bytes lie inside it.
+// root is live and the bytes lie inside it. Only a global or frame root
+// qualifies: the machine verifier re-derives those alone, so a heap root
+// is reported but never relied on.
 LirProvenCovers :: (fact: LirProvenPointer, width: s64, write: bool) -> bool {
-    return fact.root != .Unknown && width >= 0 && width <= fact.room && (!write || fact.writable)
+    return fact.root != .Unknown && fact.root != .Heap && width >= 0 && width <= fact.room &&
+        (!write || fact.writable)
 }

@@ -192,7 +192,10 @@ ScriptRun :: (arguments: []string, binary: string, project_root: string,
     if project_root.count > 0 { VecPush(search, project_root) }
     directory := PkgJoin(cache_root, "/native")
     if !PkgMkdirs(cache_root) || !CreatePrivateDirectory(directory) { return PkgFail("cannot create the script cache") }
-    ignored := PkgCanonical(directory)
+    // The whole cache is build output: every cache the compiler keeps under
+    // it (native objects, frontend parses) changes between the two key
+    // computations without changing a source file.
+    ignored := PkgCanonical(cache_root)
     valid: bool
     state := CacheKey(binary, source, root, entry, VecSlice(options, 0, options.count),
         VecSlice(search, 0, search.count), map, libraries, ignored, *valid)

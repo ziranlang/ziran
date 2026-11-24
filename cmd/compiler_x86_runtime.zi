@@ -437,7 +437,7 @@ EmitResize :: (emitter: *Emitter) {
     X86Undefined(writer)
 }
 
-// The in-process Resize fast path (cmd/zir/zir_host_native.c): rdi data,
+// The in-process Resize fast path (bootstrap/runtime/zir_host_native.c): rdi data,
 // rsi old count, rdx new count, rcx element size; rax the block, clobbering
 // only rcx, rdx, rsi, rdi and r8-r11. It allocates and frees blocks of at
 // most MachineX64HeapSmall bytes in 16-byte classes, from the free lists
@@ -896,7 +896,7 @@ MachineX64RuntimeImports :: (uses: MachineX64RuntimeUses) -> u32 {
 
 // Measures, then with a non-empty OUTPUT writes, the routines USES names at
 // position AT. Writing reproduces the measured positions exactly.
-// The in-process heap a native instance keeps (cmd/zir/zir_host_native.c):
+// The in-process heap a native instance keeps (bootstrap/runtime/zir_host_native.c):
 // its cookie, live and limit bytes, the chunk's top and end, then the free
 // lists of the 16-byte classes up to MachineX64HeapSmall bytes.
 MachineX64HeapSmall :: 256

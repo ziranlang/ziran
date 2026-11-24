@@ -1,8 +1,8 @@
 // The embedding API (include/ziran_host.h) over revision-28 executable ZX:
 // bundles, instances, module state and hot-swapped components, and the
 // hosted module runtime of include/ziran_zx_module.h. A bundle runs on the
-// portable instruction engine (cmd/zir/zir_host_exec.c), on native code
-// (cmd/zir/zir_host_native.c), or on the host's installed wasm provider.
+// portable instruction engine (bootstrap/runtime/zir_host_exec.c), on native code
+// (bootstrap/runtime/zir_host_native.c), or on the host's installed wasm provider.
 //
 // This file holds bundles, instances and run control;
 // compiler_host_api_state.zi holds module state and components;

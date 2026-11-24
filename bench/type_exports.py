@@ -38,7 +38,7 @@ def main():
     sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
     libraries = dict(before=args.before_lib.resolve(),current=args.library.resolve())
     for label,library in libraries.items():
-        common=['cc','-O2','-std=c11','-D_GNU_SOURCE','-Iinclude','-Icmd/zir','-Ibootstrap/compiler_ir','bench/type_exports.c',library,'-lm','-pthread']
+        common=['cc','-O2','-std=c11','-D_GNU_SOURCE','-Iinclude','-Ibootstrap/runtime','-Ibootstrap/compiler_ir','bench/type_exports.c',library,'-lm','-pthread']
         subprocess.run([*common,'-o',out/label],cwd=ROOT,env=env,check=True)
         subprocess.run([*common,'-DTYPE_ALLOCATIONS','-Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc','-o',out/(label+'-alloc')],cwd=ROOT,env=env,check=True)
     meta=dict(schema=1,platform=platform.platform(),repetitions=args.repetitions,measurement_launcher=timer,
@@ -46,7 +46,7 @@ def main():
               compiler_version=subprocess.check_output(['cc','--version'],text=True),
               environment_switches={k:env.get(k) for k in ['ZIRAN_VERIFY_SYMBOL_LOOKUPS','ZIRAN_PROFILE','ZIRAN_VM_PROFILE']},
               libraries={label:dict(path=str(p),sha256=sha(p)) for label,p in libraries.items()},
-              source_sha256={p:sha(ROOT/p) for p in ['cmd/zir/zir.c','bench/type_exports.c','bench/type_exports.py']},
+              source_sha256={p:sha(ROOT/p) for p in ['bootstrap/runtime/zir.c','bench/type_exports.c','bench/type_exports.py']},
               caveats=['Two lookups per round: two owned declarations for local, or an exported Value and absent Missing for graph cases.',
                        'Graph construction/startup are outside internal wall/CPU timers. Cold rounds invalidate entry answers; cached rounds retain prepared answers.',
                        'The baseline depth guard can reject connected types. Incorrect baseline answers are retained and excluded from equivalent-work comparisons.',

@@ -345,7 +345,7 @@ runs:
           done
           stamp=$(mktemp "$RUNNER_TEMP/ziran-build-stamp.XXXXXX")
           find "$ROOT/build" -exec touch -r "$stamp" {} +
-          rm -f "$stamp" "$ROOT/build/obj/cmd/zir/zir_load.o"
+          rm -f "$stamp" "$ROOT/build/obj/bootstrap/runtime/zir_load.o"
         fi
         log=$(mktemp "$RUNNER_TEMP/ziran-make.XXXXXX")
         trap 'rm -f "$log"' EXIT

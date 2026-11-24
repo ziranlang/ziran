@@ -114,7 +114,7 @@ def prepare(label, project, runtime_label=None, program_label=None):
               ROOT / 'scripts/benchmark_samples.py', ROOT / 'scripts/site_target_platforms.py', Path(__file__),
               *sorted((ROOT / 'cmd').glob('*.[ch]')),
               *sorted((ROOT / 'cmd').glob('compiler*.zi')),
-              *sorted((ROOT / 'cmd/zir').glob('*.[ch]')),
+              *sorted((ROOT / 'bootstrap/runtime').glob('*.[ch]')),
               *sorted((ROOT / 'include').rglob('*.h')),
               *sorted((ROOT / 'std').rglob('*.zi')),
               project / 'ziran.toml', project / 'ziran.lock',

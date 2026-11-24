@@ -74,7 +74,7 @@ BudgetFitsBytes :: (budget: *ZxExecBudget, count: s64) -> bool {
     return count >= 0 && count <= budget.maximum_bytes
 }
 
-// Same field layout as cmd/zir/zir_sha256.h, including native size_t and
+// Same field layout as bootstrap/runtime/zir_sha256.h, including native size_t and
 // alignment. Reuse its block streaming, shared constants and CPU dispatch.
 compiler :: #system_library "ziran";
 ShaBeginRaw :: (state: *void) #foreign compiler "Sha256Begin";

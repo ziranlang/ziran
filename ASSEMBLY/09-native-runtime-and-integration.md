@@ -80,9 +80,10 @@ bundle Wasm tier use this shared instruction route.
 For literal-only hello, direct instruction selection emits no stack frame or
 spill slots, uses short constants, and writes the literal from read-only data.
 The ELF file places `.rodata` immediately after `.text`, with congruent file
-offsets and virtual addresses on distinct RX/R pages, and omits an empty
-`.data` section. Function symbols retain positive bounded text extents;
-inlined platform service declarations are omitted from the ELF symbol table,
+offsets and virtual addresses on distinct RX/R pages, and carries `.data` only
+as a zero-length section header when no writable storage exists. `_start` and
+each function's symbol retain positive bounded text extents;
+inlined platform service declarations are omitted from the symbol table,
 so the static executable has no undefined symbols or misleading trap aliases.
 
 ## Existing integration points

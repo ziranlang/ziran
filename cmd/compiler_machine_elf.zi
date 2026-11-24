@@ -80,6 +80,22 @@ MachineElfResult :: struct {
 SymbolSize :: 24
 RelocationSize :: 24
 DynamicEntrySize :: 16
+SectionHeaderSize :: 64
+SectionCount :: 9
+SectionText :: 1
+SectionStrings :: 6
+SectionDynamic :: 7
+SectionNames :: 8
+// The section name table: a leading NUL, then each name and its NUL.
+SectionNameBytes :: 61
+SectionNameText :: 1
+SectionNameConstants :: 7
+SectionNameData :: 15
+SectionNameBss :: 21
+SectionNameSymbols :: 26
+SectionNameStrings :: 34
+SectionNameDynamic :: 42
+SectionNameNames :: 51
 // d_tag values, R_X86_64_GLOB_DAT and the symbol's STB_GLOBAL STT_FUNC.
 DtNull :: 0
 DtNeeded :: 1
@@ -110,6 +126,15 @@ Layout :: struct {
     // The end of the first PT_LOAD's bytes.
     read_end: s64
     data_offset: s64
+    // The section data after the segments: the symbol and string tables,
+    // then the section header table. They describe the image; none is
+    // mapped.
+    symtab: s64
+    symtab_size: s64
+    strtab: s64
+    strtab_size: s64
+    shstrtab: s64
+    sections: s64
     file_size: s64
 }
 
@@ -256,6 +281,7 @@ ElfLayout :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachineE
     }
     image.data_file = layout.data_offset
     layout.file_size = layout.data_offset + image.data_layout.size
+    SectionLayout(program, encoded, layout)
     // The linked archives' pieces take their positions and relocations
     // with the data placed, before the program's own are checked.
     diagnostic = MachineX64ImageObjects(program, image, MachineElfBase)
@@ -321,21 +347,151 @@ WriteDynamic :: (program: MachineProgram, hosts: MachineElfHosts, layout: Layout
     DynamicEntry(output, layout, entry + 8, DtNull, 0)
 }
 
+// A program function with text to name in the symbol table.
+SymbolNamed :: (program: MachineProgram, encoded: MachineX64Image, id: s64) -> bool {
+    return id >= 0 && id < encoded.functions.count && id < program.functions.count &&
+        encoded.functions[id].end > encoded.functions[id].begin &&
+        program.functions[id].name_length > 0
+}
+
+// The null symbol, "_start", then one per named function.
+SymbolCount :: (program: MachineProgram, encoded: MachineX64Image) -> s64 {
+    count: s64 = 2
+    for id: cast(s64)0..encoded.functions.count - 1 {
+        if SymbolNamed(program, encoded, id) { count += 1 }
+    }
+    return count
+}
+
+// The string table after its leading NUL: "_start" and each named function.
+SymbolStringsSize :: (program: MachineProgram, encoded: MachineX64Image) -> s64 {
+    size: s64 = 1 + 6 + 1
+    for id: cast(s64)0..encoded.functions.count - 1 {
+        if !SymbolNamed(program, encoded, id) { continue }
+        size += cast(s64)program.functions[id].name_length + 1
+    }
+    return size
+}
+
+// The section data after the segments: the symbol table, the strings it
+// names, the section names and the section header table. None is mapped, so
+// the segments' extents and addresses are unchanged.
+SectionLayout :: (program: MachineProgram, encoded: MachineX64Image, layout: *Layout) {
+    layout.symtab = Align(layout.file_size, 8)
+    layout.symtab_size = SymbolCount(program, encoded) * SymbolSize
+    layout.strtab = layout.symtab + layout.symtab_size
+    layout.strtab_size = SymbolStringsSize(program, encoded)
+    layout.shstrtab = layout.strtab + layout.strtab_size
+    layout.sections = Align(layout.shstrtab + SectionNameBytes, 8)
+    layout.file_size = layout.sections + SectionCount * SectionHeaderSize
+}
+
+// One ELF64 section header.
+SectionHeader :: (output: []u8, at: s64, name: s64, kind: s64, flags: s64, address: u64,
+    offset: s64, size: s64, link: s64, info: s64, alignment: s64, entry_size: s64) {
+    PutLittle(output, at, cast(u64)name, 4)
+    PutLittle(output, at + 4, cast(u64)kind, 4)
+    PutLittle(output, at + 8, cast(u64)flags, 8)
+    PutLittle(output, at + 16, address, 8)
+    PutLittle(output, at + 24, cast(u64)offset, 8)
+    PutLittle(output, at + 32, cast(u64)size, 8)
+    PutLittle(output, at + 40, cast(u64)link, 4)
+    PutLittle(output, at + 44, cast(u64)info, 4)
+    PutLittle(output, at + 48, cast(u64)alignment, 8)
+    PutLittle(output, at + 56, cast(u64)entry_size, 8)
+}
+
+// The symbol and string tables and the section names, then the section
+// headers that describe the whole image.
+SectionsWrite :: (program: MachineProgram, encoded: MachineX64Image, layout: Layout, output: []u8) {
+    image := layout.image
+    base := cast(u64)MachineElfBase
+    // Symbol 0 is null, at an all-zero entry.
+    at := layout.symtab + SymbolSize
+    PutLittle(output, at, 1, 4)
+    output[at + 4] = GlobalFunction
+    PutLittle(output, at + 6, SectionText, 2)
+    PutLittle(output, at + 8, base + cast(u64)image.text, 8)
+    PutLittle(output, at + 16, cast(u64)image.startup_size, 8)
+    string := 8
+    at += SymbolSize
+    for id: cast(s64)0..encoded.functions.count - 1 {
+        if !SymbolNamed(program, encoded, id) { continue }
+        record := program.functions[id]
+        PutLittle(output, at, cast(u64)string, 4)
+        output[at + 4] = GlobalFunction
+        PutLittle(output, at + 6, SectionText, 2)
+        PutLittle(output, at + 8, base + cast(u64)(image.text + image.startup_size +
+            encoded.functions[id].begin), 8)
+        PutLittle(output, at + 16, cast(u64)(encoded.functions[id].end -
+            encoded.functions[id].begin), 8)
+        string += cast(s64)record.name_length + 1
+        at += SymbolSize
+    }
+    PutText(output, layout.strtab + 1, "_start")
+    string = 8
+    for id: cast(s64)0..encoded.functions.count - 1 {
+        if !SymbolNamed(program, encoded, id) { continue }
+        record := program.functions[id]
+        PutBytes(output, layout.strtab + string, SymbolName(program, cast(s32)id))
+        string += cast(s64)record.name_length + 1
+    }
+    PutText(output, layout.shstrtab + SectionNameText, ".text")
+    PutText(output, layout.shstrtab + SectionNameConstants, ".rodata")
+    PutText(output, layout.shstrtab + SectionNameData, ".data")
+    PutText(output, layout.shstrtab + SectionNameBss, ".bss")
+    PutText(output, layout.shstrtab + SectionNameSymbols, ".symtab")
+    PutText(output, layout.shstrtab + SectionNameStrings, ".strtab")
+    PutText(output, layout.shstrtab + SectionNameDynamic, ".dynamic")
+    PutText(output, layout.shstrtab + SectionNameNames, ".shstrtab")
+    data := layout.image.data_layout
+    has_data := MachineX64ImageHasData(image)
+    // Entry 0 stays the null section.
+    text_offset := layout.sections + SectionHeaderSize
+    SectionHeader(output, text_offset, SectionNameText, 1, 6, base + cast(u64)image.text,
+        image.text, image.constants - image.text, 0, 0, 16, 0)
+    SectionHeader(output, text_offset + SectionHeaderSize, SectionNameConstants, 1, 2,
+        base + cast(u64)image.constants, image.constants, image.constants_size, 0, 0, 16, 0)
+    SectionHeader(output, text_offset + SectionHeaderSize * 2, SectionNameData, 1, 3,
+        base + cast(u64)image.data, ifx has_data then layout.data_offset else 0,
+        data.size, 0, 0, 16, 0)
+    SectionHeader(output, text_offset + SectionHeaderSize * 3, SectionNameBss, 8, 3,
+        base + cast(u64)(image.data + data.size),
+        ifx has_data then layout.data_offset + data.size else 0,
+        data.memory - data.size, 0, 0, 16, 0)
+    SectionHeader(output, text_offset + SectionHeaderSize * 4, SectionNameSymbols, 2, 0, 0,
+        layout.symtab, layout.symtab_size, SectionStrings, 1, 8, SymbolSize)
+    SectionHeader(output, text_offset + SectionHeaderSize * 5, SectionNameStrings, 3, 0, 0,
+        layout.strtab, layout.strtab_size, 0, 0, 1, 0)
+    has_dynamic := Dynamic(layout)
+    SectionHeader(output, text_offset + SectionHeaderSize * 6, SectionNameDynamic, 6, 2,
+        ifx has_dynamic then base + cast(u64)layout.dynamic else 0,
+        ifx has_dynamic then layout.dynamic else 0,
+        ifx has_dynamic then layout.dynamic_count * DynamicEntrySize else 0, 0, 0, 8, 16)
+    SectionHeader(output, text_offset + SectionHeaderSize * 7, SectionNameNames, 3, 0, 0,
+        layout.shstrtab, SectionNameBytes, 0, 0, 1, 0)
+}
+
 Write :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachineElfHosts, layout: Layout,
     output: []u8, fuel: s64) -> bool {
     for index: cast(s64)0..output.count - 1 { output[index] = 0 }
     image := layout.image
     data := MachineElfBase + image.data
 
-    // ELF64 little-endian ET_EXEC, x86-64, its program headers, no sections.
+    // ELF64 little-endian ET_EXEC, x86-64: its program headers describe the
+    // mapped segments, and section headers after them name their contents.
     output[0] = 0x7f; output[1] = 69; output[2] = 76; output[3] = 70
     output[4] = 2; output[5] = 1; output[6] = 1
     PutLittle(output, 16, 2, 2); PutLittle(output, 18, 62, 2); PutLittle(output, 20, 1, 4)
     PutLittle(output, 24, cast(u64)(MachineElfBase + image.text), 8)
     PutLittle(output, 32, MachineElfHeaderSize, 8)
+    PutLittle(output, 40, cast(u64)layout.sections, 8)
     PutLittle(output, 52, MachineElfHeaderSize, 2)
     PutLittle(output, 54, MachineElfProgramHeaderSize, 2)
     PutLittle(output, 56, cast(u64)layout.headers, 2)
+    PutLittle(output, 58, SectionHeaderSize, 2)
+    PutLittle(output, 60, SectionCount, 2)
+    PutLittle(output, 62, SectionNames, 2)
 
     ph := cast(s64)MachineElfHeaderSize
     // PT_INTERP precedes every PT_LOAD.
@@ -360,7 +516,9 @@ Write :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachineElfHo
         ProgramHeader(output, ph, 0x6474e551, 6, 0, 0, 0, 0, 16)
         WriteDynamic(program, hosts, layout, output)
     }
-    return MachineX64ImageWrite(program, encoded, image, output, MachineElfBase, fuel)
+    if !MachineX64ImageWrite(program, encoded, image, output, MachineElfBase, fuel) { return false }
+    SectionsWrite(program, encoded, layout, output)
+    return true
 }
 
 // The file offset of a data piece at OFFSET, or -1 when absent.

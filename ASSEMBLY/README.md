@@ -72,9 +72,12 @@ assembler, C compiler, or system linker to produce this executable.
 - Block-parameter SSA with simultaneous edge copies, explicit ordered effects,
   copied source origins, and a bounded verifier that rejects invalid definitions,
   dominance, CFG edges, types, and effect order.
-- Deterministic raw x86-64 encoding and ELF output with `.text`, `.strtab` and
-  `.symtab` sections. Startup, trap and `module:function` symbols refer to the
-  actual linked function bytes, so final disassembly has meaningful labels.
+- Deterministic raw x86-64 encoding and ELF output with `.text`, `.rodata`,
+  `.data`, `.bss`, `.symtab`, `.strtab`, `.dynamic` and `.shstrtab` section
+  headers. `_start` and each program function's symbol carry their linked
+  address and byte extent, so final disassembly, debuggers and profilers have
+  meaningful labels; the section table describes the same bytes the program
+  headers map.
 - Static globals and checked global/record-field pointer slots in direct ELF,
   with zero/scalar initialization, packed aggregate loads/stores, pointer
   parameters/results and separate RX text, read-only data and RW data segments.

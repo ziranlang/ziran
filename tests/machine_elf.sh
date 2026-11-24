@@ -100,11 +100,15 @@ if test "$main_instructions" -ne 4; then
     exit 1
 fi
 readelf -hW "$work/hello.elf" > "$work/hello.header"
-grep -Fq 'Number of section headers:         0' "$work/hello.header"
+grep -Fq 'Number of section headers:         9' "$work/hello.header"
+grep -Fq 'Section header string table index: 8' "$work/hello.header"
+readelf -sW "$work/hello.elf" > "$work/hello.symbols"
+grep -Eq 'FUNC[[:space:]]+GLOBAL[[:space:]]+DEFAULT[[:space:]]+1 _start$' "$work/hello.symbols"
+grep -Eq 'FUNC[[:space:]]+GLOBAL[[:space:]]+DEFAULT[[:space:]]+1 main$' "$work/hello.symbols"
 # Hello carries only what it reaches: one direct write, no output buffer,
 # terminal probe, formatter, fuel or stack check, and no page padding.
 hello_size=$(wc -c < "$work/hello.elf")
-if test "$hello_size" -gt 320 || grep -Fq truefalse "$work/hello.elf"; then
+if test "$hello_size" -gt 1400 || grep -Fq truefalse "$work/hello.elf"; then
     echo "native hello grew to $hello_size bytes or carries unused runtime" >&2
     exit 1
 fi

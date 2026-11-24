@@ -185,8 +185,11 @@ Headers :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     measured := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:], Unbounded, Static())
     if !Check(measured.diagnostic.problem == .None && measured.size == bytes.count,
         "measure matches published write") { return false }
-    if !Check(bytes.count == measured.data_offset + measured.data_size && measured.text_offset == 176 &&
-            measured.data_offset >= measured.text_offset + measured.text_size, "headers, text, then data, unpadded") ||
+    if !Check(bytes.count > measured.data_offset + measured.data_size && measured.text_offset == 176 &&
+            measured.data_offset >= measured.text_offset + measured.text_size, "headers, text, data, then section data") ||
+        !Check(Little(bytes, 40, 8) + 9 * 64 == cast(u64)bytes.count &&
+            Little(bytes, 58, 2) == 64 && Little(bytes, 60, 2) == 9 &&
+            Little(bytes, 62, 2) == 8, "the section header table describes the image") ||
         !Check(Little(bytes, 0, 4) == 0x464c457f, "ELF magic") ||
         !Check(bytes[4] == 2 && bytes[5] == 1 && bytes[6] == 1, "ELF64 little-endian identity") ||
         !Check(Little(bytes, 16, 2) == 2 && Little(bytes, 18, 2) == 62, "ET_EXEC x86-64") ||

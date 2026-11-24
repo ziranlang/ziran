@@ -1173,3 +1173,47 @@ standard host asking for it, so the methodology changes with it.
 Also seen: n-body's per-body loop copies whole 56-byte body records through
 `%r11` and the frame, seven 8-byte move pairs per copy, several copies per
 iteration (records/aggregate lowering, not register allocation).
+
+## k-nucleotide 128 KiB value-copy trace (2026-11-24)
+
+The benchmark source is unchanged; this traces the lowering. A driver calling
+`KNucleotide(1000000)` from `bench/standard/workloads_text.zi` built with
+`ziran build` gives a 3,480-byte native ELF with `_start`, `main`,
+`KNucleotide`, `Bytes` and `Digest` symbols.
+
+`KNucleotide` allocates its `[16384]s64` `counts` array in the frame at
+function entry (LIR `v90:t14 = allocate`, type `t13` = 16384 x s64). Before
+the digest loop over that array, the native code contains **two full 128 KiB
+copies** of it:
+
+| Address range | Bytes | What |
+| --- | --- | --- |
+| `0x400162`–`0x40016f` | 0x20000 | zero-fill of the entry allocation (expected) |
+| `0x400227`–`0x40023a` | 0x20000 | `movups` copy from the allocation to a stack temporary |
+| `0x400267`–`0x40027a` | 0x20000 | `movups` copy from the stack temporary to a fresh heap allocation |
+
+The LIR names the cause in `KNucleotide` block `b14`:
+
+```
+i8  v91:t13 = load v90        ; the whole array value from its allocation
+i9  v92:t14 = allocate v91    ; a second allocation holding that value
+...
+b24/b25: element.address v193 v196 on v92 with bound 16384
+```
+
+The `for count: counts` view iterates the copy at `v92`, not the binding's own
+storage at `v90`. Both copies run once per `KNucleotide` call; the digest loop
+then only reads 16,384 elements. At the catalog size (n = 1,000,000) the array
+is the same fixed 128 KiB regardless of n, so the copies are pure overhead
+before the loop, not part of the counted input.
+
+Fix direction: lower a for-each over a local fixed-array binding (and the
+equivalent aggregate view) to iterate the binding's storage directly, or make
+the view read the same allocation without the `load`/`allocate` pair. Do not
+change the benchmark source. Preserve value semantics first: a loop that
+mutates the array, takes its address, or aliases it through a call must keep
+whatever snapshot the language promises, so add a mutation-during-iteration
+twin to the retained checks before changing the lowering. The Wasm lowering
+still needs the same trace; it shares the verified ZX input, so the same LIR
+`load`/`allocate` pattern applies, but its view planning may already read the
+allocation in place.

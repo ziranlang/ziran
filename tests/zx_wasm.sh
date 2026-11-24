@@ -539,7 +539,7 @@ int main(int argc, char **argv)
 C
     "$(dirname -- "$ziran")/zi2c" --no-main --root "$repo/tests" --module-path "$repo/cmd" \
         -o "$work/frontend-c" "$repo/tests/zx_wasm_frontend.zi"
-    "$emcc" -O2 -std=gnu99 -I"$repo/include" -I"$repo/cmd/zir" \
+    "$emcc" -O2 -std=gnu99 -I"$repo/include" -I"$repo/bootstrap/runtime" \
         "$work/tier.c" "$work/frontend-c/zx_wasm_frontend.c" "$work/lib/libziran.a" \
         -o "$work/tier.js" -s ENVIRONMENT=node -s NODERAWFS=1 -s ALLOW_MEMORY_GROWTH=1 -s EXIT_RUNTIME=1
     tier=$("$nodebin" "$work/tier.js" "$work/typed.zx" "$work/state.zx" "$work/tree.zx" "$work/cycle.zx" 2> "$work/tier.err") || {

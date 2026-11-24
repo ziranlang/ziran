@@ -5,7 +5,7 @@
  * The provider and its bridge live in cmd/compiler_zx_exec_wasm.zi.
  */
 
-void ZxWasmInstallBundledPlatform(void);
+#include "ziran_bootstrap_runtime.h"
 
 #ifndef __EMSCRIPTEN__
 void

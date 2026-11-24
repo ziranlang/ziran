@@ -104,7 +104,7 @@ def build(project, manifest_path, samples, revision=None):
                          'dirty': bool(base.git('status', '--porcelain', '--', 'cmd', 'std', 'include', 'bootstrap', 'Makefile')),
                          'tools': {name: base.sha(base.REPO / 'build/bin' / name) for name in ('zi2c', 'zi2go', 'zi2zx', 'zx2wasm')},
                          'source_hashes': {str(p.relative_to(base.REPO)): base.sha(p) for p in
-                                           sorted([p for p in (base.REPO / 'cmd/zir').iterdir() if p.suffix in ('.c', '.h')] +
+                                           sorted([p for p in (base.REPO / 'bootstrap/runtime').iterdir() if p.suffix in ('.c', '.h')] +
                                                   sorted((base.REPO / 'cmd').glob('compiler_zx_wasm*.zi')) +
                                                   [base.REPO / 'cmd/zx2wasm/main.c'])}},
             'harnesses': {p: base.sha(base.REPO / p) for p in

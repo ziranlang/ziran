@@ -20,7 +20,7 @@ Answer :: () -> s32 {
 ZI
 "$ziran" ir --root "$work" -o "$work/saved-imports" "$work/library.zi"
 cp "$work/imports.zi" "$work/saved-imports/imports.zi"
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/bootstrap/runtime" \
     -I"$repo/bootstrap/compiler_ir" -I"$repo/bootstrap/compiler_services" \
     -I"$repo/bootstrap/compiler_native_names" \
     "$repo/tests/parser_recovery_test.c" "${ZIRAN_LIB:-$(dirname "$ziran")/../libziran.a}" \

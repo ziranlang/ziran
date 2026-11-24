@@ -16,9 +16,9 @@ compile_fixture() {
     done
     "$compiler" -std=c11 -Wall -Wextra -Werror -Wno-unused-label -I"$root/include" "$@" \
         -c "$root/bootstrap/compiler_files/compiler_files.c" -o "$work/files.o"
-    "$compiler" -std=c11 -Wall -Wextra -Werror -I"$root/include" -I"$root/cmd/zir" "$@" \
+    "$compiler" -std=c11 -Wall -Wextra -Werror -I"$root/include" -I"$root/bootstrap/runtime" "$@" \
         "$root/tests/compiler_files_portable.c" "$work/files.o" \
-        "$root/cmd/zir/zir_files_host.c" "$root/cmd/zir/zir_memory.c" -o "$output"
+        "$root/bootstrap/runtime/zir_files_host.c" "$root/bootstrap/runtime/zir_memory.c" -o "$output"
 }
 
 compile_fixture "${CC:-cc}" "$work/files" -D_GNU_SOURCE

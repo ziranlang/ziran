@@ -1,7 +1,7 @@
 #ifndef ZIR_PARSE_INTERNAL_H
 #define ZIR_PARSE_INTERNAL_H
 
-#include "zir_parse.h"
+#include "ziran_bootstrap_runtime.h"
 
 int *ZirLawEvaluationAddress(void);
 

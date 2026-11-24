@@ -1,5 +1,5 @@
 /* Native variadic formatting and Android's diagnostic sink. */
-#include "zir_diagnostic.h"
+#include "ziran_bootstrap_runtime.h"
 #ifdef __ANDROID__
 #include <android/log.h>
 #endif
@@ -65,8 +65,9 @@ void Warning(ZirSourceSpan span, const char *code, const char *format, ...)
 void DiagnosticTarget(ZirSourceSpan span, const char *code, const char *target,
                       const char *capability, const char *format, ...)
 {
-    DiagnosticDetails details = {.target = target, .capability = capability,
-                                 .cause_kind = "target_restriction"};
+    DiagnosticDetails details = {.target = (uint8_t *)target,
+                                 .capability = (uint8_t *)capability,
+                                 .cause_kind = (uint8_t *)"target_restriction"};
     va_list args;
     va_start(args, format);
     report(span, "error", code, &details, format, args);

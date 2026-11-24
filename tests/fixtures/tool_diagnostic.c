@@ -7,6 +7,7 @@ const ZirDocument *DocumentWithSuffix(const char *path) { (void)path; return NUL
 int DocumentOffset(const ZirDocument *doc, int line, int column, size_t *offset) { (void)doc; (void)line; (void)column; (void)offset; return 0; }
 static int prohibit_allocation;
 void *AllocateOrExit(size_t size) { assert(!prohibit_allocation); return malloc(size); }
+void FrontendCacheDiagnostic(void) {}
 const char *SpanPath(ZirSourceSpan span) { (void)span; return ""; }
 int main(int argc, char **argv) {
     SetDiagnosticFormat("json");

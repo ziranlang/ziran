@@ -4,6 +4,7 @@
  * hook that flushes the report. The report itself and its opt-in state live
  * in cmd/compiler_profile.zi.
  */
+#include "ziran_bootstrap_runtime.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <errno.h>

@@ -1,4 +1,5 @@
 /* Host calls used by the compiler's path and generated-output code. */
+#include "ziran_bootstrap_runtime.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -8,7 +9,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
-#include "zir_files.h"
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -183,7 +183,7 @@ int CompilerPathEntryKind(const char *path)
 int CompilerPathEntryKindNoLinks(const char *path)
 {
     struct stat info;
-    return FileStatusNoLinks(path, &info) == 0 ? entry_kind(&info) : 0;
+    return FileStatusNoLinks((uint8_t *)path, &info) == 0 ? entry_kind(&info) : 0;
 }
 
 int CompilerPathIsRegular(const char *path)
@@ -211,7 +211,7 @@ int ZiranApiReadExampleFile(const char *path, int optional, unsigned char *text,
     int descriptor = open(path, flags);
     if(descriptor < 0 && optional && errno == ENOENT) return 0;
     struct stat info;
-    FILE *file = descriptor >= 0 && FileStatusNoLinks(path, &info) == 0 &&
+    FILE *file = descriptor >= 0 && FileStatusNoLinks((uint8_t *)path, &info) == 0 &&
                  fstat(descriptor, &info) == 0 && S_ISREG(info.st_mode) ?
                  fdopen(descriptor, "rb") : NULL;
     if(file == NULL) {

@@ -12,12 +12,7 @@
  * data, so instances are independent. A trap longjmps out of generated code
  * and leaves the instance terminal; nothing retries in another engine.
  */
-#include "zir_host_native.h"
-#include "zir_sha256.h"
-
-#include "zir_diagnostic.h"
-#include "zir_host_exec.h"
-#include "zir_native_memory.h"
+#include "ziran_bootstrap_runtime.h"
 
 #include <limits.h>
 #include <setjmp.h>
@@ -120,9 +115,7 @@ void NativeInstanceClose(NativeInstance *instance) { (void)instance; }
 #include "compiler_x86_64.h"
 #include "compiler_x86_runtime.h"
 #include "zir_exec_console.h"
-#include "zir_profile.h"
 #include "zir_host_native_arch.h"
-#include "zir_text.h"
 
 #include <dirent.h>
 #include <elf.h>
@@ -869,8 +862,8 @@ native_variant_digest(const unsigned char digest[32], int unbounded, unsigned ch
     static const char tag[] = "ziran native code without fuel checks";
     Sha256 hash;
     Sha256Begin(&hash);
-    Sha256Add(&hash, tag, sizeof(tag) - 1);
-    Sha256Add(&hash, digest, 32);
+    Sha256Add(&hash, (void *)tag, sizeof(tag) - 1);
+    Sha256Add(&hash, (void *)digest, 32);
     Sha256End(&hash, out);
 }
 
@@ -1285,11 +1278,11 @@ native_service(NativeInstance *instance, int service, const uint64_t *values, si
         uint32_t bits = (uint32_t)values[0];
         float value;
         memcpy(&value, &bits, sizeof(value));
-        FormatPrintFloat(value, 1, text, sizeof(text));
+        FormatPrintFloat(value, 1, (uint8_t *)text, sizeof(text));
     } else if(service == ZX_SERVICE_PRINT_FLOAT64) {
         double value;
         memcpy(&value, &values[0], sizeof(value));
-        FormatPrintFloat(value, 0, text, sizeof(text));
+        FormatPrintFloat(value, 0, (uint8_t *)text, sizeof(text));
     } else return 0;
     return ZxConsoleWrite(&instance->console, text, strlen(text));
 }

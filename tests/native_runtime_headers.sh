@@ -11,7 +11,7 @@ unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 # Restored sources can be older than a reused embedded-runtime output. Both
 # ordinary and seed builds must refresh its bytes, then preserve its timestamp.
 "$ziran" run --target=c --root "$repo/tests" "$repo/tests/native_inline_cases.zi" -- "$ziran" "$work" headers-refresh
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/bootstrap/runtime" \
     -I"$repo/bootstrap/compiler_ir" -I"$repo/bootstrap/compiler_services" \
     -I"$repo/bootstrap/compiler_native_names" \
     "$repo/tests/native_helpers_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
@@ -135,7 +135,7 @@ int main(void) { return StringEqual(StringLiteral("a\0z"), StringView("a\0z", 3)
 C
 sh "$repo/scripts/embed_headers.sh" "$repo/include/zir_string.h" \
     "$repo/include/zir_string_types.h" > "$work/embedded.c"
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/bootstrap/runtime" \
     -I"$repo/bootstrap/compiler_ir" -I"$repo/bootstrap/compiler_runtime_emit" \
     "$work/copy.c" "$repo/bootstrap/compiler_runtime_emit/compiler_runtime_emit.c" \
         "$repo/bootstrap/compiler_runtime_emit/file.c" \

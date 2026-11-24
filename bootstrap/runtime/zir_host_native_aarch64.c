@@ -2,7 +2,7 @@
  * zir_host_native_aarch64.c - AAPCS64 veneers and MOVZ/MOVK and BL
  * relocations for the native ZX loader (zir_host_native_arch.h).
  */
-#include "zir_host_native_arch.h"
+#include "ziran_bootstrap_runtime.h"
 
 #if defined(__aarch64__) && defined(__linux__) && !defined(ZIRAN_NO_ENGINE)
 

@@ -1,6 +1,6 @@
 #define ZIR_MEMORY_IMPLEMENTATION
 #include "zir_memory.h"
-#include "compiler_context_types.h"
+#include "ziran_bootstrap_runtime.h"
 #include <stdint.h>
 
 typedef struct Allocation {

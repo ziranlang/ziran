@@ -1,10 +1,10 @@
 #include "zir_memory.h"
 #include "zir_parse_internal.h"
-#include "zir_diagnostic.h"
-#include "zir_text.h"
+#include "compiler_context.h"
 #include "compiler_source.h"
 
 #include <errno.h>
+#include <setjmp.h>
 #include <string.h>
 
 _Static_assert(ZIR_STMT_UNKNOWN == StatementKind_Unknown &&
@@ -172,8 +172,11 @@ ZirLawEvaluationAddress(void)
 double
 ParseDecimalRange(const char *text, char **end, int *range_error)
 {
+    /* The generated scanner's adapter takes the byte pointers it emits. */
+    uint8_t *at = (uint8_t *)text;
     errno = 0;
-    double value = ParseDecimal(text, end);
+    double value = ParseDecimal(at, &at);
+    if(end) *end = (char *)at;
     *range_error = errno == ERANGE;
     return value;
 }
@@ -294,7 +297,7 @@ die(const char *fmt, ...)
     va_list ap;
 
     va_start(ap, fmt);
-    DiagnosticV(Span("", 0, 0), "parse.fatal", fmt, ap);
+    DiagnosticV(Span((uint8_t *)"", 0, 0), "parse.fatal", fmt, ap);
     va_end(ap);
     if(ZirParseRecovery) longjmp(ZirParseRecovery->jump, 1);
     exit(1);

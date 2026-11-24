@@ -9,7 +9,7 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 command -v go >/dev/null 2>&1 || exit 0
 lib=${ZIRAN_LIB:-$repo/build/libziran.a}
-"${CC:-cc}" ${VM_CFLAGS:-} -D_GNU_SOURCE -std=c11 -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" -I"$repo/bootstrap/compiler_services" -I"$repo/bootstrap/compiler_native_names" -I"$repo/include" \
+"${CC:-cc}" ${VM_CFLAGS:-} -D_GNU_SOURCE -std=c11 -I"$repo/bootstrap/runtime" -I"$repo/bootstrap/compiler_ir" -I"$repo/bootstrap/compiler_services" -I"$repo/bootstrap/compiler_native_names" -I"$repo/include" \
     "$repo/tests/simd_go_test.c" "$lib" -lm -o "$work/write"
 mkdir "$work/check"
 "$work/write" "$work/check"

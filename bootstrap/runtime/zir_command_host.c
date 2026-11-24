@@ -1,5 +1,6 @@
 /* Process-priority calls for compiler_cli. Compiling is background work:
  * the policy lives in cmd/compiler_cli.zi; this file only reaches the OS. */
+#include "ziran_bootstrap_runtime.h"
 #include <errno.h>
 #include <stddef.h>
 

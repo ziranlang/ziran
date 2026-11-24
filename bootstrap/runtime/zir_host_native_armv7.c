@@ -6,7 +6,7 @@
  * call with BLX, so Thumb callees and the softfp ABI never meet generated
  * code: every C entry point here takes and returns integers only.
  */
-#include "zir_host_native_arch.h"
+#include "ziran_bootstrap_runtime.h"
 
 #if defined(__arm__) && defined(__linux__) && !defined(ZIRAN_NO_ENGINE)
 

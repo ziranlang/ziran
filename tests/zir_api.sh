@@ -67,6 +67,6 @@ Answer :: () -> s32 { return 42 }
 ZI
 "$ziran" api --json --root "$work" "$work/rewritten.zi" > "$work/rewritten.json"
 "$ziran" run --target=c --root "$repo/tests" "$repo/tests/api_assertions.zi" -- "$ziran" "$work" rewritten
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" "$repo/tests/zir_api_document.c" "$(dirname "$ziran")/../libziran.a" -lm -pthread -ldl -o "$work/documents"
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/bootstrap/runtime" -I"$repo/bootstrap/compiler_ir" "$repo/tests/zir_api_document.c" "$(dirname "$ziran")/../libziran.a" -lm -pthread -ldl -o "$work/documents"
 "$work/documents"
 echo 'zir api: scoped checked retrieval, stable identities, captured document hashes/UTF8 spans, saved-IR unknown bytes, ownership/laws, deterministic complete bounded JSON passed'

@@ -9,7 +9,7 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 # The library the check runner built (build/sanitize under make sanitize).
 library=${ZIRAN_LIB:-$repo/build/libziran.a}
-${CC:-cc} ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+${CC:-cc} ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/bootstrap/runtime" \
     -I"$(dirname "$library")/compiler-ir" "$repo/tests/law_format_test.c" \
     "$library" -o "$work/law-format-test" -lm -pthread -ldl
 

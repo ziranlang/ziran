@@ -226,7 +226,7 @@ def mobile(data, samples, serial, ndk):
     assert wamr.is_file(), 'Build the existing bench/zx_compare_apk WAMR target first'
     wasm_runner = out / 'wasm-runner'
     run([cc, '-O2', '-std=c11', '-DMATRIX_WAMR', '-I' + str(ROOT / 'build/deps/wasm-micro-runtime-WAMR-2.4.5/core/iwasm/include'),
-         '-I' + str(ROOT / 'cmd/zir'), '-I' + str(ROOT / 'bootstrap/compiler_ir'), '-I' + str(ROOT / 'include'), ROOT / 'bench/site_target_host.c', library, wamr, '-lm', '-ldl', '-pthread', '-llog', '-o', wasm_runner], env=env)
+         '-I' + str(ROOT / 'bootstrap/runtime'), '-I' + str(ROOT / 'bootstrap/compiler_ir'), '-I' + str(ROOT / 'include'), ROOT / 'bench/site_target_host.c', library, wamr, '-lm', '-ldl', '-pthread', '-llog', '-o', wasm_runner], env=env)
     result['runtime_hashes'] = {'ziran': sha(library), 'wamr': sha(wamr)}
     result['toolchains'] = {'ndk': run([cc, '--version'], env=env).splitlines()[0], 'go': run(['go', 'version'], env=env)}
     remote = '/data/local/tmp/ziran-target-matrix'

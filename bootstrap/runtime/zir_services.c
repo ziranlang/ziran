@@ -1,8 +1,8 @@
 /* Native library and thread-local details used by compiler modules. */
-#include "zir.h"
-#include "compiler_portable_body.h"
 #include "zir_memory.h"
+#include "ziran_bootstrap_runtime.h"
 #include "zir_stream.h"
+#include "compiler_portable_body.h"
 
 #include <errno.h>
 #include <locale.h>
@@ -36,7 +36,7 @@ static _Thread_local char target_options[128];
 ZirTargetFacts *CompilerTargetFactsAddress(void) { return &target_facts; }
 char *CompilerTargetOptionsAddress(void) { return target_options; }
 
-ZirTargetOS
+int
 CompilerHostOS(void)
 {
 #if defined(__EMSCRIPTEN__) || defined(__wasi__)
@@ -54,7 +54,7 @@ CompilerHostOS(void)
 #endif
 }
 
-ZirTargetCPU
+int
 CompilerHostCPU(void)
 {
 #if defined(__wasm32__)
@@ -89,7 +89,7 @@ const char *KeepNameFormat(const char *format, ...)
     va_start(args, format);
     if(vsnprintf(name, sizeof(name), format, args) < 0) name[0] = '\0';
     va_end(args);
-    return KeepName(name);
+    return (const char *)KeepName((uint8_t *)name);
 }
 
 void **
@@ -175,9 +175,6 @@ ZirSimdInitialize(void (*initialize)(void))
     }
 }
 
-typedef struct GoSimdText {
-    const char *name, *text;
-} GoSimdText;
 #include "zir_simd_go_bodies.h"
 
 size_t ZirGoSimdBodyCount(void) { return sizeof(go_simd_bodies) / sizeof(go_simd_bodies[0]); }

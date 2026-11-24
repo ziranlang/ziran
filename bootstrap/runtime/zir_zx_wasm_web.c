@@ -23,8 +23,7 @@
  * zx_initialize, the module is told to rewind and resumes at the host
  * call, which re-enters the suspended host.
  */
-#include "zir_zx_wasm_platform.h"
-#include "zir_zx_wasm.h"
+#include "ziran_bootstrap_runtime.h"
 
 #ifdef __EMSCRIPTEN__
 

@@ -2,7 +2,7 @@
  * zir_host_native_x86_64.c - SysV x86-64 veneers and rel32 relocations for
  * the native ZX loader (zir_host_native_arch.h).
  */
-#include "zir_host_native_arch.h"
+#include "ziran_bootstrap_runtime.h"
 
 #if defined(__x86_64__) && defined(__linux__) && !defined(ZIRAN_NO_ENGINE)
 

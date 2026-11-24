@@ -3,7 +3,7 @@
  * relocation, flushes instructions where the platform requires it, and only
  * then publishes code as RX and constants as R. No operation creates RWX.
  */
-#include "zir_native_memory.h"
+#include "ziran_bootstrap_runtime.h"
 
 #include <stdint.h>
 

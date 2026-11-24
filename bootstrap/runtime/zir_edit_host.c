@@ -3,6 +3,7 @@
  * the host's flags and stat layout so one generated seed serves every host.
  * A Windows host has no O_NOFOLLOW/O_DIRECTORY/openat walk: the editor reports
  * the path as unavailable there, while the compiler itself stays portable. */
+#include "ziran_bootstrap_runtime.h"
 #include <fcntl.h>
 #include <stdint.h>
 #include <sys/stat.h>

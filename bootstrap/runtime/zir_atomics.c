@@ -1,4 +1,5 @@
 /* Atomic operations on the scalar storage of the Ziran compiler. */
+#include "ziran_bootstrap_runtime.h"
 #include <stddef.h>
 
 int S15FlagTake(void *flag) { return __atomic_test_and_set(flag, __ATOMIC_ACQUIRE); }

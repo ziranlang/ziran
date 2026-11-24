@@ -172,19 +172,21 @@ ExplainInventory :: (test: *NativeTest) -> bool {
         CheckField(*item, item.root, "next_step") == "Regenerate .zir from current source instead of editing it, and verify that source and saved-IR checks agree.", "explain changed its stable noncanonical-IR description") { return false }
     nodes := JsonMember(*listing, listing.root, "codes")
     if !NativeAssert(test, CheckInteger(*listing, listing.root, "schema_version") == 1 && CheckField(*listing, listing.root, "stability") == "stable-code" && JsonKindOf(*listing, nodes) == .Array && JsonCount(*listing, nodes) > 0, "invalid explain registry schema") { return false }
-    codes: Vec(string); suffixes := string.[".c", ".h"]; calls := string.["Diagnostic", "DiagnosticV", "DiagnosticDetailed", "DiagnosticTarget", "Warning", "WasmGap"]
-    for suffix: suffixes {
-        files := NativeFiles(CheckPath(test.repo, "cmd"), suffix, true)
-        for path: files {
-            text := NativeRead(test, path); ExplainCalls(text, calls[:], *codes, 0)
-            names := string.["DiagnosticOutOfMemory"]
-            // Its fixed diagnostic code is supplied internally, with no literal argument.
-            for name: names {
-                cursor: s64
-                while cursor < text.count {
-                    at := TextFind(text, name, cursor); if at < 0 { break }; cursor = at + name.count
-                    next := cursor; while next < text.count && ExplainSpace(text[next]) { next += 1 }
-                    if next < text.count && text[next] == 40 { ExplainAdd(*codes, "compiler.memory"); break }
+    codes: Vec(string); suffixes := string.[".c", ".h"]; c_roots := string.["cmd", "bootstrap/runtime"]; calls := string.["Diagnostic", "DiagnosticV", "DiagnosticDetailed", "DiagnosticTarget", "Warning", "WasmGap"]
+    for c_root: c_roots {
+        for suffix: suffixes {
+            files := NativeFiles(CheckPath(test.repo, c_root), suffix, true)
+            for path: files {
+                text := NativeRead(test, path); ExplainCalls(text, calls[:], *codes, 0)
+                names := string.["DiagnosticOutOfMemory"]
+                // Its fixed diagnostic code is supplied internally, with no literal argument.
+                for name: names {
+                    cursor: s64
+                    while cursor < text.count {
+                        at := TextFind(text, name, cursor); if at < 0 { break }; cursor = at + name.count
+                        next := cursor; while next < text.count && ExplainSpace(text[next]) { next += 1 }
+                        if next < text.count && text[next] == 40 { ExplainAdd(*codes, "compiler.memory"); break }
+                    }
                 }
             }
         }

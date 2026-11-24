@@ -391,13 +391,13 @@ ToolCases :: (test: *NativeTest) -> bool {
     probe := CheckPath(test.work, "diagnostic.c")
     if !NativeWrite(test, probe, NativeRead(test, CheckPath(test.repo, "tests/fixtures/tool_diagnostic.c"))) { return false }
     compile: Vec(string)
-    flags := string.[NativeCompiler(), "-std=c11", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", CheckPath(test.repo, "cmd/zir"))]
+    flags := string.[NativeCompiler(), "-std=c11", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", CheckPath(test.repo, "bootstrap/runtime"))]
     for arg: flags { VecPush(compile, arg) }
     fixture_headers := string.["ir", "context_types", "parse_types", "parse_s14_types", "check_types", "text", "statement", "declaration", "source", "scan", "diagnostic"]
     for module: fixture_headers {
         VecPush(compile, CheckConcat("-I", CheckPath(test.repo, CheckConcat("bootstrap/compiler_", module))))
     }
-    fixture_sources := string.["bootstrap/compiler_diagnostic/compiler_diagnostic.c", "cmd/zir/zir_diagnostic_host.c", "cmd/zir/zir_atomics.c", "cmd/zir/zir_memory.c"]
+    fixture_sources := string.["bootstrap/compiler_diagnostic/compiler_diagnostic.c", "bootstrap/runtime/zir_diagnostic_host.c", "bootstrap/runtime/zir_atomics.c", "bootstrap/runtime/zir_memory.c"]
     for file: fixture_sources {
         VecPush(compile, CheckPath(test.repo, file))
     }

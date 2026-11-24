@@ -229,7 +229,12 @@ def compare_stage(entries, expected_root, actual_root, extras=False):
 
 
 def validate_runtime_boundary(runtime_dir=RUNTIME):
-    """Every non-static runtime C function must be declared by its header."""
+    """Every non-static runtime C function definition must be declared by its header.
+
+    Declarations (a prototype ending in ';', including forward declarations of
+    the generated functions the runtime calls) and function-pointer typedefs
+    define nothing, so they are not part of the boundary surface.
+    """
     if not os.path.isdir(runtime_dir):
         return [f"{runtime_dir} is missing"]
     header = os.path.join(runtime_dir, "ziran_bootstrap_runtime.h")
@@ -247,10 +252,15 @@ def validate_runtime_boundary(runtime_dir=RUNTIME):
         text = re.sub(r"//[^\n]*", " ", text)
         text = re.sub(r'"(?:\\.|[^"\\])*"', '""', text)
         for match in re.finditer(
-                r"(?m)^(?!static\b)(?!\s)(?:[A-Za-z_][A-Za-z0-9_ \t\*]*[ \t\*])"
+                r"(?m)^(?!static\b)(?!typedef\b)(?!\s)"
+                r"(?:[A-Za-z_][A-Za-z0-9_ \t\*]*[ \t\*])"
                 r"([A-Za-z_][A-Za-z0-9_]*)[ \t]*\(", text):
             name = match.group(1)
             if name in declared or name in ("if", "while", "for", "switch"):
+                continue
+            # A declaration ends at the matching ')' with a ';'.
+            close = text.find(")", match.end())
+            if close != -1 and text[close + 1:text.find("\n", close)].strip().startswith(";"):
                 continue
             problems.append(
                 f"{file}: {name} is not declared by ziran_bootstrap_runtime.h")

@@ -126,13 +126,13 @@ main :: (argc: s32, argv: **u8) -> s32 {
     defer NativeCleanup(*test)
     cases := CompilerModuleCase.[
         .{"compiler_declaration", "compiler-declaration compiler-text compiler-source compiler-scan", ""},
-        .{"compiler_enum", "compiler-enum compiler-text cmd/zir bootstrap/compiler_ir", "-pthread"},
-        .{"compiler_expression", "compiler-expression compiler-text compiler-source compiler-scan cmd/zir bootstrap/compiler_ir", ""},
+        .{"compiler_enum", "compiler-enum compiler-text bootstrap/runtime bootstrap/compiler_ir", "-pthread"},
+        .{"compiler_expression", "compiler-expression compiler-text compiler-source compiler-scan bootstrap/runtime bootstrap/compiler_ir", ""},
         .{"compiler_proof_kernel", "compiler-proof-kernel", "-pthread -lm"},
         .{"compiler_source", "compiler-source", ""},
-        .{"compiler_statement", "compiler-statement compiler-text compiler-source compiler-scan cmd/zir bootstrap/compiler_ir", "-lm"},
-        .{"compiler_text", "cmd/zir bootstrap/compiler_ir", ""},
-        .{"compiler_type", "compiler-type compiler-text cmd/zir bootstrap/compiler_ir", ""},
+        .{"compiler_statement", "compiler-statement compiler-text compiler-source compiler-scan bootstrap/runtime bootstrap/compiler_ir", "-lm"},
+        .{"compiler_text", "bootstrap/runtime bootstrap/compiler_ir", ""},
+        .{"compiler_type", "compiler-type compiler-text bootstrap/runtime bootstrap/compiler_ir", ""},
     ]
     for item: cases {
         print("Checking %\n", item.name)

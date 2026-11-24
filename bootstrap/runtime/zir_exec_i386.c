@@ -7,6 +7,7 @@
  * ExecI386Open gives NULL and the engine interprets every block. Compiled
  * under the engine's private names with its generated headers.
  */
+#include "ziran_bootstrap_runtime.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -347,16 +348,16 @@ i386_close(ExecI386Cache *cache)
 #undef I386Emit
 
 void *
-ExecI386Open(const LirExecInstance *instance)
+ExecI386Open(const void *instance)
 {
-    return i386_open(instance);
+    return i386_open((const LirExecInstance *)instance);
 }
 
 int
-ExecI386RunEntry(LirExecInstance *instance, LirExecResult *ran, void *cache)
+ExecI386RunEntry(void *instance, void *ran, void *cache)
 {
     LirExecPackedBlocks blocks = {.run = i386_run_block, .context = cache};
-    return compiler_exec_LirExecRunEntryWithPackedBlocks(instance, ran, cache != NULL ? &blocks : NULL);
+    return compiler_exec_LirExecRunEntryWithPackedBlocks((LirExecInstance *)instance, (LirExecResult *)ran, cache != NULL ? &blocks : NULL);
 }
 
 void
@@ -367,11 +368,11 @@ ExecI386Close(void *cache)
 
 #else
 
-void *ExecI386Open(const LirExecInstance *instance) { (void)instance; return NULL; }
-int ExecI386RunEntry(LirExecInstance *instance, LirExecResult *ran, void *cache)
+void *ExecI386Open(const void *instance) { (void)instance; return NULL; }
+int ExecI386RunEntry(void *instance, void *ran, void *cache)
 {
     (void)cache;
-    return compiler_exec_LirExecRunEntry(instance, ran);
+    return compiler_exec_LirExecRunEntry((LirExecInstance *)instance, (LirExecResult *)ran);
 }
 void ExecI386Close(void *cache) { (void)cache; }
 

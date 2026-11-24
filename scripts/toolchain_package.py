@@ -80,7 +80,7 @@ def build_tree_files(build):
             if not stat.S_ISREG(mode) or mode & (stat.S_ISUID | stat.S_ISGID):
                 raise ValueError(f'unexpected build file: {path}')
             files[path.relative_to(build).as_posix()] = [mode & 0o111, digest(path)]
-    for name in ('bin/ziran', 'libziran.a', 'obj/cmd/zir/zir_load.o'):
+    for name in ('bin/ziran', 'libziran.a', 'obj/bootstrap/runtime/zir_load.o'):
         if name not in files or (build / name).stat().st_size == 0:
             raise ValueError(f'missing or empty build output: {build / name}')
     if not os.access(build / 'bin/ziran', os.X_OK):

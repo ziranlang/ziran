@@ -24,7 +24,7 @@ PACKAGE_LIBS ?= $(if $(DARWIN_TARGET),,-lcrypto) -lm
 ANDROID_LINK_FLAGS := -llog -Wl,--build-id=sha1
 RUNTIME_LIBS ?= -lm $(if $(findstring linux,$(TARGET_MACHINE)),-pthread -ldl) $(if $(findstring android,$(TARGET_MACHINE)),$(ANDROID_LINK_FLAGS))
 CFLAGS ?= -O2
-override CFLAGS += -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir
+override CFLAGS += -D_GNU_SOURCE -std=c11 -Iinclude -Ibootstrap/runtime
 # Kept names and texts (KeepName, KeepText) are shared and immutable, so
 # writing through one, as copy_text(e->argument_name, ...) would, must not
 # compile. GCC and Clang name the check differently.
@@ -315,11 +315,11 @@ RANGE_MODULES := compiler_c_range compiler_c_range_facts compiler_c_range_values
     compiler_c_range_callers compiler_c_range_fill
 RANGE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/c-range/%.o,$(RANGE_MODULES))
 override CFLAGS += -I$(RANGE_C)
-FRONTEND := cmd/zir/zir_memory.c cmd/zir/zir_profile_host.c cmd/zir/zir_services.c \
-    cmd/zir/zir_atomics.c cmd/zir/zir_diagnostic_host.c cmd/zir/zir_command_host.c \
-    cmd/zir/zir_edit_host.c cmd/zir/zir_files_host.c cmd/zir/zir_sha256_host.c
-PERSISTENCE_HOST := cmd/zir/zir_persistence_host.c
-HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
+FRONTEND := bootstrap/runtime/zir_memory.c bootstrap/runtime/zir_profile_host.c bootstrap/runtime/zir_services.c \
+    bootstrap/runtime/zir_atomics.c bootstrap/runtime/zir_diagnostic_host.c bootstrap/runtime/zir_command_host.c \
+    bootstrap/runtime/zir_edit_host.c bootstrap/runtime/zir_files_host.c bootstrap/runtime/zir_sha256_host.c
+PERSISTENCE_HOST := bootstrap/runtime/zir_persistence_host.c
+HEADERS := $(wildcard bootstrap/runtime/*.h) $(wildcard include/*.h)
 # std/simd's C helpers, vector types and typed Go helpers are generated at
 # build time by scripts/simd/header.zi, compiled from its seed in
 # $(BOOTSTRAP_ROOT)/simd; update-bootstrap refreshes the seed, check-bootstrap checks it.
@@ -327,7 +327,7 @@ SIMD_DIR ?= $(BUILD_DIR)/simd
 SIMD_HEADERS := $(SIMD_DIR)/ziran_simd_ops.h $(SIMD_DIR)/ziran_simd_types.h $(SIMD_DIR)/zir_simd_go_bodies.h
 HEADERS += $(SIMD_HEADERS)
 override CFLAGS += -I$(SIMD_DIR)
-LIB_SOURCES := $(FRONTEND) cmd/zir/zir_native_memory.c
+LIB_SOURCES := $(FRONTEND) bootstrap/runtime/zir_native_memory.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
@@ -346,8 +346,8 @@ ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_veri
 # The Wasm lowering of revision-28 ZX (cmd/compiler_zx_wasm*.zi) is part of
 # the engine; compiler_zx_exec_wasm.zi and zx2wasm call it under the engine's names.
 # The native loader's per-architecture veneers are zir_host_native_<arch>.c.
-HOST_EXEC_SOURCES := cmd/zir/zir_exec_i386.c cmd/zir/zir_host_native.c cmd/zir/zir_host_native_x86_64.c \
-    cmd/zir/zir_host_native_aarch64.c cmd/zir/zir_host_native_armv7.c cmd/zir/zir_zx_wasm_install.c
+HOST_EXEC_SOURCES := bootstrap/runtime/zir_exec_i386.c bootstrap/runtime/zir_host_native.c bootstrap/runtime/zir_host_native_x86_64.c \
+    bootstrap/runtime/zir_host_native_aarch64.c bootstrap/runtime/zir_host_native_armv7.c bootstrap/runtime/zir_zx_wasm_install.c
 ENGINE_NAMES := $(ENGINE_C)/engine_names.h
 ifeq ($(BOOTSTRAP),1)
 ENGINE_OBJECTS :=
@@ -365,7 +365,7 @@ $(call obj,$(HOST_EXEC_SOURCES)): $(ENGINE_NAMES)
 endif
 LIB_OBJECTS := $(call obj,$(LIB_SOURCES) $(HOST_EXEC_SOURCES)) $(ENGINE_OBJECTS) $(ENGINE_FACADE_OBJECT) $(call compiler-port-object,host_api) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(CHECK_PORT_OBJECTS) \
     $(BUILD_DIR)/obj/parse.o $(RANGE_OBJECTS) $(NATIVE_NAMES_OBJECT) \
-    $(call obj,cmd/zir/zir_zx_wasm_web.c)
+    $(call obj,bootstrap/runtime/zir_zx_wasm_web.c)
 NATIVE_HOST_ENABLED := 1
 ifneq ($(findstring emcc,$(notdir $(firstword $(CC)))),)
 NATIVE_HOST_ENABLED := 0
@@ -477,7 +477,7 @@ $(TEXT_OBJECT): $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(TEXT_C)/compiler_text.c
 
-$(call obj,cmd/zir/zir_parse.c): $(SOURCE_READY)
+$(call obj,bootstrap/runtime/zir_parse.c): $(SOURCE_READY)
 $(SOURCE_OBJECT): $(SOURCE_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SOURCE_C)/compiler_source.c
@@ -514,7 +514,7 @@ $(IR_OBJECT): $(IR_READY) $(BUILD_DIR)/.compiler-flags
 $(LAW_OBJECT): $(LAW_READY) $(IR_READY) $(SERVICES_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(LAW_C)/compiler_law.c
-$(call obj,cmd/zir/zir_services.c): $(BODY_READY)
+$(call obj,bootstrap/runtime/zir_services.c): $(BODY_READY)
 $(BODY_OBJECT): $(BODY_READY) $(IR_READY) $(NATIVE_NAMES_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(BODY_C)/compiler_portable_body.c
@@ -548,7 +548,7 @@ $(GO_SIMD_OBJECT): $(GO_SIMD_READY) $(IR_READY) $(NATIVE_NAMES_READY) $(SIMD_MET
 $(C_BACKEND_OBJECT): $(C_BACKEND_READY) $(IR_READY) $(NATIVE_NAMES_READY) $(RANGE_READY) $(C_EMIT_READY) $(C_EMIT_VALUE_READY) $(C_EMIT_CALL_READY) $(SIMD_METADATA_READY) $(RUNTIME_EMIT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(C_BACKEND_C)/compiler_c_backend.c
-$(call obj,cmd/zir/zir_services.c): $(SIMD_DIR)/zir_simd_go_bodies.h
+$(call obj,bootstrap/runtime/zir_services.c): $(SIMD_DIR)/zir_simd_go_bodies.h
 $(SERVICES_OBJECT): $(SERVICES_READY) $(IR_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SERVICES_C)/compiler_services.c
@@ -559,7 +559,7 @@ $(PROOF_KERNEL_OBJECT): $(PROOF_KERNEL_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(PROOF_KERNEL_C)/compiler_proof_kernel.c
 
-$(call obj,cmd/zi2zx/main.c tests/bundle_link_test.c): $(BUNDLE_READY)
+$(call obj,tests/bundle_link_test.c): $(BUNDLE_READY)
 $(BUNDLE_MODULE_OBJECT): $(BUNDLE_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(BUNDLE_C)/compiler_bundle.c
@@ -595,7 +595,7 @@ $(NATIVE_NAMES_OBJECT): $(NATIVE_NAMES_C)/compiler_native_names.c \
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
 
-PARSE_PARTS := cmd/zir/zir_parse.c
+PARSE_PARTS := bootstrap/runtime/zir_parse.c
 
 # The C and Ziran parser parts agree on the names of their shared private
 # calls. Keep the prefix on Wasm, where objcopy cannot localize them.
@@ -607,7 +607,7 @@ PARSE_LOCALIZE := --wildcard --localize-symbol='private_parse_*' --localize-symb
     $(foreach module,$(PERSISTENCE_PORT_MODULES) zx_link inline_asm,--localize-symbol='compiler_$(module)_*')
 endif
 PARSE_PRIVATE_HEADERS := $(or $(WASM_PRIVATE_HEADERS),$(BUILD_DIR)/private-symbols)
-$(PARSE_PRIVATE_HEADERS)/%.h: cmd/zir/zir_%_internal.h scripts/private-symbols.py
+$(PARSE_PRIVATE_HEADERS)/%.h: bootstrap/runtime/zir_%_internal.h scripts/private-symbols.py
 	python3 scripts/private-symbols.py $< $(basename $@).txt
 	sed 's/.*/#define & private_$*_&/' $(basename $@).txt > $@
 $(call obj,$(PARSE_PARTS)): CFLAGS += -include $(PARSE_PRIVATE_HEADERS)/parse.h
@@ -960,7 +960,7 @@ FRONTEND_SUPPORT_IMPORTS := $(S14_PARSE_IMPORTS) cmd/compiler_parse_s14_types.zi
 FRONTEND_SUPPORT_HEADERS := $(S14_PARSE_HEADERS) $(call compiler-port-ready,parse_s14_types) $(call compiler-port-ready,check_types)
 # Command-line mechanics, linked into every tool driver through parse.o.
 $(eval $(call compiler-port-rules,cli,$(IR_READY),cmd/compiler_ir.zi))
-# Editor requests: the source tool behind zi-edit (cmd/zir/zir_edit_host.c
+# Editor requests: the source tool behind zi-edit (bootstrap/runtime/zir_edit_host.c
 # supplies POSIX flags and struct stat fields).
 $(eval $(call compiler-port-rules,edit,$(IR_READY) $(call compiler-port-ready,check_types),cmd/compiler_ir.zi cmd/compiler_check_types.zi))
 $(eval $(call compiler-port-rules,context_types,$(FRONTEND_SUPPORT_HEADERS),$(FRONTEND_SUPPORT_IMPORTS)))
@@ -971,7 +971,9 @@ $(call compiler-port-object,source_store): $(PROOF_KERNEL_READY)
 $(eval $(call compiler-port-rules,frontend_ir,$(FRONTEND_SUPPORT_HEADERS) $(call compiler-port-ready,context_types) $(TYPE_READY) $(ENUM_READY),$(FRONTEND_SUPPORT_IMPORTS) cmd/compiler_context_types.zi cmd/compiler_type.zi cmd/compiler_enum.zi))
 $(eval $(call compiler-port-rules,law_runtime,$(PARSE_PORT_HEADERS) $(CHECK_PORT_HEADERS),$(PARSE_PORT_IMPORTS) cmd/compiler_check_types.zi))
 $(eval $(call compiler-port-rules,target_bridge,$(PARSE_PORT_HEADERS) $(CHECK_PORT_HEADERS) $(TYPE_READY),$(PARSE_PORT_IMPORTS) cmd/compiler_check_types.zi cmd/compiler_type.zi))
-$(call obj,cmd/zir/zir_memory.c): $(FRONTEND_SUPPORT_HEADERS) $(call compiler-port-ready,context_types)
+RUNTIME_SOURCES := $(LIB_SOURCES) $(HOST_EXEC_SOURCES) $(PARSE_PARTS) $(PERSISTENCE_HOST) bootstrap/runtime/zir_zx_wasm_web.c
+$(call obj,$(RUNTIME_SOURCES)): $(FRONTEND_SUPPORT_HEADERS) $(call compiler-port-ready,context_types)
+$(call obj,bootstrap/runtime/zir_parse.c): $(call compiler-port-ready,context)
 
 # The embedding API (include/ziran_host.h): one module read from two files,
 # linked into libziran beside the engine, native and wasm layers it calls.
@@ -1174,11 +1176,13 @@ BOOTSTRAP_FIXED_POINT := python3 scripts/bootstrap_fixed_point.py
 check-bootstrap: $(BIN_DIR)/zi2c
 	$(BOOTSTRAP_FIXED_POINT) check --zi2c $(BIN_DIR)/zi2c \
 	    --scratch $(BUILD_DIR)/bootstrap-fixed --jobs $(JOBS) \
+	    --runtime bootstrap/runtime \
 	    $(if $(BOOTSTRAP_ONLY),--only $(BOOTSTRAP_ONLY))
 
 update-bootstrap: $(BIN_DIR)/zi2c
 	$(BOOTSTRAP_FIXED_POINT) update --zi2c $(BIN_DIR)/zi2c \
 	    --scratch $(BUILD_DIR)/bootstrap-fixed --jobs $(JOBS) \
+	    --runtime bootstrap/runtime \
 	    --check-command '$(MAKE) check'
 
 endif
@@ -1187,7 +1191,7 @@ $(BIN_DIR)/bundle-link-test: $(call obj,tests/bundle_link_test.c) $(FRONTEND_OBJ
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 
 $(BIN_DIR)/host-capability-test: tests/host_capability_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -o $@ tests/host_capability_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Ibootstrap/runtime -o $@ tests/host_capability_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/record-host-test: tests/record_host_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/record_host_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
@@ -1199,7 +1203,7 @@ $(BIN_DIR)/array-host-test: tests/host_array_test.c $(BUILD_DIR)/libziran.a | $(
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_array_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/startup-graph-test: tests/startup_graph_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -I$(IR_C) -I$(NATIVE_NAMES_C) -o $@ \
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Ibootstrap/runtime -I$(IR_C) -I$(NATIVE_NAMES_C) -o $@ \
 		tests/startup_graph_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/process-host-test: tests/process_host_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
@@ -1208,8 +1212,8 @@ $(BIN_DIR)/process-host-test: tests/process_host_test.c $(BUILD_DIR)/libziran.a 
 $(BIN_DIR)/slice-host-test: tests/host_slice_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_slice_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
-$(BIN_DIR)/native-wx-test: tests/native_wx_test.c cmd/zir/zir_native_memory.h $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Icmd/zir -o $@ tests/native_wx_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
+$(BIN_DIR)/native-wx-test: tests/native_wx_test.c bootstrap/runtime/zir_native_memory.h $(BUILD_DIR)/libziran.a | $(BIN_DIR)
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Ibootstrap/runtime -o $@ tests/native_wx_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/native-load-test: tests/native_load_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/native_load_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)

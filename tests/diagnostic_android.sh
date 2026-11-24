@@ -28,6 +28,7 @@ static int calls;
 static char message[1024];
 void *AllocateOrExit(size_t size) { void *p = malloc(size); assert(p); return p; }
 void CompilerFree(void *p) { free(p); }
+void FrontendCacheDiagnostic(void) {}
 const char *SpanPath(ZirSourceSpan span) { (void)span; return "fixture.zi"; }
 int __android_log_print(int priority, const char *tag, const char *format, ...) {
     assert(!strcmp(tag, "Ziran"));
@@ -72,9 +73,9 @@ for target in native android; do
     done
     "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Wno-unused-label "$@" -I"$root/include" \
         -c "$root/bootstrap/compiler_diagnostic/compiler_diagnostic.c" -o "$work/diagnostic.o"
-    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror "$@" -I"$root/include" -I"$root/cmd/zir" \
-        "$work/diagnostic.o" "$root/cmd/zir/zir_diagnostic_host.c" \
-        "$root/cmd/zir/zir_atomics.c" "$work/test.c" -o "$work/test-$target"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror "$@" -I"$root/include" -I"$root/bootstrap/runtime" \
+        "$work/diagnostic.o" "$root/bootstrap/runtime/zir_diagnostic_host.c" \
+        "$root/bootstrap/runtime/zir_atomics.c" "$work/test.c" -o "$work/test-$target"
     "$work/test-$target" 2> "$work/$target.stderr"
 done
 cmp "$work/native.stderr" "$work/android.stderr"

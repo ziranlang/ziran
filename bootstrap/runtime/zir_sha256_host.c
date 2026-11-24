@@ -1,4 +1,4 @@
-#include "zir_sha256.h"
+#include "ziran_bootstrap_runtime.h"
 
 #include <stdlib.h>
 

@@ -73,7 +73,7 @@ enum {
     ZI_K_U64, ZI_K_S64, ZI_K_F32, ZI_K_F64
 };
 
-/* Operation numbers shared with the compiler (cmd/zir/zir_simd.c). */
+/* Operation numbers shared with the compiler (bootstrap/runtime/zir_simd.c). */
 enum {
     ZI_OP_ADD = 1, ZI_OP_SUB, ZI_OP_MUL, ZI_OP_DIV, ZI_OP_ADD_SAT, ZI_OP_SUB_SAT,
     ZI_OP_MIN, ZI_OP_MAX, ZI_OP_AVG, ZI_OP_MUL_HIGH, ZI_OP_MUL_HIGH_ROUND,
@@ -625,7 +625,7 @@ zi_simd_tier_detect(void)
             }
         }
     }
-    /* #asm feature probes read it the same way (cmd/zir/zir_asm.c). */
+    /* #asm feature probes read it the same way (bootstrap/runtime/zir_asm.c). */
     const char *forced = getenv("ZIRAN_SIMD_TIER");
     if(forced != NULL && forced[0] >= '1' && forced[0] <= '4' && forced[1] == '\0' &&
        forced[0] - '0' < tier)

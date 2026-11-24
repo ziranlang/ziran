@@ -698,11 +698,18 @@ No step commits before its implementation and proof are complete.
   a stale seed, a forbidden runtime function, update refusal, a failed proof
   stage and recovery from a leftover pending tree. `check-bootstrap` and
   `update-bootstrap` now call the script; `BOOTSTRAP_ONLY=root,...` gates
-  named roots while another lane's seed is stale. Still open for S18: the
-  runtime C has not moved to `bootstrap/runtime` (the parser recovery C is
-  another lane's in-flight port), `cmd/zir` still holds that C, and several
-  seeds are stale from other lanes' commits, so the full proof cannot pass
-  yet.
+  named roots while another lane's seed is stale.
+- Done 2026-11-24 (runtime boundary and stage-2 fixed point): every remaining
+  host C file and compatibility header moved out of `cmd/zir` into
+  `bootstrap/runtime/` (`cmd/zir` removed). `bootstrap/runtime/ziran_bootstrap_runtime.h`
+  is the single compiled contract for all 19 runtime `.c` files without mixing
+  hand-written and generated type views in one translation unit;
+  `validate_runtime_boundary` reports 0 problems. `Makefile` and `assembly.mk`
+  compiler source lists name only generated modules plus `bootstrap/runtime/`,
+  and `check-bootstrap` / `update-bootstrap` pass `--runtime bootstrap/runtime`.
+  `make check-bootstrap JOBS=2` passes the full 88-root stage-0 -> stage-1 ->
+  stage-2 byte-identical fixed-point proof with the runtime boundary check
+  enabled.
 - Add `bootstrap/runtime/README.md`,
   `bootstrap/runtime/ziran_bootstrap_runtime.c/.h`, and
   `bootstrap/runtime/ziran_bootstrap_entry.c`. The only permitted functions are

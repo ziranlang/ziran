@@ -1,16 +1,9 @@
 /* Native streams and paths, and the existing C types at the call boundary. */
 #include "zir_memory.h"
+#include "ziran_bootstrap_runtime.h"
 #include "zir_stream.h"
 #include "compiler_load.h"
 #include "compiler_zx_assets.h"
-
-/* The generated headers already provide the IR types. Skip the legacy
- * helper declarations that duplicate their transitive imports. */
-#define ZIRAN_ZIR_H
-#include "zir_link.h"
-#include "zir_load.h"
-#include "zir_packages.h"
-#include "zir_serial.h"
 
 #ifndef ZIRAN_STD_DIR
 #define ZIRAN_STD_DIR ""

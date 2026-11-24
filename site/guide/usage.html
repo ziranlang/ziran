@@ -31,10 +31,25 @@ It also warns when a byte is compared with a printable character's code
 written as a number, as C ports do: <code>text[i] == 65</code> reads better as
 <code>text[i] == #char "A"</code>. And it warns about an integer local that only ever
 holds 0 or 1 and is only compared with them, which reads better as a <code>bool</code>.
+It also names a local that is never read and a named import
+(<code>Alias :: #import "module"</code>) or foreign declaration the module never spells;
+write <code>unused NAME</code> on the line below it to keep a deliberate local quiet.
+Open and <code>using</code> imports cannot be judged by spelling and are never reported.
 Warnings do not fail the check (<code>"severity":"warning"</code> in JSON).
-<code>ziran check|ir|api|inspect|build|bundle|run|fmt</code> is a convenience dispatcher
+<code>ziran test FILE.zi ...</code> runs every test program the way <code>ziran run --target=c</code>
+does, prints one <code>PASS</code> or <code>FAIL</code> line per file followed by
+<code>ziran test: N passed, M failed</code>, and exits 1 when any file fails; every file
+runs even after a failure. It takes the same <code>--root</code>, <code>--module-path</code>,
+<code>--entry</code> and <code>--define</code> options as <code>ziran run</code>.
+<code>ziran check|test|serve|ir|api|inspect|build|bundle|run|fmt</code> is a convenience dispatcher
 for the same tools. <a href="https://github.com/ziranlang/ziran/blob/master/bench/README.md">Cross-target benchmarks</a> measure the
 compiler, downstream toolchains, and validated runtime cases separately.</p>
+<p><code>ziran serve</code> starts a foreground session for a series of ordinary commands:
+each line is a command line without the leading <code>ziran</code> (<code>check src/main.zi</code>,
+<code>build</code>, <code>run -- ARGS</code>), run in the same process, and <code>Exit</code> or the end of
+input leaves. The greeting and prompt go to standard error, so a piped
+session's standard output is only the commands' own. It is never a daemon,
+and the compiler's caches keep repeated commands fast.</p>
 <p>Portable bundles run with <code>ziran run app.zx</code>. Graphical
 bundles use installed package-provided platform hosts through the same command;
 see <a href="zx.html#running-bundles">runtime providers</a>. <code>make install-user</code> also
@@ -141,6 +156,15 @@ accesses it covers in a build without <code>--checks</code>; pointer lifetime ch
 need the whole build, because they change what a pointer is. The portable
 instruction engine always checks. Go's own bounds checks stay unless its
 build uses <code>-gcflags=-B</code>.</p>
+<p><code>--thorough</code> builds the most checked program: <code>--checks</code> plus every optional
+compile-time verification. <code>--quickest</code> builds the fastest program: it skips
+the optional compile-time verification, which today is the optimizer's
+per-pass re-verification and the encoder's own re-check of the program the
+register allocator just verified. In both modes the lowered IR is verified
+before optimization, the allocator verifies what it publishes, and the <code>.zx</code>
+loader verifies the bytes it receives; output is identical between the
+default and <code>--quickest</code> modes. Pass either switch to <code>ziran build</code>, <code>run</code>
+and <code>bundle</code>, or to <code>zi2zx</code>, <code>zx2native</code>, <code>zi2c</code> and <code>zi2go</code>.</p>
 <h2 id="imports">Imports</h2>
 <p>For ordinary imports, pass the entry file and a library directory with
 <code>--module-path DIR</code> (repeat for multiple directories). There is no fixed
@@ -1264,6 +1288,20 @@ execute every check. Explicit <code>CHECK_FILTER</code> runs include every
 matching check. Workers follow the build queue's allocation; set <code>CHECK_JOBS=1</code>
 to run serially or choose another positive worker count. <code>make sanitize</code> runs
 the suite under AddressSanitizer and UBSan.</p>
+<p>The frontend keeps each module's parse in a digest-keyed cache and loads it
+instead of parsing that module again. The key covers the toolchain executable,
+the module text, its source root, the import site's parameter binding, the
+defines, the module paths, the package map and the target; only whole modules
+are reused and checking still runs on the loaded parse. An entry is published
+only when the run ends without a diagnostic, and a module that splices another
+file with <code>#load</code> or <code>#insert</code>, or that consults an imported module while
+parsing (<code>#if</code> conditions, <code>#run</code>, default parameter inference), is never
+stored. <code>--lint</code> needs a fresh parse and never uses the cache. Entries live
+under <code>$XDG_CACHE_HOME/ziran/frontend</code> (<code>~/.cache/ziran/frontend</code>);
+<code>ZIRAN_FRONTEND_CACHE_DIR</code> puts them elsewhere and <code>ZIRAN_FRONTEND_CACHE=0</code>
+disables the cache. A missing or damaged entry is a miss and the module is
+parsed again. <code>tests/frontend_cache.sh</code> checks hits, misses, identical
+diagnostics and IR, and the exclusions.</p>
 <p>A project's GitHub Actions job sets up the Ziran its <code>ziran.lock</code> pins with
 <code>uses: ziranlang/ziran/.github/actions/setup@COMMIT</code>. It checks out that
 commit with its compiler built and puts <code>build/bin</code> on <code>PATH</code>; <code>fetch: true</code>

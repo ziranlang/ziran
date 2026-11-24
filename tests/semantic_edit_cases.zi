@@ -141,8 +141,12 @@ SemanticTests :: (test: *NativeTest) -> bool {
     if !SemanticReset(context, CheckConcat("// é\n", SEMANTIC_BASE)) { return false }
     split := SemanticEdit.[.{4, 4, "", "x", ""}]; split_patch := SemanticRequest(context, split[:])
     if !SemanticTry(context, *split_patch, true, false) || !SemanticReset(context) { return false }
-    canonical := SemanticEdit.[SemanticSpan(context)]; canonical_patch := SemanticRequest(context, canonical[:]); CheckPut(*canonical_patch, canonical_patch.root, "path", context.source[1:])
-    if !SemanticTry(context, *canonical_patch, true, true, "/") { return false }
+    // A root above the document resolves a nested relative path. The work
+    // directory is the root: walking from / would need read access to every
+    // system directory above the checkout, which CI lanes do not grant.
+    canonical := SemanticEdit.[SemanticSpan(context)]; canonical_patch := SemanticRequest(context, canonical[:])
+    CheckPut(*canonical_patch, canonical_patch.root, "path", context.source[test.work.count + 1:])
+    if !SemanticTry(context, *canonical_patch, true, true, test.work) { return false }
     both_source := CheckConcat(SEMANTIC_BASE, "Other :: () -> s32 { return 7 }\n")
     if !SemanticReset(context, both_source) { return false }
     both := SemanticEdit.[SemanticSpan(context, "7", "8"), SemanticSpan(context)]; both_patch := SemanticRequest(context, both[:])

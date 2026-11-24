@@ -36,16 +36,16 @@ line when the work lands. Keep detail in the referenced plan.
   prove the stage-0 to stage-2 fixed point; gate every step with
   `make check-bootstrap`. Detail: plans/2026-11-14-self-hosting.md (active
   lane).
-- Vec growth reuses storage when nothing borrows it: clear stale-alias host
-  twins and keep the Vectors checksum 94905000 green; measure Vectors on
-  Alpha before and after.
-- Unique-use Insert-in-place and borrowed call arguments shared across the
-  engine, Wasm, zi2c and machine IR; measure the Records kernel against C
-  (receipt wasm-tier-alpha-2026-11-15-native.json).
-- Proof-carried bounds elision under `--checks`: extend `LirProvenBuild`
-  (`cmd/compiler_lowered_proven.zi`) with dominance-scoped slice and heap
-  facts plus multi-variable index guards through `ProofKernel::DecideOrder`;
-  `MachineVerify::DirectProven` stays conservative; test with
+- Borrowed call arguments for the machine-native call form (aggregate
+  arguments and results stay named gaps, ASSEMBLY/README.md); then measure
+  the Records kernel against C on Alpha (receipt
+  wasm-tier-alpha-2026-11-15-native.json).
+- Proof-carried bounds elision under `--checks`: dominance-scoped view and
+  heap facts and the multi-variable order closure live in
+  `cmd/compiler_lowered_proven.zi`; route the closure through
+  `ProofKernel::DecideOrder` once `compiler_proof_kernel` is in the assembly
+  module lists (Makefile, assembly.mk), and let native code consume heap
+  roots, which `LirProvenCovers` only reports. Test with
   `tests/proven_pointer_cases.zi`, `tests/guarded_index_ranges.sh`,
   `tests/trust_boundary_cases.zi`.
 - Metaprogramming, unblocked now that self-hosting is past S5: `#modify`

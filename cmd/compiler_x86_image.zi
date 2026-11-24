@@ -735,7 +735,7 @@ MachineX64DataAlignment :: (program: MachineProgram, objects: []Archive.MachineX
 // and measures its constants and data. It writes nothing.
 MachineX64ImageMeasure :: (program: MachineProgram, image: MachineX64Image,
     layout: *MachineX64ImageLayout) -> MachineDiagnostic {
-    verified := MachineVerifyAllocated(program, MachineDefaultLimits())
+    verified := MachineVerifySelfBuilt(program, MachineDefaultLimits())
     if verified.problem != .None { return verified }
     if program.target.arch != .X86_64 || program.target.os != layout.os ||
         !TargetExecutableNativeSupported(program.target) {

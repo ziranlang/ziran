@@ -34,6 +34,8 @@ CPU_NONE :: 0
 CPU_WASM32 :: 3
 
 Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, arguments: ..any) #foreign compiler "Diagnostic";
+LirVerifyPassesSet :: (enabled: s32) #foreign compiler "LirVerifyPassesSet";
+MachineVerifySelfBuiltSet :: (enabled: s32) #foreign compiler "MachineVerifySelfBuiltSet";
 Span :: (path: *u8, line: s32, column: s32) -> IR.ZirSourceSpan #foreign compiler "Span";
 SetFormat :: (format: *u8) -> s32 #foreign compiler "SetDiagnosticFormat";
 SetFormatArguments :: (argc: s32, argv: **u8) #foreign compiler "SetDiagnosticFormatFromArguments";
@@ -95,7 +97,7 @@ NoSpan :: () -> IR.ZirSourceSpan {
 
 Usage :: () {
     Diagnostic(NoSpan(), CStr("command.arguments"),
-            CStr("usage: zi2zx [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function [--target zx|wasm] [--opt] [--debug] [--checks] [--emit zx|lir|opt-report] -o FILE file.zi|file.zir ...\n       zi2zx --library NAME --export module:function [--export module:function ...] [ZX build options] -o FILE file.zi|file.zir ...\n       ZX module options: [--require-module INTERFACE=NAME] [--import module:function=INTERFACE:EXPORT]\n       zi2zx [--emit zx|lir|linkage] -o FILE file.zx\n       zi2zx run [--backend native|engine] [--module-root DIR | --module-image NAME=SHA256=FILE]... file.zx\n       zi2zx run [--backend native|engine] [--module-root DIR]... [ZX build options] [--root DIR] [--entry module:function] file.zi ...\nrun uses native code on linux-x86_64, linux-aarch64 and linux-armv7 and the portable engine elsewhere; a bundle\nnative code cannot run fails before it starts with a named gap, and nothing falls back to the engine\n"))
+            CStr("usage: zi2zx [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function [--target zx|wasm] [--opt] [--debug] [--checks] [--thorough|--quickest] [--emit zx|lir|opt-report] -o FILE file.zi|file.zir ...\n       zi2zx --library NAME --export module:function [--export module:function ...] [ZX build options] -o FILE file.zi|file.zir ...\n       ZX module options: [--require-module INTERFACE=NAME] [--import module:function=INTERFACE:EXPORT]\n       zi2zx [--emit zx|lir|linkage] -o FILE file.zx\n       zi2zx run [--backend native|engine] [--module-root DIR | --module-image NAME=SHA256=FILE]... file.zx\n       zi2zx run [--backend native|engine] [--module-root DIR]... [ZX build options] [--root DIR] [--entry module:function] file.zi ...\nrun uses native code on linux-x86_64, linux-aarch64 and linux-armv7 and the portable engine elsewhere; a bundle\nnative code cannot run fails before it starts with a named gap, and nothing falls back to the engine\n"))
 }
 
 RunOptions :: struct { backend: s32; max_steps: s32; unbounded: s32 }
@@ -528,6 +530,13 @@ BuildTo :: (argc: s32, argv: **u8, into: *void) -> s32 {
             debug = 1
         } else if strcmp(argument, CStr("--checks")) == 0 {
             checks = 1
+        } else if strcmp(argument, CStr("--thorough")) == 0 {
+            checks = 1
+            LirVerifyPassesSet(1)
+            MachineVerifySelfBuiltSet(1)
+        } else if strcmp(argument, CStr("--quickest")) == 0 {
+            LirVerifyPassesSet(0)
+            MachineVerifySelfBuiltSet(0)
         } else if strcmp(argument, CStr("-o")) == 0 && index + 1 < argc {
             index += 1
             output = argv[cast(usize)index]

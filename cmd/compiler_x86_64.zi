@@ -3209,7 +3209,7 @@ BuildMachineImage :: (program: MachineProgram, output: *MachineX64Owner,
 // returns before OUTPUT is touched.
 Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64Owner, verify: bool = true) -> MachineX64Result {
     if verify {
-        verified := MachineVerifyAllocated(program, limits)
+        verified := MachineVerifySelfBuilt(program, limits)
         if verified.problem != .None { return .{diagnostic = verified} }
     }
     if program.target.arch != .X86_64 || !TargetMachineLoweringSupported(program.target) {

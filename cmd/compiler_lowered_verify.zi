@@ -966,6 +966,20 @@ LirHostShapes :: (program: LirProgram, shapes: *Vec(u8)) -> bool {
     return true
 }
 
+// Optional re-verification between optimizer passes. A quickest build turns
+// it off; every required gate still calls LirVerify.
+verify_passes: s32 = 1;
+
+#program_export "LirVerifyPassesSet"
+LirVerifyPassesSet :: (enabled: s32) {
+    verify_passes = ifx enabled != 0 then 1 else 0
+}
+
+#program_export "LirVerifyPasses"
+LirVerifyPasses :: () -> s32 {
+    return verify_passes
+}
+
 LirVerify :: (program: LirProgram, limits: LirLimits) -> LirDiagnostic {
     return LirVerifyWithBodies(program, limits, .{})
 }

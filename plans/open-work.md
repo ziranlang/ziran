@@ -48,14 +48,6 @@ line when the work lands. Keep detail in the referenced plan.
   `MachineVerify::DirectProven` stays conservative; test with
   `tests/proven_pointer_cases.zi`, `tests/guarded_index_ranges.sh`,
   `tests/trust_boundary_cases.zi`.
-- Check control: one documented switch builds the most thorough program
-  (runtime checks plus every optional compile-time verification) and another
-  the quickest build (skipping optional verification such as inter-pass
-  optimizer verification, re-proving unchanged laws and allocated-program
-  verification for self-built code). List what is optional today and what each
-  costs, timed on Alpha only, then wire both modes and document them in
-  docs/USAGE.md. The `.zx` loader's verification of bytes it receives is
-  unchanged.
 - Metaprogramming, unblocked now that self-hosting is past S5: `#modify`
   notes, `type_info`, the compiler message loop, build-as-a-Ziran-program,
   `#bake_arguments` and SOA layout. Do these last.

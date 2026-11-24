@@ -186,6 +186,16 @@ need the whole build, because they change what a pointer is. The portable
 instruction engine always checks. Go's own bounds checks stay unless its
 build uses `-gcflags=-B`.
 
+`--thorough` builds the most checked program: `--checks` plus every optional
+compile-time verification. `--quickest` builds the fastest program: it skips
+the optional compile-time verification, which today is the optimizer's
+per-pass re-verification and the encoder's own re-check of the program the
+register allocator just verified. In both modes the lowered IR is verified
+before optimization, the allocator verifies what it publishes, and the `.zx`
+loader verifies the bytes it receives; output is identical between the
+default and `--quickest` modes. Pass either switch to `ziran build`, `run`
+and `bundle`, or to `zi2zx`, `zx2native`, `zi2c` and `zi2go`.
+
 ## Imports
 
 For ordinary imports, pass the entry file and a library directory with

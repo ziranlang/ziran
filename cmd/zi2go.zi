@@ -46,7 +46,7 @@ free :: (memory: *void) #foreign libc "free";
 
 Usage :: () {
     span: IR.ZirSourceSpan = .{}
-    Diagnostic(span, CStr("command.arguments"), CStr("usage: zi2go [--no-main] [--prune-stale] [--exe] [--minify] [--checks] [--pkg NAME] [--entry module:function] [--bind module:function=module:function] [--bind-host module] [--diagnostics=text|json] [--module-path DIR] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.zir ..."))
+    Diagnostic(span, CStr("command.arguments"), CStr("usage: zi2go [--no-main] [--prune-stale] [--exe] [--minify] [--checks] [--thorough|--quickest] [--pkg NAME] [--entry module:function] [--bind module:function=module:function] [--bind-host module] [--diagnostics=text|json] [--module-path DIR] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.zir ..."))
 }
 
 EntryReturnSupported :: (function: *IR.ZirFunction) -> s32 {
@@ -124,6 +124,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     executable: s32 = 0
     minify: s32 = 0
     checks: s32 = 0
+    thorough: s32 = 0
+    quickest: s32 = 0
     prune_stale: s32 = 0
     result: s32 = 1
     first_file: s32 = 0
@@ -156,7 +158,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
 
     SetFormatArguments(argc, argv)
     CLI.CommandLowerPriority()
-    options: [14]CLI.CommandOption = .{
+    options: [16]CLI.CommandOption = .{
         .{name = CStr("--root"), value = *root},
         .{name = CStr("--module-path"), value = module_paths, count = *module_path_count, capacity = argc},
         .{name = CStr("--target-os"), value = *target_os_name},
@@ -171,8 +173,11 @@ main :: (argc: s32, argv: **u8) -> s32 {
         .{name = CStr("--exe"), flag = *executable},
         .{name = CStr("--minify"), flag = *minify},
         .{name = CStr("--checks"), flag = *checks},
+        .{name = CStr("--thorough"), flag = *thorough},
+        .{name = CStr("--quickest"), flag = *quickest},
     }
     first_file = CLI.ReadCommandOptions(argc, argv, *options[0], cast(usize)options.count)
+    if thorough != 0 { checks = 1 }
     if first_file < 0 {
         Usage()
         return 1

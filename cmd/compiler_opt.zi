@@ -337,7 +337,7 @@ SharedPassResult :: (state: *OptState, problem: LirSsaProblem,
 
 CloneProgram :: (state: *OptState, program: LirProgram, limits: LirLimits,
     owner: *LirReadOwner, verify: bool = true) -> bool {
-    if verify {
+    if verify && Verify.LirVerifyPasses() != 0 {
         diagnostic := LirVerify(program, limits)
         if diagnostic.problem != .None { return CodecFailure(state, .{problem = .Verify, diagnostic = diagnostic}) }
     }
@@ -357,6 +357,7 @@ CloneProgram :: (state: *OptState, program: LirProgram, limits: LirLimits,
 }
 
 VerifyPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
+    if Verify.LirVerifyPasses() == 0 { return true }
     state.diagnostic = LirVerify(program, limits)
     if state.diagnostic.problem != .None { return Fail(state, .VerifyPass) }
     return true
@@ -2136,11 +2137,13 @@ LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
         state.problem = .Options
         return Result(state)
     }
-    state.diagnostic = LirVerify(program, limits)
-    if state.diagnostic.problem != .None {
-        LirOptFree(owner)
-        state.problem = .VerifyInput
-        return Result(state)
+    if Verify.LirVerifyPasses() != 0 {
+        state.diagnostic = LirVerify(program, limits)
+        if state.diagnostic.problem != .None {
+            LirOptFree(owner)
+            state.problem = .VerifyInput
+            return Result(state)
+        }
     }
     if !CountProgram(*state, program, false) {
         LirOptFree(owner)

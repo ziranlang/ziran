@@ -47,6 +47,7 @@ TextDescriptor :: struct { data: *u8; length: usize }
 Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, arguments: ..any) #foreign compiler "Diagnostic";
 DiagnosticOutOfMemory :: () #foreign compiler "DiagnosticOutOfMemory";
 SetFormatArguments :: (argc: s32, argv: **u8) #foreign compiler "SetDiagnosticFormatFromArguments";
+MachineVerifySelfBuiltSet :: (enabled: s32) #foreign compiler "MachineVerifySelfBuiltSet";
 HostOS :: () -> s32 #foreign compiler "CompilerHostOS";
 StandardError :: () -> *void #foreign compiler "CompilerStandardError";
 StandardOutput :: () -> *void #foreign compiler "CompilerStandardOutput";
@@ -195,7 +196,7 @@ NoSpan :: () -> IR.ZirSourceSpan {
 }
 
 Usage :: () -> s32 {
-    unused fputs(CStr("usage: zx2native [--target x86_64|aarch64|armv7] [--platform linux|android|windows] [--emit elf|map|image] [--fuel N] -o FILE INPUT.zx\n"), StandardError())
+    unused fputs(CStr("usage: zx2native [--target x86_64|aarch64|armv7] [--platform linux|android|windows] [--emit elf|map|image] [--fuel N] [--thorough|--quickest] -o FILE INPUT.zx\n"), StandardError())
     unused fputs(CStr("elf writes the platform's executable: an ELF on Linux, a PE32+ .exe on Windows\n"), StandardError())
     unused fputs(CStr("x86-64 Linux ELF and Windows PE carry the files and clock services themselves and link other capabilities from registered host libraries\n"), StandardError())
     unused fputs(CStr("map selection: [--function-id N [--block-id N]] [--address-begin N --address-end N]\n"), StandardError())
@@ -964,6 +965,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     address_end: *u8 = null
     fuel_text: *u8 = null
     elf_fuel: s64 = UNBOUNDED_FUEL
+    thorough: s32 = 0
+    quickest: s32 = 0
     selection: AssemblyMapSelection = .{}
     selection.function = -1
     selection.block = -1
@@ -971,7 +974,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     selection.end = -1
     SetFormatArguments(argc, argv)
     CLI.CommandLowerPriority()
-    options: [9]CLI.CommandOption = .{
+    options: [11]CLI.CommandOption = .{
         .{name = CStr("-o"), value = *(output)},
         .{name = CStr("--emit"), value = *(emit)},
         .{name = CStr("--target"), value = *(target_name)},
@@ -981,8 +984,12 @@ main :: (argc: s32, argv: **u8) -> s32 {
         .{name = CStr("--address-begin"), value = *(address_begin)},
         .{name = CStr("--address-end"), value = *(address_end)},
         .{name = CStr("--fuel"), value = *(fuel_text)},
+        .{name = CStr("--thorough"), flag = *(thorough)},
+        .{name = CStr("--quickest"), flag = *(quickest)},
     }
     input := CLI.ReadCommandOptions(argc, argv, *(options[0]), cast(usize)options.count)
+    if quickest != 0 { MachineVerifySelfBuiltSet(0) }
+    if thorough != 0 { MachineVerifySelfBuiltSet(1) }
     input_length: usize = 0
     if input > 0 { input_length = strlen(argv[cast(usize)input]) }
     if input <= 0 || output == null || argc - input != 1 ||

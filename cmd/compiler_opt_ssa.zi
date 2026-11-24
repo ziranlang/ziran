@@ -129,8 +129,10 @@ LirSsaPlanBuild :: (plan: *LirSsaPlan, function: LirFunction, source: s32,
 // slice; a pass's rebuilt functions can be freed afterwards.
 LirSsaSerialize :: (storage: *LirReadOwner, program: LirProgram, limits: LirLimits,
     budget: *LirSsaBudget) -> LirCodecResult {
-    diagnostic := LirVerify(program, limits)
-    if diagnostic.problem != .None { return .{problem = .Verify, diagnostic = diagnostic} }
+    if Verify.LirVerifyPasses() != 0 {
+        diagnostic := LirVerify(program, limits)
+        if diagnostic.problem != .None { return .{problem = .Verify, diagnostic = diagnostic} }
+    }
     empty: []u8
     measured := LirWriteUnverified(program, empty)
     if measured.problem != .None { return measured }

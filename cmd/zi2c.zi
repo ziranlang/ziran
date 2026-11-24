@@ -102,7 +102,7 @@ NoSpan :: () -> IR.ZirSourceSpan {
 
 Usage :: () {
     Diagnostic(NoSpan(), CStr("command.arguments"),
-        CStr("usage: zi2c [--no-main] [--prune-stale] [--checks] [--entry module:function [--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] [--diagnostics=text|json] [--module-path DIR] [--define NAME] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.zir ...\n"))
+        CStr("usage: zi2c [--no-main] [--prune-stale] [--checks] [--thorough|--quickest] [--entry module:function [--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] [--diagnostics=text|json] [--module-path DIR] [--define NAME] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.zir ...\n"))
 }
 
 LockOutput :: (directory: *u8) -> s32 {
@@ -438,6 +438,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     exe: s32 = 0
     release: s32 = 0
     checks: s32 = 0
+    thorough: s32 = 0
+    quickest: s32 = 0
     output_lock: s32 = -1
     result: s32 = 1
     first_file: s32 = 0
@@ -487,7 +489,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
 
     SetFormatArguments(argc, argv)
     CLI.CommandLowerPriority()
-    options: [14]CLI.CommandOption = .{
+    options: [16]CLI.CommandOption = .{
         .{name = CStr("--root"), value = *root},
         .{name = CStr("--module-path"), value = module_paths, count = *module_path_count, capacity = argc},
         .{name = CStr("--define"), value = cast(**u8)*defines, count = *define_count, capacity = 64,
@@ -503,8 +505,11 @@ main :: (argc: s32, argv: **u8) -> s32 {
         .{name = CStr("--exe"), flag = *exe},
         .{name = CStr("--release"), flag = *release},
         .{name = CStr("--checks"), flag = *checks},
+        .{name = CStr("--thorough"), flag = *thorough},
+        .{name = CStr("--quickest"), flag = *quickest},
     }
     first_file = CLI.ReadCommandOptions(argc, argv, *options[0], cast(usize)options.count)
+    if thorough != 0 { checks = 1 }
     if first_file < 0 {
         Usage()
         return 1

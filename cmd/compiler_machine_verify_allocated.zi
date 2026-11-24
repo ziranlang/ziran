@@ -1432,3 +1432,19 @@ MachineVerifyAllocated :: (program: MachineProgram, limits: MachineLimits) -> Ma
     }
     return state.diagnostic
 }
+
+// Optional re-check of a program this process just allocated and verified.
+// A quickest build turns it off; a loaded or foreign program still goes
+// through MachineVerifyAllocated.
+verify_self_built: s32 = 1;
+
+#program_export "MachineVerifySelfBuiltSet"
+MachineVerifySelfBuiltSet :: (enabled: s32) {
+    verify_self_built = ifx enabled != 0 then 1 else 0
+}
+
+#program_export "MachineVerifySelfBuilt"
+MachineVerifySelfBuilt :: (program: MachineProgram, limits: MachineLimits) -> MachineDiagnostic {
+    if verify_self_built == 0 { return NoDiagnostic() }
+    return MachineVerifyAllocated(program, limits)
+}

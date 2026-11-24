@@ -2567,7 +2567,7 @@ Failure :: (problem: MachineProblem) -> MachineV7Result {
 // returns before OUTPUT is touched.
 Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineV7Owner, verify: bool = true) -> MachineV7Result {
     if verify {
-        verified := MachineVerifyAllocated(program, limits)
+        verified := MachineVerifySelfBuilt(program, limits)
         if verified.problem != .None { return .{diagnostic = verified} }
     }
     if (program.target.arch != .ArmV7 || program.target.abi != .Aapcs32) ||

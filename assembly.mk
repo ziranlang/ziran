@@ -16,9 +16,9 @@ ifeq ($(NATIVE_HOST_ENABLED),1)
 # CFLAGS would also reach the prerequisites make builds for it, zi2c among
 # them, where the set's own math.h and vec.h would shadow the real ones;
 # `private` prevents that but needs GNU Make 3.82, and macOS ships 3.81.
-$(foreach source,cmd/zir/zir_host_native.c cmd/zir/zir_host_native_armv7.c,\
+$(foreach source,bootstrap/runtime/zir_host_native.c bootstrap/runtime/zir_host_native_armv7.c,\
     $(eval $(call obj,$(source))_CFLAGS += -I$(ASSEMBLY_C)))
-$(call obj,cmd/zir/zir_host_native.c cmd/zir/zir_host_native_armv7.c): $(ASSEMBLY_C)/.generated
+$(call obj,bootstrap/runtime/zir_host_native.c bootstrap/runtime/zir_host_native_armv7.c): $(ASSEMBLY_C)/.generated
 endif
 endif
 
@@ -65,6 +65,7 @@ ASSEMBLY_NATIVE_MODULES := compiler_vector_form compiler_vectorize compiler_vect
     compiler_machine_aggregate compiler_machine_fields compiler_machine_select compiler_machine_lower compiler_machine_verify_allocated compiler_regalloc \
     compiler_target compiler_learning compiler_learning_policy compiler_x86_bytes compiler_x86_64 compiler_x86_runtime compiler_encode compiler_aarch64 compiler_aarch64_runtime compiler_aarch64_elf compiler_armv7 compiler_armv7_runtime compiler_armv7_elf \
     compiler_x86_win64 compiler_x86_host compiler_x86_image \
+    compiler_x86_archive \
     compiler_arm_bytes \
     compiler_machine_elf compiler_machine_pe \
     compiler_machine_pipeline \

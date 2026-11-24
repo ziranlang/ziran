@@ -1,3 +1,4 @@
+using Archive :: #import "compiler_x86_archive"
 using Elf :: #import "compiler_machine_elf"
 using Host :: #import "compiler_x86_host"
 using Image :: #import "compiler_machine_image"
@@ -29,6 +30,21 @@ MachineNativeOwner :: struct {
 }
 
 #scope_file
+
+// A borrowed string as the bytes it names; both are a pointer and a length.
+RawSlice :: struct {
+    data: *u8
+    length: s64
+}
+
+Bytes :: (text: string) -> []u8 {
+    result: []u8
+    view := cast(*RawSlice)(*result)
+    source := cast(*RawSlice)(*text)
+    view.data = source.data
+    view.length = source.length
+    return result
+}
 
 NoDiagnostic :: () -> MachineDiagnostic {
     return .{problem = .None, function = MachineNoId, block = MachineNoId,
@@ -157,10 +173,14 @@ ExecutableEncode :: (program: MachineProgram, image: MachineX64Image, output: []
 // The imports of every host function of PROGRAM, in function order: the
 // capabilities the libraries LINKS names provide fill IMPORTS, and the
 // services the executable supplies itself (MachineX64HostBuiltin) fill
-// BUILTINS; both are in function order. A host function no provider names
-// fails with its function named.
+// BUILTINS; the capabilities a static archive provides (LINKS.archives,
+// parallel to libraries) fill STATICS as archive imports; all are in
+// function order. A host function no provider names fails with its
+// function named, and so does one a Windows executable would take from an
+// archive, whose members are ELF.
 HostImports :: (lir: LirProgram, program: MachineProgram, links: MachineHostLinks,
-    imports: *Vec(MachineX64HostImport), builtins: *Vec(MachineX64HostImport)) -> MachineDiagnostic {
+    imports: *Vec(MachineX64HostImport), builtins: *Vec(MachineX64HostImport),
+    statics: *Vec(MachineX64HostImport)) -> MachineDiagnostic {
     for function_id: cast(s64)0..program.functions.count - 1 {
         if program.functions[function_id].calling != .Host { continue }
         provider: s32 = -1
@@ -173,11 +193,73 @@ HostImports :: (lir: LirProgram, program: MachineProgram, links: MachineHostLink
             return diagnostic
         }
         source := lir.functions[function_id]
-        target := ifx builtin then builtins else imports
+        archive := !builtin && cast(s64)provider < links.archives.count && links.archives[provider].count > 0
+        if archive && program.target.os == .Windows {
+            diagnostic := Problem(.Unsupported)
+            diagnostic.function = cast(s32)function_id
+            return diagnostic
+        }
+        target := ifx builtin then builtins else ifx archive then statics else imports
         if !VecPush(<<target, MachineX64HostImport.{function = cast(s32)function_id, library = provider,
-            parameters = source.parameters, result = source.result}) { return Problem(.Allocation) }
+            parameters = source.parameters, result = source.result, archive = archive}) { return Problem(.Allocation) }
     }
     return NoDiagnostic()
+}
+
+// The program's host function a static capability NAME, a slice of
+// program.text, names, or MachineNoId.
+ArchiveCapability :: (program: MachineProgram, statics: []MachineX64HostImport, name: []u8) -> s32 {
+    for host: statics {
+        named := program.functions[host.function]
+        if cast(s64)named.name_length != name.count || named.name_offset < 0 ||
+            named.name_offset > program.text.count - name.count { continue }
+        same := true
+        for index: cast(s64)0..name.count - 1 {
+            if program.text[named.name_offset + index] != name[index] { same = false }
+        }
+        if same { return host.function }
+    }
+    return MachineNoId
+}
+
+// Links the archives LINKS names for the capabilities STATICS: one
+// MachineX64Object per archive, in library order, each with the members the
+// capabilities reach; the caller releases them with MachineX64ObjectsFree.
+// The first gap is a diagnostic naming the capability it concerns.
+MachineX64ObjectsLoad :: (program: MachineProgram, links: MachineHostLinks, statics: []MachineX64HostImport,
+    objects: *Vec(Archive.MachineX64Object)) -> MachineDiagnostic {
+    for library: cast(s64)0..links.libraries.count - 1 {
+        if library >= links.archives.count || links.archives[library].count == 0 { continue }
+        roots: Vec(Archive.MachineX64ArchiveRoot)
+        defer VecFree(roots)
+        for host: statics {
+            if cast(s64)host.library != library { continue }
+            named := program.functions[host.function]
+            name := program.text[named.name_offset:named.name_offset + named.name_length]
+            if !VecPush(roots, .{name = name}) { return Problem(.Allocation) }
+        }
+        object := Archive.MachineX64Object.{}
+        diagnostic := Archive.MachineX64ObjectLoad(roots[:], cast(s32)library, Bytes(links.archives[library]), *object)
+        if diagnostic.problem != .None {
+            diagnostic.function = ArchiveCapability(program, statics, object.gap.capability)
+            Archive.MachineX64ObjectFree(*object)
+            return diagnostic
+        }
+        if !VecReserve(<<objects, objects.count + 1) {
+            Archive.MachineX64ObjectFree(*object)
+            return Problem(.Allocation)
+        }
+        VecPush(<<objects, object)
+    }
+    return NoDiagnostic()
+}
+
+// Releases every loaded object of OBJECTS, then the vector.
+MachineX64ObjectsFree :: (objects: *Vec(Archive.MachineX64Object)) {
+    for index: cast(s64)0..objects.count - 1 {
+        Archive.MachineX64ObjectFree(*(<<objects)[index])
+    }
+    VecFree(<<objects)
 }
 
 // The SSA virtual an operand names in either stage.
@@ -348,8 +430,12 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
         image := MachineX64View(*built.encoded)
         imports: Vec(MachineX64HostImport)
         builtins: Vec(MachineX64HostImport)
-        diagnostic = HostImports(lir, program, links, *imports, *builtins)
-        hosts := MachineElfHosts.{libraries = links.libraries, imports = imports[:], builtins = builtins[:]}
+        statics: Vec(MachineX64HostImport)
+        objects: Vec(Archive.MachineX64Object)
+        diagnostic = HostImports(lir, program, links, *imports, *builtins, *statics)
+        if diagnostic.problem == .None { diagnostic = MachineX64ObjectsLoad(program, links, statics[:], *objects) }
+        hosts := MachineElfHosts.{libraries = links.libraries, archives = links.archives, imports = imports[:],
+            builtins = builtins[:], statics = statics[:], objects = objects[:]}
         empty: [0]u8
         measured: Encoded
         if diagnostic.problem == .None {
@@ -367,6 +453,8 @@ Build :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
         }
         VecFree(imports)
         VecFree(builtins)
+        VecFree(statics)
+        MachineX64ObjectsFree(*objects)
         if diagnostic.problem != .None {
             MachineNativeFree(*built)
             return diagnostic
@@ -401,6 +489,9 @@ MachineCodeBuildUnbounded :: (lir: LirProgram, target: TargetDescription, limits
 MachineHostLinks :: struct {
     libraries: []string
     providers: []s32
+    // Parallel to libraries: the bytes of each one that is a static archive
+    // (compiler_x86_archive.zi) and empty for a shared object.
+    archives: []string
 }
 
 // FUEL is the AOT executable's starting budget; MachineX64InitialFuel is
@@ -419,15 +510,23 @@ MachineNativeElfLayout :: (lir: LirProgram, owner: *MachineNativeOwner, links: M
     program := owner.machine.program
     imports: Vec(MachineX64HostImport)
     builtins: Vec(MachineX64HostImport)
+    statics: Vec(MachineX64HostImport)
+    objects: Vec(Archive.MachineX64Object)
     result: MachineElfResult
-    result.diagnostic = HostImports(lir, program, links, *imports, *builtins)
+    result.diagnostic = HostImports(lir, program, links, *imports, *builtins, *statics)
+    if result.diagnostic.problem == .None {
+        result.diagnostic = MachineX64ObjectsLoad(program, links, statics[:], *objects)
+    }
     if result.diagnostic.problem == .None {
         empty: [0]u8
         result = MachineElfEncode(program, MachineX64View(*owner.encoded), empty[:], MachineX64InitialFuel,
-            .{libraries = links.libraries, imports = imports[:], builtins = builtins[:]})
+            .{libraries = links.libraries, archives = links.archives, imports = imports[:], builtins = builtins[:],
+                statics = statics[:], objects = objects[:]})
     }
     VecFree(imports)
     VecFree(builtins)
+    VecFree(statics)
+    MachineX64ObjectsFree(*objects)
     return result
 }
 
@@ -436,8 +535,9 @@ MachineNativePeLayout :: (lir: LirProgram, owner: *MachineNativeOwner, links: Ma
     program := owner.machine.program
     imports: Vec(MachineX64HostImport)
     builtins: Vec(MachineX64HostImport)
+    statics: Vec(MachineX64HostImport)
     result: MachinePeResult
-    result.diagnostic = HostImports(lir, program, links, *imports, *builtins)
+    result.diagnostic = HostImports(lir, program, links, *imports, *builtins, *statics)
     if result.diagnostic.problem == .None {
         empty: []u8
         result = MachinePeEncode(program, MachineX64View(*owner.encoded), empty, MachineX64InitialFuel,
@@ -445,5 +545,34 @@ MachineNativePeLayout :: (lir: LirProgram, owner: *MachineNativeOwner, links: Ma
     }
     VecFree(imports)
     VecFree(builtins)
+    VecFree(statics)
     return result
+}
+
+// The first gap linking the archives LINKS names meets, loaded again for
+// its message: false when they link. GAP receives the member, the symbol and
+// the kind of the one they do not, and LIR names the capabilities.
+MachineNativeArchiveGap :: (lir: LirProgram, links: MachineHostLinks, gap: *Archive.MachineX64ArchiveGap) -> bool {
+    for library: cast(s64)0..links.libraries.count - 1 {
+        if library >= links.archives.count || links.archives[library].count == 0 { continue }
+        roots: Vec(Archive.MachineX64ArchiveRoot)
+        defer VecFree(roots)
+        for index: cast(s64)0..lir.functions.count - 1 {
+            if index >= links.providers.count || cast(s64)links.providers[index] != library { continue }
+            if !VecPush(roots, .{name = Bytes(lir.functions[index].name)}) { return false }
+        }
+        object := Archive.MachineX64Object.{}
+        defer Archive.MachineX64ObjectFree(*object)
+        diagnostic := Archive.MachineX64ObjectLoad(roots[:], cast(s32)library, Bytes(links.archives[library]), *object)
+        if diagnostic.problem != .None {
+            gap.kind = object.gap.kind
+            gap.capability = object.gap.capability
+            gap.member = object.gap.member
+            gap.symbol = object.gap.symbol
+            gap.other = object.gap.other
+            gap.detail = object.gap.detail
+            return true
+        }
+    }
+    return false
 }

@@ -110,6 +110,16 @@ assembler, C compiler, or system linker to produce this executable.
   direct portable call. Native output accepts only the exact typed
   target-owned console services described below; arbitrary host capabilities
   still fail until native host trampolines exist.
+- A registered host library may instead be an `ar(1)` archive of ELF64 x86-64
+  relocatable objects (`cc -c`, `ar rcs`). The Linux executable links the
+  members its capabilities reach, once each, carrying their text, read-only
+  constants, writable data, zero fill and relocations, and each capability's
+  veneer calls its member directly, so the executable stays static and has no
+  dynamic record. Absolute, PC32/PC64, PLT32, 32/32S, SIZE and GOT-relative
+  relocations are applied; TLS, constructor arrays, an undefined or duplicate
+  symbol and an unsupported relocation are the stable
+  `assembly.gap.machine-archive` diagnostic naming the capability, member and
+  symbol. A Windows image links no archive yet.
 - `string` lowers to the record `{data: *u8, count: s64}`. Literals become
   deduplicated read-only byte-array globals (empty literals use a null data
   pointer); copies, reassignment, returns, `.count`, `.data`, checked indexing,

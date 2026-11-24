@@ -41,6 +41,11 @@ MachineX64HostImport :: struct {
     veneer: s64
     // Windows IAT slot (RVA); ELF slots are laid out in the data segment.
     slot: s64
+    // The library is a static archive (compiler_x86_archive.zi): the veneer
+    // calls the member's function directly at the position slot names, which
+    // the image fills once its text is placed, instead of through a slot the
+    // dynamic linker fills. Linux only.
+    archive: bool
 }
 
 // The library field of an import the executable provides itself: the ZX
@@ -246,6 +251,8 @@ WindowsArguments :: (program: MachineProgram, host: MachineX64HostImport,
 MachineX64HostSupported :: (program: MachineProgram, host: MachineX64HostImport) -> bool {
     measure: X86Writer
     if !ResultSupported(program, host.result) { return false }
+    // An archive's members are ELF; a Windows executable links none.
+    if host.archive && program.target.os == .Windows { return false }
     if program.target.os == .Windows { return WindowsArguments(program, host, *measure, false) }
     return Arguments(program, host, *measure, false)
 }
@@ -274,7 +281,8 @@ MachineX64HostVeneer :: (writer: *X86Writer, program: MachineProgram, host: Mach
     X86Push(writer, Rbp)
     X86Move(writer, Rbp, X86Rsp)
     if !Arguments(program, host, writer, true) { return false }
-    X86Encode(writer, 0, false, 255, 1, 2, X86RipTarget(slot))
+    if host.archive { X86Call32(writer, slot) }
+    else { X86Encode(writer, 0, false, 255, 1, 2, X86RipTarget(slot)) }
     Widen(writer, Rax, program.types[host.result], true)
     X86Byte(writer, 93)
     X86Return(writer)

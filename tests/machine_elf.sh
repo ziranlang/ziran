@@ -719,6 +719,67 @@ run_status "$work/host-link" 42
 ZIRAN_HOST_PATH="$work/hosts" "$zx2native" --emit map -o "$work/host-link.map" "$work/host-link.zx"
 grep -Fq '"scope":"complete-elf"' "$work/host-link.map"
 
+# A registration may name an ar(1) archive of ELF objects instead of a shared
+# object. The executable carries the members its capabilities reach, calls
+# them directly, and stays static: no interpreter, no dynamic record, and no
+# libc it did not ask for.
+cat > "$work/archive_host.c" <<'C'
+long long Scale(long long value) { return value * 3 + 1; }
+C
+cc -std=c99 -O2 -fPIC -c "$work/archive_host.c" -o "$work/archive_host.o"
+ar rcs "$work/libhost-archive.a" "$work/archive_host.o"
+mkdir "$work/archives"
+printf '%s\n' "$work/libhost-archive.a" > "$work/archives/test.library"
+cat > "$work/archive_link.zi" <<'ZI'
+host_api :: #system_library "host_api";
+Scale :: (value: s64) -> s64 #reads #foreign host_api;
+#program_export
+Answer :: () -> s32 {
+    if Scale(7) != 22 { return 1 }
+    return 42
+}
+ZI
+"$zi2zx" --root "$work" --entry archive_link:Answer -o "$work/archive-link.zx" "$work/archive_link.zi"
+ZIRAN_HOST_PATH="$work/archives" "$zx2native" -o "$work/archive-link" "$work/archive-link.zx"
+readelf -lW "$work/archive-link" > "$work/archive-link.program-headers"
+if grep -Eq '(^|[[:space:]])(INTERP|DYNAMIC)([[:space:]]|$)' "$work/archive-link.program-headers"; then
+    echo "static archive link unexpectedly depends on an interpreter or dynamic loader" >&2
+    exit 1
+fi
+if grep -Fq "$work/libhost-archive.a" "$work/archive-link"; then
+    echo "static archive link carries the archive's own bytes" >&2
+    exit 1
+fi
+run_status "$work/archive-link" 42
+
+# A member that reaches a symbol nothing defines is a gap naming the
+# capability, the member and the symbol, with the old output kept.
+cat > "$work/archive_gap.c" <<'C'
+extern long long archive_missing_helper(long long value);
+long long Gap(long long value) { return archive_missing_helper(value); }
+C
+cc -std=c99 -O2 -fPIC -c "$work/archive_gap.c" -o "$work/archive_gap.o"
+ar rcs "$work/libhost-archive-gap.a" "$work/archive_gap.o"
+mkdir "$work/archive-gaps"
+printf '%s\n' "$work/libhost-archive-gap.a" > "$work/archive-gaps/test.library"
+cat > "$work/archive_gap.zi" <<'ZI'
+host_api :: #system_library "host_api";
+Gap :: (value: s64) -> s64 #reads #foreign host_api;
+#program_export
+Answer :: () -> s32 { return cast(s32)Gap(1) }
+ZI
+"$zi2zx" --root "$work" --entry archive_gap:Answer -o "$work/archive-gap.zx" "$work/archive_gap.zi"
+printf 'preserve-output\n' > "$work/archive-gap"
+if ZIRAN_HOST_PATH="$work/archive-gaps" "$zx2native" -o "$work/archive-gap" "$work/archive-gap.zx" \
+    > "$work/archive-gap.log" 2>&1; then
+    echo "native ELF linked a static archive member with an undefined symbol" >&2
+    exit 1
+fi
+grep -Fq 'assembly.gap.machine-archive: machine ELF cannot link host capability Gap from its static archive' \
+    "$work/archive-gap.log"
+grep -Fq 'archive_missing_helper' "$work/archive-gap.log"
+printf 'preserve-output\n' | cmp - "$work/archive-gap"
+
 # A capability no registered library defines is a gap naming it, and a
 # signature the C ABI veneer cannot carry is another.
 printf 'preserve-output\n' > "$work/host-unlinked"

@@ -5,12 +5,15 @@ line when the work lands. Keep detail in the referenced plan.
 
 ## Native assembly target (ASSEMBLY/)
 
-- M5 objects and linking: Mach-O and archives, the external C ABI with foreign
-  libraries, a real Windows host run, and an in-process loader; test with
-  `tests/zx_windows_parity_cases.zi` plus per-row tests. Landed slice:
+- M5 objects and linking: Mach-O, a real Windows host run, and an
+  in-process loader; test with `tests/zx_windows_parity_cases.zi` plus
+  per-row tests. Landed slice:
   `zx2native --platform windows` writes PE32+ with x64 unwind data and console
-  line mode, and both Linux and Windows executables supply the file and clock
-  services.
+  line mode; both Linux and Windows executables supply the file and clock
+  services; and a `NAME.library` registration may name an `ar(1)` archive of
+  ELF64 x86-64 objects, whose reached members link into a static Linux ELF
+  with their text, read-only data, writable data, zero fill and relocations,
+  each capability's veneer calling its member directly.
 - M6 inspection and cutover: unwind, debug and profiler mapping, then the
   owner's full before/after ZX comparison on Alpha's physical host.
 - Native code quality: warm native ZX remains slower than the M0 TinyCC tier
@@ -33,11 +36,6 @@ line when the work lands. Keep detail in the referenced plan.
   prove the stage-0 to stage-2 fixed point; gate every step with
   `make check-bootstrap`. Detail: plans/2026-11-14-self-hosting.md (active
   lane).
-- Digest-keyed frontend check cache: reuse parse and check results keyed by
-  toolchain format version, module and import digests, and defines, reusing
-  only at module/declaration boundaries; precedents
-  `cmd/compiler_backend_cache.zi` and `cmd/compiler_native_cache.zi`;
-  validate identical diagnostics and IR with and without the cache.
 - Vec growth reuses storage when nothing borrows it: clear stale-alias host
   twins and keep the Vectors checksum 94905000 green; measure Vectors on
   Alpha before and after.

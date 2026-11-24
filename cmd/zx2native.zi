@@ -15,6 +15,7 @@ Machine :: #import "compiler_machine_ir"
 Pipeline :: #import "compiler_machine_pipeline"
 Elf :: #import "compiler_machine_elf"
 Pe :: #import "compiler_machine_pe"
+Archive :: #import "compiler_x86_archive"
 X64 :: #import "compiler_x86_64"
 Bundle :: #import "compiler_bundle"
 
@@ -98,6 +99,9 @@ AssemblyHostLibrary :: struct {
 AssemblyHosts :: struct {
     libraries: Vec(AssemblyHostLibrary)
     paths: *string
+    // Parallel to paths: a static archive's bytes, or an empty string for a
+    // shared object (Pipeline.MachineHostLinks.archives).
+    archives: *string
     providers: *s32
     links: Pipeline.MachineHostLinks
 }
@@ -152,6 +156,13 @@ TextOf :: (data: *u8, length: usize) -> string {
     view.data = data
     view.length = length
     return result
+}
+
+// BYTES as a diagnostic text view; empty stays empty rather than null.
+SliceText :: (bytes: []u8) -> string {
+    view := cast(*RawSlice)(*bytes)
+    if view.data == null || view.length <= 0 { return TextOf(CStr(""), 0) }
+    return TextOf(view.data, cast(usize)view.length)
 }
 
 BytesOf :: (data: *u8, length: s64) -> []u8 {
@@ -405,6 +416,11 @@ LibraryDefines :: (target: Target.TargetDescription, library: *AssemblyHostLibra
     if target.os == .Windows {
         return ifx Pe.MachinePeLibraryDefines(bytes, name) then 1 else 0
     }
+    // A registration may name an ar(1) archive of ELF objects instead of a
+    // shared object; the machine image links its members itself.
+    if Archive.MachineX64Archive(bytes) {
+        return ifx Archive.MachineX64ArchiveDefines(bytes, name) then 1 else 0
+    }
     return ifx Elf.MachineElfLibraryDefines(bytes, name) then 1 else 0
 }
 
@@ -458,7 +474,8 @@ MachineHosts :: (program: *Lowered.LirProgram, target: Target.TargetDescription,
             count := hosts.libraries.count
             if count < 1 { count = 1 }
             hosts.paths = cast(*string)calloc(cast(usize)count, size_of(string))
-            if hosts.paths == null {
+            hosts.archives = cast(*string)calloc(cast(usize)count, size_of(string))
+            if hosts.paths == null || hosts.archives == null {
                 DiagnosticOutOfMemory()
                 return 1
             }
@@ -490,9 +507,17 @@ MachineHosts :: (program: *Lowered.LirProgram, target: Target.TargetDescription,
                 slash := strrchr(path, #char "/")
                 if slash != null { path = cast(*u8)(cast(usize)slash + 1) }
             }
-            hosts.paths[cast(usize)library.linked] = TextOf(path, strlen(path))
+            slot := cast(usize)library.linked
+            hosts.paths[slot] = TextOf(path, strlen(path))
+            empty: string
+            hosts.archives[slot] = empty
+            if target.os == .Linux && Archive.MachineX64Archive(BytesOf(library.bytes, cast(s64)library.size)) {
+                hosts.archives[slot] = TextOf(cast(*u8)library.bytes, library.size)
+            }
             hosts.links.libraries = StringsOf(cast(*u8)hosts.paths,
                                              hosts.links.libraries.count + 1)
+            hosts.links.archives = StringsOf(cast(*u8)hosts.archives,
+                                            hosts.links.libraries.count)
         }
         hosts.providers[index] = library.linked
         index += 1
@@ -1056,6 +1081,18 @@ main :: (argc: s32, argv: **u8) -> s32 {
         return status
     }
     if diagnostic.problem != .None {
+        gap: Archive.MachineX64ArchiveGap = .{}
+        if Pipeline.MachineNativeArchiveGap(view[0], hosts.links, *gap) {
+            capability := SliceText(gap.capability)
+            member := SliceText(gap.member)
+            symbol := SliceText(gap.symbol)
+            Diagnostic(NoSpan(), CStr("assembly.gap.machine-archive"),
+                CStr("assembly.gap.machine-archive: machine ELF cannot link host capability %.*s from its static archive: kind=%d member=%.*s symbol=%.*s detail=%d; no alternate engine was selected"),
+                cast(s32)capability.count, TextPointer(capability), cast(s32)gap.kind,
+                cast(s32)member.count, TextPointer(member),
+                cast(s32)symbol.count, TextPointer(symbol), cast(s32)gap.detail)
+            return status
+        }
         Diagnostic(NoSpan(), CStr("assembly.machine"),
             CStr("machine pipeline rejected the program: problem=%d function=%d block=%d instruction=%d operand=%d virtual=%d; no alternate engine was selected"),
             cast(s32)diagnostic.problem, diagnostic.function, diagnostic.block,

@@ -1,3 +1,4 @@
+using Archive :: #import "compiler_x86_archive"
 using Host :: #import "compiler_x86_host"
 using Machine :: #import "compiler_machine_ir"
 using Target :: #import "compiler_target"
@@ -40,11 +41,19 @@ MachineElfInterpreter :: "/lib64/ld-linux-x86-64.so.2"
 MachineElfHosts :: struct {
     // Absolute paths, one DT_NEEDED each, in order.
     libraries: []string
+    // Parallel to libraries: the bytes of each one that is a static archive
+    // (compiler_x86_archive.zi) and empty for a shared object. An archive
+    // is linked into the executable and needs no dynamic record.
+    archives: []string
     // In function order; each import's library indexes libraries.
     imports: []MachineX64HostImport
     // The built-in files and clock services, in function order; they link
     // nothing and have no dynamic symbol.
     builtins: []MachineX64HostImport
+    // The capabilities the archives provide, in function order, and the
+    // archives' loaded members, in archive order.
+    statics: []MachineX64HostImport
+    objects: []Archive.MachineX64Object
 }
 
 // File offsets, and the data segment's virtual offset from MachineElfBase
@@ -130,6 +139,20 @@ PutText :: (output: []u8, at: s64, text: string) {
 // The end of the text and the read-only globals after it.
 TextEnd :: (layout: Layout) -> s64 { return layout.image.constants + layout.image.constants_size }
 
+// Whether the INDEX-th library is a static archive.
+ArchiveAt :: (hosts: MachineElfHosts, index: s64) -> bool {
+    return index < hosts.archives.count && hosts.archives[index].count > 0
+}
+
+// The number of shared objects among the libraries.
+SharedCount :: (hosts: MachineElfHosts) -> s64 {
+    count: s64 = 0
+    for index: cast(s64)0..hosts.libraries.count - 1 {
+        if !ArchiveAt(hosts, index) { count += 1 }
+    }
+    return count
+}
+
 Dynamic :: (layout: Layout) -> bool { return layout.image.hosts.count > 0 }
 
 // A host capability's symbol: its function's name.
@@ -160,7 +183,9 @@ DynamicLayout :: (program: MachineProgram, hosts: MachineElfHosts, layout: *Layo
     diagnostic := MachineDiagnostic.{problem = .None, function = MachineNoId, block = MachineNoId,
         instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}
     strings: s64 = 1
-    for path: hosts.libraries {
+    for index: cast(s64)0..hosts.libraries.count - 1 {
+        if ArchiveAt(hosts, index) { continue }
+        path := hosts.libraries[index]
         if !AbsolutePath(path) {
             diagnostic.problem = .Unsupported
             return diagnostic
@@ -190,7 +215,7 @@ DynamicLayout :: (program: MachineProgram, hosts: MachineElfHosts, layout: *Layo
     layout.relocations = at
     at += count * RelocationSize
     layout.dynamic = at
-    layout.dynamic_count = hosts.libraries.count + 9
+    layout.dynamic_count = SharedCount(hosts) + 9
     layout.read_end = at + layout.dynamic_count * DynamicEntrySize
     return diagnostic
 }
@@ -203,6 +228,8 @@ ElfLayout :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachineE
     image.os = .Linux
     image.hosts = hosts.imports
     image.builtins = hosts.builtins
+    image.statics = hosts.statics
+    image.objects = hosts.objects
     diagnostic := MachineX64ImageMeasure(program, encoded, image)
     if diagnostic.problem != .None { return diagnostic }
     // PT_INTERP, both PT_LOADs, PT_DYNAMIC and PT_GNU_STACK when linking.
@@ -224,11 +251,15 @@ ElfLayout :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachineE
     layout.data_offset = layout.read_end
     image.data = layout.data_offset
     if MachineX64ImageHasData(<<image) {
-        layout.data_offset = Align(layout.data_offset, MachineX64DataAlignment(program))
+        layout.data_offset = Align(layout.data_offset, MachineX64DataAlignment(program, hosts.objects))
         image.data = layout.data_offset + MachineElfPage
     }
     image.data_file = layout.data_offset
     layout.file_size = layout.data_offset + image.data_layout.size
+    // The linked archives' pieces take their positions and relocations
+    // with the data placed, before the program's own are checked.
+    diagnostic = MachineX64ImageObjects(program, image, MachineElfBase)
+    if diagnostic.problem != .None { return diagnostic }
     return MachineX64ImageResolve(program, encoded, <<image)
 }
 
@@ -252,8 +283,11 @@ WriteDynamic :: (program: MachineProgram, hosts: MachineElfHosts, layout: Layout
     base := cast(u64)MachineElfBase
     PutText(output, layout.interpreter, MachineElfInterpreter)
     at := layout.strings + 1
+    entry: s64 = 0
     for index: cast(s64)0..hosts.libraries.count - 1 {
-        DynamicEntry(output, layout, index, DtNeeded, cast(u64)(at - layout.strings))
+        if ArchiveAt(hosts, index) { continue }
+        DynamicEntry(output, layout, entry, DtNeeded, cast(u64)(at - layout.strings))
+        entry += 1
         path := hosts.libraries[index]
         PutText(output, at, path)
         at += path.count + 1
@@ -275,7 +309,7 @@ WriteDynamic :: (program: MachineProgram, hosts: MachineElfHosts, layout: Layout
     // One bucket, empty, and a chain entry per symbol.
     PutLittle(output, layout.hash, 1, 4)
     PutLittle(output, layout.hash + 4, cast(u64)(count + 1), 4)
-    entry := hosts.libraries.count
+    entry = SharedCount(hosts)
     DynamicEntry(output, layout, entry, DtHash, base + cast(u64)layout.hash)
     DynamicEntry(output, layout, entry + 1, DtStrtab, base + cast(u64)layout.strings)
     DynamicEntry(output, layout, entry + 2, DtSymtab, base + cast(u64)layout.symbols)

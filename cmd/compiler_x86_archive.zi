@@ -1,0 +1,992 @@
+using Machine :: #import "compiler_machine_ir"
+using Vectors :: #import "std/vec"
+
+// A static host library. A `NAME.library` registration may name an ar(1)
+// archive of ELF64 x86-64 relocatable objects (`cc -c` output, `ar rcs`)
+// rather than a shared object. The executable then links the archive the way
+// a C program links a static library: the members that define the symbols
+// its capabilities reach, each once, with their text, read-only data,
+// writable data and zero fill carried in the executable itself, the
+// capability's veneer calling the archive's function directly, and the
+// members' relocations applied when the image is written. Nothing dynamic
+// names the archive, so the executable stays static and starts without a
+// dynamic linker.
+//
+// What links: System V ELF64 little-endian x86-64 ET_REL members whose ALLOC
+// sections are executable, read-only, writable or NOBITS, placed at their
+// alignment, with notes, unwind tables, groups and sectionless records left
+// out; symbols at their section positions; and the relocations a non-PIC
+// object carries: R_X86_64_64, PC32, PLT32, 32, 32S, PC64, SIZE32, SIZE64,
+// GOTOFF64, GOTPC32 and the GOT-relative forms, each GOT entry an 8-byte
+// read-only word. Anything else, from a TLS or init_array section to a symbol
+// no member defines, is a gap (MachineX64ArchiveGap) naming the capability,
+// the member and the symbol; a weak undefined symbol is one too, since
+// nothing here stands in for a C runtime.
+
+// Why a member the capabilities reach cannot link.
+MachineX64ArchiveGapNone :: 0
+MachineX64ArchiveGapUndefined :: 1
+MachineX64ArchiveGapDuplicate :: 2
+MachineX64ArchiveGapSection :: 3
+MachineX64ArchiveGapRelocation :: 4
+MachineX64ArchiveGapMalformed :: 5
+
+// The kinds of a member's sections: -1 is one the link leaves out.
+MachineX64ObjectSkipped :: -1
+MachineX64ObjectText :: 0
+MachineX64ObjectConstants :: 1
+MachineX64ObjectData :: 2
+MachineX64ObjectBss :: 3
+
+MachineX64ObjectMember :: struct {
+    // Its name and bytes, views into the archive.
+    name: []u8
+    bytes: []u8
+    included: bool
+    // The capability whose closure reached it.
+    capability: []u8
+    first_section: s64
+    section_count: s64
+    first_symbol: s64
+    symbol_count: s64
+}
+
+MachineX64ObjectSection :: struct {
+    member: s64
+    kind: s32
+    size: s64
+    alignment: s64
+    // Where the section starts within the object's piece of its kind.
+    offset: s64
+    // Its position in the image once placed, or -1.
+    position: s64
+    // Where its bytes start in the member, or -1 for NOBITS.
+    source: s64
+}
+
+MachineX64ObjectSymbol :: struct {
+    member: s64
+    name: []u8
+    bind: s32
+    kind: s32
+    // st_shndx: 0 undefined, a section index, or an SHN_* special value.
+    section: s64
+    value: s64
+    size: s64
+    // The global it binds to, or -1 for a local symbol.
+    global: s64
+    position: s64
+}
+
+MachineX64ObjectGlobal :: struct {
+    name: []u8
+    // The member that defines it when first needed, the included member
+    // whose definition binds (-1 until then), and that symbol.
+    candidate: s64
+    definer: s64
+    definition: s64
+    position: s64
+    // Its GOT entry, or -1.
+    got: s64
+}
+
+MachineX64ObjectRelocation :: struct {
+    section: s64
+    offset: s64
+    symbol: s64
+    kind: s32
+    addend: s64
+}
+
+// The first gap a load meets; its names view the archive and the roots.
+MachineX64ArchiveGap :: struct {
+    kind: s32
+    capability: []u8
+    member: []u8
+    symbol: []u8
+    // The other member of a duplicate definition.
+    other: []u8
+    detail: s64
+}
+
+// A capability's name as the roots of a load pass it: the global the
+// executable's veneer for that capability calls.
+MachineX64ArchiveRoot :: struct { name: []u8 }
+
+// One archive's link: its members' pieces and the records to place and
+// resolve them. The vectors are flat; MachineX64ObjectFree releases them.
+MachineX64Object :: struct {
+    bytes: []u8
+    library: s32
+    members: Vec(MachineX64ObjectMember)
+    sections: Vec(MachineX64ObjectSection)
+    symbols: Vec(MachineX64ObjectSymbol)
+    relocations: Vec(MachineX64ObjectRelocation)
+    globals: Vec(MachineX64ObjectGlobal)
+    text: Vec(u8)
+    constants: Vec(u8)
+    data: Vec(u8)
+    text_size: s64
+    text_alignment: s64
+    // The read-only bytes, 8-byte aligned, then the GOT.
+    constants_size: s64
+    got_count: s64
+    data_size: s64
+    data_alignment: s64
+    bss_size: s64
+    bss_alignment: s64
+    // Offsets into the image's data layout, which MachineX64DataMeasure fills.
+    data_offset: s64
+    bss_offset: s64
+    // Positions in the image, which the container fills before placing.
+    text_at: s64
+    constants_at: s64
+    got_at: s64
+    gap: MachineX64ArchiveGap
+}
+
+#scope_file
+
+HeaderSize :: 64
+SectionSize :: 64
+SymbolSize :: 24
+RelocationSize :: 24
+MemberHeaderSize :: 60
+ShnAbs :: 0xfff1
+ShnCommon :: 0xfff2
+ShnXindex :: 0xffff
+StbGlobal :: 1
+StbWeak :: 2
+SttSection :: 3
+SttFile :: 4
+SttTls :: 6
+ShtProgbits :: 1
+ShtSymtab :: 2
+ShtRela :: 4
+ShtNote :: 7
+ShtNobits :: 8
+ShtRel :: 9
+ShtInitArray :: 14
+ShtFiniArray :: 15
+ShtPreinitArray :: 16
+ShfWrite :: 1
+ShfAlloc :: 2
+ShfExecinstr :: 4
+ShfGroup :: 0x200
+ShfTls :: 0x400
+// Relocation types, by what they compute.
+RelocNone :: 0
+RelocAbsolute64 :: 1
+RelocPc32 :: 2
+RelocPlt32 :: 4
+RelocGotPcrel :: 9
+Reloc32 :: 10
+Reloc32s :: 11
+RelocPc64 :: 24
+RelocGotoff64 :: 25
+RelocGotpc32 :: 26
+RelocSize32 :: 32
+RelocSize64 :: 33
+RelocGotPcrelx :: 41
+RelocRexGotPcrelx :: 42
+RelocCode4GotPcrelx :: 43
+// Addends stay far below the position range a 32-bit displacement spans.
+AddendLimit :: 1099511627776
+
+Read :: (bytes: []u8, at: s64, count: s32) -> u64 {
+    value: u64 = 0
+    for index: 0..count - 1 { value = value | (cast(u64)bytes[at + index] << cast(u64)(index * 8)) }
+    return value
+}
+
+Inside :: (offset: u64, size: u64, count: s64) -> bool {
+    return offset <= cast(u64)count && size <= cast(u64)count - offset
+}
+
+Align :: (value: s64, alignment: s64) -> s64 {
+    if alignment <= 1 { return value }
+    return (value + alignment - 1) & ~(alignment - 1)
+}
+
+NoDiagnostic :: () -> MachineDiagnostic {
+    return .{problem = .None, function = MachineNoId, block = MachineNoId,
+        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}
+}
+
+Problem :: (problem: MachineProblem) -> MachineDiagnostic {
+    result := NoDiagnostic()
+    result.problem = problem
+    return result
+}
+
+Empty :: () -> []u8 {
+    empty: []u8
+    return empty
+}
+
+Gap :: (object: *MachineX64Object, kind: s32, capability: []u8, member: []u8, symbol: []u8,
+    other: []u8, detail: s64) -> MachineDiagnostic {
+    object.gap.kind = kind
+    object.gap.capability = capability
+    object.gap.member = member
+    object.gap.symbol = symbol
+    object.gap.other = other
+    object.gap.detail = detail
+    return Problem(.Unsupported)
+}
+
+Equal :: (left: []u8, right: []u8) -> bool {
+    if left.count != right.count { return false }
+    for index: cast(s64)0..left.count - 1 { if left[index] != right[index] { return false } }
+    return true
+}
+
+EqualText :: (left: []u8, right: string) -> bool {
+    if left.count != right.count { return false }
+    for index: cast(s64)0..left.count - 1 { if left[index] != cast(u8)right[index] { return false } }
+    return true
+}
+
+StartsWith :: (bytes: []u8, text: string) -> bool {
+    if bytes.count < text.count { return false }
+    for index: cast(s64)0..text.count - 1 { if bytes[index] != cast(u8)text[index] { return false } }
+    return true
+}
+
+// The NUL-terminated name at OFFSET in the string table at STRINGS, or empty.
+NameIn :: (bytes: []u8, strings: s64, strings_size: s64, offset: s64) -> []u8 {
+    if offset < 0 || offset >= strings_size { return Empty() }
+    at := strings + offset
+    limit := strings + strings_size
+    end := at
+    while end < limit && bytes[end] != 0 { end += 1 }
+    if end >= limit { return Empty() }
+    return bytes[at:end]
+}
+
+// The decimal number in the COUNT bytes at AT, space padded.
+Decimal :: (bytes: []u8, at: s64, count: s32, value: *s64) -> bool {
+    result: s64 = 0
+    digits: s32 = 0
+    for index: 0..count - 1 {
+        digit := bytes[at + index]
+        if digit == 32 { continue }
+        if digit < 48 || digit > 57 || result > AddendLimit { return false }
+        result = result * 10 + (cast(s64)digit - 48)
+        digits += 1
+    }
+    <<value = result
+    return digits != 0
+}
+
+// Whether BYTES is an ar(1) archive: the eight magic bytes.
+MachineX64ArchiveBytes :: (bytes: []u8) -> bool {
+    return bytes.count >= 8 && bytes[0] == 33 && bytes[1] == 60 && bytes[2] == 97 &&
+        bytes[3] == 114 && bytes[4] == 99 && bytes[5] == 104 && bytes[6] == 62 && bytes[7] == 10
+}
+
+// Whether BYTES is a little-endian ELF64 x86-64 relocatable object.
+ElfObject :: (bytes: []u8) -> bool {
+    return bytes.count >= HeaderSize && bytes[0] == 0x7f && bytes[1] == 69 && bytes[2] == 76 &&
+        bytes[3] == 70 && bytes[4] == 2 && bytes[5] == 1 && bytes[6] == 1 && Read(bytes, 16, 2) == 1 &&
+        Read(bytes, 18, 2) == 62 && Read(bytes, 58, 2) == SectionSize
+}
+
+// Steps over the member header at AT: SIZE receives its byte count and the
+// result is the next header's position, or -1 at the end or on a header that
+// is not an archive member's.
+NextMember :: (bytes: []u8, at: s64, size: *s64) -> s64 {
+    member_size: s64 = 0
+    if at < 0 || at + MemberHeaderSize > bytes.count { return -1 }
+    if bytes[at + 58] != 96 || bytes[at + 59] != 10 { return -1 }
+    if !Decimal(bytes, at + 48, 10, *member_size) { return -1 }
+    data := at + MemberHeaderSize
+    if !Inside(cast(u64)data, cast(u64)member_size, bytes.count) { return -1 }
+    <<size = member_size
+    next := data + member_size
+    if next % 2 == 1 { next += 1 }
+    if next > bytes.count { next = bytes.count }
+    return next
+}
+
+// The member header at HEADER names its member: a short name ending at '/'
+// or at the padding, or "/N" naming the long name at offset N of the "//"
+// member. The symbol index "/", "/SYM64/" and BSD's "#1/N" are not members
+// to link, and neither is a header without a name.
+MemberName :: (bytes: []u8, header: s64, names: s64, names_size: s64, name: *MachineX64ArchiveRoot) -> bool {
+    end := header + 16
+    while end > header && bytes[end - 1] == 32 { end -= 1 }
+    if end == header { return false }
+    if bytes[header] == 47 {
+        if end - header < 2 || bytes[header + 1] < 48 || bytes[header + 1] > 57 { return false }
+        offset: s64 = 0
+        at := header + 1
+        while at < end && bytes[at] != 47 {
+            if bytes[at] < 48 || bytes[at] > 57 || offset > AddendLimit { return false }
+            offset = offset * 10 + (cast(s64)bytes[at] - 48)
+            at += 1
+        }
+        if at != end || names < 0 || offset >= names_size { return false }
+        begin := names + offset
+        stop := begin
+        limit := names + names_size
+        while stop < limit && bytes[stop] != 10 && bytes[stop] != 47 { stop += 1 }
+        if stop >= limit { return false }
+        name.name = bytes[begin:stop]
+        return true
+    }
+    if bytes[header] == 35 { return false }
+    stop := header
+    while stop < end && bytes[stop] != 47 { stop += 1 }
+    name.name = bytes[header:stop]
+    return true
+}
+
+// Where the "//" member's long names start, or -1 without one.
+LongNames :: (bytes: []u8, names: *s64, names_size: *s64) {
+    <<names = -1
+    <<names_size = 0
+    at: s64 = 8
+    while at >= 0 {
+        size: s64 = 0
+        next := NextMember(bytes, at, *size)
+        if next < 0 { return }
+        if at + 16 <= bytes.count && bytes[at] == 47 && bytes[at + 1] == 47 {
+            <<names = at + MemberHeaderSize
+            <<names_size = size
+            return
+        }
+        at = next
+    }
+}
+
+FindGlobal :: (object: *MachineX64Object, name: []u8) -> s64 {
+    for index: cast(s64)0..object.globals.count - 1 {
+        if Equal(object.globals[index].name, name) { return index }
+    }
+    return -1
+}
+
+// Phase A: one ELF member's section headers and symbol table, recorded in
+// OBJECT's vectors. Every section is recorded, placed or not, so a member's
+// section index indexes OBJECT.sections directly.
+ScanMember :: (object: *MachineX64Object, bytes: []u8, member: s64, capability: []u8) -> MachineDiagnostic {
+    record := *(object.members[member])
+    name := record.name
+    sections_at := cast(s64)Read(bytes, 40, 8)
+    section_count := cast(s64)Read(bytes, 60, 2)
+    names_index := cast(s64)Read(bytes, 62, 2)
+    if section_count == 0 && sections_at != 0 {
+        if !Inside(cast(u64)sections_at, SectionSize, bytes.count) {
+            return Gap(object, MachineX64ArchiveGapMalformed, capability, name, name, name, 0)
+        }
+        section_count = cast(s64)Read(bytes, sections_at + 32, 8)
+        names_index = cast(s64)Read(bytes, sections_at + 40, 4)
+    }
+    if section_count <= 0 || section_count > 65536 || names_index >= section_count ||
+        !Inside(cast(u64)sections_at, cast(u64)(section_count * SectionSize), bytes.count) {
+        return Gap(object, MachineX64ArchiveGapMalformed, capability, name, name, name, 0)
+    }
+    names_header := sections_at + names_index * SectionSize
+    names_at := cast(s64)Read(bytes, names_header + 24, 8)
+    names_size := cast(s64)Read(bytes, names_header + 32, 8)
+    if !Inside(cast(u64)names_at, cast(u64)names_size, bytes.count) {
+        return Gap(object, MachineX64ArchiveGapMalformed, capability, name, name, name, 0)
+    }
+    record.first_section = object.sections.count
+    record.section_count = 0
+    record.first_symbol = object.symbols.count
+    record.symbol_count = 0
+    symbol_table: s64 = -1
+    symbol_strings: s64 = -1
+    symbol_strings_size: s64 = 0
+    symbol_count: s64 = 0
+    index: s64 = 0
+    while index < section_count {
+        header := sections_at + index * SectionSize
+        index += 1
+        kind := Read(bytes, header + 4, 4)
+        flags := Read(bytes, header + 8, 8)
+        size := cast(s64)Read(bytes, header + 32, 8)
+        source := cast(s64)Read(bytes, header + 24, 8)
+        alignment := cast(s64)Read(bytes, header + 48, 8)
+        if kind == ShtSymtab {
+            link := cast(s64)Read(bytes, header + 40, 4)
+            strings_header := sections_at + link * SectionSize
+            if symbol_table >= 0 || Read(bytes, header + 56, 8) != SymbolSize || link >= section_count ||
+                !Inside(cast(u64)source, cast(u64)size, bytes.count) {
+                return Gap(object, MachineX64ArchiveGapMalformed, capability, name, name, name, 0)
+            }
+            symbol_table = source
+            symbol_count = size / SymbolSize
+            symbol_strings = cast(s64)Read(bytes, strings_header + 24, 8)
+            symbol_strings_size = cast(s64)Read(bytes, strings_header + 32, 8)
+            if !Inside(cast(u64)symbol_strings, cast(u64)symbol_strings_size, bytes.count) {
+                return Gap(object, MachineX64ArchiveGapMalformed, capability, name, name, name, 0)
+            }
+        }
+        piece: s32 = MachineX64ObjectSkipped
+        if (flags & ShfAlloc) != 0 {
+            section_name := NameIn(bytes, names_at, names_size, cast(s64)Read(bytes, header, 4))
+            if (flags & ShfTls) != 0 || kind == ShtInitArray || kind == ShtFiniArray || kind == ShtPreinitArray {
+                return Gap(object, MachineX64ArchiveGapSection, capability, name, section_name, name, cast(s64)kind)
+            }
+            if kind == ShtProgbits {
+                if (flags & ShfExecinstr) != 0 { piece = MachineX64ObjectText }
+                else if (flags & ShfWrite) != 0 { piece = MachineX64ObjectData }
+                else { piece = MachineX64ObjectConstants }
+            }
+            if kind == ShtNobits { piece = MachineX64ObjectBss }
+            if kind == ShtNote || (flags & ShfGroup) != 0 || StartsWith(section_name, ".eh_frame") ||
+                StartsWith(section_name, ".note") || StartsWith(section_name, ".gnu.lto_") {
+                piece = MachineX64ObjectSkipped
+            }
+            if piece == MachineX64ObjectSkipped && kind != ShtNote && (flags & ShfGroup) == 0 &&
+                !StartsWith(section_name, ".eh_frame") && !StartsWith(section_name, ".note") &&
+                !StartsWith(section_name, ".gnu.lto_") {
+                return Gap(object, MachineX64ArchiveGapSection, capability, name, section_name, name, cast(s64)kind)
+            }
+        }
+        if piece != MachineX64ObjectSkipped {
+            if alignment != 0 && alignment != 1 &&
+                (alignment > 4096 || (alignment & (alignment - 1)) != 0) {
+                return Gap(object, MachineX64ArchiveGapMalformed, capability, name, name, name, 0)
+            }
+            if piece != MachineX64ObjectBss && !Inside(cast(u64)source, cast(u64)size, bytes.count) {
+                return Gap(object, MachineX64ArchiveGapMalformed, capability, name, name, name, 0)
+            }
+            if size < 0 {
+                return Gap(object, MachineX64ArchiveGapMalformed, capability, name, name, name, 0)
+            }
+        }
+        if !VecPush(object.sections, .{member = member, kind = piece, size = size,
+            alignment = ifx alignment == 0 then 1 else alignment, offset = 0, position = -1,
+            source = ifx piece == MachineX64ObjectBss then -1 else source}) { return Problem(.Allocation) }
+        record.section_count += 1
+    }
+    if symbol_table < 0 { return NoDiagnostic() }
+    symbol: s64 = 1
+    while symbol < symbol_count {
+        at := symbol_table + symbol * SymbolSize
+        symbol += 1
+        info := bytes[at + 4]
+        bind := cast(s32)(info >> 4)
+        symbol_kind := cast(s32)(info & 15)
+        section := cast(s64)Read(bytes, at + 6, 2)
+        symbol_name := NameIn(bytes, symbol_strings, symbol_strings_size, cast(s64)Read(bytes, at, 4))
+        entry := object.symbols.count
+        if !VecPush(object.symbols, .{member = member, name = symbol_name, bind = bind, kind = symbol_kind,
+            section = section, value = cast(s64)Read(bytes, at + 8, 8), size = cast(s64)Read(bytes, at + 16, 8),
+            global = -1, position = -1}) { return Problem(.Allocation) }
+        record.symbol_count += 1
+        if bind != StbGlobal && bind != StbWeak { continue }
+        if symbol_kind == SttSection || symbol_kind == SttFile || symbol_kind == SttTls { continue }
+        if symbol_name.count == 0 { continue }
+        existing := FindGlobal(object, symbol_name)
+        if existing < 0 {
+            existing = object.globals.count
+            if !VecPush(object.globals, .{name = symbol_name, candidate = -1, definer = -1, definition = -1,
+                position = -1, got = -1}) { return Problem(.Allocation) }
+        }
+        object.symbols[entry].global = existing
+        if section == 0 { continue }
+        // A definition: the first member's stands, unless it is weak and this one is not.
+        if object.globals[existing].candidate < 0 ||
+            (object.symbols[object.globals[existing].definition].bind == StbWeak && bind == StbGlobal) {
+            object.globals[existing].candidate = member
+            object.globals[existing].definition = entry
+        }
+    }
+    return NoDiagnostic()
+}
+
+// Phase B: the members the capabilities reach, each once. A root names a
+// global; the member defining it joins, and so does every member defining a
+// global it leaves undefined, until none is left. An included member's
+// definition is the one that binds, so a second one is a duplicate.
+Include :: (object: *MachineX64Object, member: s64, capability: []u8, work: *Vec(s64),
+    from: *Vec(s64), by: *Vec([]u8)) -> MachineDiagnostic {
+    object.members[member].included = true
+    object.members[member].capability = capability
+    name := object.members[member].name
+    first := object.members[member].first_symbol
+    last := first + object.members[member].symbol_count - 1
+    for index: cast(s64)first..last {
+        global := object.symbols[index].global
+        if global < 0 || object.symbols[index].section == 0 { continue }
+        if object.globals[global].definer >= 0 {
+            return Gap(object, MachineX64ArchiveGapDuplicate, capability, name, object.symbols[index].name,
+                object.members[object.globals[global].definer].name, 0)
+        }
+        object.globals[global].definer = member
+        object.globals[global].definition = index
+    }
+    for index: cast(s64)first..last {
+        global := object.symbols[index].global
+        if global < 0 || object.symbols[index].section != 0 { continue }
+        if object.globals[global].definer >= 0 { continue }
+        if !VecPush(<<work, global) || !VecPush(<<from, member) || !VecPush(<<by, capability) {
+            return Problem(.Allocation)
+        }
+    }
+    return NoDiagnostic()
+}
+
+MemberName :: (object: *MachineX64Object, member: s64) -> []u8 {
+    if member < 0 || member >= object.members.count { return Empty() }
+    return object.members[member].name
+}
+
+Close :: (object: *MachineX64Object, roots: []MachineX64ArchiveRoot) -> MachineDiagnostic {
+    work: Vec(s64)
+    defer VecFree(work)
+    from: Vec(s64)
+    defer VecFree(from)
+    by: Vec([]u8)
+    defer VecFree(by)
+    for root: roots {
+        name := root.name
+        if name.count == 0 { continue }
+        global := FindGlobal(object, name)
+        if global < 0 { return Gap(object, MachineX64ArchiveGapUndefined, name, Empty(), name, Empty(), 0) }
+        if !VecPush(work, global) || !VecPush(from, -1) || !VecPush(by, name) { return Problem(.Allocation) }
+    }
+    at: s64 = 0
+    while at < work.count {
+        global := work[at]
+        member := from[at]
+        capability := by[at]
+        at += 1
+        if object.globals[global].definer >= 0 { continue }
+        if object.globals[global].candidate < 0 {
+            return Gap(object, MachineX64ArchiveGapUndefined, capability, MemberName(object, member),
+                object.globals[global].name, Empty(), 0)
+        }
+        diagnostic := Include(object, object.globals[global].candidate, capability, *work, *from, *by)
+        if diagnostic.problem != .None { return diagnostic }
+    }
+    return NoDiagnostic()
+}
+
+// Grows the KIND piece to END and copies SIZE bytes of BYTES from SOURCE
+// into it at OFFSET.
+Append :: (object: *MachineX64Object, kind: s32, end: s64, bytes: []u8, source: s64, size: s64, offset: s64) -> bool {
+    if kind == MachineX64ObjectText && !VecResize(object.text, end) { return false }
+    if kind == MachineX64ObjectConstants && !VecResize(object.constants, end) { return false }
+    if kind == MachineX64ObjectData && !VecResize(object.data, end) { return false }
+    for byte: cast(s64)0..size - 1 {
+        value := bytes[source + byte]
+        if kind == MachineX64ObjectText { object.text[offset + byte] = value }
+        if kind == MachineX64ObjectConstants { object.constants[offset + byte] = value }
+        if kind == MachineX64ObjectData { object.data[offset + byte] = value }
+    }
+    return true
+}
+
+Supported :: (kind: s32) -> bool {
+    return kind == RelocNone || kind == RelocAbsolute64 || kind == RelocPc32 || kind == RelocPlt32 ||
+        kind == RelocGotPcrel || kind == Reloc32 || kind == Reloc32s || kind == RelocPc64 ||
+        kind == RelocGotoff64 || kind == RelocGotpc32 || kind == RelocSize32 || kind == RelocSize64 ||
+        kind == RelocGotPcrelx || kind == RelocRexGotPcrelx || kind == RelocCode4GotPcrelx
+}
+
+GotReloc :: (kind: s32) -> bool {
+    return kind == RelocGotPcrel || kind == RelocGotPcrelx || kind == RelocRexGotPcrelx ||
+        kind == RelocCode4GotPcrelx
+}
+
+Wide :: (kind: s32) -> s64 {
+    if kind == RelocAbsolute64 || kind == RelocPc64 || kind == RelocGotoff64 || kind == RelocSize64 { return 8 }
+    return 4
+}
+
+// The relocations of an included member that target its placed sections.
+Relocations :: (object: *MachineX64Object, bytes: []u8, member: s64, capability: []u8) -> MachineDiagnostic {
+    record := object.members[member]
+    name := record.name
+    sections_at := cast(s64)Read(bytes, 40, 8)
+    section_count := cast(s64)Read(bytes, 60, 2)
+    if section_count == 0 && sections_at != 0 { section_count = cast(s64)Read(bytes, sections_at + 32, 8) }
+    index: s64 = 0
+    while index < section_count {
+        header := sections_at + index * SectionSize
+        index += 1
+        kind := Read(bytes, header + 4, 4)
+        if kind != ShtRela && kind != ShtRel { continue }
+        target := cast(s64)Read(bytes, header + 44, 4)
+        if target >= record.section_count {
+            return Gap(object, MachineX64ArchiveGapMalformed, capability, name, name, name, 0)
+        }
+        target_section := record.first_section + target
+        if object.sections[target_section].kind == MachineX64ObjectSkipped { continue }
+        // A REL section has no addends; x86-64 objects use RELA.
+        if kind == ShtRel {
+            return Gap(object, MachineX64ArchiveGapRelocation, capability, name, name, name, -1)
+        }
+        table := cast(s64)Read(bytes, header + 24, 8)
+        size := cast(s64)Read(bytes, header + 32, 8)
+        if Read(bytes, header + 56, 8) != RelocationSize || size % RelocationSize != 0 ||
+            !Inside(cast(u64)table, cast(u64)size, bytes.count) {
+            return Gap(object, MachineX64ArchiveGapMalformed, capability, name, name, name, 0)
+        }
+        entry: s64 = 0
+        while entry < size / RelocationSize {
+            at := table + entry * RelocationSize
+            entry += 1
+            info := Read(bytes, at + 8, 8)
+            symbol := cast(s64)(info >> 32)
+            reloc_kind := cast(s32)(info & 0xffffffff)
+            if symbol >= record.symbol_count {
+                return Gap(object, MachineX64ArchiveGapMalformed, capability, name, name, name, 0)
+            }
+            if !Supported(reloc_kind) {
+                return Gap(object, MachineX64ArchiveGapRelocation, capability, name,
+                    object.symbols[record.first_symbol + symbol].name, name, reloc_kind)
+            }
+            if !VecPush(object.relocations, .{section = target_section, offset = cast(s64)Read(bytes, at, 8),
+                symbol = record.first_symbol + symbol, kind = reloc_kind, addend = cast(s64)Read(bytes, at + 16, 8)}) {
+                return Problem(.Allocation)
+            }
+        }
+    }
+    return NoDiagnostic()
+}
+
+// Phase C: the included members' pieces in archive order, each section at its
+// alignment, their relocations, and the GOT entries those need.
+Layout :: (object: *MachineX64Object) -> MachineDiagnostic {
+    text_end: s64 = 0
+    constants_end: s64 = 0
+    data_end: s64 = 0
+    bss_end: s64 = 0
+    object.text_alignment = 1
+    object.data_alignment = 1
+    object.bss_alignment = 1
+    for member: cast(s64)0..object.members.count - 1 {
+        record := object.members[member]
+        if !record.included { continue }
+        first := record.first_section
+        last := first + record.section_count - 1
+        for index: cast(s64)first..last {
+            section := *(object.sections[index])
+            if section.kind == MachineX64ObjectSkipped { continue }
+            end := 0
+            if section.kind == MachineX64ObjectText {
+                text_end = Align(text_end, section.alignment)
+                end = text_end
+                if section.alignment > object.text_alignment { object.text_alignment = section.alignment }
+            }
+            if section.kind == MachineX64ObjectConstants {
+                constants_end = Align(constants_end, section.alignment)
+                end = constants_end
+            }
+            if section.kind == MachineX64ObjectData {
+                data_end = Align(data_end, section.alignment)
+                end = data_end
+                if section.alignment > object.data_alignment { object.data_alignment = section.alignment }
+            }
+            if section.kind == MachineX64ObjectBss {
+                bss_end = Align(bss_end, section.alignment)
+                end = bss_end
+                if section.alignment > object.bss_alignment { object.bss_alignment = section.alignment }
+            }
+            section.offset = end
+            end += section.size
+            if section.kind == MachineX64ObjectText { text_end = end }
+            if section.kind == MachineX64ObjectConstants { constants_end = end }
+            if section.kind == MachineX64ObjectData { data_end = end }
+            if section.kind == MachineX64ObjectBss { bss_end = end }
+            if section.source >= 0 && section.size > 0 {
+                if !Append(object, section.kind, end, record.bytes, section.source, section.size, section.offset) {
+                    return Problem(.Allocation)
+                }
+            }
+        }
+        diagnostic := Relocations(object, record.bytes, member, record.capability)
+        if diagnostic.problem != .None { return diagnostic }
+    }
+    for index: cast(s64)0..object.relocations.count - 1 {
+        reloc := object.relocations[index]
+        if !GotReloc(reloc.kind) { continue }
+        symbol := object.symbols[reloc.symbol]
+        member := object.members[symbol.member]
+        if symbol.global < 0 {
+            return Gap(object, MachineX64ArchiveGapRelocation, member.capability, member.name, symbol.name, member.name, reloc.kind)
+        }
+        if object.globals[symbol.global].got < 0 {
+            object.globals[symbol.global].got = object.got_count
+            object.got_count += 1
+        }
+    }
+    object.text_size = text_end
+    object.data_size = data_end
+    object.bss_size = bss_end
+    object.got_at = Align(constants_end, 8)
+    object.constants_size = object.got_at + object.got_count * 8
+    return NoDiagnostic()
+}
+
+// Whether TARGET + ADDEND - FIELD is a 32-bit signed displacement.
+Relative :: (target: s64, addend: s64, field: s64, value: *u64) -> bool {
+    displacement := target + addend - field
+    if displacement < -2147483648 || displacement > 2147483647 { return false }
+    <<value = cast(u64)displacement
+    return true
+}
+
+// Writes VALUE's low COUNT bytes at AT of the KIND piece.
+Put :: (object: *MachineX64Object, kind: s32, at: s64, value: u64, count: s64) {
+    for index: cast(s64)0..count - 1 {
+        byte := cast(u8)((value >> cast(u64)(index * 8)) & 255)
+        if kind == MachineX64ObjectText { object.text[at + index] = byte }
+        if kind == MachineX64ObjectConstants { object.constants[at + index] = byte }
+        if kind == MachineX64ObjectData { object.data[at + index] = byte }
+    }
+}
+
+#scope_export
+
+// Whether BYTES is an ar(1) archive.
+MachineX64Archive :: (bytes: []u8) -> bool { return MachineX64ArchiveBytes(bytes) }
+
+// Whether the ELF object BYTES defines NAME as a global or weak function or
+// indirect function.
+DefinesSymbol :: (bytes: []u8, name: string) -> bool {
+    sections_at := cast(s64)Read(bytes, 40, 8)
+    section_count := cast(s64)Read(bytes, 60, 2)
+    if section_count == 0 && sections_at != 0 { section_count = cast(s64)Read(bytes, sections_at + 32, 8) }
+    if section_count <= 0 || section_count > 65536 ||
+        !Inside(cast(u64)sections_at, cast(u64)(section_count * SectionSize), bytes.count) { return false }
+    index: s64 = 0
+    while index < section_count {
+        header := sections_at + index * SectionSize
+        index += 1
+        if Read(bytes, header + 4, 4) != ShtSymtab { continue }
+        table := cast(s64)Read(bytes, header + 24, 8)
+        size := cast(s64)Read(bytes, header + 32, 8)
+        link := cast(s64)Read(bytes, header + 40, 4)
+        if Read(bytes, header + 56, 8) != SymbolSize || link >= section_count ||
+            !Inside(cast(u64)table, cast(u64)size, bytes.count) { return false }
+        strings_header := sections_at + link * SectionSize
+        strings := cast(s64)Read(bytes, strings_header + 24, 8)
+        strings_size := cast(s64)Read(bytes, strings_header + 32, 8)
+        if !Inside(cast(u64)strings, cast(u64)strings_size, bytes.count) { return false }
+        symbol: s64 = 1
+        while symbol < size / SymbolSize {
+            at := table + symbol * SymbolSize
+            symbol += 1
+            info := bytes[at + 4]
+            bind := cast(s32)(info >> 4)
+            kind := cast(s32)(info & 15)
+            if Read(bytes, at + 6, 2) == 0 || (bind != StbGlobal && bind != StbWeak) || (kind != 2 && kind != 10) { continue }
+            if EqualText(NameIn(bytes, strings, strings_size, cast(s64)Read(bytes, at, 4)), name) { return true }
+        }
+    }
+    return false
+}
+
+// Whether the archive BYTES defines NAME as a global or weak function some
+// member's symbol table: the capability a registration names it for.
+MachineX64ArchiveDefines :: (bytes: []u8, name: string) -> bool {
+    if !MachineX64ArchiveBytes(bytes) || name.count == 0 { return false }
+    names: s64 = -1
+    names_size: s64 = 0
+    LongNames(bytes, *names, *names_size)
+    at: s64 = 8
+    while at >= 0 {
+        size: s64 = 0
+        next := NextMember(bytes, at, *size)
+        if next < 0 { return false }
+        member_name: MachineX64ArchiveRoot
+        if MemberName(bytes, at, names, names_size, *member_name) {
+            data := bytes[at + MemberHeaderSize:at + MemberHeaderSize + size]
+            if ElfObject(data) && DefinesSymbol(data, name) { return true }
+        }
+        at = next
+    }
+    return false
+}
+
+// Links the archive BYTES for LIBRARY into OBJECT: the members the
+// capabilities ROOTS name, in closure order, with their pieces and
+// relocations; the caller releases them with MachineX64ObjectFree. The first
+// gap is a diagnostic and names its member and symbol in OBJECT.gap.
+MachineX64ObjectLoad :: (roots: []MachineX64ArchiveRoot, library: s32, archive: []u8, object: *MachineX64Object) -> MachineDiagnostic {
+    object.bytes = archive
+    object.library = library
+    if !MachineX64ArchiveBytes(archive) {
+        return Gap(object, MachineX64ArchiveGapMalformed, Empty(), Empty(), Empty(), Empty(), 0)
+    }
+    names: s64 = -1
+    names_size: s64 = 0
+    LongNames(archive, *names, *names_size)
+    at: s64 = 8
+    while at >= 0 {
+        size: s64 = 0
+        next := NextMember(archive, at, *size)
+        if next < 0 { break }
+        member_name: MachineX64ArchiveRoot
+        if MemberName(archive, at, names, names_size, *member_name) {
+            data := archive[at + MemberHeaderSize:at + MemberHeaderSize + size]
+            if ElfObject(data) {
+                member := object.members.count
+                if !VecPush(object.members, .{name = member_name.name, bytes = data, included = false, capability = Empty(),
+                    first_section = 0, section_count = 0, first_symbol = 0, symbol_count = 0}) { return Problem(.Allocation) }
+                scan := ScanMember(object, data, member, Empty())
+                if scan.problem != .None { return scan }
+            }
+        }
+        at = next
+    }
+    closed := Close(object, roots)
+    if closed.problem != .None { return closed }
+    return Layout(object)
+}
+
+// The pieces' positions once the container has set TEXT_AT, CONSTANTS_AT,
+// the data layout offsets and DATA, the data segment's position: sections,
+// then symbols, then the globals they define and the references to them.
+MachineX64ObjectPlace :: (object: *MachineX64Object, data: s64) -> MachineDiagnostic {
+    for index: cast(s64)0..object.sections.count - 1 {
+        section := *(object.sections[index])
+        if section.kind == MachineX64ObjectSkipped { continue }
+        if section.kind == MachineX64ObjectText { section.position = object.text_at + section.offset }
+        if section.kind == MachineX64ObjectConstants { section.position = object.constants_at + section.offset }
+        if section.kind == MachineX64ObjectData { section.position = data + object.data_offset + section.offset }
+        if section.kind == MachineX64ObjectBss { section.position = data + object.bss_offset + section.offset }
+    }
+    for index: cast(s64)0..object.symbols.count - 1 {
+        symbol := *(object.symbols[index])
+        if symbol.section == 0 || symbol.kind == SttFile || symbol.kind == SttTls { continue }
+        member := object.members[symbol.member]
+        if symbol.section >= member.section_count || symbol.section == ShnAbs || symbol.section == ShnCommon ||
+            symbol.section == ShnXindex {
+            return Gap(object, MachineX64ArchiveGapSection, member.capability, member.name, symbol.name, member.name, symbol.section)
+        }
+        section := object.sections[member.first_section + symbol.section]
+        if section.kind == MachineX64ObjectSkipped { symbol.position = -1; continue }
+        symbol.position = section.position + symbol.value
+    }
+    for index: cast(s64)0..object.globals.count - 1 {
+        global := *(object.globals[index])
+        if global.definer >= 0 { global.position = object.symbols[global.definition].position }
+    }
+    for index: cast(s64)0..object.symbols.count - 1 {
+        symbol := *(object.symbols[index])
+        if symbol.section != 0 || symbol.global < 0 { continue }
+        symbol.position = object.globals[symbol.global].position
+    }
+    return NoDiagnostic()
+}
+
+// Applies the relocations with the image at BASE: absolute words take the
+// address, displacements the difference, and each GOT entry the address of
+// its global. The pieces then hold their final bytes.
+MachineX64ObjectResolve :: (object: *MachineX64Object, base: u64) -> MachineDiagnostic {
+    for index: cast(s64)0..object.globals.count - 1 {
+        global := object.globals[index]
+        if global.got < 0 || global.position < 0 { continue }
+        Put(object, MachineX64ObjectConstants, object.got_at + global.got * 8, base + cast(u64)global.position, 8)
+    }
+    for index: cast(s64)0..object.relocations.count - 1 {
+        reloc := object.relocations[index]
+        section := object.sections[reloc.section]
+        member := object.members[section.member]
+        symbol := object.symbols[reloc.symbol]
+        width := Wide(reloc.kind)
+        if reloc.offset < 0 || reloc.offset + width > section.size {
+            return Gap(object, MachineX64ArchiveGapMalformed, member.capability, member.name, symbol.name, member.name, reloc.offset)
+        }
+        if reloc.kind == RelocNone { continue }
+        if section.kind == MachineX64ObjectBss {
+            return Gap(object, MachineX64ArchiveGapMalformed, member.capability, member.name, symbol.name, member.name, reloc.kind)
+        }
+        if symbol.position < 0 {
+            return Gap(object, MachineX64ArchiveGapUndefined, member.capability, member.name, symbol.name, member.name, reloc.kind)
+        }
+        if reloc.addend < -AddendLimit || reloc.addend > AddendLimit {
+            return Gap(object, MachineX64ArchiveGapRelocation, member.capability, member.name, symbol.name, member.name, reloc.kind)
+        }
+        target := symbol.position
+        field := section.position + reloc.offset
+        value: u64 = 0
+        fits := true
+        if reloc.kind == RelocAbsolute64 {
+            fits = target + reloc.addend >= 0
+            value = base + cast(u64)(target + reloc.addend)
+        }
+        if reloc.kind == RelocPc32 || reloc.kind == RelocPlt32 { fits = Relative(target, reloc.addend, field, *value) }
+        if GotReloc(reloc.kind) {
+            if symbol.global < 0 || object.globals[symbol.global].got < 0 {
+                return Gap(object, MachineX64ArchiveGapRelocation, member.capability, member.name, symbol.name, member.name, reloc.kind)
+            }
+            entry := object.got_at + object.globals[symbol.global].got * 8
+            fits = Relative(entry, reloc.addend, field, *value)
+        }
+        if reloc.kind == Reloc32 {
+            sum := target + reloc.addend
+            fits = sum >= 0 && sum <= 0xffffffff
+            value = cast(u64)sum
+        }
+        if reloc.kind == Reloc32s {
+            sum := target + reloc.addend
+            fits = sum >= -2147483648 && sum <= 2147483647
+            value = cast(u64)sum
+        }
+        if reloc.kind == RelocPc64 { value = cast(u64)(target + reloc.addend - field) }
+        if reloc.kind == RelocGotoff64 { value = cast(u64)(target + reloc.addend - object.got_at) }
+        if reloc.kind == RelocGotpc32 { fits = Relative(object.got_at, reloc.addend, field, *value) }
+        if reloc.kind == RelocSize32 {
+            size := symbol.size + reloc.addend
+            fits = size >= 0 && size <= 0xffffffff
+            value = cast(u64)size
+        }
+        if reloc.kind == RelocSize64 { value = cast(u64)(symbol.size + reloc.addend) }
+        if !fits {
+            return Gap(object, MachineX64ArchiveGapRelocation, member.capability, member.name, symbol.name, member.name, reloc.kind)
+        }
+        Put(object, section.kind, section.offset + reloc.offset, value, width)
+    }
+    return NoDiagnostic()
+}
+
+// Copies a resolved object's text and constants to their positions and its
+// data to DATA_FILE_AT + its data offset; its zero fill stays zero.
+MachineX64ObjectWrite :: (object: *MachineX64Object, output: []u8, data_file_at: s64) -> bool {
+    if object.text_size > 0 {
+        if output.count < object.text_at + object.text_size { return false }
+        for index: cast(s64)0..object.text_size - 1 { output[object.text_at + index] = object.text[index] }
+    }
+    if object.constants_size > 0 {
+        if output.count < object.constants_at + object.constants_size { return false }
+        for index: cast(s64)0..object.constants.count - 1 { output[object.constants_at + index] = object.constants[index] }
+    }
+    if object.data_size > 0 {
+        if output.count < data_file_at + object.data_offset + object.data_size { return false }
+        for index: cast(s64)0..object.data_size - 1 { output[data_file_at + object.data_offset + index] = object.data[index] }
+    }
+    return true
+}
+
+// Releases an object's vectors.
+MachineX64ObjectFree :: (object: *MachineX64Object) {
+    VecFree(object.members)
+    VecFree(object.sections)
+    VecFree(object.symbols)
+    VecFree(object.relocations)
+    VecFree(object.globals)
+    VecFree(object.text)
+    VecFree(object.constants)
+    VecFree(object.data)
+}
+
+// The position of the global NAME among linked OBJECTS, or -1.
+MachineX64ArchiveTarget :: (objects: []MachineX64Object, name: []u8) -> s64 {
+    for object: cast(s64)0..objects.count - 1 {
+        for index: cast(s64)0..objects[object].globals.count - 1 {
+            global := objects[object].globals[index]
+            if global.definer >= 0 && global.position >= 0 && Equal(global.name, name) { return global.position }
+        }
+    }
+    return -1
+}

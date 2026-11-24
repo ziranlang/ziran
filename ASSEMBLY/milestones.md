@@ -183,3 +183,55 @@ host values with instance-owned returned bytes, released once nothing the
 program can reach names them. Resizable collection ownership, reentrant
 callbacks and general native string/arbitrary-host instructions remain
 explicit gaps. Open work from M4 on is in `plans/open-work.md`.
+
+## Review of M5 and M6 (2026-11-24)
+
+The first review's diagnosis still holds, and M5 is the milestone where it
+repeats. M5's exit gate, "Step 07/08 rows with real launches", bundles four
+kinds of work whose evidence is not available in the same place:
+
+- ELF static archives and the C ABI for the Linux row are testable in this
+  checkout; the archive slice landed on 2026-11-24 and `tests/machine_elf.sh`
+  links, runs and rejects them.
+- A real Windows launch is not available here. Wine parity is evidence that
+  the PE32+ encoding, Win64 ABI, imports and unwind records are right, but it
+  is emulation and cannot close a native row under the gap policy. The matrix
+  needs an explicit emulated state: Wine results stay recorded as emulated,
+  not as a Windows host result.
+- Mach-O objects, Apple64 and signing need an Apple host and credentials.
+  They should stay a named Gap in the target registry until such a host and a
+  signing identity exist; implementing the container speculatively cannot
+  produce the required real launch.
+- The in-process loader is per row. Linux x86-64, AArch64 and ARMv7 load
+  native ZX today; Windows and macOS loaders belong to their host slices, not
+  to a shared "archives" item.
+
+Order the remaining work by the evidence each item can actually produce here:
+
+1. **M5a** Linux ELF: shared objects (done) and static archives (done). Keep
+   each new C ABI shape and each archive subset behind `machine_elf.sh` plus a
+   named gap for everything else.
+2. **M6a** inspection closure for rows that are Implemented: Linux unwind
+   registration (`.eh_frame` or an equivalent without libc), the existing
+   debug attachment, and a supported profiler map, with bounded
+   source-to-byte attribution. This is local work and can land now.
+3. **M5b** a real Windows host run, on hardware or a dedicated CI Windows
+   runner: the same `tests/zx_windows_parity_cases.zi`, with its current Wine
+   rows kept as the emulated control. Until then the row stays open.
+4. **Native speed** next, because it is the owner-visible deficit and the
+   receipts exist: Vec growth, unique-use Insert-in-place and borrowed call
+   arguments, proof-carried bounds elision, the k-nucleotide copy loop, then
+   the print-heavy examples. These are Alpha-only measurements; do not queue
+   target breadth ahead of them.
+5. **M5c** Mach-O/Apple64 and signing, only when an Apple host and signing
+   identity are available. **M5d** the Windows loader follows M5b.
+6. **M6b** the owner's full before/after comparison on Alpha's physical host
+   last, because it must compare the finished implementation, not an interim
+   slice.
+
+Two smaller corrections: step 08 lists a textual listing re-assembler and
+every object format for all rows, while the review above intentionally keeps
+only maintained target rows and treats the listing as inspection, not a
+required assembler dialect; and a "real launch" must be defined in the step-07
+matrix as not emulated, so no Wine, emulator or cross-compilation result is
+counted as a row's execution evidence.

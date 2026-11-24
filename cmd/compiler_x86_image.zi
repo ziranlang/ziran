@@ -1,4 +1,5 @@
 using Allocated :: #import "compiler_machine_verify_allocated"
+using Archive :: #import "compiler_x86_archive"
 using Bytes :: #import "compiler_x86_bytes"
 using Host :: #import "compiler_x86_host"
 using Image :: #import "compiler_machine_image"
@@ -79,8 +80,11 @@ MachineX64ImageNeeds :: struct {
 // MachineX64ImageResolve. A container that links host libraries sets hosts,
 // the capabilities it imports in function order, and one whose executable
 // supplies the ZX Runner's files and clock services sets builtins the same
-// way, before MachineX64ImageMeasure, and MachineX64ImageText places their
-// veneers after the imports'.
+// way, and one that links static archives sets statics, the capabilities
+// they provide, and objects, their loaded members (compiler_x86_archive.zi),
+// before MachineX64ImageMeasure. MachineX64ImageText places the veneers
+// after the imports' and the archives' text after them; the container then
+// calls MachineX64ImageObjects before MachineX64ImageResolve.
 MachineX64ImageLayout :: struct {
     os: TargetOS
     needs: MachineX64ImageNeeds
@@ -92,8 +96,16 @@ MachineX64ImageLayout :: struct {
     // The float formatter, or zero when nothing prints a float.
     float: s64
     text_end: s64
+    // Where each veneer group ends, before the next group's alignment
+    // padding; zero when the group is empty.
+    hosts_end: s64
+    builtins_end: s64
+    statics_end: s64
     constants: s64
     constants_size: s64
+    // Where the linked archives' read-only pieces start within the
+    // constants, after the program's read-only globals; -1 without any.
+    object_constants: s64
     data: s64
     // Where MachineX64ImageWrite's output takes the data's stored bytes; text
     // and constants go at their positions.
@@ -105,6 +117,10 @@ MachineX64ImageLayout :: struct {
     // kernel32 functions they call, as a MachineWin64ImportBit mask.
     builtins: []MachineX64HostImport
     builtin_imports: u32
+    // The capabilities static archives provide and the archives' loaded
+    // members, in archive order.
+    statics: []MachineX64HostImport
+    objects: []Archive.MachineX64Object
 }
 
 #scope_file
@@ -150,7 +166,7 @@ ValidAlignment :: (alignment: s32) -> bool {
 }
 
 DataMeasure :: (program: MachineProgram, needs: MachineX64ImageNeeds, hosts: s64,
-    layout: *MachineX64DataLayout) -> MachineDiagnostic {
+    objects: []Archive.MachineX64Object, layout: *MachineX64DataLayout) -> MachineDiagnostic {
     at: s64 = 0
     for global: program.globals {
         if global.type < 0 || global.type >= program.types.count { return Problem(.Unsupported) }
@@ -181,6 +197,17 @@ DataMeasure :: (program: MachineProgram, needs: MachineX64ImageNeeds, hosts: s64
         layout.arena = Align(layout.table + (MachinePointerCapacity + 1) * MachinePointerEntryBytes, 16)
         memory = layout.arena + MachinePointerArenaBytes
     }
+    // The linked archives' writable data follows the stored bytes, each
+    // member's at its alignment; its zero fill joins the zero fill below.
+    for index: cast(s64)0..objects.count - 1 {
+        object := *(objects[index])
+        object.data_offset = 0
+        if object.data_size <= 0 { continue }
+        at = Align(at, object.data_alignment)
+        object.data_offset = at
+        at += object.data_size
+    }
+    if memory < at { memory = at }
     layout.size = at
     if needs.trap { layout.trap_status = Align(memory, 4); memory = layout.trap_status + 4 }
     if needs.stack { layout.stack_limit = Align(memory, 8); memory = layout.stack_limit + 8 }
@@ -193,6 +220,14 @@ DataMeasure :: (program: MachineProgram, needs: MachineX64ImageNeeds, hosts: s64
         if hosts > (2147483647 - memory) / 8 - 1 { return Problem(.Limit) }
         layout.host_slots = Align(memory, 8)
         memory = layout.host_slots + hosts * 8
+    }
+    for index: cast(s64)0..objects.count - 1 {
+        object := *(objects[index])
+        object.bss_offset = 0
+        if object.bss_size <= 0 { continue }
+        memory = Align(memory, object.bss_alignment)
+        object.bss_offset = memory
+        memory += object.bss_size
     }
     layout.memory = memory
     return NoDiagnostic()
@@ -464,6 +499,28 @@ BuiltinsMeasure :: (program: MachineProgram, builtins: []MachineX64HostImport) -
     return NoDiagnostic()
 }
 
+// The capabilities a static archive provides are host functions too: each
+// once, in order, an archive import with a veneer that calls its member's
+// function directly and has the C ABI signature the veneer can carry.
+StaticsMeasure :: (program: MachineProgram, statics: []MachineX64HostImport) -> MachineDiagnostic {
+    previous: s32 = -1
+    for host: statics {
+        if host.function <= previous || host.function >= program.functions.count ||
+            program.functions[host.function].calling != .Host || !host.archive || host.library < 0 {
+            diagnostic := Problem(.Relocation)
+            diagnostic.function = host.function
+            return diagnostic
+        }
+        previous = host.function
+        if !MachineX64HostSupported(program, host) {
+            diagnostic := Problem(.HostAbi)
+            diagnostic.function = host.function
+            return diagnostic
+        }
+    }
+    return NoDiagnostic()
+}
+
 // The position a relocation's field reaches, or false when the image has no
 // such target.
 RelocationTarget :: (program: MachineProgram, layout: MachineX64ImageLayout,
@@ -485,6 +542,8 @@ RelocationTarget :: (program: MachineProgram, layout: MachineX64ImageLayout,
     if relocation.kind == .HostCapability {
         index := HostIndex(layout.builtins, relocation.symbol)
         if index >= 0 { <<target = layout.builtins[index].veneer; return true }
+        index = HostIndex(layout.statics, relocation.symbol)
+        if index >= 0 { <<target = layout.statics[index].veneer; return true }
         index = HostIndex(layout.hosts, relocation.symbol)
         if index < 0 { return false }
         <<target = layout.hosts[index].veneer
@@ -656,15 +715,18 @@ WriteStartup :: (program: MachineProgram, image: MachineX64Image, layout: Machin
 // Whether the image needs a data region at all.
 MachineX64ImageHasData :: (layout: MachineX64ImageLayout) -> bool { return layout.data_layout.memory > 0 }
 
-// The data region's alignment: every writable global's and the pointer
-// table's.
-MachineX64DataAlignment :: (program: MachineProgram) -> s64 {
+// The data region's alignment: every writable global's, the pointer
+// table's and every linked archive's data's.
+MachineX64DataAlignment :: (program: MachineProgram, objects: []Archive.MachineX64Object) -> s64 {
     alignment: s64 = 64
     for global: program.globals {
         if global.writable && global.type >= 0 && global.type < program.types.count &&
             cast(s64)program.types[global.type].alignment > alignment {
             alignment = cast(s64)program.types[global.type].alignment
         }
+    }
+    for index: cast(s64)0..objects.count - 1 {
+        if objects[index].data_alignment > alignment { alignment = objects[index].data_alignment }
     }
     return alignment
 }
@@ -724,6 +786,8 @@ MachineX64ImageMeasure :: (program: MachineProgram, image: MachineX64Image,
     if hosts_diagnostic.problem != .None { return hosts_diagnostic }
     builtins_diagnostic := BuiltinsMeasure(program, layout.builtins)
     if builtins_diagnostic.problem != .None { return builtins_diagnostic }
+    statics_diagnostic := StaticsMeasure(program, layout.statics)
+    if statics_diagnostic.problem != .None { return statics_diagnostic }
     layout.needs = ImageNeeds(program, image)
     // A built-in service that reads grows its block through the runtime's
     // resize entry, which needs the heap; a growth the runtime refuses goes
@@ -734,9 +798,21 @@ MachineX64ImageMeasure :: (program: MachineProgram, image: MachineX64Image,
         layout.needs.runtime.exit = true
     }
     layout.builtin_imports = Host.MachineX64HostBuiltinImports(program, layout.builtins)
-    data_diagnostic := DataMeasure(program, layout.needs, ifx Windows(<<layout) then cast(s64)0 else layout.hosts.count, *layout.data_layout)
+    data_diagnostic := DataMeasure(program, layout.needs, ifx Windows(<<layout) then cast(s64)0 else layout.hosts.count,
+        layout.objects, *layout.data_layout)
     if data_diagnostic.problem != .None { return data_diagnostic }
-    return GlobalsMeasure(program, false, *layout.constants_size)
+    constants_diagnostic := GlobalsMeasure(program, false, *layout.constants_size)
+    if constants_diagnostic.problem != .None { return constants_diagnostic }
+    // The linked archives' read-only pieces follow the read-only globals,
+    // each 8-byte aligned, in archive order; MachineX64ImageObjects places
+    // them from layout.object_constants.
+    layout.object_constants = -1
+    for index: cast(s64)0..layout.objects.count - 1 {
+        layout.constants_size = Align(layout.constants_size, 8)
+        if index == 0 { layout.object_constants = layout.constants_size }
+        layout.constants_size += layout.objects[index].constants_size
+    }
+    return NoDiagnostic()
 }
 
 // Lays out the text from LAYOUT.text: the entry stub, code, trap stub,
@@ -774,6 +850,7 @@ MachineX64ImageText :: (program: MachineProgram, image: MachineX64Image,
         }
         end = measure.at
     }
+    layout.hosts_end = end
     if layout.builtins.count > 0 { end = Align(end, 16) }
     for index: cast(s64)0..layout.builtins.count - 1 {
         layout.builtins[index].veneer = end
@@ -783,8 +860,94 @@ MachineX64ImageText :: (program: MachineProgram, image: MachineX64Image,
         }
         end = measure.at
     }
+    layout.builtins_end = end
+    // An archive import's veneer calls its member's function with a rel32
+    // call, whose size is the same wherever the member lands.
+    if layout.statics.count > 0 { end = Align(end, 16) }
+    for index: cast(s64)0..layout.statics.count - 1 {
+        layout.statics[index].veneer = end
+        measure := X86Writer.{at = end, limit = 2147483647 - Page}
+        if !MachineX64HostVeneer(*measure, program, layout.statics[index], 0, layout.routines.resize, layout.imports) {
+            return Problem(.Limit)
+        }
+        end = measure.at
+    }
+    layout.statics_end = end
+    // The linked archives' text follows, each at its alignment; its
+    // sections keep the offsets they had in the member.
+    for index: cast(s64)0..layout.objects.count - 1 {
+        object := *(layout.objects[index])
+        object.text_at = 0
+        if object.text_size <= 0 { continue }
+        end = Align(end, object.text_alignment)
+        object.text_at = end
+        end += object.text_size
+    }
     layout.text_end = end
     if layout.text_end > 2147483647 - Page { return Problem(.Limit) }
+    return NoDiagnostic()
+}
+
+// The program's host function a static capability NAME, a slice of
+// program.text, names, or MachineNoId.
+StaticFunction :: (program: MachineProgram, statics: []MachineX64HostImport, name: []u8) -> s32 {
+    for host: statics {
+        named := program.functions[host.function]
+        if cast(s64)named.name_length != name.count || named.name_offset < 0 ||
+            named.name_offset > program.text.count - name.count { continue }
+        same := true
+        for index: cast(s64)0..name.count - 1 {
+            if program.text[named.name_offset + index] != name[index] { same = false }
+        }
+        if same { return host.function }
+    }
+    return MachineNoId
+}
+
+// An archive gap names its capability; the diagnostic names the program's
+// host function the executable imports that capability for.
+ArchiveDiagnostic :: (program: MachineProgram, layout: *MachineX64ImageLayout, diagnostic: MachineDiagnostic) -> MachineDiagnostic {
+    for index: cast(s64)0..layout.objects.count - 1 {
+        gap := layout.objects[index].gap
+        if gap.kind == Archive.MachineX64ArchiveGapNone { continue }
+        diagnostic.function = StaticFunction(program, layout.statics, gap.capability)
+        return diagnostic
+    }
+    return diagnostic
+}
+
+// Places and resolves the linked archives once the container has placed the
+// constants, the data and the data's file offset: each object's read-only
+// piece after the read-only globals, its sections and symbols at their
+// positions, each static capability's slot at its member's function, and
+// its relocations applied with the image at BASE. The first gap is a
+// diagnostic naming the capability whose member or symbol it concerns.
+MachineX64ImageObjects :: (program: MachineProgram, layout: *MachineX64ImageLayout, base: u64) -> MachineDiagnostic {
+    if layout.object_constants < 0 { return NoDiagnostic() }
+    at := layout.constants + layout.object_constants
+    for index: cast(s64)0..layout.objects.count - 1 {
+        object := *(layout.objects[index])
+        object.constants_at = at
+        at += object.constants_size
+        diagnostic := Archive.MachineX64ObjectPlace(object, layout.data)
+        if diagnostic.problem != .None { return ArchiveDiagnostic(program, layout, diagnostic) }
+    }
+    for index: cast(s64)0..layout.statics.count - 1 {
+        host := *(layout.statics[index])
+        named := program.functions[host.function]
+        name := program.text[named.name_offset:named.name_offset + named.name_length]
+        host.slot = Archive.MachineX64ArchiveTarget(layout.objects, name)
+        if host.slot < 0 {
+            diagnostic := Problem(.Unsupported)
+            diagnostic.function = host.function
+            return diagnostic
+        }
+    }
+    for index: cast(s64)0..layout.objects.count - 1 {
+        object := *(layout.objects[index])
+        diagnostic := Archive.MachineX64ObjectResolve(object, base)
+        if diagnostic.problem != .None { return ArchiveDiagnostic(program, layout, diagnostic) }
+    }
     return NoDiagnostic()
 }
 
@@ -893,18 +1056,28 @@ MachineX64ImageWrite :: (program: MachineProgram, image: MachineX64Image, layout
     for index: cast(s64)0..layout.hosts.count - 1 {
         host := layout.hosts[index]
         writer := X86Writer.{output = output, at = host.veneer, limit = layout.text_end}
-        following := layout.text_end
-        if layout.builtins.count > 0 { following = layout.builtins[0].veneer }
         if !MachineX64HostVeneer(*writer, program, host, HostSlot(layout, index), layout.routines.resize, layout.imports) ||
             index + 1 < layout.hosts.count && writer.at != layout.hosts[index + 1].veneer ||
-            index + 1 == layout.hosts.count && writer.at != following { return false }
+            index + 1 == layout.hosts.count && writer.at != layout.hosts_end { return false }
     }
     for index: cast(s64)0..layout.builtins.count - 1 {
         host := layout.builtins[index]
         writer := X86Writer.{output = output, at = host.veneer, limit = layout.text_end}
         if !MachineX64HostVeneer(*writer, program, host, 0, layout.routines.resize, layout.imports) ||
             index + 1 < layout.builtins.count && writer.at != layout.builtins[index + 1].veneer ||
-            index + 1 == layout.builtins.count && writer.at != layout.text_end { return false }
+            index + 1 == layout.builtins.count && writer.at != layout.builtins_end { return false }
+    }
+    // A static capability's veneer calls its member's function, whose
+    // position MachineX64ImageObjects put in its slot.
+    for index: cast(s64)0..layout.statics.count - 1 {
+        host := layout.statics[index]
+        writer := X86Writer.{output = output, at = host.veneer, limit = layout.text_end}
+        following := ifx index + 1 < layout.statics.count then layout.statics[index + 1].veneer else layout.statics_end
+        if !MachineX64HostVeneer(*writer, program, host, host.slot, layout.routines.resize, layout.imports) ||
+            writer.at != following { return false }
+    }
+    for index: cast(s64)0..layout.objects.count - 1 {
+        if !Archive.MachineX64ObjectWrite(*(layout.objects[index]), output, layout.data_file) { return false }
     }
 
     for relocation: image.relocations {

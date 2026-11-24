@@ -57,9 +57,6 @@ line when the work lands. Keep detail in the referenced plan.
   costs, timed on Alpha only, then wire both modes and document them in
   docs/USAGE.md. The `.zx` loader's verification of bytes it receives is
   unchanged.
-- A persistent `ziran serve` session (owner-started, explicit Exit, never a
-  daemon) that keeps the compiler warm for fast rebuilds; owner approved it
-  after the check cache lands.
 - Metaprogramming, unblocked now that self-hosting is past S5: `#modify`
   notes, `type_info`, the compiler message loop, build-as-a-Ziran-program,
   `#bake_arguments` and SOA layout. Do these last.

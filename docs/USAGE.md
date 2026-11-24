@@ -40,9 +40,16 @@ does, prints one `PASS` or `FAIL` line per file followed by
 `ziran test: N passed, M failed`, and exits 1 when any file fails; every file
 runs even after a failure. It takes the same `--root`, `--module-path`,
 `--entry` and `--define` options as `ziran run`.
-`ziran check|test|ir|api|inspect|build|bundle|run|fmt` is a convenience dispatcher
+`ziran check|test|serve|ir|api|inspect|build|bundle|run|fmt` is a convenience dispatcher
 for the same tools. [Cross-target benchmarks](../bench/README.md) measure the
 compiler, downstream toolchains, and validated runtime cases separately.
+
+`ziran serve` starts a foreground session for a series of ordinary commands:
+each line is a command line without the leading `ziran` (`check src/main.zi`,
+`build`, `run -- ARGS`), run in the same process, and `Exit` or the end of
+input leaves. The greeting and prompt go to standard error, so a piped
+session's standard output is only the commands' own. It is never a daemon,
+and the compiler's caches keep repeated commands fast.
 
 Portable bundles run with `ziran run app.zx`. Graphical
 bundles use installed package-provided platform hosts through the same command;

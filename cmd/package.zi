@@ -17,6 +17,8 @@
 #import "package_learn"
 #import "file_linux"
 #import "file_tree_linux"
+#import "byte_text_linux"
+VersionText :: #import "version"
 
 #if CPU == .ARM64 {
     PkgHostNativeTarget :: "aarch64"
@@ -910,6 +912,7 @@ PkgUsage :: (command: string) -> string {
     if command == "test" {
         return "usage: ziran test [--project] [--locked] [--offline] [--root DIR] [--module-path DIR] [--entry module:function] [--define NAME[=VALUE]] [--checks] [--no-cache] [--diagnostics=text|json] FILE.zi ...\n"
     }
+    if command == "serve" { return "usage: ziran serve\n" }
     if command == "inspect" {
         return "usage: ziran inspect [--hex] FILE.zir | ziran inspect [--emit lir|linkage] FILE.zx\n"
     }
@@ -938,6 +941,90 @@ PkgFlagsEnd :: (command: string, arguments: []string) -> s32 {
     return end
 }
 
+// `ziran serve`: one foreground process for a series of ordinary commands.
+// Each line is a command line without the leading `ziran`, run in this
+// process; the greeting and prompt go to standard error so a piped session's
+// standard output is only the commands' own. `Exit` (or the end of input)
+// leaves. It is never a daemon: it owns the terminal until it returns, and
+// repeated commands reuse the compiler's caches.
+serve_system :: #system_library "libc";
+ServeReadRaw :: (descriptor: s32, output: *u8, count: usize) -> isize #foreign serve_system "read";
+ServeErrno :: () -> *s32 #foreign serve_system "__errno_location";
+serve_launcher: string;
+
+ServeWords :: (line: []u8, words: *Vec(string)) -> bool {
+    at: s64 = 0
+    while at < line.count {
+        while at < line.count && (line[at] == #char " " || line[at] == #char "\t") { at += 1 }
+        if at >= line.count { return true }
+        begin := at
+        while at < line.count && line[at] != #char " " && line[at] != #char "\t" { at += 1 }
+        if !VecPush(<<words, TextFromBytes(line[begin:at])) { return false }
+    }
+    return true
+}
+
+Serve :: (launcher: string, arguments: []string) -> s32 {
+    if arguments.count != 0 { return PkgFail("usage: ziran serve") }
+    serve_launcher = launcher
+    PkgPrint("ziran serve: enter a command, or Exit to leave\n", true)
+    buffer: [4096]u8
+    used: s64 = 0
+    at: s64 = 0
+    eof: bool = false
+    line: Vec(u8)
+    defer VecFree(line)
+    words: Vec(string)
+    defer VecFree(words)
+    while true {
+        PkgPrint("ziran> ", true)
+        unused VecResize(line, 0)
+        complete: bool = false
+        while !complete && !eof {
+            if at >= used {
+                count := ServeReadRaw(0, *buffer[0], cast(usize)4096)
+                if count < 0 {
+                    if <<ServeErrno() == 4 { continue }
+                    eof = true
+                    break
+                }
+                if count == 0 { eof = true; break }
+                at = 0
+                used = cast(s64)count
+            }
+            byte := buffer[at]
+            at += 1
+            if byte == #char "\n" { complete = true }
+            else if byte != #char "\r" {
+                if !VecPush(line, byte) { return PkgFail("cannot allocate the command line") }
+            }
+        }
+        if line.count == 0 {
+            if eof { break }
+            continue
+        }
+        unused VecResize(words, 0)
+        if !ServeWords(line[:], *words) { return PkgFail("cannot allocate the command arguments") }
+        if words.count == 0 {
+            if eof { break }
+            continue
+        }
+        if words[0] == "Exit" || words[0] == "exit" { break }
+        if words[0] == "serve" { PkgPrint("serve: already in a serve session\n", true) }
+        else if (words[0] == "version" || words[0] == "--version") && words.count == 1 {
+            PkgPrint("ziran ", false)
+            PkgPrint(VersionText.Version, false)
+            PkgPrint("\n", false)
+        }
+        else {
+            pkg_failure_reported = false
+            unused PackageMain(serve_launcher, VecSlice(words, 0, words.count))
+        }
+        if eof { break }
+    }
+    return 0
+}
+
 #program_export
 PackageMain :: (launcher: string, arguments: []string) -> s32 {
     // Source execution also supports #!/usr/bin/env ziran. Normalize before
@@ -954,7 +1041,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     PkgSetDiagnosticFormat(arguments)
     if arguments.count == 0 || arguments[0] == "help" ||
        arguments[0] == "--help" || arguments[0] == "-h" {
-        PkgPrint("usage: ziran version|guide|std|features|capabilities|explain|learn|api|new|init|lock|update|fetch|add|pkg|tool|install|check|test|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
+        PkgPrint("usage: ziran version|guide|std|features|capabilities|explain|learn|api|new|init|lock|update|fetch|add|pkg|tool|install|check|test|serve|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
         PkgPrint("project commands: --project [--locked] [--offline]\n", false)
         PkgPrint("in a project, run, build, check, and install without a file work on its program\n", false)
         PkgPrint("scripts: ziran FILE.zi [ARGS] | ziran run --target=c [--no-cache] FILE.zi -- ARGS\n", false)
@@ -1005,6 +1092,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     if command == "features" { return Features(arguments[1:]) }
     if command == "capabilities" { return Capabilities(arguments[1:]) }
     if command == "explain" { return Explain(arguments[1:]) }
+    if command == "serve" { return Serve(launcher, arguments[1:]) }
     if command == "test" { return Test(launcher, arguments[1:]) }
     if command == "learn" { return Learn(arguments[1:], launcher) }
     if command == "add" { return Add(launcher, arguments[1:]) }

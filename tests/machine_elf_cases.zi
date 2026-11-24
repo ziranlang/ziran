@@ -185,21 +185,45 @@ Headers :: (owner: *Pipeline.MachineNativeOwner) -> bool {
     measured := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:], Unbounded, Static())
     if !Check(measured.diagnostic.problem == .None && measured.size == bytes.count,
         "measure matches published write") { return false }
-    if !Check(bytes.count > measured.data_offset + measured.data_size && measured.text_offset == 176 &&
+    if !Check(bytes.count > measured.data_offset + measured.data_size && measured.text_offset == 240 &&
             measured.data_offset >= measured.text_offset + measured.text_size, "headers, text, data, then section data") ||
-        !Check(Little(bytes, 40, 8) + 9 * 64 == cast(u64)bytes.count &&
-            Little(bytes, 58, 2) == 64 && Little(bytes, 60, 2) == 9 &&
-            Little(bytes, 62, 2) == 8, "the section header table describes the image") ||
+        !Check(Little(bytes, 40, 8) + 10 * 64 == cast(u64)bytes.count &&
+            Little(bytes, 58, 2) == 64 && Little(bytes, 60, 2) == 10 &&
+            Little(bytes, 62, 2) == 9, "the section header table describes the image") ||
         !Check(Little(bytes, 0, 4) == 0x464c457f, "ELF magic") ||
         !Check(bytes[4] == 2 && bytes[5] == 1 && bytes[6] == 1, "ELF64 little-endian identity") ||
         !Check(Little(bytes, 16, 2) == 2 && Little(bytes, 18, 2) == 62, "ET_EXEC x86-64") ||
         !Check(Little(bytes, 24, 8) == cast(u64)(0x400000 + measured.text_offset), "process entry starts the text") ||
         !Check(Little(bytes, 32, 8) == 64 && Little(bytes, 54, 2) == 56 &&
-            Little(bytes, 56, 2) == 2, "exact program header table") ||
+            Little(bytes, 56, 2) == 3, "exact program header table") ||
         !Check(Little(bytes, 64, 4) == 1 && Little(bytes, 68, 4) == 5 &&
             Little(bytes, 64 + 48, 8) == 4096, "RX load segment") ||
         !Check(Little(bytes, 120, 4) == 1 && Little(bytes, 124, 4) == 6 &&
             Little(bytes, 120 + 48, 8) == 4096, "RW non-executable load segment") {
+        return false
+    }
+    // The unwind records follow the text inside the read-only load, and the
+    // program header table names them for debuggers and perf.
+    sections := cast(s64)Little(bytes, 40, 8)
+    eh := sections + 8 * 64
+    if !Check(measured.eh_frame_offset >= measured.text_offset + measured.text_size &&
+            measured.eh_frame_size > 0 &&
+            measured.eh_frame_offset + measured.eh_frame_size <= measured.data_offset,
+            "unwind records lie after the text in the first load") ||
+        !Check(Little(bytes, 176, 4) == 0x6474e550 && Little(bytes, 180, 4) == 4 &&
+            Little(bytes, 184, 8) == cast(u64)measured.eh_frame_offset &&
+            Little(bytes, 192, 8) == cast(u64)(0x400000 + measured.eh_frame_offset) &&
+            Little(bytes, 200, 8) == cast(u64)(0x400000 + measured.eh_frame_offset) &&
+            Little(bytes, 208, 8) == cast(u64)measured.eh_frame_size &&
+            Little(bytes, 216, 8) == cast(u64)measured.eh_frame_size &&
+            Little(bytes, 224, 8) == 4,
+            "PT_GNU_EH_FRAME names the mapped unwind records") ||
+        !Check(Little(bytes, eh + 4, 4) == 1 && (Little(bytes, eh + 8, 8) & 2) == 2 &&
+            Little(bytes, eh + 16, 8) == cast(u64)(0x400000 + measured.eh_frame_offset) &&
+            Little(bytes, eh + 24, 8) == cast(u64)measured.eh_frame_offset &&
+            Little(bytes, eh + 32, 8) == cast(u64)measured.eh_frame_size &&
+            Little(bytes, eh + 48, 8) == 4,
+            ".eh_frame is an allocated read-only section") {
         return false
     }
     if !Check(Little(bytes, 120 + 8, 8) == cast(u64)measured.data_offset &&

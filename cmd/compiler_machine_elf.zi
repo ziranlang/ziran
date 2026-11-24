@@ -1,4 +1,5 @@
 using Archive :: #import "compiler_x86_archive"
+using Bytes :: #import "compiler_x86_bytes"
 using Host :: #import "compiler_x86_host"
 using Machine :: #import "compiler_machine_ir"
 using Target :: #import "compiler_target"
@@ -73,6 +74,9 @@ MachineElfResult :: struct {
     pointer_offset: s64
     // The dynamic linking records, or -1 for a static executable.
     dynamic_offset: s64
+    // The .eh_frame unwind section, or -1 when the image carries none.
+    eh_frame_offset: s64
+    eh_frame_size: s64
 }
 
 #scope_file
@@ -81,13 +85,14 @@ SymbolSize :: 24
 RelocationSize :: 24
 DynamicEntrySize :: 16
 SectionHeaderSize :: 64
-SectionCount :: 9
+SectionCount :: 10
 SectionText :: 1
 SectionStrings :: 6
 SectionDynamic :: 7
-SectionNames :: 8
+SectionEhFrame :: 8
+SectionNames :: 9
 // The section name table: a leading NUL, then each name and its NUL.
-SectionNameBytes :: 61
+SectionNameBytes :: 71
 SectionNameText :: 1
 SectionNameConstants :: 7
 SectionNameData :: 15
@@ -96,6 +101,7 @@ SectionNameSymbols :: 26
 SectionNameStrings :: 34
 SectionNameDynamic :: 42
 SectionNameNames :: 51
+SectionNameEhFrame :: 61
 // d_tag values, R_X86_64_GLOB_DAT and the symbol's STB_GLOBAL STT_FUNC.
 DtNull :: 0
 DtNeeded :: 1
@@ -123,6 +129,10 @@ Layout :: struct {
     relocations: s64
     dynamic: s64
     dynamic_count: s64
+    // The unwind section after the dynamic records: it is mapped by the
+    // first PT_LOAD and is read-only.
+    eh_frame: s64
+    eh_frame_size: s64
     // The end of the first PT_LOAD's bytes.
     read_end: s64
     data_offset: s64
@@ -257,9 +267,10 @@ ElfLayout :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachineE
     image.objects = hosts.objects
     diagnostic := MachineX64ImageMeasure(program, encoded, image)
     if diagnostic.problem != .None { return diagnostic }
-    // PT_INTERP, both PT_LOADs, PT_DYNAMIC and PT_GNU_STACK when linking.
-    if Dynamic(<<layout) { layout.headers = 5 }
-    else { layout.headers = ifx MachineX64ImageHasData(<<image) then 2 else 1 }
+    // PT_INTERP, both PT_LOADs, PT_DYNAMIC, PT_GNU_STACK and PT_GNU_EH_FRAME
+    // when linking; PT_GNU_EH_FRAME follows the loads in every image.
+    if Dynamic(<<layout) { layout.headers = 6 }
+    else { layout.headers = ifx MachineX64ImageHasData(<<image) then 3 else 2 }
     image.text = Align(MachineElfHeaderSize + layout.headers * MachineElfProgramHeaderSize, 16)
     diagnostic = MachineX64ImageText(program, encoded, image)
     if diagnostic.problem != .None { return diagnostic }
@@ -269,6 +280,11 @@ ElfLayout :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachineE
         diagnostic = DynamicLayout(program, hosts, layout)
         if diagnostic.problem != .None { return diagnostic }
     }
+    // The unwind records follow the dynamic records inside the first
+    // PT_LOAD, so they are mapped and read-only without another segment.
+    layout.eh_frame = Align(layout.read_end, 8)
+    layout.eh_frame_size = EhFrameSize(program, encoded, <<image)
+    layout.read_end = layout.eh_frame + layout.eh_frame_size
     if layout.read_end > 2147483647 - MachineElfPage {
         diagnostic.problem = .Limit
         return diagnostic
@@ -386,6 +402,246 @@ SectionLayout :: (program: MachineProgram, encoded: MachineX64Image, layout: *La
     layout.file_size = layout.sections + SectionCount * SectionHeaderSize
 }
 
+// The .eh_frame writer: empty output measures. One CIE describes the
+// platform's frame, and each generated extent gets an FDE whose CFI rows
+// follow its actual prologue and epilogue bytes. At a call the return address
+// is at CFA-8 and the CFA is rsp+8. A framed extent pushes rbp and moves it to
+// rsp, so the CFA becomes rsp+16 after the push and rbp+16 after the move, and
+// returns to rsp+8 at each ret or tail-call jump. A frameless extent changes
+// none of it. The records are 4-byte aligned and deterministic.
+EhFrameState :: struct {
+    output: []u8
+    // The section's file offset, for the FDEs' pcrel addresses.
+    base: s64
+    at: s64
+    cie: s64
+}
+
+EhFrameExtent :: struct {
+    fde: s64
+    location: s64
+    begin: s64
+    previous: s64
+}
+
+EhFramePut :: (state: *EhFrameState, at: s64, value: u64, count: s32) {
+    if state.output.count == 0 { return }
+    for index: 0..count - 1 {
+        state.output[state.base + at + index] = cast(u8)((value >> cast(u64)(index * 8)) & 255)
+    }
+}
+
+EhFrameByte :: (state: *EhFrameState, value: u8) {
+    EhFramePut(state, state.at, cast(u64)value, 1)
+    state.at += 1
+}
+
+EhFrameLittle :: (state: *EhFrameState, value: u64, count: s32) {
+    EhFramePut(state, state.at, value, count)
+    state.at += count
+}
+
+EhFrameUleb :: (state: *EhFrameState, value: u64) {
+    while true {
+        byte := cast(u8)(value & 127)
+        value = value >> 7
+        if value != 0 { byte = byte | 128 }
+        EhFrameByte(state, byte)
+        if value == 0 { return }
+    }
+}
+
+EhFrameAdvance :: (state: *EhFrameState, delta: s64) {
+    if delta < 64 { EhFrameByte(state, cast(u8)(0x40 + delta)) }
+    else if delta < 256 { EhFrameByte(state, 0x02); EhFrameByte(state, cast(u8)delta) }
+    else { EhFrameByte(state, 0x03); EhFrameLittle(state, cast(u64)delta, 4) }
+}
+
+// A CIE for the ziran-internal x86-64 ABI: version 1, augmentation zR with
+// pcrel sdata4 FDE addresses, and the default CFA rsp+8 with the return
+// address at CFA-8.
+EhFrameCie :: (state: *EhFrameState) {
+    begin := state.at
+    EhFrameLittle(state, 0, 4)
+    EhFrameLittle(state, 0, 4)
+    EhFrameByte(state, 1)
+    EhFrameByte(state, 0x7a); EhFrameByte(state, 0x52); EhFrameByte(state, 0)
+    EhFrameUleb(state, 1)
+    // The data alignment factor -8 as SLEB128.
+    EhFrameByte(state, 0x78)
+    EhFrameUleb(state, 16)
+    EhFrameUleb(state, 1)
+    EhFrameByte(state, 0x1b)
+    EhFrameByte(state, 0x0c); EhFrameUleb(state, 7); EhFrameUleb(state, 8)
+    EhFrameByte(state, 0x90); EhFrameUleb(state, 1)
+    while (state.at - begin - 4) % 4 != 0 { EhFrameByte(state, 0) }
+    EhFramePut(state, begin, cast(u64)(state.at - begin - 4), 4)
+    state.cie = begin
+}
+
+// An FDE for [BEGIN, END): the length, CIE pointer, pcrel start, range and
+// an empty zR augmentation, then its CFI rows.
+EhFrameExtentOpen :: (state: *EhFrameState, begin: s64, end: s64) -> EhFrameExtent {
+    extent: EhFrameExtent = .{}
+    extent.fde = state.at
+    extent.begin = begin
+    EhFrameLittle(state, 0, 4)
+    EhFrameLittle(state, cast(u64)(extent.fde + 4 - state.cie), 4)
+    extent.location = state.at
+    EhFrameLittle(state, 0, 4)
+    EhFrameLittle(state, cast(u64)(end - begin), 4)
+    EhFrameUleb(state, 0)
+    return extent
+}
+
+// One row at OFFSET from the extent's first byte. 1 is after the push, 2 is
+// after the move to rbp, and 3 is the epilogue's return to rsp+8.
+EhFrameExtentRow :: (state: *EhFrameState, extent: *EhFrameExtent, offset: s64, kind: s32) {
+    if offset <= extent.previous { return }
+    EhFrameAdvance(state, offset - extent.previous)
+    extent.previous = offset
+    if kind == 1 {
+        EhFrameByte(state, 0x0e); EhFrameUleb(state, 16)
+    } else if kind == 2 {
+        EhFrameByte(state, 0x0c); EhFrameUleb(state, 6); EhFrameUleb(state, 16)
+        EhFrameByte(state, 0x86); EhFrameUleb(state, 2)
+    } else {
+        EhFrameByte(state, 0x0c); EhFrameUleb(state, 7); EhFrameUleb(state, 8)
+    }
+}
+
+// Ends the FDE: NOP padding to four bytes, its length, and the pcrel start.
+EhFrameExtentClose :: (state: *EhFrameState, extent: *EhFrameExtent) {
+    while (state.at - extent.fde - 4) % 4 != 0 { EhFrameByte(state, 0) }
+    EhFramePut(state, extent.fde, cast(u64)(state.at - extent.fde - 4), 4)
+    EhFramePut(state, extent.location,
+        cast(u64)(extent.begin - (state.base + extent.location)), 4)
+}
+
+// The FDE of a program function: its prologue rows, then a row at every
+// ret and tail-call jump the encoder placed in its instruction ranges.
+EhFrameFunction :: (state: *EhFrameState, program: MachineProgram, encoded: MachineX64Image,
+                    id: s64, begin_code: s64, end_code: s64) {
+    function := encoded.functions[id]
+    framed := function.frame < function.body && function.frame + 4 <= function.body &&
+        encoded.code[function.frame] == 0x55 && encoded.code[function.frame + 1] == 0x48 &&
+        encoded.code[function.frame + 2] == 0x89 && encoded.code[function.frame + 3] == 0xe5
+    extent := EhFrameExtentOpen(state, begin_code, end_code)
+    if framed {
+        EhFrameExtentRow(state, *extent, function.frame - function.begin + 1, 1)
+        EhFrameExtentRow(state, *extent, function.frame - function.begin + 4, 2)
+        record := program.functions[id]
+        first_block := cast(s64)record.block_begin
+        last_block := first_block + cast(s64)record.block_count - 1
+        for block_id: first_block..last_block {
+            block := program.blocks[block_id]
+            first_instruction := cast(s64)block.instruction_begin
+            last_instruction := first_instruction + cast(s64)block.instruction_count - 1
+            for instruction_id: first_instruction..last_instruction {
+                instruction := program.instructions[instruction_id]
+                range := encoded.instructions[instruction_id]
+                if instruction.opcode == .Return {
+                    EhFrameExtentRow(state, *extent, range.end - 1 - function.begin, 3)
+                } else if instruction.opcode == .CallDirect && range.end - range.begin >= 5 &&
+                    encoded.code[range.end - 5] == 0xe9 {
+                    EhFrameExtentRow(state, *extent, range.end - 5 - function.begin, 3)
+                }
+            }
+        }
+    }
+    EhFrameExtentClose(state, *extent)
+}
+
+// Whether FUNCTION is one of the two built-in services that grow a block and
+// append their growth routine after the veneer's ret.
+BuiltinName :: (program: MachineProgram, function: s32, expected: string) -> bool {
+    if function < 0 || function >= program.functions.count { return false }
+    record := program.functions[function]
+    if cast(s64)record.name_length != expected.count { return false }
+    for index: cast(s64)0..expected.count - 1 {
+        if program.text[record.name_offset + index] != cast(u8)expected[index] { return false }
+    }
+    return true
+}
+
+// A reading built-in's growth-routine entry, or -1. The veneer's bytes are
+// generated into a scratch buffer because the image writes them straight to
+// the file; the routine follows the body's ret and starts with sub rsp, 8.
+VeneerEnsureEntry :: (program: MachineProgram, image: MachineX64ImageLayout,
+                      host: MachineX64HostImport, veneer: s64) -> s64 {
+    if host.library != Host.MachineX64HostBuiltin ||
+        (!BuiltinName(program, host.function, "FileReadHost") &&
+         !BuiltinName(program, host.function, "DirectoryListHost")) { return -1 }
+    buffer: [4096]u8
+    writer := X86Writer.{output = buffer[:], at = 0, limit = 4096}
+    if !Host.MachineX64HostVeneer(*writer, program, host, 0, image.routines.resize, image.imports) {
+        return -1
+    }
+    for at: cast(s64)0..writer.at - 5 {
+        if buffer[at] == 0xc3 && buffer[at + 1] == 0x48 && buffer[at + 2] == 0x83 &&
+            buffer[at + 3] == 0xec && buffer[at + 4] == 0x08 { return veneer + at + 1 }
+    }
+    return -1
+}
+
+// The FDE of a host, built-in or archive veneer. Every veneer starts with
+// push rbp; mov rbp, rsp, after a built-in's cld, and ends with pop rbp; ret.
+// A reading built-in keeps its growth routine after the body's ret: that
+// routine's own sub rsp, 8 and ret need rows of their own.
+EhFrameVeneer :: (state: *EhFrameState, program: MachineProgram, image: MachineX64ImageLayout,
+                  host: MachineX64HostImport, veneer: s64, end: s64, builtin: bool) {
+    if end <= veneer { return }
+    prologue := ifx builtin then 2 else 1
+    extent := EhFrameExtentOpen(state, veneer, end)
+    EhFrameExtentRow(state, *extent, prologue, 1)
+    EhFrameExtentRow(state, *extent, prologue + 3, 2)
+    ensure := VeneerEnsureEntry(program, image, host, veneer)
+    if ensure >= 0 {
+        // The rows are offsets from the veneer's first byte, not file offsets.
+        EhFrameExtentRow(state, *extent, ensure - veneer - 1, 3)
+        EhFrameExtentRow(state, *extent, ensure + 4 - veneer, 1)
+    }
+    EhFrameExtentRow(state, *extent, end - veneer - 1, 3)
+    EhFrameExtentClose(state, *extent)
+}
+
+// The whole section: one CIE, an FDE per generated extent, and the zero
+// terminator. Empty output measures the same bytes.
+EhFrameBuild :: (program: MachineProgram, encoded: MachineX64Image, image: MachineX64ImageLayout,
+                 output: []u8, base: s64) -> s64 {
+    state := EhFrameState.{output = output, base = base}
+    EhFrameCie(*state)
+    // The process entry stub has no frame of its own to describe.
+    entry := EhFrameExtentOpen(*state, image.text, image.text + image.startup_size)
+    EhFrameExtentClose(*state, *entry)
+    for id: cast(s64)0..encoded.functions.count - 1 {
+        function := encoded.functions[id]
+        if function.end <= function.begin { continue }
+        EhFrameFunction(*state, program, encoded, id, image.text + image.startup_size + function.begin,
+            image.text + image.startup_size + function.end)
+    }
+    for index: cast(s64)0..image.hosts.count - 1 {
+        end := ifx index + 1 < image.hosts.count then image.hosts[index + 1].veneer else image.hosts_end
+        EhFrameVeneer(*state, program, image, image.hosts[index], image.hosts[index].veneer, end, false)
+    }
+    for index: cast(s64)0..image.builtins.count - 1 {
+        end := ifx index + 1 < image.builtins.count then image.builtins[index + 1].veneer else image.builtins_end
+        EhFrameVeneer(*state, program, image, image.builtins[index], image.builtins[index].veneer, end, true)
+    }
+    for index: cast(s64)0..image.statics.count - 1 {
+        end := ifx index + 1 < image.statics.count then image.statics[index + 1].veneer else image.statics_end
+        EhFrameVeneer(*state, program, image, image.statics[index], image.statics[index].veneer, end, false)
+    }
+    EhFrameLittle(*state, 0, 4)
+    return state.at
+}
+
+// The section's size, measured without writing.
+EhFrameSize :: (program: MachineProgram, encoded: MachineX64Image, image: MachineX64ImageLayout) -> s64 {
+    empty: []u8
+    return EhFrameBuild(program, encoded, image, empty, 0)
+}
+
 // One ELF64 section header.
 SectionHeader :: (output: []u8, at: s64, name: s64, kind: s64, flags: s64, address: u64,
     offset: s64, size: s64, link: s64, info: s64, alignment: s64, entry_size: s64) {
@@ -443,6 +699,7 @@ SectionsWrite :: (program: MachineProgram, encoded: MachineX64Image, layout: Lay
     PutText(output, layout.shstrtab + SectionNameSymbols, ".symtab")
     PutText(output, layout.shstrtab + SectionNameStrings, ".strtab")
     PutText(output, layout.shstrtab + SectionNameDynamic, ".dynamic")
+    PutText(output, layout.shstrtab + SectionNameEhFrame, ".eh_frame")
     PutText(output, layout.shstrtab + SectionNameNames, ".shstrtab")
     data := layout.image.data_layout
     has_data := MachineX64ImageHasData(image)
@@ -468,7 +725,9 @@ SectionsWrite :: (program: MachineProgram, encoded: MachineX64Image, layout: Lay
         ifx has_dynamic then base + cast(u64)layout.dynamic else 0,
         ifx has_dynamic then layout.dynamic else 0,
         ifx has_dynamic then layout.dynamic_count * DynamicEntrySize else 0, 0, 0, 8, 16)
-    SectionHeader(output, text_offset + SectionHeaderSize * 7, SectionNameNames, 3, 0, 0,
+    SectionHeader(output, text_offset + SectionHeaderSize * 7, SectionNameEhFrame, 1, 2,
+        base + cast(u64)layout.eh_frame, layout.eh_frame, layout.eh_frame_size, 0, 0, 4, 0)
+    SectionHeader(output, text_offset + SectionHeaderSize * 8, SectionNameNames, 3, 0, 0,
         layout.shstrtab, SectionNameBytes, 0, 0, 1, 0)
 }
 
@@ -516,7 +775,14 @@ Write :: (program: MachineProgram, encoded: MachineX64Image, hosts: MachineElfHo
         ProgramHeader(output, ph, 0x6474e551, 6, 0, 0, 0, 0, 16)
         WriteDynamic(program, hosts, layout, output)
     }
+    // PT_GNU_EH_FRAME names the mapped unwind records for debuggers and perf.
+    if layout.eh_frame_size > 0 {
+        ph += MachineElfProgramHeaderSize
+        ProgramHeader(output, ph, 0x6474e550, 4, layout.eh_frame,
+            MachineElfBase + layout.eh_frame, layout.eh_frame_size, layout.eh_frame_size, 4)
+    }
     if !MachineX64ImageWrite(program, encoded, image, output, MachineElfBase, fuel) { return false }
+    EhFrameBuild(program, encoded, image, output, layout.eh_frame)
     SectionsWrite(program, encoded, layout, output)
     return true
 }
@@ -566,7 +832,9 @@ MachineElfEncode :: (program: MachineProgram, encoded: MachineX64Image, output: 
         data_address = ifx has_data then image.data else 0, data_size = data.size,
         fuel_offset = DataAt(layout, data.fuel), trap_status_offset = DataAt(layout, data.trap_status),
         pointer_offset = DataAt(layout, data.pointer_header),
-        dynamic_offset = ifx Dynamic(layout) then layout.dynamic else -1}
+        dynamic_offset = ifx Dynamic(layout) then layout.dynamic else -1,
+        eh_frame_offset = ifx layout.eh_frame_size > 0 then layout.eh_frame else -1,
+        eh_frame_size = layout.eh_frame_size}
     if output.count == 0 { return result }
     if output.count != layout.file_size { return Failure(.Limit) }
     if !Write(program, encoded, hosts, layout, output, fuel) { return Failure(.Relocation) }

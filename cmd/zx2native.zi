@@ -196,10 +196,11 @@ NoSpan :: () -> IR.ZirSourceSpan {
 }
 
 Usage :: () -> s32 {
-    unused fputs(CStr("usage: zx2native [--target x86_64|aarch64|armv7] [--platform linux|android|windows] [--emit elf|map|image] [--fuel N] [--thorough|--quickest] -o FILE INPUT.zx\n"), StandardError())
+    unused fputs(CStr("usage: zx2native [--target x86_64|aarch64|armv7] [--platform linux|android|windows] [--emit elf|map|perf-map|image] [--fuel N] [--thorough|--quickest] -o FILE INPUT.zx\n"), StandardError())
     unused fputs(CStr("elf writes the platform's executable: an ELF on Linux, a PE32+ .exe on Windows\n"), StandardError())
     unused fputs(CStr("x86-64 Linux ELF and Windows PE carry the files and clock services themselves and link other capabilities from registered host libraries\n"), StandardError())
     unused fputs(CStr("map selection: [--function-id N [--block-id N]] [--address-begin N --address-end N]\n"), StandardError())
+    unused fputs(CStr("perf-map writes perf's text symbol map with source:line names; it honors the same selection bounds\n"), StandardError())
     unused fputs(CStr("--fuel sets an executable's starting fuel; it is unbounded by default, as for a bundle run\n"), StandardError())
     unused fputs(CStr("zx2native reads only decoded and verified ZX and uses only the no-fallback machine-IR path\n"), StandardError())
     unused fputs(CStr("image is reserved for the relocatable in-memory image and is a named gap until that loader lands\n"), StandardError())
@@ -712,9 +713,21 @@ MapRanges :: (program: *Lowered.LirProgram, machine: *Machine.MachineProgram,
     return 1
 }
 
+// A perf map symbol: the format is whitespace-delimited, so a byte that would
+// end a field becomes an underscore.
+PerfSymbol :: (stream: *void, value: string) {
+    i: usize = 0
+    while cast(s64)i < value.count {
+        byte := value[i]
+        if byte < 33 || byte == 127 { unused fputc(#char "_", stream) }
+        else { unused fputc(cast(s32)byte, stream) }
+        i += 1
+    }
+}
+
 MachineMap :: (program: *Lowered.LirProgram, stream: *void, selection: *AssemblyMapSelection,
                owner: *Pipeline.MachineNativeOwner, links: Pipeline.MachineHostLinks,
-               bytes: *u8, size: s64, optimize: s32) -> s32 {
+               bytes: *u8, size: s64, optimize: s32, perf: s32) -> s32 {
     if selection.function >= program.functions.count ||
        (selection.block >= 0 && selection.block >= program.functions[selection.function].blocks.count) {
         Diagnostic(NoSpan(), CStr("assembly.inspect"), CStr("native map function or block selector is outside the program"))
@@ -821,6 +834,37 @@ MachineMap :: (program: *Lowered.LirProgram, stream: *void, selection: *Assembly
             SelectOrigin(program, program.functions[index].origin, selected_origins)
         }
         index += 1
+    }
+    // A perf map is one address, size and symbol per selected range, with the
+    // debug attachment's source:line appended to the symbol when it has one.
+    if perf != 0 {
+        index = 0
+        while index < mapped {
+            range := ranges[index]
+            if MapSelected(range, selection) != 0 {
+                unused fprintf(stream, CStr("%llx %llx "),
+                               image.text_address + cast(u64)range.begin, cast(u64)(range.end - range.begin))
+                if range.function >= 0 {
+                    function := program.functions[range.function]
+                    PerfSymbol(stream, program.modules[function.module])
+                    unused fputc(#char ":", stream)
+                    PerfSymbol(stream, function.name)
+                } else if range.begin < image.startup {
+                    unused fputs(CStr("_start"), stream)
+                } else {
+                    unused fputs(CStr("text"), stream)
+                }
+                if range.origin >= 0 {
+                    origin := program.origins[range.origin]
+                    unused fputc(#char "@", stream)
+                    PerfSymbol(stream, program.sources[origin.file])
+                    unused fprintf(stream, CStr(":%d"), origin.line)
+                }
+                unused fputc(#char "\n", stream)
+            }
+            index += 1
+        }
+        return ifx ferror(stream) == 0 then 1 else 0
     }
     unused fprintf(stream, CStr("{\"format\":\"ziran-native-map\",\"version\":1,\"target\":\"%s\","), CStr(image.target))
     unused fputs(CStr("\"coordinate\":\"text-relative\",\"variant\":\"x86-64-baseline\",\"abi\":\"ziran-internal\","), stream)
@@ -1003,18 +1047,25 @@ main :: (argc: s32, argv: **u8) -> s32 {
        ((selection.begin < 0) != (selection.end < 0)) ||
        (selection.begin >= 0 && selection.end <= selection.begin) ||
        ((function_id != null || block_id != null || address_begin != null || address_end != null) &&
-        strcmp(emit, CStr("map")) != 0) ||
+        strcmp(emit, CStr("map")) != 0 && strcmp(emit, CStr("perf-map")) != 0) ||
        (strcmp(target_name, CStr("x86_64")) != 0 && strcmp(target_name, CStr("aarch64")) != 0 &&
         strcmp(target_name, CStr("armv7")) != 0) ||
        (strcmp(platform, CStr("linux")) != 0 && strcmp(platform, CStr("android")) != 0 &&
         strcmp(platform, CStr("windows")) != 0) ||
-       (strcmp(emit, CStr("elf")) != 0 && strcmp(emit, CStr("map")) != 0 && strcmp(emit, CStr("image")) != 0) {
+       (strcmp(emit, CStr("elf")) != 0 && strcmp(emit, CStr("map")) != 0 &&
+        strcmp(emit, CStr("perf-map")) != 0 && strcmp(emit, CStr("image")) != 0) {
         return Usage()
     }
     target_row: [64]u8
     native_target: Target.TargetDescription = .{}
     if snprintf(*target_row[0], 64, CStr("%s-%s"), target_name, platform) < 0 ||
        TargetSupported(*target_row[0], *(native_target)) == 0 { return 1 }
+    if strcmp(emit, CStr("perf-map")) == 0 && native_target.os != .Linux {
+        Diagnostic(NoSpan(), CStr("assembly.gap.perf-map"),
+            CStr("assembly.gap.perf-map: a perf map is a Linux inspection surface; selected target %s has no perf map and no alternate engine was selected"),
+            *target_row[0])
+        return 1
+    }
     if strcmp(emit, CStr("image")) == 0 {
         Diagnostic(NoSpan(), CStr("assembly.gap.target-unimplemented"),
             CStr("relocatable in-memory machine images are not implemented for %s; no alternate output was selected"),
@@ -1056,7 +1107,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
             verify.value, verify.origin)
         return status
     }
-    mapping := strcmp(emit, CStr("map")) == 0
+    perf := strcmp(emit, CStr("perf-map")) == 0
+    mapping := strcmp(emit, CStr("map")) == 0 || perf
     executable := strcmp(emit, CStr("elf")) == 0
     // A map lowers the same verified program with the attachment's checked
     // origins restored, so machine instructions carry them; the encoded
@@ -1121,7 +1173,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     memcpy(cast(*void)bytes, cast(*void)(*(native[0])), cast(usize)size)
     if strcmp(output, CStr("-")) == 0 && !executable {
         written := MachineMap(view, StandardOutput(), *(selection), *(machine_owner),
-                              hosts.links, bytes, size, 1)
+                              hosts.links, bytes, size, 1, ifx perf then 1 else 0)
         if written != 0 && fflush(StandardOutput()) == 0 { status = 0 }
         return status
     }
@@ -1150,7 +1202,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
             return status
         }
         written := MachineMap(view, stream, *(selection), *(machine_owner), hosts.links,
-                              bytes, size, 1)
+                              bytes, size, 1, ifx perf then 1 else 0)
         if fclose(stream) != 0 { written = 0 }
         if written == 0 || GeneratedOutputReplace(*temporary[0], output) != 0 {
             unused remove(*temporary[0])

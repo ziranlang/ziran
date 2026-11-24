@@ -211,10 +211,11 @@ write inspection data to standard output; ELF output requires a file path.
 `--diagnostics=json` includes structured diagnostic codes.
 
 Maps report actual ELF file/text/data sizes, file offsets and virtual addresses
-in `image`. An image with no writable state has one program header and a
-128-byte text offset; one with globals, fuel, traps or buffered output has
-two and a 176-byte text offset, and its data follows the text in the file,
-mapped one page higher. Use the reported
+in `image`. An image with no writable state has two program headers (the RX
+load and `PT_GNU_EH_FRAME`) and a 176-byte text offset; one with globals, fuel,
+traps or buffered output has three and a 240-byte text offset, and its data
+follows the text in the file, mapped one page higher. A dynamically linked
+image has six program headers and a 400-byte text offset. Use the reported
 `text_virtual_address` rather than the scalar example's fixed adjustment when
 disassembling another image. Reported addresses describe the linked AOT ELF,
 not an observed running process or a future relocatable/JIT code allocation.
@@ -226,6 +227,15 @@ boundary. `--opt` on ZX input does not rerun passes. Maps
 encode the image to obtain this identity; they are inspection work, not a
 cheap source-only preview or a runtime performance measurement.
 
+Every Linux x86-64 ELF carries `.eh_frame`, mapped read-only inside the first
+`PT_LOAD` and named by `PT_GNU_EH_FRAME`: one CIE and one FDE per generated
+function extent, including `_start` and the built-in service veneers. The
+records describe the actual prologue and epilogue bytes, so debuggers and perf
+can unwind without libc; frameless functions get an empty FDE. The section is
+deterministic and needs no assembler, linker or libc. Runtime routines that are
+not generated function extents (the trap stub) have no FDE, and PE unwind is
+unchanged.
+
 Native maps support bounded output without renumbering identities:
 
 ```sh
@@ -233,6 +243,8 @@ build/bin/zx2native --emit map --function-id 0 --block-id 0 \
     -o build/assembly_scalar.block.map.json build/assembly_scalar.zx
 build/bin/zx2native --emit map --address-begin 35 --address-end 80 \
     -o build/assembly_scalar.address.map.json build/assembly_scalar.zx
+build/bin/zx2native --emit perf-map --function-id 0 \
+    -o build/assembly_scalar.function.perf build/assembly_scalar.zx
 ```
 
 Function/block IDs refer to the selected lowered program (after `--opt`, if
@@ -244,6 +256,11 @@ Filtered maps retain full extents for selected functions and only referenced
 origins plus their parent chains. An empty intersection is explicit, not an
 error or an excuse to dump the whole program. `selection`, `selected_ranges`
 and `total_ranges` distinguish filtered output from a complete byte map.
+`--emit perf-map` writes the same bounded selection as perf's text map, one
+`address size symbol[@source:line]` line per range. A source line appears only
+when `zi2zx --debug` attached origins; the JSON map is unchanged. A perf map is
+a Linux inspection surface: another target fails with `assembly.gap.perf-map`
+and no fallback.
 These options bound inspection output, not compilation work: the current
 encoder still verifies and lays out the complete program.
 

@@ -21,6 +21,126 @@ ElfWord :: (binary: string, at: s64, width: s64) -> u64 {
     return value
 }
 
+ElfSigned32 :: (binary: string, at: s64) -> s64 {
+    value := cast(s64)ElfWord(binary, at, 4)
+    if value >= 2147483648 { return value - 4294967296 }
+    return value
+}
+
+// The .eh_frame section names the image's unwind records: one CIE, an FDE
+// for every STT_FUNC symbol, inside the executable load and named by
+// PT_GNU_EH_FRAME. The record parser reads only the fields an unwinder needs.
+InspectUnwind :: (test: *NativeTest, binary: string) -> bool {
+    shoff := cast(s64)ElfWord(binary, 0x28, 8)
+    shentsize := cast(s64)ElfWord(binary, 0x3a, 2)
+    shnum := cast(s64)ElfWord(binary, 0x3c, 2)
+    shstrndx := cast(s64)ElfWord(binary, 0x3e, 2)
+    if !NativeAssert(test, shnum == 10 && shstrndx == 9 && shentsize == 64,
+        "the unwind section table changed") { return false }
+    shstrtab := cast(s64)ElfWord(binary, shoff + shstrndx * shentsize + 24, 8)
+    eh_name: [10]u8 = .[46, 101, 104, 95, 102, 114, 97, 109, 101, 0]
+    eh := -1
+    symtab := -1
+    for index: 0..shnum - 1 {
+        at := shoff + index * shentsize
+        kind := cast(s64)ElfWord(binary, at + 4, 4)
+        if kind == 2 { symtab = index }
+        if kind != 1 { continue }
+        name := shstrtab + cast(s64)ElfWord(binary, at, 4)
+        same := true
+        for byte: 0..9 {
+            if binary[name + byte] != eh_name[byte] { same = false }
+        }
+        if same { eh = index }
+    }
+    if !NativeAssert(test, eh >= 0, "the ELF must carry .eh_frame") { return false }
+    eh_at := shoff + eh * shentsize
+    eh_type := cast(s64)ElfWord(binary, eh_at + 4, 4)
+    eh_flags := cast(s64)ElfWord(binary, eh_at + 8, 8)
+    eh_addr := cast(s64)ElfWord(binary, eh_at + 16, 8)
+    eh_off := cast(s64)ElfWord(binary, eh_at + 24, 8)
+    eh_size := cast(s64)ElfWord(binary, eh_at + 32, 8)
+    if !NativeAssert(test, eh_type == 1 && (eh_flags & 2) != 0 && eh_addr > 0 && eh_size > 0,
+        ".eh_frame must be an allocated PROGBITS section") { return false }
+    phoff := cast(s64)ElfWord(binary, 0x20, 8)
+    phentsize := cast(s64)ElfWord(binary, 0x36, 2)
+    phnum := cast(s64)ElfWord(binary, 0x38, 2)
+    rx_offset := -1
+    rx_vaddr := 0
+    rx_filesz := 0
+    gnu := false
+    for index: 0..phnum - 1 {
+        at := phoff + index * phentsize
+        kind := cast(s64)ElfWord(binary, at, 4)
+        flags := cast(s64)ElfWord(binary, at + 4, 4)
+        if kind == 1 && (flags & 1) != 0 {
+            rx_offset = cast(s64)ElfWord(binary, at + 8, 8)
+            rx_vaddr = cast(s64)ElfWord(binary, at + 16, 8)
+            rx_filesz = cast(s64)ElfWord(binary, at + 32, 8)
+        }
+        if kind == 0x6474e550 {
+            gnu = true
+            if !NativeAssert(test, cast(s64)ElfWord(binary, at + 8, 8) == eh_off &&
+                cast(s64)ElfWord(binary, at + 16, 8) == eh_addr &&
+                cast(s64)ElfWord(binary, at + 32, 8) == eh_size,
+                "PT_GNU_EH_FRAME must name .eh_frame") { return false }
+        }
+    }
+    if !NativeAssert(test, gnu && rx_offset >= 0 && eh_off >= rx_offset &&
+        eh_off + eh_size <= rx_offset + rx_filesz &&
+        eh_addr == rx_vaddr + eh_off - rx_offset,
+        ".eh_frame must be mapped inside the executable load") { return false }
+    cies := 0
+    fdes := 0
+    at := eh_off
+    while at + 4 <= eh_off + eh_size {
+        length := cast(s64)ElfWord(binary, at, 4)
+        if length == 0 { break }
+        if !NativeAssert(test, at + 4 + length <= eh_off + eh_size,
+            ".eh_frame record exceeds the section") { return false }
+        if cast(s64)ElfWord(binary, at + 4, 4) == 0 {
+            cies += 1
+            if !NativeAssert(test, binary[at + 8] == 1 && binary[at + 9] == 0x7a &&
+                binary[at + 10] == 0x52 && binary[at + 11] == 0,
+                "the CIE must be version 1 with the zR augmentation") { return false }
+        } else {
+            fdes += 1
+        }
+        at += 4 + length
+    }
+    if !NativeAssert(test, cies == 1 && symtab >= 0,
+        "the image must carry one CIE and a symbol table") { return false }
+    sym_at := shoff + symtab * shentsize
+    sym_off := cast(s64)ElfWord(binary, sym_at + 24, 8)
+    sym_size := cast(s64)ElfWord(binary, sym_at + 32, 8)
+    sym_entsize := cast(s64)ElfWord(binary, sym_at + 56, 8)
+    if !NativeAssert(test, sym_entsize == 24 && sym_size % 24 == 0,
+        "the symbol table must use Elf64_Sym") { return false }
+    functions := 0
+    for index: 0..sym_size / 24 - 1 {
+        entry := sym_off + index * 24
+        info := binary[entry + 4]
+        size := cast(s64)ElfWord(binary, entry + 16, 8)
+        if (info & 15) != 2 || size == 0 { continue }
+        functions += 1
+        value := cast(s64)ElfWord(binary, entry + 8, 8)
+        covered := false
+        record := eh_off
+        while record + 4 <= eh_off + eh_size {
+            length := cast(s64)ElfWord(binary, record, 4)
+            if length == 0 { break }
+            if cast(s64)ElfWord(binary, record + 4, 4) != 0 {
+                pc := ElfSigned32(binary, record + 8) + eh_addr + record + 8 - eh_off
+                span := cast(s64)ElfWord(binary, record + 12, 4)
+                if pc == value && span == size { covered = true }
+            }
+            record += 4 + length
+        }
+        if !NativeAssert(test, covered, "every function symbol must have an FDE") { return false }
+    }
+    return NativeAssert(test, fdes == functions, "one CIE and an FDE per function symbol")
+}
+
 Inspect :: (test: *NativeTest, listing: string, binary: string) -> bool {
     document: JsonDocument
     if !NativeAssert(test, JsonRead(*document, listing), "native map must be JSON") { return false }
@@ -102,7 +222,7 @@ Inspect :: (test: *NativeTest, listing: string, binary: string) -> bool {
     text_offset := CheckInteger(*document, image, "text_file_offset")
     text_address := CheckInteger(*document, image, "text_virtual_address")
     data_size := CheckInteger(*document, image, "data_size")
-    if !NativeAssert(test, (segments == 1 || segments == 2) && binary.count >= 64 + cast(s64)segments * 56 &&
+    if !NativeAssert(test, (segments == 2 || segments == 3) && binary.count >= 64 + cast(s64)segments * 56 &&
         text_offset >= 64 + cast(s64)segments * 56 && ElfWord(binary, 64, 4) == 1 && ElfWord(binary, 68, 4) == 5 &&
         ElfWord(binary, 72, 8) == 0 && ElfWord(binary, 112, 8) > 0 &&
         ElfWord(binary, 112, 8) == 4096 && text_offset % 16 == 0 &&
@@ -110,10 +230,11 @@ Inspect :: (test: *NativeTest, listing: string, binary: string) -> bool {
         CheckField(*document, image, "kind") == "aot-elf" && CheckField(*document, image, "address_space") == "elf-virtual" &&
         CheckInteger(*document, image, "file_size") == binary.count &&
         CheckInteger(*document, image, "text_size") == previous &&
-        previous == cast(s64)ElfWord(binary, 96, 8) - text_offset && mapped == 0 &&
+        previous <= cast(s64)ElfWord(binary, 96, 8) - text_offset && mapped == 0 &&
         CheckInteger(*document, document.root, "text_size") == previous,
         "native map layout must match actual RX ELF text and file extents") { return false }
-    if segments == 2 {
+    if !InspectUnwind(test, binary) { return false }
+    if segments == 3 {
         return NativeAssert(test, ElfWord(binary, 120, 4) == 1 && ElfWord(binary, 124, 4) == 6 &&
             CheckInteger(*document, image, "data_file_offset") == cast(s64)ElfWord(binary, 128, 8) &&
             CheckInteger(*document, image, "data_virtual_address") == cast(s64)ElfWord(binary, 136, 8) &&

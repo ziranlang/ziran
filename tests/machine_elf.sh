@@ -100,11 +100,96 @@ if test "$main_instructions" -ne 4; then
     exit 1
 fi
 readelf -hW "$work/hello.elf" > "$work/hello.header"
-grep -Fq 'Number of section headers:         9' "$work/hello.header"
-grep -Fq 'Section header string table index: 8' "$work/hello.header"
+grep -Fq 'Number of section headers:         10' "$work/hello.header"
+grep -Fq 'Section header string table index: 9' "$work/hello.header"
 readelf -sW "$work/hello.elf" > "$work/hello.symbols"
 grep -Eq 'FUNC[[:space:]]+GLOBAL[[:space:]]+DEFAULT[[:space:]]+1 _start$' "$work/hello.symbols"
 grep -Eq 'FUNC[[:space:]]+GLOBAL[[:space:]]+DEFAULT[[:space:]]+1 main$' "$work/hello.symbols"
+# The image carries .eh_frame: a mapped, allocated section named by
+# PT_GNU_EH_FRAME, with one CIE and an FDE for _start and main. The records
+# cover every STT_FUNC symbol exactly, so an unwinder needs no libc.
+readelf -SW "$work/hello.elf" > "$work/hello.sections"
+grep -Eq '[.]eh_frame[[:space:]]+PROGBITS[[:space:]]+[0-9a-f]+[[:space:]]+[0-9a-f]+[[:space:]]+[0-9a-f]+[[:space:]]+[0-9a-f]+[[:space:]]+A' \
+    "$work/hello.sections"
+readelf -lW "$work/hello.elf" > "$work/hello.program-headers"
+grep -Fq 'GNU_EH_FRAME' "$work/hello.program-headers"
+readelf --debug-dump=frames "$work/hello.elf" > "$work/hello.frames"
+grep -Fq 'CIE' "$work/hello.frames"
+grep -Eq 'FDE cie=[0-9a-f]+ pc=00000000004000b0[.][.]00000000004000c0$' "$work/hello.frames"
+grep -Eq 'FDE cie=[0-9a-f]+ pc=00000000004000c0[.][.]00000000004000d6$' "$work/hello.frames"
+python3 - "$work/hello.elf" <<'PYCHECK'
+import struct, sys
+binary = open(sys.argv[1], 'rb').read()
+def word(at, width):
+    return int.from_bytes(binary[at:at + width], 'little')
+shoff = word(0x28, 8); shentsize, shnum, shstrndx = word(0x3a, 2), word(0x3c, 2), word(0x3e, 2)
+assert shnum == 10 and shstrndx == 9, 'section header table changed'
+sections = []
+for index in range(shnum):
+    at = shoff + index * shentsize
+    sections.append((word(at, 4), word(at + 4, 4), word(at + 8, 8), word(at + 16, 8),
+                     word(at + 24, 8), word(at + 32, 8), word(at + 40, 4)))
+strings = sections[shstrndx][4]
+def name(offset):
+    end = binary.index(b'\0', strings + offset)
+    return binary[strings + offset:end].decode()
+eh = [s for s in sections if name(s[0]) == '.eh_frame']
+assert len(eh) == 1, '.eh_frame is missing or duplicated'
+_, kind, flags, address, offset, size, _ = eh[0]
+assert kind == 1 and flags & 2 and address and size, '.eh_frame must be allocated PROGBITS'
+phoff, phentsize, phnum = word(0x20, 8), word(0x36, 2), word(0x38, 2)
+loads = []
+ehdr = None
+for index in range(phnum):
+    at = phoff + index * phentsize
+    p_type, p_flags, p_offset, p_vaddr, _, p_filesz = (word(at, 4), word(at + 4, 4), word(at + 8, 8),
+                                                     word(at + 16, 8), word(at + 24, 8), word(at + 32, 8))
+    if p_type == 1:
+        loads.append((p_flags, p_offset, p_vaddr, p_filesz))
+    if p_type == 0x6474e550:
+        ehdr = (p_offset, p_vaddr, p_filesz)
+assert ehdr == (offset, address, size), 'PT_GNU_EH_FRAME does not name .eh_frame'
+rx = [l for l in loads if l[0] & 1]
+assert len(rx) == 1, 'the image must have one executable load'
+_, p_offset, p_vaddr, p_filesz = rx[0]
+assert p_offset <= offset and offset + size <= p_offset + p_filesz, '.eh_frame is outside the RX load'
+assert address == p_vaddr + (offset - p_offset), '.eh_frame address does not follow its file offset'
+data = binary[offset:offset + size]
+at = 0
+fdes = []
+cies = 0
+while at < len(data):
+    length = int.from_bytes(data[at:at + 4], 'little')
+    assert length != 0xffffffff, 'EH_FRAME_length is not a 32-bit record'
+    if length == 0:
+        break
+    cie_id = int.from_bytes(data[at + 4:at + 8], 'little')
+    if cie_id == 0:
+        cies += 1
+        assert data[at + 8] == 1, 'only CIE version 1 is supported'
+        assert data[at + 9:at + 11] == b'zR' and data[at + 11] == 0, 'the CIE must use the zR augmentation'
+        at += 4 + length
+        continue
+    cie = at + 4 - cie_id
+    pc = int.from_bytes(data[at + 8:at + 12], 'little', signed=True) + address + at + 8
+    span = int.from_bytes(data[at + 12:at + 16], 'little')
+    fdes.append((pc, span, at, cie))
+    at += 4 + length
+assert cies == 1, 'the image must carry exactly one CIE'
+symtab = [s for s in sections if s[1] == 2]
+assert len(symtab) == 1, 'the image must have one symbol table'
+_, _, _, _, symoff, symsize, strtab = symtab[0]
+strtab = sections[strtab][4]
+functions = []
+for index in range(symsize // 24):
+    at = symoff + index * 24
+    info, value, size = binary[at + 4], word(at + 8, 8), word(at + 16, 8)
+    if info & 0xf == 2 and size:
+        functions.append((value, size))
+assert len(fdes) == len(functions), 'every function symbol needs an FDE'
+for value, size in functions:
+    assert any(pc == value and span == size for pc, span, _, _ in fdes), 'function 0x%x is not covered' % value
+PYCHECK
 # Hello carries only what it reaches: one direct write, no output buffer,
 # terminal probe, formatter, fuel or stack check, and no page padding.
 hello_size=$(wc -c < "$work/hello.elf")
@@ -564,6 +649,52 @@ if grep -Fq '"file":"app.zi","line":' "$work/plain.map"; then
     echo "a map without a debug attachment named source lines" >&2
     exit 1
 fi
+# The perf map is a bounded selection of the same ranges: an address, a size,
+# a symbol and, from a debug attachment, its source line.
+"$zx2native" --emit perf-map -o "$work/debug.perf" "$work/app-debug.zx"
+grep -Eq '^[0-9a-f]+ [0-9a-f]+ app:Answer@app[.]zi:[0-9]+$' "$work/debug.perf"
+"$zx2native" --emit perf-map -o "$work/plain.perf" "$work/app.zx"
+if grep -Fq '@' "$work/plain.perf"; then
+    echo "a perf map without a debug attachment named source lines" >&2
+    exit 1
+fi
+grep -Eq '^[0-9a-f]+ [0-9a-f]+ app:Answer$' "$work/plain.perf"
+# A function, a block or an address window selects only that part.
+"$zx2native" --emit perf-map --function-id 0 -o "$work/function.perf" "$work/app-debug.zx"
+grep -Fq 'app:Answer@app.zi:' "$work/function.perf"
+if grep -Eq 'app:(Factorial|Step)' "$work/function.perf"; then
+    echo "a function selection still dumped the whole program" >&2
+    exit 1
+fi
+"$zx2native" --emit perf-map --function-id 0 --block-id 0 -o "$work/block.perf" "$work/app-debug.zx"
+test "$(wc -l < "$work/block.perf")" -lt "$(wc -l < "$work/function.perf")"
+"$zx2native" --emit perf-map --address-begin 100000 --address-end 100010 \
+    -o "$work/empty.perf" "$work/app-debug.zx"
+test ! -s "$work/empty.perf"
+"$zx2native" --emit perf-map --address-begin 0 --address-end 8 \
+    -o "$work/window.perf" "$work/app-debug.zx"
+test -s "$work/window.perf"
+test "$(wc -l < "$work/window.perf")" -lt "$(wc -l < "$work/debug.perf")"
+# An out-of-range selector is a stable gap and leaves the old output alone.
+printf 'preserve-output\n' > "$work/preserved-perf"
+cp "$work/preserved-perf" "$work/perf-output"
+if ZIRAN_DIAGNOSTICS=json "$zx2native" --emit perf-map --function-id 999 \
+    -o "$work/perf-output" "$work/app-debug.zx" \
+    > "$work/perf-select.log" 2>&1; then
+    echo "a perf map accepted a selector outside the program" >&2
+    exit 1
+fi
+grep -Fq 'assembly.inspect' "$work/perf-select.log"
+printf 'preserve-output\n' | cmp - "$work/perf-output"
+# A perf map is a Linux inspection surface: another target is a stable gap
+# with no fallback engine.
+if ZIRAN_DIAGNOSTICS=json "$zx2native" --target x86_64 --platform windows \
+    --emit perf-map -o "$work/windows.perf" "$work/app-debug.zx" \
+    > "$work/windows.log" 2>&1; then
+    echo "a perf map accepted a non-Linux target" >&2
+    exit 1
+fi
+grep -Fq 'assembly.gap.perf-map' "$work/windows.log"
 
 reject_gap() {
     expected=$1

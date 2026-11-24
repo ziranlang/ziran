@@ -9,6 +9,7 @@ Text :: #import "compiler_text"
 compiler :: #system_library "ziran";
 libc :: #system_library "libc";
 Diagnostic :: (span: IR.ZirSourceSpan, code: *u8, format: *u8, varargs: ..any) #foreign compiler "Diagnostic";
+FrontendCacheDiagnostic :: () #foreign compiler "FrontendCacheDiagnostic";
 DocumentOffset :: (document: *Check.ZirDocument, line: s32, column: s32, offset: *usize) -> s32 #foreign compiler "DocumentOffset";
 S15FlagClear :: (arg0: *void) #foreign compiler "S15FlagClear";
 S15FlagTake :: (arg0: *void) -> s32 #foreign compiler "S15FlagTake";
@@ -361,6 +362,7 @@ report :: (span: IR.ZirSourceSpan, severity: *u8, code: *u8, details: *Check.Dia
     snprintf(cast(*u8)(*(((buffers).message).items)), cast(usize)size_of(Parser.ParserArray8192_u8), ParserCString("%s"), message)
     json: s32 = DiagnosticJsonEnabled()
     warning: s32 = cast(s32)(strcmp(severity, ParserCString("warning")) == 0)
+    FrontendCacheDiagnostic()
     if !(warning != 0) {
         S15IntAdd(cast(*void)(*(diagnostic_diagnostic_errors)), 1)
     }

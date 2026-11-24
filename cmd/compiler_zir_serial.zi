@@ -2005,8 +2005,8 @@ validate_program :: (program: *IR.ZirProgram) -> s32 {
 
 
 #scope_file
-report_write_problem :: (program: *IR.ZirProgram, out: *Writer) -> s32 {
-    if ((((out).problem != cast(*u8)((null))) && (program != cast(*IR.ZirProgram)((null)))) && ((program).module_count > 0)) {
+report_write_problem :: (program: *IR.ZirProgram, out: *Writer, report: s32) -> s32 {
+    if ((report != 0) && (((out).problem != cast(*u8)((null))) && (program != cast(*IR.ZirProgram)((null)))) && ((program).module_count > 0)) {
         Diagnostic((((program).modules)[0]).span, ParserCString("zir.output"), ParserCString("%s"), (out).problem)
     }
     return 0
@@ -2014,16 +2014,16 @@ report_write_problem :: (program: *IR.ZirProgram, out: *Writer) -> s32 {
 
 
 #scope_file
-write_program :: (program: *IR.ZirProgram, out: *Writer, validate: s32) -> s32 {
+write_program :: (program: *IR.ZirProgram, out: *Writer, validate: s32, report: s32) -> s32 {
     magic: ParserArray4_u8 = .{items = .{cast(u8)(90), cast(u8)(73), cast(u8)(82), cast(u8)(0)}}
     if ((((((((program == cast(*IR.ZirProgram)((null))) || (out == cast(*Writer)((null)))) || ((validate != 0) && !(validate_program(program) != 0))) || !(write_bytes(out, cast(*void)(cast(*u8)(*((magic).items))), cast(usize)size_of(ParserArray4_u8)) != 0)) || !(write_version(out, cast(u32)ZIR_FORMAT_VERSION) != 0)) || ((program).module_count < 0)) || !(writer_charge(out, cast(usize)((program).module_count), cast(usize)size_of(IR.ZirModule)) != 0)) || !(write_u32(out, cast(u32)((program).module_count)) != 0)) {
-        return report_write_problem(program, out)
+        return report_write_problem(program, out, report)
     }
     {
         i: s32 = 0
         while check_loop_54 := (i < (program).module_count) {
             if !(write_module(out, cast(*IR.ZirModule)(cast(usize)((program).modules) + cast(usize)(i) * size_of(IR.ZirModule))) != 0) {
-                return report_write_problem(program, out)
+                return report_write_problem(program, out, report)
             }
             PersistencePost3(*(i))
         }
@@ -2036,7 +2036,7 @@ write_program :: (program: *IR.ZirProgram, out: *Writer, validate: s32) -> s32 {
 ProgramWrite :: (program: *IR.ZirProgram, out: *void) -> s32 {
     started: u64 = ProfileStart()
     writer: Writer = .{out, cast(*u8)(CompilerMalloc(cast(usize)(65536)))}
-    result: s32 = cast(s32)((((writer).block != cast(*u8)((null))) && (out != (null))) && (write_program(program, *(writer), 1) != 0))
+    result: s32 = cast(s32)((((writer).block != cast(*u8)((null))) && (out != (null))) && (write_program(program, *(writer), 1, 1) != 0))
     writer_free_strings(*(writer))
     CompilerFree(cast(*void)((writer).block))
     ProfileEnd(ParserCString("ir.write"), started)
@@ -2044,8 +2044,29 @@ ProgramWrite :: (program: *IR.ZirProgram, out: *void) -> s32 {
 }
 
 
+#scope_export
+// The frontend cache writes a parse without validating or reporting: the
+// checked-IR validator rejects the parser's placeholder expression records,
+// and a full or read-only cache disk must never add a diagnostic to a build.
+ProgramWriteQuiet :: (program: *IR.ZirProgram, out: *void) -> s32 {
+    started: u64 = ProfileStart()
+    writer: Writer = .{out, cast(*u8)(CompilerMalloc(cast(usize)(65536)))}
+    result: s32 = cast(s32)((((writer).block != cast(*u8)((null))) && (out != (null))) && (write_program(program, *(writer), 0, 0) != 0))
+    writer_free_strings(*(writer))
+    CompilerFree(cast(*void)((writer).block))
+    ProfileEnd(ParserCString("ir.write"), started)
+    return result
+}
+
+
+#scope_export
+ZirFormatVersion :: () -> s32 {
+    return ZIR_FORMAT_VERSION
+}
+
+
 #scope_file
-ProgramRead_in_context :: (in: *void, path: *u8) -> *IR.ZirProgram {
+ProgramRead_in_context :: (in: *void, path: *u8, validate: s32) -> *IR.ZirProgram {
     magic: ParserArray4_u8
     mismatch: ParserArray2560_u8
     version: u32
@@ -2113,7 +2134,7 @@ ProgramRead_in_context :: (in: *void, path: *u8) -> *IR.ZirProgram {
             (reader).problem = ParserCString("trailing or unreadable ZIR data")
             break goto_failed
         }
-        if !(validate_program(program) != 0) {
+        if ((validate != 0) && !(validate_program(program) != 0)) {
             (reader).problem = ParserCString("invalid checked IR structure")
             break goto_failed
         }
@@ -2430,6 +2451,21 @@ CheckCanonicalPrograms :: (programs: **IR.ZirProgram, count: s32, input_paths: *
 
 #scope_export
 ProgramRead :: (in: *void, path: *u8) -> *IR.ZirProgram {
+    return ProgramRead_with(in, path, 1)
+}
+
+
+// A frontend cache entry is a parse, not checked IR: its expression graph
+// still holds the parser's records, which the checked-IR validator rejects
+// and the checker rebuilds. The entry's digest is verified by the reader.
+#scope_export
+ProgramReadUnvalidated :: (in: *void, path: *u8) -> *IR.ZirProgram {
+    return ProgramRead_with(in, path, 0)
+}
+
+
+#scope_file
+ProgramRead_with :: (in: *void, path: *u8, validate: s32) -> *IR.ZirProgram {
     memory: *void = CompilerMemoryPause()
     previous: *u8 = CompilerContextCurrent()
     owner: *u8 = (ifx (previous != null) then previous else CompilerContextOpen())
@@ -2439,7 +2475,7 @@ ProgramRead :: (in: *void, path: *u8) -> *IR.ZirProgram {
         return null
     }
     CompilerContextSelect(owner)
-    program: *IR.ZirProgram = ProgramRead_in_context(in, path)
+    program: *IR.ZirProgram = ProgramRead_in_context(in, path, validate)
     if ((program != null) && !((program).context_retained != 0)) {
         CompilerContextRetain(owner)
         (program).context_retained = 1

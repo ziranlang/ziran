@@ -29,6 +29,7 @@ DuplicatePrefix :: (text: *u8, limit: usize) -> *u8 #foreign compiler "Duplicate
 ExecutablePath :: (output: *u8, capacity: usize) -> s32 #foreign compiler "ExecutablePath";
 ModuleParametersBind :: (module: *IR.ZirModule, parameters: *u8, site: IR.ZirSourceSpan, values: **u8, report: s32) -> s32 #foreign compiler "ModuleParametersBind";
 PathIsAbsolute :: (path: *u8) -> s32 #foreign compiler "PathIsAbsolute";
+ProfileCount :: (counter: *u8) #foreign compiler "ProfileCount";
 ProfileEnd :: (phase: *u8, started: u64) #foreign compiler "ProfileEnd";
 ProfileStart :: () -> u64 #foreign compiler "ProfileStart";
 ProgramFree :: (program: *IR.ZirProgram) #foreign compiler "ProgramFree";
@@ -54,6 +55,28 @@ strstr :: (__haystack: *u8, __needle: *u8) -> *u8 #foreign libc "strstr";
 isalnum :: (byte: s32) -> s32 #foreign libc "isalnum";
 isalpha :: (byte: s32) -> s32 #foreign libc "isalpha";
 isspace :: (byte: s32) -> s32 #foreign libc "isspace";
+CacheExitHandler :: #type () #c_call;
+Sha256Add :: (hash: *void, bytes: *u8, count: usize) #foreign compiler "Sha256Add";
+Sha256Begin :: (hash: *void) #foreign compiler "Sha256Begin";
+Sha256End :: (hash: *void, output: *u8) #foreign compiler "Sha256End";
+SourceOverlayRead :: (path: *u8, count: *usize) -> *u8 #foreign compiler "SourceOverlayRead";
+CompilerFclose :: (file: *void) -> s32 #foreign compiler "CompilerFclose";
+CompilerFopen :: (path: *u8, mode: *u8) -> *void #foreign compiler "CompilerFopen";
+CompilerTargetFacts :: () -> IR.ZirTargetFacts #foreign compiler "CompilerTargetFacts";
+atexit :: (handler: CacheExitHandler) -> s32 #foreign libc "atexit";
+ferror :: (stream: *void) -> s32 #foreign libc "ferror";
+fprintf :: (__stream: *void, __format: *u8, varargs: ..any) -> s32 #foreign libc "fprintf";
+fread :: (output: *void, size: usize, count: usize, stream: *void) -> usize #foreign libc "fread";
+getpid :: () -> s32 #foreign libc "getpid";
+memcmp :: (left: *void, right: *void, count: usize) -> s32 #foreign libc "memcmp";
+mkdir :: (path: *u8, mode: u32) -> s32 #foreign libc "mkdir";
+remove :: (path: *u8) -> s32 #foreign libc "remove";
+rename :: (old_path: *u8, new_path: *u8) -> s32 #foreign libc "rename";
+DocumentRecord :: (path: *u8, bytes: *u8, count: usize) -> *Check.ZirDocument #foreign compiler "DocumentRecord";
+DocumentFind :: (path: *u8) -> *Check.ZirDocument #foreign compiler "DocumentFind";
+DocumentMarkRewritten :: (path: *u8) #foreign compiler "DocumentMarkRewritten";
+ModuleAddUsing :: (module: *IR.ZirModule, path: *u8, span: IR.ZirSourceSpan) -> *IR.ZirUsing #foreign compiler "ModuleAddUsing";
+SpanEnd :: (path: *u8, line: s32, column: s32, end_line: s32, end_column: s32) -> IR.ZirSourceSpan #foreign compiler "SpanEnd";
 
 
 ParserArray32__u8 :: struct {
@@ -438,7 +461,7 @@ add_program_named :: (context_local: *LoadContext, path: *u8, root: *u8, identit
     }
     ((context_local).active).items[PersistencePost1(*((context_local).active_count))] = canonical
     lexical_length: usize = (ifx (lexical == cast(*u8)((null))) then cast(usize)(0) else strlen(lexical))
-    program = (ifx (lexical == cast(*u8)((null))) then null else (ifx ((lexical_length > cast(usize)(3)) && (strcmp(cast(*u8)(cast(usize)(cast(*u8)(cast(usize)(lexical) + cast(usize)(lexical_length) * size_of(u8))) - cast(usize)(3) * size_of(u8)), ParserCString(".zi")) == 0)) then parse_module_with_imports(lexical, root, cast(ZirCompileImportResolver)(early_resolve_imports), cast(*void)(context_local), (context_local).defines, (context_local).define_count, (context_local).site) else Serial.ProgramLoad(lexical, root)))
+    program = (ifx (lexical == cast(*u8)((null))) then null else frontend_load(context_local, lexical, root, lexical_length, canonical))
     PersistencePost5(*((context_local).active_count))
     CompilerFree(cast(*void)(lexical))
     if (program == cast(*IR.ZirProgram)((null))) {
@@ -1492,6 +1515,7 @@ condition_needs_import :: (condition: *u8, import_local: *IR.ZirImport, need_ope
 #scope_file
 early_resolve_imports :: (opaque: *void, program: *IR.ZirProgram, module: *IR.ZirModule, source_path: *u8, root: *u8, condition: *u8) -> s32 {
     context_local: *LoadContext = cast(*LoadContext)(opaque)
+    frontend_cache_resolves += 1
     load_all: s32 = cast(s32)(condition == cast(*u8)((null)))
     need_open_layout: s32 = cast(s32)(!(load_all != 0) && (condition_needs_open_layout(module, condition) != 0))
     {
@@ -1710,4 +1734,813 @@ ProgramsLoadWithDefines :: (set: *IR.ProgramSet, root: *u8, module_paths: **u8, 
         }
     }
     return result
+}
+
+
+// ---- Frontend cache -------------------------------------------------------
+// Parsing is the frontend's largest repeated cost: every build parses every
+// imported module again although the module's bytes and the inputs a parse
+// can observe rarely move. A clean parse is written in the saved-IR format
+// under a digest over every input the parse can observe (the toolchain
+// executable, the module text, its root, the import site's parameter
+// binding, the defines, the module paths, the package map and the target),
+// and the next build loads that entry instead of parsing. Only whole modules
+// are reused; checking always runs on the loaded IR.
+//
+// The IR codec stores what a checked module needs, not what the parse
+// leaves behind, so each entry has a .meta sidecar with the facts the
+// checker reads from the parse: whether the text was rewritten and the
+// file-scope `using` declarations with their spans. The document identity
+// is rebuilt from the same source text. A module that consulted an imported
+// module while parsing (#if conditions, #run, default parameter inference)
+// or spliced other files (#load, #insert) is never stored, so the module's
+// own digest is a sound key. Nothing is published unless the process exits
+// without a single diagnostic, so a failed build never fills the cache.
+// Linux only: --lint is recognised through /proc/self/cmdline because lint
+// warnings need a fresh parse.
+
+#scope_file
+CacheDigits :: struct { items: [17]u8 }
+CacheLine :: struct { items: [160]u8 }
+CacheSuffix :: struct { items: [32]u8 }
+CacheDigest :: struct { bytes: [32]u8 }
+CacheHex :: struct { items: [65]u8 }
+CachePath :: struct { items: [4096]u8 }
+CacheHash :: struct { bytes: [128]u8 }
+CacheUsingLine :: struct { items: [2048]u8 }
+CacheMeta :: struct {
+    text: *u8  // whole sidecar; the caller frees it
+    lines: *u8  // first using line inside text
+    rewritten: s32
+    count: s32
+}
+CacheCursor :: struct { at: *u8; delimiter: u8 }
+CacheSink :: struct { text: *u8; capacity: usize; used: usize }
+CachePending :: struct {
+    key: CacheHex
+    tmp: CachePath
+    digest: CacheHex
+    meta: *u8  // sidecar body; freed when the entry commits or is discarded
+}
+cache_hex_digits: CacheDigits = .{items = .{48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 97, 98, 99, 100, 101, 102, 0}};
+frontend_cache_state: s32;
+frontend_cache_directory: CachePath;
+frontend_cache_diagnostics: s32;
+frontend_cache_exit_registered: s32;
+frontend_cache_pending: *CachePending;
+frontend_cache_pending_count: s32;
+frontend_cache_executable: CacheDigest;
+frontend_cache_executable_state: s32;
+frontend_cache_resolves: s32;
+
+#scope_export
+#program_export "FrontendCacheDiagnostic"
+FrontendCacheDiagnostic :: () {
+    frontend_cache_diagnostics += 1
+}
+
+
+#scope_file
+cache_hex_encode :: (digest: *CacheDigest, hex: *CacheHex) {
+    for i: 0..31 {
+        at: usize = cast(usize)(i) * cast(usize)(2)
+        (hex).items[at] = cache_hex_digits.items[cast(s32)((digest).bytes[i] >> 4)]
+        (hex).items[at + 1] = cache_hex_digits.items[cast(s32)((digest).bytes[i] & 15)]
+    }
+    (hex).items[64] = 0
+}
+
+
+cache_hash_text :: (hash: *CacheHash, text: *u8) {
+    if text == null { return }
+    Sha256Add(cast(*void)hash, text, strlen(text))
+}
+
+
+cache_hash_file :: (hash: *CacheHash, path: *u8) -> s32 {
+    file: *void = CompilerFopen(path, ParserCString("rb"))
+    if file == null { return 0 }
+    defer CompilerFclose(file)
+    buffer: *u8 = cast(*u8)CompilerMalloc(cast(usize)(65536))
+    if buffer == null { return 0 }
+    defer CompilerFree(cast(*void)buffer)
+    while true {
+        read: usize = fread(cast(*void)buffer, 1, cast(usize)(65536), file)
+        if read == 0 { break }
+        Sha256Add(cast(*void)hash, buffer, read)
+    }
+    return cast(s32)(ferror(file) == 0)
+}
+
+
+cache_sorted_defines :: (defines: **u8, count: s32) -> **u8 {
+    order: **u8 = cast(**u8)CompilerMalloc(cast(usize)(count + 1) * size_of(*u8))
+    if order == null { return null }
+    for i: 0..count-1 { order[i] = defines[i] }
+    for i: 1..count-1 {
+        at: s32 = i
+        while (at > 0) && (strcmp(order[at - 1], order[at]) > 0) {
+            moved: *u8 = order[at - 1]
+            order[at - 1] = order[at]
+            order[at] = moved
+            at -= 1
+        }
+    }
+    return order
+}
+
+
+cache_entry_path :: (output: *CachePath, key: *CacheHex, suffix: *u8) -> s32 {
+    written: s32 = snprintf(cast(*u8)(*(((output).items))), cast(usize)size_of(CachePath), ParserCString("%s/%s%s"), cast(*u8)(*((frontend_cache_directory).items)), cast(*u8)(*((key).items)), suffix)
+    return cast(s32)((written > 0) && (cast(usize)(written) < cast(usize)size_of(CachePath)))
+}
+
+// True when the process was started with --lint as an exact argument. An
+// unreadable command line (other systems, embedded callers) disables the
+// cache rather than guessing.
+frontend_cache_lint_argument :: () -> s32 {
+    file: *void = CompilerFopen(ParserCString("/proc/self/cmdline"), ParserCString("rb"))
+    if file == null { return 1 }
+    defer CompilerFclose(file)
+    text: *u8 = cast(*u8)CompilerMalloc(cast(usize)(65537))
+    if text == null { return 1 }
+    defer CompilerFree(cast(*void)text)
+    total: usize = 0
+    while total < cast(usize)(65536) {
+        read: usize = fread(cast(*void)(cast(usize)text + total), 1, cast(usize)(65536) - total, file)
+        if read == 0 { break }
+        total += read
+    }
+    if (ferror(file) != 0) || (total == cast(usize)(65536)) { return 1 }
+    text[total] = 0
+    at: usize = 0
+    while at < total {
+        end: usize = at
+        while (end < total) && (text[end] != 0) { end += 1 }
+        if ((end - at) == cast(usize)(6)) && (memcmp(cast(*void)(cast(usize)text + at), cast(*void)ParserCString("--lint"), cast(usize)(6)) == 0) { return 1 }
+        at = end + 1
+    }
+    return 0
+}
+
+
+cache_mkdir_parents :: (path: *u8) {
+    partial: CachePath
+    copy_text(cast(*u8)(*(((partial).items))), cast(usize)size_of(CachePath), path)
+    at: usize = 1
+    while (partial).items[at] != 0 {
+        if (partial).items[at] == 47 {
+            (partial).items[at] = 0
+            unused mkdir(cast(*u8)(*(((partial).items))), 493)
+            (partial).items[at] = 47
+        }
+        at += 1
+    }
+    unused mkdir(path, 493)
+}
+
+
+frontend_cache_directory_resolve :: () -> s32 {
+    written: s32 = -1
+    configured: *u8 = getenv(ParserCString("ZIRAN_FRONTEND_CACHE_DIR"))
+    if (configured != null) && (configured[0] != 0) {
+        written = snprintf(cast(*u8)(*((frontend_cache_directory).items)), cast(usize)size_of(CachePath), ParserCString("%s"), configured)
+    } else {
+        base: *u8 = getenv(ParserCString("XDG_CACHE_HOME"))
+        if (base != null) && (base[0] != 0) {
+            written = snprintf(cast(*u8)(*((frontend_cache_directory).items)), cast(usize)size_of(CachePath), ParserCString("%s/ziran/frontend"), base)
+        } else {
+            home: *u8 = getenv(ParserCString("HOME"))
+            if (home == null) || (home[0] == 0) { return 0 }
+            written = snprintf(cast(*u8)(*((frontend_cache_directory).items)), cast(usize)size_of(CachePath), ParserCString("%s/.cache/ziran/frontend"), home)
+        }
+    }
+    if (written <= 0) || (cast(usize)(written) >= cast(usize)size_of(CachePath)) { return 0 }
+    cache_mkdir_parents(cast(*u8)(*((frontend_cache_directory).items)))
+    return 1
+}
+
+
+frontend_cache_enabled :: () -> s32 {
+    if frontend_cache_state != 0 { return cast(s32)(frontend_cache_state > 0) }
+    frontend_cache_state = -1
+    disabled: *u8 = getenv(ParserCString("ZIRAN_FRONTEND_CACHE"))
+    if (disabled != null) && (strcmp(disabled, ParserCString("0")) == 0) { return 0 }
+    if frontend_cache_lint_argument() != 0 { return 0 }
+    if frontend_cache_directory_resolve() == 0 { return 0 }
+    frontend_cache_state = 1
+    return 1
+}
+
+
+// The toolchain executable is hashed once per process: every module key
+// includes it, and hashing megabytes per module would cost more than the
+// parse the cache saves.
+frontend_cache_executable_prepare :: () {
+    frontend_cache_executable_state = -1
+    executable: ParserArray1024_u8
+    if ExecutablePath(cast(*u8)(*((executable).items)), cast(usize)size_of(ParserArray1024_u8)) <= 0 { return }
+    hash: CacheHash
+    Sha256Begin(cast(*void)*hash)
+    if cache_hash_file(*hash, cast(*u8)(*((executable).items))) == 0 { return }
+    Sha256End(cast(*void)*hash, cast(*u8)(*((frontend_cache_executable).bytes)))
+    frontend_cache_executable_state = 1
+}
+
+
+// Every input a parse of `source` can observe. The toolchain executable is
+// hashed whole: a rebuilt parser must never read an older toolchain's IR.
+// The text is hashed with its length so a trailing newline cannot be
+// confused with the separator that follows it.
+frontend_cache_prepare :: (context_local: *LoadContext, source: *u8, canonical: *u8, root: *u8, text: *u8, key: *CacheHex) -> s32 {
+    if frontend_cache_enabled() == 0 { return 0 }
+    if text == null { return 0 }
+    hash: CacheHash
+    Sha256Begin(cast(*void)*hash)
+    cache_hash_text(*hash, ParserCString("ziran-frontend-cache/2\n"))
+    version: CacheSuffix
+    snprintf(cast(*u8)(*((version).items)), cast(usize)size_of(CacheSuffix), ParserCString("%d\n"), Serial.ZirFormatVersion())
+    cache_hash_text(*hash, cast(*u8)(*((version).items)))
+    cache_hash_text(*hash, source)
+    cache_hash_text(*hash, ParserCString("\n"))
+    cache_hash_text(*hash, root)
+    cache_hash_text(*hash, ParserCString("\n"))
+    if frontend_cache_executable_state == 0 { frontend_cache_executable_prepare() }
+    if frontend_cache_executable_state < 0 { return 0 }
+    Sha256Add(cast(*void)*hash, cast(*u8)(*((frontend_cache_executable).bytes)), cast(usize)(32))
+    length: usize = strlen(text)
+    Sha256Add(cast(*void)*hash, cast(*u8)(*length), cast(usize)size_of(usize))
+    Sha256Add(cast(*void)*hash, text, length)
+    // The import site's parameter binding shapes the parse itself
+    // (#module_parameters choose which declarations exist), so a module
+    // parsed under one binding is never reused under another.
+    if (context_local).site != null { cache_hash_text(*hash, ((context_local).site).parameters) }
+    cache_hash_text(*hash, ParserCString("\n"))
+    defines: **u8 = cache_sorted_defines((context_local).defines, (context_local).define_count)
+    if defines == null { return 0 }
+    defer CompilerFree(cast(*void)defines)
+    for i: 0..(context_local).define_count-1 {
+        cache_hash_text(*hash, defines[i])
+        cache_hash_text(*hash, ParserCString("\n"))
+    }
+    cache_hash_text(*hash, ParserCString("paths\n"))
+    for i: 0..(context_local).module_path_count-1 {
+        cache_hash_text(*hash, ((context_local).module_paths)[i])
+        cache_hash_text(*hash, ParserCString("|"))
+        cache_hash_text(*hash, ((context_local).module_path_names)[i])
+        cache_hash_text(*hash, ParserCString("\n"))
+    }
+    cache_hash_text(*hash, ParserCString("package\n"))
+    package_path: *u8 = getenv(ParserCString("ZIRAN_PACKAGE_MAP"))
+    if (package_path != null) && (package_path[0] != 0) {
+        cache_hash_text(*hash, package_path)
+        cache_hash_text(*hash, ParserCString("\n"))
+        if cache_hash_file(*hash, package_path) == 0 { return 0 }
+    }
+    cache_hash_text(*hash, ParserCString("target\n"))
+    facts: IR.ZirTargetFacts = CompilerTargetFacts()
+    cache_hash_text(*hash, facts.options)
+    cache_hash_text(*hash, ParserCString("\n"))
+    digest: CacheDigest
+    Sha256End(cast(*void)*hash, cast(*u8)(*((digest).bytes)))
+    cache_hex_encode(*digest, key)
+    return 1
+}
+
+
+// Whole file as NUL-terminated text, or null when it cannot be read whole
+// within LIMIT. A null byte inside the file is a failure: the text would
+// end early and hash differently from what the parser reads.
+cache_read_text :: (path: *u8, limit: usize) -> *u8 {
+    file: *void = CompilerFopen(path, ParserCString("rb"))
+    if file == null { return null }
+    defer CompilerFclose(file)
+    capacity: usize = 65536
+    text: *u8 = cast(*u8)CompilerMalloc(capacity)
+    if text == null { return null }
+    used: usize = 0
+    failed: s32 = 0
+    while true {
+        if (capacity - used) < cast(usize)(2) {
+            if capacity >= limit { failed = 1; break }
+            grown: *u8 = cast(*u8)CompilerRealloc(cast(*void)text, capacity * cast(usize)(2))
+            if grown == null { failed = 1; break }
+            text = grown
+            capacity = capacity * cast(usize)(2)
+        }
+        read: usize = fread(cast(*void)(cast(usize)text + used), 1, capacity - used - cast(usize)(1), file)
+        if read == cast(usize)(0) { break }
+        used += read
+    }
+    if (ferror(file) != 0) || (memchr(cast(*void)text, 0, used) != null) { failed = 1 }
+    if failed != 0 {
+        CompilerFree(cast(*void)text)
+        return null
+    }
+    text[used] = 0
+    return text
+}
+
+
+// The module text when the cache may serve it: null when an editor overlay
+// replaces the file or the text splices other files, whose content the
+// module's own digest does not cover.
+cache_source_text :: (source: *u8, canonical: *u8) -> *u8 {
+    if frontend_cache_enabled() == 0 { return null }
+    overlay: usize = 0
+    if (SourceOverlayRead(canonical, *overlay) != null) || (SourceOverlayRead(source, *overlay) != null) { return null }
+    text: *u8 = cache_read_text(source, cast(usize)(64) * cast(usize)(1024) * cast(usize)(1024))
+    if text == null { return null }
+    if (strstr(text, ParserCString("#load")) != null) || (strstr(text, ParserCString("#insert")) != null) {
+        CompilerFree(cast(*void)text)
+        return null
+    }
+    return text
+}
+
+
+// Sidecar text: fields separated by '|' and lines by '\n'. A field that
+// never ends makes the whole read a miss, never a diagnostic. The cursor
+// remembers the delimiter that ended the last field.
+cache_field :: (cursor: *CacheCursor) -> *u8 {
+    start: *u8 = (cursor).at
+    (cursor).delimiter = 0
+    if start == null { return null }
+    at: *u8 = start
+    while ((at[0] != 0) && (at[0] != 124) && (at[0] != 10)) { at = cast(*u8)(cast(usize)at + cast(usize)(1)) }
+    (cursor).delimiter = at[0]
+    if at[0] == 0 {
+        (cursor).at = null
+        return null
+    }
+    at[0] = 0
+    (cursor).at = cast(*u8)(cast(usize)at + cast(usize)(1))
+    return start
+}
+
+
+cache_field_separator :: (cursor: *CacheCursor) -> s32 {
+    return cast(s32)((cursor).delimiter == 124)
+}
+
+
+cache_field_line_end :: (cursor: *CacheCursor) -> s32 {
+    return cast(s32)((cursor).delimiter == 10)
+}
+
+
+cache_parse_number :: (text: *u8) -> s64 {
+    if text == null { return -1 }
+    value: s64 = 0
+    at: usize = 0
+    if text[at] == 0 { return -1 }
+    while text[at] != 0 {
+        digit: u8 = text[at]
+        if (digit < 48) || (digit > 57) { return -1 }
+        value = (value * cast(s64)(10)) + cast(s64)(digit - 48)
+        if value > cast(s64)(2147483647) { return -1 }
+        at += 1
+    }
+    return value
+}
+
+
+// A text field the sidecar can carry: non-empty, without a delimiter.
+cache_text_field :: (text: *u8) -> s32 {
+    if (text == null) || (text[0] == 0) { return 0 }
+    at: usize = 0
+    while text[at] != 0 {
+        if (text[at] == 124) || (text[at] == 10) { return 0 }
+        at += 1
+    }
+    return 1
+}
+
+
+cache_sink_append :: (sink: *CacheSink, text: *u8) -> s32 {
+    length: usize = strlen(text)
+    needed: usize = ((sink).used + length) + cast(usize)(1)
+    if needed > (sink).capacity {
+        capacity: usize = (ifx ((sink).capacity != 0) then (sink).capacity else cast(usize)(1024))
+        while capacity < needed { capacity = capacity * cast(usize)(2) }
+        grown: *u8 = cast(*u8)CompilerRealloc(cast(*void)(sink).text, capacity)
+        if grown == null { return 0 }
+        (sink).text = grown
+        (sink).capacity = capacity
+    }
+    memcpy(cast(*void)(cast(usize)(sink).text + (sink).used), cast(*void)text, length + cast(usize)(1))
+    (sink).used += length
+    return 1
+}
+
+
+// is_file_private|line|column|end_line|end_column|filter|span path|path
+cache_using_line :: (using: *IR.ZirUsing, line: *CacheUsingLine) -> s32 {
+    span_path: *u8 = SpanPath((using).span)
+    path: *u8 = cast(*u8)(*((using).path))
+    filter: *u8 = cast(*u8)(*((using).filter))
+    if (cache_text_field(span_path) == 0) || (cache_text_field(path) == 0) { return 0 }
+    if cache_text_field(filter) == 0 { return 0 }
+    written: s32 = snprintf(cast(*u8)(*((line).items)), cast(usize)size_of(CacheUsingLine), ParserCString("%d|%d|%d|%d|%d|%s|%s|%s\n"), (using).is_file_private, ((using).span).line, ((using).span).column, ((using).span).end_line, ((using).span).end_column, filter, span_path, path)
+    return cast(s32)((written > 0) && (cast(usize)(written) < cast(usize)size_of(CacheUsingLine)))
+}
+
+
+// The sidecar body of a stored parse: whether the parser rewrote the text
+// and every file-scope `using`, none of which the IR codec stores.
+frontend_cache_sidecar :: (program: *IR.ZirProgram) -> *u8 {
+    sink: CacheSink
+    (sink).text = null
+    (sink).capacity = 0
+    (sink).used = 0
+    module: *IR.ZirModule = (program).modules
+    document: *Check.ZirDocument = cast(*Check.ZirDocument)((module).document)
+    rewritten: s32 = cast(s32)((document != null) && ((document).rewritten != 0))
+    head: CacheLine
+    snprintf(cast(*u8)(*((head).items)), cast(usize)size_of(CacheLine), ParserCString("rewritten|%d\nusing|%d\n"), rewritten, (module).using_count)
+    if cache_sink_append(*sink, cast(*u8)(*((head).items))) == 0 {
+        CompilerFree(cast(*void)(sink).text)
+        return null
+    }
+    line: CacheUsingLine
+    for i: 0..(module).using_count-1 {
+        using: *IR.ZirUsing = cast(*IR.ZirUsing)(cast(usize)(module).usings + cast(usize)(i) * size_of(IR.ZirUsing))
+        if cache_using_line(using, *line) == 0 {
+            CompilerFree(cast(*void)(sink).text)
+            return null
+        }
+        if cache_sink_append(*sink, cast(*u8)(*((line).items))) == 0 {
+            CompilerFree(cast(*void)(sink).text)
+            return null
+        }
+    }
+    return (sink).text
+}
+
+
+// The meta file records the digest of the entry it describes, then the
+// parse facts the codec leaves out. A truncated, damaged or older entry is
+// a miss, never a diagnostic. The caller frees (meta).text; the using
+// lines that follow the header are read by the restore, which validates
+// each one.
+cache_read_meta :: (path: *CachePath, meta: *CacheMeta, expected: *CacheHex) -> s32 {
+    (meta).text = null
+    (meta).lines = null
+    (meta).rewritten = 0
+    (meta).count = 0
+    text: *u8 = cache_read_text(cast(*u8)(*(((path).items))), cast(usize)(4) * cast(usize)(1024) * cast(usize)(1024))
+    if text == null { return 0 }
+    cursor: CacheCursor = .{at = text, delimiter = 0}
+    format: *u8 = cache_field(*cursor)
+    if (format == null) || (cache_field_line_end(*cursor) == 0) || (strcmp(format, ParserCString("ziran-frontend-cache 2")) != 0) {
+        CompilerFree(cast(*void)text)
+        return 0
+    }
+    tag: *u8 = cache_field(*cursor)
+    if (tag == null) || (cache_field_separator(*cursor) == 0) || (strcmp(tag, ParserCString("zir")) != 0) {
+        CompilerFree(cast(*void)text)
+        return 0
+    }
+    digest: *u8 = cache_field(*cursor)
+    if (digest == null) || (cache_field_line_end(*cursor) == 0) || (strlen(digest) != cast(usize)(64)) {
+        CompilerFree(cast(*void)text)
+        return 0
+    }
+    for i: 0..63 {
+        digit: u8 = digest[i]
+        if !(((digit >= 48) && (digit <= 57)) || ((digit >= 97) && (digit <= 102))) {
+            CompilerFree(cast(*void)text)
+            return 0
+        }
+        (expected).items[i] = digit
+    }
+    (expected).items[64] = 0
+    tag = cache_field(*cursor)
+    if (tag == null) || (cache_field_separator(*cursor) == 0) || (strcmp(tag, ParserCString("rewritten")) != 0) {
+        CompilerFree(cast(*void)text)
+        return 0
+    }
+    value: *u8 = cache_field(*cursor)
+    if (value == null) || (cache_field_line_end(*cursor) == 0) {
+        CompilerFree(cast(*void)text)
+        return 0
+    }
+    number: s64 = cache_parse_number(value)
+    if (number < 0) || (number > 1) {
+        CompilerFree(cast(*void)text)
+        return 0
+    }
+    (meta).rewritten = cast(s32)(number)
+    tag = cache_field(*cursor)
+    if (tag == null) || (cache_field_separator(*cursor) == 0) || (strcmp(tag, ParserCString("using")) != 0) {
+        CompilerFree(cast(*void)text)
+        return 0
+    }
+    value = cache_field(*cursor)
+    if (value == null) || (cache_field_line_end(*cursor) == 0) {
+        CompilerFree(cast(*void)text)
+        return 0
+    }
+    number = cache_parse_number(value)
+    if (number < 0) || (number > 65536) {
+        CompilerFree(cast(*void)text)
+        return 0
+    }
+    (meta).count = cast(s32)(number)
+    (meta).text = text
+    (meta).lines = (cursor).at
+    return 1
+}
+
+
+// What the codec leaves out, rebuilt as the parse left it: the document
+// identity from the same text with its rewritten flag, the file-scope
+// usings with their spans, and the source root. All under the module's
+// context, where the parse would have recorded them. Any malformed line
+// fails the whole entry.
+frontend_cache_restore_module :: (module: *IR.ZirModule, source: *u8, root: *u8, text: *u8, meta: *CacheMeta) -> s32 {
+    previous: *u8 = CompilerContextSelect((module).context)
+    defer CompilerContextSelect(previous)
+    if DocumentRecord(source, text, strlen(text)) == null { return 0 }
+    (module).document = cast(*u8)(DocumentFind(source))
+    if (module).document == null { return 0 }
+    if (meta).rewritten != 0 { DocumentMarkRewritten(source) }
+    cursor: CacheCursor = .{at = (meta).lines, delimiter = 0}
+    for i: 0..(meta).count-1 {
+        private_text: *u8 = cache_field(*cursor)
+        if (private_text == null) || (cache_field_separator(*cursor) == 0) { return 0 }
+        line_text: *u8 = cache_field(*cursor)
+        if (line_text == null) || (cache_field_separator(*cursor) == 0) { return 0 }
+        column_text: *u8 = cache_field(*cursor)
+        if (column_text == null) || (cache_field_separator(*cursor) == 0) { return 0 }
+        end_line_text: *u8 = cache_field(*cursor)
+        if (end_line_text == null) || (cache_field_separator(*cursor) == 0) { return 0 }
+        end_column_text: *u8 = cache_field(*cursor)
+        if (end_column_text == null) || (cache_field_separator(*cursor) == 0) { return 0 }
+        filter: *u8 = cache_field(*cursor)
+        if (filter == null) || (filter[0] == 0) || (cache_field_separator(*cursor) == 0) { return 0 }
+        span_path: *u8 = cache_field(*cursor)
+        if (span_path == null) || (span_path[0] == 0) || (cache_field_separator(*cursor) == 0) { return 0 }
+        path: *u8 = cache_field(*cursor)
+        if (path == null) || (path[0] == 0) || (cache_field_line_end(*cursor) == 0) { return 0 }
+        private_value: s64 = cache_parse_number(private_text)
+        line_value: s64 = cache_parse_number(line_text)
+        column_value: s64 = cache_parse_number(column_text)
+        end_line_value: s64 = cache_parse_number(end_line_text)
+        end_column_value: s64 = cache_parse_number(end_column_text)
+        if (private_value < 0) || (private_value > 1) { return 0 }
+        if (line_value < 0) || (column_value < 0) || (end_line_value < 0) || (end_column_value < 0) { return 0 }
+        using: *IR.ZirUsing = ModuleAddUsing(module, path, SpanEnd(span_path, cast(s32)(line_value), cast(s32)(column_value), cast(s32)(end_line_value), cast(s32)(end_column_value)))
+        if using == null { return 0 }
+        copy_text(cast(*u8)(*((using).filter)), cast(usize)size_of(type_of((using).filter)), filter)
+        (using).is_file_private = cast(s32)(private_value)
+    }
+    if ((cursor).at == null) || (((cursor).at)[0] != 0) { return 0 }
+    if root != null {
+        canonical_root: *u8 = CanonicalPath(root)
+        copy_text(cast(*u8)(*((module).source_root)), cast(usize)size_of(type_of((module).source_root)), (ifx (canonical_root != null) then canonical_root else root))
+        CompilerFree(cast(*void)canonical_root)
+    }
+    return 1
+}
+
+
+frontend_cache_load :: (key: *CacheHex, source: *u8, root: *u8, text: *u8) -> *IR.ZirProgram {
+    meta_path: CachePath
+    zir: CachePath
+    meta: CacheMeta
+    expected: CacheHex
+    actual: CacheHex
+    digest: CacheDigest
+    hash: CacheHash
+    hashed: s32
+    file: *void
+    program: *IR.ZirProgram
+    if cache_entry_path(*meta_path, key, ParserCString(".meta")) == 0 { return null }
+    if cache_entry_path(*zir, key, ParserCString(".zfc")) == 0 { return null }
+    if cache_read_meta(*meta_path, *meta, *expected) == 0 { return null }
+    Sha256Begin(cast(*void)*hash)
+    hashed = cache_hash_file(*hash, cast(*u8)(*(((zir).items))))
+    Sha256End(cast(*void)*hash, cast(*u8)(*((digest).bytes)))
+    cache_hex_encode(*digest, *actual)
+    if (hashed == 0) || (memcmp(cast(*void)(*((expected).items)), cast(*void)(*((actual).items)), cast(usize)(64)) != 0) {
+        CompilerFree(cast(*void)(meta).text)
+        return null
+    }
+    file = CompilerFopen(cast(*u8)(*(((zir).items))), ParserCString("rb"))
+    if file == null {
+        CompilerFree(cast(*void)(meta).text)
+        return null
+    }
+    program = Serial.ProgramReadUnvalidated(file, cast(*u8)(*(((zir).items))))
+    unused CompilerFclose(file)
+    if program == null {
+        CompilerFree(cast(*void)(meta).text)
+        return null
+    }
+    if ((program).module_count != 1) || (frontend_cache_restore_module((program).modules, source, root, text, *meta) == 0) {
+        ProgramFree(program)
+        CompilerFree(cast(*void)(meta).text)
+        return null
+    }
+    CompilerFree(cast(*void)(meta).text)
+    frontend_cache_reset_parsed(program)
+    return program
+}
+
+
+// Saved IR marks every function `from_ir`: the checked-.zir pipeline relies
+// on that to skip restructuring text an earlier check already rewrote. A
+// cache entry is a parse, not a check, so the loaded functions must run the
+// checker exactly like a fresh parse, whose expression graph the checker
+// rebuilds from the statement text.
+frontend_cache_reset_parsed :: (program: *IR.ZirProgram) {
+    for m: 0..(program).module_count-1 {
+        module: *IR.ZirModule = cast(*IR.ZirModule)(cast(usize)(program).modules + cast(usize)(m) * size_of(IR.ZirModule))
+        for f: 0..(module).function_count-1 {
+            function: *IR.ZirFunction = cast(*IR.ZirFunction)(cast(usize)(module).functions + cast(usize)(f) * size_of(IR.ZirFunction))
+            (function).from_ir = 0
+        }
+        for l: 0..(module).law_count-1 {
+            law: *IR.ZirLaw = cast(*IR.ZirLaw)(cast(usize)(module).laws + cast(usize)(l) * size_of(IR.ZirLaw))
+            if (law).claim != null { ((law).claim).from_ir = 0 }
+        }
+        for p: 0..(module).proof_count-1 {
+            proof: *IR.ZirProof = cast(*IR.ZirProof)(cast(usize)(module).proofs + cast(usize)(p) * size_of(IR.ZirProof))
+            ((proof).terms).from_ir = 0
+        }
+    }
+}
+
+
+cache_write_meta :: (path: *CachePath, digest: *CacheHex, body: *u8) -> s32 {
+    file: *void = CompilerFopen(cast(*u8)(*(((path).items))), ParserCString("wb"))
+    if file == null { return 0 }
+    written: s32 = fprintf(file, ParserCString("ziran-frontend-cache 2\nzir|%s\n%s"), cast(*u8)(*((digest).items)), body)
+    closed: s32 = CompilerFclose(file)
+    return cast(s32)((written > 0) && (closed == 0))
+}
+
+
+frontend_cache_discard :: () {
+    for i: 0..frontend_cache_pending_count-1 {
+        entry: *CachePending = cast(*CachePending)(cast(usize)frontend_cache_pending + cast(usize)(i) * size_of(CachePending))
+        unused remove(cast(*u8)(*(((entry).tmp).items)))
+        CompilerFree(cast(*void)(entry).meta)
+        (entry).meta = null
+    }
+    frontend_cache_pending_count = 0
+}
+
+
+// Publish at exit. The entry renames before its meta: a process that dies
+// in between leaves a new entry beside the old meta, whose digest no
+// longer matches, so the pair reads as a miss.
+frontend_cache_commit :: () {
+    if frontend_cache_diagnostics != 0 {
+        frontend_cache_discard()
+        return
+    }
+    for i: 0..frontend_cache_pending_count-1 {
+        entry: *CachePending = cast(*CachePending)(cast(usize)frontend_cache_pending + cast(usize)(i) * size_of(CachePending))
+        zir: CachePath
+        meta: CachePath
+        meta_tmp: CachePath
+        suffix: CacheSuffix
+        snprintf(cast(*u8)(*((suffix).items)), cast(usize)size_of(CacheSuffix), ParserCString(".%d.meta.tmp"), getpid())
+        if (cache_entry_path(*zir, *(entry).key, ParserCString(".zfc")) == 0) || (cache_entry_path(*meta, *(entry).key, ParserCString(".meta")) == 0) || (cache_entry_path(*meta_tmp, *(entry).key, cast(*u8)(*((suffix).items))) == 0) {
+            unused remove(cast(*u8)(*(((entry).tmp).items)))
+            CompilerFree(cast(*void)(entry).meta)
+            (entry).meta = null
+            continue
+        }
+        if cache_write_meta(*meta_tmp, *(entry).digest, (entry).meta) == 0 {
+            unused remove(cast(*u8)(*(((entry).tmp).items)))
+            unused remove(cast(*u8)(*(((meta_tmp).items))))
+            CompilerFree(cast(*void)(entry).meta)
+            (entry).meta = null
+            continue
+        }
+        if rename(cast(*u8)(*(((entry).tmp).items)), cast(*u8)(*((zir).items))) != 0 {
+            unused remove(cast(*u8)(*(((entry).tmp).items)))
+            unused remove(cast(*u8)(*(((meta_tmp).items))))
+            CompilerFree(cast(*void)(entry).meta)
+            (entry).meta = null
+            continue
+        }
+        if rename(cast(*u8)(*(((meta_tmp).items))), cast(*u8)(*((meta).items))) != 0 {
+            unused remove(cast(*u8)(*(((meta_tmp).items))))
+        }
+        CompilerFree(cast(*void)(entry).meta)
+        (entry).meta = null
+    }
+    frontend_cache_pending_count = 0
+}
+
+
+// Write the parse now, while the program is complete, and publish it when
+// the process exits cleanly. The entry joins the pending list only once
+// its file and sidecar exist, so a discard never touches a half-made
+// entry. A repeated key (a long-lived editor session) replaces its
+// earlier entry so the pending list stays bounded.
+frontend_cache_store :: (key: *CacheHex, program: *IR.ZirProgram) {
+    body: *u8 = frontend_cache_sidecar(program)
+    if body == null { return }
+    suffix: CacheSuffix
+    snprintf(cast(*u8)(*((suffix).items)), cast(usize)size_of(CacheSuffix), ParserCString(".%d.tmp"), getpid())
+    tmp: CachePath
+    if cache_entry_path(*tmp, key, cast(*u8)(*((suffix).items))) == 0 {
+        CompilerFree(cast(*void)body)
+        return
+    }
+    file: *void = CompilerFopen(cast(*u8)(*(((tmp).items))), ParserCString("wb"))
+    if file == null {
+        CompilerFree(cast(*void)body)
+        return
+    }
+    written: s32 = Serial.ProgramWriteQuiet(program, file)
+    closed: s32 = CompilerFclose(file)
+    if (written == 0) || (closed != 0) {
+        unused remove(cast(*u8)(*(((tmp).items))))
+        CompilerFree(cast(*void)body)
+        return
+    }
+    hash: CacheHash
+    digest: CacheDigest
+    Sha256Begin(cast(*void)*hash)
+    hashed: s32 = cache_hash_file(*hash, cast(*u8)(*(((tmp).items))))
+    Sha256End(cast(*void)*hash, cast(*u8)(*((digest).bytes)))
+    if hashed == 0 {
+        unused remove(cast(*u8)(*(((tmp).items))))
+        CompilerFree(cast(*void)body)
+        return
+    }
+    entry: *CachePending
+    for i: 0..frontend_cache_pending_count-1 {
+        existing: *CachePending = cast(*CachePending)(cast(usize)frontend_cache_pending + cast(usize)(i) * size_of(CachePending))
+        if strcmp(cast(*u8)(*(((existing).key).items)), cast(*u8)(*((key).items))) == 0 {
+            unused remove(cast(*u8)(*(((existing).tmp).items)))
+            CompilerFree(cast(*void)(existing).meta)
+            entry = existing
+            break
+        }
+    }
+    if entry == null {
+        grown: *CachePending = cast(*CachePending)CompilerRealloc(cast(*void)frontend_cache_pending, cast(usize)(frontend_cache_pending_count + 1) * size_of(CachePending))
+        if grown == null {
+            unused remove(cast(*u8)(*(((tmp).items))))
+            CompilerFree(cast(*void)body)
+            return
+        }
+        frontend_cache_pending = grown
+        entry = cast(*CachePending)(cast(usize)grown + cast(usize)frontend_cache_pending_count * size_of(CachePending))
+        (entry).meta = null
+        frontend_cache_pending_count += 1
+    }
+    cache_hex_encode(*digest, *(entry).digest)
+    (entry).key = (key)[0]
+    (entry).tmp = tmp
+    (entry).meta = body
+    if frontend_cache_exit_registered == 0 {
+        if atexit(frontend_cache_commit) != 0 {
+            frontend_cache_discard()
+            frontend_cache_state = -1
+            return
+        }
+        frontend_cache_exit_registered = 1
+    }
+    ProfileCount(ParserCString("frontend_cache_store"))
+}
+
+
+// The module loader: saved IR loads as before; source either comes back
+// from the cache or is parsed and, when the parse was clean and
+// self-contained, stored for the next build.
+frontend_load :: (context_local: *LoadContext, lexical: *u8, root: *u8, length: usize, canonical: *u8) -> *IR.ZirProgram {
+    if !((length > cast(usize)(3)) && (strcmp(cast(*u8)(cast(usize)(lexical) + (length - cast(usize)(3))), ParserCString(".zi")) == 0)) {
+        return Serial.ProgramLoad(lexical, root)
+    }
+    text: *u8 = cache_source_text(lexical, canonical)
+    defer CompilerFree(cast(*void)text)
+    key: CacheHex
+    if frontend_cache_prepare(context_local, lexical, canonical, root, text, *key) == 0 {
+        return parse_module_with_imports(lexical, root, cast(ZirCompileImportResolver)(early_resolve_imports), cast(*void)(context_local), (context_local).defines, (context_local).define_count, (context_local).site)
+    }
+    cached: *IR.ZirProgram = frontend_cache_load(*key, lexical, root, text)
+    if cached != null {
+        ProfileCount(ParserCString("frontend_cache_hit"))
+        return cached
+    }
+    ProfileCount(ParserCString("frontend_cache_miss"))
+    before: s32 = frontend_cache_diagnostics
+    resolves: s32 = frontend_cache_resolves
+    program: *IR.ZirProgram = parse_module_with_imports(lexical, root, cast(ZirCompileImportResolver)(early_resolve_imports), cast(*void)(context_local), (context_local).defines, (context_local).define_count, (context_local).site)
+    if (program == null) || ((program).module_count != 1) || (frontend_cache_diagnostics != before) { return program }
+    // A parse that consulted an imported module (#if conditions, #run,
+    // default parameter inference) depends on that module's content, which
+    // this module's own digest does not cover. Every consult goes through the
+    // import resolver, so its invocation count is the signal.
+    if frontend_cache_resolves != resolves { return program }
+    frontend_cache_store(*key, program)
+    return program
 }

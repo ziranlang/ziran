@@ -1417,6 +1417,21 @@ matching check. Workers follow the build queue's allocation; set `CHECK_JOBS=1`
 to run serially or choose another positive worker count. `make sanitize` runs
 the suite under AddressSanitizer and UBSan.
 
+The frontend keeps each module's parse in a digest-keyed cache and loads it
+instead of parsing that module again. The key covers the toolchain executable,
+the module text, its source root, the import site's parameter binding, the
+defines, the module paths, the package map and the target; only whole modules
+are reused and checking still runs on the loaded parse. An entry is published
+only when the run ends without a diagnostic, and a module that splices another
+file with `#load` or `#insert`, or that consults an imported module while
+parsing (`#if` conditions, `#run`, default parameter inference), is never
+stored. `--lint` needs a fresh parse and never uses the cache. Entries live
+under `$XDG_CACHE_HOME/ziran/frontend` (`~/.cache/ziran/frontend`);
+`ZIRAN_FRONTEND_CACHE_DIR` puts them elsewhere and `ZIRAN_FRONTEND_CACHE=0`
+disables the cache. A missing or damaged entry is a miss and the module is
+parsed again. `tests/frontend_cache.sh` checks hits, misses, identical
+diagnostics and IR, and the exclusions.
+
 A project's GitHub Actions job sets up the Ziran its `ziran.lock` pins with
 `uses: ziranlang/ziran/.github/actions/setup@COMMIT`. It checks out that
 commit with its compiler built and puts `build/bin` on `PATH`; `fetch: true`

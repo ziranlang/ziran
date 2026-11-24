@@ -58,10 +58,15 @@ No general registry row is Implemented yet. Linux x86-64 machine IR,
 allocation, encoding and opt-in ELF output exist, but the native ZX loader and
 runtime cutover are open, so that row stays a Gap until its M2–M3 gate passes; a partial stage
 such as `TargetMachineLoweringSupported` never implements a row. The
-`zx2native` is a separate opt-in tool. Its `--target ARCH --platform OS`
+`zx2native --target ARCH --platform OS`
 selector implements the rows whose registry entry names an `executable`
 container: `x86_64-linux` writes an ELF and `x86_64-windows` a PE32+ `.exe`
-([`compiler_machine_pe.zi`](../cmd/compiler_machine_pe.zi)). Both carry the
+([`compiler_machine_pe.zi`](../cmd/compiler_machine_pe.zi)). A Linux
+registration may also name an `ar(1)` archive of ELF64 x86-64 objects; the
+executable links the members its capabilities reach and stays static
+([`compiler_x86_archive.zi`](../cmd/compiler_x86_archive.zi)), and anything
+outside that subset is `assembly.gap.machine-archive` naming the capability,
+member and symbol. Both carry the
 same text, constants and data
 ([`compiler_x86_image.zi`](../cmd/compiler_x86_image.zi)) and runtime
 ([`compiler_x86_runtime.zi`](../cmd/compiler_x86_runtime.zi)), whose only

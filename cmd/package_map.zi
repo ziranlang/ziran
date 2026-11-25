@@ -384,3 +384,54 @@ PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest, root_id: 
     if !PkgWriteAtomic(PkgJoin(directory, "/module-map.tsv"), content) { return "" }
     return snapshot
 }
+
+// The native-link sidecar: each locked dependency's modules (M rows) and
+// [package] links (L rows). It travels beside the import map through its own
+// ZIRAN_PACKAGE_LINKS variable so compilers pinned before sidecars keep
+// parsing the map itself unchanged, and a native link credits a dependency's
+// links only for the modules the build includes.
+PkgWriteLinksFile :: (root: string, locked: *PkgLock) -> string {
+    root = PkgCanonical(root)
+    if root == "" || locked == null { return "" }
+    builder: PkgBuilder
+    memory: *u8 = PkgAlloc(33554432)
+    if memory == null { return "" }
+    builder.bytes = BytesFromPointer(memory, 33554432)
+    builder.valid = true
+    set: *PkgModuleSet = cast(*PkgModuleSet)(PkgAllocZero(cast(u64)size_of(PkgModuleSet)))
+    if set == null { return "" }
+    index: s32 = 0
+    while index < locked.count {
+        item: *PkgLocked = *locked.packages[index]
+        extension := ifx item.checked then ".zir" else ".zi"
+        if !PkgScanModules(item.path, *item.manifest, set, extension) { return "" }
+        module: s32 = 0
+        while module < set.count {
+            PkgAppend(*builder, PkgJoin3("M\t", item.id, "\t"))
+            PkgAppend(*builder, set.items[module].name)
+            PkgAppend(*builder, "\t")
+            PkgAppend(*builder, set.items[module].path)
+            PkgAppend(*builder, "\n")
+            module += 1
+        }
+        link: s32 = 0
+        while link < item.manifest.link_count {
+            PkgAppend(*builder, PkgJoin3("L\t", item.id, "\t"))
+            PkgAppend(*builder, item.manifest.links[link])
+            PkgAppend(*builder, "\n")
+            link += 1
+        }
+        set.count = 0
+        index += 1
+    }
+    if !builder.valid { return "" }
+    directory: string = PkgJoin(root, "/build/.ziran")
+    if !PkgMkdirs(directory) { return "" }
+    content := TextFromBytes(builder.bytes[0:builder.at])
+    digest := PkgDigest(content)
+    if digest == "" { return "" }
+    // Pin this invocation to its exact graph, as the import map does.
+    snapshot := PkgJoin3(directory, "/module-map.", PkgJoin(digest, ".links.tsv"))
+    if !PkgWriteAtomic(snapshot, content) { return "" }
+    return snapshot
+}

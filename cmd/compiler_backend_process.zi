@@ -238,6 +238,131 @@ EnvironmentWords :: (name: string, output: *Vectors.Vec(*u8)) -> bool {
     return WordsInto(value, output)
 }
 
+// One `-l<name>` argument token: the linker takes the library name attached.
+LinkFlag :: (name: string) -> *u8 {
+    memory := AllocateRaw(1, cast(usize)(name.count + 3))
+    if memory == null { return null }
+    target := cast(*u8)memory
+    target[0] = #char "-"
+    target[1] = #char "l"
+    for index: 0..name.count - 1 { target[index + 2] = name[index] }
+    target[name.count + 2] = 0
+    return target
+}
+
+// A dependency's [package] links belong to the modules a build includes,
+// not to every project that can name the dependency. The ZIRAN_PACKAGE_LINKS
+// sidecar carries each locked dependency's modules (M rows) and links
+// (L rows); dependency C file names are "<package id>_<module>", so each
+// included module credits its owning package's links once. Projects without
+// the sidecar declare their links in the root manifest and LDLIBS as before.
+MapOwner :: struct { module: string; owner: string }
+MapLink :: struct { owner: string; library: string }
+
+ReadMapBytes :: (path: *u8, length: *s64) -> *u8 {
+    length[0] = 0
+    descriptor := OpenLock(path, 0)
+    if descriptor < 0 { return null }
+    capacity: s64 = 65536
+    filled: s64 = 0
+    memory := AllocateRaw(1, cast(usize)capacity)
+    if memory == null { CloseDescriptor(descriptor); return null }
+    target := cast(*u8)memory
+    chunk: [65536]u8
+    while true {
+        read := ReadDescriptor(descriptor, *chunk[0], 65536)
+        if read < 0 { FreeRaw(memory); CloseDescriptor(descriptor); return null }
+        if read == 0 { break }
+        if filled + read + 1 > capacity {
+            capacity = (filled + read + 1) * 2
+            grown := AllocateRaw(1, cast(usize)capacity)
+            if grown == null { FreeRaw(memory); CloseDescriptor(descriptor); return null }
+            grown_target := cast(*u8)grown
+            for index: 0..filled - 1 { grown_target[index] = target[index] }
+            FreeRaw(memory)
+            memory = grown
+            target = grown_target
+        }
+        for index: 0..read - 1 { target[filled + index] = chunk[index] }
+        filled += read
+    }
+    CloseDescriptor(descriptor)
+    target[filled] = 0
+    length[0] = filled
+    return target
+}
+
+AppendIncludedLinks :: (files: *Vectors.Vec(*u8), tail: *Vectors.Vec(*u8)) -> bool {
+    path := EnvironmentValues.EnvironmentText("ZIRAN_PACKAGE_LINKS")
+    if path.count == 0 { return true }
+    map_path := AllocateText(path)
+    if map_path == null { return true }
+    length: s64
+    memory := ReadMapBytes(map_path, *length)
+    FreeRaw(cast(*void)map_path)
+    if memory == null { return true }
+    map := CTextN(memory, length)
+    owners: Vectors.Vec(MapOwner)
+    links: Vectors.Vec(MapLink)
+    at: s64 = 0
+    while at < map.count {
+        end := at
+        while end < map.count && map[end] != #char "\n" { end += 1 }
+        line := map[at:end]
+        at = end + 1
+        if line.count < 4 { continue }
+        if line[1] != 9 { continue }
+        first: s64 = 2
+        while first < line.count && line[first] != 9 { first += 1 }
+        if first >= line.count { continue }
+        owner := line[2:first]
+        rest := line[first + 1:line.count]
+        if line[0] == #char "L" {
+            if !VecPush(links, MapLink.{owner = owner, library = rest}) { break }
+        } else if line[0] == #char "M" {
+            tab: s64 = 0
+            while tab < rest.count && rest[tab] != 9 { tab += 1 }
+            if tab == 0 || tab >= rest.count { continue }
+            if !VecPush(owners, MapOwner.{module = rest[0:tab], owner = owner}) { break }
+        }
+    }
+    ok := true
+    credited: [64]string
+    credited_count: s32 = 0
+    for index: 0..files.count - 1 {
+        name := PathName(CText((<<files)[index]))
+        if !TextEndsWith(name, ".c") { continue }
+        module := name[0:name.count - 2]
+        for row: owners[:] {
+            // Generated C names are "<module>.c" for root modules and
+            // "<package id>_<module>.c" for dependency modules.
+            matches := row.module == module
+            if !matches && module.count > row.owner.count + 1 && module[0:row.owner.count] == row.owner && module[row.owner.count] == #char "_" && module[row.owner.count + 1:module.count] == row.module { matches = true }
+            if !matches { continue }
+            seen := false
+            if credited_count > 0 {
+                for seen_at: 0..credited_count - 1 {
+                    if credited[seen_at] == row.owner { seen = true }
+                }
+            }
+            if seen { continue }
+            if credited_count < 64 {
+                credited[credited_count] = row.owner
+                credited_count += 1
+            }
+            for map_link: links[:] {
+                if map_link.owner != row.owner { continue }
+                flag := LinkFlag(map_link.library)
+                if flag == null || !VecPush(<<tail, flag) { ok = false }
+            }
+        }
+    }
+    VecFree(owners)
+    VecFree(links)
+    FreeRaw(cast(*void)memory)
+    return ok
+}
+
 AddCArgument :: (output: *Vectors.Vec(*u8), flag: string, value: string) -> bool {
     left := AllocateText(flag)
     if left == null || !VecPush(<<output, left) { return false }
@@ -321,6 +446,7 @@ FinishCompile :: (out: string, name: string, forced_language: bool, base: *Vecto
     }
     Files.CloseDirectory(*cursor)
     if !listed || files.count == 0 { ReleaseBuildValues(base, tail, files, objects, log); return false }
+    if !AppendIncludedLinks(files, tail) { ReleaseBuildValues(base, tail, files, objects, log); return false }
     SortPaths(files)
     object_directory, made := PathJoin(out, ".objects")
     if !made { ReleaseBuildValues(base, tail, files, objects, log); return false }

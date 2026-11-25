@@ -229,11 +229,11 @@ ApiOptionValue :: (option: string) -> bool {
     return false
 }
 
-// The `-l` list a native project build links: the caller's LDLIBS, then the
-// root manifest's [package] links, then each direct locked dependency's
-// links, keeping each library name once. A dependency's own transitive
-// [package] links stay that dependency's build's concern; its manifest must
-// list what its compiled code needs.
+// The `-l` list the compiler child links for a build: the caller's LDLIBS,
+// then the root manifest's [package] links. A dependency's links are not
+// listed here: they travel in ZIRAN_PACKAGE_LINKS, so the native link adds
+// only the dependencies whose modules the build includes. The run --target=c
+// script lane still links the declared list because its scripts see no map.
 PkgNativeLibraries :: (locked: *PkgLock, current: *PkgManifest) -> string {
     libraries: string = PkgGetenv("LDLIBS")
     seen: [64]string
@@ -366,14 +366,22 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
         }
     }
     // Every project build, including an explicit source/--exe build, links
-    // the caller's LDLIBS plus the native libraries of the root manifest and
-    // each locked dependency.
+    // the caller's LDLIBS plus the root manifest's native libraries. A
+    // dependency's links travel in the sidecar file instead: the native link
+    // adds them only for the dependencies whose modules the build includes.
     if project && build {
-        libraries := PkgNativeLibraries(locked, current)
+        libraries := PkgNativeLibraries(null, current)
         if libraries.count > 0 {
             if environment >= 8 { return PkgFail("too many build environment values") }
             names[environment] = "LDLIBS"
             values[environment] = libraries
+            environment += 1
+        }
+        links_file := PkgWriteLinksFile(root, locked)
+        if links_file.count > 0 {
+            if environment >= 8 { return PkgFail("too many build environment values") }
+            names[environment] = "ZIRAN_PACKAGE_LINKS"
+            values[environment] = links_file
             environment += 1
         }
     }

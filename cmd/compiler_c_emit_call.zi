@@ -96,8 +96,10 @@ EmitIndent :: (e: *Emitter) {
 }
 
 GlobalSlotWrapperName :: (module: *IR.ZirModule, global: *IR.ZirGlobal, index: s32, out: *u8, size: usize) {
-    prefix: [64]u8
-    CNumberPrefix(module, *prefix[0], 64)
+    // A package module is named after its lock id, which a long repository
+    // path can stretch well past 64 characters; NativeCFunctionName keeps 256.
+    prefix: [256]u8
+    CNumberPrefix(module, *prefix[0], 256)
     offset := cast(s64)(cast(usize)global - cast(usize)module.globals) / cast(s64)size_of(IR.ZirGlobal)
     CheckFormat(snprintf(out, size, CStr("%s_global_slot_%lld_%d"), *prefix[0], offset, index), size)
 }
@@ -695,8 +697,8 @@ EmitCall :: (e: *Emitter, expr: *IR.ZirExpr, array_result: *u8, out: *u8, size: 
 #scope_file
 
 SlotWrapperName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32, out: *u8, size: usize) {
-    prefix: [64]u8
-    CNumberPrefix(module, *prefix[0], 64)
+    prefix: [256]u8
+    CNumberPrefix(module, *prefix[0], 256)
     offset := cast(s64)(cast(usize)fn - cast(usize)module.functions) / cast(s64)size_of(IR.ZirFunction)
     CheckFormat(snprintf(out, size, CStr("%s_slot_%lld_%d"), *prefix[0], offset, index), size)
 }

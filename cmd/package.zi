@@ -835,19 +835,24 @@ PkgGeneratedRoots :: (root: string, locked: *PkgLock, current: *PkgManifest, fol
         }
         // The compiler gives a file to the package with the longest path
         // holding it; the folder must belong to the project, not a package.
+        // A project inside a package's own checkout, like that package's
+        // in-repo example, keeps its build folders there without the
+        // package counting as foreign.
         owner: string = ""
         best: s64 = PkgPathWithin(path, PkgCanonical(root))
         index: s32 = -1
         while index < locked.count {
             base: string = locked.tool_path
             name: string = "the Ziran toolchain"
+            foreign: bool = true
             if index >= 0 {
                 base = locked.packages[index].path
                 name = PkgJoin("locked package ", locked.packages[index].name)
+                foreign = PkgPathWithin(PkgCanonical(root), PkgCanonical(base)) < 0
             }
             index += 1
             length: s64 = PkgPathWithin(path, PkgCanonical(base))
-            if length > best { best = length; owner = name }
+            if foreign && length > best { best = length; owner = name }
         }
         if owner.count > 0 {
             unused PkgFail(PkgJoin3(PkgJoin3("--module-path folder ", folder, " is inside "),

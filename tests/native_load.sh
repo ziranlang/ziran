@@ -51,6 +51,38 @@ expect_status() {
 expect_status 0 "$zi2zx" run --backend native "$work/Long.zx"
 printf '20\n' | cmp - "$work/out"
 
+# A run with ZIRAN_JIT_DUMP set publishes the loaded code as a JITDUMP file
+# before it runs, so `perf record --jit` can attribute samples to the
+# program's functions; a run without it writes nothing.
+mkdir "$work/jit"
+set +e
+ZIRAN_JIT_DUMP="$work/jit" "$zi2zx" run --backend native "$work/Answer.zx" > "$work/out" 2> "$work/err"
+jit_status=$?
+set -e
+test "$jit_status" -eq 0
+python3 - "$work/jit" <<'PY'
+import glob, struct, sys
+files = sorted(glob.glob(sys.argv[1] + "/jit-*.dump"))
+assert len(files) == 1, files
+data = open(files[0], "rb").read()
+magic, version, total, machine, pad, pid, timestamp, flags = struct.unpack_from("<IIIIIIQQ", data, 0)
+assert magic == 0x4A695444 and version == 1, (hex(magic), version)
+assert total == len(data), (total, len(data))
+assert machine == 62, machine
+assert pid > 0 and timestamp > 0
+at = 40
+names = []
+while at < len(data):
+    rid, size, stamp, code_size, rpad, address, index = struct.unpack_from("<IIQIIQQ", data, at)
+    assert size >= 48 and at + size <= len(data), (at, size)
+    name = data[at + 40:at + size].split(b"\0", 1)[0]
+    assert code_size > 0 and address > 0 and name, (rid, code_size, address, name)
+    names.append(name)
+    at += size
+assert at == len(data)
+assert any(name == b"Answer" for name in names), names[:10]
+PY
+
 expect_status 1 "$zi2zx" run --backend native "$work/Overflow.zx"
 grep -Fq 'native execution failed in Overflow: nested calls filled the stack' "$work/err"
 

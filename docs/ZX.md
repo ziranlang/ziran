@@ -251,6 +251,15 @@ executable mapping. `zx.native.init` measures the module initializers before
 the entry runs. A warm cache hit records lookup and instance startup without
 a compile phase.
 
+Set `ZIRAN_JIT_DUMP` to an absolute directory to publish each native
+instance's loaded code as a JITDUMP file there, `jit-<pid>-<sequence>.dump`,
+as the code becomes executable and before it runs. Each program function is a
+JIT_CODE_LOAD record whose address and size are its loaded extent, so perf's
+JIT interface (`perf record -k 1 ...`, then `perf inject --jit --jitdir=DIR`)
+attributes samples to function names on the same bundle. A run without the
+variable writes no file. The file describes the loaded code of that process;
+a later run writes its own.
+
 ## Learning
 
 `ziran build FILE.zi` keeps a corpus of the programs it compiles to native code,

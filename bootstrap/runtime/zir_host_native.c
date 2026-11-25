@@ -948,8 +948,166 @@ NativeBundleSlotClose(NativeBundleSlot *slot)
     slot->ready = 0;
 }
 
-/* ---- Traps and their diagnostics --------------------------------------- */
+/* ---- Profiler code maps -------------------------------------------------- */
 
+/* Loaded native code has no file a profiler can read, so it is published the
+ * way a JIT publishes it: one JITDUMP file per instance holding a
+ * JIT_CODE_LOAD record per program function, its address the function's
+ * loaded start and its bytes the function's text. perf reads the file
+ * (`perf record -k 1`, then `perf inject --jit --jitdir=DIR`) and attributes
+ * samples to those names. A block or instruction level map is available from
+ * `zx2native --emit map` for the same bundle.
+ *
+ * The file is named jit-<pid>-<sequence>.dump. Nothing is written unless
+ * $ZIRAN_JIT_DUMP names an absolute directory, so ordinary runs touch no
+ * filesystem. */
+
+#define NATIVE_JIT_MAGIC 0x4A695444u
+#define NATIVE_JIT_VERSION 1
+
+typedef struct NativeJitHeader {
+    uint32_t magic;
+    uint32_t version;
+    uint32_t total_size;
+    uint32_t elf_machine;
+    uint32_t pad1;
+    uint32_t pid;
+    uint64_t timestamp;
+    uint64_t flags;
+} NativeJitHeader;
+
+typedef struct NativeJitCodeLoad {
+    uint32_t id;
+    uint32_t total_size;
+    uint64_t timestamp;
+    uint32_t code_size;
+    uint32_t pad;
+    uint64_t code_address;
+    uint64_t code_index;
+    /* The name follows, NUL-terminated, padded to 8 bytes. */
+} NativeJitCodeLoad;
+
+static uint64_t
+native_jit_timestamp(void)
+{
+    struct timespec now;
+#if defined(CLOCK_MONOTONIC)
+    if(clock_gettime(CLOCK_MONOTONIC, &now) == 0)
+        return (uint64_t)now.tv_sec * 1000000000ull + (uint64_t)now.tv_nsec;
+#endif
+    return (uint64_t)time(NULL) * 1000000000ull;
+}
+
+static uint32_t
+native_jit_machine(void)
+{
+#if defined(__x86_64__)
+    return EM_X86_64;
+#elif defined(__aarch64__)
+    return EM_AARCH64;
+#else
+    return EM_ARM;
+#endif
+}
+
+/* Writes every record the instance's code map holds. A function with no
+ * extent, or an empty one, is skipped; the file then attributes only the
+ * code that exists. */
+static void
+native_jit_write(const NativeInstance *instance, int file, const char *path)
+{
+    /* The dump's header is written last, once the record sizes are known:
+     * write a blank header, the records, then the true header. */
+    NativeJitHeader header = {.magic = NATIVE_JIT_MAGIC, .version = NATIVE_JIT_VERSION,
+        .total_size = 0, .elf_machine = native_jit_machine(), .pad1 = 0,
+        .pid = (uint32_t)getpid(), .timestamp = native_jit_timestamp(), .flags = 0};
+    if(write(file, &header, sizeof(header)) != (ssize_t)sizeof(header)) { unlink(path); return; }
+    size_t written = sizeof(header);
+    MachineImage image = instance->code->image;
+    MachineProgram program = instance->code->owner.machine.program;
+    /* Each architecture's encoded image carries the function extents. */
+#if defined(__x86_64__)
+    MachineX64Image encoded = instance->code->owner.encoded.image;
+    const MachineX64Function *extents = encoded.functions.data;
+    int64_t function_count = encoded.functions.length;
+#elif defined(__aarch64__)
+    MachineA64Image encoded = instance->code->owner.encoded_a64.image;
+    const MachineA64Function *extents = encoded.functions.data;
+    int64_t function_count = encoded.functions.length;
+#else
+    MachineV7Image encoded = instance->code->owner.encoded_v7.image;
+    const MachineV7Function *extents = encoded.functions.data;
+    int64_t function_count = encoded.functions.length;
+#endif
+    const MachineFunction *functions = program.functions.data;
+    const char *names = (const char *)program.text.data;
+    /* Disk-cached code has no machine program to name its functions; the
+     * extents still attribute samples, by index. */
+    int named = functions != NULL && names != NULL &&
+        program.functions.length == function_count;
+    uintptr_t base = (uintptr_t)instance->arena.address;
+    /* Cached code keeps only each function's start: its record runs to the
+     * next function's start, or to the code's end. */
+    const int64_t *starts = image.function_offsets.data;
+    int64_t count = function_count > 0 ? function_count : image.function_offsets.length;
+    int ok = 1;
+    for(int64_t id = 0; ok && id < count; id++) {
+        int64_t begin, end;
+        if(function_count > 0) { begin = extents[id].begin; end = extents[id].end; }
+        else {
+            begin = starts[id];
+            end = id + 1 < count ? starts[id + 1] : image.code.bytes.length;
+        }
+        if(begin < 0 || end <= begin || end > image.code.bytes.length) continue;
+        char fallback[32];
+        size_t name_length;
+        const char *name;
+        if(named) {
+            name_length = (size_t)functions[id].name_length;
+            name = names + functions[id].name_offset;
+        } else {
+            name_length = (size_t)snprintf(fallback, sizeof(fallback), "function-%lld", (long long)id);
+            name = fallback;
+        }
+        NativeJitCodeLoad record = {.id = (uint32_t)id, .total_size = 0,
+            .timestamp = header.timestamp, .code_size = (uint32_t)(end - begin), .pad = 0,
+            .code_address = (uint64_t)(base + (uintptr_t)begin), .code_index = (uint64_t)id};
+        size_t name_field = (name_length + 1 + 7) / 8 * 8;
+        record.total_size = (uint32_t)(sizeof(record) + name_field);
+        if(write(file, &record, sizeof(record)) != (ssize_t)sizeof(record)) { ok = 0; break; }
+        written += sizeof(record);
+        if(name_length > 0 &&
+           write(file, name, name_length) != (ssize_t)name_length) { ok = 0; break; }
+        written += name_length;
+        static const unsigned char padding[8];
+        size_t pad = name_field - name_length;
+        if(pad > 0 && write(file, padding, pad) != (ssize_t)pad) { ok = 0; break; }
+        written += pad;
+    }
+    if(!ok) { unlink(path); return; }
+    header.total_size = (uint32_t)written;
+    if(lseek(file, 0, SEEK_SET) != 0 ||
+       write(file, &header, sizeof(header)) != (ssize_t)sizeof(header)) { unlink(path); return; }
+}
+
+/* Publishes the instance's code map, as jit-<pid>-<sequence>.dump in
+ * $ZIRAN_JIT_DUMP. A run without that variable writes nothing. */
+static void
+native_jit_publish(const NativeInstance *instance)
+{
+    const char *directory = getenv("ZIRAN_JIT_DUMP");
+    if(directory == NULL || directory[0] != '/') return;
+    static unsigned counter;
+    char path[4096];
+    int written = snprintf(path, sizeof(path), "%s/jit-%ld-%u.dump", directory, (long)getpid(), counter++);
+    if(written <= 0 || (size_t)written >= sizeof(path)) return;
+    int file = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    if(file < 0) return;
+    native_jit_write(instance, file, path);
+    close(file);
+}
+
+/* ---- Traps and their diagnostics --------------------------------------- */
 static const char *
 native_trap_text(uint32_t code)
 {
@@ -2087,6 +2245,8 @@ NativeInstanceOpen(const NativeBundleCode *code, const ExecBundle *bundle,
     if(!ZirNativeFlushInstructions(&code_mapping) ||
        !ZirNativeProtectRX(&code_mapping))
         goto failed;
+    /* The code map is published once the code is final, before it runs. */
+    native_jit_publish(instance);
     ProfileEnd("zx.native.load", load_started);
     uint64_t init_started = ProfileStart();
     load_stage = "initializers";

@@ -72,14 +72,31 @@ GeneralArgument :: (ordinal: s32) -> s32 {
 GeneralArgumentCount :: 6
 FloatArgumentCount :: 8
 
+SysVClass :: enum s32 { NoClass; Integer; Sse; Memory }
+
+CLayout :: struct {
+    ok: bool
+    size: s64
+    align: s64
+}
+
+SysVRecordClass :: struct {
+    ok: bool
+    size: s64
+    memory: bool
+    count: s32
+    low: SysVClass
+    high: SysVClass
+}
+
 ValidType :: (program: MachineProgram, type: s32) -> bool { return type >= 0 && type < program.types.count }
 
 Scalar :: (kind: MachineTypeKind) -> bool {
     return kind == .Bool || kind == .Integer || kind == .Pointer || kind == .Function
 }
 
-// The INTEGER eightbytes of a record the C ABI passes in registers: one or
-// two fields, each a 64-bit integer or a pointer, or 0 for any other type.
+// The INTEGER eightbytes of a record the Windows C ABI passes in registers:
+// one or two fields, each a 64-bit integer or a pointer, or 0 otherwise.
 Words :: (program: MachineProgram, type: MachineType) -> s32 {
     if type.kind != .Record || type.fields_count < 1 || type.fields_count > 2 ||
         type.size != 8 * cast(s64)type.fields_count || type.fields_begin < 0 ||
@@ -95,6 +112,178 @@ Words :: (program: MachineProgram, type: MachineType) -> s32 {
 }
 
 RoundEight :: (value: s64) -> s64 { return (value + 7) & ~cast(s64)7 }
+
+AlignUp :: (value: s64, align: s64) -> s64 {
+    if align <= 1 { return value }
+    return (value + align - 1) & ~(align - 1)
+}
+
+// Natural x86-64 C struct size and alignment for TYPE_ID.
+TypeCLayout :: (program: MachineProgram, type_id: s32, depth: s32 = 0) -> CLayout {
+    if depth > 64 || !ValidType(program, type_id) { return .{} }
+    type := program.types[type_id]
+    if type.kind == .Void { return .{ok = true, size = 0, align = 1} }
+    if type.kind == .Bool { return .{ok = true, size = 1, align = 1} }
+    if type.kind == .Integer {
+        if type.bits != 8 && type.bits != 16 && type.bits != 32 && type.bits != 64 { return .{} }
+        bytes := cast(s64)(type.bits / 8)
+        return .{ok = true, size = bytes, align = bytes}
+    }
+    if type.kind == .Float {
+        if type.bits != 32 && type.bits != 64 { return .{} }
+        bytes := cast(s64)(type.bits / 8)
+        return .{ok = true, size = bytes, align = bytes}
+    }
+    if type.kind == .Pointer || type.kind == .Function { return .{ok = true, size = 8, align = 8} }
+    if type.kind == .Array {
+        element := TypeCLayout(program, type.element, depth + 1)
+        if !element.ok || type.count < 0 || type.count > 4096 { return .{} }
+        total := element.size * type.count
+        if total > 4096 { return .{} }
+        return .{ok = true, size = total, align = element.align}
+    }
+    if type.kind == .Record {
+        if type.fields_count < 0 || type.fields_begin < 0 ||
+            cast(s64)type.fields_begin + type.fields_count > program.type_ids.count { return .{} }
+        offset: s64 = 0
+        align: s64 = 1
+        for at: 0..type.fields_count - 1 {
+            field := TypeCLayout(program, program.type_ids[type.fields_begin + at], depth + 1)
+            if !field.ok { return .{} }
+            offset = AlignUp(offset, field.align)
+            if field.align > align { align = field.align }
+            offset += field.size
+            if offset > 4096 { return .{} }
+        }
+        total := AlignUp(offset, align)
+        if total > 4096 { return .{} }
+        return .{ok = true, size = total, align = align}
+    }
+    return .{}
+}
+
+MergeSysVClass :: (existing: SysVClass, added: SysVClass) -> SysVClass {
+    if existing == .NoClass { return added }
+    if added == .NoClass { return existing }
+    if existing == .Memory || added == .Memory { return .Memory }
+    if existing == .Integer || added == .Integer { return .Integer }
+    return .Sse
+}
+
+ClassifySysVLeaves :: (program: MachineProgram, type_id: s32, c_base: s64,
+    low: *SysVClass, high: *SysVClass, depth: s32) -> bool {
+    if depth > 64 || !ValidType(program, type_id) { return false }
+    type := program.types[type_id]
+    if Scalar(type.kind) || type.kind == .Float {
+        cls := ifx type.kind == .Float then SysVClass.Sse else SysVClass.Integer
+        first_eb := c_base / 8
+        last_eb := (c_base + type.size - 1) / 8
+        if first_eb != last_eb { cls = .Memory }
+        if first_eb == 0 { low.* = MergeSysVClass(low.*, cls) }
+        else if first_eb == 1 { high.* = MergeSysVClass(high.*, cls) }
+        else { return false }
+        return true
+    }
+    if type.kind == .Array {
+        element := TypeCLayout(program, type.element, depth + 1)
+        if !element.ok { return false }
+        for index: cast(s64)0..type.count - 1 {
+            if !ClassifySysVLeaves(program, type.element, c_base + index * element.size, low, high, depth + 1) {
+                return false
+            }
+        }
+        return true
+    }
+    if type.kind == .Record {
+        offset: s64 = 0
+        for at: 0..type.fields_count - 1 {
+            fid := program.type_ids[type.fields_begin + at]
+            field := TypeCLayout(program, fid, depth + 1)
+            if !field.ok { return false }
+            offset = AlignUp(offset, field.align)
+            if field.size > 0 && !ClassifySysVLeaves(program, fid, c_base + offset, low, high, depth + 1) {
+                return false
+            }
+            offset += field.size
+        }
+        return true
+    }
+    return false
+}
+
+ClassifySysVRecord :: (program: MachineProgram, type_id: s32) -> SysVRecordClass {
+    layout := TypeCLayout(program, type_id, 0)
+    if !layout.ok { return .{} }
+    if layout.size == 0 { return .{ok = true, size = 0, memory = false, count = 0} }
+    if layout.size > 16 { return .{ok = true, size = layout.size, memory = true, count = 0} }
+    low := SysVClass.NoClass
+    high := SysVClass.NoClass
+    if !ClassifySysVLeaves(program, type_id, 0, *low, *high, 0) { return .{} }
+    count: s32 = ifx layout.size > 8 then cast(s32)2 else cast(s32)1
+    memory := low == .Memory || (count == 2 && high == .Memory)
+    return .{ok = true, size = layout.size, memory = memory, count = count, low = low, high = high}
+}
+
+ZeroSlot :: (writer: *X86Writer, base: s32, offset: s64, bytes: s64) {
+    rounded := RoundEight(bytes)
+    at: s64 = 0
+    while at < rounded {
+        X86StoreImmediate(writer, X86At(base, offset + at), 0, 8)
+        at += 8
+    }
+}
+
+// Copies a record between Ziran's packed layout and the C target's naturally
+// aligned struct layout, leaf by leaf, using SCRATCH as a temporary register.
+CopyRecordFields :: (writer: *X86Writer, program: MachineProgram, type_id: s32,
+    z_base: s32, z_off: s64, c_base: s32, c_off: s64, to_c: bool, scratch: s32, depth: s32 = 0) {
+    if depth > 64 || !ValidType(program, type_id) { writer.failed = true; return }
+    type := program.types[type_id]
+    if Scalar(type.kind) || type.kind == .Float {
+        sz := type.size
+        if to_c {
+            X86Load(writer, scratch, X86At(z_base, z_off), sz, false)
+            if type.kind == .Bool { Widen(writer, scratch, type, false) }
+            X86Store(writer, X86At(c_base, c_off), scratch, sz)
+        } else {
+            X86Load(writer, scratch, X86At(c_base, c_off), sz, false)
+            if type.kind == .Bool { Widen(writer, scratch, type, false) }
+            X86Store(writer, X86At(z_base, z_off), scratch, sz)
+        }
+        return
+    }
+    if type.kind == .Array {
+        element_c := TypeCLayout(program, type.element, depth + 1)
+        element_z := program.types[type.element].size
+        for index: cast(s64)0..type.count - 1 {
+            CopyRecordFields(writer, program, type.element,
+                z_base, z_off + index * element_z,
+                c_base, c_off + index * element_c.size,
+                to_c, scratch, depth + 1)
+        }
+        return
+    }
+    if type.kind == .Record {
+        z_cur: s64 = 0
+        c_cur: s64 = 0
+        for at: 0..type.fields_count - 1 {
+            fid := program.type_ids[type.fields_begin + at]
+            field_c := TypeCLayout(program, fid, depth + 1)
+            field_z := program.types[fid].size
+            c_cur = AlignUp(c_cur, field_c.align)
+            if field_c.size > 0 {
+                CopyRecordFields(writer, program, fid,
+                    z_base, z_off + z_cur,
+                    c_base, c_off + c_cur,
+                    to_c, scratch, depth + 1)
+            }
+            z_cur += field_z
+            c_cur += field_c.size
+        }
+        return
+    }
+    writer.failed = true
+}
 
 // Widens REGISTER in place the way TYPE's values are kept: a bool to its low
 // bit, a narrow integer by its sign. Wider values are left as they are.
@@ -114,55 +303,307 @@ Widen :: (writer: *X86Writer, register: s32, type: MachineType, keep: bool) {
     if type.bits == 32 && keep { X86Load(writer, register, X86Direct(register), 4, type.is_signed) }
 }
 
-// Classifies IMPORT's parameters and, with an emitting WRITER, moves them
-// into the C ABI's registers. Returns false for a signature the C ABI cannot
-// carry this way.
-Arguments :: (program: MachineProgram, host: MachineX64HostImport, writer: *X86Writer, emit: bool) -> bool {
-    general: s32 = 0
-    floats: s32 = 0
-    integer: s32 = 0
-    stack: s64 = 0
-    for type_id: host.parameters {
-        if !ValidType(program, type_id) { return false }
-        type := program.types[type_id]
-        if Scalar(type.kind) { general += 1; integer += 1 }
-        else if type.kind == .Float { floats += 1 }
-        else {
-            words := Words(program, type)
-            if words == 0 { return false }
-            integer += words
-            stack += RoundEight(type.size)
-        }
-        if general > GeneralArgumentCount || floats > FloatArgumentCount || integer > GeneralArgumentCount {
-            return false
+SysVPlan :: struct {
+    ok: bool
+    ret_record: bool
+    ret_cls: SysVRecordClass
+    in_gen: s32
+    in_flt: s32
+    needs_scratch: bool
+    ret_ptr_off: s64
+    gen_snap_off: s64
+    flt_snap_off: s64
+    rec_scratch_off: s64
+    sret_buf_off: s64
+    c_stack: s64
+    frame: s64
+}
+
+PlanSysV :: (program: MachineProgram, host: MachineX64HostImport) -> SysVPlan {
+    plan: SysVPlan
+    if !ValidType(program, host.result) { return plan }
+    ret_type := program.types[host.result]
+    if ret_type.kind == .Record {
+        plan.ret_record = true
+        plan.ret_cls = ClassifySysVRecord(program, host.result)
+        if !plan.ret_cls.ok { return plan }
+        if !plan.ret_cls.memory && plan.ret_cls.size > 0 { plan.needs_scratch = true }
+    } else if ret_type.kind != .Void && ret_type.kind != .Float && !Scalar(ret_type.kind) {
+        return plan
+    }
+
+    c_int: s32 = ifx plan.ret_record && plan.ret_cls.memory then cast(s32)1 else cast(s32)0
+    c_sse: s32 = 0
+    for id: host.parameters {
+        if !ValidType(program, id) { return plan }
+        type := program.types[id]
+        if Scalar(type.kind) {
+            if plan.in_gen < GeneralArgumentCount { plan.in_gen += 1 }
+            if c_int < GeneralArgumentCount { c_int += 1 }
+            else { plan.c_stack += 8 }
+        } else if type.kind == .Float {
+            if plan.in_flt < FloatArgumentCount { plan.in_flt += 1 }
+            if c_sse < FloatArgumentCount { c_sse += 1 }
+            else { plan.c_stack += 8 }
+        } else if type.kind == .Record {
+            cls := ClassifySysVRecord(program, id)
+            if !cls.ok { return plan }
+            if cls.size == 0 { continue }
+            if !cls.memory {
+                need_i: s32 = (ifx cls.low == .Integer then cast(s32)1 else cast(s32)0) +
+                    (ifx cls.count == 2 && cls.high == .Integer then cast(s32)1 else cast(s32)0)
+                need_s: s32 = (ifx cls.low == .Sse then cast(s32)1 else cast(s32)0) +
+                    (ifx cls.count == 2 && cls.high == .Sse then cast(s32)1 else cast(s32)0)
+                if c_int + need_i <= GeneralArgumentCount && c_sse + need_s <= FloatArgumentCount {
+                    c_int += need_i
+                    c_sse += need_s
+                    plan.needs_scratch = true
+                } else {
+                    plan.c_stack += RoundEight(cls.size)
+                }
+            } else {
+                plan.c_stack += RoundEight(cls.size)
+            }
+        } else {
+            return plan
         }
     }
-    if !emit { return true }
-    // A scalar's C register is at or after its program register, because
-    // only records add registers before it; moving the last one first never
-    // overwrites a register a scalar before it still reads.
-    index := host.parameters.count - 1
-    while index >= 0 {
-        type := program.types[host.parameters[index]]
+
+    locals: s64 = 0
+    if plan.ret_record {
+        locals += 8
+        plan.ret_ptr_off = locals
+    }
+    if plan.in_gen > 0 {
+        locals += cast(s64)plan.in_gen * 8
+        plan.gen_snap_off = locals
+    }
+    if plan.in_flt > 0 {
+        locals += cast(s64)plan.in_flt * 8
+        plan.flt_snap_off = locals
+    }
+    if plan.needs_scratch {
+        locals += 16
+        plan.rec_scratch_off = locals
+    }
+    if plan.ret_record && plan.ret_cls.memory {
+        locals += RoundEight(plan.ret_cls.size)
+        plan.sret_buf_off = locals
+    }
+    frame := (locals + plan.c_stack + 15) & ~cast(s64)15
+    // Larger call frames need stack probing, which this veneer does not emit.
+    if frame >= 4096 { return plan }
+    plan.frame = frame
+    plan.ok = true
+    return plan
+}
+
+EmitSysVVeneer :: (writer: *X86Writer, program: MachineProgram, host: MachineX64HostImport,
+    slot: s64) -> bool {
+    plan := PlanSysV(program, host)
+    if !plan.ok { return false }
+
+    X86Push(writer, Rbp)
+    X86Move(writer, Rbp, X86Rsp)
+    if plan.frame > 0 { X86SubtractStack(writer, plan.frame) }
+
+    // Snapshot caller's packed return destination (rax) and incoming scalar
+    // registers so argument marshalling never clobbers an unread source.
+    if plan.ret_record {
+        X86Store(writer, X86At(Rbp, -plan.ret_ptr_off), Rax, 8)
+    }
+    for index: 0..plan.in_gen - 1 {
+        X86Store(writer, X86At(Rbp, -plan.gen_snap_off + cast(s64)index * 8), GeneralArgument(index), 8)
+    }
+    for index: 0..plan.in_flt - 1 {
+        X86FloatStore(writer, X86At(Rbp, -plan.flt_snap_off + cast(s64)index * 8), index, 8)
+    }
+
+    // Pass 1: outgoing stack arguments ([rsp + out_off]) before loading any
+    // argument registers.
+    in_g: s32 = 0
+    in_f: s32 = 0
+    in_s: s64 = 0
+    c_int: s32 = ifx plan.ret_record && plan.ret_cls.memory then cast(s32)1 else cast(s32)0
+    c_sse: s32 = 0
+    c_stk: s64 = 0
+    for id: host.parameters {
+        type := program.types[id]
         if Scalar(type.kind) {
-            integer -= 1
-            general -= 1
-            if integer != general { X86Move(writer, GeneralArgument(integer), GeneralArgument(general)) }
-            Widen(writer, GeneralArgument(integer), type, false)
-        } else if type.kind != .Float {
-            words := Words(program, type)
-            integer -= words
-            stack -= RoundEight(type.size)
-            // The program's stack arguments start above rbp's save and the
-            // return address.
-            for word: 0..words - 1 {
-                X86Load(writer, GeneralArgument(integer + word),
-                    X86At(Rbp, 16 + stack + cast(s64)(word * 8)), 8, false)
+            src: X86Operand
+            if in_g < GeneralArgumentCount {
+                src = X86At(Rbp, -plan.gen_snap_off + cast(s64)in_g * 8)
+                in_g += 1
+            } else {
+                src = X86At(Rbp, 16 + in_s)
+                in_s += 8
+            }
+            if c_int < GeneralArgumentCount {
+                c_int += 1
+            } else {
+                X86Load(writer, R10, src, 8, false)
+                Widen(writer, R10, type, false)
+                X86Store(writer, X86At(X86Rsp, c_stk), R10, 8)
+                c_stk += 8
+            }
+        } else if type.kind == .Float {
+            src: X86Operand
+            load_sz: s64 = 8
+            if in_f < FloatArgumentCount {
+                src = X86At(Rbp, -plan.flt_snap_off + cast(s64)in_f * 8)
+                in_f += 1
+            } else {
+                src = X86At(Rbp, 16 + in_s)
+                load_sz = type.size
+                in_s += 8
+            }
+            if c_sse < FloatArgumentCount {
+                c_sse += 1
+            } else {
+                if load_sz == 4 {
+                    X86StoreImmediate(writer, X86At(X86Rsp, c_stk), 0, 8)
+                    X86Load(writer, R10, src, 4, false)
+                    X86Store(writer, X86At(X86Rsp, c_stk), R10, 4)
+                } else {
+                    X86Load(writer, R10, src, 8, false)
+                    X86Store(writer, X86At(X86Rsp, c_stk), R10, 8)
+                }
+                c_stk += 8
+            }
+        } else {
+            z_off := in_s
+            in_s += RoundEight(type.size)
+            cls := ClassifySysVRecord(program, id)
+            if cls.size == 0 { continue }
+            in_regs := false
+            if !cls.memory {
+                need_i: s32 = (ifx cls.low == .Integer then cast(s32)1 else cast(s32)0) +
+                    (ifx cls.count == 2 && cls.high == .Integer then cast(s32)1 else cast(s32)0)
+                need_s: s32 = (ifx cls.low == .Sse then cast(s32)1 else cast(s32)0) +
+                    (ifx cls.count == 2 && cls.high == .Sse then cast(s32)1 else cast(s32)0)
+                if c_int + need_i <= GeneralArgumentCount && c_sse + need_s <= FloatArgumentCount {
+                    in_regs = true
+                    c_int += need_i
+                    c_sse += need_s
+                }
+            }
+            if !in_regs {
+                ZeroSlot(writer, X86Rsp, c_stk, cls.size)
+                CopyRecordFields(writer, program, id, Rbp, 16 + z_off, X86Rsp, c_stk, true, R10)
+                c_stk += RoundEight(cls.size)
             }
         }
-        index -= 1
     }
-    return true
+
+    // Pass 2: register arguments from snapshots / caller stack. Uses only R10
+    // as scratch so no target argument register is clobbered.
+    in_g = 0
+    in_f = 0
+    in_s = 0
+    c_int = ifx plan.ret_record && plan.ret_cls.memory then cast(s32)1 else cast(s32)0
+    c_sse = 0
+    if plan.ret_record && plan.ret_cls.memory {
+        X86Lea(writer, Rdi, X86At(Rbp, -plan.sret_buf_off))
+    }
+    for id: host.parameters {
+        type := program.types[id]
+        if Scalar(type.kind) {
+            src: X86Operand
+            if in_g < GeneralArgumentCount {
+                src = X86At(Rbp, -plan.gen_snap_off + cast(s64)in_g * 8)
+                in_g += 1
+            } else {
+                src = X86At(Rbp, 16 + in_s)
+                in_s += 8
+            }
+            if c_int < GeneralArgumentCount {
+                dst := GeneralArgument(c_int)
+                X86Load(writer, dst, src, 8, false)
+                Widen(writer, dst, type, false)
+                c_int += 1
+            }
+        } else if type.kind == .Float {
+            src: X86Operand
+            load_sz: s64 = 8
+            if in_f < FloatArgumentCount {
+                src = X86At(Rbp, -plan.flt_snap_off + cast(s64)in_f * 8)
+                in_f += 1
+            } else {
+                src = X86At(Rbp, 16 + in_s)
+                load_sz = type.size
+                in_s += 8
+            }
+            if c_sse < FloatArgumentCount {
+                X86FloatLoad(writer, c_sse, src, load_sz)
+                c_sse += 1
+            }
+        } else {
+            z_off := in_s
+            in_s += RoundEight(type.size)
+            cls := ClassifySysVRecord(program, id)
+            if cls.size == 0 || cls.memory { continue }
+            need_i: s32 = (ifx cls.low == .Integer then cast(s32)1 else cast(s32)0) +
+                (ifx cls.count == 2 && cls.high == .Integer then cast(s32)1 else cast(s32)0)
+            need_s: s32 = (ifx cls.low == .Sse then cast(s32)1 else cast(s32)0) +
+                (ifx cls.count == 2 && cls.high == .Sse then cast(s32)1 else cast(s32)0)
+            if c_int + need_i <= GeneralArgumentCount && c_sse + need_s <= FloatArgumentCount {
+                ZeroSlot(writer, Rbp, -plan.rec_scratch_off, 16)
+                CopyRecordFields(writer, program, id, Rbp, 16 + z_off, Rbp, -plan.rec_scratch_off, true, R10)
+                if cls.low == .Integer {
+                    X86Load(writer, GeneralArgument(c_int), X86At(Rbp, -plan.rec_scratch_off), 8, false)
+                    c_int += 1
+                } else {
+                    X86FloatLoad(writer, c_sse, X86At(Rbp, -plan.rec_scratch_off), 8)
+                    c_sse += 1
+                }
+                if cls.count == 2 {
+                    if cls.high == .Integer {
+                        X86Load(writer, GeneralArgument(c_int), X86At(Rbp, -plan.rec_scratch_off + 8), 8, false)
+                        c_int += 1
+                    } else {
+                        X86FloatLoad(writer, c_sse, X86At(Rbp, -plan.rec_scratch_off + 8), 8)
+                        c_sse += 1
+                    }
+                }
+            }
+        }
+    }
+
+    if host.archive { X86Call32(writer, slot) }
+    else { X86Encode(writer, 0, false, 255, 1, 2, X86RipTarget(slot)) }
+
+    if plan.ret_record {
+        if plan.ret_cls.size > 0 {
+            if !plan.ret_cls.memory {
+                if plan.ret_cls.low == .Integer {
+                    X86Store(writer, X86At(Rbp, -plan.rec_scratch_off), Rax, 8)
+                } else {
+                    X86FloatStore(writer, X86At(Rbp, -plan.rec_scratch_off), 0, 8)
+                }
+                if plan.ret_cls.count == 2 {
+                    if plan.ret_cls.high == .Integer {
+                        reg: s32 = ifx plan.ret_cls.low == .Integer then cast(s32)Rdx else cast(s32)Rax
+                        X86Store(writer, X86At(Rbp, -plan.rec_scratch_off + 8), reg, 8)
+                    } else {
+                        xmm: s32 = ifx plan.ret_cls.low == .Sse then cast(s32)1 else cast(s32)0
+                        X86FloatStore(writer, X86At(Rbp, -plan.rec_scratch_off + 8), xmm, 8)
+                    }
+                }
+                X86Load(writer, X86R11, X86At(Rbp, -plan.ret_ptr_off), 8, false)
+                CopyRecordFields(writer, program, host.result, X86R11, 0, Rbp, -plan.rec_scratch_off, false, R10)
+            } else {
+                X86Load(writer, X86R11, X86At(Rbp, -plan.ret_ptr_off), 8, false)
+                CopyRecordFields(writer, program, host.result, X86R11, 0, Rbp, -plan.sret_buf_off, false, R10)
+            }
+        }
+    } else {
+        Widen(writer, Rax, program.types[host.result], true)
+    }
+
+    if plan.frame > 0 { X86Leave(writer) }
+    else { X86Byte(writer, 93) }
+    X86Return(writer)
+    return !writer.failed
 }
 
 ResultSupported :: (program: MachineProgram, result: s32) -> bool {
@@ -250,18 +691,19 @@ WindowsArguments :: (program: MachineProgram, host: MachineX64HostImport,
 // Whether IMPORT's signature has a veneer.
 MachineX64HostSupported :: (program: MachineProgram, host: MachineX64HostImport) -> bool {
     measure: X86Writer
-    if !ResultSupported(program, host.result) { return false }
     // An archive's members are ELF; a Windows executable links none.
     if host.archive && program.target.os == .Windows { return false }
-    if program.target.os == .Windows { return WindowsArguments(program, host, *measure, false) }
-    return Arguments(program, host, *measure, false)
+    if program.target.os == .Windows {
+        return ResultSupported(program, host.result) && WindowsArguments(program, host, *measure, false)
+    }
+    return PlanSysV(program, host).ok
 }
 
 // IMPORT's veneer at the writer's position, calling through the slot at
 // position SLOT: push rbp; mov rbp, rsp; the argument moves; call [rip +
-// slot]; the result's widening; pop rbp; ret. A measuring writer only counts
-// its bytes, which never depend on the slot's position. A built-in service
-// (library MachineX64HostBuiltin) gets its own veneer instead, growing
+// slot]; the result's widening; leave/pop rbp; ret. A measuring writer only
+// counts its bytes, which never depend on the slot's position. A built-in
+// service (library MachineX64HostBuiltin) gets its own veneer instead, growing
 // buffers through the runtime's RESIZE entry and on Windows calling kernel32
 // through IMPORTS.
 MachineX64HostVeneer :: (writer: *X86Writer, program: MachineProgram, host: MachineX64HostImport,
@@ -278,15 +720,7 @@ MachineX64HostVeneer :: (writer: *X86Writer, program: MachineProgram, host: Mach
         X86Return(writer)
         return !writer.failed
     }
-    X86Push(writer, Rbp)
-    X86Move(writer, Rbp, X86Rsp)
-    if !Arguments(program, host, writer, true) { return false }
-    if host.archive { X86Call32(writer, slot) }
-    else { X86Encode(writer, 0, false, 255, 1, 2, X86RipTarget(slot)) }
-    Widen(writer, Rax, program.types[host.result], true)
-    X86Byte(writer, 93)
-    X86Return(writer)
-    return !writer.failed
+    return EmitSysVVeneer(writer, program, host, slot)
 }
 
 // Whether IMPORT, provided by the executable itself, names one of the ZX

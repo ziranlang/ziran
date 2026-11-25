@@ -535,9 +535,15 @@ HostAbiGap :: (program: *Lowered.LirProgram, function: s32, target: Target.Targe
     }
     machine_kind := "ELF"
     if target.os == .Windows { machine_kind = "PE" }
-    Diagnostic(NoSpan(), CStr("assembly.gap.machine-host-abi"),
-        CStr("assembly.gap.machine-host-abi: machine %s cannot pass host capability %.*s's parameters or result through the C ABI: only bool, integer, pointer and float values and records of one or two 8-byte integers or pointers cross it; no alternate engine was selected"),
-        CStr(machine_kind), cast(s32)name.count, TextPointer(name))
+    if target.os == .Windows {
+        Diagnostic(NoSpan(), CStr("assembly.gap.machine-host-abi"),
+            CStr("assembly.gap.machine-host-abi: machine %s cannot pass host capability %.*s's parameters or result through the C ABI: only bool, integer, pointer and float values and records of one or two 8-byte integers or pointers cross it; no alternate engine was selected"),
+            CStr(machine_kind), cast(s32)name.count, TextPointer(name))
+    } else {
+        Diagnostic(NoSpan(), CStr("assembly.gap.machine-host-abi"),
+            CStr("assembly.gap.machine-host-abi: machine %s cannot pass host capability %.*s's parameters or result through the C ABI: top-level arrays, vectors and frames >= 4096 bytes cannot cross it; no alternate engine was selected"),
+            CStr(machine_kind), cast(s32)name.count, TextPointer(name))
+    }
 }
 
 Json :: (stream: *void, value: string) {

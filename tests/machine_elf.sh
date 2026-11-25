@@ -804,9 +804,28 @@ printf 'preserve-output\n' | cmp - "$work/native-host.elf"
 
 # A host capability links by name from a registered host library, called with
 # the C ABI the C target declares for it, so a host built by the C target
-# serves the executable: strings, integers of every width, bools and floats
-# cross in parameter order and come back widened as the program keeps them.
+# serves the executable: strings, integers of every width, bools, floats,
+# small/mixed/padded records, stack-spilled arguments and record returns cross
+# cleanly.
 cat > "$work/host_provider.zi" <<'ZI'
+Color :: struct { r: u8; g: u8; b: u8; a: u8 }
+Rect :: struct { x: float32; y: float32; width: float32; height: float32 }
+Packet :: struct {
+    width: s32
+    height: s32
+    x: float32
+    y: float32
+    down: bool
+    pressed: bool
+    released: bool
+    secondary_down: bool
+    secondary_pressed: bool
+    secondary_released: bool
+    modifiers: s32
+    key: s32
+    wheel: float32
+    closed: bool
+}
 #program_export
 Measure :: (label: string, scale: s32, flag: bool, low: u8) -> s64 {
     return label.count * scale + ifx flag then cast(s64)low else 0
@@ -821,6 +840,24 @@ Narrow :: (value: s64) -> s16 { return cast(s16)value }
 Even :: (value: u32) -> bool { return value % 2 == 0 }
 #program_export
 Low :: (value: s64) -> u32 { return cast(u32)value }
+#program_export
+Paint :: (bounds: Rect, color: Color, a: s32, b: s32, c: s32, d: s32, e: s32, f: s32, g: s32) -> s64 {
+    return cast(s64)bounds.x + cast(s64)bounds.y + cast(s64)bounds.width + cast(s64)bounds.height +
+        cast(s64)color.r + cast(s64)color.g + cast(s64)color.b + cast(s64)color.a +
+        cast(s64)(a + b + c + d + e + f + g)
+}
+#program_export
+Greet :: (tag: u32) -> string {
+    if tag == 2 { return "ok" }
+    return "no"
+}
+#program_export
+MakePacket :: (w: s32, h: s32, key: s32, closed: bool) -> Packet {
+    return Packet.{.width = w, .height = h, .x = 12.5, .y = 34.25,
+        .down = true, .pressed = false, .released = true,
+        .secondary_down = false, .secondary_pressed = true, .secondary_released = false,
+        .modifiers = 5, .key = key, .wheel = -2.5, .closed = closed}
+}
 ZI
 "$ziran" build --target=c --root "$work" -o "$work/host-provider" "$work/host_provider.zi"
 cc -std=c99 -O2 -fPIC -shared -I"$repo/include" "$work"/host-provider/*.c -o "$work/libhost-provider.so"
@@ -828,11 +865,32 @@ mkdir "$work/hosts"
 printf '%s\n' "$work/libhost-provider.so" > "$work/hosts/test.library"
 cat > "$work/host_link.zi" <<'ZI'
 host_api :: #system_library "host_api";
+Color :: struct { r: u8; g: u8; b: u8; a: u8 }
+Rect :: struct { x: float32; y: float32; width: float32; height: float32 }
+Packet :: struct {
+    width: s32
+    height: s32
+    x: float32
+    y: float32
+    down: bool
+    pressed: bool
+    released: bool
+    secondary_down: bool
+    secondary_pressed: bool
+    secondary_released: bool
+    modifiers: s32
+    key: s32
+    wheel: float32
+    closed: bool
+}
 Measure :: (label: string, scale: s32, flag: bool, low: u8) -> s64 #reads #foreign host_api;
 Blend :: (left: float64, count: s8, right: float64, last: string) -> float64 #reads #foreign host_api;
 Narrow :: (value: s64) -> s16 #foreign host_api;
 Even :: (value: u32) -> bool #foreign host_api;
 Low :: (value: s64) -> u32 #foreign host_api;
+Paint :: (bounds: Rect, color: Color, a: s32, b: s32, c: s32, d: s32, e: s32, f: s32, g: s32) -> s64 #foreign host_api;
+Greet :: (tag: u32) -> string #foreign host_api;
+MakePacket :: (w: s32, h: s32, key: s32, closed: bool) -> Packet #foreign host_api;
 #program_export
 Answer :: () -> s32 {
     if Measure("Window", 3, true, 200) != 218 || Measure("", 9, false, 7) != 0 { return 1 }
@@ -840,6 +898,12 @@ Answer :: () -> s32 {
     if Narrow(65533) != -3 { return 3 }
     if !Even(4) || Even(5) { return 4 }
     if Low(0x1ffffffff) != 0xffffffff { return 5 }
+    if Paint(Rect.{1.0, 2.0, 3.0, 4.0}, Color.{10, 20, 30, 40}, 1, 2, 3, 4, 5, 6, 7) != 138 { return 6 }
+    if Greet(2) != "ok" || Greet(9) != "no" { return 7 }
+    p := MakePacket(960, 600, 65, true)
+    if p.width != 960 || p.height != 600 || p.x != 12.5 || p.y != 34.25 ||
+        !p.down || p.pressed || !p.released || p.secondary_down || !p.secondary_pressed ||
+        p.secondary_released || p.modifiers != 5 || p.key != 65 || p.wheel != -2.5 || !p.closed { return 8 }
     return 42
 }
 ZI
@@ -927,9 +991,9 @@ grep -Fq 'assembly.gap.machine-host: machine ELF does not implement host capabil
 printf 'preserve-output\n' | cmp - "$work/host-unlinked"
 cat > "$work/host_record.zi" <<'ZI'
 host_api :: #system_library "host_api";
-Even :: (value: u32) -> string #foreign host_api;
+Even :: (value: u32) -> [4]s64 #foreign host_api;
 #program_export
-Answer :: () -> s32 { return cast(s32)Even(2).count }
+Answer :: () -> s32 { return cast(s32)Even(2)[0] }
 ZI
 "$zi2zx" --root "$work" --entry host_record:Answer -o "$work/host-record.zx" "$work/host_record.zi"
 if ZIRAN_HOST_PATH="$work/hosts" "$zx2native" -o "$work/host-record" "$work/host-record.zx" \

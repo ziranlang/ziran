@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Match host record types from dependency aliases and readable package identities, preserving exact module and field checks.
+
 - Name dependency modules and generated symbols after their import aliases instead of repository addresses and revision hashes. Conflicting pins under one name require an explicit dependency alias.
 
 ## [0.9.0] - 2026-11-25

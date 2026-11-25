@@ -567,11 +567,34 @@ TypeMatches :: (expected: *u8, actual: *u8, depth: s32) -> bool {
             packaged_length = actual_module
             plain_length = expected_module
         }
-        if packaged_length != plain_length + 18 || packaged[0] != #char "p" || packaged[17] != #char "_" { return false }
-        for i: 1..16 {
-            if !IsHexDigit(packaged[i]) { return false }
+        prefix := packaged_length - plain_length
+        if prefix <= 0 || memcmp(Advance(packaged, cast(usize)prefix), plain, plain_length) != 0 { return false }
+        // Imported modules use an explicit alias boundary. Do not treat an
+        // underscore inside a module's own name as a package separator.
+        if prefix >= 3 && packaged[prefix - 1] == #char "_" && packaged[prefix - 2] == #char "_" {
+            for i: 0..prefix - 3 {
+                byte := packaged[i]
+                if !((byte >= #char "a" && byte <= #char "z") ||
+                    (byte >= #char "A" && byte <= #char "Z") || byte == #char "_" ||
+                    (i > 0 && byte >= #char "0" && byte <= #char "9")) { return false }
+            }
+            return true
         }
-        return memcmp(Advance(packaged, 18), plain, plain_length) == 0
+        if prefix == 18 && packaged[0] == #char "p" && packaged[17] == #char "_" {
+            for i: 1..16 { if !IsHexDigit(packaged[i]) { return false } }
+            return true
+        }
+        // Repository identities end in a twelve-digit revision followed by
+        // the exact module. Older published bundles retain those identities.
+        if prefix < 15 || packaged[prefix - 1] != #char "_" || packaged[prefix - 14] != #char "_" { return false }
+        for i: 0..prefix - 15 {
+            byte := packaged[i]
+            if !((byte >= #char "a" && byte <= #char "z") ||
+                (byte >= #char "A" && byte <= #char "Z") || byte == #char "_" ||
+                (i > 0 && byte >= #char "0" && byte <= #char "9")) { return false }
+        }
+        for i: prefix - 13..prefix - 2 { if !IsHexDigit(packaged[i]) { return false } }
+        return true
     }
     if Same(expected_leaf, actual_leaf) { return true }
     if expected_dot != null { return FlatTypeMatches(expected, actual) }

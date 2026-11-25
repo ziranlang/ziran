@@ -260,6 +260,10 @@ struct NativeInstance {
     int cumulative;
     uint32_t trap_code;
     uintptr_t trap_pc;
+    /* A host trap capability index and which invoke step refused, so the
+     * report names the call even when the code came from the disk cache. */
+    int32_t trap_host;
+    const char *trap_host_step;
     NativeActiveCall *active;
     NativeBlock *blocks;
     NativeChunk *chunks;
@@ -1154,7 +1158,7 @@ native_trap_site(const NativeInstance *instance, char *text, size_t capacity)
     }
     char problem[512];
     NativeBundleCode *named = native_compile(instance->bundle, instance->unbounded, problem, sizeof(problem));
-    if(named == NULL) { snprintf(text, capacity, "function=? block=?"); return; }
+    if(named == NULL) { snprintf(text, capacity, "function=? block=? (%s)", problem); return; }
     native_trap_site_in(instance, &named->owner, text, capacity);
     native_free_code(named);
 }
@@ -1231,13 +1235,25 @@ native_report(const NativeInstance *instance, int initializing)
             instance->limit);
         return;
     }
-    char site[512];
+    char site[1024];
     native_trap_site(instance, site, sizeof(site));
+    char host[320];
+    host[0] = 0;
+    if(instance->trap_code == NATIVE_TRAP_HOST && instance->trap_host >= 0) {
+        const char *module = ExecBundleCapabilityModule(instance->bundle, (size_t)instance->trap_host);
+        const char *name = ExecBundleCapabilityFunction(instance->bundle, (size_t)instance->trap_host);
+        snprintf(host, sizeof(host), " host=%s.%s step=%s",
+            module != NULL ? module : "?", name != NULL ? name : "?",
+            instance->trap_host_step != NULL ? instance->trap_host_step : "?");
+    } else if(instance->trap_code == NATIVE_TRAP_HOST) {
+        snprintf(host, sizeof(host), " step=%s",
+            instance->trap_host_step != NULL ? instance->trap_host_step : "?");
+    }
     Diagnostic((ZirSourceSpan){0}, "zx.runtime",
-        "native execution failed in %s: %s (problem=%s trap=0x%08x %s)",
+        "native execution failed in %s: %s (problem=%s trap=0x%08x %s%s)",
         initializing ? "global initialization" : ExecBundleEntryFunction(instance->bundle),
         native_trap_text(instance->trap_code), native_trap_problem(instance->trap_code),
-        (unsigned)instance->trap_code, site);
+        (unsigned)instance->trap_code, site, host);
 }
 
 static _Noreturn void
@@ -1252,6 +1268,17 @@ NativeTrap(NativeInstance *instance, uint32_t code, uintptr_t at)
     instance->trap_pc = at;
     instance->terminal = 1;
     longjmp(instance->active->trap, 1);
+}
+
+/* Records the failing host call and invoke step, then raises the host trap. */
+static _Noreturn void
+NativeHostRefuse(NativeInstance *instance, int32_t function, const char *step)
+{
+    instance->trap_host =
+        function >= 0 && (size_t)function < instance->function_count
+            ? instance->capabilities[function] : -1;
+    instance->trap_host_step = step;
+    NativeTrap(instance, NATIVE_TRAP_HOST, 0);
 }
 
 /* ---- Host calls ---------------------------------------------------------- */
@@ -1514,7 +1541,7 @@ NativeHostInvoke(NativeInstance *instance, int32_t function,
             memcpy(&values[0], frame->floating[0], sizeof(values[0]));
         }
         if(!native_service(instance, service, values, count))
-            NativeTrap(instance, NATIVE_TRAP_HOST, 0);
+            NativeHostRefuse(instance, function, "service");
         return 0;
     }
     ExecHostNativeValue local[8], *arguments = NULL, returned = {0};
@@ -1522,7 +1549,7 @@ NativeHostInvoke(NativeInstance *instance, int32_t function,
     unsigned char *aggregate_result = NULL;
     if(!native_arguments(instance, function, frame, local, 8, &arguments, &count,
                          &aggregate_result))
-        NativeTrap(instance, NATIVE_TRAP_HOST, 0);
+        NativeHostRefuse(instance, function, "arguments");
     int ok;
     /* A host capability may print too: the program's output comes first. */
     if(instance->capabilities[function] >= 0)
@@ -1534,7 +1561,7 @@ NativeHostInvoke(NativeInstance *instance, int32_t function,
                                   arguments, count, &returned);
     if(arguments != local) free(arguments);
     if(!ok)
-        NativeTrap(instance, NATIVE_TRAP_HOST, 0);
+        NativeHostRefuse(instance, function, "call");
     const LirProgram *program = ExecBundleProgram(instance->bundle);
     const LirFunction *declared =
         &((const LirFunction *)program->functions.data)[function];
@@ -1546,7 +1573,7 @@ NativeHostInvoke(NativeInstance *instance, int32_t function,
         int64_t expected = native_type_size(program, declared->result, 0);
         if(expected < 0 || returned.size != (size_t)expected ||
            (expected > 0 && returned.bytes == NULL))
-            NativeTrap(instance, NATIVE_TRAP_HOST, 0);
+            NativeHostRefuse(instance, function, "result");
         if(expected > 0) memcpy(aggregate_result, returned.bytes, returned.size);
     } else if(result->kind == LirTypeKind_Float)
         frame->floating_result = returned.bits;

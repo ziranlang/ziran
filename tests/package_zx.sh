@@ -424,7 +424,7 @@ Copy :: (value: $T) -> T { return value; }
         consumer.mkdir()
         (consumer / 'ziran.toml').write_text('[package]\nname = "consumer"\nmodule_roots = ["."]\n' + tool_section +
                                              f'[dependencies.state]\ngit = "{repository}"\nref = "{checked_revision}"\n')
-        identity = 'p' + hashlib.sha256(f'https://localhost/ziranlang/fixture.git\n{checked_revision}'.encode()).hexdigest()[:16]
+        identity = 'localhost_ziranlang_fixture_' + checked_revision[:12]
         row = {'id': identity, 'name': 'state', 'url': repository, 'ref': checked_revision,
                'commit': checked_revision, 'dependencies': {}}
         project(consumer, 'consumer', [row], {'state': identity})
@@ -582,13 +582,13 @@ main :: () -> s32 {
         checked_artifact = f'/api/packages/ziranlang/generic/fixture-zx-library/{checked_revision}/default.zx'
         descriptor = checked_artifact + '.tsv'
         good_metadata = server.images[descriptor]
-        expected_tool = 'p' + hashlib.sha256(f'{tool_url}\n{tool_revision}'.encode()).hexdigest()[:16]
+        expected_tool = 'waozi_xyz_ziranlang_ziran_' + tool_revision[:12]
         assert good_metadata == f'2\t{identity}\t{expected_tool}\tdefault\t{archive_digest}\n'.encode()
         add = [ziran, 'add', repository, '--name', 'state', '--ref', checked_revision]
         # A library checked under another toolchain leaves the package on its
         # source: no archive is fetched and the add goes on to the Git
         # checkout, which this registry-only fixture server cannot serve.
-        server.images[descriptor] = good_metadata.replace(expected_tool.encode(), b'p0000000000000000')
+        server.images[descriptor] = good_metadata.replace(expected_tool.encode(), b'waozi_xyz_ziranlang_ziran_000000000000')
         before = len(server.requests)
         env['XDG_CACHE_HOME'] = str(root / 'other-toolchain-cache')
         command(*add, failure='cannot check out', cwd=automatic)
@@ -657,7 +657,7 @@ main :: () -> s32 {
         # toolchain instead of refusing.
         refreshed = json.loads(saved)
         stale = json.loads(saved)
-        stale['packages'][0]['checked']['toolchain'] = 'p0000000000000000'
+        stale['packages'][0]['checked']['toolchain'] = 'waozi_xyz_ziranlang_ziran_000000000000'
         stale_lock = json.dumps(stale)
         advice = 'for another Ziran toolchain build; run ziran lock to refresh it'
         for refresh in ('lock', 'update'):
@@ -710,7 +710,7 @@ Copy :: (value: $T) -> T { return value; }
         pins.write_text('{"format": 1,')
         command(*argv, '--offline', failure='invalid checked packages in ziran.zx.lock', cwd=consumer)
 
-        wrong_identity = f'2\t{identity}\tp0000000000000000\tdefault\n'.encode()
+        wrong_identity = f'2\t{identity}\twaozi_xyz_ziranlang_ziran_000000000000\tdefault\n'.encode()
         wrong_tool = make_library([(b'checked-package.tsv', wrong_identity), *sections[1:]])
         server.images[checked_artifact] = wrong_tool
         pins.write_text(json.dumps({'format': 1, 'packages': [{'package': identity, 'profile': 'default',

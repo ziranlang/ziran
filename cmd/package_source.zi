@@ -208,6 +208,25 @@ PkgSameSource :: (left: string, right: string) -> bool {
     return key.count > 0 && key == PkgSourceKey(right)
 }
 
+// The repository tag of an identity: the host and path of the canonical
+// address with a "git." host prefix dropped, or the last path segment of a
+// local address. The tag names the repository an identity pins.
+PkgIdUrlTag :: (url: string) -> string {
+    source: PkgSource = PkgParseSource(url)
+    if !source.valid { return "" }
+    if source.local {
+        leaf: s64 = source.path.count
+        while leaf > 0 && source.path[leaf - 1] != cast(u8)47 { leaf -= 1 }
+        return PkgIdName(source.path[leaf:])
+    }
+    host: string = source.host
+    if host.count >= 4 && host[0:4] == "git." { host = host[4:] }
+    path: string = source.path
+    if path.count > 0 && path[path.count - 1:] == "/" { path = path[0:path.count - 1] }
+    joined: string = ifx path.count > 0 then PkgJoin3(host, "_", PkgIdName(path)) else host
+    return PkgIdName(joined)
+}
+
 // The same repository over the other transport, or "" when there is none.
 PkgAlternateURL :: (url: string) -> string {
     source: PkgSource = PkgParseSource(url)

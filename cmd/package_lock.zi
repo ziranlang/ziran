@@ -143,8 +143,11 @@ PkgReadLock :: (path: string, output: *PkgLock) -> bool {
             locked.checked_profile = PkgJsonField(json, artifact, "profile")
             locked.checked_digest = PkgJsonField(json, artifact, "sha256")
             locked.checked_tool = PkgJsonField(json, artifact, "toolchain")
+            // A saved toolchain identity may name an older shape; it is
+            // compared with the one this build derives when the entry is
+            // used, so such a lock is re-locked instead of failing to read.
             if locked.source || locked.checked_profile == "" || !PkgHex(locked.checked_digest, 64) ||
-                !PkgCheckedIdentity(locked.checked_tool) { return false }
+                !PkgSavedIdentity(locked.checked_tool) { return false }
         }
         index += 1
     }
@@ -262,30 +265,42 @@ PkgEdgeRefMatches :: (target: *PkgLocked, ref: string, saved: string,
 
 // A source checkout and a package of one repository commit are separate lock
 // entries: a project may pin a game package and also read that game's files
-// as a source checkout. The source entry's id names its kind.
+// as a source checkout. The source entry's id names its kind, and the
+// repository tag keeps two mirrors of one package separately pinned. An
+// identity is derived from the declaration alone, before any source is
+// read, so pinned libraries can be selected without a checkout.
 PkgLockId :: (url: string, commit: string, source: bool) -> string {
-    if source { return PkgSourceId(PkgJoin(PkgSourceKey(url), "\nsource"), commit) }
-    return PkgSourceId(PkgSourceKey(url), commit)
+    identity: string = ifx source then PkgJoin("src_", PkgIdUrlTag(url)) else PkgIdUrlTag(url)
+    if PkgValidDevelopment(commit) { return PkgJoin3(identity, "_dev_", commit[7:19]) }
+    if commit.count < 12 { return "" }
+    return PkgJoin(identity, PkgJoin("_", commit[0:12]))
 }
 
-// Locks written before source entries had their own id keep the package id
-// form; that id is unambiguous while no package entry shares it.
+// Every identity is derived again from the entry it belongs to. A lock in
+// an older format is re-locked, never silently accepted.
 PkgLockIdMatches :: (locked: *PkgLock, index: s32) -> bool {
     item: *PkgLocked = *locked.packages[index]
-    if item.id == PkgLockId(item.url, item.commit, item.source) { return true }
-    if !item.source || item.id != PkgLockId(item.url, item.commit, false) { return false }
-    other: s32 = 0
-    while other < locked.count {
-        if other != index && locked.packages[other].id == item.id { return false }
-        other += 1
-    }
-    return true
+    return item.id == PkgLockId(item.url, item.commit, item.source)
 }
 
 PkgFindBySource :: (locked: *PkgLock, url: string, ref: string, source: bool) -> s32 {
     index: s32 = 0
     while index < locked.count {
         if locked.packages[index].ref == ref &&
+            locked.packages[index].source == source &&
+            PkgSameSource(locked.packages[index].url, url) {
+            return index
+        }
+        index += 1
+    }
+    return -1
+}
+
+// One repository at one commit is one entry however its refs are spelled.
+PkgFindByCommit :: (locked: *PkgLock, url: string, commit: string, source: bool) -> s32 {
+    index: s32 = 0
+    while index < locked.count {
+        if locked.packages[index].commit == commit &&
             locked.packages[index].source == source &&
             PkgSameSource(locked.packages[index].url, url) {
             return index
@@ -309,7 +324,30 @@ PkgHex :: (text: string, length: s64) -> bool {
 
 PkgValidCommit :: (commit: string) -> bool { return PkgHex(commit, 40) }
 
+// Lock and checked-library identities are readable package ids: identifier
+// shaped, ending in the twelve hex digits of the revision they pin.
 PkgCheckedIdentity :: (identity: string) -> bool {
+    if identity.count < 14 || identity[identity.count - 13] != #char "_" ||
+        !PkgHex(identity[identity.count - 12:], 12) { return false }
+    first: u8 = identity[0]
+    if !((first >= #char "a" && first <= #char "z") ||
+        (first >= #char "A" && first <= #char "Z") || first == #char "_") { return false }
+    index: s64 = 1
+    while index < identity.count - 13 {
+        ch: u8 = identity[index]
+        if !((ch >= cast(u8)48 && ch <= cast(u8)57) ||
+             (ch >= cast(u8)65 && ch <= cast(u8)90) ||
+             (ch >= cast(u8)97 && ch <= cast(u8)122) || ch == cast(u8)95) { return false }
+        index += 1
+    }
+    return true
+}
+
+// A saved identity may also carry the opaque shape locks were written with
+// before identities named their repository; reading either preserves the
+// pin until the lock is re-locked, while anything else is corruption.
+PkgSavedIdentity :: (identity: string) -> bool {
+    if PkgCheckedIdentity(identity) { return true }
     return identity.count == 17 && identity[0] == #char "p" && PkgHex(identity[1:], 16)
 }
 
@@ -1124,8 +1162,7 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
             // one and that branch's commit in another. They are one package:
             // a second copy would give the lock two entries with one id. The
             // entry keeps the branch; pins match it by commit (PkgRefMatches).
-            source_id: string = PkgLockId(next.url, commit, next.source)
-            same: s32 = PkgFindById(resolved, source_id)
+            same: s32 = PkgFindByCommit(resolved, next.url, commit, next.source)
             if same >= 0 {
                 found = same
                 if PkgValidCommit(resolved.packages[same].ref) && !PkgValidCommit(next.ref) {
@@ -1143,7 +1180,7 @@ PkgResolveGraph :: (root: string, refresh: string, offline: bool,
                 // A source package is a pinned checkout for platform builds. It
                 // has no manifest, modules, or dependencies of its own.
                 item.source = next.source
-                item.id = source_id
+                item.id = PkgLockId(next.url, item.commit, item.source)
                 if git_dir == "" && item.path == "" {
                     if !item.source && checked != null && override == "" {
                         if previous >= 0 && old.packages[previous].id == item.id {
@@ -1447,7 +1484,10 @@ PkgCheckoutLockedGraph :: (root: string, locked: *PkgLock, offline: bool,
     // Validate every saved identity before selecting another entry's graph.
     index = 0
     while index < locked.count {
-        if !PkgLockIdMatches(locked, index) { return false }
+        if !PkgLockIdMatches(locked, index) {
+            unused PkgFail("ziran.lock was written by an older Ziran; run ziran lock")
+            return false
+        }
         index += 1
     }
     index = 0

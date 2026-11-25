@@ -37,20 +37,25 @@ ArchiveIdentity :: (id: string, tool_url: string, tool_commit: string, profile: 
 
 ValidIdentity :: (identity: string, id: string, tool: string, profile: string, development: bool) -> bool {
     prefix := ifx development then "dev\t" else "2\t"
-    if identity.count < prefix.count + 38 || identity[0:prefix.count] != prefix ||
+    if identity.count < prefix.count + 32 || identity[0:prefix.count] != prefix ||
         identity[identity.count - 1:] != "\n" { return false }
     fields := identity[prefix.count:identity.count - 1]
     profile_end := cast(s64)fields.count
     if development {
         profile_end -= 65
-        if profile_end <= 36 || fields[profile_end:profile_end + 1] != "\t" ||
+        if profile_end <= 0 || fields[profile_end:profile_end + 1] != "\t" ||
             !PkgHex(fields[profile_end + 1:], 64) { return false }
     }
-    if fields[17:18] != "\t" || fields[35:36] != "\t" ||
-        !PkgCheckedIdentity(fields[0:17]) || !PkgCheckedIdentity(fields[18:35]) { return false }
-    actual_profile := fields[36:profile_end]
-    return PkgRegistrySegment(actual_profile) && (id == "" || fields[0:17] == id) &&
-        (tool == "" || fields[18:35] == tool) &&
+    first: s64 = 0
+    while first < profile_end && fields[first] != #char "\t" { first += 1 }
+    second: s64 = first + 1
+    while second < profile_end && fields[second] != #char "\t" { second += 1 }
+    if first == 0 || first >= profile_end || second >= profile_end ||
+        !PkgCheckedIdentity(fields[0:first]) ||
+        !PkgCheckedIdentity(fields[first + 1:second]) { return false }
+    actual_profile := fields[second + 1:profile_end]
+    return PkgRegistrySegment(actual_profile) && (id == "" || fields[0:first] == id) &&
+        (tool == "" || fields[first + 1:second] == tool) &&
         (profile == "" || actual_profile == profile)
 }
 

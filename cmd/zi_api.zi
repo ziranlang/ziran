@@ -25,6 +25,7 @@ SetFormatArguments :: (argc: s32, argv: **u8) #foreign compiler "SetDiagnosticFo
 SemanticId :: (module: *IR.ZirModule, kind: *u8, name: *u8, signature: *u8, result: *u8, id: *u8) #foreign compiler "SemanticId";
 DocumentForSpan :: (module: *IR.ZirModule, span: IR.ZirSourceSpan) -> *Check.ZirDocument #foreign compiler "DocumentForSpan";
 DocumentOffset :: (document: *Check.ZirDocument, line: s32, column: s32, offset: *usize) -> s32 #foreign compiler "DocumentOffset";
+NativePackageStem :: (name: *u8) -> *u8 #foreign compiler "NativePackageStem";
 DocumentDigest :: (bytes: *void, count: usize, hex: *u8) #foreign compiler "DocumentDigest";
 OperatorOfProcedure :: (name: *u8) -> *u8 #foreign compiler "OperatorOfProcedure";
 ParametersOf :: (text: *u8) -> *Check.ZirParameters #foreign compiler "ParametersOf";
@@ -325,28 +326,22 @@ ReadAttachments :: (module: *IR.ZirModule, path: *u8, text: *u8) -> s32 {
 }
 
 // --module NAME selects a module by its checked name, or by the name an
-// import spells: a package module is checked as pHEX16_STEM and imported as
+// import spells: a package module is checked as ID_STEM and imported as
 // PACKAGE/STEM, a standard module as std/NAME.
 ModuleSelected :: (name: *u8) -> s32 {
     if filter_module == null || strcmp(filter_module, name) == 0 { return 1 }
-    stem := name
-    if name[0] == #char "p" && strlen(name) > 18 && name[17] == #char "_" {
-        hex: s32 = 1
-        i: usize = 1
-        while i <= 16 {
-            if isxdigit(cast(s32)name[i]) == 0 { hex = 0 }
-            i += 1
-        }
-        if hex != 0 { stem = cast(*u8)(cast(usize)name + 18) }
-    }
+    stem := NativePackageStem(name)
     wanted := strrchr(filter_module, #char "/")
     // The launcher spells a dependency by its package identity: only that
     // package's modules match.
-    if wanted != null && stem != name && cast(usize)wanted - cast(usize)filter_module == 17 &&
-       filter_module[0] == #char "p" && strncmp(filter_module, name, 17) != 0 { return 0 }
-    // An export is often spelled with a capital its file name lacks.
     compared := filter_module
-    if wanted != null { compared = cast(*u8)(cast(usize)wanted + 1) }
+    if wanted != null {
+        length: usize = cast(usize)wanted - cast(usize)filter_module
+        if stem != name && (strncmp(name, filter_module, length) != 0 ||
+            name[length] != #char "_") { return 0 }
+        compared = cast(*u8)(cast(usize)wanted + 1)
+    }
+    // An export is often spelled with a capital its file name lacks.
     return ifx strcasecmp(compared, stem) == 0 then 1 else 0
 }
 

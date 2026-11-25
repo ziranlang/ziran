@@ -432,6 +432,33 @@ PkgSourceId :: (url: string, commit: string) -> string {
     return PkgJoin("", TextFromBytes(result[0:17]))
 }
 
+// A lock identity is the package's own name and the commit prefix it pins,
+// so a lock reads like "kryon_c96f5e3de9c4" instead of an opaque digest.
+// Bytes outside identifier shape map to "_", and a name that is empty or
+// would start a digit gains a "p" prefix, so every identity is also a safe
+// directory, symbol and environment fragment.
+PkgIdName :: (name: string) -> string {
+    memory: *u8 = PkgAlloc(cast(u64)name.count + 2)
+    if memory == null { return "" }
+    bytes: []u8 = BytesFromPointer(memory, cast(u64)name.count + 2)
+    index: s64 = 0
+    while index < cast(s64)name.count {
+        ch: u8 = name[index]
+        if !((ch >= cast(u8)48 && ch <= cast(u8)57) ||
+             (ch >= cast(u8)65 && ch <= cast(u8)90) ||
+             (ch >= cast(u8)97 && ch <= cast(u8)122) || ch == cast(u8)95) {
+            ch = cast(u8)95
+        }
+        bytes[index] = ch
+        index += 1
+    }
+    if name.count == 0 || (bytes[0] >= cast(u8)48 && bytes[0] <= cast(u8)57) {
+        bytes[name.count] = cast(u8)112
+        return PkgJoin("", TextFromBytes(bytes[0:name.count + 1]))
+    }
+    return PkgJoin("", TextFromBytes(bytes[0:name.count]))
+}
+
 // Command-lifetime arena for variable-sized root and argument collections.
 // Each request is bounded by the input size and checked byte arithmetic.
 PkgStringBlock :: struct { next: *PkgStringBlock; data: *u8 }

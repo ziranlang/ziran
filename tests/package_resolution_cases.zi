@@ -150,9 +150,8 @@ ResolutionExecution :: (fixture: ResolutionFixture) -> bool {
         !FixtureCompile(test, app, CheckPath(test.work, "source-c"), CheckPath(app, "src/app.zi"), true) { return false }
     ir_dir := CheckPath(test.work, "ir")
     ir := string.["ir", "--project", "--entry", "app:main", "-o", ir_dir, CheckPath(app, "src/app.zi")]; unused PackageCommand(test, app, ir[:])
-    files := NativeFiles(ir_dir, "_Value.zir"); count = 0
-    for file: files { if TextHasPrefix(PathName(file), "p") { count += 1 } }
-    if !NativeAssert(test, count == 2, "saved IR merged package namespaces") || !FixtureCompile(test, app, CheckPath(test.work, "saved-c"), CheckPath(ir_dir, "app.zir"), false) { return false }
+    files := NativeFiles(ir_dir, "_Value.zir")
+    if !NativeAssert(test, files.count == 2 && PathName(files[0]) != PathName(files[1]), "saved IR merged package namespaces") || !FixtureCompile(test, app, CheckPath(test.work, "saved-c"), CheckPath(ir_dir, "app.zir"), false) { return false }
     if CheckExecutable("go") != "" {
         go_dir := CheckPath(test.work, "go")
         go_build := string.["build", "--project", "--target=go", "--pkg", "main", "--entry", "app:main", "-o", go_dir, CheckPath(app, "src/app.zi")]
@@ -262,12 +261,17 @@ ResolutionSources :: (fixture: ResolutionFixture, aliased: string) -> bool {
     lock_path := CheckPath(app, "ziran.lock"); saved_lock := NativeRead(test, lock_path)
     unused PackageCommand(test, app, lock[:])
     if !NativeAssert(test, NativeRead(test, lock_path) == saved_lock, "source lock was not deterministic") { return false }
-    digest := FixtureDigest(test, CheckConcat(CheckField(*document, native_entry, "url"), CheckConcat("\n", CheckField(*document, native_entry, "commit"))))
-    legacy_id := CheckConcat("p", TextDetach(TextCopy(digest[:16])))
+    if !NativeAssert(test, CheckField(*document, native_entry, "id") ==
+        CheckConcat("src_native_", CheckField(*document, native_entry, "commit")[0:12]),
+        "source lock identity is not the readable repository and commit form") { return false }
+    // A lock written with an older opaque identity is rejected: locks are
+    // re-locked, never silently upgraded.
+    legacy_id := "p0123456789abcdef"
     CheckPut(*document, native_entry, "id", legacy_id)
     CheckPut(*document, JsonMember(*document, JsonMember(*document, document.root, "root"), "dependencies"), "native", legacy_id)
     if !NativeWrite(test, lock_path, JsonWrite(*document, document.root, JsonCompactStyle())) { return false }
-    unused PackageCommand(test, app, fetch[:]); unused PackageCommand(test, app, check[:])
+    if !NativeAssert(test, TextContains(PackageCommand(test, app, check[:], false), "run ziran lock"),
+        "older opaque lock identity was accepted") { return false }
     if !NativeWrite(test, lock_path, saved_lock) || !NativeWrite(test, manifest_path, CheckConcat(sourced, ResolutionDependency("backend_files", backend, "master", true))) { return false }
     unused PackageCommand(test, app, lock[:])
     both: JsonDocument
@@ -282,6 +286,9 @@ ResolutionSources :: (fixture: ResolutionFixture, aliased: string) -> bool {
         }
     }
     if !NativeAssert(test, count == 2 && source_id != "" && package_id != "" && package_id != source_id && package_commit == source_commit, "package and source views did not retain separate identities") { return false }
+    if !NativeAssert(test, package_id == CheckConcat("backend_", package_commit[0:12]) &&
+        source_id == CheckConcat("src_backend_", source_commit[0:12]),
+        "package and source identities are not the readable repository and commit form") { return false }
     unused PackageCommand(test, app, check[:])
     files_path_command := string.["pkg", "path", "backend_files"]
     files_path := TextDetach(TextCopy(TextTrim(PackageCommand(test, app, files_path_command[:]))))

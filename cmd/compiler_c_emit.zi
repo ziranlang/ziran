@@ -1839,16 +1839,29 @@ NativeExportSymbol :: (fn: *IR.ZirFunction) -> *u8 {
     return ifx fn.export_symbol[0] != 0 then *fn.export_symbol[0] else *fn.name[0]
 }
 
-// A package module is named pHEX16_STEM, with HEX16 from its repository and
-// commit: the stem after that prefix, or the whole name of any other module.
+// A package module identity is ID_STEM, and every package id ends in the
+// twelve hex digits of its revision: the stem after that run, or the whole
+// name of any other module.
+#scope_export
+
+#program_export
 NativePackageStem :: (name: *u8) -> *u8 {
-    if name[0] != #char "p" { return name }
-    for i: 1..16 {
-        byte := name[i]
-        if !((byte >= #char "0" && byte <= #char "9") || (byte >= #char "a" && byte <= #char "f")) { return name }
+    index: s32 = 0
+    while name[index] != 0 {
+        if name[index] != #char "_" { index += 1; continue }
+        run: s32 = 1
+        while run < 13 {
+            byte := name[index + run]
+            if !((byte >= #char "0" && byte <= #char "9") || (byte >= #char "a" && byte <= #char "f")) { break }
+            run += 1
+        }
+        if run == 13 && name[index + 13] == #char "_" { return PtrAdd(name, cast(usize)(index + 14)) }
+        index += 1
     }
-    return ifx name[17] == #char "_" then PtrAdd(name, 18) else name
+    return name
 }
+
+#scope_file
 
 NativeEntryError :: (fn: *IR.ZirFunction, target: *u8, reason: *u8) {
     DiagnosticTarget(fn.span, CStr("zir_c.entry"), target, CStr("entry.signature"),

@@ -123,6 +123,16 @@ manifest names; when that fails, for example SSH without a key in CI or HTTPS
 without credentials for a private repository, it retries once over the other
 transport. It never prompts for a password. URLs with embedded credentials are
 rejected.</p>
+<p>A locked entry's identity is readable: the host and path of its repository
+with the twelve-digit commit prefix it pins, such as
+<code>waozi_xyz_kryonlabs_kryon_c96f5e3de9c4</code>, or the last path segment of a
+local address. A raw source checkout keeps a separate <code>src_</code>-prefixed entry.
+Dependency edges and checked-library pins reference these identities, so one
+repository reached through different aliases or transports still shares a
+single entry and checkout, while two mirrors of one package stay separately
+pinned. An identity is always a valid identifier, directory and environment
+fragment, and it is derived from the declaration alone, so a pinned checked
+library can be selected before any source is fetched.</p>
 <h2 id="importing-modules">Importing modules</h2>
 <p>A dependency's exported modules are imported by the dependency name and the
 module name, so every import says where it comes from:</p>
@@ -558,7 +568,7 @@ An explicit pin for a package with a discovered pin must agree with it.</p>
   &quot;format&quot;: 1,
   &quot;packages&quot;: [
     {
-      &quot;package&quot;: &quot;p0123456789abcdef&quot;,
+      &quot;package&quot;: &quot;counter_0123456789ab&quot;,
       &quot;profile&quot;: &quot;default&quot;,
       &quot;sha256&quot;: &quot;0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef&quot;
     }

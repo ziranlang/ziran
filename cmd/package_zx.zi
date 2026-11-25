@@ -93,6 +93,19 @@ ImageVerified :: (launcher: string, path: string, module: string, id: string = "
     return result.text.count >= header.count && result.text[0:header.count] == header
 }
 
+// A publish or fetch of a checked library trusts the identity recorded in
+// its own descriptor; the registry address and digest pin the exact bytes.
+CheckedArchiveId :: (file: string, profile: string) -> string {
+    identity: string
+    if !PkgCheckedArchive(file, "", "", "", "", "", profile, *identity) { return "" }
+    record := identity[0:identity.count - 1]
+    if record.count < 4 || record[0:2] != "2\t" { return "" }
+    end: s64 = 2
+    while end < record.count && record[end] != #char "\t" { end += 1 }
+    if end <= 2 { return "" }
+    return record[2:end]
+}
+
 // Do not pass credentials in argv. curl reads the explicitly supplied netrc.
 // Do not follow a redirect to a different endpoint or use a per-user curlrc.
 Transfer :: (url: string, path: string, netrc: string, upload: bool, limit: string = "268435456") -> string {
@@ -185,7 +198,8 @@ Publish :: (launcher: string, url: string, file: string, netrc: string,
 }
 
 Fetch :: (launcher: string, url: string, profile: string, digest: string,
-    module: string, netrc: string, offline: bool, output: *string, id: string = "") -> s32 {
+    module: string, netrc: string, offline: bool, output: *string, id: string = "",
+    checked: bool = false) -> s32 {
     if !HexDigest(digest) { return PkgFail("expected a full lowercase SHA-256 digest") }
     cache := PkgJoin(PkgCacheRoot(), "/zx")
     key := PkgDigest(PkgJoin3(url, PkgJoin("\n", digest), PkgJoin("\n", module)))
@@ -195,6 +209,7 @@ Fetch :: (launcher: string, url: string, profile: string, digest: string,
     if name == "" { name = profile }
     image := PkgJoin(PkgJoin3(root, "/", name), ".zx")
     if PathExists(image) {
+        if checked && id == "" { id = CheckedArchiveId(image, profile) }
         if ImageDigest(image) != digest || !ImageVerified(launcher, image, module, id, profile) {
             return PkgFail("cached portable image failed digest, format or module-name verification")
         }
@@ -206,6 +221,7 @@ Fetch :: (launcher: string, url: string, profile: string, digest: string,
         temporary := PkgJoin(stage, "/download.zx")
         status := Transfer(url, temporary, netrc, false)
         if status != "200" { return TransferFailure("cannot fetch the portable image from Gitea", status) }
+        if checked && id == "" { id = CheckedArchiveId(temporary, profile) }
         if ImageDigest(temporary) != digest || !ImageVerified(launcher, temporary, module, id, profile) {
             return PkgFail("downloaded portable image failed digest, format or module-name verification")
         }
@@ -412,6 +428,28 @@ CheckedForOtherToolchain :: (metadata: string, id: string, tool: string, profile
         PkgRegistrySegment(fields[2]) && fields[3] == profile && HexDigest(fields[4])
 }
 
+// A published descriptor whose package identity still uses the opaque shape
+// libraries were written with before identities named their repository: it
+// belongs to an older Ziran era, and the package builds from source until
+// its library is republished.
+CheckedForOlderIdentity :: (metadata: string) -> bool {
+    fields: [5]string
+    count: s64 = 0
+    start: s64 = 0
+    end := metadata.count - 1
+    if end <= 0 || metadata[end] != #char "\n" { return false }
+    for at: 0..end {
+        if at == end || metadata[at] == #char "\t" {
+            if count == 5 { return false }
+            fields[count] = metadata[start:at]
+            count += 1
+            start = at + 1
+        }
+    }
+    return count == 5 && fields[0] == "2" && PkgSavedIdentity(fields[1]) &&
+        !PkgCheckedIdentity(fields[1])
+}
+
 // The descriptor and image share the repository, immutable revision and
 // profile address. A missing descriptor for an unpinned package leaves it
 // on the source workflow. Any advertised or saved artifact must verify.
@@ -475,6 +513,7 @@ PkgDiscoverChecked :: (context: *void, item: *PkgLocked, locked: *PkgLock, offli
             metadata.text[0:expected.count] != expected ||
             metadata.text[metadata.text.count - 1:] != "\n" ||
             !HexDigest(metadata.text[expected.count:metadata.text.count - 1]) {
+            if metadata.valid && CheckedForOlderIdentity(metadata.text) { return true }
             unused PkgFail("checked package metadata does not match its repository revision, toolchain or profile")
             return false
         }
@@ -588,12 +627,18 @@ PkgZx :: (launcher: string, arguments: []string) -> s32 {
             index += 1
         } else { return PkgFail(PkgJoin("invalid portable package option: ", option)) }
     }
-    id := ifx checked then PkgLockId(arguments[1], arguments[2], false) else ""
+    id := ""
+    if checked && publish {
+        id = CheckedArchiveId(arguments[4], arguments[3])
+        if id == "" {
+            return PkgFail("checked package library failed format, revision or profile verification")
+        }
+    }
     if publish {
         return Publish(launcher, url, arguments[4], netrc, id, arguments[3])
     }
     output: string
-    code := Fetch(launcher, url, arguments[3], arguments[4], module, netrc, offline, *output, id)
+    code := Fetch(launcher, url, arguments[3], arguments[4], module, netrc, offline, *output, id, checked)
     if code == 0 { PkgPrint(PkgJoin(output, "\n"), false) }
     return code
 }

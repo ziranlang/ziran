@@ -141,11 +141,11 @@ with tempfile.TemporaryDirectory(prefix='package-zx-test-', dir=ziran.parent.par
                  if item['name'] == 'kit']
     assert sorted(revisions) == sorted([kit_old, kit_new]), revisions
     checked = graph_run(ziran, 'check', '--project', cwd=both)
-    assert checked.returncode == 0, checked.stderr
+    assert checked.returncode != 0 and (
+        'the dependency name kit is pinned twice' in checked.stderr) and (
+        'give one dependency an explicit alias' in checked.stderr), checked.stderr
     refused = graph_run(ziran, 'build', cwd=both)
-    assert refused.returncode != 0 and 'conflicting types' not in refused.stderr and (
-        '#program_export LightPalette is one symbol in generated C, but two revisions of this package define it'
-        in refused.stderr) and 'agree on one revision' in refused.stderr, refused.stderr
+    assert refused.returncode != 0 and 'the dependency name kit is pinned twice' in refused.stderr, refused.stderr
     theme = graph / 'theme'
     (theme / 'ziran.toml').write_text((theme / 'ziran.toml').read_text().replace(kit_old, kit_new))
     assert graph_run('git', *fixture_author, 'commit', '-qam', 'agree', cwd=theme).returncode == 0
@@ -423,14 +423,14 @@ Copy :: (value: $T) -> T { return value; }
         consumer = root / 'consumer'
         consumer.mkdir()
         (consumer / 'ziran.toml').write_text('[package]\nname = "consumer"\nmodule_roots = ["."]\n' + tool_section +
-                                             f'[dependencies.state]\ngit = "{repository}"\nref = "{checked_revision}"\n')
+                                             f'[dependencies.state_v2]\ngit = "{repository}"\nref = "{checked_revision}"\n')
         identity = 'localhost_ziranlang_fixture_' + checked_revision[:12]
         row = {'id': identity, 'name': 'state', 'url': repository, 'ref': checked_revision,
                'commit': checked_revision, 'dependencies': {}}
-        project(consumer, 'consumer', [row], {'state': identity})
+        project(consumer, 'consumer', [row], {'state_v2': identity})
         pins = consumer / 'ziran.zx.lock'
         app = consumer / 'app.zi'
-        app.write_text('''using Model :: #import "state/model"
+        app.write_text('''using Model :: #import "state_v2/model"
 Increment :: (value: s32) -> s32 { return value + 2; }
 main :: () -> s32 {
     state := Model.State.{value = Model.Copy(cast(s32)40), handler = Increment};
@@ -616,7 +616,7 @@ main :: () -> s32 {
         assert not (automatic / 'ziran.zx.lock').exists()
 
         auto_app = automatic / 'app.zi'
-        auto_app.write_bytes(app.read_bytes())
+        auto_app.write_text(app.read_text().replace('state_v2/model', 'state/model'))
         auto_output = automatic / 'app.zx'
         auto_bundle = [ziran, 'bundle', '--project', '--offline', '--entry', 'app:main', '-o', auto_output, auto_app]
         before = len(server.requests)

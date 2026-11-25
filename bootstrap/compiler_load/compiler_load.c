@@ -1422,34 +1422,30 @@ compiler_load_package_scoped(LoadContext* context_local, uint8_t* package)
 static int32_t
 compiler_load_package_identity(uint8_t* package, uint8_t* module, uint8_t* output, size_t size)
 {
-    uint64_t hash = 1469598103934665603ULL;
+    int32_t written = zir_f_9e03f7cd143abb1d_snprintf(output, size, compiler_parse_types_ParserCString(StringLiteral("%s__%s")), package, module);
+    if (written <= 0 || (size_t)(written) >= size) {
+        return 0;
+    }
     {
-        uint8_t* at = (uint8_t*)(package);
-        while (true) {
-            bool check_loop_9 = at[0] != 0;
-            if (!check_loop_9) {
+        int32_t range_first_4 = 0;
+        int32_t range_last_4 = (int32_t)((uint32_t)written - 1u);
+        int32_t index = range_first_4;
+        if (index <= range_last_4) for (;;) {
+            if (output[index] == 45) {
+                uint8_t* value_0 = &(output[index]);
+                (*value_0) = 95;
+            }
+            if (index == range_last_4) {
                 break;
             }
-            hash = (uint64_t)((uint64_t)hash ^ (uint64_t)(at[0]));
-            hash = (uint64_t)((uint64_t)hash * UINT64_C(1099511628211));
-            uint8_t** value_0 = &(at);
-            uint8_t* value_1 = (void *)0;
-            {
-                uint8_t** p = value_0;
-                uint8_t* old = p[0];
-                uint8_t** value_3 = &(p[0]);
-                (*value_3) = (uint8_t*)(((size_t)(p[0]) + sizeof(uint8_t)));
-                value_1 = old;
-            }
-            (void)value_1;
+            index = (int32_t)((uint32_t)index + 1u);
         }
     }
-    int32_t written = zir_f_9e03f7cd143abb1d_snprintf(output, size, compiler_parse_types_ParserCString(StringLiteral("p%016llx_%s")), hash, module);
-    int32_t value_4 = 0;
+    int32_t value_1 = 0;
     if (written > 0 && (size_t)(written) < size) {
-        value_4 = 1;
+        value_1 = 1;
     }
-    return value_4;
+    return value_1;
 }
 
 static void
@@ -1783,14 +1779,20 @@ compiler_load_add_program_named(LoadContext* context_local, uint8_t* path, uint8
             bool value_90 = value_89;
             if (value_90) {
                 bool value_91 = program->module_count != 1;
-                bool value_92 = value_91 || zir_f_9e03f7cd143abb1d_strcmp((uint8_t*)(&((program->modules[0]).name)), mapped) != 0;
-                value_90 = value_92;
+                bool value_92 = value_91;
+                if (!value_92) {
+                    bool value_93 = compiler_package_resolve_PackageRemapSaved(context_local->packages, canonical, &(program->modules[0]));
+                    value_92 = !value_93;
+                }
+                bool value_94 = value_92;
+                bool value_95 = value_94 || zir_f_9e03f7cd143abb1d_strcmp((uint8_t*)(&((program->modules[0]).name)), mapped) != 0;
+                value_90 = value_95;
             }
             if (value_90) {
-                ZirSourceSpan value_93 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
-                uint8_t* value_94 = compiler_parse_types_ParserCString(StringLiteral("package.identity"));
-                uint8_t* value_95 = compiler_parse_types_ParserCString(StringLiteral("saved package module does not declare its mapped identity %s"));
-                zir_f_9e03f7cd143abb1d_Diagnostic(value_93, value_94, value_95, mapped);
+                ZirSourceSpan value_96 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
+                uint8_t* value_97 = compiler_parse_types_ParserCString(StringLiteral("package.identity"));
+                uint8_t* value_98 = compiler_parse_types_ParserCString(StringLiteral("saved package module does not declare its mapped identity %s"));
+                zir_f_9e03f7cd143abb1d_Diagnostic(value_96, value_97, value_98, mapped);
                 zir_f_9e03f7cd143abb1d_ProgramFree(program);
                 zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
                 return 0;
@@ -1808,83 +1810,83 @@ compiler_load_add_program_named(LoadContext* context_local, uint8_t* path, uint8
                 break;
             }
             if (compiler_load_module_named(set, (uint8_t*)(&((program->modules[m]).name))) != 0) {
-                ZirSourceSpan value_96 = (program->modules[m]).span;
-                uint8_t* value_97 = compiler_parse_types_ParserCString(StringLiteral("module.duplicate"));
-                zir_f_9e03f7cd143abb1d_Diagnostic(value_96, value_97, compiler_parse_types_ParserCString(StringLiteral("duplicate module identity: %s")), (uint8_t*)(&((program->modules[m]).name)));
+                ZirSourceSpan value_99 = (program->modules[m]).span;
+                uint8_t* value_100 = compiler_parse_types_ParserCString(StringLiteral("module.duplicate"));
+                zir_f_9e03f7cd143abb1d_Diagnostic(value_99, value_100, compiler_parse_types_ParserCString(StringLiteral("duplicate module identity: %s")), (uint8_t*)(&((program->modules[m]).name)));
                 zir_f_9e03f7cd143abb1d_ProgramFree(program);
                 zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
                 return 0;
             }
-            int32_t* value_98 = &(m);
-            int32_t value_99 = 0;
+            int32_t* value_101 = &(m);
+            int32_t value_102 = 0;
             {
-                int32_t* p = value_98;
+                int32_t* p = value_101;
                 int32_t old = p[0];
-                int32_t* value_101 = &(p[0]);
-                (*value_101) = (int32_t)((uint32_t)(p[0]) + 1u);
-                value_99 = old;
+                int32_t* value_104 = &(p[0]);
+                (*value_104) = (int32_t)((uint32_t)(p[0]) + 1u);
+                value_102 = old;
             }
-            (void)value_99;
+            (void)value_102;
         }
     }
-    bool value_102 = set->count == 2147483647 || (size_t)(set->count) >= (size_t)(-1LL) / (size_t)(sizeof(void *)) || (size_t)(set->count) >= (size_t)(-1LL) / (size_t)(sizeof(void *));
-    if (value_102 || (size_t)(set->count) >= (size_t)(-1LL) / (size_t)(sizeof(void *))) {
-        ZirSourceSpan value_103 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
-        uint8_t* value_104 = compiler_parse_types_ParserCString(StringLiteral("module.limit"));
-        zir_f_9e03f7cd143abb1d_Diagnostic(value_103, value_104, compiler_parse_types_ParserCString(StringLiteral("module graph exceeds addressable storage")));
+    bool value_105 = set->count == 2147483647 || (size_t)(set->count) >= (size_t)(-1LL) / (size_t)(sizeof(void *)) || (size_t)(set->count) >= (size_t)(-1LL) / (size_t)(sizeof(void *));
+    if (value_105 || (size_t)(set->count) >= (size_t)(-1LL) / (size_t)(sizeof(void *))) {
+        ZirSourceSpan value_106 = zir_f_9e03f7cd143abb1d_Span(path, 1, 1);
+        uint8_t* value_107 = compiler_parse_types_ParserCString(StringLiteral("module.limit"));
+        zir_f_9e03f7cd143abb1d_Diagnostic(value_106, value_107, compiler_parse_types_ParserCString(StringLiteral("module graph exceeds addressable storage")));
         zir_f_9e03f7cd143abb1d_ProgramFree(program);
         zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
         return 0;
     }
-    void* value_105 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(set->programs), (size_t)(((int32_t)((uint32_t)(set->count) + 1u))) * (size_t)(sizeof(void *)));
-    ZirProgram** programs = (ZirProgram**)(value_105);
+    void* value_108 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(set->programs), (size_t)(((int32_t)((uint32_t)(set->count) + 1u))) * (size_t)(sizeof(void *)));
+    ZirProgram** programs = (ZirProgram**)(value_108);
     if (programs == (ZirProgram**)(((void *)0))) {
         zir_f_9e03f7cd143abb1d_ProgramFree(program);
         zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
         return 0;
     }
-    ZirProgram*** value_106 = &(set->programs);
-    (*value_106) = programs;
-    void* value_107 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(((uint8_t**)set->paths)), (size_t)(((int32_t)((uint32_t)(set->count) + 1u))) * (size_t)(sizeof(void *)));
-    uint8_t** paths = (uint8_t**)(value_107);
+    ZirProgram*** value_109 = &(set->programs);
+    (*value_109) = programs;
+    void* value_110 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(((uint8_t**)set->paths)), (size_t)(((int32_t)((uint32_t)(set->count) + 1u))) * (size_t)(sizeof(void *)));
+    uint8_t** paths = (uint8_t**)(value_110);
     if (paths == (uint8_t**)(((void *)0))) {
         zir_f_9e03f7cd143abb1d_ProgramFree(program);
         zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
         return 0;
     }
-    char *** value_108 = &(set->paths);
-    (*value_108) = (char **)(paths);
-    void* value_109 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(((uint8_t**)set->roots)), (size_t)(((int32_t)((uint32_t)(set->count) + 1u))) * (size_t)(sizeof(void *)));
-    uint8_t** roots = (uint8_t**)(value_109);
+    char *** value_111 = &(set->paths);
+    (*value_111) = (char **)(paths);
+    void* value_112 = zir_f_9e03f7cd143abb1d_CompilerRealloc((void*)(((uint8_t**)set->roots)), (size_t)(((int32_t)((uint32_t)(set->count) + 1u))) * (size_t)(sizeof(void *)));
+    uint8_t** roots = (uint8_t**)(value_112);
     if (roots == (uint8_t**)(((void *)0))) {
         zir_f_9e03f7cd143abb1d_ProgramFree(program);
         zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
         return 0;
     }
-    char *** value_110 = &(set->roots);
-    (*value_110) = (char **)(roots);
+    char *** value_113 = &(set->roots);
+    (*value_113) = (char **)(roots);
     uint8_t* saved_root = zir_f_9e03f7cd143abb1d_CompilerStrdup(root);
     if (saved_root == (uint8_t*)(((void *)0))) {
         zir_f_9e03f7cd143abb1d_ProgramFree(program);
         zir_f_9e03f7cd143abb1d_CompilerFree((void*)(canonical));
         return 0;
     }
-    ZirProgram** value_111 = &(set->programs[set->count]);
-    (*value_111) = program;
-    uint8_t** value_112 = &(paths[set->count]);
-    (*value_112) = canonical;
-    uint8_t** value_113 = &(roots[set->count]);
-    (*value_113) = saved_root;
-    int32_t* value_114 = &(set->count);
-    int32_t value_115 = 0;
+    ZirProgram** value_114 = &(set->programs[set->count]);
+    (*value_114) = program;
+    uint8_t** value_115 = &(paths[set->count]);
+    (*value_115) = canonical;
+    uint8_t** value_116 = &(roots[set->count]);
+    (*value_116) = saved_root;
+    int32_t* value_117 = &(set->count);
+    int32_t value_118 = 0;
     {
-        int32_t* p = value_114;
+        int32_t* p = value_117;
         int32_t old = p[0];
-        int32_t* value_117 = &(p[0]);
-        (*value_117) = (int32_t)((uint32_t)(p[0]) + 1u);
-        value_115 = old;
+        int32_t* value_120 = &(p[0]);
+        (*value_120) = (int32_t)((uint32_t)(p[0]) + 1u);
+        value_118 = old;
     }
-    (void)value_115;
+    (void)value_118;
     return 1;
 }
 

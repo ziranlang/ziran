@@ -267,61 +267,88 @@ compiler_package_resolve_read_row(ZirPackageMap* map, uint8_t* line)
         if (StringEqual(compiler_ir_CText(row->id), StringLiteral("root"))) {
             uint8_t* value_20 = compiler_parse_types_ParserCString(StringLiteral("%s"));
             length = zir_f_cdbe50046f2f2ecc_snprintf(&(row->identity[0]), 128, value_20, row->name);
+        } else if (StringEqual(compiler_ir_CText(row->id), StringLiteral("std"))) {
+            uint8_t* value_21 = compiler_parse_types_ParserCString(StringLiteral("std_%s"));
+            length = zir_f_cdbe50046f2f2ecc_snprintf(&(row->identity[0]), 128, value_21, row->name);
         } else {
-            uint8_t* value_21 = compiler_parse_types_ParserCString(StringLiteral("%s_%s"));
-            length = zir_f_cdbe50046f2f2ecc_snprintf(&(row->identity[0]), 128, value_21, row->id, row->name);
+            uint8_t* value_22 = compiler_parse_types_ParserCString(StringLiteral("%s__%s"));
+            length = zir_f_cdbe50046f2f2ecc_snprintf(&(row->identity[0]), 128, value_22, row->id, row->name);
         }
         return length > 0 && length < 128;
     }
     if (StringEqual(kind, StringLiteral("D"))) {
-        void* value_22 = zir_f_cdbe50046f2f2ecc_CompilerRealloc((void*)(map->dependencies), (size_t)(((int32_t)((uint32_t)(map->dependency_count) + 1u))) * sizeof(PackageDependency));
-        PackageDependency* rows = (PackageDependency*)(value_22);
+        void* value_23 = zir_f_cdbe50046f2f2ecc_CompilerRealloc((void*)(map->dependencies), (size_t)(((int32_t)((uint32_t)(map->dependency_count) + 1u))) * sizeof(PackageDependency));
+        PackageDependency* rows = (PackageDependency*)(value_23);
         if (rows == ((void *)0)) {
             return false;
         }
-        PackageDependency** value_23 = &(map->dependencies);
-        (*value_23) = rows;
+        PackageDependency** value_24 = &(map->dependencies);
+        (*value_24) = rows;
         PackageDependency* row = &(rows[map->dependency_count]);
-        int32_t* value_24 = &(map->dependency_count);
-        (*value_24) = (int32_t)((uint32_t)((*value_24)) + 1u);
-        PackageDependency* value_25 = &(row[0]);
-        (*value_25) = (PackageDependency){0};
-        uint8_t** value_26 = &(row->owner);
-        uint8_t* value_27 = compiler_package_resolve_copy_field(&(cursor));
-        (*value_26) = value_27;
-        uint8_t** value_28 = &(row->visible);
-        uint8_t* value_29 = compiler_package_resolve_copy_field(&(cursor));
-        (*value_28) = value_29;
-        uint8_t** value_30 = &(row->target);
-        uint8_t* value_31 = compiler_package_resolve_copy_field(&(cursor));
-        (*value_30) = value_31;
-        uint8_t** value_32 = &(row->exported);
-        uint8_t* value_33 = compiler_package_resolve_copy_field(&(cursor));
-        (*value_32) = value_33;
+        int32_t* value_25 = &(map->dependency_count);
+        (*value_25) = (int32_t)((uint32_t)((*value_25)) + 1u);
+        PackageDependency* value_26 = &(row[0]);
+        (*value_26) = (PackageDependency){0};
+        uint8_t** value_27 = &(row->owner);
+        uint8_t* value_28 = compiler_package_resolve_copy_field(&(cursor));
+        (*value_27) = value_28;
+        uint8_t** value_29 = &(row->visible);
+        uint8_t* value_30 = compiler_package_resolve_copy_field(&(cursor));
+        (*value_29) = value_30;
+        uint8_t** value_31 = &(row->target);
+        uint8_t* value_32 = compiler_package_resolve_copy_field(&(cursor));
+        (*value_31) = value_32;
+        uint8_t** value_33 = &(row->exported);
+        uint8_t* value_34 = compiler_package_resolve_copy_field(&(cursor));
+        (*value_33) = value_34;
         return row->owner != ((void *)0) && row->visible != ((void *)0) && row->target != ((void *)0) && row->exported != ((void *)0);
     }
-    if (StringEqual(kind, StringLiteral("A"))) {
-        void* value_34 = zir_f_cdbe50046f2f2ecc_CompilerRealloc((void*)(map->ambiguous), (size_t)(((int32_t)((uint32_t)(map->ambiguous_count) + 1u))) * sizeof(PackageAmbiguous));
-        PackageAmbiguous* rows = (PackageAmbiguous*)(value_34);
+    if (StringEqual(kind, StringLiteral("R"))) {
+        void* value_35 = zir_f_cdbe50046f2f2ecc_CompilerRealloc((void*)(map->renames), (size_t)(((int32_t)((uint32_t)(map->rename_count) + 1u))) * sizeof(PackageRename));
+        PackageRename* rows = (PackageRename*)(value_35);
         if (rows == ((void *)0)) {
             return false;
         }
-        PackageAmbiguous** value_35 = &(map->ambiguous);
-        (*value_35) = rows;
+        PackageRename** value_36 = &(map->renames);
+        (*value_36) = rows;
+        PackageRename* row = &(rows[map->rename_count]);
+        int32_t* value_37 = &(map->rename_count);
+        (*value_37) = (int32_t)((uint32_t)((*value_37)) + 1u);
+        PackageRename* value_38 = &(row[0]);
+        (*value_38) = (PackageRename){0};
+        uint8_t** value_39 = &(row->owner);
+        uint8_t* value_40 = compiler_package_resolve_copy_field(&(cursor));
+        (*value_39) = value_40;
+        uint8_t** value_41 = &(row->original);
+        uint8_t* value_42 = compiler_package_resolve_copy_field(&(cursor));
+        (*value_41) = value_42;
+        uint8_t** value_43 = &(row->target);
+        uint8_t* value_44 = compiler_package_resolve_copy_field(&(cursor));
+        (*value_43) = value_44;
+        return row->owner != ((void *)0) && row->original != ((void *)0) && row->target != ((void *)0);
+    }
+    if (StringEqual(kind, StringLiteral("A"))) {
+        void* value_45 = zir_f_cdbe50046f2f2ecc_CompilerRealloc((void*)(map->ambiguous), (size_t)(((int32_t)((uint32_t)(map->ambiguous_count) + 1u))) * sizeof(PackageAmbiguous));
+        PackageAmbiguous* rows = (PackageAmbiguous*)(value_45);
+        if (rows == ((void *)0)) {
+            return false;
+        }
+        PackageAmbiguous** value_46 = &(map->ambiguous);
+        (*value_46) = rows;
         PackageAmbiguous* row = &(rows[map->ambiguous_count]);
-        int32_t* value_36 = &(map->ambiguous_count);
-        (*value_36) = (int32_t)((uint32_t)((*value_36)) + 1u);
-        PackageAmbiguous* value_37 = &(row[0]);
-        (*value_37) = (PackageAmbiguous){0};
-        uint8_t** value_38 = &(row->owner);
-        uint8_t* value_39 = compiler_package_resolve_copy_field(&(cursor));
-        (*value_38) = value_39;
-        uint8_t** value_40 = &(row->visible);
-        uint8_t* value_41 = compiler_package_resolve_copy_field(&(cursor));
-        (*value_40) = value_41;
-        uint8_t** value_42 = &(row->choices);
-        uint8_t* value_43 = compiler_package_resolve_copy_field(&(cursor));
-        (*value_42) = value_43;
+        int32_t* value_47 = &(map->ambiguous_count);
+        (*value_47) = (int32_t)((uint32_t)((*value_47)) + 1u);
+        PackageAmbiguous* value_48 = &(row[0]);
+        (*value_48) = (PackageAmbiguous){0};
+        uint8_t** value_49 = &(row->owner);
+        uint8_t* value_50 = compiler_package_resolve_copy_field(&(cursor));
+        (*value_49) = value_50;
+        uint8_t** value_51 = &(row->visible);
+        uint8_t* value_52 = compiler_package_resolve_copy_field(&(cursor));
+        (*value_51) = value_52;
+        uint8_t** value_53 = &(row->choices);
+        uint8_t* value_54 = compiler_package_resolve_copy_field(&(cursor));
+        (*value_53) = value_54;
         return row->owner != ((void *)0) && row->visible != ((void *)0) && row->choices != ((void *)0);
     }
     return false;
@@ -395,10 +422,25 @@ PackageMapFree(ZirPackageMap* map)
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
+    {
+        int32_t range_first_23 = 0;
+        int32_t range_last_23 = (int32_t)((uint32_t)(map->rename_count) - 1u);
+        int32_t i = range_first_23;
+        if (i <= range_last_23) for (;;) {
+            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->renames[i]).owner));
+            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->renames[i]).original));
+            zir_f_cdbe50046f2f2ecc_CompilerFree((void*)((map->renames[i]).target));
+            if (i == range_last_23) {
+                break;
+            }
+            i = (int32_t)((uint32_t)i + 1u);
+        }
+    }
     zir_f_cdbe50046f2f2ecc_CompilerFree((void*)(map->roots));
     zir_f_cdbe50046f2f2ecc_CompilerFree((void*)(map->modules));
     zir_f_cdbe50046f2f2ecc_CompilerFree((void*)(map->dependencies));
     zir_f_cdbe50046f2f2ecc_CompilerFree((void*)(map->ambiguous));
+    zir_f_cdbe50046f2f2ecc_CompilerFree((void*)(map->renames));
     zir_f_cdbe50046f2f2ecc_CompilerFree((void*)(map));
 }
 
@@ -482,6 +524,84 @@ compiler_package_resolve_PackageModuleName(ZirPackageMap* map, uint8_t* path)
         }
     }
     return (void *)0;
+}
+
+bool
+compiler_package_resolve_PackageRemapSaved(ZirPackageMap* map, uint8_t* path, ZirModule* module)
+{
+    uint8_t* owner = compiler_package_resolve_PackageOwner(map, path);
+    if (owner == ((void *)0)) {
+        return false;
+    }
+    {
+        int32_t range_first_4 = -1;
+        int32_t range_last_4 = (int32_t)((uint32_t)(module->import_count) - 1u);
+        int32_t index = range_first_4;
+        if (index <= range_last_4) for (;;) {
+            uint8_t* value_0 = (void *)0;
+            if (index < 0) {
+                value_0 = &(module->name[0]);
+            } else {
+                value_0 = &(((module->imports[index]).target)[0]);
+            }
+            uint8_t* spelling = value_0;
+            if (index >= 0 && ((ZirImportKind)((module->imports[index]).kind)) == ((ZirImportKind)(3))) {
+                if (index == range_last_4) {
+                    break;
+                }
+                index = (int32_t)((uint32_t)index + 1u);
+                continue;
+            }
+            {
+                int32_t range_first_9 = 0;
+                int32_t range_last_9 = (int32_t)((uint32_t)(map->rename_count) - 1u);
+                int32_t rename = range_first_9;
+                if (rename <= range_last_9) for (;;) {
+                    PackageRename* row = &(map->renames[rename]);
+                    size_t length = zir_f_cdbe50046f2f2ecc_strlen(row->original);
+                    bool value_1 = zir_f_cdbe50046f2f2ecc_strcmp(row->owner, owner) != 0;
+                    bool value_2 = value_1 || zir_f_cdbe50046f2f2ecc_strncmp(spelling, row->original, length) != 0;
+                    bool value_3 = value_2;
+                    if (!value_3) {
+                        uint8_t* value_4 = (uint8_t*)(((size_t)(spelling) + length));
+                        bool value_5 = zir_f_cdbe50046f2f2ecc_strncmp(value_4, compiler_parse_types_ParserCString(StringLiteral("__")), 2) != 0;
+                        value_3 = value_5;
+                    }
+                    if (value_3) {
+                        if (rename == range_last_9) {
+                            break;
+                        }
+                        rename = (int32_t)((uint32_t)rename + 1u);
+                        continue;
+                    }
+                    uint8_t renamed[1024] = {0};
+                    size_t value_6 = 0;
+                    if (index < 0) {
+                        value_6 = (size_t)(128LL);
+                    } else {
+                        value_6 = (size_t)(1024LL);
+                    }
+                    size_t size = value_6;
+                    size_t value_7 = size;
+                    uint8_t* value_8 = compiler_parse_types_ParserCString(StringLiteral("%s%s"));
+                    int32_t value_9 = zir_f_cdbe50046f2f2ecc_snprintf(&(renamed[0]), value_7, value_8, row->target, (uint8_t*)(((size_t)(spelling) + length)));
+                    if (value_9 >= (int32_t)(size)) {
+                        return false;
+                    }
+                    bool value_10 = compiler_package_resolve_copy_spelling(spelling, size, &(renamed[0]));
+                    if (!value_10) {
+                        return false;
+                    }
+                    break;
+                }
+            }
+            if (index == range_last_4) {
+                break;
+            }
+            index = (int32_t)((uint32_t)index + 1u);
+        }
+    }
+    return true;
 }
 
 int32_t

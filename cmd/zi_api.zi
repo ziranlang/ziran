@@ -332,17 +332,18 @@ ModuleSelected :: (name: *u8) -> s32 {
     if filter_module == null || strcmp(filter_module, name) == 0 { return 1 }
     stem := NativePackageStem(name)
     wanted := strrchr(filter_module, #char "/")
-    // The launcher spells a dependency by its package identity: only that
-    // package's modules match.
-    compared := filter_module
-    if wanted != null {
-        length: usize = cast(usize)wanted - cast(usize)filter_module
-        if stem != name && (strncmp(name, filter_module, length) != 0 ||
-            name[length] != #char "_") { return 0 }
-        compared = cast(*u8)(cast(usize)wanted + 1)
+    if wanted == null { return ifx strcasecmp(filter_module, stem) == 0 then 1 else 0 }
+    length: usize = cast(usize)wanted - cast(usize)filter_module
+    // The launcher spells a dependency by its namespace: PACKAGE matches the
+    // module's prefix and STEM everything past its first underscore.
+    if strncmp(name, filter_module, length) == 0 && name[length] == #char "_" {
+        separator: usize = ifx name[length + 1] == #char "_" then 2 else 1
+        suffix := cast(*u8)(cast(usize)name + length + separator)
+        if strcasecmp(cast(*u8)(cast(usize)wanted + 1), suffix) == 0 { return 1 }
     }
-    // An export is often spelled with a capital its file name lacks.
-    return ifx strcasecmp(compared, stem) == 0 then 1 else 0
+    // Standard and root modules carry no prefix; a legacy module name keeps
+    // its revision segment, and NativePackageStem already removed it.
+    return ifx strcasecmp(cast(*u8)(cast(usize)wanted + 1), stem) == 0 then 1 else 0
 }
 
 // Options may follow the input files: move every option, with its value, in

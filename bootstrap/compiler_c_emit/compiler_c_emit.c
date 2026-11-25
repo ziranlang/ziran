@@ -699,7 +699,6 @@ static size_t compiler_c_emit_ModuleIdentitySlot(ModuleIdentities* id, ZirModule
 static void compiler_c_emit_ResetModuleIdentities(ModuleIdentities* id, ZirProgram** programs, int32_t count) ZIRAN_MAYBE_UNUSED;
 static bool compiler_c_emit_NativeLinkerExport(ZirModule* module, ZirFunction* fn) ZIRAN_MAYBE_UNUSED;
 static uint8_t* compiler_c_emit_NativeExportSymbol(ZirFunction* fn) ZIRAN_MAYBE_UNUSED;
-static uint8_t* compiler_c_emit_NativePackageStem(uint8_t* name) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_NativeEntryError(ZirFunction* fn, uint8_t* target, uint8_t* reason) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_CNumberHelpers(HelperEntry array_result_0_0[23]) ZIRAN_MAYBE_UNUSED;
 static void compiler_c_emit_GoNumberHelpers(HelperEntry array_result_0_0[8]) ZIRAN_MAYBE_UNUSED;
@@ -5304,8 +5303,8 @@ NativeExportsUnique(ZirProgram* program)
                                         g = (int32_t)((uint32_t)g + 1u);
                                         continue;
                                     }
-                                    uint8_t* value_17 = compiler_c_emit_NativePackageStem(&(module->name[0]));
-                                    bool value_18 = zir_f_88c96d1f737973e0_strcmp(value_17, compiler_c_emit_NativePackageStem(&(other->name[0]))) == 0;
+                                    uint8_t* value_17 = NativePackageStem(&(module->name[0]));
+                                    bool value_18 = zir_f_88c96d1f737973e0_strcmp(value_17, NativePackageStem(&(other->name[0]))) == 0;
                                     if (value_18 && zir_f_88c96d1f737973e0_strcmp(&(module->name[0]), &(other->name[0])) != 0) {
                                         ZirSourceSpan value_19 = fn->span;
                                         String value_20 = StringLiteral("zir_c.global");
@@ -5404,31 +5403,36 @@ compiler_c_emit_NativeExportSymbol(ZirFunction* fn)
     return value_0;
 }
 
-static uint8_t*
-compiler_c_emit_NativePackageStem(uint8_t* name)
+uint8_t*
+NativePackageStem(uint8_t* name)
 {
-    if (name[0] != 112) {
-        return name;
-    }
-    for (int64_t i = 1LL; i <= 16LL; i++) {
-        uint8_t byte = name[i];
-        if (!((byte >= 48 && byte <= 57) || (byte >= 97 && byte <= 102))) {
-            return name;
+    int32_t index = 0;
+    while (name[index] != 0) {
+        if (name[index] != 95) {
+            index = (int32_t)((uint32_t)index + 1u);
+            continue;
         }
-    }
-    uint8_t* value_0 = (void *)0;
-    if (name[17] == 95) {
-        uint8_t* value_1 = (void *)0;
-        {
-            uint8_t* p = name;
-            size_t n = 18;
-            value_1 = (uint8_t*)(((size_t)(p) + n));
+        int32_t run = 1;
+        while (run < 13) {
+            uint8_t byte = name[((int32_t)((uint32_t)index + (uint32_t)run))];
+            if (!((byte >= 48 && byte <= 57) || (byte >= 97 && byte <= 102))) {
+                break;
+            }
+            run = (int32_t)((uint32_t)run + 1u);
         }
-        value_0 = value_1;
-    } else {
-        value_0 = name;
+        if (run == 13 && name[((int32_t)((uint32_t)index + 13u))] == 95) {
+            size_t value_0 = (size_t)(((int32_t)((uint32_t)index + 14u)));
+            uint8_t* value_1 = (void *)0;
+            {
+                uint8_t* p = name;
+                size_t n = value_0;
+                value_1 = (uint8_t*)(((size_t)(p) + n));
+            }
+            return value_1;
+        }
+        index = (int32_t)((uint32_t)index + 1u);
     }
-    return value_0;
+    return name;
 }
 
 static void

@@ -165,7 +165,16 @@ repository reached through different aliases or transports still shares a
 single entry and checkout, while two mirrors of one package stay separately
 pinned. An identity is always a valid identifier, directory and environment
 fragment, and it is derived from the declaration alone, so a pinned checked
-library can be selected before any source is fetched.
+library can be selected before any source is fetched. Identities pin; they
+are not module names. A package's modules are named after its dependency
+alias as imported (`kryon__button`, or `kryon_v2__button` for
+`[dependencies.kryon_v2]`), and mirrors of one repository pinned at one revision
+share that namespace, so generated names stay short. The double underscore
+separates the package from the module, keeping `crypto/native` distinct from
+a project's own `crypto_native` module. Two entries under one
+name at different revisions, or two different repositories under one name,
+stop the build: use `ziran add URL --name ALIAS` or
+`[dependencies.ALIAS]` and import `ALIAS/Module` instead.
 
 ## Importing modules
 
@@ -273,8 +282,11 @@ Plot = "src/module.zi"
 Push the repository anywhere Git can reach. Prefer HTTPS URLs in published
 manifests so fresh clones and CI can fetch without an SSH key.
 
-Package modules receive an internal identity derived from their repository
-and commit. Two versions of a transitive dependency can coexist in one build.
+Package modules receive an internal identity derived from their dependency
+alias, so generated module and symbol names read `kryon_button`. Two
+versions of a transitive dependency can only coexist in one build under
+different explicit dependency aliases; the same name pinned at two revisions, or shared
+by two different repositories, stops the build before any C is written.
 A `#program_export` procedure is the exception in generated C, where it is
 one linker symbol: when the program uses one that both versions define,
 `ziran build` names the procedure and both modules before any C is written.

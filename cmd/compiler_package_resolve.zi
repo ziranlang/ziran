@@ -8,6 +8,7 @@ PackageRoot :: struct { id: *u8; path: *u8 }
 PackageModule :: struct { id: *u8; name: *u8; path: *u8; identity: [IR.ZIR_NAME_MAX]u8 }
 PackageDependency :: struct { owner: *u8; visible: *u8; target: *u8; exported: *u8 }
 PackageAmbiguous :: struct { owner: *u8; visible: *u8; choices: *u8 }
+PackageRename :: struct { owner: *u8; original: *u8; target: *u8 }
 ZirPackageMap :: struct {
     roots: *PackageRoot
     root_count: s32
@@ -17,6 +18,8 @@ ZirPackageMap :: struct {
     dependency_count: s32
     ambiguous: *PackageAmbiguous
     ambiguous_count: s32
+    renames: *PackageRename
+    rename_count: s32
 }
 
 #scope_file
@@ -88,8 +91,10 @@ read_row :: (map: *ZirPackageMap, line: *u8) -> bool {
         length: s32
         if IR.CText(row.id) == "root" {
             length = snprintf(*row.identity[0], IR.ZIR_NAME_MAX, ParserCString("%s"), row.name)
+        } else if IR.CText(row.id) == "std" {
+            length = snprintf(*row.identity[0], IR.ZIR_NAME_MAX, ParserCString("std_%s"), row.name)
         } else {
-            length = snprintf(*row.identity[0], IR.ZIR_NAME_MAX, ParserCString("%s_%s"), row.id, row.name)
+            length = snprintf(*row.identity[0], IR.ZIR_NAME_MAX, ParserCString("%s__%s"), row.id, row.name)
         }
         return length > 0 && length < IR.ZIR_NAME_MAX
     }
@@ -105,6 +110,18 @@ read_row :: (map: *ZirPackageMap, line: *u8) -> bool {
         row.target = copy_field(*cursor)
         row.exported = copy_field(*cursor)
         return row.owner != null && row.visible != null && row.target != null && row.exported != null
+    }
+    if kind == "R" {
+        rows := cast(*PackageRename)CompilerRealloc(cast(*void)map.renames, cast(usize)(map.rename_count + 1) * size_of(PackageRename))
+        if rows == null { return false }
+        map.renames = rows
+        row := *rows[map.rename_count]
+        map.rename_count += 1
+        row[0] = .{}
+        row.owner = copy_field(*cursor)
+        row.original = copy_field(*cursor)
+        row.target = copy_field(*cursor)
+        return row.owner != null && row.original != null && row.target != null
     }
     if kind == "A" {
         rows := cast(*PackageAmbiguous)CompilerRealloc(cast(*void)map.ambiguous, cast(usize)(map.ambiguous_count + 1) * size_of(PackageAmbiguous))
@@ -149,10 +166,16 @@ PackageMapFree :: (map: *ZirPackageMap) {
         CompilerFree(cast(*void)map.ambiguous[i].visible)
         CompilerFree(cast(*void)map.ambiguous[i].choices)
     }
+    for i: 0..map.rename_count - 1 {
+        CompilerFree(cast(*void)map.renames[i].owner)
+        CompilerFree(cast(*void)map.renames[i].original)
+        CompilerFree(cast(*void)map.renames[i].target)
+    }
     CompilerFree(cast(*void)map.roots)
     CompilerFree(cast(*void)map.modules)
     CompilerFree(cast(*void)map.dependencies)
     CompilerFree(cast(*void)map.ambiguous)
+    CompilerFree(cast(*void)map.renames)
     CompilerFree(cast(*void)map)
 }
 
@@ -198,6 +221,30 @@ PackageModuleName :: (map: *ZirPackageMap, path: *u8) -> *u8 {
         if strcmp(map.modules[i].path, path) == 0 { return *map.modules[i].identity[0] }
     }
     return null
+}
+
+// Saved imports use the provider's namespaces. Rebind them once, before
+// resolving or checking the module, so two aliased revisions stay distinct.
+PackageRemapSaved :: (map: *ZirPackageMap, path: *u8, module: *IR.ZirModule) -> bool {
+    owner := PackageOwner(map, path)
+    if owner == null { return false }
+    for index: cast(s32)-1..module.import_count - 1 {
+        spelling := ifx index < 0 then *module.name[0] else *module.imports[index].target[0]
+        if index >= 0 && module.imports[index].kind == .EXTERN { continue }
+        for rename: cast(s32)0..map.rename_count - 1 {
+            row := *map.renames[rename]
+            length := strlen(row.original)
+            if strcmp(row.owner, owner) != 0 || strncmp(spelling, row.original, length) != 0 ||
+                strncmp(cast(*u8)(cast(usize)spelling + length), ParserCString("__"), 2) != 0 { continue }
+            renamed: [IR.ZIR_PATH_MAX]u8
+            size := ifx index < 0 then cast(usize)IR.ZIR_NAME_MAX else cast(usize)IR.ZIR_PATH_MAX
+            if snprintf(*renamed[0], size, ParserCString("%s%s"), row.target,
+                cast(*u8)(cast(usize)spelling + length)) >= cast(s32)size { return false }
+            if !copy_spelling(spelling, size, *renamed[0]) { return false }
+            break
+        }
+    }
+    return true
 }
 
 PackageResolve :: (map: *ZirPackageMap, owner: *u8, visible: *u8, path: *u8, path_size: usize, identity: *u8, identity_size: usize) -> s32 {

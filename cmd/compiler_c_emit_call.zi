@@ -96,8 +96,8 @@ EmitIndent :: (e: *Emitter) {
 }
 
 GlobalSlotWrapperName :: (module: *IR.ZirModule, global: *IR.ZirGlobal, index: s32, out: *u8, size: usize) {
-    // A package module is named after its lock id, which a long repository
-    // path can stretch well past 64 characters; NativeCFunctionName keeps 256.
+    // A package module is named after its dependency name and module stem;
+    // NativeCFunctionName keeps 256 bytes for the longest spellings.
     prefix: [256]u8
     CNumberPrefix(module, *prefix[0], 256)
     offset := cast(s64)(cast(usize)global - cast(usize)module.globals) / cast(s64)size_of(IR.ZirGlobal)

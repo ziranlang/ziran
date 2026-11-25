@@ -360,16 +360,11 @@ package_scoped :: (context_local: *LoadContext, package: *u8) -> s32 {
 
 #scope_file
 package_identity :: (package: *u8, module: *u8, output: *u8, size: usize) -> s32 {
-    hash: u64 = cast(u64)(1469598103934665603)
-    {
-        at: *u8 = cast(*u8)(package)
-        while check_loop_9 := ((at)[0] != 0) {
-            hash ^= cast(u64)((at)[0])
-            hash *= cast(u64)(1099511628211)
-            PersistencePost3(*(at))
-        }
+    written := snprintf(output, size, ParserCString("%s__%s"), package, module)
+    if written <= 0 || cast(usize)written >= size { return 0 }
+    for index: cast(s32)0..written - 1 {
+        if output[index] == #char "-" { output[index] = #char "_" }
     }
-    written: s32 = snprintf(output, size, ParserCString("p%016llx_%s"), cast(u64)(hash), module)
     return cast(s32)((written > 0) && (cast(usize)(written) < size))
 }
 
@@ -514,7 +509,9 @@ add_program_named :: (context_local: *LoadContext, path: *u8, root: *u8, identit
     } else {
         if ((context_local).packages != cast(*Packages.ZirPackageMap)((null))) {
             mapped: *u8 = Packages.PackageModuleName((context_local).packages, canonical)
-            if ((mapped != cast(*u8)((null))) && (((program).module_count != 1) || (strcmp(cast(*u8)(*((((program).modules)[0]).name)), mapped) != 0))) {
+            if ((mapped != cast(*u8)((null))) && (((program).module_count != 1) ||
+                !Packages.PackageRemapSaved(context_local.packages, canonical, *program.modules[0]) ||
+                (strcmp(cast(*u8)(*((((program).modules)[0]).name)), mapped) != 0))) {
                 Diagnostic(Span(path, 1, 1), ParserCString("package.identity"), ParserCString("saved package module does not declare its mapped identity %s"), mapped)
                 ProgramFree(program)
                 CompilerFree(cast(*void)(canonical))

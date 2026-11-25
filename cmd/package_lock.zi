@@ -12,6 +12,7 @@ Diagnostics :: #import "diagnostics"
 PkgLocked :: struct {
     id: string
     name: string
+    module_prefix: string
     url: string
     ref: string
     commit: string

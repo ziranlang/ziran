@@ -208,6 +208,16 @@ PkgSameSource :: (left: string, right: string) -> bool {
     return key.count > 0 && key == PkgSourceKey(right)
 }
 
+// Mirrors of one repository: the same path reached on different hosts.
+// Transports of one host are already one source (PkgSameSource). Mirrors
+// pinned at one revision are the same library and may share a module
+// namespace; the lock keeps every mirror separately pinned.
+PkgSameRepositoryPath :: (left: string, right: string) -> bool {
+    a: PkgSource = PkgParseSource(left)
+    b: PkgSource = PkgParseSource(right)
+    return a.valid && b.valid && !a.local && !b.local && a.path == b.path
+}
+
 // The repository tag of an identity: the host and path of the canonical
 // address with a "git." host prefix dropped, or the last path segment of a
 // local address. The tag names the repository an identity pins.

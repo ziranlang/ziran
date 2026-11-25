@@ -57,8 +57,8 @@ Attach :: (state: *Model.State) { state.handler = Change; }
                            ('M', 'pwidget', 'control', widget_source), edge])
     model_source.unlink()
     widget_source.unlink()
-    state = binary / 'pmodel_state.zir'
-    control = binary / 'pwidget_control.zir'
+    state = binary / 'pmodel__state.zir'
+    control = binary / 'pwidget__control.zir'
     state, control = state.rename(model / state.name), control.rename(widget / control.name)
     rows = common + [('P', 'pmodel', model), ('P', 'pwidget', widget),
                      ('M', 'pmodel', 'state', state), ('M', 'pwidget', 'control', control)]

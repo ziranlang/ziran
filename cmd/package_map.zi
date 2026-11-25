@@ -1,6 +1,7 @@
 #import "package_common"
 #import "package_manifest"
 #import "package_lock"
+#import "package_source"
 #import "byte_text_linux"
 
 PkgModule :: struct {
@@ -31,6 +32,86 @@ PkgHasModule :: (set: *PkgModuleSet, name: string) -> bool {
     while index < set.count {
         if set.items[index].name == name { return true }
         index += 1
+    }
+    return false
+}
+
+// Lock identities pin sources. Module names use the dependency spelling
+// from imports; an explicit dependency alias also names its generated code.
+PkgModulePrefix :: (item: *PkgLocked) -> string {
+    if item.module_prefix != "" { return item.module_prefix }
+    if item.source || item.name.count == 0 { return item.id }
+    return PkgIdName(item.name)
+}
+
+PkgNameModules :: (locked: *PkgLock) {
+    for index: cast(s32)0..locked.count - 1 { locked.packages[index].module_prefix = "" }
+    // A direct import's name takes precedence over transitive spellings of
+    // the same pinned library. One pin keeps one type identity.
+    for edge: locked.root_edges[0:locked.root_edge_count] {
+        target := PkgFindById(locked, edge.value)
+        if target >= 0 && locked.packages[target].module_prefix == "" {
+            locked.packages[target].module_prefix = PkgIdName(edge.name)
+        }
+    }
+    for index: cast(s32)0..locked.count - 1 {
+        for edge: locked.packages[index].edges[0:locked.packages[index].edge_count] {
+            target := PkgFindById(locked, edge.value)
+            if target < 0 { continue }
+            direct := false
+            for root_edge: locked.root_edges[0:locked.root_edge_count] {
+                if root_edge.value == edge.value { direct = true; break }
+            }
+            candidate := PkgIdName(edge.name)
+            previous := locked.packages[target].module_prefix
+            if !direct && (previous == "" || PkgLexLess(candidate, previous)) {
+                locked.packages[target].module_prefix = candidate
+            }
+        }
+    }
+}
+
+// Two locked packages may share one module namespace only when they are
+// one library at one revision: mirrors of a repository over different
+// hosts, pinned at the same commit. Anything else — two revisions, or two
+// different repositories under one name — must be given explicitly
+// different aliases; the build refuses instead of inventing unique names.
+// Source lock identities remain independent of these names.
+PkgNamespaceError :: (locked: *PkgLock) -> string {
+    index: s32 = 0
+    while index < locked.count {
+        item: *PkgLocked = *locked.packages[index]
+        prefix: string = PkgModulePrefix(item)
+        if prefix == "root" || prefix == "std" {
+            return PkgJoin3("a dependency is named ", prefix,
+                ", which the module namespaces reserve; give it a different name")
+        }
+        earlier: s32 = 0
+        while earlier < index {
+            other: *PkgLocked = *locked.packages[earlier]
+            if PkgModulePrefix(other) != prefix { earlier += 1; continue }
+            if item.commit != other.commit || !PkgSameRepositoryPath(item.url, other.url) {
+                first: string = PkgJoin3(other.url, " at ", other.commit)
+                second: string = PkgJoin3(item.url, " at ", item.commit)
+                return PkgJoin(PkgJoin(PkgJoin3("the dependency name ", prefix, " is pinned twice: "),
+                    PkgJoin3(first, " and ", second)),
+                    "; give one dependency an explicit alias with --name or [dependencies.ALIAS], or align their pins")
+            }
+            earlier += 1
+        }
+        index += 1
+    }
+    return ""
+}
+
+// Whether an earlier locked entry already provides this namespace. After
+// PkgNamespaceError, equality means one library at one revision.
+PkgPrefixShared :: (locked: *PkgLock, index: s32) -> bool {
+    prefix: string = PkgModulePrefix(*locked.packages[index])
+    earlier: s32 = 0
+    while earlier < index {
+        if PkgModulePrefix(*locked.packages[earlier]) == prefix { return true }
+        earlier += 1
     }
     return false
 }
@@ -137,12 +218,13 @@ PkgAddGeneratedModules :: (current: *PkgManifest, output: *PkgModuleSet) -> bool
 }
 
 PkgAppendModuleSet :: (builder: *PkgBuilder, id: string, directory: string,
-    set: *PkgModuleSet) -> void {
+    set: *PkgModuleSet, modules: bool = true) -> void {
     canonical := PkgCanonical(directory)
     if canonical == "" { builder.valid = false; return }
     PkgAppend(builder, PkgJoin3("P\t", id, "\t"))
     PkgAppend(builder, canonical)
     PkgAppend(builder, "\n")
+    if !modules { return }
     index: s32 = 0
     while index < set.count {
         PkgAppend(builder, PkgJoin3("M\t", id, "\t"))
@@ -192,7 +274,7 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
     edge_count: s32 = locked.root_edge_count
     if owner >= 0 {
         owner_manifest = *locked.packages[owner].manifest
-        owner_id = locked.packages[owner].id
+        owner_id = PkgModulePrefix(*locked.packages[owner])
         edge_count = locked.packages[owner].edge_count
     }
     // A package's public exports also have its own manifest-qualified
@@ -241,6 +323,9 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
         }
         target: s32 = PkgFindById(locked, target_id)
         if target < 0 { return false }
+        // Edges name their target by lock identity; module rows and rows
+        // derived from them speak the dependency name.
+        target_prefix: string = PkgModulePrefix(*locked.packages[target])
         target_manifest: *PkgManifest = *locked.packages[target].manifest
         alias_index: s32 = 0
         while alias_index < dep.alias_count {
@@ -260,7 +345,7 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
             if internal.count == 0 { return false }
             qualified: string = PkgJoin3(dep.alias, "/", exported.name)
             PkgAppend(builder, PkgJoin3("D\t", owner_id, "\t"))
-            PkgAppend(builder, PkgJoin3(qualified, "\t", target_id))
+            PkgAppend(builder, PkgJoin3(qualified, "\t", target_prefix))
             PkgAppend(builder, PkgJoin3("\t", internal, "\n"))
             name: string = PkgAliasName(dep, exported.name)
             if PkgHasModule(*graph.sets[owner + 1], name) { continue }
@@ -274,7 +359,7 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
             }
             if short_count >= 4096 { return false }
             shorts[short_count].name = name
-            shorts[short_count].target = target_id
+            shorts[short_count].target = target_prefix
             shorts[short_count].internal = internal
             shorts[short_count].qualified = qualified
             shorts[short_count].count = 1
@@ -302,6 +387,9 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
 PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest, root_id: string = "root") -> string {
     root = PkgCanonical(root)
     if root == "" { return "" }
+    PkgNameModules(locked)
+    conflict: string = PkgNamespaceError(locked)
+    if conflict != "" { unused PkgFail(conflict); return "" }
     graph: *PkgModuleGraph = cast(*PkgModuleGraph)(PkgAllocZero(cast(u64)size_of(PkgModuleGraph)))
     memory: *u8 = PkgAlloc(33554432)
     if graph == null || memory == null { return "" }
@@ -323,7 +411,25 @@ PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest, root_id: 
         if !PkgScanModules(item.path, *item.manifest, *graph.sets[index + 1], extension) {
             return ""
         }
-        PkgAppendModuleSet(*builder, item.id, item.path, *graph.sets[index + 1])
+        // Mirrors of one library at one revision share the namespace: their
+        // module rows exist once, and every checkout keeps its path row.
+        PkgAppendModuleSet(*builder, PkgModulePrefix(item), item.path,
+            *graph.sets[index + 1], !PkgPrefixShared(locked, index))
+        if item.checked {
+            // Archives are checked in their own manifest's scope. Rebind
+            // those names to this consumer's explicit import aliases.
+            owner := PkgModulePrefix(item)
+            PkgAppend(*builder, PkgJoin3("R\t", owner, "\t"))
+            PkgAppend(*builder, PkgJoin3(PkgIdName(item.manifest.name), "\t", owner))
+            PkgAppend(*builder, "\n")
+            for edge: item.edges[0:item.edge_count] {
+                target := PkgFindById(locked, edge.value)
+                if target < 0 { return "" }
+                PkgAppend(*builder, PkgJoin3("R\t", owner, "\t"))
+                PkgAppend(*builder, PkgJoin3(PkgIdName(edge.name), "\t", PkgModulePrefix(*locked.packages[target])))
+                PkgAppend(*builder, "\n")
+            }
+        }
         index += 1
     }
     standard: *PkgManifest = PkgNewManifest()
@@ -359,7 +465,7 @@ PkgWriteMap :: (root: string, locked: *PkgLock, current: *PkgManifest, root_id: 
                 direct += 1
                 continue
             }
-            PkgAppend(*builder, PkgJoin3("D\t", locked.packages[target].id,
+            PkgAppend(*builder, PkgJoin3("D\t", PkgModulePrefix(*locked.packages[target]),
                 "\t"))
             PkgAppend(*builder, name)
             PkgAppend(*builder, PkgJoin3("\t", root_id, "\t"))
@@ -403,11 +509,14 @@ PkgWriteLinksFile :: (root: string, locked: *PkgLock) -> string {
     index: s32 = 0
     while index < locked.count {
         item: *PkgLocked = *locked.packages[index]
+        // Mirrors sharing a namespace have identical manifests and links;
+        // their rows exist once.
+        if PkgPrefixShared(locked, index) { index += 1; continue }
         extension := ifx item.checked then ".zir" else ".zi"
         if !PkgScanModules(item.path, *item.manifest, set, extension) { return "" }
         module: s32 = 0
         while module < set.count {
-            PkgAppend(*builder, PkgJoin3("M\t", item.id, "\t"))
+            PkgAppend(*builder, PkgJoin3("M\t", PkgModulePrefix(item), "\t"))
             PkgAppend(*builder, set.items[module].name)
             PkgAppend(*builder, "\t")
             PkgAppend(*builder, set.items[module].path)
@@ -416,7 +525,7 @@ PkgWriteLinksFile :: (root: string, locked: *PkgLock) -> string {
         }
         link: s32 = 0
         while link < item.manifest.link_count {
-            PkgAppend(*builder, PkgJoin3("L\t", item.id, "\t"))
+            PkgAppend(*builder, PkgJoin3("L\t", PkgModulePrefix(item), "\t"))
             PkgAppend(*builder, item.manifest.links[link])
             PkgAppend(*builder, "\n")
             link += 1

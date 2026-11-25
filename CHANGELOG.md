@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Name dependency modules and generated symbols after their import aliases instead of repository addresses and revision hashes. Conflicting pins under one name require an explicit dependency alias.
+
 ## [0.9.0] - 2026-11-25
 
 - `zx2native` on Linux x86-64 now implements the full System V AMD64 C ABI for registered host-library veneers: arbitrary records (including mixed float/integer/padded structs such as `Rectangle`, `Color`, `Vector2`, `BundleInput`, `TextRequest`), stack-spilled arguments past six integer / eight SSE registers, and record return values (both <=16-byte register returns and >16-byte `sret` hidden-pointer returns) marshal between Ziran's packed record layout and C's naturally aligned struct layout. This lets native executables produced from portable `.zx` bundles link full platform UI/SDL/GPU host libraries directly instead of hitting `assembly.gap.machine-host-abi`. `tests/machine_elf.sh` covers `Color`/`Rectangle`/stack-spilled calls, `string` returns, and 14-field padded struct returns.

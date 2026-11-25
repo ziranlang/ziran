@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include "compiler_ir.h"
 #include "compiler_files.h"
 #include "compiler_source_store.h"
@@ -16,6 +17,7 @@ typedef struct PackageRoot PackageRoot;
 typedef struct PackageModule PackageModule;
 typedef struct PackageDependency PackageDependency;
 typedef struct PackageAmbiguous PackageAmbiguous;
+typedef struct PackageRename PackageRename;
 typedef struct ZirPackageMap ZirPackageMap;
 
 struct PackageRoot {
@@ -43,6 +45,12 @@ struct PackageAmbiguous {
     uint8_t* choices;
 };
 
+struct PackageRename {
+    uint8_t* owner;
+    uint8_t* original;
+    uint8_t* target;
+};
+
 struct ZirPackageMap {
     PackageRoot* roots;
     int32_t root_count;
@@ -52,11 +60,14 @@ struct ZirPackageMap {
     int32_t dependency_count;
     PackageAmbiguous* ambiguous;
     int32_t ambiguous_count;
+    PackageRename* renames;
+    int32_t rename_count;
 };
 void PackageMapFree(ZirPackageMap* map);
 ZirPackageMap* compiler_package_resolve_PackageMapLoad(uint8_t* path);
 uint8_t* compiler_package_resolve_PackageOwner(ZirPackageMap* map, uint8_t* path);
 uint8_t* compiler_package_resolve_PackageModuleName(ZirPackageMap* map, uint8_t* path);
+bool compiler_package_resolve_PackageRemapSaved(ZirPackageMap* map, uint8_t* path, ZirModule* module);
 int32_t compiler_package_resolve_PackageResolve(ZirPackageMap* map, uint8_t* owner, uint8_t* visible, uint8_t* path, size_t path_size, uint8_t* identity, size_t identity_size);
 int32_t compiler_package_resolve_PackageResolveSaved(ZirPackageMap* map, uint8_t* owner, uint8_t* identity, uint8_t* path, size_t path_size);
 uint8_t* compiler_package_resolve_PackageAmbiguity(ZirPackageMap* map, uint8_t* owner, uint8_t* visible);

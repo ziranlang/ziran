@@ -132,7 +132,16 @@ repository reached through different aliases or transports still shares a
 single entry and checkout, while two mirrors of one package stay separately
 pinned. An identity is always a valid identifier, directory and environment
 fragment, and it is derived from the declaration alone, so a pinned checked
-library can be selected before any source is fetched.</p>
+library can be selected before any source is fetched. Identities pin; they
+are not module names. A package's modules are named after its dependency
+alias as imported (<code>kryon__button</code>, or <code>kryon_v2__button</code> for
+<code>[dependencies.kryon_v2]</code>), and mirrors of one repository pinned at one revision
+share that namespace, so generated names stay short. The double underscore
+separates the package from the module, keeping <code>crypto/native</code> distinct from
+a project's own <code>crypto_native</code> module. Two entries under one
+name at different revisions, or two different repositories under one name,
+stop the build: use <code>ziran add URL --name ALIAS</code> or
+<code>[dependencies.ALIAS]</code> and import <code>ALIAS/Module</code> instead.</p>
 <h2 id="importing-modules">Importing modules</h2>
 <p>A dependency's exported modules are imported by the dependency name and the
 module name, so every import says where it comes from:</p>
@@ -216,8 +225,11 @@ Plot = &quot;src/module.zi&quot;
 </code></pre>
 <p>Push the repository anywhere Git can reach. Prefer HTTPS URLs in published
 manifests so fresh clones and CI can fetch without an SSH key.</p>
-<p>Package modules receive an internal identity derived from their repository
-and commit. Two versions of a transitive dependency can coexist in one build.
+<p>Package modules receive an internal identity derived from their dependency
+alias, so generated module and symbol names read <code>kryon_button</code>. Two
+versions of a transitive dependency can only coexist in one build under
+different explicit dependency aliases; the same name pinned at two revisions, or shared
+by two different repositories, stops the build before any C is written.
 A <code>#program_export</code> procedure is the exception in generated C, where it is
 one linker symbol: when the program uses one that both versions define,
 <code>ziran build</code> names the procedure and both modules before any C is written.

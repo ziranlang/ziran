@@ -253,7 +253,7 @@ LinkFlag :: (name: string) -> *u8 {
 // A dependency's [package] links belong to the modules a build includes,
 // not to every project that can name the dependency. The ZIRAN_PACKAGE_LINKS
 // sidecar carries each locked dependency's modules (M rows) and links
-// (L rows); dependency C file names are "<package id>_<module>", so each
+// (L rows); dependency C file names are "<alias>__<module>", so each
 // included module credits its owning package's links once. Projects without
 // the sidecar declare their links in the root manifest and LDLIBS as before.
 MapOwner :: struct { module: string; owner: string }
@@ -335,9 +335,9 @@ AppendIncludedLinks :: (files: *Vectors.Vec(*u8), tail: *Vectors.Vec(*u8)) -> bo
         module := name[0:name.count - 2]
         for row: owners[:] {
             // Generated C names are "<module>.c" for root modules and
-            // "<package id>_<module>.c" for dependency modules.
+            // "<alias>__<module>.c" for dependency modules.
             matches := row.module == module
-            if !matches && module.count > row.owner.count + 1 && module[0:row.owner.count] == row.owner && module[row.owner.count] == #char "_" && module[row.owner.count + 1:module.count] == row.module { matches = true }
+            if !matches && module.count > row.owner.count + 2 && module[0:row.owner.count] == row.owner && module[row.owner.count:row.owner.count + 2] == "__" && module[row.owner.count + 2:module.count] == row.module { matches = true }
             if !matches { continue }
             seen := false
             if credited_count > 0 {

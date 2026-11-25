@@ -38,6 +38,8 @@ typedef struct Job Job;
 typedef struct SlotOutput SlotOutput;
 typedef struct PendingOutput PendingOutput;
 typedef struct zir_e4358493ea4607d1_Results__string__bool zir_e4358493ea4607d1_Results__string__bool;
+typedef struct MapOwner MapOwner;
+typedef struct MapLink MapLink;
 typedef struct Results__pu8__bool Results__pu8__bool;
 typedef struct DiagnosticSpan DiagnosticSpan;
 typedef struct PollRecord PollRecord;
@@ -50,6 +52,14 @@ typedef struct __type_c53c2d7c4913dc02 __type_c53c2d7c4913dc02;
 #ifndef ZIRAN_CONCRETE_FORWARD___type_21092c8252d3dcaa
 #define ZIRAN_CONCRETE_FORWARD___type_21092c8252d3dcaa
 typedef struct __type_21092c8252d3dcaa __type_21092c8252d3dcaa;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_977f1aa2b1338c92
+#define ZIRAN_CONCRETE_FORWARD___type_977f1aa2b1338c92
+typedef struct __type_977f1aa2b1338c92 __type_977f1aa2b1338c92;
+#endif
+#ifndef ZIRAN_CONCRETE_FORWARD___type_ed1e6fa4811ab16b
+#define ZIRAN_CONCRETE_FORWARD___type_ed1e6fa4811ab16b
+typedef struct __type_ed1e6fa4811ab16b __type_ed1e6fa4811ab16b;
 #endif
 #ifndef ZIRAN_CONCRETE_FORWARD___type_6f55d821d15c8cbf
 #define ZIRAN_CONCRETE_FORWARD___type_6f55d821d15c8cbf
@@ -86,6 +96,16 @@ struct PendingOutput {
 struct zir_e4358493ea4607d1_Results__string__bool {
     String value_0;
     bool value_1;
+};
+
+struct MapOwner {
+    String module;
+    String owner;
+};
+
+struct MapLink {
+    String owner;
+    String library;
 };
 
 struct Results__pu8__bool {
@@ -134,6 +154,24 @@ struct __type_21092c8252d3dcaa {
     int64_t capacity;
 };
 #endif
+#ifndef ZIRAN_CONCRETE___type_977f1aa2b1338c92
+#define ZIRAN_CONCRETE___type_977f1aa2b1338c92
+
+struct __type_977f1aa2b1338c92 {
+    MapOwner* data;
+    int64_t count;
+    int64_t capacity;
+};
+#endif
+#ifndef ZIRAN_CONCRETE___type_ed1e6fa4811ab16b
+#define ZIRAN_CONCRETE___type_ed1e6fa4811ab16b
+
+struct __type_ed1e6fa4811ab16b {
+    MapLink* data;
+    int64_t count;
+    int64_t capacity;
+};
+#endif
 #ifndef ZIRAN_CONCRETE___type_6f55d821d15c8cbf
 #define ZIRAN_CONCRETE___type_6f55d821d15c8cbf
 
@@ -143,7 +181,7 @@ struct __type_6f55d821d15c8cbf {
     int64_t capacity;
 };
 #endif
-extern __type_c53c2d7c4913dc02 zir_g_45df0357d1607758;
+extern __type_c53c2d7c4913dc02 zir_g_ebee27c61794d0ae;
 #ifndef ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_SysconfByName_6b580cc2
 #define ZIR_FOREIGN_zir_f_1cd1ecb166af98b1_SysconfByName_6b580cc2
 #ifdef __APPLE__
@@ -545,6 +583,9 @@ void compiler_backend_process_FreePointers(__type_21092c8252d3dcaa values);
 bool compiler_backend_process_PrepareArguments(Slice arguments, __type_21092c8252d3dcaa* pointers);
 bool compiler_backend_process_WordsInto(String value, __type_21092c8252d3dcaa* output);
 bool compiler_backend_process_EnvironmentWords(String name, __type_21092c8252d3dcaa* output);
+uint8_t* compiler_backend_process_LinkFlag(String name);
+uint8_t* compiler_backend_process_ReadMapBytes(uint8_t* path, int64_t* length);
+bool compiler_backend_process_AppendIncludedLinks(__type_21092c8252d3dcaa* files, __type_21092c8252d3dcaa* tail);
 bool compiler_backend_process_AddCArgument(__type_21092c8252d3dcaa* output, String flag, String value);
 bool compiler_backend_process_AddSource(__type_21092c8252d3dcaa* files, String path);
 bool compiler_backend_process_CompileExecutable(String out, String name, bool threads, bool release);

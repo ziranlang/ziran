@@ -687,8 +687,8 @@ compiler_c_emit_call_EmitIndent(Emitter* e)
 static void
 compiler_c_emit_call_GlobalSlotWrapperName(ZirModule* module, ZirGlobal* global, int32_t index, uint8_t* out, size_t size)
 {
-    uint8_t prefix[64] = {0};
-    zir_f_0038f975c59a7f51_CNumberPrefix(module, &(prefix[0]), 64);
+    uint8_t prefix[256] = {0};
+    zir_f_0038f975c59a7f51_CNumberPrefix(module, &(prefix[0]), 256);
     int64_t offset = ZiDivS64((int64_t)(((size_t)(global) - (size_t)(module->globals))), sizeof(ZirGlobal), INT64_MIN);
     String value_0 = StringLiteral("%s_global_slot_%lld_%d");
     uint8_t* value_1 = (void *)0;
@@ -2405,8 +2405,8 @@ zir_emit_emit_call(Emitter* e, ZirExpr* expr, uint8_t* array_result, uint8_t* ou
 static void
 compiler_c_emit_call_SlotWrapperName(ZirModule* module, ZirFunction* fn, int32_t index, uint8_t* out, size_t size)
 {
-    uint8_t prefix[64] = {0};
-    zir_f_0038f975c59a7f51_CNumberPrefix(module, &(prefix[0]), 64);
+    uint8_t prefix[256] = {0};
+    zir_f_0038f975c59a7f51_CNumberPrefix(module, &(prefix[0]), 256);
     int64_t offset = ZiDivS64((int64_t)(((size_t)(fn) - (size_t)(module->functions))), sizeof(ZirFunction), INT64_MIN);
     String value_0 = StringLiteral("%s_slot_%lld_%d");
     uint8_t* value_1 = (void *)0;

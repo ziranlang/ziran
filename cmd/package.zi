@@ -1552,7 +1552,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             search[0:searches], map, libraries, PkgCacheRoot())
     }
     // `ziran api kryon/button` names a dependency by its alias; the API tool
-    // knows modules by their package identity.
+    // knows modules by their dependency-name namespace.
     if command == "api" && project && locked != null {
         for at: 1..count - 1 {
             if filtered[at - 1] != "--module" { continue }
@@ -1562,7 +1562,9 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             if slash == 0 || slash >= selector.count { continue }
             id := PkgEdgeValue(*locked.root_edges[0], locked.root_edge_count, selector[0:slash])
             if id == "" { continue }
-            filtered[at] = PkgJoin(id, selector[slash:])
+            entry := PkgFindById(locked, id)
+            if entry < 0 { continue }
+            filtered[at] = PkgJoin(PkgModulePrefix(*locked.packages[entry]), selector[slash:])
             // The tool's messages name the module as it was written.
             spelling_name: [1]string = .{"ZIRAN_API_MODULE"}
             spelling_value: [1]string = .{selector}

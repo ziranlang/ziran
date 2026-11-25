@@ -27,7 +27,7 @@ static inline int32_t ZiShrS32(int32_t a, uint64_t s, int w) {
 }
 #endif
 #endif
-__type_c53c2d7c4913dc02 zir_g_45df0357d1607758 = {0};
+__type_c53c2d7c4913dc02 zir_g_ebee27c61794d0ae = {0};
 
 int32_t
 compiler_backend_process_WorkerLimit(void)
@@ -698,6 +698,347 @@ compiler_backend_process_EnvironmentWords(String name, __type_21092c8252d3dcaa* 
     return compiler_backend_process_WordsInto(value, output);
 }
 
+uint8_t*
+compiler_backend_process_LinkFlag(String name)
+{
+    void* memory = zir_f_1cd1ecb166af98b1_AllocateRaw(1, (size_t)(((int64_t)((uint64_t)((int64_t)(name).length) + UINT64_C(3)))));
+    if (memory == ((void *)0)) {
+        return (void *)0;
+    }
+    uint8_t* target = (uint8_t*)(memory);
+    uint8_t* value_0 = &(target[0]);
+    (*value_0) = 45;
+    uint8_t* value_1 = &(target[1]);
+    (*value_1) = 108;
+    {
+        int64_t range_first_7 = 0LL;
+        int64_t range_last_7 = (int64_t)((uint64_t)((int64_t)(name).length) - UINT64_C(1));
+        int64_t index = range_first_7;
+        if (index <= range_last_7) for (;;) {
+            uint8_t* value_2 = &(target[((int64_t)((uint64_t)index + UINT64_C(2)))]);
+            (*value_2) = (uint8_t)name.data[index];
+            if (index == range_last_7) {
+                break;
+            }
+            index = (int64_t)((uint64_t)index + UINT64_C(1));
+        }
+    }
+    uint8_t* value_3 = &(target[((int64_t)((uint64_t)((int64_t)(name).length) + UINT64_C(2)))]);
+    (*value_3) = 0;
+    return target;
+}
+
+uint8_t*
+compiler_backend_process_ReadMapBytes(uint8_t* path, int64_t* length)
+{
+    int64_t* value_0 = &(length[0]);
+    (*value_0) = 0LL;
+    int32_t descriptor = zir_f_1cd1ecb166af98b1_OpenLock(path, 0);
+    if (descriptor < 0) {
+        return (void *)0;
+    }
+    int64_t capacity = 65536LL;
+    int64_t filled = 0LL;
+    void* memory = zir_f_1cd1ecb166af98b1_AllocateRaw(1, (size_t)(capacity));
+    if (memory == ((void *)0)) {
+        zir_f_1cd1ecb166af98b1_CloseDescriptor(descriptor);
+        return (void *)0;
+    }
+    uint8_t* target = (uint8_t*)(memory);
+    uint8_t chunk[65536] = {0};
+    while (true) {
+        int64_t read = zir_f_1cd1ecb166af98b1_ReadDescriptor(descriptor, &(chunk[0]), 65536);
+        if (read < 0LL) {
+            zir_f_1cd1ecb166af98b1_FreeRaw(memory);
+            zir_f_1cd1ecb166af98b1_CloseDescriptor(descriptor);
+            return (void *)0;
+        }
+        if (read == 0LL) {
+            break;
+        }
+        if ((int64_t)(((uint64_t)filled + (uint64_t)read) + UINT64_C(1)) > capacity) {
+            capacity = (int64_t)((uint64_t)(((uint64_t)filled + (uint64_t)read) + UINT64_C(1)) * UINT64_C(2));
+            void* grown = zir_f_1cd1ecb166af98b1_AllocateRaw(1, (size_t)(capacity));
+            if (grown == ((void *)0)) {
+                zir_f_1cd1ecb166af98b1_FreeRaw(memory);
+                zir_f_1cd1ecb166af98b1_CloseDescriptor(descriptor);
+                return (void *)0;
+            }
+            uint8_t* grown_target = (uint8_t*)(grown);
+            {
+                int64_t range_first_33 = 0LL;
+                int64_t range_last_33 = (int64_t)((uint64_t)filled - UINT64_C(1));
+                int64_t index = range_first_33;
+                if (index <= range_last_33) for (;;) {
+                    uint8_t* value_1 = &(grown_target[index]);
+                    (*value_1) = target[index];
+                    if (index == range_last_33) {
+                        break;
+                    }
+                    index = (int64_t)((uint64_t)index + UINT64_C(1));
+                }
+            }
+            zir_f_1cd1ecb166af98b1_FreeRaw(memory);
+            memory = grown;
+            target = grown_target;
+        }
+        {
+            int64_t range_first_40 = 0LL;
+            int64_t range_last_40 = (int64_t)((uint64_t)read - UINT64_C(1));
+            int64_t index = range_first_40;
+            if (index <= range_last_40) for (;;) {
+                uint8_t* value_2 = &(target[((int64_t)((uint64_t)filled + (uint64_t)index))]);
+                (*value_2) = (chunk)[index];
+                if (index == range_last_40) {
+                    break;
+                }
+                index = (int64_t)((uint64_t)index + UINT64_C(1));
+            }
+        }
+        filled = (int64_t)((uint64_t)filled + (uint64_t)read);
+    }
+    zir_f_1cd1ecb166af98b1_CloseDescriptor(descriptor);
+    uint8_t* value_3 = &(target[filled]);
+    (*value_3) = 0;
+    int64_t* value_4 = &(length[0]);
+    (*value_4) = filled;
+    return target;
+}
+
+bool
+compiler_backend_process_AppendIncludedLinks(__type_21092c8252d3dcaa* files, __type_21092c8252d3dcaa* tail)
+{
+    String path = environment_linux_EnvironmentText(StringLiteral("ZIRAN_PACKAGE_LINKS"));
+    if ((int64_t)(path).length == 0LL) {
+        return true;
+    }
+    uint8_t* map_path = compiler_backend_process_AllocateText(path);
+    if (map_path == ((void *)0)) {
+        return true;
+    }
+    int64_t length = 0;
+    uint8_t* memory = compiler_backend_process_ReadMapBytes(map_path, &(length));
+    zir_f_1cd1ecb166af98b1_FreeRaw((void*)(map_path));
+    if (memory == ((void *)0)) {
+        return true;
+    }
+    int64_t value_0 = length;
+    String value_1 = StringView(NULL, 0);
+    {
+        uint8_t* value = memory;
+        int64_t length = value_0;
+        String result = StringLiteral("");
+        if (value == ((void *)0)) {
+            value_1 = result;
+            goto value_2;
+        }
+        OwnedText* descriptor = (OwnedText*)(&(result));
+        uint8_t** value_3 = &(descriptor->data);
+        (*value_3) = value;
+        size_t* value_4 = &(descriptor->length);
+        (*value_4) = (size_t)(length);
+        value_1 = result;
+    value_2: ;
+    }
+    String map = value_1;
+    __type_977f1aa2b1338c92 owners = {0};
+    __type_977f1aa2b1338c92* value_5 = &owners;
+    __type_ed1e6fa4811ab16b links = {0};
+    __type_ed1e6fa4811ab16b* value_6 = &links;
+    int64_t at = 0LL;
+    while (at < (int64_t)(map).length) {
+        int64_t end = at;
+        while (end < (int64_t)(map).length && (uint8_t)map.data[end] != 10) {
+            end = (int64_t)((uint64_t)end + UINT64_C(1));
+        }
+        String line = StringRangeAt(map, (int64_t)at, (int64_t)end);
+        at = (int64_t)((uint64_t)end + UINT64_C(1));
+        if ((int64_t)(line).length < 4LL) {
+            continue;
+        }
+        if ((uint8_t)line.data[1] != 9) {
+            continue;
+        }
+        int64_t first = 2LL;
+        while (first < (int64_t)(line).length && (uint8_t)line.data[first] != 9) {
+            first = (int64_t)((uint64_t)first + UINT64_C(1));
+        }
+        if (first >= (int64_t)(line).length) {
+            continue;
+        }
+        String owner = StringRangeAt(line, (int64_t)2LL, (int64_t)first);
+        String rest = StringRangeAt(line, (int64_t)((int64_t)((uint64_t)first + UINT64_C(1))), (int64_t)(int64_t)(line).length);
+        if ((uint8_t)line.data[0] == 76) {
+            MapLink value_7 = (MapLink){.owner = owner, .library = rest};
+            bool value_8 = false;
+            void *value_9 = ZirVecGrow((void *)(links).data, &(links).capacity, (links).count, sizeof(*(links).data));
+            if (value_9 != NULL) {
+                (links).data = (MapLink *)value_9;
+                (links).data[(links).count++] = value_7;
+                value_8 = true;
+            }
+            if (!value_8) {
+                break;
+            }
+        } else if ((uint8_t)line.data[0] == 77) {
+            int64_t tab = 0LL;
+            while (tab < (int64_t)(rest).length && (uint8_t)rest.data[tab] != 9) {
+                tab = (int64_t)((uint64_t)tab + UINT64_C(1));
+            }
+            if (tab == 0LL || tab >= (int64_t)(rest).length) {
+                continue;
+            }
+            MapOwner value_10 = (MapOwner){.module = StringRangeAt(rest, (int64_t)0LL, (int64_t)tab), .owner = owner};
+            bool value_11 = false;
+            void *value_12 = ZirVecGrow((void *)(owners).data, &(owners).capacity, (owners).count, sizeof(*(owners).data));
+            if (value_12 != NULL) {
+                (owners).data = (MapOwner *)value_12;
+                (owners).data[(owners).count++] = value_10;
+                value_11 = true;
+            }
+            if (!value_11) {
+                break;
+            }
+        }
+    }
+    bool ok = true;
+    String credited[64] = {0};
+    int32_t credited_count = 0;
+    {
+        int64_t range_first_61 = 0LL;
+        int64_t range_last_61 = (int64_t)((uint64_t)(files->count) - UINT64_C(1));
+        int64_t index = range_first_61;
+        if (index <= range_last_61) for (;;) {
+            String name = compiler_backend_process_PathName(compiler_backend_process_CText((*(files)).data[index]));
+            String value_13 = StringLiteral(".c");
+            bool value_14 = false;
+            {
+                String value = name;
+                String suffix = value_13;
+                value_14 = (int64_t)(suffix).length <= (int64_t)(value).length && StringEqual(StringRangeAt(value, (int64_t)((int64_t)((uint64_t)((int64_t)(value).length) - (uint64_t)((int64_t)(suffix).length))), (int64_t)(int64_t)(value).length), suffix);
+            }
+            if (!value_14) {
+                if (index == range_last_61) {
+                    break;
+                }
+                index = (int64_t)((uint64_t)index + UINT64_C(1));
+                continue;
+            }
+            String module = StringRangeAt(name, (int64_t)0LL, (int64_t)((int64_t)((uint64_t)((int64_t)(name).length) - UINT64_C(2))));
+            {
+                Slice value_16 = {(owners).data, (owners).count};
+                Slice value_17 = SliceRangeAt(value_16, 0LL, owners.count, sizeof(*(owners).data));
+                Slice loop_view_67 = value_17;
+                int64_t loop_count_67 = (int64_t)(loop_view_67).length;
+                int64_t loop_cursor_67 = 0LL;
+                while (loop_cursor_67 < loop_count_67) {
+                    int64_t loop_index_67 = loop_cursor_67;
+                    MapOwner row = ((MapOwner *)loop_view_67.data)[loop_index_67];
+                    bool matches = StringEqual(row.module, module);
+                    bool value_18 = !matches && (int64_t)(module).length > (int64_t)((uint64_t)((int64_t)(row.owner).length) + UINT64_C(2));
+                    bool value_19 = value_18 && StringEqual(StringRangeAt(module, (int64_t)0LL, (int64_t)(int64_t)(row.owner).length), row.owner);
+                    bool value_20 = value_19 && StringEqual(StringRangeAt(module, (int64_t)(int64_t)(row.owner).length, (int64_t)((int64_t)((uint64_t)((int64_t)(row.owner).length) + UINT64_C(2)))), StringLiteral("__"));
+                    bool value_21 = value_20;
+                    if (value_21) {
+                        String value_22 = StringRangeAt(module, (int64_t)((int64_t)((uint64_t)((int64_t)(row.owner).length) + UINT64_C(2))), (int64_t)(int64_t)(module).length);
+                        value_21 = (StringEqual(value_22, row.module));
+                    }
+                    if (value_21) {
+                        matches = true;
+                    }
+                    if (!matches) {
+                        loop_cursor_67 = (int64_t)((uint64_t)loop_cursor_67 + UINT64_C(1));
+                        continue;
+                    }
+                    bool seen = false;
+                    if (credited_count > 0) {
+                        {
+                            int32_t range_first_77 = 0;
+                            int32_t range_last_77 = (int32_t)((uint32_t)credited_count - 1u);
+                            int32_t seen_at = range_first_77;
+                            if (seen_at <= range_last_77) for (;;) {
+                                if (StringEqual((credited)[seen_at], row.owner)) {
+                                    seen = true;
+                                }
+                                if (seen_at == range_last_77) {
+                                    break;
+                                }
+                                seen_at = (int32_t)((uint32_t)seen_at + 1u);
+                            }
+                        }
+                    }
+                    if (seen) {
+                        loop_cursor_67 = (int64_t)((uint64_t)loop_cursor_67 + UINT64_C(1));
+                        continue;
+                    }
+                    if (credited_count < 64) {
+                        String* value_23 = &(credited[credited_count]);
+                        (*value_23) = row.owner;
+                        credited_count = (int32_t)((uint32_t)credited_count + 1u);
+                    }
+                    {
+                        Slice value_24 = {(links).data, (links).count};
+                        Slice value_25 = SliceRangeAt(value_24, 0LL, links.count, sizeof(*(links).data));
+                        Slice loop_view_90 = value_25;
+                        int64_t loop_count_90 = (int64_t)(loop_view_90).length;
+                        int64_t loop_cursor_90 = 0LL;
+                        while (loop_cursor_90 < loop_count_90) {
+                            int64_t loop_index_90 = loop_cursor_90;
+                            MapLink map_link = ((MapLink *)loop_view_90.data)[loop_index_90];
+                            if (!StringEqual(map_link.owner, row.owner)) {
+                                loop_cursor_90 = (int64_t)((uint64_t)loop_cursor_90 + UINT64_C(1));
+                                continue;
+                            }
+                            uint8_t* flag = compiler_backend_process_LinkFlag(map_link.library);
+                            bool value_26 = flag == ((void *)0);
+                            bool value_27 = value_26;
+                            if (!value_27) {
+                                uint8_t* value_28 = flag;
+                                bool value_29 = false;
+                                void *value_30 = ZirVecGrow((void *)((*(tail))).data, &((*(tail))).capacity, ((*(tail))).count, sizeof(*((*(tail))).data));
+                                if (value_30 != NULL) {
+                                    ((*(tail))).data = (uint8_t* *)value_30;
+                                    ((*(tail))).data[((*(tail))).count++] = value_28;
+                                    value_29 = true;
+                                }
+                                value_27 = !value_29;
+                            }
+                            if (value_27) {
+                                ok = false;
+                            }
+                            loop_cursor_90 = (int64_t)((uint64_t)loop_cursor_90 + UINT64_C(1));
+                        }
+                    }
+                    loop_cursor_67 = (int64_t)((uint64_t)loop_cursor_67 + UINT64_C(1));
+                }
+            }
+            if (index == range_last_61) {
+                break;
+            }
+            index = (int64_t)((uint64_t)index + UINT64_C(1));
+        }
+    }
+    free((owners).data);
+    (owners).data = NULL;
+    owners.capacity = 0;
+    owners.count = 0;
+    free((links).data);
+    (links).data = NULL;
+    links.capacity = 0;
+    links.count = 0;
+    zir_f_1cd1ecb166af98b1_FreeRaw((void*)(memory));
+    bool value_31 = ok;
+    free((*value_6).data);
+    (*value_6).data = NULL;
+    (*value_6).capacity = 0;
+    (*value_6).count = 0;
+    free((*value_5).data);
+    (*value_5).data = NULL;
+    (*value_5).capacity = 0;
+    (*value_5).count = 0;
+    return value_31;
+}
+
 bool
 compiler_backend_process_AddCArgument(__type_21092c8252d3dcaa* output, String flag, String value)
 {
@@ -1128,6 +1469,11 @@ compiler_backend_process_FinishCompile(String out, String name, bool forced_lang
         compiler_backend_process_ReleaseBuildValues(base, tail, files, objects, log);
         return false;
     }
+    bool value_10 = compiler_backend_process_AppendIncludedLinks(files, tail);
+    if (!value_10) {
+        compiler_backend_process_ReleaseBuildValues(base, tail, files, objects, log);
+        return false;
+    }
     compiler_backend_process_SortPaths(files);
     zir_e4358493ea4607d1_Results__string__bool results_3_ = compiler_backend_process_PathJoin(out, StringLiteral(".objects"));
     String object_directory = results_3_.value_0;
@@ -1143,18 +1489,18 @@ compiler_backend_process_FinishCompile(String out, String name, bool forced_lang
         return false;
     }
     {
-        int64_t range_first_59 = 0LL;
-        int64_t range_last_59 = (int64_t)((uint64_t)(files->count) - UINT64_C(1));
-        int64_t index = range_first_59;
-        if (index <= range_last_59) for (;;) {
+        int64_t range_first_63 = 0LL;
+        int64_t range_last_63 = (int64_t)((uint64_t)(files->count) - UINT64_C(1));
+        int64_t index = range_first_63;
+        if (index <= range_last_63) for (;;) {
             String source = compiler_backend_process_CText((*(files)).data[index]);
-            bool value_10 = false;
+            bool value_11 = false;
             {
                 String value = source;
                 String prefix = out;
-                value_10 = (int64_t)(prefix).length <= (int64_t)(value).length && StringEqual(StringRangeAt(value, (int64_t)0LL, (int64_t)(int64_t)(prefix).length), prefix);
+                value_11 = (int64_t)(prefix).length <= (int64_t)(value).length && StringEqual(StringRangeAt(value, (int64_t)0LL, (int64_t)(int64_t)(prefix).length), prefix);
             }
-            if (!value_10 || (int64_t)(source).length <= (int64_t)(out).length || (uint8_t)source.data[(int64_t)(out).length] != 47) {
+            if (!value_11 || (int64_t)(source).length <= (int64_t)(out).length || (uint8_t)source.data[(int64_t)(out).length] != 47) {
                 compiler_backend_process_ReleaseBuildValues(base, tail, files, objects, log);
                 return false;
             }
@@ -1166,27 +1512,27 @@ compiler_backend_process_FinishCompile(String out, String name, bool forced_lang
                 compiler_backend_process_ReleaseBuildValues(base, tail, files, objects, log);
                 return false;
             }
-            uint8_t* value_12 = object;
-            bool value_13 = false;
-            void *value_14 = ZirVecGrow((void *)((*(objects))).data, &((*(objects))).capacity, ((*(objects))).count, sizeof(*((*(objects))).data));
-            if (value_14 != NULL) {
-                ((*(objects))).data = (uint8_t* *)value_14;
-                ((*(objects))).data[((*(objects))).count++] = value_12;
-                value_13 = true;
+            uint8_t* value_13 = object;
+            bool value_14 = false;
+            void *value_15 = ZirVecGrow((void *)((*(objects))).data, &((*(objects))).capacity, ((*(objects))).count, sizeof(*((*(objects))).data));
+            if (value_15 != NULL) {
+                ((*(objects))).data = (uint8_t* *)value_15;
+                ((*(objects))).data[((*(objects))).count++] = value_13;
+                value_14 = true;
             }
-            if (!value_13) {
+            if (!value_14) {
                 zir_f_1cd1ecb166af98b1_FreeRaw((void*)(object));
                 compiler_backend_process_ReleaseBuildValues(base, tail, files, objects, log);
                 return false;
             }
             uint8_t* parent = object;
             String directory_name = file_tree_linux_PathParent(compiler_backend_process_CText(parent));
-            bool value_15 = compiler_backend_process_CreateDirectories(directory_name);
-            if (!value_15) {
+            bool value_16 = compiler_backend_process_CreateDirectories(directory_name);
+            if (!value_16) {
                 compiler_backend_process_ReleaseBuildValues(base, tail, files, objects, log);
                 return false;
             }
-            if (index == range_last_59) {
+            if (index == range_last_63) {
                 break;
             }
             index = (int64_t)((uint64_t)index + UINT64_C(1));
@@ -2758,8 +3104,8 @@ compiler_backend_process_ProfileEnd(String phase, uint64_t started)
 uint8_t*
 compiler_backend_process_ProfileName(String name)
 {
-    for (int64_t it_index = 0LL; it_index < zir_g_45df0357d1607758.count; it_index++) {
-        String value = (zir_g_45df0357d1607758).data[it_index];
+    for (int64_t it_index = 0LL; it_index < zir_g_ebee27c61794d0ae.count; it_index++) {
+        String value = (zir_g_ebee27c61794d0ae).data[it_index];
         if (StringEqual(value, name)) {
             OwnedText* descriptor = (OwnedText*)(&(value));
             return descriptor->data;
@@ -2772,10 +3118,10 @@ compiler_backend_process_ProfileName(String name)
     String owned = compiler_backend_process_CText(pointer);
     String value_0 = owned;
     bool value_1 = false;
-    void *value_2 = ZirVecGrow((void *)(zir_g_45df0357d1607758).data, &(zir_g_45df0357d1607758).capacity, (zir_g_45df0357d1607758).count, sizeof(*(zir_g_45df0357d1607758).data));
+    void *value_2 = ZirVecGrow((void *)(zir_g_ebee27c61794d0ae).data, &(zir_g_ebee27c61794d0ae).capacity, (zir_g_ebee27c61794d0ae).count, sizeof(*(zir_g_ebee27c61794d0ae).data));
     if (value_2 != NULL) {
-        (zir_g_45df0357d1607758).data = (String *)value_2;
-        (zir_g_45df0357d1607758).data[(zir_g_45df0357d1607758).count++] = value_0;
+        (zir_g_ebee27c61794d0ae).data = (String *)value_2;
+        (zir_g_ebee27c61794d0ae).data[(zir_g_ebee27c61794d0ae).count++] = value_0;
         value_1 = true;
     }
     if (!value_1) {

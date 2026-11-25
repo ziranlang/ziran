@@ -228,7 +228,10 @@ PkgCheckedPack :: (root: string, locked: *PkgLock, current: *PkgManifest,
     defer PkgArtifactRemove(stage)
     ir := PkgJoin(stage, "/ir")
     if !PkgMkdirs(ir) { return PkgFail("cannot stage checked package modules") }
-    map := PkgWriteMap(root, locked, current, id)
+    // Store the provider's manifest namespace. Consumer maps rebind it to
+    // their dependency alias without exposing the immutable lock identity.
+    prefix := PkgIdName(current.name)
+    map := PkgWriteMap(root, locked, current, prefix)
     if map == "" { return PkgFail("cannot build the checked package import map") }
     command := PkgStrings(5 + options.count + current.export_count)
     if command.count == 0 || current.export_count == 0 { return PkgFail("checked packages need manifest exports") }
@@ -266,7 +269,7 @@ PkgCheckedPack :: (root: string, locked: *PkgLock, current: *PkgManifest,
         count += 1
     }
     for item: modules.items[0:modules.count] {
-        file := PkgJoin(PkgJoin3(ir, "/", id), PkgJoin3("_", item.name, ".zir"))
+        file := PkgJoin(PkgJoin3(ir, "/", prefix), PkgJoin3("__", item.name, ".zir"))
         if !PathExists(file) { continue }
         name := PkgJoin(item.path[root.count + 1:], "r")
         if !PkgArtifactPath(name) { return PkgFail("invalid checked module path") }

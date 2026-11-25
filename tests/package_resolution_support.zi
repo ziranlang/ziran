@@ -31,7 +31,8 @@ ResolutionOverrides :: (test: *NativeTest, app: string) -> bool {
 
 ResolutionProviderManifest :: (name: string, library: string, ref: string, export_name: string = "") -> string {
     exported := ifx export_name == "" then name else export_name
-    parts := string.["[package]\nname = ", FixtureQuote(name), "\nmodule_roots = [\"src\"]\n", ResolutionDependency("Library", library, ref),
+    alias := ifx name == "B" then "LibraryV2" else "Library"
+    parts := string.["[package]\nname = ", FixtureQuote(name), "\nmodule_roots = [\"src\"]\n", ResolutionDependency(alias, library, ref),
         "[exports]\n", exported, " = ", FixtureQuote(CheckConcat("src/", CheckConcat(exported, ".zi"))), "\n"]
     return TextDetach(TextJoin(parts[:], ""))
 }

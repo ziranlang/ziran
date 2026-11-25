@@ -157,8 +157,9 @@ OverrideGraph :: (test: *NativeTest) -> bool {
             unused FixtureCommit(test, leaf, "source-only revision")
         }
         output, identity, map := GraphBuild(test, app, leaf); unused output; unused map
-        if !NativeAssert(test, (changed == 0 || identity != previous_identity) && NativeRead(test, lock_path) == saved_lock,
-            "working source identity did not update independently of lock bytes") { return false }
+        if !NativeAssert(test, identity == CheckConcat("P\tdirect\t", leaf) &&
+            (changed == 0 || identity == previous_identity) && NativeRead(test, lock_path) == saved_lock,
+            "working revision changed the import namespace or lock bytes") { return false }
         previous_identity = identity
     }
     if !NativeWrite(test, local_path, propagated) { return false }
@@ -253,7 +254,7 @@ OverrideGraph :: (test: *NativeTest) -> bool {
             untouched := NativeRead(test, lock_path)
             unused PackageCommand(test, app, fetch[:])
             output, identity, map := GraphBuild(test, app, leaf); unused output; unused identity
-            if !NativeAssert(test, TextContains(map, CheckConcat("P\t", CheckConcat(extra_id, "\t"))) && NativeRead(test, lock_path) == untouched,
+            if !NativeAssert(test, TextContains(map, "P\tExtra\t") && NativeRead(test, lock_path) == untouched,
                 "override graph depended on package order or lost its locked dependency") { return false }
         }
     }

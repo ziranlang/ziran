@@ -229,6 +229,63 @@ ApiOptionValue :: (option: string) -> bool {
     return false
 }
 
+// The `-l` list a native project build links: the caller's LDLIBS, then the
+// root manifest's [package] links, then each direct locked dependency's
+// links, keeping each library name once. A dependency's own transitive
+// [package] links stay that dependency's build's concern; its manifest must
+// list what its compiled code needs.
+PkgNativeLibraries :: (locked: *PkgLock, current: *PkgManifest) -> string {
+    libraries: string = PkgGetenv("LDLIBS")
+    seen: [64]string
+    seen_count: s32 = 0
+    if current != null {
+        index: s32 = 0
+        while index < current.link_count {
+            seen[seen_count] = current.links[index]
+            seen_count += 1
+            if libraries.count > 0 { libraries = PkgJoin(libraries, " ") }
+            libraries = PkgJoin3(libraries, "-l", current.links[index])
+            index += 1
+        }
+    }
+    if locked != null {
+        package: s32 = 0
+        while package < locked.count {
+            direct := false
+            edge: s32 = 0
+            while edge < locked.root_edge_count {
+                if locked.packages[package].id == locked.root_edges[edge].value {
+                    direct = true
+                }
+                edge += 1
+            }
+            if direct {
+                link: s32 = 0
+                while link < locked.packages[package].manifest.link_count {
+                    name := locked.packages[package].manifest.links[link]
+                    duplicate := false
+                    seen_index: s32 = 0
+                    while seen_index < seen_count {
+                        if name == seen[seen_index] { duplicate = true }
+                        seen_index += 1
+                    }
+                    if !duplicate {
+                        if seen_count < 64 {
+                            seen[seen_count] = name
+                            seen_count += 1
+                        }
+                        if libraries.count > 0 { libraries = PkgJoin(libraries, " ") }
+                        libraries = PkgJoin3(libraries, "-l", name)
+                    }
+                    link += 1
+                }
+            }
+            package += 1
+        }
+    }
+    return libraries
+}
+
 PkgDispatch :: (command: string, arguments: []string, project: bool,
     root: string, locked: *PkgLock, current: *PkgManifest,
     launcher: string, extra_names: []string, extra_values: []string,
@@ -308,20 +365,17 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
             return PkgFail("cannot build project import map")
         }
     }
-    // Every project build, including an explicit source/--exe build, uses
-    // the root manifest's native libraries alongside the caller's LDLIBS.
-    if project && build && current.link_count > 0 {
-        if environment >= 8 { return PkgFail("too many build environment values") }
-        libraries: string = PkgGetenv("LDLIBS")
-        library: s32 = 0
-        while library < current.link_count {
-            if libraries.count > 0 { libraries = PkgJoin(libraries, " ") }
-            libraries = PkgJoin3(libraries, "-l", current.links[library])
-            library += 1
+    // Every project build, including an explicit source/--exe build, links
+    // the caller's LDLIBS plus the native libraries of the root manifest and
+    // each locked dependency.
+    if project && build {
+        libraries := PkgNativeLibraries(locked, current)
+        if libraries.count > 0 {
+            if environment >= 8 { return PkgFail("too many build environment values") }
+            names[environment] = "LDLIBS"
+            values[environment] = libraries
+            environment += 1
         }
-        names[environment] = "LDLIBS"
-        values[environment] = libraries
-        environment += 1
     }
     extra: s64 = 0
     if current != null { extra = current.export_count }
@@ -1471,11 +1525,7 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
                 }
                 index += 1
             }
-            index = 0
-            while index < current.link_count {
-                libraries = PkgJoin3(libraries, " -l", current.links[index])
-                index += 1
-            }
+            libraries = PkgNativeLibraries(locked, current)
         }
         standard := PkgGetenv("ZIRAN_STD")
         if standard.count == 0 {

@@ -7085,7 +7085,7 @@ compiler_zx_link_CopyKeptModule(LinkState* state, int32_t m, ZirModule* source, 
 }
 
 bool
-compiler_zx_link_BuildLinked(LinkState* state, uint8_t* entry_module, uint8_t* entry_function)
+compiler_zx_link_BuildLinked(LinkState* state)
 {
     ZirProgram* program = state->program;
     int32_t selected = compiler_zx_link_CountSet(state->keep_modules, program->module_count);
@@ -7130,17 +7130,15 @@ compiler_zx_link_BuildLinked(LinkState* state, uint8_t* entry_module, uint8_t* e
             }
             ZirModule* target = value_6;
             out = (int32_t)((uint32_t)out + 1u);
-            LinkState* value_8 = state;
-            int32_t value_9 = m;
-            ZirProgram* value_10 = program;
-            ZirModule* value_11 = (void *)0;
+            ZirProgram* value_8 = program;
+            ZirModule* value_9 = (void *)0;
             {
-                ZirProgram* program = value_10;
+                ZirProgram* program = value_8;
                 int32_t index = m;
-                value_11 = &(program->modules[index]);
+                value_9 = &(program->modules[index]);
             }
-            bool value_13 = compiler_zx_link_CopyKeptModule(value_8, value_9, value_11, target);
-            if (!value_13) {
+            bool value_11 = compiler_zx_link_CopyKeptModule(state, m, value_9, target);
+            if (!value_11) {
                 return false;
             }
             if (m == range_last_17) {
@@ -7150,59 +7148,60 @@ compiler_zx_link_BuildLinked(LinkState* state, uint8_t* entry_module, uint8_t* e
         }
     }
     zir_foreign_compiler_zx_link__qsort((uint8_t*)(linked->modules), (size_t)(linked->module_count), sizeof(ZirModule), compiler_zx_link_ModuleNameOrder);
-    bool value_14 = zir_foreign_compiler_zx_link__LinkImports(&(state->linked), 1) == 0;
-    bool value_15 = value_14;
-    if (!value_15) {
-        bool value_16 = compiler_zx_link_PruneRecordFields(linked, entry_module, entry_function);
-        value_15 = !value_16;
-    }
-    if (value_15) {
+    return zir_foreign_compiler_zx_link__LinkImports(&(linked), 1) != 0;
+}
+
+bool
+compiler_zx_link_CheckLinked(ZirProgram* linked, uint8_t* entry_module, uint8_t* entry_function)
+{
+    bool value_0 = compiler_zx_link_PruneRecordFields(linked, entry_module, entry_function);
+    if (!value_0) {
         return false;
     }
     {
-        int32_t range_first_31 = 0;
-        int32_t range_last_31 = (int32_t)((uint32_t)(linked->module_count) - 1u);
-        int32_t m = range_first_31;
-        if (m <= range_last_31) for (;;) {
-            ZirModule* value_17 = (void *)0;
+        int32_t range_first_3 = 0;
+        int32_t range_last_3 = (int32_t)((uint32_t)(linked->module_count) - 1u);
+        int32_t m = range_first_3;
+        if (m <= range_last_3) for (;;) {
+            ZirModule* value_1 = (void *)0;
             {
                 ZirProgram* program = linked;
                 int32_t index = m;
-                value_17 = &(program->modules[index]);
+                value_1 = &(program->modules[index]);
             }
-            ZirModule* module = value_17;
+            ZirModule* module = value_1;
             {
-                int32_t range_first_33 = 0;
-                int32_t range_last_33 = (int32_t)((uint32_t)(module->function_count) - 1u);
-                int32_t f = range_first_33;
-                if (f <= range_last_33) for (;;) {
-                    ZirModule* value_19 = module;
-                    ZirFunction* value_20 = (void *)0;
+                int32_t range_first_5 = 0;
+                int32_t range_last_5 = (int32_t)((uint32_t)(module->function_count) - 1u);
+                int32_t f = range_first_5;
+                if (f <= range_last_5) for (;;) {
+                    ZirModule* value_3 = module;
+                    ZirFunction* value_4 = (void *)0;
                     {
-                        ZirModule* module = value_19;
+                        ZirModule* module = value_3;
                         int32_t index = f;
-                        value_20 = &(module->functions[index]);
+                        value_4 = &(module->functions[index]);
                     }
-                    int32_t* value_22 = &(value_20->from_ir);
-                    (*value_22) = 1;
-                    if (f == range_last_33) {
+                    int32_t* value_6 = &(value_4->from_ir);
+                    (*value_6) = 1;
+                    if (f == range_last_5) {
                         break;
                     }
                     f = (int32_t)((uint32_t)f + 1u);
                 }
             }
-            if (m == range_last_31) {
+            if (m == range_last_3) {
                 break;
             }
             m = (int32_t)((uint32_t)m + 1u);
         }
     }
-    bool value_23 = zir_foreign_compiler_zx_link__CheckPrograms(&(state->linked), 1) != 0;
-    return value_23 && zir_foreign_compiler_zx_link__CheckLawGates(&(state->linked), 1) != 0;
+    bool value_7 = zir_foreign_compiler_zx_link__CheckPrograms(&(linked), 1) != 0;
+    return value_7 && zir_foreign_compiler_zx_link__CheckLawGates(&(linked), 1) != 0;
 }
 
 ZirProgram*
-compiler_zx_link_LinkCheckedEntry(ZirProgram* program, uint8_t* entry_module, uint8_t* entry_function, int32_t native)
+compiler_zx_link_LinkEntry(ZirProgram* program, uint8_t* entry_module, uint8_t* entry_function, int32_t native)
 {
     if (program == ((void *)0) || program->module_count <= 0 || entry_module == ((void *)0) || entry_function == ((void *)0)) {
         return (void *)0;
@@ -7222,7 +7221,7 @@ compiler_zx_link_LinkCheckedEntry(ZirProgram* program, uint8_t* entry_module, ui
         compiler_zx_link_KeepModules(state);
         compiler_zx_link_KeepLawSubjects(state);
         compiler_zx_link_KeepModuleClosure(state);
-        ok = compiler_zx_link_BuildLinked(state, entry_module, entry_function);
+        ok = compiler_zx_link_BuildLinked(state);
     }
     ZirProgram* linked = state->linked;
     compiler_zx_link_LinkStateFree(state);
@@ -8613,7 +8612,7 @@ compiler_zx_link_LinkNative(ZirProgram* program, uint8_t* entry_module, uint8_t*
             m = (int32_t)((uint32_t)m + 1u);
         }
     }
-    ZirProgram* linked = compiler_zx_link_LinkCheckedEntry(optimized, entry_module, entry_function, native);
+    ZirProgram* linked = compiler_zx_link_LinkEntry(optimized, entry_module, entry_function, native);
     zir_foreign_compiler_zx_link__ProgramFree(optimized);
     while (native == 1 && linked != ((void *)0)) {
         bool changed = compiler_zx_link_FoldUnwrittenGlobals(linked);
@@ -8664,8 +8663,18 @@ compiler_zx_link_LinkNative(ZirProgram* program, uint8_t* entry_module, uint8_t*
             }
         }
         ZirProgram* previous = linked;
-        linked = compiler_zx_link_LinkCheckedEntry(previous, entry_module, entry_function, native);
+        linked = compiler_zx_link_LinkEntry(previous, entry_module, entry_function, native);
         zir_foreign_compiler_zx_link__ProgramFree(previous);
+    }
+    bool value_13 = linked != ((void *)0);
+    bool value_14 = value_13;
+    if (value_14) {
+        bool value_15 = compiler_zx_link_CheckLinked(linked, entry_module, entry_function);
+        value_14 = !value_15;
+    }
+    if (value_14) {
+        zir_foreign_compiler_zx_link__ProgramFree(linked);
+        return (void *)0;
     }
     return linked;
 }

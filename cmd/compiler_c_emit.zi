@@ -1382,9 +1382,10 @@ NativeCFunctionName :: (module: *IR.ZirModule, fn: *IR.ZirFunction, out: *u8, si
 
 #program_export
 NativeCForeignName :: (module: *IR.ZirModule, foreign: *IR.ZirImport, out: *u8, size: usize) {
-    // Keep the separator unambiguous: encoded module identities use a
-    // different prefix, and ordinary names never contain a double underscore.
-    readable := module.name[0] != 0 && strstr(*module.name[0], CStr("__")) == null &&
+    // The last double underscore separates the module from the function.
+    // Package modules may contain it; the function must neither contain it
+    // nor start with an underscore that could move that boundary.
+    readable := module.name[0] != 0 && foreign.name[0] != #char "_" &&
         strstr(*foreign.name[0], CStr("__")) == null
     p := *module.name[0]
     while p[0] != 0 {

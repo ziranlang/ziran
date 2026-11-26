@@ -3715,7 +3715,7 @@ NativeCFunctionName(ZirModule* module, ZirFunction* fn, uint8_t* out, size_t siz
 void
 NativeCForeignName(ZirModule* module, ZirImport* foreign, uint8_t* out, size_t size)
 {
-    bool value_0 = (module->name)[0] != 0;
+    bool value_0 = (module->name)[0] != 0 && (foreign->name)[0] != 95;
     bool value_1 = value_0;
     if (value_1) {
         String value_2 = StringLiteral("__");
@@ -3724,82 +3724,70 @@ NativeCForeignName(ZirModule* module, ZirImport* foreign, uint8_t* out, size_t s
             String s = value_2;
             value_3 = ((compiler_c_emit_StaticText*)(&(s)))->data;
         }
-        uint8_t* value_5 = zir_foreign_compiler_c_emit__strstr(&(module->name[0]), value_3);
+        uint8_t* value_5 = zir_foreign_compiler_c_emit__strstr(&(foreign->name[0]), value_3);
         value_1 = (value_5 == ((void *)0));
     }
-    bool value_6 = value_1;
-    bool value_7 = value_6;
-    if (value_7) {
-        String value_8 = StringLiteral("__");
-        uint8_t* value_9 = (void *)0;
-        {
-            String s = value_8;
-            value_9 = ((compiler_c_emit_StaticText*)(&(s)))->data;
-        }
-        uint8_t* value_11 = zir_foreign_compiler_c_emit__strstr(&(foreign->name[0]), value_9);
-        value_7 = (value_11 == ((void *)0));
-    }
-    bool readable = value_7;
+    bool readable = value_1;
     uint8_t* p = &(module->name[0]);
     while (p[0] != 0) {
-        uint8_t value_12 = p[0];
-        bool value_13 = false;
+        uint8_t value_6 = p[0];
+        bool value_7 = false;
         {
-            uint8_t c = value_12;
-            value_13 = (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57);
+            uint8_t c = value_6;
+            value_7 = (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57);
         }
-        if (!value_13 && p[0] != 95) {
+        if (!value_7 && p[0] != 95) {
             readable = false;
         }
-        uint8_t* value_15 = p;
-        uint8_t* value_16 = (void *)0;
+        uint8_t* value_9 = p;
+        uint8_t* value_10 = (void *)0;
         {
-            uint8_t* p = value_15;
+            uint8_t* p = value_9;
             size_t n = 1;
-            value_16 = (uint8_t*)(((size_t)(p) + n));
+            value_10 = (uint8_t*)(((size_t)(p) + n));
         }
-        p = value_16;
+        p = value_10;
     }
     if (readable) {
-        uint8_t* value_18 = out;
-        size_t value_19 = size;
-        String value_20 = StringLiteral("zir_foreign_%s__%s");
-        uint8_t* value_21 = (void *)0;
+        uint8_t* value_12 = out;
+        size_t value_13 = size;
+        String value_14 = StringLiteral("zir_foreign_%s__%s");
+        uint8_t* value_15 = (void *)0;
         {
-            String s = value_20;
-            value_21 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+            String s = value_14;
+            value_15 = ((compiler_c_emit_StaticText*)(&(s)))->data;
         }
-        int32_t value_23 = zir_foreign_compiler_c_emit__snprintf(value_18, value_19, value_21, &(module->name[0]), &(foreign->name[0]));
-        compiler_c_emit_CheckFormat(value_23, size);
+        int32_t value_17 = zir_foreign_compiler_c_emit__snprintf(value_12, value_13, value_15, &(module->name[0]), &(foreign->name[0]));
+        compiler_c_emit_CheckFormat(value_17, size);
         return;
     }
-    uint64_t value_24 = 0;
+    uint64_t value_18 = 0;
     {
-        value_24 = 14695981039346656037ULL;
+        value_18 = 14695981039346656037ULL;
     }
-    uint64_t hash = value_24;
+    uint64_t hash = value_18;
     p = &(module->name[0]);
     while (p[0] != 0) {
         hash = (uint64_t)(((uint64_t)hash ^ (uint64_t)(p[0])) * UINT64_C(1099511628211));
-        uint8_t* value_26 = p;
-        uint8_t* value_27 = (void *)0;
+        uint8_t* value_20 = p;
+        uint8_t* value_21 = (void *)0;
         {
-            uint8_t* p = value_26;
+            uint8_t* p = value_20;
             size_t n = 1;
-            value_27 = (uint8_t*)(((size_t)(p) + n));
+            value_21 = (uint8_t*)(((size_t)(p) + n));
         }
-        p = value_27;
+        p = value_21;
     }
-    uint8_t* value_29 = out;
-    size_t value_30 = size;
-    String value_31 = StringLiteral("zir_encoded_foreign_%016llx__%s");
-    uint8_t* value_32 = (void *)0;
+    uint8_t* value_23 = out;
+    size_t value_24 = size;
+    String value_25 = StringLiteral("zir_encoded_foreign_%016llx__%s");
+    uint8_t* value_26 = (void *)0;
     {
-        String s = value_31;
-        value_32 = ((compiler_c_emit_StaticText*)(&(s)))->data;
+        String s = value_25;
+        value_26 = ((compiler_c_emit_StaticText*)(&(s)))->data;
     }
-    int32_t value_34 = zir_foreign_compiler_c_emit__snprintf(value_29, value_30, value_32, hash, &(foreign->name[0]));
-    compiler_c_emit_CheckFormat(value_34, size);
+    int32_t value_28 = zir_foreign_compiler_c_emit__snprintf(value_23, value_24, value_26, hash, &(foreign->name[0]));
+    compiler_c_emit_CheckFormat(value_28, size);
 }
 
 static void

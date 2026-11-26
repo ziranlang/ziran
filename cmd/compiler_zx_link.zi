@@ -509,7 +509,7 @@ LinkNative :: (program: *IR.ZirProgram, entry_module: *u8, entry_function: *u8, 
             }
         }
     }
-    linked := LinkCheckedEntry(optimized, entry_module, entry_function, native)
+    linked := LinkEntry(optimized, entry_module, entry_function, native)
     ProgramFree(optimized)
     // Folding a missing hook can make its argument computation and imports
     // unreachable. Relink until the closed graph stops shrinking. Go keeps
@@ -525,8 +525,15 @@ LinkNative :: (program: *IR.ZirProgram, entry_module: *u8, entry_function: *u8, 
             }
         }
         previous := linked
-        linked = LinkCheckedEntry(previous, entry_module, entry_function, native)
+        linked = LinkEntry(previous, entry_module, entry_function, native)
         ProgramFree(previous)
+    }
+    // Rechecking every intermediate graph repeats type checking and field
+    // layout work for declarations the next fold may discard. Validate the
+    // complete surviving graph once, for C and Go alike.
+    if linked != null && !CheckLinked(linked, entry_module, entry_function) {
+        ProgramFree(linked)
+        return null
     }
     return linked
 }

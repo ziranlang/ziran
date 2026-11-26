@@ -7,11 +7,14 @@
 
 - Bind generated C foreign declarations directly to their linker symbols,
   using readable module names; remove forwarding wrappers and per-binding guards.
+  Keep package namespaces readable, including names such as `kryon__system_theme_linux`.
 
 - Prune branches guarded by unregistered callbacks and unwritten boolean globals
   in closed native entry links, then discard empty hooks and constant-result
   calls when their arguments have no effects. Keep separate generated module
   files and preserve live registration and escaped addresses.
+  Finalize record layouts and validate the surviving graph once pruning stabilizes,
+  instead of repeating whole-program checking after each shrinking pass.
 
 - Name generated callbacks after their owning procedure and specializations
   after the original procedure and concrete type. Qualify colliding record

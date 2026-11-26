@@ -1199,9 +1199,9 @@ CopyKeptModule :: (state: *LinkState, m: s32, source: *IR.ZirModule, target: *IR
     return true
 }
 
-// Builds the linked program from the kept declarations and checks it as
-// saved IR; false after a diagnostic or when memory runs out.
-BuildLinked :: (state: *LinkState, entry_module: *u8, entry_function: *u8) -> bool {
+// Copies the kept declarations and reconnects their imports. Field layouts
+// and checked expressions are finalized once the shrinking graph is stable.
+BuildLinked :: (state: *LinkState) -> bool {
     program := state.program
     selected := CountSet(state.keep_modules, program.module_count)
     state.linked = ProgramNew()
@@ -1222,11 +1222,15 @@ BuildLinked :: (state: *LinkState, entry_module: *u8, entry_function: *u8) -> bo
     // Parse-time imports can load dependencies before their caller, while
     // saved IR loads the caller first. Give both paths one module order.
     qsort(cast(*u8)linked.modules, cast(usize)linked.module_count, size_of(IR.ZirModule), ModuleNameOrder)
+    return LinkImports(*linked, 1) != 0
+}
+
+CheckLinked :: (linked: *IR.ZirProgram, entry_module: *u8, entry_function: *u8) -> bool {
     // Removing declarations can remove a local type that shadowed an imported
     // record field. Recheck this closed graph so its member types are
     // canonical in the surviving scope before it is serialized or lowered.
     // The loader still independently requires exact canonical saved IR.
-    if LinkImports(*state.linked, 1) == 0 || !PruneRecordFields(linked, entry_module, entry_function) { return false }
+    if !PruneRecordFields(linked, entry_module, entry_function) { return false }
     // These are already checked and pruned expression graphs. Use the same
     // graph-preserving check as saved IR, rather than re-elaborating source
     // expressions and producing a different source/saved graph.
@@ -1234,12 +1238,12 @@ BuildLinked :: (state: *LinkState, entry_module: *u8, entry_function: *u8) -> bo
         module := ModuleAt(linked, m)
         for f: 0..module.function_count - 1 { FunctionAt(module, f).from_ir = 1 }
     }
-    return CheckPrograms(*state.linked, 1) != 0 && CheckLawGates(*state.linked, 1) != 0
+    return CheckPrograms(*linked, 1) != 0 && CheckLawGates(*linked, 1) != 0
 }
 
 // The closed program ENTRY_MODULE:ENTRY_FUNCTION reaches, or null after a
 // diagnostic. NATIVE is 1 for C and native links and 2 for Go.
-LinkCheckedEntry :: (program: *IR.ZirProgram, entry_module: *u8, entry_function: *u8, native: s32) -> *IR.ZirProgram {
+LinkEntry :: (program: *IR.ZirProgram, entry_module: *u8, entry_function: *u8, native: s32) -> *IR.ZirProgram {
     if program == null || program.module_count <= 0 || entry_module == null || entry_function == null { return null }
     state := cast(*LinkState)AllocateOrExit(size_of(LinkState))
     memset(cast(*u8)state, 0, size_of(LinkState))
@@ -1251,7 +1255,7 @@ LinkCheckedEntry :: (program: *IR.ZirProgram, entry_module: *u8, entry_function:
         KeepModules(state)
         KeepLawSubjects(state)
         KeepModuleClosure(state)
-        ok = BuildLinked(state, entry_module, entry_function)
+        ok = BuildLinked(state)
     }
     linked := state.linked
     LinkStateFree(state)

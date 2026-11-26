@@ -106,6 +106,42 @@ each string borrows the original input bytes. Keep that input alive. These
 operations leave the existing ASCII helpers in `std/text` and `std/text_tools`
 with their documented byte semantics.
 
+## Text layout without a GUI
+
+`std/text_layout` borrows UTF-8 strings and returns line/token byte ranges.
+It has no GUI dependency, host calls, allocation or global measurement state.
+`NextLine` accepts a typed measurement procedure and caller-owned context; the
+callback measures a complete candidate run, preserving the renderer's shaping
+and bidi context. Bind the callback to its procedure type before passing it:
+
+```zi
+Layout :: #import "std/text_layout";
+Grapheme :: #import "std/grapheme";
+Measure :: #type (string, s32) -> s32;
+Monospace :: (text: string, advance: s32) -> s32 {
+    return Grapheme.Count(text) * advance
+}
+main :: () -> s32 {
+    measure: Measure = Monospace
+    line := Layout.NextLine("hello world", 0, 60.0, .TextWrapAuto, measure, cast(s32)10)
+    return ifx line.end == 5 && line.next == 6 then 0 else 1
+}
+```
+
+`TextWrapAuto` keeps oversized words whole and permits breaks between CJK
+characters with the existing punctuation restrictions. This is a limited
+word-breaking policy, not full Unicode UAX #14 conformance. `TextWrapAnywhere`
+breaks only at extended grapheme boundaries and always accepts at least one
+cluster. `TextWrapNone` and `TextWrapEllipsis` plan unwrapped lines; ellipsis
+painting belongs to the caller. Newlines include CRLF. `NextToken` can recognize
+a caller-supplied marker, without assigning it rendering behavior.
+
+`CharactersEnd` counts grapheme clusters for partial text reveal, and
+`TotalHeight` clamps line-height arithmetic to a nonnegative s32 result.
+Font discovery, shaping, measurement caches, selection and painting remain
+with the consumer. Kryon's Text widget uses this core through its glyph
+measurement adapter.
+
 ## Unicode version and regeneration
 
 Behavior uses Unicode **17.0.0**, the same version as Ziran's grapheme tables.

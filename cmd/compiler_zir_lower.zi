@@ -6830,13 +6830,17 @@ Sequence :: (program: *AssemblyProgram, function: *AssemblyFunction, begin: s32,
                 StoreCaptured(program, function, destination, value, statement.span)
             }
         } else if statement.kind == ZirStmtKind.EXPR || statement.kind == ZirStmtKind.UNUSED {
-            value := Expression(program, function, statement.expr_root, 0)
-            // A fresh owned result nobody keeps is dropped at once.
-            if program.failed == 0 && value >= 0 && function.current >= 0 &&
-               statement.expr_root >= 0 && statement.expr_root < function.source.expr_count &&
-               function.source.exprs[statement.expr_root].kind == ZirExprKind.CALL {
-                DropValue(program, function, value, function.values.data[value],
-                          statement.span, 0)
+            // A checked UNUSED statement may carry no expression at all; the
+            // C emitter skips it, and so does this backend.
+            if statement.expr_root >= 0 {
+                value := Expression(program, function, statement.expr_root, 0)
+                // A fresh owned result nobody keeps is dropped at once.
+                if program.failed == 0 && value >= 0 && function.current >= 0 &&
+                   statement.expr_root < function.source.expr_count &&
+                   function.source.exprs[statement.expr_root].kind == ZirExprKind.CALL {
+                    DropValue(program, function, value, function.values.data[value],
+                              statement.span, 0)
+                }
             }
         } else if statement.kind == ZirStmtKind.RETURN {
             value: s32 = -1

@@ -1,0 +1,1608 @@
+// Structural checks over the parsed AST: declaration tables, identifier
+// resolution, useState pairing and input-backed field detection. Deep type
+// checking stays with the Ziran checker on the generated module; this pass
+// produces the authoring-side diagnostics and the tables the emitter uses.
+
+#scope_module
+
+TY_UNKNOWN :: 0;
+TY_S64 :: 1;
+TY_F64 :: 2;
+TY_BOOL :: 3;
+TY_STRING :: 4;
+TY_VOID :: 5;
+TY_RECORD :: 6;
+TY_ARRAY :: 7;
+
+NameRange :: struct {
+    start: s64;
+    len: s64;
+}
+
+RangeText :: (src: string, r: NameRange) -> string {
+    if r.len <= 0 { return "" }
+    return TextView(src[r.start:r.start + r.len]);
+}
+
+RangeMatches :: (src: string, r: NameRange, text: string) -> bool {
+    if r.len != text.count { return false }
+    i: s64 = 0;
+    while i < r.len {
+        if src[r.start + i] != text[i] { return false }
+        i += 1;
+    }
+    return true;
+}
+
+CharIsUpper :: (b: u8) -> bool {
+    return b >= cast(u8)65 && b <= cast(u8)90;
+}
+
+// The primitive name after the last dot of a dotted JSX tag, or the whole
+// tag when it has no dot.
+TagSuffix :: (src: string, start: s64, len: s64) -> string {
+    i: s64 = start + len - 1;
+    while i >= start {
+        if src[i] == cast(u8)46 { return src[i + 1:start + len] }
+        i -= 1;
+    }
+    return src[start:start + len];
+}
+
+TagPrefix :: (src: string, start: s64, len: s64) -> string {
+    i: s64 = start + len - 1;
+    while i >= start {
+        if src[i] == cast(u8)46 { return src[start:i] }
+        i -= 1;
+    }
+    return src[start:start + len];
+}
+
+ParamInfo :: struct {
+    name: NameRange;
+    type: s32;
+}
+
+FieldInfo :: struct {
+    name: NameRange;
+    type: s32;
+}
+
+RecordInfo :: struct {
+    name: NameRange;
+    node: s32;
+    fields_from: s32;
+    fields_count: s32;
+}
+
+FnInfo :: struct {
+    name: NameRange;
+    node: s32;
+    ret: s32;
+    params_from: s32;
+    params_count: s32;
+}
+
+StateField :: struct {
+    name: NameRange;
+    setter: NameRange;
+    type: s32;
+    input_backed: bool;
+    init: s32;
+}
+
+Component :: struct {
+    name: NameRange;
+    node: s32;
+    stateful: bool;
+    fields_from: s32;
+    fields_count: s32;
+}
+
+ImportInfo :: struct {
+    alias: NameRange;
+    spec_start: s64;
+    spec_len: s64;
+}
+
+TypealiasInfo :: struct {
+    name: NameRange;
+    target: s32;
+}
+
+LocalInfo :: struct {
+    name: NameRange;
+    type: s32;
+    kind: s32;
+    state_index: s32;
+    owned_view: bool;
+}
+
+LOCAL_VAR :: 0;
+LOCAL_STATE_VALUE :: 1;
+LOCAL_STATE_SETTER :: 2;
+LOCAL_PARAM :: 3;
+LOCAL_LOOP :: 4;
+LOCAL_ARROW :: 5;
+
+CheckResult :: struct {
+    src: string;
+    records: Vec(RecordInfo);
+    fields: Vec(FieldInfo);
+    functions: Vec(FnInfo);
+    params: Vec(ParamInfo);
+    components: Vec(Component);
+    state_fields: Vec(StateField);
+    imports: Vec(ImportInfo);
+    typealiases: Vec(TypealiasInfo);
+    node_types: Vec(s32);
+    comp_refs: Vec(s32);
+    failed: bool;
+}
+
+CheckInit :: (c: *CheckResult, ast: *Ast) {
+    VecClear(c.records);
+    VecClear(c.fields);
+    VecClear(c.functions);
+    VecClear(c.params);
+    VecClear(c.components);
+    VecClear(c.state_fields);
+    VecClear(c.imports);
+    VecClear(c.typealiases);
+    VecClear(c.node_types);
+    VecClear(c.comp_refs);
+    c.failed = false;
+    unused VecResize(c.node_types, ast.nodes.count);
+}
+
+Scope :: struct {
+    locals: Vec(LocalInfo);
+}
+
+ScopeInit :: (s: *Scope) {
+    VecClear(s.locals);
+}
+
+ScopePush :: (s: *Scope, name: NameRange, type: s32, kind: s32, state_index: s32) {
+    info: LocalInfo;
+    info.name = name;
+    info.type = type;
+    info.kind = kind;
+    info.state_index = state_index;
+    VecPush(s.locals, info);
+}
+
+ScopePopTo :: (s: *Scope, mark: s64) {
+    unused VecResize(s.locals, mark);
+}
+
+ScopeFind :: (s: *Scope, src: string, name: NameRange) -> s32 {
+    i: s64 = s.locals.count - 1;
+    while i >= 0 {
+        if RangeMatches(src, s.locals[i].name, RangeText(src, name)) { return cast(s32)i }
+        i -= 1;
+    }
+    return -1;
+}
+
+WalkCtx :: struct {
+    c: *CheckResult;
+    src: string;
+    diags: *Diags;
+    ast: *Ast;
+    scope: *Scope;
+    component: s32;
+    function: s32;
+}
+
+// True when the statement tree contains a JSX element; used to tell render
+// components from plain functions.
+BodyHasJsx :: (ast: *Ast, stmt: s32) -> bool {
+    if stmt < 0 { return false }
+    node := ast.nodes[stmt];
+    if node.kind == N_JSX { return true }
+    if node.kind == N_JSXCHILD_COND { return true }
+    if node.kind == N_JSXCHILD_LIST { return true }
+    if BodyHasJsx(ast, node.a) { return true }
+    if BodyHasJsx(ast, node.b) { return true }
+    if BodyHasJsx(ast, node.c) { return true }
+    if BodyHasJsx(ast, node.d) { return true }
+    if BodyHasJsx(ast, node.next) { return true }
+    return false;
+}
+
+CheckRun :: (c: *CheckResult, src: string, diags: *Diags, ast: *Ast, program: s32) -> bool {
+    CheckInit(c, ast);
+    c.src = src;
+    program_node := ast.nodes[program];
+    // Pass 1: declarations and their tables.
+    decl := program_node.a;
+    while decl >= 0 {
+        node := ast.nodes[decl];
+        if node.kind == N_IMPORT {
+            info: ImportInfo;
+            names := node.a;
+            if names >= 0 {
+                name_node := ast.nodes[names];
+                info.alias.start = name_node.start;
+                info.alias.len = name_node.len;
+            } else {
+                info.alias.start = 0;
+                info.alias.len = 0;
+            }
+            info.spec_start = node.start;
+            info.spec_len = node.len;
+            VecPush(c.imports, info);
+        } else if node.kind == N_INTERFACE {
+            info: RecordInfo;
+            info.name.start = node.start;
+            info.name.len = node.len;
+            info.node = decl;
+            info.fields_from = cast(s32)c.fields.count;
+            info.fields_count = 0;
+            field := node.a;
+            while field >= 0 {
+                field_node := ast.nodes[field];
+                fi: FieldInfo;
+                fi.name.start = field_node.start;
+                fi.name.len = field_node.len;
+                fi.type = TypeFromRef(c, ast, field_node.a);
+                if BaseType(fi.type) == TY_ARRAY {
+                    DiagsAppend(diags, field_node.line, field_node.col, "interface fields cannot be arrays");
+                    c.failed = true;
+                }
+                VecPush(c.fields, fi);
+                info.fields_count += 1;
+                field = field_node.next;
+            }
+            VecPush(c.records, info);
+        } else if node.kind == N_TYPEALIAS {
+            info: TypealiasInfo;
+            info.name.start = node.start;
+            info.name.len = node.len;
+            info.target = node.a;
+            VecPush(c.typealiases, info);
+        } else if node.kind == N_FN {
+            if BodyHasJsx(ast, node.b) {
+                comp: Component;
+                comp.name.start = node.start;
+                comp.name.len = node.len;
+                comp.node = decl;
+                comp.stateful = false;
+                comp.fields_from = 0;
+                comp.fields_count = 0;
+                VecPush(c.components, comp);
+            }
+            info: FnInfo;
+            info.name.start = node.start;
+            info.name.len = node.len;
+            info.node = decl;
+            if node.c >= 0 {
+                info.ret = TypeFromRef(c, ast, node.c);
+            } else {
+                info.ret = TY_VOID;
+            }
+            info.params_from = cast(s32)c.params.count;
+            info.params_count = 0;
+            param := node.a;
+            while param >= 0 {
+                param_node := ast.nodes[param];
+                pi: ParamInfo;
+                pi.name.start = param_node.start;
+                pi.name.len = param_node.len;
+                if param_node.a >= 0 {
+                    pi.type = TypeFromRef(c, ast, param_node.a);
+                } else {
+                    pi.type = TY_UNKNOWN;
+                    DiagsAppend(diags, param_node.line, param_node.col, "parameters need type annotations");
+                    c.failed = true;
+                }
+                VecPush(c.params, pi);
+                info.params_count += 1;
+                param = param_node.next;
+            }
+            VecPush(c.functions, info);
+        }
+        decl = node.next;
+    }
+    unused VecResize(c.comp_refs, c.components.count);
+    // Pass 2: bodies. useState fields are collected first so every body
+    // sees the full component state.
+    decl = program_node.a;
+    while decl >= 0 {
+        node := ast.nodes[decl];
+        if node.kind == N_FN {
+            fn_index := FindFunction(c, src, node.start, node.len);
+            comp_index := FindComponent(c, src, node.start, node.len);
+            scope: Scope;
+            ScopeInit(*scope);
+            ctx: WalkCtx;
+            ctx.c = c;
+            ctx.src = src;
+            ctx.diags = diags;
+            ctx.ast = ast;
+            ctx.scope = *scope;
+            ctx.component = comp_index;
+            ctx.function = fn_index;
+            if comp_index >= 0 {
+                comp := c.components[comp_index];
+                comp.fields_from = cast(s32)c.state_fields.count;
+                comp.fields_count = 0;
+                comp.stateful = false;
+                c.components[comp_index] = comp;
+                WalkUseStates(ctx, node.b);
+                comp = c.components[comp_index];
+                if c.state_fields.count > cast(s64)comp.fields_from {
+                    comp.stateful = true;
+                    comp.fields_count = cast(s32)(c.state_fields.count - cast(s64)comp.fields_from);
+                    c.components[comp_index] = comp;
+                }
+                i: s32 = 0;
+                while i < comp.fields_count {
+                    f := c.state_fields[comp.fields_from + i];
+                    ScopePush(*scope, f.name, f.type, LOCAL_STATE_VALUE, comp.fields_from + i);
+                    ScopePush(*scope, f.setter, TY_VOID, LOCAL_STATE_SETTER, comp.fields_from + i);
+                    i += 1;
+                }
+            }
+            if fn_index >= 0 {
+                fn := c.functions[fn_index];
+                i: s32 = 0;
+                while i < fn.params_count {
+                    p := c.params[fn.params_from + i];
+                    ScopePush(*scope, p.name, p.type, LOCAL_PARAM, -1);
+                    i += 1;
+                }
+            }
+            WalkStmt(ctx, node.b);
+        }
+        decl = node.next;
+    }
+    return !c.failed && !diags.failed;
+}
+
+FindFunction :: (c: *CheckResult, src: string, start: s64, len: s64) -> s32 {
+    i: s32 = 0;
+    while i < c.functions.count {
+        if RangeMatches(src, c.functions[i].name, src[start:start + len]) { return i }
+        i += 1;
+    }
+    return -1;
+}
+
+FindComponent :: (c: *CheckResult, src: string, start: s64, len: s64) -> s32 {
+    i: s32 = 0;
+    while i < c.components.count {
+        if RangeMatches(src, c.components[i].name, src[start:start + len]) { return i }
+        i += 1;
+    }
+    return -1;
+}
+
+FindRecord :: (c: *CheckResult, src: string, text: string) -> s32 {
+    i: s32 = 0;
+    while i < c.records.count {
+        if RangeMatches(src, c.records[i].name, text) { return i }
+        i += 1;
+    }
+    return -1;
+}
+
+FindImport :: (c: *CheckResult, src: string, text: string) -> s32 {
+    i: s32 = 0;
+    while i < c.imports.count {
+        if RangeMatches(src, c.imports[i].alias, text) { return i }
+        i += 1;
+    }
+    return -1;
+}
+
+FindTypealias :: (c: *CheckResult, src: string, text: string) -> s32 {
+    i: s32 = 0;
+    while i < c.typealiases.count {
+        if RangeMatches(src, c.typealiases[i].name, text) { return i }
+        i += 1;
+    }
+    return -1;
+}
+
+// Map a parsed type reference to a checker type. TY_RECORD carries the
+// record index in its high bytes; TY_ARRAY carries the element value the
+// same way, so arrays of records keep their element identity.
+TypeFromRef :: (c: *CheckResult, ast: *Ast, node: s32) -> s32 {
+    return TypeFromRefDepth(c, ast, node, 0);
+}
+
+TypeFromRefDepth :: (c: *CheckResult, ast: *Ast, node: s32, depth: s32) -> s32 {
+    if node < 0 { return TY_UNKNOWN }
+    if depth > 8 { return TY_UNKNOWN }
+    ref := ast.nodes[node];
+    if ref.kind == N_TREF_PRIM {
+        if ref.num == P_NUM { return TY_S64 }
+        if ref.num == P_F64 { return TY_F64 }
+        if ref.num == P_BOOL { return TY_BOOL }
+        if ref.num == P_STR { return TY_STRING }
+        if ref.num == P_VOID { return TY_VOID }
+        return TY_UNKNOWN;
+    }
+    if ref.kind == N_TREF_VOID { return TY_VOID }
+    if ref.kind == N_TREF_NAMED {
+        return TypeFromName(c, ast, ref.start, ref.len, depth);
+    }
+    if ref.kind == N_TREF_ARRAY {
+        elem := TypeFromRefDepth(c, ast, ref.a, depth + 1);
+        return ArrayType(elem, TypeAuxOf(elem));
+    }
+    return TY_UNKNOWN;
+}
+
+RecordType :: (c: *CheckResult, start: s64, len: s64) -> s32 {
+    r := FindRecordSpan(c, start, len);
+    if r < 0 { return TY_UNKNOWN }
+    return TY_RECORD + (r << 8);
+}
+
+FindRecordSpan :: (c: *CheckResult, start: s64, len: s64) -> s32 {
+    if len <= 0 { return -1 }
+    text := TextView(c.src[start:start + len]);
+    i: s32 = 0;
+    while i < c.records.count {
+        if RangeMatches(c.src, c.records[i].name, text) { return i }
+        i += 1;
+    }
+    return -1;
+}
+
+// Named type references resolve through records first, then type aliases.
+TypeFromName :: (c: *CheckResult, ast: *Ast, start: s64, len: s64, depth: s32) -> s32 {
+    r := FindRecordSpan(c, start, len);
+    if r >= 0 { return TY_RECORD + (r << 8) }
+    ta := FindTypealiasSpan(c, start, len);
+    if ta >= 0 {
+        info := c.typealiases[ta];
+        return TypeFromRefDepth(c, ast, info.target, depth + 1);
+    }
+    return TY_UNKNOWN;
+}
+
+FindTypealiasSpan :: (c: *CheckResult, start: s64, len: s64) -> s32 {
+    if len <= 0 { return -1 }
+    text := TextView(c.src[start:start + len]);
+    i: s32 = 0;
+    while i < c.typealiases.count {
+        if RangeMatches(c.src, c.typealiases[i].name, text) { return i }
+        i += 1;
+    }
+    return -1;
+}
+
+TypeAuxOf :: (type: s32) -> s32 {
+    if BaseType(type) == TY_RECORD { return RecordIndex(type) }
+    return 0;
+}
+
+RecordIndex :: (type: s32) -> s32 {
+    if type >= TY_RECORD && type < TY_ARRAY { return type >> 8 }
+    return -1;
+}
+
+BaseType :: (type: s32) -> s32 {
+    return type & 255;
+}
+
+ArrayType :: (elem: s32, record_aux: s32) -> s32 {
+    return TY_ARRAY + ((elem + (record_aux << 8)) << 8);
+}
+
+ArrayElem :: (type: s32) -> s32 {
+    if BaseType(type) != TY_ARRAY { return TY_UNKNOWN }
+    return (type >> 8) & 65535;
+}
+
+RecordFieldType :: (c: *CheckResult, rec: s32, src: string, name: string) -> s32 {
+    if rec < 0 || rec >= c.records.count { return TY_UNKNOWN }
+    info := c.records[rec];
+    i: s32 = 0;
+    while i < info.fields_count {
+        f := c.fields[info.fields_from + i];
+        if RangeMatches(src, f.name, name) { return f.type }
+        i += 1;
+    }
+    return TY_UNKNOWN;
+}
+
+// Primitive type word from a raw source span: number, f64, boolean, string.
+PrimFromSpan :: (src: string, start: s64, len: s64) -> s32 {
+    if len <= 0 { return TY_UNKNOWN }
+    text := TextView(src[start:start + len]);
+    if text == "number" { return TY_S64 }
+    if text == "f64" { return TY_F64 }
+    if text == "boolean" { return TY_BOOL }
+    if text == "string" { return TY_STRING }
+    return TY_UNKNOWN;
+}
+
+// Type from a useState type-argument span such as <Note[]> or <f64>.
+TypeFromSpan :: (c: *CheckResult, ast: *Ast, src: string, from: s64, to: s64) -> s32 {
+    if to <= from { return TY_UNKNOWN }
+    start := from;
+    end := to;
+    while start < end && (src[start] == cast(u8)60 || src[start] == cast(u8)32) { start += 1 }
+    while end > start && (src[end - 1] == cast(u8)62 || src[end - 1] == cast(u8)32) { end -= 1 }
+    if end <= start { return TY_UNKNOWN }
+    if end - start >= 2 && src[end - 1] == cast(u8)93 && src[end - 2] == cast(u8)91 {
+        base_end := end - 2;
+        while base_end > start && src[base_end - 1] == cast(u8)32 { base_end -= 1 }
+        elem := PrimFromSpan(src, start, base_end - start);
+        if elem == TY_UNKNOWN { elem = TypeFromName(c, ast, start, base_end - start, 0) }
+        return ArrayType(elem, TypeAuxOf(elem));
+    }
+    if end - start > 6 && src[start] == cast(u8)65 {
+        // Array<T> spelling.
+        if src[start + 1] == cast(u8)114 && src[start + 2] == cast(u8)114 && src[start + 3] == cast(u8)97 && src[start + 4] == cast(u8)121 && src[start + 5] == cast(u8)60 {
+            inner_start := start + 6;
+            inner_end := end;
+            while inner_end > inner_start && src[inner_end - 1] == cast(u8)62 { inner_end -= 1 }
+            elem := TypeFromSpan(c, ast, src, inner_start - 1, inner_end + 1);
+            return ArrayType(elem, TypeAuxOf(elem));
+        }
+    }
+    prim := PrimFromSpan(src, start, end - start);
+    if prim != TY_UNKNOWN { return prim }
+    return TypeFromName(c, ast, start, end - start, 0);
+}
+
+// Literal-only inference for a useState initializer.
+InferValueInit :: (c: *CheckResult, ast: *Ast, node: s32) -> s32 {
+    if node < 0 { return TY_UNKNOWN }
+    n := ast.nodes[node];
+    if n.kind == N_STR { return TY_STRING }
+    if n.kind == N_BOOL { return TY_BOOL }
+    if n.kind == N_NUM {
+        if n.is_float { return TY_F64 }
+        return TY_S64;
+    }
+    if n.kind == N_UNARY {
+        if n.num == 45 { return InferValueInit(c, ast, n.a) }
+        return TY_UNKNOWN;
+    }
+    if n.kind == N_ARRAY {
+        first := n.a;
+        if first < 0 { return TY_UNKNOWN }
+        elem := InferValueInit(c, ast, first);
+        if elem == TY_UNKNOWN { return TY_UNKNOWN }
+        return ArrayType(elem, TypeAuxOf(elem));
+    }
+    return TY_UNKNOWN;
+}
+
+// Collect every useState in a component body into its state fields.
+WalkUseStates :: (ctx: WalkCtx, stmt: s32) {
+    if stmt < 0 { return }
+    node := ctx.ast.nodes[stmt];
+    if node.kind == N_USESTATE {
+        CollectUseState(ctx, stmt);
+        return;
+    }
+    if node.kind == N_BLOCK || node.kind == N_PROGRAM || node.kind == N_FN {
+        child := node.a;
+        while child >= 0 {
+            WalkUseStates(ctx, child);
+            child = ctx.ast.nodes[child].next;
+        }
+        return;
+    }
+    if node.kind == N_IF {
+        WalkUseStates(ctx, node.b);
+        WalkUseStates(ctx, node.c);
+        return;
+    }
+    if node.kind == N_WHILE {
+        WalkUseStates(ctx, node.b);
+        return;
+    }
+    if node.kind == N_FOROF {
+        WalkUseStates(ctx, node.b);
+        return;
+    }
+    if node.kind == N_FOR {
+        WalkUseStates(ctx, node.a);
+        WalkUseStates(ctx, node.d);
+        return;
+    }
+}
+
+CollectUseState :: (ctx: WalkCtx, stmt: s32) {
+    node := ctx.ast.nodes[stmt];
+    name: NameRange;
+    name.start = node.start;
+    name.len = node.len;
+    setter: NameRange;
+    setter.start = node.x;
+    setter.len = node.y;
+    text := RangeText(ctx.src, name);
+    if text == "state" || text == "ctx" {
+        DiagsAppend(ctx.diags, node.line, node.col, "ctx and state are reserved names");
+        ctx.c.failed = true;
+        return;
+    }
+    init_type: s32 = TY_UNKNOWN;
+    call := node.a;
+    if call >= 0 {
+        call_node := ctx.ast.nodes[call];
+        if call_node.kind == N_CALL {
+            if call_node.x >= 0 && call_node.y > call_node.x {
+                init_type = TypeFromSpan(ctx.c, ctx.ast, ctx.src, call_node.x, call_node.y);
+            }
+            if init_type == TY_UNKNOWN {
+                first_arg := call_node.b;
+                if first_arg >= 0 {
+                    init_type = InferValueInit(ctx.c, ctx.ast, first_arg);
+                }
+            }
+        }
+    }
+    if init_type == TY_UNKNOWN {
+        DiagsAppend(ctx.diags, node.line, node.col, "cannot infer the state type; write a type argument like useState<Note[]>([])");
+        ctx.c.failed = true;
+        return;
+    }
+    comp := ctx.c.components[ctx.component];
+    i: s32 = 0;
+    while i < comp.fields_count {
+        f := ctx.c.state_fields[comp.fields_from + i];
+        if RangeMatches(ctx.src, f.name, text) {
+            DiagsAppend(ctx.diags, node.line, node.col, "duplicate state variable name");
+            ctx.c.failed = true;
+            return;
+        }
+        i += 1;
+    }
+    info: StateField;
+    info.name = name;
+    info.setter = setter;
+    info.type = init_type;
+    info.input_backed = false;
+    info.init = -1;
+    if call >= 0 {
+        call_node := ctx.ast.nodes[call];
+        if call_node.kind == N_CALL && call_node.b >= 0 {
+            info.init = call_node.b;
+        }
+    }
+    VecPush(ctx.c.state_fields, info);
+}
+
+ChainCount :: (ast: *Ast, head: s32) -> s32 {
+    n: s32 = 0;
+    it := head;
+    while it >= 0 {
+        n += 1;
+        it = ast.nodes[it].next;
+    }
+    return n;
+}
+
+CheckReserved :: (ctx: WalkCtx, node: Node) -> bool {
+    text := RangeText(ctx.src, MakeRange(node));
+    if text == "state" || text == "ctx" {
+        DiagsAppend(ctx.diags, node.line, node.col, "ctx and state are reserved names");
+        ctx.c.failed = true;
+        return true;
+    }
+    return false;
+}
+
+MakeRange :: (node: Node) -> NameRange {
+    r: NameRange;
+    r.start = node.start;
+    r.len = node.len;
+    return r;
+}
+
+WalkStmt :: (ctx: WalkCtx, stmt: s32) {
+    if stmt < 0 { return }
+    node := ctx.ast.nodes[stmt];
+    if node.kind == N_BLOCK {
+        mark := ctx.scope.locals.count;
+        child := node.a;
+        while child >= 0 {
+            WalkStmt(ctx, child);
+            child = ctx.ast.nodes[child].next;
+        }
+        ScopePopTo(ctx.scope, mark);
+        return;
+    }
+    if node.kind == N_VAR {
+        var_type: s32 = TY_UNKNOWN;
+        if node.a >= 0 { var_type = TypeFromRef(ctx.c, ctx.ast, node.a) }
+        if node.b >= 0 {
+            walked := WalkExprExpected(ctx, node.b, var_type);
+            if var_type == TY_UNKNOWN { var_type = walked }
+        }
+        if !CheckReserved(ctx, node) {
+            ScopePush(ctx.scope, MakeRange(node), var_type, LOCAL_VAR, -1);
+        }
+        return;
+    }
+    if node.kind == N_USESTATE { return }
+    if node.kind == N_ASSIGN {
+        WalkExpr(ctx, node.a);
+        WalkExpr(ctx, node.b);
+        return;
+    }
+    if node.kind == N_COMPOUND {
+        target := WalkExpr(ctx, node.a);
+        WalkExpr(ctx, node.b);
+        if target == TY_STRING || BaseType(target) == TY_RECORD || BaseType(target) == TY_ARRAY {
+            DiagsAppend(ctx.diags, node.line, node.col, "compound assignment needs numbers");
+            ctx.c.failed = true;
+        }
+        return;
+    }
+    if node.kind == N_POSTFIX {
+        WalkExpr(ctx, node.a);
+        return;
+    }
+    if node.kind == N_IF {
+        cond := WalkExpr(ctx, node.a);
+        if cond != TY_UNKNOWN && cond != TY_BOOL {
+            DiagsAppend(ctx.diags, node.line, node.col, "the condition must be a boolean");
+            ctx.c.failed = true;
+        }
+        WalkStmt(ctx, node.b);
+        WalkStmt(ctx, node.c);
+        return;
+    }
+    if node.kind == N_WHILE {
+        cond := WalkExpr(ctx, node.a);
+        if cond != TY_UNKNOWN && cond != TY_BOOL {
+            DiagsAppend(ctx.diags, node.line, node.col, "the condition must be a boolean");
+            ctx.c.failed = true;
+        }
+        WalkStmt(ctx, node.b);
+        return;
+    }
+    if node.kind == N_FOROF {
+        items := WalkExpr(ctx, node.a);
+        elem: s32 = TY_UNKNOWN;
+        if BaseType(items) == TY_ARRAY {
+            elem = ArrayElem(items);
+        } else if items != TY_UNKNOWN {
+            DiagsAppend(ctx.diags, node.line, node.col, "for-of needs an array");
+            ctx.c.failed = true;
+        }
+        mark := ctx.scope.locals.count;
+        if !CheckReserved(ctx, node) {
+            ScopePush(ctx.scope, MakeRange(node), elem, LOCAL_LOOP, -1);
+        }
+        WalkStmt(ctx, node.b);
+        ScopePopTo(ctx.scope, mark);
+        return;
+    }
+    if node.kind == N_FOR {
+        mark := ctx.scope.locals.count;
+        WalkStmt(ctx, node.a);
+        if node.b >= 0 {
+            cond := WalkExpr(ctx, node.b);
+            if cond != TY_UNKNOWN && cond != TY_BOOL {
+                DiagsAppend(ctx.diags, node.line, node.col, "the condition must be a boolean");
+                ctx.c.failed = true;
+            }
+        }
+        WalkStmt(ctx, node.c);
+        WalkStmt(ctx, node.d);
+        ScopePopTo(ctx.scope, mark);
+        return;
+    }
+    if node.kind == N_RETURN {
+        if node.a >= 0 {
+            value := ctx.ast.nodes[node.a];
+            if ctx.component >= 0 {
+                if value.kind == N_JSX {
+                    WalkJsx(ctx, node.a);
+                } else {
+                    WalkExpr(ctx, node.a);
+                    DiagsAppend(ctx.diags, node.line, node.col, "components draw JSX; only a bare return is allowed");
+                    ctx.c.failed = true;
+                }
+            } else {
+                WalkExpr(ctx, node.a);
+            }
+        } else if ctx.component >= 0 {
+            DiagsAppend(ctx.diags, node.line, node.col, "early return inside a component is not supported yet");
+            ctx.c.failed = true;
+        }
+        return;
+    }
+    if node.kind == N_EXPRSTMT {
+        WalkExpr(ctx, node.a);
+        return;
+    }
+    if node.kind == N_BREAK || node.kind == N_CONTINUE { return }
+    if node.kind == N_JSX {
+        WalkJsx(ctx, stmt);
+        return;
+    }
+}
+
+TypeWord :: (t: s32) -> string {
+    if t == TY_S64 { return "number" }
+    if t == TY_F64 { return "float" }
+    if t == TY_BOOL { return "boolean" }
+    if t == TY_STRING { return "string" }
+    if t == TY_VOID { return "void" }
+    if BaseType(t) == TY_ARRAY { return "array" }
+    return "value";
+}
+
+JoinTypes :: (a: s32, b: s32) -> s32 {
+    if a == TY_UNKNOWN { return b }
+    if b == TY_UNKNOWN { return a }
+    if a == b { return a }
+    if (a == TY_S64 && b == TY_F64) || (a == TY_F64 && b == TY_S64) { return TY_F64 }
+    return TY_UNKNOWN;
+}
+
+WalkExpr :: (ctx: WalkCtx, expr: s32) -> s32 {
+    return WalkExprExpected(ctx, expr, TY_UNKNOWN);
+}
+
+WalkExprExpected :: (ctx: WalkCtx, expr: s32, expected: s32) -> s32 {
+    if expr < 0 { return TY_UNKNOWN }
+    node := ctx.ast.nodes[expr];
+    result: s32 = TY_UNKNOWN;
+    if node.kind == N_NUM {
+        if node.is_float { result = TY_F64 } else { result = TY_S64 }
+    } else if node.kind == N_STR {
+        result = TY_STRING;
+    } else if node.kind == N_BOOL {
+        result = TY_BOOL;
+    } else if node.kind == N_IDENT {
+        result = WalkIdent(ctx, expr);
+    } else if node.kind == N_MEMBER {
+        base := WalkExpr(ctx, node.a);
+        name := RangeText(ctx.src, MakeRange(node));
+        rec := RecordIndex(base);
+        if rec >= 0 {
+            t := RecordFieldType(ctx.c, rec, ctx.src, name);
+            if t == TY_UNKNOWN {
+                DiagsAppend(ctx.diags, node.line, node.col, "unknown field on the record");
+                ctx.c.failed = true;
+            }
+            result = t;
+        } else if base == TY_STRING || base == TY_S64 || base == TY_F64 || base == TY_BOOL {
+            DiagsAppend(ctx.diags, node.line, node.col, "values of this type have no fields");
+            ctx.c.failed = true;
+        } else {
+            result = TY_UNKNOWN;
+        }
+    } else if node.kind == N_CALL {
+        result = WalkCall(ctx, expr);
+    } else if node.kind == N_BINARY {
+        result = WalkBinary(ctx, expr);
+    } else if node.kind == N_UNARY {
+        if node.num == 33 {
+            result = TY_BOOL;
+        } else {
+            result = WalkExpr(ctx, node.a);
+        }
+    } else if node.kind == N_TERNARY {
+        cond := WalkExpr(ctx, node.a);
+        if cond != TY_UNKNOWN && cond != TY_BOOL {
+            DiagsAppend(ctx.diags, node.line, node.col, "the condition must be a boolean");
+            ctx.c.failed = true;
+        }
+        then_node := ctx.ast.nodes[node.b];
+        else_kind := 0;
+        if node.c >= 0 { else_kind = ctx.ast.nodes[node.c].kind }
+        if then_node.kind == N_TERNARY || else_kind == N_TERNARY {
+            DiagsAppend(ctx.diags, node.line, node.col, "nested conditional expressions are not supported; use if and else statements");
+            ctx.c.failed = true;
+        }
+        lt := WalkExprExpected(ctx, node.b, expected);
+        rt: s32 = TY_UNKNOWN;
+        if node.c >= 0 { rt = WalkExprExpected(ctx, node.c, expected) }
+        result = JoinTypes(lt, rt);
+    } else if node.kind == N_ARRAY {
+        elem: s32 = TY_UNKNOWN;
+        if BaseType(expected) == TY_ARRAY { elem = ArrayElem(expected) }
+        item := node.a;
+        while item >= 0 {
+            it := ctx.ast.nodes[item];
+            if it.kind == N_SPREAD {
+                base_t := WalkExpr(ctx, it.a);
+                if BaseType(base_t) == TY_ARRAY {
+                    elem_t := ArrayElem(base_t);
+                    elem = JoinTypes(elem, elem_t);
+                } else if base_t != TY_UNKNOWN {
+                    DiagsAppend(ctx.diags, it.line, it.col, "spread needs an array");
+                    ctx.c.failed = true;
+                }
+            } else {
+                t := WalkExprExpected(ctx, item, elem);
+                if elem == TY_UNKNOWN {
+                    elem = t;
+                } else if t != TY_UNKNOWN {
+                    joined := JoinTypes(elem, t);
+                    if joined == TY_UNKNOWN {
+                        DiagsAppend(ctx.diags, it.line, it.col, "array elements have different types");
+                        ctx.c.failed = true;
+                    } else {
+                        elem = joined;
+                    }
+                }
+            }
+            item = it.next;
+        }
+        if elem != TY_UNKNOWN {
+            result = ArrayType(elem, TypeAuxOf(elem));
+        } else {
+            result = expected;
+        }
+    } else if node.kind == N_RECORD {
+        rec := RecordIndex(expected);
+        if rec < 0 {
+            DiagsAppend(ctx.diags, node.line, node.col, "record literals need a known type; annotate the variable or value");
+            ctx.c.failed = true;
+            field := node.a;
+            while field >= 0 {
+                fnode := ctx.ast.nodes[field];
+                WalkExpr(ctx, fnode.a);
+                field = fnode.next;
+            }
+        } else {
+            field := node.a;
+            while field >= 0 {
+                fnode := ctx.ast.nodes[field];
+                fname := RangeText(ctx.src, MakeRange(fnode));
+                ft := RecordFieldType(ctx.c, rec, ctx.src, fname);
+                if ft == TY_UNKNOWN {
+                    DiagsAppend(ctx.diags, fnode.line, fnode.col, "unknown field for the record");
+                    ctx.c.failed = true;
+                    WalkExpr(ctx, fnode.a);
+                } else {
+                    WalkExprExpected(ctx, fnode.a, ft);
+                }
+                field = fnode.next;
+            }
+            result = expected;
+        }
+    } else if node.kind == N_ARROW {
+        mark := ctx.scope.locals.count;
+        p := node.a;
+        while p >= 0 {
+            pn := ctx.ast.nodes[p];
+            pt: s32 = TY_UNKNOWN;
+            if pn.a >= 0 { pt = TypeFromRef(ctx.c, ctx.ast, pn.a) }
+            if !CheckReserved(ctx, pn) {
+                ScopePush(ctx.scope, MakeRange(pn), pt, LOCAL_ARROW, -1);
+            }
+            p = pn.next;
+        }
+        WalkStmt(ctx, node.b);
+        ScopePopTo(ctx.scope, mark);
+        result = TY_UNKNOWN;
+    } else if node.kind == N_INDEX {
+        base := WalkExpr(ctx, node.a);
+        WalkExpr(ctx, node.b);
+        bt := BaseType(base);
+        if bt == TY_ARRAY {
+            result = ArrayElem(base);
+        } else if base == TY_STRING {
+            result = TY_S64;
+        } else if bt == TY_UNKNOWN {
+            result = TY_UNKNOWN;
+        } else {
+            DiagsAppend(ctx.diags, node.line, node.col, "only arrays and strings can be indexed");
+            ctx.c.failed = true;
+        }
+    } else if node.kind == N_POSTFIX {
+        result = WalkExpr(ctx, node.a);
+    } else if node.kind == N_JSX {
+        WalkJsx(ctx, expr);
+        result = TY_UNKNOWN;
+    } else if node.kind == N_SPREAD {
+        DiagsAppend(ctx.diags, node.line, node.col, "spread is only supported in array literals and state updates");
+        ctx.c.failed = true;
+    } else if node.kind == N_USESTATE {
+        DiagsAppend(ctx.diags, node.line, node.col, "destructure useState into [value, setter]");
+        ctx.c.failed = true;
+    }
+    if expected != TY_UNKNOWN && result != TY_UNKNOWN && expected != result {
+        if !(expected == TY_F64 && result == TY_S64) {
+            DiagsAppend(ctx.diags, node.line, node.col, Build4("type mismatch: expected ", TypeWord(expected), ", found ", TypeWord(result)));
+            ctx.c.failed = true;
+        }
+    }
+    ctx.c.node_types[expr] = result;
+    return result;
+}
+
+WalkIdent :: (ctx: WalkCtx, expr: s32) -> s32 {
+    node := ctx.ast.nodes[expr];
+    idx := ScopeFind(ctx.scope, ctx.src, MakeRange(node));
+    if idx >= 0 {
+        local := ctx.scope.locals[idx];
+        return local.type;
+    }
+    text := RangeText(ctx.src, MakeRange(node));
+    if FindFunction(ctx.c, ctx.src, node.start, node.len) >= 0 { return TY_VOID }
+    if FindComponent(ctx.c, ctx.src, node.start, node.len) >= 0 { return TY_UNKNOWN }
+    if FindImport(ctx.c, ctx.src, text) >= 0 { return TY_UNKNOWN }
+    if text == "console" { return TY_UNKNOWN }
+    if FindTypealias(ctx.c, ctx.src, text) >= 0 {
+        DiagsAppend(ctx.diags, node.line, node.col, "type names cannot be used as values");
+        ctx.c.failed = true;
+        return TY_UNKNOWN;
+    }
+    DiagsAppend(ctx.diags, node.line, node.col, "unknown identifier");
+    ctx.c.failed = true;
+    return TY_UNKNOWN;
+}
+
+WalkArgs :: (ctx: WalkCtx, head: s32, params_from: s32, params_count: s32) {
+    it := head;
+    i: s32 = 0;
+    while it >= 0 {
+        expected: s32 = TY_UNKNOWN;
+        if params_count > 0 && i < params_count {
+            expected = ctx.c.params[params_from + i].type;
+        }
+        WalkExprExpected(ctx, it, expected);
+        it = ctx.ast.nodes[it].next;
+        i += 1;
+    }
+}
+
+WalkCall :: (ctx: WalkCtx, expr: s32) -> s32 {
+    node := ctx.ast.nodes[expr];
+    callee := node.a;
+    cn := ctx.ast.nodes[callee];
+    if cn.kind == N_IDENT {
+        text := RangeText(ctx.src, MakeRange(cn));
+        idx := ScopeFind(ctx.scope, ctx.src, MakeRange(cn));
+        if idx >= 0 {
+            local := ctx.scope.locals[idx];
+            if local.kind == LOCAL_STATE_SETTER {
+                args := ChainCount(ctx.ast, node.b);
+                if args != 1 {
+                    DiagsAppend(ctx.diags, node.line, node.col, "a state setter takes exactly one value");
+                    ctx.c.failed = true;
+                }
+                field := ctx.c.state_fields[local.state_index];
+                if node.b >= 0 {
+                    arg_t := WalkExprExpected(ctx, node.b, field.type);
+                    if field.input_backed && arg_t != TY_UNKNOWN && arg_t != TY_STRING {
+                        DiagsAppend(ctx.diags, node.line, node.col, "an Input state must stay a string");
+                        ctx.c.failed = true;
+                    }
+                }
+                return TY_VOID;
+            }
+            DiagsAppend(ctx.diags, node.line, node.col, "this local value is not callable");
+            ctx.c.failed = true;
+            return TY_UNKNOWN;
+        }
+        if text == "useState" {
+            DiagsAppend(ctx.diags, node.line, node.col, "destructure useState into [value, setter]");
+            ctx.c.failed = true;
+            return TY_VOID;
+        }
+        if text == "print" {
+            WalkArgs(ctx, node.b, 0, 0);
+            return TY_VOID;
+        }
+        fn_idx := FindFunction(ctx.c, ctx.src, cn.start, cn.len);
+        if fn_idx >= 0 {
+            fn := ctx.c.functions[fn_idx];
+            args := ChainCount(ctx.ast, node.b);
+            if args != fn.params_count {
+                DiagsAppend(ctx.diags, node.line, node.col, "wrong number of arguments");
+                ctx.c.failed = true;
+            }
+            WalkArgs(ctx, node.b, fn.params_from, fn.params_count);
+            return fn.ret;
+        }
+        if FindComponent(ctx.c, ctx.src, cn.start, cn.len) >= 0 {
+            DiagsAppend(ctx.diags, node.line, node.col, "draw components in JSX");
+            ctx.c.failed = true;
+            return TY_UNKNOWN;
+        }
+        if FindImport(ctx.c, ctx.src, text) >= 0 {
+            DiagsAppend(ctx.diags, node.line, node.col, "call adapter members through their import alias, like Adapter.Button(...)");
+            ctx.c.failed = true;
+            return TY_UNKNOWN;
+        }
+        DiagsAppend(ctx.diags, node.line, node.col, "unknown function");
+        ctx.c.failed = true;
+        return TY_UNKNOWN;
+    }
+    if cn.kind == N_MEMBER {
+        WalkExpr(ctx, callee);
+        WalkArgs(ctx, node.b, 0, 0);
+        return TY_UNKNOWN;
+    }
+    DiagsAppend(ctx.diags, node.line, node.col, "this expression cannot be called");
+    ctx.c.failed = true;
+    return TY_UNKNOWN;
+}
+
+WalkBinary :: (ctx: WalkCtx, expr: s32) -> s32 {
+    node := ctx.ast.nodes[expr];
+    lt := WalkExpr(ctx, node.a);
+    rt := WalkExpr(ctx, node.b);
+    op := node.num;
+    if op == OP_ADD {
+        if lt == TY_STRING || rt == TY_STRING { return TY_STRING }
+        if lt == TY_F64 || rt == TY_F64 { return TY_F64 }
+        if lt == TY_S64 && rt == TY_S64 { return TY_S64 }
+        return TY_UNKNOWN;
+    }
+    if op == OP_EQ || op == OP_NE || op == OP_LT || op == OP_GT || op == OP_LE || op == OP_GE {
+        return TY_BOOL;
+    }
+    if op == OP_AND || op == OP_OR { return TY_BOOL }
+    if lt == TY_STRING || rt == TY_STRING {
+        DiagsAppend(ctx.diags, node.line, node.col, "arithmetic needs numbers, not strings; use + only to join text");
+        ctx.c.failed = true;
+        return TY_UNKNOWN;
+    }
+    if lt == TY_F64 || rt == TY_F64 { return TY_F64 }
+    if lt == TY_S64 && rt == TY_S64 { return TY_S64 }
+    return TY_UNKNOWN;
+}
+
+// JSX walk: tag validation, prop checks, handler arity, input-backed field
+// detection and component reference counting. The emitter mirrors these
+// decisions when it picks the emission shape.
+WalkJsx :: (ctx: WalkCtx, node_idx: s32) {
+    node := ctx.ast.nodes[node_idx];
+    tag := RangeText(ctx.src, MakeRange(node));
+    if tag.count == 0 { return }
+    dot_at: s64 = -1;
+    i: s64 = 0;
+    while i < tag.count {
+        if tag[i] == cast(u8)46 { dot_at = i }
+        i += 1;
+    }
+    if dot_at >= 0 {
+        prefix := tag[0:dot_at];
+        suffix := tag[dot_at + 1:tag.count];
+        if FindImport(ctx.c, ctx.src, prefix) < 0 {
+            DiagsAppend(ctx.diags, node.line, node.col, "import the UI adapter first, for example: import { Ui } from a ui module");
+            ctx.c.failed = true;
+            return;
+        }
+        if suffix == "Column" || suffix == "Row" {
+            WalkUiProps(ctx, node, true, false, false, false);
+            WalkJsxChildren(ctx, node_idx);
+        } else if suffix == "Text" || suffix == "Heading" {
+            WalkTextProps(ctx, node);
+            WalkJsxChildren(ctx, node_idx);
+        } else if suffix == "Separator" {
+            WalkUiProps(ctx, node, false, false, false, false);
+        } else if suffix == "Button" {
+            WalkButtonProps(ctx, node);
+            WalkJsxChildren(ctx, node_idx);
+        } else if suffix == "Checkbox" {
+            WalkCheckboxProps(ctx, node);
+        } else if suffix == "Input" {
+            WalkInputProps(ctx, node);
+        } else {
+            DiagsAppend(ctx.diags, node.line, node.col, "unsupported Ui primitive; supported: Column, Row, Text, Heading, Separator, Button, Checkbox, Input");
+            ctx.c.failed = true;
+        }
+        return;
+    }
+    if CharIsUpper(tag[0]) {
+        comp := FindComponent(ctx.c, ctx.src, node.start, node.len);
+        if comp < 0 {
+            DiagsAppend(ctx.diags, node.line, node.col, "unknown component");
+            ctx.c.failed = true;
+            return;
+        }
+        refs := ctx.c.comp_refs[comp];
+        ctx.c.comp_refs[comp] = refs + 1;
+        if refs + 1 > 1 {
+            DiagsAppend(ctx.diags, node.line, node.col, "this component is drawn more than once; instances would share one state slot");
+            ctx.c.failed = true;
+        }
+        comp_info := ctx.c.components[comp];
+        fn_node := ctx.ast.nodes[comp_info.node];
+        // Props must match the component parameters.
+        prop := node.a;
+        param: s32 = -1;
+        while prop >= 0 {
+            pnode := ctx.ast.nodes[prop];
+            if pnode.kind != N_JSXPROP {
+                prop = pnode.next;
+                continue;
+            }
+            pname := RangeText(ctx.src, MakeRange(pnode));
+            ptype: s32 = TY_UNKNOWN;
+            param = fn_node.a;
+            found := false;
+            while param >= 0 {
+                param_node := ctx.ast.nodes[param];
+                if RangeMatches(ctx.src, MakeRange(param_node), pname) {
+                    if param_node.a >= 0 { ptype = TypeFromRef(ctx.c, ctx.ast, param_node.a) }
+                    found = true;
+                }
+                param = param_node.next;
+            }
+            if !found {
+                DiagsAppend(ctx.diags, pnode.line, pnode.col, "unknown prop for this component");
+                ctx.c.failed = true;
+            }
+            if pnode.num == 1 {
+                DiagsAppend(ctx.diags, pnode.line, pnode.col, "component props take data, not handlers; attach handlers to Ui elements inside the component");
+                ctx.c.failed = true;
+            } else {
+                WalkExprExpected(ctx, pnode.a, ptype);
+            }
+            prop = pnode.next;
+        }
+        param = fn_node.a;
+        while param >= 0 {
+            param_node := ctx.ast.nodes[param];
+            pname := RangeText(ctx.src, MakeRange(param_node));
+            prop = node.a;
+            found := false;
+            while prop >= 0 {
+                pnode := ctx.ast.nodes[prop];
+                if pnode.kind != N_JSXPROP {
+                    prop = pnode.next;
+                    continue;
+                }
+                if RangeMatches(ctx.src, MakeRange(pnode), pname) { found = true }
+                prop = pnode.next;
+            }
+            if !found {
+                DiagsAppend(ctx.diags, node.line, node.col, "missing prop for this component");
+                ctx.c.failed = true;
+            }
+            param = param_node.next;
+        }
+        return;
+    }
+    DiagsAppend(ctx.diags, node.line, node.col, "this element is not supported; use Ui primitives or your own components");
+    ctx.c.failed = true;
+}
+
+// Shared key/gap checks for simple primitives. allow_gap covers Column and
+// Row; the unused flags keep one uniform signature.
+WalkUiProps :: (ctx: WalkCtx, node: Node, allow_gap: bool, unused_a: bool, unused_b: bool, unused_c: bool) {
+    unused unused_a;
+    unused unused_b;
+    unused unused_c;
+    prop := node.a;
+    while prop >= 0 {
+        pnode := ctx.ast.nodes[prop];
+        if pnode.kind != N_JSXPROP {
+            prop = pnode.next;
+            continue;
+        }
+        pname := RangeText(ctx.src, MakeRange(pnode));
+        ok := pname == "key";
+        if allow_gap && pname == "gap" { ok = true }
+        if !ok {
+            DiagsAppend(ctx.diags, pnode.line, pnode.col, "unknown prop for this element");
+            ctx.c.failed = true;
+        }
+        WalkExpr(ctx, pnode.a);
+        prop = pnode.next;
+    }
+}
+
+// Text and Heading: an optional text prop plus children.
+WalkTextProps :: (ctx: WalkCtx, node: Node) {
+    has_text := false;
+    prop := node.a;
+    while prop >= 0 {
+        pnode := ctx.ast.nodes[prop];
+        if pnode.kind != N_JSXPROP {
+            prop = pnode.next;
+            continue;
+        }
+        pname := RangeText(ctx.src, MakeRange(pnode));
+        if pname == "key" {
+            WalkExpr(ctx, pnode.a);
+        } else if pname == "text" {
+            has_text = true;
+            WalkExprExpected(ctx, pnode.a, TY_STRING);
+        } else {
+            DiagsAppend(ctx.diags, pnode.line, pnode.col, "unknown prop for this element");
+            ctx.c.failed = true;
+            WalkExpr(ctx, pnode.a);
+        }
+        prop = pnode.next;
+    }
+    if has_text {
+        child := node.a;
+        while child >= 0 {
+            cnode := ctx.ast.nodes[child];
+            if cnode.kind == N_JSXCHILD_TEXT {
+                DiagsAppend(ctx.diags, cnode.line, cnode.col, "give the text as a prop or as children, not both");
+                ctx.c.failed = true;
+            }
+            child = cnode.next;
+        }
+    }
+}
+
+WalkButtonProps :: (ctx: WalkCtx, node: Node) {
+    has_handler := false;
+    prop := node.a;
+    while prop >= 0 {
+        pnode := ctx.ast.nodes[prop];
+        if pnode.kind != N_JSXPROP {
+            prop = pnode.next;
+            continue;
+        }
+        pname := RangeText(ctx.src, MakeRange(pnode));
+        if pname == "key" {
+            WalkExpr(ctx, pnode.a);
+        } else if pname == "text" {
+            WalkExprExpected(ctx, pnode.a, TY_STRING);
+        } else if pname == "onClick" {
+            if pnode.num == 1 {
+                has_handler = true;
+                WalkHandler(ctx, pnode.a, 0);
+            } else {
+                DiagsAppend(ctx.diags, pnode.line, pnode.col, "onClick needs an arrow function");
+                ctx.c.failed = true;
+                WalkExpr(ctx, pnode.a);
+            }
+        } else {
+            DiagsAppend(ctx.diags, pnode.line, pnode.col, "unknown prop for this element");
+            ctx.c.failed = true;
+            WalkExpr(ctx, pnode.a);
+        }
+        prop = pnode.next;
+    }
+    if !has_handler {
+        DiagsAppend(ctx.diags, node.line, node.col, "Button needs an onClick handler");
+        ctx.c.failed = true;
+    }
+}
+
+WalkCheckboxProps :: (ctx: WalkCtx, node: Node) {
+    has_checked := false;
+    prop := node.a;
+    while prop >= 0 {
+        pnode := ctx.ast.nodes[prop];
+        if pnode.kind != N_JSXPROP {
+            prop = pnode.next;
+            continue;
+        }
+        pname := RangeText(ctx.src, MakeRange(pnode));
+        if pname == "key" {
+            WalkExpr(ctx, pnode.a);
+        } else if pname == "checked" {
+            has_checked = true;
+            t := WalkExpr(ctx, pnode.a);
+            if t != TY_UNKNOWN && t != TY_BOOL {
+                DiagsAppend(ctx.diags, pnode.line, pnode.col, "checked needs a boolean");
+                ctx.c.failed = true;
+            }
+        } else if pname == "onChange" {
+            if pnode.num == 1 {
+                WalkHandler(ctx, pnode.a, 1);
+            } else {
+                DiagsAppend(ctx.diags, pnode.line, pnode.col, "onChange needs an arrow function");
+                ctx.c.failed = true;
+                WalkExpr(ctx, pnode.a);
+            }
+        } else {
+            DiagsAppend(ctx.diags, pnode.line, pnode.col, "unknown prop for this element");
+            ctx.c.failed = true;
+            WalkExpr(ctx, pnode.a);
+        }
+        prop = pnode.next;
+    }
+    if !has_checked {
+        DiagsAppend(ctx.diags, node.line, node.col, "Checkbox needs a checked expression");
+        ctx.c.failed = true;
+    }
+    child := node.a;
+    while child >= 0 {
+        if ctx.ast.nodes[child].kind != N_JSXPROP {
+            DiagsAppend(ctx.diags, node.line, node.col, "Checkbox elements take no children");
+            ctx.c.failed = true;
+            break;
+        }
+        child = ctx.ast.nodes[child].next;
+    }
+}
+
+WalkInputProps :: (ctx: WalkCtx, node: Node) {
+    has_value := false;
+    prop := node.a;
+    while prop >= 0 {
+        pnode := ctx.ast.nodes[prop];
+        if pnode.kind != N_JSXPROP {
+            prop = pnode.next;
+            continue;
+        }
+        pname := RangeText(ctx.src, MakeRange(pnode));
+        if pname == "key" {
+            WalkExpr(ctx, pnode.a);
+        } else if pname == "placeholder" {
+            WalkExprExpected(ctx, pnode.a, TY_STRING);
+        } else if pname == "value" {
+            has_value = true;
+            if pnode.num == 1 {
+                DiagsAppend(ctx.diags, pnode.line, pnode.col, "Input value must be a state variable");
+                ctx.c.failed = true;
+            } else {
+                MarkInputBacked(ctx, pnode);
+            }
+        } else if pname == "onChange" {
+            if pnode.num == 1 {
+                WalkHandler(ctx, pnode.a, 1);
+            } else {
+                DiagsAppend(ctx.diags, pnode.line, pnode.col, "onChange needs an arrow function");
+                ctx.c.failed = true;
+                WalkExpr(ctx, pnode.a);
+            }
+        } else {
+            DiagsAppend(ctx.diags, pnode.line, pnode.col, "unknown prop for this element");
+            ctx.c.failed = true;
+            WalkExpr(ctx, pnode.a);
+        }
+        prop = pnode.next;
+    }
+    if !has_value {
+        DiagsAppend(ctx.diags, node.line, node.col, "Input needs a value bound to useState string state");
+        ctx.c.failed = true;
+    }
+}
+
+// value={draft} must name a useState string; that field becomes input-backed
+// and the emitter wires it through the adapter Field API.
+MarkInputBacked :: (ctx: WalkCtx, pnode: Node) {
+    value := pnode.a;
+    if value < 0 { return }
+    vnode := ctx.ast.nodes[value];
+    if vnode.kind != N_IDENT {
+        DiagsAppend(ctx.diags, pnode.line, pnode.col, "Input value must be a state variable");
+        ctx.c.failed = true;
+        WalkExpr(ctx, value);
+        return;
+    }
+    idx := ScopeFind(ctx.scope, ctx.src, MakeRange(vnode));
+    if idx < 0 {
+        DiagsAppend(ctx.diags, pnode.line, pnode.col, "Input value must be useState state");
+        ctx.c.failed = true;
+        return;
+    }
+    local := ctx.scope.locals[idx];
+    if local.kind != LOCAL_STATE_VALUE {
+        DiagsAppend(ctx.diags, pnode.line, pnode.col, "Input value must be useState state");
+        ctx.c.failed = true;
+        return;
+    }
+    f := ctx.c.state_fields[local.state_index];
+    if BaseType(f.type) != TY_STRING {
+        DiagsAppend(ctx.diags, pnode.line, pnode.col, "Input state must be a string");
+        ctx.c.failed = true;
+        return;
+    }
+    f.input_backed = true;
+    ctx.c.state_fields[local.state_index] = f;
+}
+
+// Walk a handler arrow: up to max_params parameters, body checked in order.
+WalkHandler :: (ctx: WalkCtx, arrow: s32, max_params: s32) {
+    if arrow < 0 { return }
+    an := ctx.ast.nodes[arrow];
+    if an.kind != N_ARROW {
+        DiagsAppend(ctx.diags, an.line, an.col, "handlers need an arrow function");
+        ctx.c.failed = true;
+        return;
+    }
+    count := ChainCount(ctx.ast, an.a);
+    if count > max_params {
+        DiagsAppend(ctx.diags, an.line, an.col, "this handler takes fewer arguments");
+        ctx.c.failed = true;
+    }
+    mark := ctx.scope.locals.count;
+    p := an.a;
+    while p >= 0 {
+        pn := ctx.ast.nodes[p];
+        pt: s32 = TY_UNKNOWN;
+        if pn.a >= 0 { pt = TypeFromRef(ctx.c, ctx.ast, pn.a) }
+        if !CheckReserved(ctx, pn) {
+            ScopePush(ctx.scope, MakeRange(pn), pt, LOCAL_ARROW, -1);
+        }
+        p = pn.next;
+    }
+    // A handler body is not a component body: its returns are plain
+    // expressions, so drop the component marker while walking it.
+    ctx.component = -1;
+    WalkStmt(ctx, an.b);
+    ScopePopTo(ctx.scope, mark);
+}
+
+WalkJsxChildren :: (ctx: WalkCtx, node_idx: s32) {
+    node := ctx.ast.nodes[node_idx];
+    child := node.a;
+    while child >= 0 {
+        cnode := ctx.ast.nodes[child];
+        if cnode.kind == N_JSX {
+            WalkJsx(ctx, child);
+        } else if cnode.kind == N_JSXCHILD_TEXT {
+        } else if cnode.kind == N_JSXCHILD_EXPR {
+            inner := cnode.a;
+            if inner >= 0 && ctx.ast.nodes[inner].kind == N_JSX {
+                WalkJsx(ctx, inner);
+            } else {
+                WalkExpr(ctx, inner);
+            }
+        } else if cnode.kind == N_JSXCHILD_COND {
+            cond := WalkExpr(ctx, cnode.a);
+            if cond != TY_UNKNOWN && cond != TY_BOOL {
+                DiagsAppend(ctx.diags, cnode.line, cnode.col, "the condition must be a boolean");
+                ctx.c.failed = true;
+            }
+            if cnode.b >= 0 { WalkJsx(ctx, cnode.b) }
+            if cnode.c >= 0 { WalkJsx(ctx, cnode.c) }
+        } else if cnode.kind == N_JSXCHILD_LIST {
+            items := WalkExpr(ctx, cnode.a);
+            elem: s32 = TY_UNKNOWN;
+            if BaseType(items) == TY_ARRAY {
+                elem = ArrayElem(items);
+            } else if items != TY_UNKNOWN {
+                DiagsAppend(ctx.diags, cnode.line, cnode.col, "map() needs an array");
+                ctx.c.failed = true;
+            }
+            arrow := cnode.b;
+            if arrow >= 0 {
+                an := ctx.ast.nodes[arrow];
+                mark := ctx.scope.locals.count;
+                p := an.a;
+                i: s32 = 0;
+                while p >= 0 {
+                    pn := ctx.ast.nodes[p];
+                    pt := elem;
+                    if i >= 1 { pt = TY_S64 }
+                    if i >= 2 {
+                        DiagsAppend(ctx.diags, pn.line, pn.col, "map callbacks take at most (item, index)");
+                        ctx.c.failed = true;
+                    }
+                    if !CheckReserved(ctx, pn) {
+                        ScopePush(ctx.scope, MakeRange(pn), pt, LOCAL_ARROW, -1);
+                    }
+                    p = pn.next;
+                    i += 1;
+                }
+                WalkArrowBodyJsx(ctx, an.b);
+                ScopePopTo(ctx.scope, mark);
+            }
+        }
+        child = cnode.next;
+    }
+}
+
+WalkArrowBodyJsx :: (ctx: WalkCtx, body: s32) {
+    if body < 0 { return }
+    node := ctx.ast.nodes[body];
+    if node.kind == N_BLOCK {
+        stmt := node.a;
+        while stmt >= 0 {
+            snode := ctx.ast.nodes[stmt];
+            if snode.kind == N_RETURN && snode.a >= 0 && ctx.ast.nodes[snode.a].kind == N_JSX {
+                WalkJsx(ctx, snode.a);
+            } else if snode.kind == N_RETURN {
+                DiagsAppend(ctx.diags, snode.line, snode.col, "map callbacks return one element");
+                ctx.c.failed = true;
+            } else {
+                WalkStmt(ctx, stmt);
+            }
+            stmt = snode.next;
+        }
+        return;
+    }
+    WalkStmt(ctx, body);
+}

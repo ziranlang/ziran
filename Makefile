@@ -399,7 +399,7 @@ LEAN ?= lean
 # contains it. Every ordinary run executes the complete retained suite.
 CHECK_JOBS ?=
 CHECK_FILTER ?=
-all: $(BIN_DIR)/zi-edit $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2zx $(BIN_DIR)/zx2wasm $(BIN_DIR)/zx2native $(BIN_DIR)/zx $(BUILD_DIR)/libziran.a
+all: $(BIN_DIR)/zi-edit $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/tsx2zi $(BIN_DIR)/zi2zx $(BIN_DIR)/zx2wasm $(BIN_DIR)/zx2native $(BIN_DIR)/zx $(BUILD_DIR)/libziran.a
 
 proof-model: $(PROOF_KERNEL_OBJECT)
 	mkdir -p $(BUILD_DIR)/proofs
@@ -417,7 +417,7 @@ ZX_DESKTOP := org.ziran_lang.zx.desktop
 ZX_MIME := application/x-ziran-bundle
 install-user: all
 	mkdir -p $(USER_BIN) $(USER_SHARE)/build/bin
-	@set -e; for tool in ziran zi-fmt zi-edit zi2zir zi-api zi-inspect zi2c zi2go zi2zx zx2wasm zx2native zx; do \
+	@set -e; for tool in ziran zi-fmt zi-edit zi2zir zi-api zi-inspect zi2c zi2go tsx2zi zi2zx zx2wasm zx2native zx; do \
 		temporary=$$(mktemp "$(USER_SHARE)/build/bin/.$$tool.XXXXXX"); \
 		trap 'rm -f "$$temporary"' EXIT; \
 		cp "$(BIN_DIR)/$$tool" "$$temporary"; chmod 755 "$$temporary"; \
@@ -828,6 +828,20 @@ $(BIN_DIR)/zi2go: cmd/zi2go.zi cmd/compiler_cli.zi cmd/compiler_ir.zi $(BIN_DIR)
     $(GO_PORT_OBJECTS) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(BIN_DIR)/zi2c --entry zi2go:main $(ZIRAN_DEFINES) --root cmd --module-path std -o $(ZI2GO_C) cmd/zi2go.zi
 	$(NICE) $(CC) $(CFLAGS) -I$(ZI2GO_C) -o $@ $(ZI2GO_C)/zi2go.c $(GO_PORT_OBJECTS) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) -lm
+
+# tsx2zi transpiles a supported TypeScript/TSX subset to ordinary Ziran,
+# built independently like zx: one generated tree whose std module copies
+# link alongside the driver.
+TSX2ZI_C := $(BUILD_DIR)/tsx2zi-c
+TSX2ZI_SOURCES := std/byte_text_linux.zi std/c_string.zi std/file.zi std/file_linux.zi \
+    std/number_text.zi std/result.zi std/stdio_linux.zi std/text_tools.zi std/vec.zi
+$(BIN_DIR)/tsx2zi: cmd/tsx2zi.zi cmd/tsx2zi/ast.zi cmd/tsx2zi/check.zi \
+    cmd/tsx2zi/diag.zi cmd/tsx2zi/emit.zi cmd/tsx2zi/lexer.zi cmd/tsx2zi/parser.zi \
+    $(TSX2ZI_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
+	rm -rf $(TSX2ZI_C)
+	$(BIN_DIR)/zi2c --entry tsx2zi:main $(ZIRAN_DEFINES) --root cmd --module-path std -o $(TSX2ZI_C) cmd/tsx2zi.zi
+	$(NICE) $(CC) $(CFLAGS) -I$(TSX2ZI_C) -o $@ $(TSX2ZI_C)/*.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
+	chmod 755 $@
 
 # zi2zx runs revision-28 executable ZX on the portable instruction engine.
 # Its driver is Ziran; the generated copy uses the assembly set's own headers

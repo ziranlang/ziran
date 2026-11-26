@@ -1,0 +1,145 @@
+// tsx2zi: transpile a supported TypeScript/TSX subset to ordinary Ziran.
+// One compiled unit: the CLI loads the lexer, parser, checker and emitter
+// into a single module tree; imports are copied verbatim, so the generated
+// file imports whatever adapter module the source already names.
+
+#import "std/file"
+#import "std/stdio_linux"
+#import "std/byte_text_linux"
+#import "std/text_tools"
+#load "tsx2zi/diag.zi";
+#load "tsx2zi/ast.zi";
+#load "tsx2zi/lexer.zi";
+#load "tsx2zi/parser.zi";
+#load "tsx2zi/check.zi";
+#load "tsx2zi/emit.zi";
+
+Usage :: () {
+    PrintError("usage: tsx2zi build IN.tsx -o OUT.zi [--sourcemap OUT.zi.map]\n");
+    PrintError("       tsx2zi lex IN.tsx                (dump tokens)\n");
+    PrintError("       tsx2zi --help\n");
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc < 2 {
+        Usage();
+        return 2;
+    }
+    command := TextFromCString(argv[1]);
+    if command == "--help" || command == "help" {
+        Usage();
+        return 0;
+    }
+    if command == "build" {
+        return BuildCommand(argc, argv);
+    }
+    if command == "lex" {
+        if argc < 3 {
+            Usage();
+            return 2;
+        }
+        path := TextFromCString(argv[2]);
+        return LexDump(path);
+    }
+    Usage();
+    return 2;
+}
+
+// build IN.tsx -o OUT.zi [--sourcemap OUT.zi.map]: lex, parse, check and
+// emit; diagnostics always point at the TSX source, never generated code.
+BuildCommand :: (argc: s32, argv: **u8) -> s32 {
+    input := "";
+    output := "";
+    map := "";
+    i: s32 = 2;
+    while i < argc {
+        arg := TextFromCString(argv[i]);
+        if arg == "-o" {
+            if i + 1 >= argc {
+                PrintError("tsx2zi: -o needs a path\n");
+                return 2;
+            }
+            i += 1;
+            output = TextFromCString(argv[i]);
+        } else if arg == "--sourcemap" {
+            if i + 1 >= argc {
+                PrintError("tsx2zi: --sourcemap needs a path\n");
+                return 2;
+            }
+            i += 1;
+            map = TextFromCString(argv[i]);
+        } else {
+            input = arg;
+        }
+        i += 1;
+    }
+    if input.count == 0 || output.count == 0 {
+        Usage();
+        return 2;
+    }
+    source, ok := ReadEntireFile(input);
+    if !ok {
+        PrintError("tsx2zi: cannot read the input file\n");
+        return 2;
+    }
+    diags: Diags;
+    DiagsInit(*diags, input);
+    lx: Lexer;
+    LexInit(*lx, source);
+    ast: Ast;
+    AstNew(*ast);
+    p: Parser;
+    ParserInit(*p, *lx, *ast, *diags);
+    program := ParseProgram(*p);
+    if diags.failed {
+        DiagsPrint(*diags);
+        return 1;
+    }
+    c: CheckResult;
+    if !CheckRun(*c, source, *diags, *ast, program) {
+        DiagsPrint(*diags);
+        return 1;
+    }
+    e: EmitCtx;
+    EmitInit(*e, *c, source, *ast, *diags);
+    text := EmitRun(*e, program);
+    if !WriteEntireFile(output, text) {
+        PrintError("tsx2zi: cannot write the output file\n");
+        return 2;
+    }
+    if map.count > 0 {
+        if !WriteEntireFile(map, MapsJson(*e)) {
+            PrintError("tsx2zi: cannot write the sourcemap file\n");
+            return 2;
+        }
+    }
+    print("% -> %\n", input, output);
+    return 0;
+}
+
+LexDump :: (path: string) -> s32 {
+    source, ok := ReadEntireFile(path);
+    if !ok {
+        PrintError("tsx2zi: cannot read the input file\n");
+        return 2;
+    }
+    diags: Diags;
+    DiagsInit(*diags, path);
+    lx: Lexer;
+    LexInit(*lx, source);
+    count: s32 = 0;
+    live := true;
+    while live {
+        tok := lx.tok;
+        if tok.kind == T_EOF { live = false }
+        LexNext(*lx);
+        count += 1;
+    }
+    if lx.failed || diags.failed {
+        print("%: lexing failed (% tokens)\n", path, count);
+        return 1;
+    }
+    print("%: % tokens\n", path, count);
+    return 0;
+}

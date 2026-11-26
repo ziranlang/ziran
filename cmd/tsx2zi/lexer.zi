@@ -1,0 +1,509 @@
+// Lexer for the supported TS/TSX subset over a borrowed source view. Token
+// text is a slice into the source; decoded string bytes go into one pool so
+// Token stays a plain struct that can move freely.
+
+#scope_module
+
+T_EOF :: 0;
+T_IDENT :: 1;
+T_NUM :: 2;
+T_STR :: 3;
+T_LBRACE :: 4;
+T_RBRACE :: 5;
+T_LPAREN :: 6;
+T_RPAREN :: 7;
+T_LBRACKET :: 8;
+T_RBRACKET :: 9;
+T_LT :: 10;
+T_GT :: 11;
+T_LE :: 12;
+T_GE :: 13;
+T_EQ :: 14;
+T_NE :: 15;
+T_ASSIGN :: 16;
+T_PLUS :: 17;
+T_MINUS :: 18;
+T_STAR :: 19;
+T_SLASH :: 20;
+T_PERCENT :: 21;
+T_ANDAND :: 22;
+T_OROR :: 23;
+T_BANG :: 24;
+T_COMMA :: 25;
+T_COLON :: 26;
+T_SEMI :: 27;
+T_DOT :: 28;
+T_ARROWFN :: 29;
+T_QUESTION :: 33;
+T_PLUSPLUS :: 34;
+T_MINUSMINUS :: 35;
+T_KW_WHILE :: 55;
+T_KW_BREAK :: 56;
+T_KW_CONTINUE :: 57;
+T_DOTDOTDOT :: 36;
+T_PLUSASSIGN :: 30;
+T_MINUSASSIGN :: 31;
+T_KW_FUNCTION :: 40;
+T_KW_INTERFACE :: 41;
+T_KW_TYPE :: 42;
+T_KW_LET :: 43;
+T_KW_CONST :: 44;
+T_KW_RETURN :: 45;
+T_KW_IF :: 46;
+T_KW_ELSE :: 47;
+T_KW_FOR :: 48;
+T_KW_OF :: 49;
+T_KW_TRUE :: 50;
+T_KW_FALSE :: 51;
+T_KW_IMPORT :: 52;
+T_KW_FROM :: 53;
+T_KW_EXPORT :: 54;
+
+Token :: struct {
+    kind: s32;
+    line: s32;
+    col: s32;
+    start: s64;
+    len: s64;
+    str_start: s64;
+    str_len: s64;
+    num: s64;
+    is_float: bool;
+}
+
+Lexer :: struct {
+    src: string;
+    pool: Vec(u8);
+    pos: s64;
+    line: s32;
+    col: s32;
+    tok: Token;
+    ahead: Token;
+    has_ahead: bool;
+    pre_pos: s64;
+    pre_line: s32;
+    pre_col: s32;
+    failed: bool;
+}
+
+TokenEmpty :: () -> Token {
+    tok: Token;
+    tok.kind = T_EOF;
+    tok.line = 0;
+    tok.col = 0;
+    tok.start = 0;
+    tok.len = 0;
+    tok.str_start = 0;
+    tok.str_len = 0;
+    tok.num = 0;
+    tok.is_float = false;
+    return tok;
+}
+
+LexInit :: (lx: *Lexer, src: string) {
+    VecClear(lx.pool);
+    lx.src = src;
+    lx.pos = 0;
+    lx.line = 1;
+    lx.col = 1;
+    lx.tok = TokenEmpty();
+    lx.ahead = TokenEmpty();
+    lx.has_ahead = false;
+    lx.pre_pos = 0;
+    lx.pre_line = 1;
+    lx.pre_col = 1;
+    lx.failed = false;
+    lx.tok = LexNext(lx);
+}
+
+// The decoded bytes of a string token, as a borrowed view.
+TokenStr :: (lx: *Lexer, tok: Token) -> string {
+    return TextView(lx.pool[tok.str_start:tok.str_start + tok.str_len]);
+}
+
+LexPeekByte :: (lx: *Lexer, ahead: s64) -> u8 {
+    if lx.pos + ahead >= lx.src.count { return 0 }
+    return lx.src[lx.pos + ahead];
+}
+
+LexAdvance :: (lx: *Lexer) {
+    if lx.pos >= lx.src.count { return }
+    if lx.src[lx.pos] == cast(u8)10 {
+        lx.line += 1;
+        lx.col = 1;
+    } else {
+        lx.col += 1;
+    }
+    lx.pos += 1;
+}
+
+LexSkipSpace :: (lx: *Lexer) {
+    while lx.pos < lx.src.count {
+        b := lx.src[lx.pos];
+        if b == cast(u8)32 || b == cast(u8)9 || b == cast(u8)10 || b == cast(u8)13 {
+            LexAdvance(lx);
+            continue;
+        }
+        if b == cast(u8)47 {
+            next := LexPeekByte(lx, 1);
+            if next == cast(u8)47 {
+                while lx.pos < lx.src.count && lx.src[lx.pos] != cast(u8)10 { LexAdvance(lx) }
+                continue;
+            }
+            if next == cast(u8)42 {
+                LexAdvance(lx);
+                LexAdvance(lx);
+                closed := false;
+                while lx.pos < lx.src.count {
+                    if lx.src[lx.pos] == cast(u8)42 && LexPeekByte(lx, 1) == cast(u8)47 {
+                        LexAdvance(lx);
+                        LexAdvance(lx);
+                        closed = true;
+                        break;
+                    }
+                    LexAdvance(lx);
+                }
+                if !closed { lx.failed = true }
+                continue;
+            }
+        }
+        break;
+    }
+}
+
+LexIsIdentStart :: (b: u8) -> bool {
+    return (b >= cast(u8)97 && b <= cast(u8)122) || (b >= cast(u8)65 && b <= cast(u8)90) || b == cast(u8)95 || b >= 128;
+}
+
+LexIsIdentByte :: (b: u8) -> bool {
+    return LexIsIdentStart(b) || (b >= cast(u8)48 && b <= cast(u8)57);
+}
+
+LexKeyword :: (text: string) -> s32 {
+    if text == "function" { return T_KW_FUNCTION }
+    if text == "interface" { return T_KW_INTERFACE }
+    if text == "type" { return T_KW_TYPE }
+    if text == "let" { return T_KW_LET }
+    if text == "const" { return T_KW_CONST }
+    if text == "return" { return T_KW_RETURN }
+    if text == "if" { return T_KW_IF }
+    if text == "else" { return T_KW_ELSE }
+    if text == "for" { return T_KW_FOR }
+    if text == "while" { return T_KW_WHILE }
+    if text == "break" { return T_KW_BREAK }
+    if text == "continue" { return T_KW_CONTINUE }
+    if text == "of" { return T_KW_OF }
+    if text == "true" { return T_KW_TRUE }
+    if text == "false" { return T_KW_FALSE }
+    if text == "import" { return T_KW_IMPORT }
+    if text == "from" { return T_KW_FROM }
+    if text == "export" { return T_KW_EXPORT }
+    return T_IDENT;
+}
+
+LexString :: (lx: *Lexer) -> Token {
+    tok := TokenEmpty();
+    tok.kind = T_STR;
+    tok.line = lx.line;
+    tok.col = lx.col;
+    quote := lx.src[lx.pos];
+    LexAdvance(lx);
+    tok.start = lx.pos;
+    tok.str_start = lx.pool.count;
+    while lx.pos < lx.src.count {
+        b := lx.src[lx.pos];
+        if b == quote {
+            LexAdvance(lx);
+            tok.str_len = lx.pool.count - tok.str_start;
+            tok.len = lx.pos - tok.start - 1;
+            return tok;
+        }
+        if b == cast(u8)10 {
+            lx.failed = true;
+            tok.str_len = lx.pool.count - tok.str_start;
+            tok.len = lx.pos - tok.start;
+            return tok;
+        }
+        if b == cast(u8)92 {
+            LexAdvance(lx);
+            esc := LexPeekByte(lx, 0);
+            if esc == cast(u8)110 { VecPush(lx.pool, cast(u8)10) }
+            else if esc == cast(u8)116 { VecPush(lx.pool, cast(u8)9) }
+            else if esc == cast(u8)114 { VecPush(lx.pool, cast(u8)13) }
+            else if esc == cast(u8)34 { VecPush(lx.pool, cast(u8)34) }
+            else if esc == cast(u8)39 { VecPush(lx.pool, cast(u8)39) }
+            else if esc == cast(u8)92 { VecPush(lx.pool, cast(u8)92) }
+            else { lx.failed = true }
+            LexAdvance(lx);
+            continue;
+        }
+        VecPush(lx.pool, b);
+        LexAdvance(lx);
+    }
+    lx.failed = true;
+    tok.str_len = lx.pool.count - tok.str_start;
+    tok.len = lx.pos - tok.start;
+    return tok;
+}
+
+LexNumber :: (lx: *Lexer) -> Token {
+    tok := TokenEmpty();
+    tok.kind = T_NUM;
+    tok.line = lx.line;
+    tok.col = lx.col;
+    tok.start = lx.pos;
+    value: s64 = 0;
+    while lx.pos < lx.src.count {
+        b := lx.src[lx.pos];
+        if b < cast(u8)48 || b > cast(u8)57 { break }
+        value = value * 10 + cast(s64)(b - cast(u8)48);
+        LexAdvance(lx);
+    }
+    if lx.pos < lx.src.count && lx.src[lx.pos] == cast(u8)46 {
+        next := LexPeekByte(lx, 1);
+        if next >= cast(u8)48 && next <= cast(u8)57 {
+            tok.is_float = true;
+            LexAdvance(lx);
+            while lx.pos < lx.src.count {
+                b := lx.src[lx.pos];
+                if b < cast(u8)48 || b > cast(u8)57 { break }
+                LexAdvance(lx);
+            }
+        }
+    }
+    if lx.pos < lx.src.count && (lx.src[lx.pos] == cast(u8)101 || lx.src[lx.pos] == cast(u8)69) {
+        lx.failed = true;
+    }
+    tok.len = lx.pos - tok.start;
+    tok.num = value;
+    return tok;
+}
+
+LexOne :: (lx: *Lexer) -> Token {
+    LexSkipSpace(lx);
+    tok := TokenEmpty();
+    tok.line = lx.line;
+    tok.col = lx.col;
+    if lx.pos >= lx.src.count {
+        tok.kind = T_EOF;
+        return tok;
+    }
+    b := lx.src[lx.pos];
+    if LexIsIdentStart(b) {
+        tok.kind = T_IDENT;
+        tok.start = lx.pos;
+        while lx.pos < lx.src.count && LexIsIdentByte(lx.src[lx.pos]) { LexAdvance(lx) }
+        tok.len = lx.pos - tok.start;
+        text := lx.src[tok.start:tok.start + tok.len];
+        tok.kind = LexKeyword(text);
+        return tok;
+    }
+    if b >= cast(u8)48 && b <= cast(u8)57 { return LexNumber(lx) }
+    if b == cast(u8)34 || b == cast(u8)39 { return LexString(lx) }
+    tok.start = lx.pos;
+    two := LexPeekByte(lx, 1);
+    kind: s32 = T_EOF;
+    width: s64 = 1;
+    if b == cast(u8)123 { kind = T_LBRACE }
+    else if b == cast(u8)125 { kind = T_RBRACE }
+    else if b == cast(u8)40 { kind = T_LPAREN }
+    else if b == cast(u8)41 { kind = T_RPAREN }
+    else if b == cast(u8)91 { kind = T_LBRACKET }
+    else if b == cast(u8)93 { kind = T_RBRACKET }
+    else if b == cast(u8)60 {
+        if two == cast(u8)61 { kind = T_LE; width = 2 }
+        else { kind = T_LT }
+    }
+    else if b == cast(u8)62 {
+        if two == cast(u8)61 { kind = T_GE; width = 2 }
+        else { kind = T_GT }
+    }
+    else if b == cast(u8)61 {
+        if two == cast(u8)62 { kind = T_ARROWFN; width = 2 }
+        else if two == cast(u8)61 { kind = T_EQ; width = 2 }
+        else { kind = T_ASSIGN }
+    }
+    else if b == cast(u8)33 {
+        if two == cast(u8)61 { kind = T_NE; width = 2 }
+        else { kind = T_BANG }
+    }
+    else if b == cast(u8)43 {
+        if two == cast(u8)61 { kind = T_PLUSASSIGN; width = 2 }
+        else if two == cast(u8)43 { kind = T_PLUSPLUS; width = 2 }
+        else { kind = T_PLUS }
+    }
+    else if b == cast(u8)45 {
+        if two == cast(u8)61 { kind = T_MINUSASSIGN; width = 2 }
+        else if two == cast(u8)45 { kind = T_MINUSMINUS; width = 2 }
+        else { kind = T_MINUS }
+    }
+    else if b == cast(u8)42 { kind = T_STAR }
+    else if b == cast(u8)47 { kind = T_SLASH }
+    else if b == cast(u8)37 { kind = T_PERCENT }
+    else if b == cast(u8)38 {
+        if two == cast(u8)38 { kind = T_ANDAND; width = 2 }
+        else { lx.failed = true }
+    }
+    else if b == cast(u8)124 {
+        if two == cast(u8)124 { kind = T_OROR; width = 2 }
+        else { lx.failed = true }
+    }
+    else if b == cast(u8)44 { kind = T_COMMA }
+    else if b == cast(u8)58 { kind = T_COLON }
+    else if b == cast(u8)59 { kind = T_SEMI }
+    else if b == cast(u8)46 {
+        if two == cast(u8)46 { kind = T_DOTDOTDOT; width = 3 }
+        else { kind = T_DOT }
+    }
+    else if b == cast(u8)63 { kind = T_QUESTION }
+    else { lx.failed = true }
+    walked: s64 = 0;
+    while walked < width {
+        LexAdvance(lx);
+        walked += 1;
+    }
+    tok.len = width;
+    tok.kind = kind;
+    return tok;
+}
+
+LexNext :: (lx: *Lexer) -> Token {
+    if lx.has_ahead {
+        lx.has_ahead = false;
+        lx.tok = lx.ahead;
+        return lx.tok;
+    }
+    lx.pre_pos = lx.pos;
+    lx.pre_line = lx.line;
+    lx.pre_col = lx.col;
+    lx.tok = LexOne(lx);
+    return lx.tok;
+}
+
+// Look one token past the current one without consuming it.
+LexPeekNext :: (lx: *Lexer) -> Token {
+    if !lx.has_ahead {
+        pre_pos := lx.pre_pos;
+        pre_line := lx.pre_line;
+        pre_col := lx.pre_col;
+        lx.ahead = LexOne(lx);
+        lx.pre_pos = pre_pos;
+        lx.pre_line = pre_line;
+        lx.pre_col = pre_col;
+        lx.has_ahead = true;
+    }
+    return lx.ahead;
+}
+
+LexPushback :: (lx: *Lexer, tok: Token) {
+    lx.ahead = tok;
+    lx.has_ahead = true;
+}
+
+// Raw JSX text: everything up to the next `{`, `<` or end. Newlines split
+// the run; runs that are only whitespace collapse to nothing, matching JSX
+// whitespace trimming.
+LexJsxText :: (lx: *Lexer) -> Token {
+    tok := TokenEmpty();
+    tok.kind = T_STR;
+    tok.line = lx.line;
+    tok.col = lx.col;
+    tok.start = lx.pos;
+    tok.str_start = lx.pool.count;
+    meaningful := false;
+    pending: s64 = 0;
+    while lx.pos < lx.src.count {
+        b := lx.src[lx.pos];
+        if b == cast(u8)123 || b == cast(u8)60 { break }
+        if b == cast(u8)10 {
+            LexAdvance(lx);
+            pending = 0;
+            continue;
+        }
+        if b == cast(u8)32 || b == cast(u8)9 {
+            pending += 1;
+            LexAdvance(lx);
+            continue;
+        }
+        if pending > 0 && meaningful {
+            VecPush(lx.pool, cast(u8)32);
+        }
+        pending = 0;
+        meaningful = true;
+        VecPush(lx.pool, b);
+        LexAdvance(lx);
+    }
+    tok.len = lx.pos - tok.start;
+    tok.str_len = lx.pool.count - tok.str_start;
+    return tok;
+}
+
+// True when the current '(' opens an arrow-function parameter list: the
+// token after the matching ')' is '=>'. Only identifier-shaped tokens may
+// appear between the parentheses (no string literals).
+LooksLikeArrow :: (lx: *Lexer) -> bool {
+    mark := LexMark(lx);
+    if lx.tok.kind != T_LPAREN { LexRewind(lx, mark); return false }
+    depth: s32 = 1;
+    result := false;
+    while true {
+        tok := LexNext(lx);
+        if tok.kind == T_LPAREN { depth += 1; continue }
+        if tok.kind == T_RPAREN {
+            depth -= 1;
+            if depth == 0 {
+                after := LexNext(lx);
+                result = after.kind == T_ARROWFN;
+                break;
+            }
+            continue;
+        }
+        if tok.kind == T_EOF { break }
+    }
+    LexRewind(lx, mark);
+    return result;
+}
+
+// Speculative lookahead support: save and restore the lexer cursor. Only
+// non-string tokens may be lexed between a mark and its rewind, because
+// string bytes land in the pool.
+LexMarkData :: struct {
+    pos: s64;
+    line: s32;
+    col: s32;
+    tok: Token;
+    ahead: Token;
+    has_ahead: bool;
+    pre_pos: s64;
+    pre_line: s32;
+    pre_col: s32;
+    failed: bool;
+}
+
+LexMark :: (lx: *Lexer) -> LexMarkData {
+    m: LexMarkData;
+    m.pos = lx.pos;
+    m.line = lx.line;
+    m.col = lx.col;
+    m.pre_pos = lx.pre_pos;
+    m.pre_line = lx.pre_line;
+    m.pre_col = lx.pre_col;
+    m.tok = lx.tok;
+    m.ahead = lx.ahead;
+    m.has_ahead = lx.has_ahead;
+    m.failed = lx.failed;
+    return m;
+}
+
+LexRewind :: (lx: *Lexer, m: LexMarkData) {
+    lx.pos = m.pos;
+    lx.line = m.line;
+    lx.col = m.col;
+    lx.pre_pos = m.pre_pos;
+    lx.pre_line = m.pre_line;
+    lx.pre_col = m.pre_col;
+    lx.tok = m.tok;
+    lx.ahead = m.ahead;
+    lx.has_ahead = m.has_ahead;
+    lx.failed = m.failed;
+}

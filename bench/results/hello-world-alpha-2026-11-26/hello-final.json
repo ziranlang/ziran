@@ -1,0 +1,460 @@
+{
+  "host": "alpha",
+  "virtualization": "none",
+  "project": "/home/wao/Projects/ziranlang/ziran/build/benchmarks/kryon-hello",
+  "source_and_tool_sha256": "9ea0fb48d7b061ea684ce32d39cbb337dfa5ec86048fd1a7b7021dab2c2340ce  /home/wao/Projects/ziranlang/ziran/build/bin/ziran\nf7ec05dadb6369d69d0577ca20874a718f6e8346e38a709f2d25a25cf09779e0  /home/wao/Projects/ziranlang/ziran/build/bin/zi2c\n310a76692585a7703b39e2bd0cccf0f127822b0a8d294e8da0ab938aaa95f6b5  /home/wao/Projects/ziranlang/ziran/build/bin/zi2go\nf79a9ccb4823449bbca2084cdd0fb059fc8d02fb69650c82c868ac1ad85bb093  /home/wao/Projects/ziranlang/ziran/build/bin/zi2zx\n851ccf5d45ca4b4253f9b13e33d977766355167b9cf960612a1bc046d362795b  /home/wao/Projects/ziranlang/ziran/build/bin/zx2wasm\n584cf67a2f48dd8e8d49dcfc47ccd419b0ad7f17cab222c4bcde1ad3f112244f  /home/wao/Projects/ziranlang/ziran/build/bin/zx2native\n665777b8b7701d9ceaabb0bb903c61ed469890fc692b783a341feae3ff647eef  /home/wao/Projects/ziranlang/ziran/build/benchmarks/kryon-hello/hello.zi\n1171ddcd895c8aae3b6d72801ac656a10c31a7e41e0238535fdab44067ba7bb0  /home/wao/Projects/ziranlang/ziran/build/benchmarks/kryon-hello/ziran.toml\nd011a6ebef72d04fdf83afb141877de13d69a15afdf2793a67874f32ffd49456  /home/wao/Projects/ziranlang/ziran/build/benchmarks/kryon-hello/ziran.lock\nb94f2c9edbe7f660807e4fabbbdc01e7624ba31ccc708a305adb80b872e397f4  /home/wao/Projects/ziranlang/ziran/build/benchmarks/kryon-hello/ziran.local.toml\nefcc2e33a86ccd293f4d2214bdf1caae6c3615d07afa3b5e48a28766bb1b7c22  /home/wao/Projects/ziranlang/ziran/bench/project_build.zi\n0d2d7be57426c592e3e3c527e054043b13512d65955ad782e8534c52cf8802de  /home/wao/Projects/ziranlang/ziran/build/libziran.a\n",
+  "entry": "hello:main",
+  "methodology": "One warmup then nine builds, rotating target order; identical source and stable output paths; warm filesystem, package and Go caches. C includes cc/link, Go includes go build, Wasm includes bundle/emission, native includes bundle/direct ELF emission, ZX includes bundling only. Build time excludes package fetch and toolchain builds. No program execution or GUI verification; failed targets retain diagnostics and have no timing median. Symmetric inclusive 1.5xIQR; raw samples and excluded indices are retained. Application binary sizes exclude system libraries and portable hosts.",
+  "metadata": "2026-11-26T05:58:12Z\nLinux 7.0.0-43-generic x86_64 GNU/Linux\nIntel(R) Core(TM) i7-8700 CPU @ 3.20GHz\ncc (Ubuntu 15.2.0-16ubuntu1) 15.2.0\ngo version go1.27.4 linux/amd64\nv26.13.1\n0f3cb63c9c658ed8d6b9484fae9ff4b52a11db51\n",
+  "builds": [
+    {
+      "target": "c",
+      "repetition": 0,
+      "warmup": true,
+      "exit_code": 0,
+      "wall_ms": 3865.589878
+    },
+    {
+      "target": "go",
+      "repetition": 0,
+      "warmup": true,
+      "exit_code": 0,
+      "wall_ms": 1627.26027
+    },
+    {
+      "target": "wasm",
+      "repetition": 0,
+      "warmup": true,
+      "exit_code": 0,
+      "wall_ms": 1345.082416
+    },
+    {
+      "target": "native",
+      "repetition": 0,
+      "warmup": true,
+      "exit_code": 0,
+      "wall_ms": 1503.629015
+    },
+    {
+      "target": "zx",
+      "repetition": 0,
+      "warmup": true,
+      "exit_code": 0,
+      "wall_ms": 1101.572674
+    },
+    {
+      "target": "go",
+      "repetition": 1,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1396.658219
+    },
+    {
+      "target": "wasm",
+      "repetition": 1,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1195.868314
+    },
+    {
+      "target": "native",
+      "repetition": 1,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1228.462514
+    },
+    {
+      "target": "zx",
+      "repetition": 1,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1037.99115
+    },
+    {
+      "target": "c",
+      "repetition": 1,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 3386.083057
+    },
+    {
+      "target": "wasm",
+      "repetition": 2,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1152.406485
+    },
+    {
+      "target": "native",
+      "repetition": 2,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1283.982428
+    },
+    {
+      "target": "zx",
+      "repetition": 2,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1083.465851
+    },
+    {
+      "target": "c",
+      "repetition": 2,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 3303.808228
+    },
+    {
+      "target": "go",
+      "repetition": 2,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1163.535193
+    },
+    {
+      "target": "native",
+      "repetition": 3,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1214.499003
+    },
+    {
+      "target": "zx",
+      "repetition": 3,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1057.423278
+    },
+    {
+      "target": "c",
+      "repetition": 3,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 3285.816665
+    },
+    {
+      "target": "go",
+      "repetition": 3,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1209.038144
+    },
+    {
+      "target": "wasm",
+      "repetition": 3,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1087.168775
+    },
+    {
+      "target": "zx",
+      "repetition": 4,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1137.344169
+    },
+    {
+      "target": "c",
+      "repetition": 4,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 3330.565342
+    },
+    {
+      "target": "go",
+      "repetition": 4,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1052.090062
+    },
+    {
+      "target": "wasm",
+      "repetition": 4,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1169.104539
+    },
+    {
+      "target": "native",
+      "repetition": 4,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1292.057921
+    },
+    {
+      "target": "c",
+      "repetition": 5,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 3207.619725
+    },
+    {
+      "target": "go",
+      "repetition": 5,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1106.788513
+    },
+    {
+      "target": "wasm",
+      "repetition": 5,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1213.531466
+    },
+    {
+      "target": "native",
+      "repetition": 5,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1266.696144
+    },
+    {
+      "target": "zx",
+      "repetition": 5,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1061.855454
+    },
+    {
+      "target": "go",
+      "repetition": 6,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1187.221608
+    },
+    {
+      "target": "wasm",
+      "repetition": 6,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1368.166768
+    },
+    {
+      "target": "native",
+      "repetition": 6,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1359.976107
+    },
+    {
+      "target": "zx",
+      "repetition": 6,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1065.69813
+    },
+    {
+      "target": "c",
+      "repetition": 6,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 3296.277499
+    },
+    {
+      "target": "wasm",
+      "repetition": 7,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 989.025119
+    },
+    {
+      "target": "native",
+      "repetition": 7,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1252.836179
+    },
+    {
+      "target": "zx",
+      "repetition": 7,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1101.854342
+    },
+    {
+      "target": "c",
+      "repetition": 7,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 3243.29706
+    },
+    {
+      "target": "go",
+      "repetition": 7,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1217.149546
+    },
+    {
+      "target": "native",
+      "repetition": 8,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1331.598585
+    },
+    {
+      "target": "zx",
+      "repetition": 8,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1165.753445
+    },
+    {
+      "target": "c",
+      "repetition": 8,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 3449.330901
+    },
+    {
+      "target": "go",
+      "repetition": 8,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1206.988358
+    },
+    {
+      "target": "wasm",
+      "repetition": 8,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1075.798799
+    },
+    {
+      "target": "zx",
+      "repetition": 9,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1050.345799
+    },
+    {
+      "target": "c",
+      "repetition": 9,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 3296.234716
+    },
+    {
+      "target": "go",
+      "repetition": 9,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1352.29329
+    },
+    {
+      "target": "wasm",
+      "repetition": 9,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1271.20965
+    },
+    {
+      "target": "native",
+      "repetition": 9,
+      "warmup": false,
+      "exit_code": 0,
+      "wall_ms": 1253.810259
+    }
+  ],
+  "targets": {
+    "c": {
+      "status": "built-not-run",
+      "artifact_bytes": 403200,
+      "c_files": 70,
+      "headers": 78,
+      "source_bytes": 1168348,
+      "median_ms": 3296.277499,
+      "raw_ms": [
+        3386.083057,
+        3303.808228,
+        3285.816665,
+        3330.565342,
+        3207.619725,
+        3296.277499,
+        3243.29706,
+        3449.330901,
+        3296.234716
+      ],
+      "excluded_indices": [
+        4,
+        7
+      ]
+    },
+    "go": {
+      "status": "built-not-run",
+      "artifact_bytes": 2038065,
+      "median_ms": 1197.1049830000002,
+      "raw_ms": [
+        1396.658219,
+        1163.535193,
+        1209.038144,
+        1052.090062,
+        1106.788513,
+        1187.221608,
+        1217.149546,
+        1206.988358,
+        1352.29329
+      ],
+      "excluded_indices": [
+        0,
+        3,
+        8
+      ]
+    },
+    "wasm": {
+      "status": "built-not-run",
+      "artifact_bytes": 384621,
+      "median_ms": 1169.104539,
+      "raw_ms": [
+        1195.868314,
+        1152.406485,
+        1087.168775,
+        1169.104539,
+        1213.531466,
+        1368.166768,
+        989.025119,
+        1075.798799,
+        1271.20965
+      ],
+      "excluded_indices": []
+    },
+    "native": {
+      "status": "built-not-run",
+      "artifact_bytes": 598224,
+      "median_ms": 1260.2532015000002,
+      "raw_ms": [
+        1228.462514,
+        1283.982428,
+        1214.499003,
+        1292.057921,
+        1266.696144,
+        1359.976107,
+        1252.836179,
+        1331.598585,
+        1253.810259
+      ],
+      "excluded_indices": [
+        5
+      ]
+    },
+    "zx": {
+      "status": "built-not-run",
+      "artifact_bytes": 1471959,
+      "median_ms": 1065.69813,
+      "raw_ms": [
+        1037.99115,
+        1083.465851,
+        1057.423278,
+        1137.344169,
+        1061.855454,
+        1065.69813,
+        1101.854342,
+        1165.753445,
+        1050.345799
+      ],
+      "excluded_indices": []
+    }
+  }
+}

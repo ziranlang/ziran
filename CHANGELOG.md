@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Install the `zi2c` launcher on PATH so native compiler tooling can find it.
+
 - Expire native script builds after 24 hours without use, cleaning up after
   scripts finish at most once per hour while preserving active builds.
 

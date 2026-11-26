@@ -135,9 +135,14 @@ main :: (argc: s32, argv: **u8) -> s32 {
     direct := string.[CheckPath(bin, "zi2zx"), "run", "hello.zi"]
     unused NativeExpect(*test, ziran[:], "Hello, World!\n", test.work)
     unused NativeExpect(*test, direct[:], "Hello, World!\n", test.work)
+    c_output := CheckPath(test.work, "hello-c")
+    c_build := string.[CheckPath(bin, "zi2c"), "--root", test.work, "--entry", "hello:main", "--exe", "-o", c_output, hello]
+    unused NativeRun(*test, c_build[:])
+    c_run := string.[CheckPath(c_output, "hello")]
+    unused NativeExpect(*test, c_run[:], "Hello, World!\n", test.work)
     if !NativeAssert(*test, NativeSameFile(CheckPath(share, "build/bin/zx"), CheckPath(PathParent(test.ziran), "zx")), "installed zx differs") { return 1 }
     if !CheckZxRunner(*test, share, data) { return 1 }
-    tools := string.["ziran", "zi2zx", "zx"]
+    tools := string.["ziran", "zi2c", "zi2zx", "zx"]
     marker := "#!/bin/sh\n# Owner's existing launcher\nexit 23\n"
     for tool: tools { if !NativeWrite(*test, CheckPath(bin, tool), marker) { return 1 } }
     unused NativeRun(*test, command[:])

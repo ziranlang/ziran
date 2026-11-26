@@ -426,7 +426,7 @@ install-user: all
 	rm -rf $(USER_SHARE)/std $(USER_SHARE)/include $(USER_SHARE)/templates
 	cp -r std include templates $(USER_SHARE)/
 	@# Another tool's launcher, such as a build queue wrapper, stays in place.
-	@set -e; for tool in ziran zi2zx zx; do \
+	@set -e; for tool in ziran zi2c zi2zx zx; do \
 		launcher="exec \"$(USER_SHARE)/build/bin/$$tool\" \"\$$@\""; \
 		if test -e "$(USER_BIN)/$$tool" && ! grep -qxF "$$launcher" "$(USER_BIN)/$$tool"; then \
 			echo "install-user: kept $(USER_BIN)/$$tool, which launches something else"; \

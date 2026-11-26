@@ -117,7 +117,7 @@ and bidi context. Bind the callback to its procedure type before passing it:
 ```zi
 Layout :: #import "std/text_layout";
 Grapheme :: #import "std/grapheme";
-Measure :: #type (string, s32) -> s32;
+Measure :: #type (string, s32) -> s32 #reads;
 Monospace :: (text: string, advance: s32) -> s32 {
     return Grapheme.Count(text) * advance
 }
@@ -141,6 +141,9 @@ a caller-supplied marker, without assigning it rendering behavior.
 Font discovery, shaping, measurement caches, selection and painting remain
 with the consumer. Kryon's Text widget uses this core through its glyph
 measurement adapter.
+When a consumer installs a `#reads` text hook, use a `#reads` measurement
+procedure type and pass immutable measurement settings by value. Context may
+also be a typed pointer when the caller needs mutable measurement state.
 
 ## Unicode version and regeneration
 

@@ -462,7 +462,12 @@ ParsePrefix :: (p: *Parser) -> s32 {
         result = Node(p, IR.ZirExprKind.UNARY, start, "", op, -1, right)
     } else if Token(p) == "&" { JaiSyntax(p, "C-style address-of is not valid Jai syntax; use *value") }
     else if Take(p, "(") {
-        typed := IsType(p, Token(p)) || Token(p) == "["
+        // OS and TARGET name both an enum type and its compile-time value.
+        // A grouped comparison is a value expression, not a C cast.
+        following := Following(p, 1)
+        comparison := following == "==" || following == "!=" || following == "<" ||
+            following == ">" || following == "<=" || following == ">="
+        typed := IsType(p, Token(p)) && !comparison || Token(p) == "["
         if typed && Token(p) != "." && Following(p, 1) != "." && !ArrayLiteralAhead(p) {
             JaiSyntax(p, "C-style cast or literal is not valid Jai syntax; use cast(Type) value or Type.{...}")
         }

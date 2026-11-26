@@ -281,7 +281,22 @@ PkgLockId :: (url: string, commit: string, source: bool) -> string {
 // an older format is re-locked, never silently accepted.
 PkgLockIdMatches :: (locked: *PkgLock, index: s32) -> bool {
     item: *PkgLocked = *locked.packages[index]
-    return item.id == PkgLockId(item.url, item.commit, item.source)
+    if item.id == PkgLockId(item.url, item.commit, item.source) { return true }
+    // Locks written before identities named their repository carry opaque
+    // entry ids. Accept that older shape while it stays unambiguous: an
+    // installed launcher newer than a project's pinned toolchain must not
+    // force a re-lock the pinned launcher cannot read.
+    if !item.source {
+        return item.id == PkgSourceId(PkgSourceKey(item.url), item.commit)
+    }
+    if item.id == PkgSourceId(PkgJoin(PkgSourceKey(item.url), "\nsource"), item.commit) { return true }
+    if item.id != PkgSourceId(PkgSourceKey(item.url), item.commit) { return false }
+    other: s32 = 0
+    while other < locked.count {
+        if other != index && locked.packages[other].id == item.id { return false }
+        other += 1
+    }
+    return true
 }
 
 PkgFindBySource :: (locked: *PkgLock, url: string, ref: string, source: bool) -> s32 {

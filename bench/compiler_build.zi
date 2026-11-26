@@ -89,14 +89,11 @@ ShellRecipe :: (argc: s32, argv: **u8) -> s32 {
     return ifx ok then run.code else 127
 }
 
-CollectProfile :: (directory: string) -> bool {
-    names: Vec(string)
-    if !ListDirectory(directory, *names) { return false }
-    defer { FreeDirectoryNames(*names) }
+CollectProfileNames :: (directory: string, names: []string) -> bool {
     collected: JsonDocument
     array := JsonNewArray(*collected)
     top: Vec(s32)
-    for name: VecSlice(names, 0, names.count) {
+    for name: names {
         if !TextHasSuffix(name, ".json") { continue }
         text, found := ReadEntireFile(JoinPath(directory, name))
         document: JsonDocument
@@ -128,10 +125,17 @@ CollectProfile :: (directory: string) -> bool {
         !WriteEntireFile(JoinPath(parent, "slowest-recipes.json"), JsonWrite(*summary, slowest, JsonPythonStyle(2))) {
         return false
     }
-    for name: VecSlice(names, 0, names.count) {
+    for name: names {
         if TextHasSuffix(name, ".json") && !RemoveFile(JoinPath(directory, name)) { return false }
     }
     return true
+}
+
+CollectProfile :: (directory: string) -> bool {
+    names: Vec(string)
+    if !ListDirectory(directory, *names) { return false }
+    defer { FreeDirectoryNames(*names) }
+    return CollectProfileNames(directory, VecSlice(names, 0, names.count))
 }
 
 #scope_export
@@ -173,6 +177,22 @@ main :: (argc: s32, argv: **u8) -> s32 {
         else { print("unknown argument: %\n", option); return 2 }
         index += 2
     }
+    host_command := string.["hostname", "-s"]
+    virt_command := string.["systemd-detect-virt"]
+    host := Capture(host_command[:], repo)
+    // systemd-detect-virt exits 1 for a physical host.
+    virt_options: ProcessOptions = .{arguments = virt_command[:], capture_output = true}
+    virt_run: ProcessRun
+    if host != "alpha" || !RunProcess(virt_options, *virt_run) ||
+        virt_run.code != 1 || TextTrim(BuilderFinish(virt_run.output)) != "none" {
+        print("compiler builds require physical Alpha\n"); return 2
+    }
+    date_command := string.["date", "-u", "+%Y-%m-%dT%H:%M:%SZ"]
+    cpu_command := string.["lscpu"]
+    platform_command := string.["uname", "-srmo"]
+    started_utc := Capture(date_command[:], repo)
+    cpu := Capture(cpu_command[:], repo)
+    platform := Capture(platform_command[:], repo)
     if !CreateDirectories(output) { print("cannot create %\n", output); return 1 }
     output = ResolvePath(output)
     environment: [8]string = .["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY",
@@ -221,8 +241,13 @@ main :: (argc: s32, argv: **u8) -> s32 {
     }
     doc: JsonDocument
     object := JsonNewObject(*doc)
-    PutInteger(*doc, object, "schema_version", 2)
+    PutInteger(*doc, object, "schema_version", 3)
     PutText(*doc, object, "implementation", "Ziran")
+    PutText(*doc, object, "host", host)
+    PutText(*doc, object, "virtualization", "none")
+    PutText(*doc, object, "started_utc", started_utc)
+    PutText(*doc, object, "cpu", cpu)
+    PutText(*doc, object, "platform", platform)
     PutText(*doc, object, "command", TextJoin(VecSlice(command, 0, command.count), " "))
     PutText(*doc, object, "revision", revision)
     PutText(*doc, object, "tracked_build_source_diff_sha256", source_fingerprint)

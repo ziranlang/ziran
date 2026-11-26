@@ -1,0 +1,175 @@
+#!/usr/bin/env -S ziran run --target=c
+// Build an ordinary locked consumer, without changing its sources or packages.
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/float_text"
+#import "std/json_document"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+Stats :: #import "benchmark_statistics";
+using Vectors :: #import "std/vec"
+
+Samples :: struct { values: Vec(float64); failed: bool; diagnostic: string; }
+SETTINGS: [15]string = .["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS",
+    "ZIRAN_PROFILE", "ZIRAN_LEARN=off", "HARMONY_DESKTOP_RECOVERY=0", "CFLAGS=-O2",
+    "GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", "GOWORK=off", "GOFLAGS=",
+    "GO111MODULE=off", "GOMAXPROCS=2"];
+
+Capture :: (args: []string, directory: string) -> (text: string, code: s32) {
+    options: ProcessOptions = .{.arguments = args, .directory = directory,
+        .environment = SETTINGS[:], .capture_output = true, .merge_error = true}
+    run: ProcessRun
+    if !RunProcess(options, *run) { return "process launch failed", 127 }
+    return TextDetach(TextCopy(BuilderFinish(run.output))), run.code
+}
+PutText :: (doc: *JsonDocument, node: s32, key: string, value: string) {
+    JsonSet(doc, node, key, JsonNewStringCopy(doc, value))
+}
+PutReal :: (doc: *JsonDocument, node: s32, key: string, value: float64) {
+    JsonSet(doc, node, key, JsonNewNumber(doc, Float64Repr(value)))
+}
+GeneratedSources :: (doc: *JsonDocument, node: s32, directory: string) {
+    names: Vec(string)
+    if !ListDirectory(directory, *names) { return }
+    defer FreeDirectoryNames(*names)
+    c_files: s64; headers: s64; bytes: s64
+    for index: 0..names.count - 1 {
+        name := names[index]
+        if TextHasSuffix(name, ".c") { c_files += 1 }
+        else if TextHasSuffix(name, ".h") { headers += 1 }
+        else { continue }
+        bytes += PathStatus(JoinPath(directory, name)).size
+    }
+    JsonSet(doc, node, "c_files", JsonNewInteger(doc, c_files))
+    JsonSet(doc, node, "headers", JsonNewInteger(doc, headers))
+    JsonSet(doc, node, "source_bytes", JsonNewInteger(doc, bytes))
+}
+Build :: (column: s32, compiler: string, native: string, project: string,
+    source: string, entry: string, directory: string, artifact: string) -> (text: string, code: s32) {
+    if !CreateDirectories(directory) { return "cannot create build directory", 127 }
+    args: Vec(string)
+    VecPush(args, compiler)
+    VecPush(args, ifx column >= 3 then "bundle" else "build")
+    if column < 3 {
+        VecPush(args, ifx column == 0 then "--target=c" else ifx column == 1 then "--target=go" else "--target=wasm")
+    }
+    if column == 0 || column == 1 { VecPush(args, "--exe") }
+    if column == 1 { VecPush(args, "--pkg"); VecPush(args, "main") }
+    fixed: [6]string = .["--project", "--root", ".", "--entry", entry, "-o"]
+    for value: fixed { VecPush(args, value) }
+    bundle := JoinPath(directory, "program.zx")
+    VecPush(args, ifx column == 3 then bundle else ifx column >= 2 then artifact else directory)
+    VecPush(args, source)
+    text, code := Capture(args[:], project)
+    if code != 0 || column == 0 || column == 2 || column == 4 { return text, code }
+    if column == 1 {
+        command: [8]string = .["go", "build", "-p=2", "-buildvcs=false", "-trimpath", "-o", artifact, "."]
+        return Capture(command[:], directory)
+    }
+    command: [10]string = .[native, "--target", "x86_64", "--platform", "linux", "--emit", "elf", "-o", artifact, bundle]
+    return Capture(command[:], project)
+}
+
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc == 2 && TextFromCString(argv[1]) == "--help" {
+        print("project_build.zi PROJECT SOURCE ENTRY REPORT.json\nBuild C, Go, Wasm, ZX and direct x86_64 Linux native. Requires physical Alpha.\n")
+        return 0
+    }
+    if argc != 5 { return 2 }
+    project := ResolvePath(TextFromCString(argv[1]))
+    source := TextFromCString(argv[2])
+    entry := TextFromCString(argv[3])
+    output := TextFromCString(argv[4])
+    if !IsDirectory(project) || IsFile(output) { return 2 }
+    module := entry
+    for index: cast(s64)0..entry.count - 1 { if entry[index] == #char ":" { module = entry[:index]; break } }
+    host_args: [2]string = .["hostname", "-s"]
+    virt_args: [1]string = .["systemd-detect-virt"]
+    host, host_code := Capture(host_args[:], project)
+    virt, virt_code := Capture(virt_args[:], project)
+    if host_code != 0 || TextTrim(host) != "alpha" || virt_code != 1 || TextTrim(virt) != "none" {
+        print("project builds require physical Alpha\n"); return 2
+    }
+    compiler := ResolvePath("build/bin/ziran")
+    native := ResolvePath("build/bin/zx2native")
+    work := JoinPath(project, "build/target-benchmark")
+    if !CreateDirectories(work) || !CreateDirectories(PathParent(output)) { return 1 }
+    provenance_args: Vec(string)
+    VecPush(provenance_args, "sha256sum")
+    tool_names := string.["ziran", "zi2c", "zi2go", "zi2zx", "zx2wasm", "zx2native"]
+    for tool: tool_names { VecPush(provenance_args, ResolvePath(JoinPath("build/bin", tool))) }
+    input_names := string.[source, "ziran.toml", "ziran.lock"]
+    for input: input_names { VecPush(provenance_args, JoinPath(project, input)) }
+    overrides := JoinPath(project, "ziran.local.toml")
+    if IsFile(overrides) { VecPush(provenance_args, overrides) }
+    VecPush(provenance_args, ResolvePath("bench/project_build.zi"))
+    VecPush(provenance_args, ResolvePath("build/libziran.a"))
+    provenance, provenance_code := Capture(provenance_args[:], project)
+    if provenance_code != 0 { print("%", provenance); return 1 }
+    doc: JsonDocument
+    root := JsonNewObject(*doc)
+    PutText(*doc, root, "host", TextTrim(host))
+    PutText(*doc, root, "virtualization", TextTrim(virt))
+    PutText(*doc, root, "project", project)
+    PutText(*doc, root, "source_and_tool_sha256", provenance)
+    PutText(*doc, root, "entry", entry)
+    PutText(*doc, root, "methodology", "One warmup then nine builds, rotating target order; identical source and stable output paths; warm filesystem, package and Go caches. C includes cc/link, Go includes go build, Wasm includes bundle/emission, native includes bundle/direct ELF emission, ZX includes bundling only. Build time excludes package fetch and toolchain builds. No program execution or GUI verification; failed targets retain diagnostics and have no timing median. Symmetric inclusive 1.5xIQR; raw samples and excluded indices are retained. Application binary sizes exclude system libraries and portable hosts.")
+    metadata_args: [3]string = .["/bin/sh", "-ec", "date -u +%Y-%m-%dT%H:%M:%SZ; uname -srmo; sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1; cc --version | head -1; go version; node --version; git rev-parse HEAD"]
+    metadata, metadata_code := Capture(metadata_args[:], ".")
+    if metadata_code != 0 { return 1 }
+    PutText(*doc, root, "metadata", metadata)
+    targets: [5]string = .["c", "go", "wasm", "native", "zx"]
+    samples: [5]Samples
+    artifacts: [5]string
+    raw := JsonNewArray(*doc); JsonSet(*doc, root, "builds", raw)
+    for repetition: cast(s32)0..9 {
+        for offset: cast(s32)0..4 {
+            column := (offset + repetition) % 5
+            if samples[column].failed { continue }
+            directory := JoinPath(work, targets[column])
+            artifact := JoinPath(directory, ifx column < 2 then module else ifx column == 2 then "program.wasm" else ifx column == 3 then "program.native" else "program.zx")
+            artifacts[column] = artifact
+            if IsFile(artifact) && !RemoveFile(artifact) { return 1 }
+            started := MonotonicNanoseconds()
+            diagnostic, code := Build(column, compiler, native, project, source, entry, directory, artifact)
+            elapsed := cast(float64)(MonotonicNanoseconds() - started) / 1000000.0
+            row := JsonNewObject(*doc); unused JsonAppend(*doc, raw, row)
+            PutText(*doc, row, "target", targets[column])
+            JsonSet(*doc, row, "repetition", JsonNewInteger(*doc, repetition))
+            JsonSet(*doc, row, "warmup", JsonNewBool(*doc, repetition == 0))
+            JsonSet(*doc, row, "exit_code", JsonNewInteger(*doc, code))
+            PutReal(*doc, row, "wall_ms", elapsed)
+            if code != 0 || !IsFile(artifact) {
+                samples[column].failed = true
+                samples[column].diagnostic = diagnostic
+                PutText(*doc, row, "diagnostic", diagnostic)
+            } else if repetition > 0 { VecPush(samples[column].values, elapsed) }
+            print("% build %: %\n", targets[column], repetition, code)
+        }
+    }
+    after, after_code := Capture(provenance_args[:], project)
+    if after_code != 0 || after != provenance { print("inputs changed during measurement\n"); return 1 }
+    summary := JsonNewObject(*doc); JsonSet(*doc, root, "targets", summary)
+    for column: cast(s32)0..4 {
+        cell := JsonNewObject(*doc); JsonSet(*doc, summary, targets[column], cell)
+        if samples[column].failed {
+            PutText(*doc, cell, "status", "build-failed")
+            PutText(*doc, cell, "diagnostic", samples[column].diagnostic)
+            continue
+        }
+        PutText(*doc, cell, "status", "built-not-run")
+        JsonSet(*doc, cell, "artifact_bytes", JsonNewInteger(*doc, PathStatus(artifacts[column]).size))
+        if column == 0 { GeneratedSources(*doc, cell, JoinPath(work, targets[column])) }
+        column_samples := *samples[column]
+        analyzed := Stats.BenchmarkAnalyze(column_samples.values[:])
+        if !analyzed.valid { return 1 }
+        PutReal(*doc, cell, "median_ms", analyzed.median)
+        values := JsonNewArray(*doc); JsonSet(*doc, cell, "raw_ms", values)
+        for value: column_samples.values { unused JsonAppend(*doc, values, JsonNewNumber(*doc, Float64Repr(value))) }
+        excluded := JsonNewArray(*doc); JsonSet(*doc, cell, "excluded_indices", excluded)
+        for index: analyzed.excluded { unused JsonAppend(*doc, excluded, JsonNewInteger(*doc, index)) }
+    }
+    return ifx WriteEntireFile(output, JsonWrite(*doc, root, JsonPythonStyle(2))) then 0 else 1
+}

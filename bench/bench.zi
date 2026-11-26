@@ -84,6 +84,7 @@ Registry :: () -> Vec(Benchmark) {
     Add(*list, "native-builds", "bench/native_builds.py", .Python, .Host, "complete native builds against C and Go")
     Add(*list, "native-header-graphs", "bench/native_header_graphs.py", .Python, .Host, "native builds with a dense record ABI")
     Add(*list, "native-probe", "bench/native_probe.py", .Python, .Host, "native builds with interleaved probes")
+    Add(*list, "project-build", "bench/project_build.zi", .Ziran, .Host, "locked consumer builds for C, Go, Wasm, ZX and direct native")
     Add(*list, "native-resize-ab", "bench/native_resize_ab.py", .Python, .Host, "matched frozen native runtimes on scalar and vector kernels")
     Add(*list, "reachable-types", "bench/reachable_types.py", .Python, .Host, "qualified type-graph lookup")
     Add(*list, "rill-compact", "bench/rill_compact.zi", .Ziran, .Host, "checked row memory operations in compact and full-plan engines", "cmd")

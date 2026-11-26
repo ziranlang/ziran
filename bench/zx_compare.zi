@@ -65,8 +65,8 @@ Answer :: () -> s64 {
 // from the same math and verified against every helper checksum and AOT
 // output before a sample is recorded.
 //
-// Invocation from the repository root, through the build queue:
-//   build-queue -- build/bin/ziran run --root bench bench/zx_compare.zi -- \
+// Invocation from the repository root:
+//   build/bin/ziran run --root bench bench/zx_compare.zi -- \
 //       --engine --native-cold --native-warm --aot --c-control \
 //       --m0-receipts bench/results --out bench/results/<receipt>.json
 // Optional: --samples 9 --rounds 4096 --batches 16 --seed 123456
@@ -130,22 +130,15 @@ BuildEnvironment :: () -> Vec(string) {
     return environment
 }
 
-// Runs one child, prepending build-queue when the caller asks for it and the
-// driver itself was not started inside a queue slot.
+// Run each command directly; the managed desktop command owns its budget.
 RunCommand :: (arguments: []string, repo: string, error_path: string,
-    cache_dir: string, queued: bool) -> (ok: bool, code: s32, output: string) {
-    actual: Vec(string)
-    if queued && EnvironmentText("BUILD_QUEUE_JOBS") == "" {
-        VecPush(actual, "build-queue")
-        VecPush(actual, "--")
-    }
-    for argument: arguments { VecPush(actual, argument) }
+    cache_dir: string) -> (ok: bool, code: s32, output: string) {
     environment := BuildEnvironment()
     if cache_dir != "" {
         VecPush(environment, "ZIRAN_NATIVE_TIMING=1")
         VecPush(environment, Concat("ZIRAN_NATIVE_CACHE=", cache_dir))
     }
-    options: ProcessOptions = .{.arguments = actual[:], .directory = repo,
+    options: ProcessOptions = .{.arguments = arguments, .directory = repo,
         .environment = environment[:], .capture_output = true,
         .error_path = error_path}
     run: ProcessRun
@@ -314,11 +307,11 @@ SaveReceipt :: (document: *JsonDocument, root: s32, out: string) -> bool {
     return WriteEntireFile(out, JsonWrite(document, root, JsonPythonStyle(2)))
 }
 
-// One prepare command, recorded and queue-wrapped; fails the run loudly.
+// Record one prepare command; fail the run loudly.
 PrepareStep :: (document: *JsonDocument, commands: s32, arguments: []string,
     repo: string, work: string) -> bool {
     started := MonotonicNanoseconds()
-    ok, code, output := RunCommand(arguments, repo, JoinPath(work, "prepare-error.txt"), "", true)
+    ok, code, output := RunCommand(arguments, repo, JoinPath(work, "prepare-error.txt"), "")
     elapsed := cast(float64)(MonotonicNanoseconds() - started) / 1000000.0
     record := JsonNewObject(document)
     argv := JsonNewArray(document)
@@ -397,6 +390,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     warm_cohort := false
     aot_cohort := false
     c_cohort := false
+    generated_c := false
     alpha_gate := false
     prepared := false
     m0_receipts := ""
@@ -413,7 +407,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     while index < argc {
         option := TextFromCString(argv[index])
         if option == "--help" {
-            print("zx_compare.zi [--engine] [--native-cold] [--native-warm] [--aot] [--c-control]\n")
+            print("zx_compare.zi [--engine] [--native-cold] [--native-warm] [--aot] [--c-control | --zi2c-control]\n")
             print("  [--m0-receipts DIR] [--out PATH] [--work DIR] [--host NAME] [--commit SHA]\n")
             print("  [--samples N] [--rounds N] [--batches N] [--seed N] [--alpha] [--prepared]\n")
             return 0
@@ -423,6 +417,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         if option == "--native-warm" { warm_cohort = true; index += 1; continue }
         if option == "--aot" { aot_cohort = true; index += 1; continue }
         if option == "--c-control" { c_cohort = true; index += 1; continue }
+        if option == "--zi2c-control" { c_cohort = true; generated_c = true; index += 1; continue }
         if option == "--alpha" { alpha_gate = true; index += 1; continue }
         if option == "--prepared" { prepared = true; index += 1; continue }
         if index + 1 >= argc { print("% needs a value\n", option); return 2 }
@@ -456,7 +451,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if host == "" { host = ReadTrimmed("/proc/sys/kernel/hostname", "unknown") }
     if commit == "" {
         revision: [3]string = .["git", "rev-parse", "HEAD"]
-        ok, code, output := RunCommand(revision[:], repo, "", "", false)
+        ok, code, output := RunCommand(revision[:], repo, "", "")
         commit = ifx ok && code == 0 then TextTrim(output) else "unknown"
     }
     machine_id := ReadTrimmed("/etc/machine-id", "unavailable")
@@ -466,7 +461,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     cpu := ReadTrimmed("/proc/cpuinfo", "unavailable")
     governor := ReadTrimmed("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "unavailable")
     virt_command: [1]string = .["systemd-detect-virt"]
-    virt_ok_run, virt_code, virt_output := RunCommand(virt_command[:], repo, "", "", false)
+    virt_ok_run, virt_code, virt_output := RunCommand(virt_command[:], repo, "", "")
     virtualization := ifx virt_ok_run && TextTrim(virt_output) != "" then TextTrim(virt_output) else ifx virt_code == 127 then "unavailable" else "none"
 
     scoped := EnvironmentText("HARMONY_ALPHA_GIT_SCOPED")
@@ -490,6 +485,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     }
     queue_jobs := EnvironmentText("BUILD_QUEUE_JOBS")
 
+    c_name := ifx generated_c then "zi2c" else "c"
     fixture := JoinPath(work, "fixture.zx")
     zx_host := JoinPath(work, "zx-host")
     control_binary := JoinPath(work, "control")
@@ -515,7 +511,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if cold_cohort { JsonAppend(*document, requested, JsonNewStringCopy(*document, "native-cold")) }
     if warm_cohort { JsonAppend(*document, requested, JsonNewStringCopy(*document, "native-warm")) }
     if aot_cohort { JsonAppend(*document, requested, JsonNewStringCopy(*document, "aot")) }
-    if c_cohort { JsonAppend(*document, requested, JsonNewStringCopy(*document, "c")) }
+    if c_cohort { JsonAppend(*document, requested, JsonNewStringCopy(*document, c_name)) }
     JsonSet(*document, root, "cohorts_requested", requested)
     protocol := JsonNewObject(*document)
     Put(*document, protocol, "fixture", "bench/zx_compare.zi Answer with the host_api Input bound to seed, rounds and kind; kind 1 mixes a 32-cell struct workload")
@@ -529,8 +525,12 @@ main :: (argc: s32, argv: **u8) -> s32 {
     Put(*document, protocol, "native_cold", "one fresh helper process per sample; cold ms = load + instantiate + first entry")
     Put(*document, protocol, "native_warm", "per-entry ms = warm batch wall / batches from the same fresh process")
     Put(*document, protocol, "aot", "whole-process wall of the zx2native ELF, startup included, base seed only")
-    Put(*document, protocol, "c", "the helper rebuilt with -DCONTROL calls the C Bench oracle in-process; backend none")
-    Put(*document, protocol, "order", "fixed interleaving per trial and kind: engine, native, c, aot")
+    Put(*document, protocol, c_name, ifx generated_c then
+        "The same scalar and record algorithm emitted by zi2c and compiled with cc -O2; runtime seed, rounds and kind; in-process timing, backend none. The ZX entry obtains its three inputs through host calls." else
+        "the helper rebuilt with -DCONTROL calls the C Bench oracle in-process; backend none")
+    Put(*document, protocol, "order", ifx generated_c then
+        "fixed interleaving per trial and kind: engine, native, zi2c, aot" else
+        "fixed interleaving per trial and kind: engine, native, c, aot")
     Put(*document, protocol, "outliers", "symmetric 1.5 x IQR excluded; raw samples retained")
     JsonSet(*document, root, "protocol", protocol)
     machine := JsonNewObject(*document)
@@ -613,19 +613,31 @@ main :: (argc: s32, argv: **u8) -> s32 {
         helper_arguments[9] = "-o"
         helper_arguments[10] = zx_host
         if !PrepareStep(*document, commands, helper_arguments[:], repo, work) { return 1 }
-        control_arguments: [12]string
-        control_arguments[0] = "cc"
-        control_arguments[1] = "-O3"
-        control_arguments[2] = "-std=c11"
-        control_arguments[3] = "-DCONTROL"
-        control_arguments[4] = "-Iinclude"
-        control_arguments[5] = "bench/zx_compare_host.c"
-        control_arguments[6] = "bench/zx_compare_control.c"
-        control_arguments[7] = "-lm"
-        control_arguments[8] = "-pthread"
-        control_arguments[9] = "-ldl"
-        control_arguments[10] = "-o"
-        control_arguments[11] = control_binary
+        control_arguments: Vec(string)
+        fixed_control := string.["cc", ifx generated_c then "-O2" else "-O3", "-std=c11", "-DCONTROL", "-Iinclude", "bench/zx_compare_host.c"]
+        for argument: fixed_control { VecPush(control_arguments, argument) }
+        if generated_c {
+            source := AotSource(seed, rounds, 0)
+            end := TextFind(source, "main ::", 0)
+            if end < 0 { return 1 }
+            source = TextDetach(TextReplace(source[:end], "Total ::", "#program_export\nBench ::"))
+            path := JoinPath(work, "zx_compare_c.zi")
+            directory := JoinPath(work, "c")
+            if !WriteEntireFile(path, source) { return 1 }
+            emit := string.["build/bin/zi2c", "--no-main", "--root", work,
+                "--entry", "zx_compare_c:Bench", "-o", directory, path]
+            if !PrepareStep(*document, commands, emit[:], repo, work) { return 1 }
+            names: Vec(string)
+            if !ListDirectory(directory, *names) { return 1 }
+            VecPush(control_arguments, Concat("-I", directory))
+            for name: names {
+                if TextHasSuffix(name, ".c") { VecPush(control_arguments, JoinPath(directory, name)) }
+            }
+            Put(*document, prepared_node, "zi2c_sha256", Hash(JoinPath(repo, "build/bin/zi2c"), repo))
+            Put(*document, prepared_node, "zi2c_fixture_sha256", Hash(path, repo))
+        } else { VecPush(control_arguments, "bench/zx_compare_control.c") }
+        control_link := string.["-lm", "-pthread", "-ldl", "-o", control_binary]
+        for argument: control_link { VecPush(control_arguments, argument) }
         if !PrepareStep(*document, commands, control_arguments[:], repo, work) { return 1 }
         for kind: 0..1 {
             aot_source_path := JoinPath(work, Concat("zx_compare_aot", Concat(Number(kind), ".zi")))
@@ -709,7 +721,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
             if engine_cohort {
                 run_arguments[0] = zx_host
                 run_arguments[1] = "engine"
-                helper_ok, helper_code, helper_output := RunCommand(run_arguments[:], repo, helper_error_path, cache_dir, true)
+                helper_ok, helper_code, helper_output := RunCommand(run_arguments[:], repo, helper_error_path, cache_dir)
                 if !helper_ok || helper_code != 0 {
                     print("engine helper failed (%): %\n", helper_code, TextTrimEnd(helper_output)); return 1
                 }
@@ -738,7 +750,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
             if cold_cohort || warm_cohort {
                 run_arguments[0] = zx_host
                 run_arguments[1] = "native"
-                helper_ok, helper_code, helper_output := RunCommand(run_arguments[:], repo, helper_error_path, cache_dir, true)
+                helper_ok, helper_code, helper_output := RunCommand(run_arguments[:], repo, helper_error_path, cache_dir)
                 if !helper_ok || helper_code != 0 {
                     print("native helper failed (%): %\n", helper_code, TextTrimEnd(helper_output)); return 1
                 }
@@ -770,7 +782,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
             if c_cohort {
                 run_arguments[0] = control_binary
                 run_arguments[1] = "engine"
-                helper_ok, helper_code, helper_output := RunCommand(run_arguments[:], repo, helper_error_path, "", true)
+                helper_ok, helper_code, helper_output := RunCommand(run_arguments[:], repo, helper_error_path, "")
                 if !helper_ok || helper_code != 0 {
                     print("c control failed (%): %\n", helper_code, TextTrimEnd(helper_output)); return 1
                 }
@@ -785,7 +797,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
                 row_node := JsonNewObject(*document)
                 JsonSet(*document, row_node, "trial", JsonNewInteger(*document, trial))
                 JsonSet(*document, row_node, "kind", JsonNewInteger(*document, kind))
-                Put(*document, row_node, "cohort", "c")
+                Put(*document, row_node, "cohort", c_name)
                 JsonSet(*document, row_node, "per_entry_ms", JsonNewNumber(*document, Real(per_entry)))
                 JsonSet(*document, row_node, "batches", JsonNewInteger(*document, row.batches))
                 JsonSet(*document, row_node, "checksum", JsonNewInteger(*document, row.checksum))
@@ -795,7 +807,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
                 aot_arguments: [1]string
                 aot_arguments[0] = aot_elves[kind]
                 started := MonotonicNanoseconds()
-                aot_ok, aot_code, aot_output := RunCommand(aot_arguments[:], repo, helper_error_path, "", true)
+                aot_ok, aot_code, aot_output := RunCommand(aot_arguments[:], repo, helper_error_path, "")
                 wall_ms := cast(float64)(MonotonicNanoseconds() - started) / 1000000.0
                 expected_output := Number(Oracle(seed, rounds, kind))
                 if !aot_ok || aot_code != 0 || TextTrim(aot_output) != expected_output {
@@ -825,7 +837,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         if !AddSummary(*document, summary, "native-warm", warm_samples[:]) { return 1 }
     }
     if c_cohort {
-        if !AddSummary(*document, summary, "c", c_samples[:]) { return 1 }
+        if !AddSummary(*document, summary, c_name, c_samples[:]) { return 1 }
     }
     if aot_cohort {
         if !AddSummary(*document, summary, "aot", aot_samples[:]) { return 1 }

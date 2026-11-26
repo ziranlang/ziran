@@ -118,9 +118,16 @@ build/bin/ziran run --target=c bench/bench.zi -- zx-compare --engine --native-co
   --c-control --m0-receipts bench/results --samples 9
 ```
 
+Use `--zi2c-control` instead of `--c-control` to compile the same Ziran kernel
+through zi2c and `cc -O2`. Its runtime inputs and checksum checks match native
+ZX; the receipt labels this cohort `zi2c` and records the compiler and generated
+fixture hashes. Warm native timings exclude compilation; cold timings include
+opening and compiling the bundle, so compare them separately.
+
 Every prepare step (fixture `zi2zx`, the `zx-host` helper build, the C control
-build, the per-kind AOT source generation and builds) runs through the queue
-and is recorded with its command line, exit code and wall time. The receipt is
+build, the per-kind AOT source generation and builds) runs directly within the
+managed command's resource budget and records its command line, exit code and
+wall time. The receipt is
 written atomically after every trial, and the integrity block re-hashes every
 input before the driver reports success. Without `--out`, the receipt is
 `bench/results/zx-compare-<host>-<date>.json`. `--alpha` additionally enforces
@@ -140,7 +147,8 @@ available, otherwise the Makefile's usual half-CPU limit of 2–16 jobs.
 Results, raw build output and sample history are retained under the tracked
 `bench/results/compiler-build/` path. The wall time excludes queue waiting,
 tests, installation and website builds. The report records CPU time, source
-diff fingerprint, revision, dirty state and compilation count. Filesystem caches
+diff fingerprint, revision, dirty state and compilation count. It requires
+physical Alpha and records the host, CPU, platform and start time. Filesystem caches
 remain warm; `make -B` forces all build targets to rebuild without deleting
 other build outputs.
 
@@ -154,6 +162,13 @@ modules' C before the final tools are built with the normal `CFLAGS=-O2`.
 `BOOTSTRAP_CFLAGS=-O2` restores the former seed settings for a comparison.
 
 ## Complete native builds
+
+For an ordinary locked consumer, `project-build PROJECT SOURCE ENTRY REPORT.json`
+measures C, Go, Wasm, ZX and direct x86_64 Linux native builds through the entry point
+above. It uses one warmup and nine unchanged-source builds, rotating targets.
+Package fetch and toolchain builds happen beforehand. Results include artifact
+bytes, raw build times, IQR exclusions and failed-target diagnostics. It does not
+execute the program or establish that a graphical host is available.
 
 ```sh
 build/bin/ziran run --target=c bench/bench.zi -- native-builds \

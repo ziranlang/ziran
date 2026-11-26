@@ -2763,10 +2763,47 @@ compiler_check_text_builder_text_module(ZirModule* module, ZirFunction* fn, int3
         }
         zir_loop_break_1: ;
     }
-    uint8_t* cleanup_return_2 = (void *)0;
+    {
+        int32_t i = 0;
+        while (true) {
+            bool check_loop_902 = i < module->import_count;
+            if (!check_loop_902) {
+                break;
+            }
+            ZirImport* import_local = (ZirImport*)(((size_t)(module->imports) + ((size_t)(i) * sizeof(ZirImport))));
+            bool value_26 = (int32_t)(((ZirImportKind)(import_local->kind))) == 2 && ((ZirModule*)import_local->resolved_module) != (ZirModule*)(((void *)0));
+            if (value_26 && ((uint8_t*)(&(import_local->name)))[0] != 0) {
+                void* value_27 = zir_foreign_compiler_check_text__AllocateOrExit(sizeof(CheckArray128_u8));
+                CheckArray128_u8* qualified_storage_3 = (CheckArray128_u8*)(value_27);
+                zir_foreign_compiler_check_text__memset((void*)(qualified_storage_3), 0, sizeof(CheckArray128_u8));
+                void* value_28 = zir_foreign_compiler_check_text__AllocateOrExit(sizeof(CheckArray128_u8));
+                CheckArray128_u8* type_storage_4 = (CheckArray128_u8*)(value_28);
+                zir_foreign_compiler_check_text__memset((void*)(type_storage_4), 0, sizeof(CheckArray128_u8));
+                zir_foreign_compiler_check_text__snprintf((uint8_t*)(&((qualified_storage_3[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), compiler_check_types_CheckCString(StringLiteral("%s.TextFromBuilder")), (uint8_t*)(&(import_local->name)));
+                ZirModule* owner = (void *)0;
+                ZirFunction* found = (void *)0;
+                if (zir_foreign_compiler_check_text__ResolveFunction(module, (uint8_t*)(&((qualified_storage_3[0]).items)), &(owner), &(found)) == 1) {
+                    zir_foreign_compiler_check_text__snprintf((uint8_t*)(&((type_storage_4[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), compiler_check_types_CheckCString(StringLiteral("%s.Text")), (uint8_t*)(&(import_local->name)));
+                    ZirType* value_29 = zir_foreign_compiler_check_text__FindType(module, (uint8_t*)(&((type_storage_4[0]).items)), (void *)0);
+                    if (value_29 != (ZirType*)(((void *)0))) {
+                        uint8_t* cleanup_return_2 = zir_foreign_compiler_check_text__KeepName((uint8_t*)(&(import_local->name)));
+                        zir_foreign_compiler_check_text__CompilerFree((void*)(type_storage_4));
+                        zir_foreign_compiler_check_text__CompilerFree((void*)(qualified_storage_3));
+                        zir_foreign_compiler_check_text__CompilerFree((void*)(modules_storage_1));
+                        zir_foreign_compiler_check_text__CompilerFree((void*)(scoped_storage_0));
+                        return cleanup_return_2;
+                    }
+                }
+                zir_foreign_compiler_check_text__CompilerFree((void*)(type_storage_4));
+                zir_foreign_compiler_check_text__CompilerFree((void*)(qualified_storage_3));
+            }
+            compiler_check_types_CheckPost0(&(i));
+        }
+    }
+    uint8_t* cleanup_return_3 = (void *)0;
     zir_foreign_compiler_check_text__CompilerFree((void*)(modules_storage_1));
     zir_foreign_compiler_check_text__CompilerFree((void*)(scoped_storage_0));
-    return cleanup_return_2;
+    return cleanup_return_3;
 }
 
 static int32_t

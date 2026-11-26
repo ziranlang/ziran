@@ -1076,6 +1076,30 @@ builder_text_module :: (module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32) 
             CheckPost5(*(i))
         }
     }
+    {
+        i: s32 = 0
+        while check_loop_902 := (i < (module).import_count) {
+            import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)((module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
+            if (((cast(s32)((import_local).kind) == cast(s32)(2)) && ((import_local).resolved_module != cast(*IR.ZirModule)((null)))) && (cast(*u8)(*((import_local).name)))[0] != 0) {
+                qualified_storage_3 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+                defer CompilerFree(cast(*void)qualified_storage_3)
+                memset(cast(*void)qualified_storage_3, 0, size_of(CheckArray128_u8))
+                type_storage_4 := cast(*CheckArray128_u8)AllocateOrExit(size_of(CheckArray128_u8))
+                defer CompilerFree(cast(*void)type_storage_4)
+                memset(cast(*void)type_storage_4, 0, size_of(CheckArray128_u8))
+                snprintf(cast(*u8)(*((qualified_storage_3[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("%s.TextFromBuilder"), cast(*u8)(*((import_local).name)))
+                owner: *IR.ZirModule = null
+                found: *IR.ZirFunction = null
+                if (ResolveFunction(module, cast(*u8)(*((qualified_storage_3[0]).items)), *(owner), *(found)) == 1) {
+                    snprintf(cast(*u8)(*((type_storage_4[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("%s.Text"), cast(*u8)(*((import_local).name)))
+                    if (FindType(module, cast(*u8)(*((type_storage_4[0]).items)), null) != cast(*IR.ZirType)((null))) {
+                        return KeepName(cast(*u8)(*((import_local).name)))
+                    }
+                }
+            }
+            CheckPost0(*(i))
+        }
+    }
     return null
 }
 

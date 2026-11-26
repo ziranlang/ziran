@@ -634,7 +634,7 @@ StandardModuleName :: (name: *u8, leaf: *u8) -> s32 {
     if ((name == cast(*u8)((null))) || (leaf == cast(*u8)((null)))) {
         return 0
     }
-    if (!(strcmp(name, leaf) != 0) || (!(strncmp(name, ParserCString("std_"), cast(usize)(4)) != 0) && !(strcmp(cast(*u8)(cast(usize)(name) + cast(usize)(4) * size_of(u8)), leaf) != 0))) {
+    if (!(strcmp(name, leaf) != 0) || (!(strncmp(name, ParserCString("std_"), cast(usize)(4)) != 0) && !(strcmp(cast(*u8)(cast(usize)(name) + cast(usize)(4) * size_of(u8)), leaf) != 0)) || (!(strncmp(name, ParserCString("std__"), cast(usize)(5)) != 0) && !(strcmp(cast(*u8)(cast(usize)(name) + cast(usize)(5) * size_of(u8)), leaf) != 0))) {
         return 1
     }
     return cast(s32)((StandardScopedName(leaf, cast(*u8)(*((scoped).items)), cast(usize)size_of(CoreArray128_u8)) != 0) && !(strcmp(name, cast(*u8)(*((scoped).items))) != 0))

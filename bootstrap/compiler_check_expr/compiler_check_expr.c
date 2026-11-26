@@ -758,14 +758,16 @@ compiler_check_expr_text_procedure(Checker* c, uint8_t* name)
         zir_foreign_compiler_check_expr__CompilerFree((void*)(scoped_storage_0));
         return cleanup_return_0;
     }
+    ZirModule* owner = (void *)0;
+    ZirFunction* found = (void *)0;
     {
         size_t i = (size_t)(0LL);
         while (true) {
             {
                 uint64_t value_11 = (uint64_t)(i);
                 uint64_t value_12 = ZiDivU64((uint64_t)(sizeof(CheckArray3__u8)), (uint64_t)(sizeof(void *)));
-                bool check_loop_196 = value_11 < value_12;
-                if (!check_loop_196) {
+                bool check_loop_901 = value_11 < value_12;
+                if (!check_loop_901) {
                     break;
                 }
                 if (!((((modules_storage_1[0]).items)[i])[0] != 0)) {
@@ -780,8 +782,6 @@ compiler_check_expr_text_procedure(Checker* c, uint8_t* name)
                     zir_foreign_compiler_check_expr__CompilerFree((void*)(scoped_storage_0));
                     return cleanup_return_1;
                 }
-                ZirModule* owner = (void *)0;
-                ZirFunction* found = (void *)0;
                 uint8_t* value_14 = compiler_check_types_CheckCString(StringLiteral("%s.%s"));
                 zir_foreign_compiler_check_expr__snprintf((uint8_t*)(&((qualified_storage_2[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), value_14, ((modules_storage_1[0]).items)[i], name);
                 if (zir_foreign_compiler_check_expr__ResolveFunction(c->module, (uint8_t*)(&((qualified_storage_2[0]).items)), &(owner), &(found)) == 1) {
@@ -797,13 +797,41 @@ compiler_check_expr_text_procedure(Checker* c, uint8_t* name)
         }
         zir_loop_break_1: ;
     }
-    uint8_t* value_15 = compiler_check_types_CheckCString(StringLiteral("vec.%s"));
-    zir_foreign_compiler_check_expr__snprintf((uint8_t*)(&((qualified_storage_2[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), value_15, name);
-    uint8_t* cleanup_return_3 = zir_foreign_compiler_check_expr__KeepName((uint8_t*)(&((qualified_storage_2[0]).items)));
+    if (zir_foreign_compiler_check_expr__ResolveFunction(c->module, name, &(owner), &(found)) == 1) {
+        uint8_t* cleanup_return_3 = zir_foreign_compiler_check_expr__KeepName(name);
+        zir_foreign_compiler_check_expr__CompilerFree((void*)(qualified_storage_2));
+        zir_foreign_compiler_check_expr__CompilerFree((void*)(modules_storage_1));
+        zir_foreign_compiler_check_expr__CompilerFree((void*)(scoped_storage_0));
+        return cleanup_return_3;
+    }
+    {
+        int32_t i = 0;
+        while (true) {
+            bool check_loop_900 = i < c->module->import_count;
+            if (!check_loop_900) {
+                break;
+            }
+            ZirImport* import_local = (ZirImport*)(((size_t)(c->module->imports) + ((size_t)(i) * sizeof(ZirImport))));
+            bool value_15 = (int32_t)(((ZirImportKind)(import_local->kind))) == 2 && ((ZirModule*)import_local->resolved_module) != (ZirModule*)(((void *)0));
+            if (value_15 && ((uint8_t*)(&(import_local->name)))[0] != 0) {
+                uint8_t* value_16 = compiler_check_types_CheckCString(StringLiteral("%s.%s"));
+                zir_foreign_compiler_check_expr__snprintf((uint8_t*)(&((qualified_storage_2[0]).items)), (size_t)((uint64_t)(sizeof(CheckArray128_u8))), value_16, (uint8_t*)(&(import_local->name)), name);
+                if (zir_foreign_compiler_check_expr__ResolveFunction(c->module, (uint8_t*)(&((qualified_storage_2[0]).items)), &(owner), &(found)) == 1) {
+                    uint8_t* cleanup_return_4 = zir_foreign_compiler_check_expr__KeepName((uint8_t*)(&((qualified_storage_2[0]).items)));
+                    zir_foreign_compiler_check_expr__CompilerFree((void*)(qualified_storage_2));
+                    zir_foreign_compiler_check_expr__CompilerFree((void*)(modules_storage_1));
+                    zir_foreign_compiler_check_expr__CompilerFree((void*)(scoped_storage_0));
+                    return cleanup_return_4;
+                }
+            }
+            compiler_check_types_CheckPost0(&(i));
+        }
+    }
+    uint8_t* cleanup_return_5 = zir_foreign_compiler_check_expr__KeepName(name);
     zir_foreign_compiler_check_expr__CompilerFree((void*)(qualified_storage_2));
     zir_foreign_compiler_check_expr__CompilerFree((void*)(modules_storage_1));
     zir_foreign_compiler_check_expr__CompilerFree((void*)(scoped_storage_0));
-    return cleanup_return_3;
+    return cleanup_return_5;
 }
 
 static uint8_t*

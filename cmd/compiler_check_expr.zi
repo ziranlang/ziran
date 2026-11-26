@@ -159,18 +159,18 @@ text_procedure :: (c: *Checker, name: *u8) -> *u8 {
     if !(strcmp(cast(*u8)(*(((c).module).standard_name)), CheckCString("vec")) != 0) {
         return KeepName(name)
     }
+    owner: *IR.ZirModule = null
+    found: *IR.ZirFunction = null
     {
         i: usize = cast(usize)(0)
-        while check_loop_196 := (cast(u64)(i) < (cast(u64)size_of(CheckArray3__u8) / cast(u64)size_of(*u8))) {
+        while check_loop_901 := (cast(u64)(i) < (cast(u64)size_of(CheckArray3__u8) / cast(u64)size_of(*u8))) {
             if !(((modules_storage_1[0]).items[i])[0] != 0) {
                 CheckPost5(*(i))
-                continue check_loop_196
+                continue check_loop_901
             }
             if !(strcmp(cast(*u8)(*(((c).module).name)), (modules_storage_1[0]).items[i]) != 0) {
                 return KeepName(name)
             }
-            owner: *IR.ZirModule = null
-            found: *IR.ZirFunction = null
             snprintf(cast(*u8)(*((qualified_storage_2[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("%s.%s"), (modules_storage_1[0]).items[i], name)
             if (ResolveFunction((c).module, cast(*u8)(*((qualified_storage_2[0]).items)), *(owner), *(found)) == 1) {
                 return KeepName(cast(*u8)(*((qualified_storage_2[0]).items)))
@@ -178,8 +178,23 @@ text_procedure :: (c: *Checker, name: *u8) -> *u8 {
             CheckPost5(*(i))
         }
     }
-    snprintf(cast(*u8)(*((qualified_storage_2[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("vec.%s"), name)
-    return KeepName(cast(*u8)(*((qualified_storage_2[0]).items)))
+    if (ResolveFunction((c).module, name, *(owner), *(found)) == 1) {
+        return KeepName(name)
+    }
+    {
+        i: s32 = 0
+        while check_loop_900 := (i < ((c).module).import_count) {
+            import_local: *IR.ZirImport = cast(*IR.ZirImport)(cast(usize)(((c).module).imports) + cast(usize)(i) * size_of(IR.ZirImport))
+            if (((cast(s32)((import_local).kind) == cast(s32)(2)) && ((import_local).resolved_module != cast(*IR.ZirModule)((null)))) && (cast(*u8)(*((import_local).name)))[0] != 0) {
+                snprintf(cast(*u8)(*((qualified_storage_2[0]).items)), cast(usize)(cast(u64)size_of(CheckArray128_u8)), CheckCString("%s.%s"), cast(*u8)(*((import_local).name)), name)
+                if (ResolveFunction((c).module, cast(*u8)(*((qualified_storage_2[0]).items)), *(owner), *(found)) == 1) {
+                    return KeepName(cast(*u8)(*((qualified_storage_2[0]).items)))
+                }
+            }
+            CheckPost0(*(i))
+        }
+    }
+    return KeepName(name)
 }
 
 #scope_file

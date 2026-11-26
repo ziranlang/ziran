@@ -1101,20 +1101,30 @@ StandardModuleName(uint8_t* name, uint8_t* leaf)
         }
         value_1 = value_3;
     }
-    if (value_1) {
+    bool value_5 = value_1;
+    if (!value_5) {
+        bool value_6 = zir_foreign_compiler_frontend_ir__strncmp(name, compiler_parse_types_ParserCString(StringLiteral("std__")), (size_t)(5LL)) != 0;
+        bool value_7 = !value_6;
+        if (value_7) {
+            bool value_8 = zir_foreign_compiler_frontend_ir__strcmp((uint8_t*)(((size_t)(name) + ((size_t)(5LL) * sizeof(uint8_t)))), leaf) != 0;
+            value_7 = !value_8;
+        }
+        value_5 = value_7;
+    }
+    if (value_5) {
         return 1;
     }
-    bool value_5 = StandardScopedName(leaf, (uint8_t*)(&(scoped.items)), (size_t)(sizeof(CoreArray128_u8))) != 0;
-    bool value_6 = value_5;
-    if (value_6) {
-        bool value_7 = zir_foreign_compiler_frontend_ir__strcmp(name, (uint8_t*)(&(scoped.items))) != 0;
-        value_6 = !value_7;
+    bool value_9 = StandardScopedName(leaf, (uint8_t*)(&(scoped.items)), (size_t)(sizeof(CoreArray128_u8))) != 0;
+    bool value_10 = value_9;
+    if (value_10) {
+        bool value_11 = zir_foreign_compiler_frontend_ir__strcmp(name, (uint8_t*)(&(scoped.items))) != 0;
+        value_10 = !value_11;
     }
-    int32_t value_8 = 0;
-    if (value_6) {
-        value_8 = 1;
+    int32_t value_12 = 0;
+    if (value_10) {
+        value_12 = 1;
     }
-    return value_8;
+    return value_12;
 }
 
 int32_t

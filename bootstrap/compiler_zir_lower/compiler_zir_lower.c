@@ -34344,35 +34344,37 @@ compiler_zir_lower_Sequence(AssemblyProgram* program, AssemblyFunction* function
                 compiler_zir_lower_StoreCaptured(program, function, destination, value, statement->span);
             }
         } else if (((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(5)) || ((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(14))) {
-            AssemblyProgram* value_146 = program;
-            AssemblyFunction* value_147 = function;
-            int32_t value_148 = statement->expr_root;
-            int32_t value_149 = 0;
-            {
-                AssemblyProgram* program = value_146;
-                AssemblyFunction* function = value_147;
-                int32_t root = value_148;
-                int32_t depth = 0;
-                bool saved = function->checking;
-                if (root >= 0 && root < function->source->expr_count && (function->source->exprs[root]).checked != 0) {
-                    bool* value_151 = &(function->checking);
-                    (*value_151) = true;
-                }
-                int32_t value = compiler_zir_lower_ExpressionValue(program, function, root, depth);
-                bool* value_152 = &(function->checking);
-                (*value_152) = saved;
-                if (program->failed != 0 || value < 0 || root < 0 || root >= function->source->expr_count || (function->source->exprs[root]).is_move == 0) {
+            if (statement->expr_root >= 0) {
+                AssemblyProgram* value_146 = program;
+                AssemblyFunction* value_147 = function;
+                int32_t value_148 = statement->expr_root;
+                int32_t value_149 = 0;
+                {
+                    AssemblyProgram* program = value_146;
+                    AssemblyFunction* function = value_147;
+                    int32_t root = value_148;
+                    int32_t depth = 0;
+                    bool saved = function->checking;
+                    if (root >= 0 && root < function->source->expr_count && (function->source->exprs[root]).checked != 0) {
+                        bool* value_151 = &(function->checking);
+                        (*value_151) = true;
+                    }
+                    int32_t value = compiler_zir_lower_ExpressionValue(program, function, root, depth);
+                    bool* value_152 = &(function->checking);
+                    (*value_152) = saved;
+                    if (program->failed != 0 || value < 0 || root < 0 || root >= function->source->expr_count || (function->source->exprs[root]).is_move == 0) {
+                        value_149 = value;
+                        goto value_150;
+                    }
+                    compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
                     value_149 = value;
-                    goto value_150;
+                value_150: ;
                 }
-                compiler_zir_lower_MoveOut(program, function, root, function->values.data[value], (function->source->exprs[root]).span);
-                value_149 = value;
-            value_150: ;
-            }
-            int32_t value = value_149;
-            bool value_153 = program->failed == 0 && value >= 0 && function->current >= 0 && statement->expr_root >= 0 && statement->expr_root < function->source->expr_count;
-            if (value_153 && ((ZirExprKind)((function->source->exprs[statement->expr_root]).kind)) == ((ZirExprKind)(5))) {
-                compiler_zir_lower_DropValue(program, function, value, function->values.data[value], statement->span, 0);
+                int32_t value = value_149;
+                bool value_153 = program->failed == 0 && value >= 0 && function->current >= 0 && statement->expr_root < function->source->expr_count;
+                if (value_153 && ((ZirExprKind)((function->source->exprs[statement->expr_root]).kind)) == ((ZirExprKind)(5))) {
+                    compiler_zir_lower_DropValue(program, function, value, function->values.data[value], statement->span, 0);
+                }
             }
         } else if (((ZirStmtKind)(statement->kind)) == ((ZirStmtKind)(10))) {
             int32_t value = -1;

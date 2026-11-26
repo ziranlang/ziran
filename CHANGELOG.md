@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- Marshal Windows x86-64 host record arguments and return values using the
+  Win64 C ABI, including padding, floats, nested arrays, hidden return
+  pointers and scalar arguments that spill to the stack. Direct native GUI
+  executables can now call full frame-input and text host services.
+
 - Match host record types from dependency aliases and readable package identities, preserving exact module and field checks.
 
 - Name dependency modules and generated symbols after their import aliases instead of repository addresses and revision hashes. Conflicting pins under one name require an explicit dependency alias.

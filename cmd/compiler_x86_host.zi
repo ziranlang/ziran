@@ -15,17 +15,13 @@ using Win64 :: #import "compiler_x86_win64"
 //   * a bool, integer, pointer or procedure is one INTEGER argument and a
 //     float one SSE argument, in parameter order, where the program already
 //     passes them;
-//   * a record of one or two 8-byte integer or pointer fields, such as a
-//     string or a slice, is that many INTEGER arguments, read from the
-//     program's stack arguments;
-//   * the result is void, a bool, an integer, a pointer or a float, widened
-//     the way the program keeps it.
+//   * records use a naturally aligned C copy of the packed program value,
+//     passed and returned according to each platform's aggregate rules;
+//   * scalar results are widened the way the program keeps them.
 //
 // Windows uses positional registers/stack slots and aligned record copies
-// (WindowsArguments below); Linux uses the System V classification above.
-// Anything else, such as a larger record, an array, a record holding a float,
-// a record result or more than six INTEGER or eight SSE arguments, has no
-// veneer, and MachineX64HostSupported says so before anything is laid out.
+// (PlanWindows below); Linux uses System V classification. Unsupported
+// layouts and call frames of a page or larger are rejected before layout.
 // The registers the program preserves across a call (rbx, rbp, r12-r15) are
 // the ones the C ABI preserves, and the program calls with rsp 16-byte
 // aligned. Windows reserves shadow space and scratch for argument moves.
@@ -606,95 +602,147 @@ EmitSysVVeneer :: (writer: *X86Writer, program: MachineProgram, host: MachineX64
     return !writer.failed
 }
 
-ResultSupported :: (program: MachineProgram, result: s32) -> bool {
-    if !ValidType(program, result) { return false }
-    kind := program.types[result].kind
-    return kind == .Void || kind == .Float || Scalar(kind)
+WindowsPlan :: struct {
+    ok: bool
+    result_record: bool
+    result_indirect: bool
+    result_size: s64
+    general: s32
+    floats: s32
+    snapshots: s64
+    return_pointer: s64
+    copies: s64
+    return_buffer: s64
+    frame: s64
 }
 
-// Windows gives each parameter one positional slot. Snapshot the program's
-// scalar registers before rearranging them, so mixed arguments cannot
-// overwrite a later source. Records remain in the caller's stack area;
-// Win64 passes an eight-byte record by value and a sixteen-byte record by
-// a pointer to an aligned copy owned by this call.
-WindowsArguments :: (program: MachineProgram, host: MachineX64HostImport,
-    writer: *X86Writer, emit: bool) -> bool {
+WindowsRegisterRecord :: (size: s64) -> bool {
+    return size == 1 || size == 2 || size == 4 || size == 8
+}
+
+PlanWindows :: (program: MachineProgram, host: MachineX64HostImport) -> WindowsPlan {
+    plan: WindowsPlan
+    if !ValidType(program, host.result) { return plan }
+    result := program.types[host.result]
+    if result.kind == .Record {
+        layout := TypeCLayout(program, host.result)
+        if !layout.ok || layout.size == 0 { return plan }
+        plan.result_record = true
+        plan.result_size = layout.size
+        plan.result_indirect = !WindowsRegisterRecord(layout.size)
+    } else if result.kind != .Void && result.kind != .Float && !Scalar(result.kind) { return plan }
+
     general: s32 = 0
     floats: s32 = 0
     records: s64 = 0
     for id: host.parameters {
-        if !ValidType(program, id) { return false }
+        if !ValidType(program, id) { return plan }
         type := program.types[id]
         if Scalar(type.kind) { general += 1 }
         else if type.kind == .Float { floats += 1 }
         else {
-            if Words(program, type) == 0 { return false }
-            if type.size == 16 { records += 1 }
+            if type.kind != .Record { return plan }
+            layout := TypeCLayout(program, id)
+            if !layout.ok || layout.size == 0 { return plan }
+            records += AlignUp(layout.size, 16)
         }
     }
-    if general > GeneralArgumentCount || floats > FloatArgumentCount { return false }
-    outgoing := RoundEight(ifx host.parameters.count > 4 then host.parameters.count * 8 else cast(s64)32)
-    snapshots := outgoing
-    copies := (snapshots + 112 + 15) & ~cast(s64)15
-    frame := (copies + records * 16 + 15) & ~cast(s64)15
+    plan.general = ifx general < GeneralArgumentCount then general else GeneralArgumentCount
+    plan.floats = ifx floats < FloatArgumentCount then floats else FloatArgumentCount
+    arguments := host.parameters.count + (ifx plan.result_indirect then cast(s64)1 else cast(s64)0)
+    plan.snapshots = ifx arguments > 4 then arguments * 8 else cast(s64)32
+    plan.return_pointer = plan.snapshots + 112
+    plan.copies = AlignUp(plan.return_pointer + 8, 16)
+    plan.return_buffer = plan.copies + records
+    plan.frame = AlignUp(plan.return_buffer + RoundEight(plan.result_size), 16)
     // Larger call frames need stack probing, which this veneer does not emit.
-    if frame >= 4096 { return false }
-    if !emit { return true }
-    X86Win64Frame(writer, frame)
-    for index: 0..general - 1 {
-        X86Store(writer, X86At(X86Rsp, snapshots + cast(s64)index * 8), GeneralArgument(index), 8)
+    if plan.frame >= 4096 { return plan }
+    plan.ok = true
+    return plan
+}
+
+WindowsArgumentRegister :: (position: s64) -> s32 {
+    if position == 0 { return 1 }
+    if position == 1 { return 2 }
+    if position == 2 { return 8 }
+    return 9
+}
+
+// Win64 gives each argument a positional slot. Records use naturally aligned
+// C copies; only 1/2/4/8-byte records pass in the slot itself. Larger results
+// reserve the first slot for their destination, shifting every argument.
+EmitWindowsVeneer :: (writer: *X86Writer, program: MachineProgram,
+    host: MachineX64HostImport, slot: s64) -> bool {
+    plan := PlanWindows(program, host)
+    if !plan.ok { return false }
+    X86Win64Frame(writer, plan.frame)
+    if plan.result_record { X86Store(writer, X86At(X86Rsp, plan.return_pointer), Rax, 8) }
+    for index: 0..plan.general - 1 {
+        X86Store(writer, X86At(X86Rsp, plan.snapshots + cast(s64)index * 8), GeneralArgument(index), 8)
     }
-    for index: 0..floats - 1 {
-        X86FloatStore(writer, X86At(X86Rsp, snapshots + 48 + cast(s64)index * 8), index, 8)
+    for index: 0..plan.floats - 1 {
+        X86FloatStore(writer, X86At(X86Rsp, plan.snapshots + 48 + cast(s64)index * 8), index, 8)
     }
-    general = 0
-    floats = 0
+    general: s32 = 0
+    floats: s32 = 0
     stack: s64 = 0
+    copies := plan.copies
     for index: cast(s64)0..host.parameters.count - 1 {
         type := program.types[host.parameters[index]]
+        position := index + (ifx plan.result_indirect then cast(s64)1 else cast(s64)0)
         floating := type.kind == .Float
         if floating {
-            source := X86At(X86Rsp, snapshots + 48 + cast(s64)floats * 8)
-            if index < 4 { X86FloatLoad(writer, cast(s32)index, source, type.size) }
-            else { X86Load(writer, Rax, source, 8, false) }
+            source := X86At(X86Rsp, plan.snapshots + 48 + cast(s64)floats * 8)
+            if floats >= FloatArgumentCount {
+                source = X86At(Rbp, 16 + stack)
+                stack += 8
+            }
+            if position < 4 { X86FloatLoad(writer, cast(s32)position, source, type.size) }
+            else { X86Load(writer, Rax, source, type.size, false) }
             floats += 1
         } else if Scalar(type.kind) {
-            X86Load(writer, Rax, X86At(X86Rsp, snapshots + cast(s64)general * 8), 8, false)
+            source := X86At(X86Rsp, plan.snapshots + cast(s64)general * 8)
+            if general >= GeneralArgumentCount {
+                source = X86At(Rbp, 16 + stack)
+                stack += 8
+            }
+            X86Load(writer, Rax, source, 8, false)
             Widen(writer, Rax, type, false)
             general += 1
         } else {
-            if type.size == 8 { X86Load(writer, Rax, X86At(Rbp, 16 + stack), 8, false) }
-            else {
-                for word: cast(s64)0..1 {
-                    X86Load(writer, Rax, X86At(Rbp, 16 + stack + word * 8), 8, false)
-                    X86Store(writer, X86At(X86Rsp, copies + word * 8), Rax, 8)
-                }
-                X86Lea(writer, Rax, X86At(X86Rsp, copies))
-                copies += 16
-            }
+            layout := TypeCLayout(program, host.parameters[index])
+            ZeroSlot(writer, X86Rsp, copies, layout.size)
+            CopyRecordFields(writer, program, host.parameters[index], Rbp, 16 + stack,
+                X86Rsp, copies, true, R10)
+            if WindowsRegisterRecord(layout.size) { X86Load(writer, Rax, X86At(X86Rsp, copies), layout.size, false) }
+            else { X86Lea(writer, Rax, X86At(X86Rsp, copies)) }
+            copies += AlignUp(layout.size, 16)
             stack += RoundEight(type.size)
         }
-        if index >= 4 { X86Store(writer, X86At(X86Rsp, index * 8), Rax, 8) }
-        else if !floating {
-            destination: s32 = 1
-            if index == 1 { destination = 2 }
-            if index == 2 { destination = 8 }
-            if index == 3 { destination = 9 }
-            X86Move(writer, destination, Rax)
-        }
+        if position >= 4 { X86Store(writer, X86At(X86Rsp, position * 8), Rax, 8) }
+        else if !floating { X86Move(writer, WindowsArgumentRegister(position), Rax) }
     }
-    return true
+    if plan.result_indirect { X86Lea(writer, 1, X86At(X86Rsp, plan.return_buffer)) }
+    X86Encode(writer, 0, false, 255, 1, 2, X86RipTarget(slot))
+    if plan.result_record {
+        if !plan.result_indirect { X86Store(writer, X86At(X86Rsp, plan.return_buffer), Rax, plan.result_size) }
+        X86Load(writer, X86R11, X86At(X86Rsp, plan.return_pointer), 8, false)
+        CopyRecordFields(writer, program, host.result, X86R11, 0,
+            X86Rsp, plan.return_buffer, false, R10)
+    } else { Widen(writer, Rax, program.types[host.result], true) }
+    X86Win64Unframe(writer)
+    X86Return(writer)
+    return !writer.failed
 }
 
 #scope_export
 
 // Whether IMPORT's signature has a veneer.
 MachineX64HostSupported :: (program: MachineProgram, host: MachineX64HostImport) -> bool {
-    measure: X86Writer
     // An archive's members are ELF; a Windows executable links none.
     if host.archive && program.target.os == .Windows { return false }
     if program.target.os == .Windows {
-        return ResultSupported(program, host.result) && WindowsArguments(program, host, *measure, false)
+        return PlanWindows(program, host).ok
     }
     return PlanSysV(program, host).ok
 }
@@ -713,12 +761,7 @@ MachineX64HostVeneer :: (writer: *X86Writer, program: MachineProgram, host: Mach
     }
     if !MachineX64HostSupported(program, host) { return false }
     if program.target.os == .Windows {
-        if !WindowsArguments(program, host, writer, true) { return false }
-        X86Encode(writer, 0, false, 255, 1, 2, X86RipTarget(slot))
-        Widen(writer, Rax, program.types[host.result], true)
-        X86Win64Unframe(writer)
-        X86Return(writer)
-        return !writer.failed
+        return EmitWindowsVeneer(writer, program, host, slot)
     }
     return EmitSysVVeneer(writer, program, host, slot)
 }
